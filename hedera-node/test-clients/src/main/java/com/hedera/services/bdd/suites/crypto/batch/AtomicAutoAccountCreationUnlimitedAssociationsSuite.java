@@ -26,7 +26,6 @@ import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfe
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertionsHold;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.childRecordsCheck;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
@@ -127,26 +126,17 @@ class AtomicAutoAccountCreationUnlimitedAssociationsSuite {
                         .has(accountWith()
                                 .balance((INITIAL_BALANCE * ONE_HBAR) - ONE_HUNDRED_HBARS)
                                 .noAlias()),
-                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-                    if ("true".equals(flag)) {
-                        return childRecordsCheck(
-                                TRANSFER_TXN,
-                                SUCCESS,
-                                recordWith().status(SUCCESS).fee(EXPECTED_HBAR_TRANSFER_AUTO_CREATION_FEE_SIMPLE_FEES));
-                    } else {
-                        return childRecordsCheck(
-                                TRANSFER_TXN,
-                                SUCCESS,
-                                recordWith().status(SUCCESS).fee(EXPECTED_HBAR_TRANSFER_AUTO_CREATION_FEE));
-                    }
-                }),
                 assertionsHold((spec, opLog) -> {
+                    final var expectedRecordsFee = spec.simpleFeesEnabled()
+                            ? EXPECTED_HBAR_TRANSFER_AUTO_CREATION_FEE_SIMPLE_FEES
+                            : EXPECTED_HBAR_TRANSFER_AUTO_CREATION_FEE;
+                    final var childRecordsCheck = childRecordsCheck(
+                            TRANSFER_TXN, SUCCESS, recordWith().status(SUCCESS).fee(expectedRecordsFee));
                     final var lookup = getTxnRecord(TRANSFER_TXN)
                             .andAllChildRecords()
                             .hasNonStakingChildRecordCount(1)
-                            .hasNoAliasInChildRecord(0)
-                            .logged();
-                    allRunFor(spec, lookup);
+                            .hasNoAliasInChildRecord(0);
+                    allRunFor(spec, childRecordsCheck, lookup);
                     final var sponsor = spec.registry().getAccountID(SPONSOR);
                     final var payer = spec.registry().getAccountID(PAYER);
                     final var parent = lookup.getResponseRecord();
@@ -197,26 +187,17 @@ class AtomicAutoAccountCreationUnlimitedAssociationsSuite {
                         .has(accountWith()
                                 .balance((INITIAL_BALANCE * ONE_HBAR) - ONE_HUNDRED_HBARS)
                                 .noAlias()),
-                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-                    if ("true".equals(flag)) {
-                        return childRecordsCheck(
-                                TRANSFER_TXN,
-                                SUCCESS,
-                                recordWith().status(SUCCESS).fee(EXPECTED_HBAR_TRANSFER_AUTO_CREATION_FEE_SIMPLE_FEES));
-                    } else {
-                        return childRecordsCheck(
-                                TRANSFER_TXN,
-                                SUCCESS,
-                                recordWith().status(SUCCESS).fee(EXPECTED_HBAR_TRANSFER_AUTO_CREATION_FEE));
-                    }
-                }),
                 assertionsHold((spec, opLog) -> {
+                    final var expectedRecordsFee = spec.simpleFeesEnabled()
+                            ? EXPECTED_HBAR_TRANSFER_AUTO_CREATION_FEE_SIMPLE_FEES
+                            : EXPECTED_HBAR_TRANSFER_AUTO_CREATION_FEE;
+                    final var childRecordsCheck = childRecordsCheck(
+                            TRANSFER_TXN, SUCCESS, recordWith().status(SUCCESS).fee(expectedRecordsFee));
                     final var lookup = getTxnRecord(TRANSFER_TXN)
                             .andAllChildRecords()
                             .hasNonStakingChildRecordCount(1)
-                            .hasNoAliasInChildRecord(0)
-                            .logged();
-                    allRunFor(spec, lookup);
+                            .hasNoAliasInChildRecord(0);
+                    allRunFor(spec, childRecordsCheck, lookup);
                     final var sponsor = spec.registry().getAccountID(SPONSOR);
                     final var payer = spec.registry().getAccountID(PAYER);
                     final var parent = lookup.getResponseRecord();

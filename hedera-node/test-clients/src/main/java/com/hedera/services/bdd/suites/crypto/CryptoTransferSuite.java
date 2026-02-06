@@ -66,7 +66,6 @@ import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movi
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingWithDecimals;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.balanceSnapshot;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.inParallel;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
@@ -1650,17 +1649,9 @@ public class CryptoTransferSuite {
                     final var bogusTokenId = TokenID.newBuilder().setTokenNum(acctCreate.numOfCreatedAccount());
                     spec.registry().saveTokenId("nonexistent", bogusTokenId.build());
                 }),
-                sourcing(() -> doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-                    if ("true".equals(flag)) {
-                        return cryptoTransfer(
-                                        movingWithDecimals(1L, "nonexistent", 2).betweenWithDecimals(PAYER, TREASURY))
-                                .hasPrecheck(INVALID_TOKEN_ID);
-                    } else {
-                        return cryptoTransfer(
-                                        movingWithDecimals(1L, "nonexistent", 2).betweenWithDecimals(PAYER, TREASURY))
-                                .hasKnownStatus(INVALID_TOKEN_ID);
-                    }
-                })));
+                cryptoTransfer(movingWithDecimals(1L, "nonexistent", 2).betweenWithDecimals(PAYER, TREASURY))
+                        .hasPrecheckFrom(OK, INVALID_TOKEN_ID)
+                        .hasKnownStatus(INVALID_TOKEN_ID));
     }
 
     @HapiTest
