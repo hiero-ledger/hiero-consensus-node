@@ -1,0 +1,20 @@
+apiVersion: chaos-mesh.org/v1alpha1
+kind: NetworkChaos
+metadata:
+  name: solo-chaos-network-netem-us-ohio-${UUID}
+  namespace: chaos-mesh
+spec:
+  action: netem
+  mode: all
+  selector:
+    namespaces:
+      - ${NAMESPACE}
+    labelSelectors:
+      'solo.hedera.com/type': 'network-node'
+      'solo.hedera.com/region': 'us'
+  delay:
+    latency: '50ms'
+    correlation: '80'
+    jitter: '20ms'
+  rate:
+    rate: '1gbps'
