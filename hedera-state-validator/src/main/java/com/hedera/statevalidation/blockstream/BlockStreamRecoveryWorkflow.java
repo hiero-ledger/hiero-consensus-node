@@ -126,7 +126,7 @@ public class BlockStreamRecoveryWorkflow {
 
         // To make sure that VirtualMapMetadata is persisted after all changes from the block stream were applied
         state.copy();
-        state.getHash();
+        state.computeHash();
         final var rootHash = requireNonNull(state.getHash()).getBytes();
 
         if (!expectedRootHash.isEmpty() && !expectedRootHash.equals(rootHash.toString())) {

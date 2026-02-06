@@ -84,7 +84,7 @@ public class GenesisPlatformStateCommand extends AbstractCommand {
                 ((CommittableWritableStates) writableStates).commit();
             }
             System.out.printf("Hashing state %n");
-            reservedSignedState.get().getState().getHash(); // calculate hash
+            reservedSignedState.get().getState().computeHash();
             System.out.printf("Writing modified state to %s %n", outputDir.toAbsolutePath());
             writeSignedStateFilesToDirectory(
                     platformContext, NO_NODE_ID, outputDir, reservedSignedState.get(), stateLifecycleManager);

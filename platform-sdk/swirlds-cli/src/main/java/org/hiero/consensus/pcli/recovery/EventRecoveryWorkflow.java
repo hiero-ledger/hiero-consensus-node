@@ -280,7 +280,7 @@ public final class EventRecoveryWorkflow {
         }
 
         logger.info(STARTUP.getMarker(), "Hashing resulting signed state");
-        signedState.get().getState().getHash();
+        signedState.get().getState().computeHash();
         logger.info(STARTUP.getMarker(), "Hashing complete");
 
         // Let the application know about the recovered state

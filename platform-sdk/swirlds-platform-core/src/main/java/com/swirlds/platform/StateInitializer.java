@@ -64,9 +64,7 @@ public final class StateInitializer {
                 signedState.getState(), platform, trigger, previousSoftwareVersion);
 
         // calculate hash
-        abortAndThrowIfInterrupted(
-                initialState::getHash, // calculate hash
-                "interrupted while attempting to hash the state");
+        abortAndThrowIfInterrupted(initialState::computeHash, "interrupted while attempting to hash the state");
 
         // If our hash changes as a result of the new address book then our old signatures may become invalid.
         if (trigger != GENESIS) {
