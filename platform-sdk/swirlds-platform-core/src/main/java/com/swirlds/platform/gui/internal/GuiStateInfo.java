@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.gui.internal;
 
-import com.swirlds.platform.state.signed.ReservedSignedState;
+import org.hiero.consensus.state.signed.ReservedSignedState;
 
 /**
  * A simple DTO for passing information about a signed state to the GUI.

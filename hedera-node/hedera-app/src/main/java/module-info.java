@@ -58,6 +58,7 @@ module com.hedera.node.app {
     requires org.hiero.consensus.concurrent;
     requires org.hiero.consensus.metrics;
     requires org.hiero.consensus.roster;
+    requires org.hiero.consensus.state;
     requires com.github.benmanes.caffeine;
     requires com.google.common;
     requires io.grpc.netty;
