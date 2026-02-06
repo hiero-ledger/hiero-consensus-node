@@ -276,8 +276,8 @@ jobs:
         if: ${{ inputs.alpha-release != true && github.event.repository.private == false }}
         run: |
           echo "Output Parameters for Create GitHub Release Job:"
-          echo "  Ref: ${{ needs.create-new-tag.outputs.version }}"
-          echo "  Release Version: ${{ needs.create-new-tag.outputs.version }}"
+          echo "  Ref: ${{ steps.next-release.outputs.version }}"
+          echo "  Release Version: ${{ steps.next-release.outputs.version }}"
           echo "  Create Release Notes: true"
           echo "  Create Release: true"
           echo "  Dry Run: ${{ inputs.dry-run-enabled }}"
