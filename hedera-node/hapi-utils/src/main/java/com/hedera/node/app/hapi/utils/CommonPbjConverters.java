@@ -154,10 +154,12 @@ public class CommonPbjConverters {
      *
      * @param responseType the PBJ {@link ResponseType} to convert
      * @return the converted {@link com.hederahashgraph.api.proto.java.ResponseType} if valid
+     * @throws IllegalArgumentException if UNRECOGNIZED
      */
     public static @NonNull com.hederahashgraph.api.proto.java.ResponseType fromPbjResponseType(
             @NonNull final ResponseType responseType) {
         return switch (requireNonNull(responseType)) {
+            case UNRECOGNIZED -> throw new IllegalArgumentException("Unrecognized responseType");
             case ANSWER_ONLY -> com.hederahashgraph.api.proto.java.ResponseType.ANSWER_ONLY;
             case ANSWER_STATE_PROOF -> com.hederahashgraph.api.proto.java.ResponseType.ANSWER_STATE_PROOF;
             case COST_ANSWER -> com.hederahashgraph.api.proto.java.ResponseType.COST_ANSWER;
