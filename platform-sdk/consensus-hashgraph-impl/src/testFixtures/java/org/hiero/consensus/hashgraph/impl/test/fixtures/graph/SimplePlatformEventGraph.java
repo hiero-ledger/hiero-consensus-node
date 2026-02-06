@@ -33,7 +33,8 @@ public class SimplePlatformEventGraph implements SimpleGraph<PlatformEvent> {
      *
      * @return the list of events
      */
-    public @NonNull List<PlatformEvent> events() {
+    @NonNull
+    public List<PlatformEvent> events() {
         return events;
     }
 
@@ -43,7 +44,8 @@ public class SimplePlatformEventGraph implements SimpleGraph<PlatformEvent> {
      * @param index the index of the event
      * @return the event
      */
-    public @NonNull PlatformEvent event(final int index) {
+    @NonNull
+    public PlatformEvent event(final int index) {
         return events.get(index);
     }
 
@@ -53,7 +55,8 @@ public class SimplePlatformEventGraph implements SimpleGraph<PlatformEvent> {
      * @param indices the indices of events to include in the list
      * @return the list of events
      */
-    public @NonNull List<PlatformEvent> events(@NonNull final int... indices) {
+    @NonNull
+    public List<PlatformEvent> events(@NonNull final int... indices) {
         final List<PlatformEvent> selectedEvents = new ArrayList<>();
         for (final int index : indices) {
             selectedEvents.add(events.get(index));
@@ -62,7 +65,8 @@ public class SimplePlatformEventGraph implements SimpleGraph<PlatformEvent> {
     }
 
     @Override
-    public @NonNull List<PlatformEvent> shuffledEvents(@NonNull final Random random) {
+    @NonNull
+    public List<PlatformEvent> shuffledEvents(@NonNull final Random random) {
         final List<PlatformEvent> shuffledEvents = new ArrayList<>(events);
         Collections.shuffle(shuffledEvents, random);
         return shuffledEvents;
@@ -74,7 +78,8 @@ public class SimplePlatformEventGraph implements SimpleGraph<PlatformEvent> {
      * @param indices the indices of events to include in the set
      * @return the set of events
      */
-    public @NonNull Set<PlatformEvent> eventSet(@NonNull final int... indices) {
+    @NonNull
+    public Set<PlatformEvent> eventSet(@NonNull final int... indices) {
         final Set<PlatformEvent> eventSet = new HashSet<>();
         for (final int index : indices) {
             eventSet.add(events.get(index));
@@ -88,7 +93,8 @@ public class SimplePlatformEventGraph implements SimpleGraph<PlatformEvent> {
      * @param indices the indices of events to include in the set
      * @return the set of hashes
      */
-    public @NonNull Set<Hash> hashes(@NonNull final int... indices) {
+    @NonNull
+    public Set<Hash> hashes(@NonNull final int... indices) {
         return events(indices).stream().map(PlatformEvent::getHash).collect(Collectors.toSet());
     }
 }
