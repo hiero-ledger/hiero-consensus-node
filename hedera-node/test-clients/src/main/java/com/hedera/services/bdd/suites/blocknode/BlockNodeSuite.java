@@ -12,7 +12,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilNextBlocks;
 import static com.hedera.services.bdd.suites.regression.system.LifecycleTest.restartAtNextConfigVersion;
-import static com.hedera.services.bdd.suites.regression.system.MixedOperations.burstOfTps;
 
 import com.hedera.services.bdd.HapiBlockNode;
 import com.hedera.services.bdd.HapiBlockNode.BlockNodeConfig;
@@ -43,7 +42,7 @@ public class BlockNodeSuite {
     @HapiTest
     @HapiBlockNode(
             networkSize = 1,
-            blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.NONE)},
+            blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.REAL)},
             subProcessNodeConfigs = {
                 @SubProcessNodeConfig(
                         nodeId = 0,
@@ -51,12 +50,12 @@ public class BlockNodeSuite {
                         blockNodePriorities = {0},
                         applicationPropertiesOverrides = {
                             "blockStream.streamMode", "BOTH",
-                            "blockStream.writerMode", "FILE"
+                            "blockStream.writerMode", "FILE_AND_GRPC"
                         })
             })
     @Order(1)
     final Stream<DynamicTest> node0StreamingHappyPath() {
-        return hapiTest(burstOfTps(5, Duration.ofSeconds(30)));
+        return validateHappyPath(20);
     }
 
     @HapiTest

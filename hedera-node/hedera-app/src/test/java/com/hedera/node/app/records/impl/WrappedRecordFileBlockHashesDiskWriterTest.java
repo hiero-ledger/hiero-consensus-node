@@ -3,14 +3,18 @@ package com.hedera.node.app.records.impl;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
 
-import com.hedera.hapi.block.internal.WrappedRecordFileBlockHashes;
 import com.hedera.hapi.block.internal.WrappedRecordFileBlockHashesLog;
+import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.hapi.node.transaction.TransactionRecord;
+import com.hedera.hapi.streams.RecordStreamItem;
 import com.hedera.node.app.fixtures.AppTestBase;
+import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.io.IOException;
-import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -27,24 +31,53 @@ class WrappedRecordFileBlockHashesDiskWriterTest extends AppTestBase {
     void appendsRepeatedFieldOccurrencesThatParseBack() throws IOException, ParseException {
         final var app = appBuilder()
                 .withConfigValue("hedera.recordStream.wrappedRecordHashesDir", tmpDir.toString())
+                .withConfigValue("hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk", true)
                 .build();
 
-        final var writer = new WrappedRecordFileBlockHashesDiskWriter(app.configProvider(), FileSystems.getDefault());
+        try (final var writer = new WrappedRecordFileBlockHashesDiskWriter(
+                app.configProvider(), java.nio.file.FileSystems.getDefault(), mock(BlockStreamMetrics.class))) {
+            final var ts0 = new Timestamp(10, 1);
+            final var ts1 = new Timestamp(13, 1);
+            final var item0 = new RecordStreamItem(
+                    com.hedera.hapi.node.base.Transaction.DEFAULT,
+                    TransactionRecord.newBuilder().consensusTimestamp(ts0).build());
+            final var item1 = new RecordStreamItem(
+                    com.hedera.hapi.node.base.Transaction.DEFAULT,
+                    TransactionRecord.newBuilder().consensusTimestamp(ts1).build());
 
-        final var e0 =
-                new WrappedRecordFileBlockHashes(0, Bytes.wrap(new byte[] {1, 2, 3}), Bytes.wrap(new byte[] {4}));
-        final var e1 = new WrappedRecordFileBlockHashes(1, Bytes.wrap(new byte[] {5}), Bytes.wrap(new byte[] {6, 7}));
+            final var in0 = new WrappedRecordFileBlockHashesComputationInput(
+                    0,
+                    ts0,
+                    SemanticVersion.DEFAULT,
+                    Bytes.wrap(new byte[48]),
+                    Bytes.wrap(new byte[48]),
+                    List.of(item0),
+                    List.of(),
+                    1024 * 1024);
+            final var in1 = new WrappedRecordFileBlockHashesComputationInput(
+                    1,
+                    ts1,
+                    SemanticVersion.DEFAULT,
+                    Bytes.wrap(new byte[48]),
+                    Bytes.wrap(new byte[48]),
+                    List.of(item1),
+                    List.of(),
+                    1024 * 1024);
 
-        writer.append(e0);
-        writer.append(e1);
+            final var e0 = WrappedRecordFileBlockHashesComputer.compute(in0);
+            final var e1 = WrappedRecordFileBlockHashesComputer.compute(in1);
 
-        final var file = tmpDir.resolve(FILE_NAME);
-        assertTrue(Files.exists(file), "Expected file to be created");
+            writer.appendAsync(in0).join();
+            writer.appendAsync(in1).join();
 
-        final var allBytes = Files.readAllBytes(file);
-        final WrappedRecordFileBlockHashesLog log = WrappedRecordFileBlockHashesLog.PROTOBUF.parse(
-                Bytes.wrap(allBytes).toReadableSequentialData(), false, false, 64, allBytes.length);
+            final var file = tmpDir.resolve(FILE_NAME);
+            assertTrue(Files.exists(file), "Expected file to be created");
 
-        assertEquals(List.of(e0, e1), log.entries(), "Expected entries to parse back from the on-disk file");
+            final var allBytes = Files.readAllBytes(file);
+            final WrappedRecordFileBlockHashesLog log = WrappedRecordFileBlockHashesLog.PROTOBUF.parse(
+                    Bytes.wrap(allBytes).toReadableSequentialData(), false, false, 64, allBytes.length);
+
+            assertEquals(List.of(e0, e1), log.entries(), "Expected entries to parse back from the on-disk file");
+        }
     }
 }

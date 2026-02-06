@@ -15,7 +15,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
-import com.hedera.hapi.block.internal.WrappedRecordFileBlockHashes;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.RecordFileItem;
 import com.hedera.hapi.block.stream.output.BlockHeader;
@@ -113,7 +112,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
             final var t1 = InstantUtils.instant(13, 1); // crosses logPeriod boundary (default 2s)
             mgr.startUserTransaction(t1, state);
         }
-        verify(diskWriter, never()).append(any());
+        verify(diskWriter, never()).appendAsync(any());
     }
 
     @Test
@@ -186,10 +185,11 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
             // Cross logPeriod boundary to end record block 0 and enqueue
             final var t1 = InstantUtils.instant(13, 1);
             mgr.startUserTransaction(t1, state);
-            final var captor = ArgumentCaptor.forClass(WrappedRecordFileBlockHashes.class);
-            verify(diskWriter).append(captor.capture());
-            final var entry = captor.getValue();
-            assertEquals(0, entry.blockNumber());
+            final var captor = ArgumentCaptor.forClass(WrappedRecordFileBlockHashesComputationInput.class);
+            verify(diskWriter).appendAsync(captor.capture());
+            final var input = captor.getValue();
+            assertEquals(0, input.blockNumber());
+            final var entry = WrappedRecordFileBlockHashesComputer.compute(input);
 
             // Compute expected consensus_timestamp_hash
             final Bytes expectedConsensusTsHash = BlockImplUtils.hashLeaf(Timestamp.PROTOBUF.toBytes(creationTime));

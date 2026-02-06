@@ -1,15 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.records.impl;
 
-import static com.hedera.hapi.streams.schema.SidecarFileSchema.SIDECAR_RECORDS;
 import static com.hedera.hapi.util.HapiUtils.asInstant;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.records.BlockRecordService.EPOCH;
 import static com.hedera.node.app.records.BlockRecordService.GENESIS_BLOCK_INFO;
 import static com.hedera.node.app.records.BlockRecordService.GENESIS_RUNNING_HASHES;
 import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.HASH_SIZE;
-import static com.hedera.node.app.records.impl.producers.BlockRecordFormat.TAG_TYPE_BITS;
-import static com.hedera.node.app.records.impl.producers.BlockRecordFormat.WIRE_TYPE_DELIMITED;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.RUNNING_HASHES_STATE_ID;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
@@ -18,25 +15,12 @@ import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.model.quiescence.QuiescenceCommand.DONT_QUIESCE;
 import static org.hiero.consensus.model.quiescence.QuiescenceCommand.QUIESCE;
 
-import com.hedera.hapi.block.internal.WrappedRecordFileBlockHashes;
-import com.hedera.hapi.block.stream.BlockItem;
-import com.hedera.hapi.block.stream.RecordFileItem;
-import com.hedera.hapi.block.stream.output.BlockHeader;
-import com.hedera.hapi.node.base.BlockHashAlgorithm;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.blockrecords.RunningHashes;
 import com.hedera.hapi.platform.state.PlatformState;
-import com.hedera.hapi.streams.HashAlgorithm;
-import com.hedera.hapi.streams.HashObject;
-import com.hedera.hapi.streams.RecordStreamFile;
 import com.hedera.hapi.streams.RecordStreamItem;
-import com.hedera.hapi.streams.SidecarFile;
-import com.hedera.hapi.streams.SidecarMetadata;
-import com.hedera.hapi.streams.SidecarType;
 import com.hedera.hapi.streams.TransactionSidecarRecord;
-import com.hedera.node.app.blocks.impl.BlockImplUtils;
-import com.hedera.node.app.blocks.impl.IncrementalStreamingHasher;
 import com.hedera.node.app.quiescence.QuiescedHeartbeat;
 import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.app.quiescence.TctProbe;
@@ -51,7 +35,6 @@ import com.hedera.node.config.data.StakingConfig;
 import com.hedera.node.config.data.VersionConfig;
 import com.hedera.node.config.types.StreamMode;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.swirlds.common.stream.LinkedObjectStreamUtilities;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.service.WritablePlatformStateStore;
@@ -61,24 +44,16 @@ import com.swirlds.state.State;
 import com.swirlds.state.spi.WritableSingletonStateBase;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.io.BufferedOutputStream;
-import java.io.IOException;
-import java.io.OutputStream;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.EnumSet;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
-import java.util.zip.GZIPOutputStream;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
-import org.hiero.base.crypto.HashingOutputStream;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 
 /**
@@ -209,6 +184,11 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
             // when the node is being shutdown anyway.
             logger.warn("Failed to close streamFileProducer properly", e);
         }
+        try {
+            wrappedRecordHashesDiskWriter.close();
+        } catch (final Exception e) {
+            logger.warn("Failed to close wrappedRecordHashesDiskWriter properly", e);
+        }
     }
 
     // =================================================================================================================
@@ -248,7 +228,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
             putLastBlockInfo(state);
             streamFileProducer.switchBlocks(-1, 0, consensusTime);
             if (writeWrappedRecordFileBlockHashesToDisk) {
-                beginTrackingNewBlock(0, streamFileProducer.getRunningHash());
+                beginTrackingNewBlock(streamFileProducer.getRunningHash());
             }
             if (streamMode == RECORDS) {
                 // No-op if quiescence is disabled
@@ -308,8 +288,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
 
             switchBlocksAt(consensusTime);
             if (writeWrappedRecordFileBlockHashesToDisk) {
-                final long newBlockNumber = lastBlockInfo.lastBlockNumber() + 1;
-                beginTrackingNewBlock(newBlockNumber, lastBlockHashBytes);
+                beginTrackingNewBlock(lastBlockHashBytes);
             }
             return true;
         }
@@ -391,7 +370,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
         }
     }
 
-    private void beginTrackingNewBlock(final long blockNumber, @NonNull final Bytes startRunningHash) {
+    private void beginTrackingNewBlock(@NonNull final Bytes startRunningHash) {
         this.currentBlockStartRunningHash = requireNonNull(startRunningHash);
         this.currentBlockRecordStreamItems.clear();
         this.currentBlockSidecarRecords.clear();
@@ -407,150 +386,19 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
         final var hapiProtoVersion =
                 cfgServicesVersion.copyBuilder().build("" + cfgConfigVersion).build();
 
-        final var firstItem = currentBlockRecordStreamItems.getFirst();
-        final var firstConsensusTimestamp = requireNonNull(firstItem.record()).consensusTimestampOrThrow();
-        final Bytes consensusTimestampHash =
-                BlockImplUtils.hashLeaf(Timestamp.PROTOBUF.toBytes(firstConsensusTimestamp));
-
-        final var sidecarBundles = buildSidecarBundles(currentBlockSidecarRecords, maxSideCarSizeInBytes);
-
-        final var recordFileContents = new RecordStreamFile(
-                hapiProtoVersion,
-                new HashObject(
-                        HashAlgorithm.SHA_384,
-                        (int) currentBlockStartRunningHash.length(),
-                        currentBlockStartRunningHash),
-                new ArrayList<>(currentBlockRecordStreamItems),
-                new HashObject(HashAlgorithm.SHA_384, (int) endRunningHash.length(), endRunningHash),
+        // Snapshot everything needed for async computation + append. (BlockRecordManagerImpl must be free to move on.)
+        final var input = new WrappedRecordFileBlockHashesComputationInput(
                 justFinishedBlockNumber,
-                sidecarBundles.sidecarMetadata());
+                justFinishedBlockCreationTime,
+                hapiProtoVersion,
+                requireNonNull(currentBlockStartRunningHash),
+                requireNonNull(endRunningHash),
+                List.copyOf(currentBlockRecordStreamItems),
+                List.copyOf(currentBlockSidecarRecords),
+                maxSideCarSizeInBytes);
 
-        final var recordFileItem = RecordFileItem.newBuilder()
-                .creationTime(justFinishedBlockCreationTime)
-                .recordFileContents(recordFileContents)
-                .sidecarFileContents(sidecarBundles.sidecarFiles())
-                .build();
-
-        final var header = BlockHeader.newBuilder()
-                .hapiProtoVersion(hapiProtoVersion)
-                .number(justFinishedBlockNumber)
-                .blockTimestamp(justFinishedBlockCreationTime)
-                .hashAlgorithm(BlockHashAlgorithm.SHA2_384);
-        final var headerItem = BlockItem.newBuilder().blockHeader(header).build();
-        final var recordFileBlockItem =
-                BlockItem.newBuilder().recordFile(recordFileItem).build();
-
-        final var headerLeafBytes = BlockItem.PROTOBUF.toBytes(headerItem);
-        final var recordFileLeafBytes = BlockItem.PROTOBUF.toBytes(recordFileBlockItem);
-
-        final Bytes outputItemsTreeRootHash;
-        try {
-            final var hasher = new IncrementalStreamingHasher(
-                    MessageDigest.getInstance(DigestType.SHA_384.algorithmName()), List.of(), 0);
-            hasher.addLeaf(headerLeafBytes.toByteArray());
-            hasher.addLeaf(recordFileLeafBytes.toByteArray());
-            outputItemsTreeRootHash = Bytes.wrap(hasher.computeRootHash());
-        } catch (NoSuchAlgorithmException e) {
-            logger.fatal("Unable to create SHA-384 message digest", e);
-            throw new IllegalStateException("Unable to create SHA-384 message digest", e);
-        }
-
-        final var hashesToEnqueue = new WrappedRecordFileBlockHashes(
-                justFinishedBlockNumber, consensusTimestampHash, outputItemsTreeRootHash);
-        if (logger.isDebugEnabled()) {
-            logger.debug(
-                    "Appending wrapped record-file block hashes for block {}: consensusTimestampLeafHash {}, outputItemsRootHash {}",
-                    justFinishedBlockNumber,
-                    hashesToEnqueue.consensusTimestampHash().toHex(),
-                    hashesToEnqueue.outputItemsTreeRootHash().toHex());
-        }
-        wrappedRecordHashesDiskWriter.append(hashesToEnqueue);
+        wrappedRecordHashesDiskWriter.appendAsync(input);
     }
-
-    private static SidecarBundles buildSidecarBundles(
-            @NonNull final List<TransactionSidecarRecord> records, final int maxSideCarSizeInBytes) {
-        requireNonNull(records);
-        final List<SidecarFile> sidecarFiles = new ArrayList<>();
-        final List<SidecarMetadata> sidecarMetadata = new ArrayList<>();
-
-        int id = 1;
-        int bytesWritten = 0;
-        final List<TransactionSidecarRecord> currentFileRecords = new ArrayList<>();
-        EnumSet<SidecarType> currentTypes = EnumSet.noneOf(SidecarType.class);
-
-        for (final var record : records) {
-            final var recordBytes = TransactionSidecarRecord.PROTOBUF.toBytes(record);
-            final int recordLen = (int) recordBytes.length();
-            // SidecarWriterV6 counts only the record bytes length (not tag/len overhead) for rollover decisions
-            if (!currentFileRecords.isEmpty() && (bytesWritten + recordLen) > maxSideCarSizeInBytes) {
-                final var file = new SidecarFile(new ArrayList<>(currentFileRecords));
-                final Bytes fileHash = sidecarFileHashAsWrittenByV6(currentFileRecords);
-                sidecarFiles.add(file);
-                sidecarMetadata.add(new SidecarMetadata(
-                        new HashObject(HashAlgorithm.SHA_384, (int) fileHash.length(), fileHash),
-                        id,
-                        List.copyOf(currentTypes)));
-                // reset
-                id++;
-                bytesWritten = 0;
-                currentFileRecords.clear();
-                currentTypes = EnumSet.noneOf(SidecarType.class);
-            }
-
-            currentFileRecords.add(record);
-            bytesWritten += recordLen;
-            // Mirror SidecarWriterV6 type tracking
-            switch (record.sidecarRecords().kind()) {
-                case ACTIONS -> currentTypes.add(SidecarType.CONTRACT_ACTION);
-                case BYTECODE -> currentTypes.add(SidecarType.CONTRACT_BYTECODE);
-                case STATE_CHANGES -> currentTypes.add(SidecarType.CONTRACT_STATE_CHANGE);
-                case UNSET -> {
-                    // no-op
-                }
-            }
-        }
-
-        if (!currentFileRecords.isEmpty()) {
-            final var file = new SidecarFile(new ArrayList<>(currentFileRecords));
-            final Bytes fileHash = sidecarFileHashAsWrittenByV6(currentFileRecords);
-            sidecarFiles.add(file);
-            sidecarMetadata.add(new SidecarMetadata(
-                    new HashObject(HashAlgorithm.SHA_384, (int) fileHash.length(), fileHash),
-                    id,
-                    List.copyOf(currentTypes)));
-        }
-
-        return new SidecarBundles(sidecarFiles, sidecarMetadata);
-    }
-
-    /**
-     * Computes the sidecar file hash in the same way {@code SidecarWriterV6} does:
-     * hash the protobuf-framed {@link TransactionSidecarRecord} bytes that are written into the gzip stream.
-     */
-    private static Bytes sidecarFileHashAsWrittenByV6(@NonNull final List<TransactionSidecarRecord> records) {
-        requireNonNull(records);
-        try {
-            final var digest = MessageDigest.getInstance(DigestType.SHA_384.algorithmName());
-            final var gzip = new GZIPOutputStream(OutputStream.nullOutputStream());
-            final var hashingOutputStream = new HashingOutputStream(digest, gzip);
-            final var outputStream = new WritableStreamingData(new BufferedOutputStream(hashingOutputStream));
-            for (final var record : records) {
-                final var recordBytes = TransactionSidecarRecord.PROTOBUF.toBytes(record);
-                outputStream.writeVarInt((SIDECAR_RECORDS.number() << TAG_TYPE_BITS) | WIRE_TYPE_DELIMITED, false);
-                outputStream.writeVarInt((int) recordBytes.length(), false);
-                outputStream.writeBytes(recordBytes);
-            }
-            outputStream.close();
-            gzip.close();
-            return Bytes.wrap(hashingOutputStream.getDigest());
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("Unable to create SHA-384 message digest", e);
-        } catch (IOException e) {
-            throw new IllegalStateException("Unable to compute sidecar file hash", e);
-        }
-    }
-
-    private record SidecarBundles(List<SidecarFile> sidecarFiles, List<SidecarMetadata> sidecarMetadata) {}
 
     /**
      * {@inheritDoc}
