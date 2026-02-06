@@ -67,7 +67,6 @@ import com.swirlds.metrics.api.Counter;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.state.notifications.StateHashedNotification;
-import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.CommittableWritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -327,7 +326,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     }
 
     @Override
-    public void startRound(@NonNull final Round round, @NonNull final MerkleNodeState state) {
+    public void startRound(@NonNull final Round round, @NonNull final State state) {
         if (lastBlockHash == null) {
             throw new IllegalStateException("Last block hash must be initialized before starting a round");
         }
@@ -484,7 +483,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     }
 
     @Override
-    public boolean endRound(@NonNull final MerkleNodeState state, final long roundNum) {
+    public boolean endRound(@NonNull final State state, final long roundNum) {
         final var storeFactory = new ReadableStoreFactoryImpl(state);
         final var platformStateStore = storeFactory.readableStore(ReadablePlatformStateStore.class);
         final long freezeRoundNumber = platformStateStore.getLatestFreezeRound();
@@ -777,7 +776,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             } else {
                 // This is a pending block whose block number precedes the signed block number, so we construct an
                 // indirect state proof
-
                 if (configProvider
                         .getConfiguration()
                         .getConfigData(BlockStreamConfig.class)

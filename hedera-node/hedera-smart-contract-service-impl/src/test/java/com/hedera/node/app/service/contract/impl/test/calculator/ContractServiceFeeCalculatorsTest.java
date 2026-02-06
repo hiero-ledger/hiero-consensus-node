@@ -279,7 +279,7 @@ public class ContractServiceFeeCalculatorsTest {
                 .extras(
                         makeExtraDef(Extra.SIGNATURES, 1000000),
                         makeExtraDef(Extra.KEYS, 10000000),
-                        makeExtraDef(Extra.BYTES, 10),
+                        makeExtraDef(Extra.STATE_BYTES, 10),
                         makeExtraDef(Extra.HOOK_UPDATES, 20000000))
                 .services(makeService(
                         "ContractService",
@@ -287,14 +287,14 @@ public class ContractServiceFeeCalculatorsTest {
                                 CONTRACT_CREATE,
                                 499000000,
                                 makeExtraIncluded(Extra.KEYS, 0),
-                                makeExtraIncluded(Extra.BYTES, 1000),
+                                makeExtraIncluded(Extra.STATE_BYTES, 1000),
                                 makeExtraIncluded(Extra.HOOK_UPDATES, 0)),
                         makeServiceFee(CONTRACT_CALL, 0),
                         makeServiceFee(
                                 CONTRACT_UPDATE,
                                 499000000,
                                 makeExtraIncluded(Extra.KEYS, 0),
-                                makeExtraIncluded(Extra.BYTES, 1000),
+                                makeExtraIncluded(Extra.STATE_BYTES, 1000),
                                 makeExtraIncluded(Extra.HOOK_UPDATES, 0)),
                         makeServiceFee(CONTRACT_DELETE, 69000000),
                         makeServiceFee(ETHEREUM_TRANSACTION, 0),

@@ -29,7 +29,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
-import org.hiero.consensus.gossip.impl.gossip.NoOpIntakeEventCounter;
+import org.hiero.consensus.event.NoOpIntakeEventCounter;
 import org.hiero.consensus.gossip.impl.gossip.shadowgraph.ReservedEventWindow;
 import org.hiero.consensus.gossip.impl.gossip.shadowgraph.ShadowEvent;
 import org.hiero.consensus.gossip.impl.gossip.shadowgraph.Shadowgraph;

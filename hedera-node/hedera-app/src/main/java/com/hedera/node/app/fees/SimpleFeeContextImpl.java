@@ -2,6 +2,9 @@
 package com.hedera.node.app.fees;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
+import static java.util.Objects.requireNonNull;
+
+import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.SimpleFeeContext;
 import com.hedera.node.app.spi.workflows.QueryContext;
@@ -40,7 +43,10 @@ public final class SimpleFeeContextImpl implements SimpleFeeContext {
     @Override
     public HederaFunctionality functionality() {
         // This is used only for high volume transactions
-        return feeContext == null ? HederaFunctionality.NONE : feeContext.functionality();
+        if (feeContext == null) {
+            throw new UnsupportedOperationException("Not implemented for queries");
+        }
+        return requireNonNull(feeContext).functionality();
     }
 
     @Override
