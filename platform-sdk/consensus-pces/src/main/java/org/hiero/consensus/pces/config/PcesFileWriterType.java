@@ -5,6 +5,7 @@ package org.hiero.consensus.pces.config;
  * Represents a type of writers for PCES files.
  */
 public enum PcesFileWriterType {
+    NO_OP,
     OUTPUT_STREAM,
     FILE_CHANNEL,
     FILE_CHANNEL_SYNC;

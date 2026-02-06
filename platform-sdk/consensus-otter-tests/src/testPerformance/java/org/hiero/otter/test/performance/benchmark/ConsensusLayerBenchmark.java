@@ -62,6 +62,8 @@ public class ConsensusLayerBenchmark {
         final AtomicLong nonceGenerator = new AtomicLong(0);
 
         // Enable the BenchmarkService
+        network.withConfigValue("event.preconsensus.pcesFileWriterType", "NO_OP");
+        network.withConfigValue("event.preconsensus.macPcesFileWriterType", "NO_OP");
         network.withConfigValue("event.services", "org.hiero.otter.fixtures.app.services.benchmark.BenchmarkService");
 
         network.addNodes(NUMBER_OF_NODES);
