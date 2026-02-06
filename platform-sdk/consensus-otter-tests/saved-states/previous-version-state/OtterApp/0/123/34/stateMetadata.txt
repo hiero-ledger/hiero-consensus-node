@@ -1,0 +1,15 @@
+ROUND:                               34
+HASH:                                8ba53f0721d5258e21c1da665dd8116a716a9c3c68e77b39ed4b1890327996590c67a92d6fae4793455f9dec3e2e7955
+HASH_MNEMONIC:                       merge-thought-deny-range
+NUMBER_OF_CONSENSUS_EVENTS:          1855
+CONSENSUS_TIMESTAMP:                 2011-02-18T16:15:17.736004Z
+LEGACY_RUNNING_EVENT_HASH:           5b2283f7630016e84713cb09d45f9f92efb1c0c505044de185f6cfb4efd56aa941c5a4e4262cc0bd72586b56728dae11
+LEGACY_RUNNING_EVENT_HASH_MNEMONIC:  gold-license-gas-tackle
+MINIMUM_BIRTH_ROUND_NON_ANCIENT:     7
+SOFTWARE_VERSION:                    SemanticVersion[major=0, minor=70, patch=0, pre=, build=]
+WALL_CLOCK_TIME:                     2026-01-29T13:57:50.878763Z
+NODE_ID:                             0
+SIGNING_NODES:                       
+SIGNING_WEIGHT_SUM:                  0
+TOTAL_WEIGHT:                        50000259737
+FREEZE_STATE:                        true

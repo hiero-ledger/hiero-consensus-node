@@ -85,7 +85,7 @@ import org.json.JSONObject;
 /**
  * An implementation of {@link State} backed by a single Virtual Map.
  */
-public class VirtualMapState implements MerkleNodeState {
+public class VirtualMapState implements MerkleNodeState<VirtualMap> {
 
     private static final Logger logger = LogManager.getLogger(VirtualMapState.class);
 
@@ -116,12 +116,6 @@ public class VirtualMapState implements MerkleNodeState {
      * The state storage
      */
     protected VirtualMap virtualMap;
-
-    /**
-     * Used to track the status of the Platform.
-     * It is set to {@code true} if Platform status is not {@code PlatformStatus.ACTIVE}
-     */
-    private boolean startupMode = true;
 
     /**
      * Initializes a {@link VirtualMapState}.
@@ -161,7 +155,6 @@ public class VirtualMapState implements MerkleNodeState {
     protected VirtualMapState(@NonNull final VirtualMapState from) {
         this.virtualMap = from.virtualMap.copy();
         this.metrics = from.metrics;
-        this.startupMode = from.startupMode;
         this.listeners.addAll(from.listeners);
 
         // Copy over the metadata
@@ -277,18 +270,6 @@ public class VirtualMapState implements MerkleNodeState {
 
     public Map<String, Map<Integer, StateMetadata<?, ?>>> getServices() {
         return services;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public boolean isStartUpMode() {
-        return startupMode;
-    }
-
-    public void disableStartupMode() {
-        startupMode = false;
     }
 
     /**
@@ -638,11 +619,9 @@ public class VirtualMapState implements MerkleNodeState {
             // Ensure all commits always happen in lexicographic order by state ID
             kvInstances.keySet().stream().sorted().forEach(stateId -> ((WritableKVStateBase) kvInstances.get(stateId))
                     .commit());
-            if (startupMode) {
-                singletonInstances.keySet().stream()
-                        .sorted()
-                        .forEach(stateId -> ((WritableSingletonStateBase) singletonInstances.get(stateId)).commit());
-            }
+            singletonInstances.keySet().stream()
+                    .sorted()
+                    .forEach(stateId -> ((WritableSingletonStateBase) singletonInstances.get(stateId)).commit());
             queueInstances.keySet().stream()
                     .sorted()
                     .forEach(stateId -> ((WritableQueueStateBase) queueInstances.get(stateId)).commit());

@@ -13,8 +13,8 @@ import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ST
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_NETWORK_REWARDS_STATE_LABEL;
 import static com.hedera.node.app.service.token.impl.schemas.V0610TokenSchema.NODE_REWARDS_STATE_ID;
 import static com.hedera.node.app.service.token.impl.schemas.V0610TokenSchema.NODE_REWARDS_STATE_LABEL;
-import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID;
-import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_STATE_LABEL;
+import static org.hiero.consensus.platformstate.V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID;
+import static org.hiero.consensus.platformstate.V0540PlatformStateSchema.PLATFORM_STATE_STATE_LABEL;
 import static org.hiero.consensus.roster.RosterStateId.ROSTERS_STATE_ID;
 import static org.hiero.consensus.roster.RosterStateId.ROSTERS_STATE_LABEL;
 import static org.junit.jupiter.api.Assertions.*;
@@ -50,7 +50,6 @@ import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.ReadableStates;
@@ -67,6 +66,7 @@ import java.util.List;
 import java.util.SortedMap;
 import java.util.concurrent.atomic.AtomicReference;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.platformstate.PlatformStateService;
 import org.hiero.consensus.roster.RosterStateId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -159,15 +159,15 @@ class NodeRewardManagerTest {
     }
 
     @Test
-    void testUpdateJudgesOnEndRoundSetsNewNodeInActiveRosterMissedJudgesToCurrentTotalRoundsInStakingPeriod() {
+    void testUpdateJudgesOnEndRoundDoesNotBackfillMissedJudgesForNewRosterEntries() {
         assertEquals(0, nodeRewardManager.getRoundsThisStakingPeriod());
         givenSetup(NodeRewards.DEFAULT, platformStateWithFreezeTime(null), null);
 
-        for (int i = 0; i < 9; i++) {
+        for (int i = 0; i < 4; i++) {
             nodeRewardManager.updateJudgesOnEndRound(state);
         }
 
-        // Add nodeId 2 to the active roster after 9 rounds
+        // Add nodeId 2 to the active roster after 4 rounds
         final WritableKVState<ProtoBytes, Roster> rosters = MapWritableKVState.<ProtoBytes, Roster>builder(
                         ROSTERS_STATE_ID, ROSTERS_STATE_LABEL)
                 .build();
@@ -183,13 +183,24 @@ class NodeRewardManagerTest {
 
         nodeRewardManager.updateJudgesOnEndRound(state);
 
-        // Now nodeId 2 should have missed judges equal to the current rounds in staking period
-        assertEquals(10, nodeRewardManager.getRoundsThisStakingPeriod());
-        assertEquals(10, nodeRewardManager.getMissedJudgeCounts().get(1L));
-        assertEquals(10, nodeRewardManager.getMissedJudgeCounts().get(2L));
+        // Now nodeId 2 should have only missed the current round (no backfill)
+        assertEquals(5, nodeRewardManager.getRoundsThisStakingPeriod());
+        assertEquals(5, nodeRewardManager.getMissedJudgeCounts().get(1L));
+        assertEquals(1, nodeRewardManager.getMissedJudgeCounts().get(2L));
 
         nodeRewardManager.resetNodeRewards();
         assertEquals(0, nodeRewardManager.getRoundsThisStakingPeriod());
+        assertTrue(nodeRewardManager.getMissedJudgeCounts().isEmpty());
+    }
+
+    @Test
+    void testUpdateJudgesOnEndRoundSkipsNodesThatWereJudges() {
+        assertEquals(0, nodeRewardManager.getRoundsThisStakingPeriod());
+        givenSetup(NodeRewards.DEFAULT, platformStateWithJudges(List.of(0L, 1L)), null);
+
+        nodeRewardManager.updateJudgesOnEndRound(state);
+
+        assertEquals(1, nodeRewardManager.getRoundsThisStakingPeriod());
         assertTrue(nodeRewardManager.getMissedJudgeCounts().isEmpty());
     }
 
@@ -332,6 +343,17 @@ class NodeRewardManagerTest {
                         .judgeIds(List.of(new JudgeId(0, Bytes.wrap("test"))))
                         .build())
                 .freezeTime(freezeTime == null ? null : asTimestamp(freezeTime))
+                .build();
+    }
+
+    private PlatformState platformStateWithJudges(final List<Long> judgeNodeIds) {
+        final var judgeIds = judgeNodeIds.stream()
+                .map(nodeId -> new JudgeId(nodeId, Bytes.wrap(("test-" + nodeId).getBytes())))
+                .toList();
+        return PlatformState.newBuilder()
+                .creationSoftwareVersion(CREATION_VERSION)
+                .consensusSnapshot(
+                        ConsensusSnapshot.newBuilder().judgeIds(judgeIds).build())
                 .build();
     }
 

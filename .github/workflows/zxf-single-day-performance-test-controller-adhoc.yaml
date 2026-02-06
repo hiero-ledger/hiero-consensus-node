@@ -3,6 +3,10 @@ name: "ZXF: [CITR] Adhoc - Single Day Performance Test Controller (SDPT)"
 on:
   workflow_dispatch:
     inputs:
+      ref:
+        description: "The git ref (branch or tag) to checkout"
+        required: false
+        default: ""
       test-asset:
         required: true
         default: "AdHocSD8"
@@ -81,7 +85,7 @@ permissions:
 jobs:
   verify-tag:
     name: Verify Tag
-    runs-on: hl-cn-citr-lin-sm
+    runs-on: hl-cn-sdpt-lin-sm
     continue-on-error: true
     outputs:
       build-number: ${{ steps.verify-tag.outputs.build-number }}
@@ -94,13 +98,13 @@ jobs:
       - name: Checkout Consensus Node
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          ref: ${{ github.ref }}
+          ref: ${{ inputs.ref || github.ref }}
 
       - name: Verify Tag
         id: verify-tag
         env:
           PROMOTED_GREP_PATTERN: "build-(.{5})" # Pattern to match build tags (e.g., build-12345)
-          CHECK_TAG: "${{ github.ref }}"
+          CHECK_TAG: "${{ inputs.ref || github.ref }}"
         run: |
           # Ensure the tag that we received is a build tag
           # if the tag is a build tag then we can parse out the build number (the last 5 characters)
@@ -128,7 +132,7 @@ jobs:
     if: ${{ needs.verify-tag.result == 'success' || inputs.disable-notifications == true }}
     with:
       test-asset: "${{ inputs.test-asset }}"
-      ref: "${{ github.ref }}"
+      ref: "${{ inputs.ref || github.ref }}"
       solo-version: "${{ vars.ADHOC_SOLO_VERSION }}"
       nlg-accounts: "${{ inputs.nlg-accounts }}"
       nlg-time: "${{ inputs.nlg-time }}"
@@ -142,7 +146,7 @@ jobs:
 
   tag-sdpt-result:
     name: Tag SDPT Result
-    runs-on: hl-cn-citr-lin-sm
+    runs-on: hl-cn-sdpt-lin-sm
     needs:
       - run-single-day-performance-test
       - verify-tag
@@ -158,7 +162,7 @@ jobs:
         with:
           token: ${{ secrets.GH_ACCESS_TOKEN }}
           fetch-depth: "0"
-          ref: ${{ github.ref }}
+          ref: ${{ inputs.ref || github.ref }}
 
       - name: Import GPG Key
         id: gpg_importer
@@ -201,7 +205,7 @@ jobs:
 
   get-commit-info:
     name: Get Commit Information
-    runs-on: hl-cn-citr-lin-sm
+    runs-on: hl-cn-sdpt-lin-sm
     if: ${{ inputs.disable-notifications != true }}
     needs:
       - verify-tag
@@ -229,7 +233,7 @@ jobs:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_CITR_BOT_TOKEN }}
         run: |
           # Extract the commit and user information from the build tag
-          COMMIT=$(git rev-list -n 1 "${{ github.ref }}")
+          COMMIT=$(git rev-list -n 1 "${{ inputs.ref || github.ref }}")
           EMAIL=$(git log -1 --pretty=format:'%ae' "${COMMIT}")
           AUTHOR=$(git log -1 --pretty=format:'%an' "${COMMIT}")
           SLACK_USER_ID=$(curl -s -X GET "https://slack.com/api/users.list" \
@@ -250,7 +254,7 @@ jobs:
 
   report-success:
     name: Report SDPT execution success
-    runs-on: hl-cn-citr-lin-sm
+    runs-on: hl-cn-sdpt-lin-sm
     needs:
       - verify-tag
       - tag-sdpt-result
@@ -339,7 +343,7 @@ jobs:
                         },
                         {
                           "type": "mrkdwn",
-                          "text": "<${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ github.ref }}>"
+                          "text": "<${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ inputs.ref || github.ref }}>"
                         },
                         {
                           "type": "mrkdwn",
@@ -374,7 +378,7 @@ jobs:
 
   report-failure:
     name: Report SDPT execution failure
-    runs-on: hl-cn-citr-lin-sm
+    runs-on: hl-cn-sdpt-lin-sm
     needs:
       - verify-tag
       - run-single-day-performance-test
@@ -398,7 +402,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: "0"
-          ref: ${{ github.ref }}
+          ref: ${{ inputs.ref || github.ref }}
           token: ${{ secrets.GH_ACCESS_TOKEN }}
 
       - name: Collect run logs in a log file
@@ -557,7 +561,7 @@ jobs:
                       },
                       {
                         "type": "mrkdwn",
-                        "text": "<${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ github.ref }}>"
+                        "text": "<${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ inputs.ref || github.ref }}>"
                       },
                       {
                         "type": "mrkdwn",
@@ -599,18 +603,10 @@ jobs:
           }
           EOF
 
-      - name: Report failure (slack citr-operations)
+      - name: Report failure (slack citr-failures)
         uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
         with:
-          webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
-          webhook-type: incoming-webhook
-          payload-templated: true
-          payload-file-path: slack_payload.json
-
-      - name: Report failure (slack release-team)
-        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
-        with:
-          webhook: ${{ secrets.SLACK_RELEASE_TEAM_WEBHOOK }}
+          webhook: ${{ secrets.SLACK_CITR_FAILURES_WEBHOOK }}
           webhook-type: incoming-webhook
           payload-templated: true
           payload-file-path: slack_payload.json

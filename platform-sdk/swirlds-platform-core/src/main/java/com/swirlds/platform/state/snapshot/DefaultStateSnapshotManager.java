@@ -228,24 +228,20 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
             final double signingWeight1Percent = (((double) signingWeight1) / ((double) totalWeight1)) * 100.0;
             final double signingWeight2Percent = (((double) signingWeight2) / ((double) totalWeight2)) * 100.0;
 
-            logger.error(
-                    EXCEPTION.getMarker(),
-                    new InsufficientSignaturesPayload(
-                            ("""
+            logger.error(EXCEPTION.getMarker(), new InsufficientSignaturesPayload(("""
                                     State written to disk for round %d did not have enough signatures.
                                     This log adds debug information for #11422.
                                     Pre-check weight: %d/%d (%f%%)  Post-check weight: %d/%d (%f%%)
-                                    Pre-check threshold: %s   Post-check threshold: %s"""
-                                    .formatted(
-                                            reservedState.getRound(),
-                                            signingWeight1,
-                                            totalWeight1,
-                                            signingWeight1Percent,
-                                            signingWeight2,
-                                            totalWeight2,
-                                            signingWeight2Percent,
-                                            Threshold.SUPER_MAJORITY.isSatisfiedBy(signingWeight1, totalWeight1),
-                                            Threshold.SUPER_MAJORITY.isSatisfiedBy(signingWeight2, totalWeight2)))));
+                                    Pre-check threshold: %s   Post-check threshold: %s""".formatted(
+                            reservedState.getRound(),
+                            signingWeight1,
+                            totalWeight1,
+                            signingWeight1Percent,
+                            signingWeight2,
+                            totalWeight2,
+                            signingWeight2Percent,
+                            Threshold.SUPER_MAJORITY.isSatisfiedBy(signingWeight1, totalWeight1),
+                            Threshold.SUPER_MAJORITY.isSatisfiedBy(signingWeight2, totalWeight2)))));
         }
     }
 

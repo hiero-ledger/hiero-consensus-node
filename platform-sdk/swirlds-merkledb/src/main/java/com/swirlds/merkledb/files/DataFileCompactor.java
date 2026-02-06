@@ -250,9 +250,9 @@ public class DataFileCompactor {
                         snapshotCompactionLock.lock();
                         try {
                             final DataFileWriter newFileWriter = currentWriter.get();
-                            final BufferedData itemBytes = reader.readDataItem(fileOffset);
-                            assert itemBytes != null;
-                            long newLocation = newFileWriter.storeDataItem(itemBytes);
+                            final BufferedData itemBytesWithTag = reader.readDataItemWithTag(fileOffset);
+                            assert itemBytesWithTag != null;
+                            long newLocation = newFileWriter.storeDataItemWithTag(itemBytesWithTag);
                             // update the index
                             index.putIfEqual(path, dataLocation, newLocation);
                         } catch (final IOException z) {

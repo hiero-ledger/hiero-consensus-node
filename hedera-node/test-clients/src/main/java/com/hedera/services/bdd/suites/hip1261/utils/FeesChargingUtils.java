@@ -79,6 +79,42 @@ public class FeesChargingUtils {
     }
 
     /**
+     * SimpleFees formula for node fees only:
+     * node = NODE_BASE + SIGNATURE_FEE * max(0, sigs - includedSigsNode)
+     */
+    private static double expectedNodeFeeUsd(long sigs, int txnSize) {
+        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
+        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
+        return NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytesUsd(txnSize);
+    }
+
+    /**
+     * SimpleFees formula for network fees only:
+     * network = node * NETWORK_MULTIPLIER
+     */
+    private static double expectedNetworkFeeUsd(long sigs, int txnSize) {
+        return expectedNodeFeeUsd(sigs, txnSize) * NETWORK_MULTIPLIER;
+    }
+
+    /**
+     * SimpleFees formula for node + network fees:
+     * node    = NODE_BASE + SIGNATURE_FEE * max(0, sigs - includedSigsNode)
+     * network = node * NETWORK_MULTIPLIER
+     * total   = node + network
+     */
+    private static double expectedNodeAndNetworkFeeUsd(long sigs, int txnSize) {
+        // ----- node fees -----
+        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
+        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
+        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytesUsd(txnSize);
+
+        // ----- network fees -----
+        final double networkFee = nodeFee * NETWORK_MULTIPLIER;
+
+        return nodeFee + networkFee;
+    }
+
+    /**
      * SimpleFees formula for CryptoCreate:
      * node    = NODE_BASE + SIGNATURE_FEE * max(0, sigs - includedSigsNode)
      * network = node * NETWORK_MULTIPLIER
@@ -87,10 +123,6 @@ public class FeesChargingUtils {
      *         + HOOKS_FEE * max(0, hooks - includedHooksService)
      * total   = node + network + service
      */
-    public static double expectedCryptoCreateFullFeeUsd(long sigs, long keys, long hooks) {
-        return expectedCryptoCreateFullFeeUsd(sigs, keys, hooks, 0);
-    }
-
     public static double expectedCryptoCreateFullFeeUsd(long sigs, long keys, long hooks, int txnSize) {
         // ----- node fees -----
         final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
@@ -118,6 +150,13 @@ public class FeesChargingUtils {
 
     public static double expectedCryptoCreateFullFeeUsd(long sigs, long keys, int txnSize) {
         return expectedCryptoCreateFullFeeUsd(sigs, keys, 0L, txnSize);
+    }
+
+    /**
+     * Overload when there are no txn size extras.
+     */
+    public static double expectedCryptoCreateFullFeeUsd(long sigs, long keys, long hooks) {
+        return expectedCryptoCreateFullFeeUsd(sigs, keys, hooks, 0);
     }
 
     /**
@@ -217,6 +256,16 @@ public class FeesChargingUtils {
     }
 
     /**
+     * Adds node+network byte overage to a precomputed SimpleFees expected total.
+     *
+     * <p>Bytes above {@code NODE_INCLUDED_BYTES} are charged in the node fee and then multiplied
+     * into the network fee; so we add {@code bytesFee * (NETWORK_MULTIPLIER + 1)}.
+     */
+    private static double addNodeAndNetworkBytes(final double baseExpectedUsd, final int txnSize) {
+        return baseExpectedUsd + nodeFeeFromBytesUsd(txnSize) * (NETWORK_MULTIPLIER + 1);
+    }
+
+    /**
      * SimpleFees formula for CryptoTransfer:
      * node    = NODE_BASE_FEE_USD + SIGNATURE_FEE_USD * max(0, sigs - NODE_INCLUDED_SIGNATURES)
      * network = node * NETWORK_MULTIPLIER
@@ -301,7 +350,65 @@ public class FeesChargingUtils {
                 false);
     }
 
+    public static double expectedCryptoTransferHbarFullFeeUsd(
+            long sigs,
+            long uniqueHooksExecuted,
+            long uniqueAccounts,
+            long uniqueFungibleTokens,
+            long uniqueNonFungibleTokens,
+            long gasAmount,
+            int txnSize) {
+        return addNodeAndNetworkBytes(
+                expectedCryptoTransferHbarFullFeeUsd(
+                        sigs,
+                        uniqueHooksExecuted,
+                        uniqueAccounts,
+                        uniqueFungibleTokens,
+                        uniqueNonFungibleTokens,
+                        gasAmount),
+                txnSize);
+    }
+
     public static double expectedCryptoTransferFTFullFeeUsd(
+            long sigs,
+            long uniqueHooksExecuted,
+            long uniqueAccounts,
+            long uniqueFungibleTokens,
+            long uniqueNonFungibleTokens,
+            long gasAmount) {
+
+        return expectedCryptoTransferFullFeeUsd(
+                sigs,
+                uniqueHooksExecuted,
+                uniqueAccounts,
+                uniqueFungibleTokens,
+                uniqueNonFungibleTokens,
+                gasAmount,
+                false,
+                true,
+                false);
+    }
+
+    public static double expectedCryptoTransferFTFullFeeUsd(
+            long sigs,
+            long uniqueHooksExecuted,
+            long uniqueAccounts,
+            long uniqueFungibleTokens,
+            long uniqueNonFungibleTokens,
+            long gasAmount,
+            int txnSize) {
+        return addNodeAndNetworkBytes(
+                expectedCryptoTransferFTFullFeeUsd(
+                        sigs,
+                        uniqueHooksExecuted,
+                        uniqueAccounts,
+                        uniqueFungibleTokens,
+                        uniqueNonFungibleTokens,
+                        gasAmount),
+                txnSize);
+    }
+
+    public static double expectedCryptoTransferNFTFullFeeUsd(
             long sigs,
             long uniqueHooksExecuted,
             long uniqueAccounts,
@@ -327,18 +434,17 @@ public class FeesChargingUtils {
             long uniqueAccounts,
             long uniqueFungibleTokens,
             long uniqueNonFungibleTokens,
-            long gasAmount) {
-
-        return expectedCryptoTransferFullFeeUsd(
-                sigs,
-                uniqueHooksExecuted,
-                uniqueAccounts,
-                uniqueFungibleTokens,
-                uniqueNonFungibleTokens,
-                gasAmount,
-                false,
-                true,
-                false);
+            long gasAmount,
+            int txnSize) {
+        return addNodeAndNetworkBytes(
+                expectedCryptoTransferNFTFullFeeUsd(
+                        sigs,
+                        uniqueHooksExecuted,
+                        uniqueAccounts,
+                        uniqueFungibleTokens,
+                        uniqueNonFungibleTokens,
+                        gasAmount),
+                txnSize);
     }
 
     public static double expectedCryptoTransferFTAndNFTFullFeeUsd(
@@ -361,7 +467,65 @@ public class FeesChargingUtils {
                 false);
     }
 
+    public static double expectedCryptoTransferFTAndNFTFullFeeUsd(
+            long sigs,
+            long uniqueHooksExecuted,
+            long uniqueAccounts,
+            long uniqueFungibleTokens,
+            long uniqueNonFungibleTokens,
+            long gasAmount,
+            int txnSize) {
+        return addNodeAndNetworkBytes(
+                expectedCryptoTransferFTAndNFTFullFeeUsd(
+                        sigs,
+                        uniqueHooksExecuted,
+                        uniqueAccounts,
+                        uniqueFungibleTokens,
+                        uniqueNonFungibleTokens,
+                        gasAmount),
+                txnSize);
+    }
+
     public static double expectedCryptoTransferHBARAndFTFullFeeUsd(
+            long sigs,
+            long uniqueHooksExecuted,
+            long uniqueAccounts,
+            long uniqueFungibleTokens,
+            long uniqueNonFungibleTokens,
+            long gasAmount) {
+
+        return expectedCryptoTransferFullFeeUsd(
+                sigs,
+                uniqueHooksExecuted,
+                uniqueAccounts,
+                uniqueFungibleTokens,
+                uniqueNonFungibleTokens,
+                gasAmount,
+                true,
+                true,
+                false);
+    }
+
+    public static double expectedCryptoTransferHBARAndFTFullFeeUsd(
+            long sigs,
+            long uniqueHooksExecuted,
+            long uniqueAccounts,
+            long uniqueFungibleTokens,
+            long uniqueNonFungibleTokens,
+            long gasAmount,
+            int txnSize) {
+        return addNodeAndNetworkBytes(
+                expectedCryptoTransferHBARAndFTFullFeeUsd(
+                        sigs,
+                        uniqueHooksExecuted,
+                        uniqueAccounts,
+                        uniqueFungibleTokens,
+                        uniqueNonFungibleTokens,
+                        gasAmount),
+                txnSize);
+    }
+
+    public static double expectedCryptoTransferHBARAndNFTFullFeeUsd(
             long sigs,
             long uniqueHooksExecuted,
             long uniqueAccounts,
@@ -387,18 +551,17 @@ public class FeesChargingUtils {
             long uniqueAccounts,
             long uniqueFungibleTokens,
             long uniqueNonFungibleTokens,
-            long gasAmount) {
-
-        return expectedCryptoTransferFullFeeUsd(
-                sigs,
-                uniqueHooksExecuted,
-                uniqueAccounts,
-                uniqueFungibleTokens,
-                uniqueNonFungibleTokens,
-                gasAmount,
-                true,
-                true,
-                false);
+            long gasAmount,
+            int txnSize) {
+        return addNodeAndNetworkBytes(
+                expectedCryptoTransferHBARAndNFTFullFeeUsd(
+                        sigs,
+                        uniqueHooksExecuted,
+                        uniqueAccounts,
+                        uniqueFungibleTokens,
+                        uniqueNonFungibleTokens,
+                        gasAmount),
+                txnSize);
     }
 
     public static double expectedCryptoTransferHBARAndFTAndNFTFullFeeUsd(
@@ -421,6 +584,75 @@ public class FeesChargingUtils {
                 false);
     }
 
+    public static double expectedCryptoTransferTokenWithCustomFullFeeUsd(
+            long sigs,
+            long uniqueHooksExecuted,
+            long uniqueAccounts,
+            long uniqueFungibleTokens,
+            long uniqueNonFungibleTokens,
+            long gasAmount) {
+
+        return expectedCryptoTransferFullFeeUsd(
+                sigs,
+                uniqueHooksExecuted,
+                uniqueAccounts,
+                uniqueFungibleTokens,
+                uniqueNonFungibleTokens,
+                gasAmount,
+                false,
+                false,
+                true);
+    }
+
+    // Overload with txn size
+    public static double expectedCryptoTransferTokenWithCustomFullFeeUsd(
+            long sigs,
+            long uniqueHooksExecuted,
+            long uniqueAccounts,
+            long uniqueFungibleTokens,
+            long uniqueNonFungibleTokens,
+            long gasAmount,
+            int txnSize) {
+
+        final double fullWithoutBytes = expectedCryptoTransferFullFeeUsd(
+                sigs,
+                uniqueHooksExecuted,
+                uniqueAccounts,
+                uniqueFungibleTokens,
+                uniqueNonFungibleTokens,
+                gasAmount,
+                false,
+                false,
+                true);
+
+        final double nodeAndNetworkWithoutBytes = expectedNodeAndNetworkFeeUsd(sigs, 0);
+
+        final double serviceOnly = fullWithoutBytes - nodeAndNetworkWithoutBytes;
+
+        final double nodeAndNetworkWithBytes = expectedNodeAndNetworkFeeUsd(sigs, txnSize);
+
+        return nodeAndNetworkWithBytes + serviceOnly;
+    }
+
+    public static double expectedCryptoTransferHBARAndFTAndNFTFullFeeUsd(
+            long sigs,
+            long uniqueHooksExecuted,
+            long uniqueAccounts,
+            long uniqueFungibleTokens,
+            long uniqueNonFungibleTokens,
+            long gasAmount,
+            int txnSize) {
+        return addNodeAndNetworkBytes(
+                expectedCryptoTransferHBARAndFTAndNFTFullFeeUsd(
+                        sigs,
+                        uniqueHooksExecuted,
+                        uniqueAccounts,
+                        uniqueFungibleTokens,
+                        uniqueNonFungibleTokens,
+                        gasAmount),
+                txnSize);
+    }
+
     public static double expectedCryptoTransferNetworkFeeOnlyUsd(long sigs) {
 
         // ----- node fees -----
@@ -439,17 +671,6 @@ public class FeesChargingUtils {
         // ----- network fees -----
         return nodeFee * NETWORK_MULTIPLIER;
     }
-    /**
-     * Validates that the charged fee for a transaction (in USD) is within an allowed percent difference
-     * from the expected fee.
-     *
-     * @param txnId                     The transaction ID to validate.
-     * @param initialBalance            The initial balance of the payer before the transaction.
-     * @param afterBalance              The balance of the payer after the transaction.
-     * @param expectedUsd               The expected fee in USD.
-     * @param allowedPercentDifference  The allowed percent difference between the expected and actual fee.
-     * @return A HapiSpecOperation that performs the validation.
-     */
     /**
      * SimpleFees formula for ConsensusCreateTopic with custom fee:
      * node    = NODE_BASE + SIGNATURE_FEE * max(0, sigs - includedSigsNode)
@@ -475,6 +696,10 @@ public class FeesChargingUtils {
         return nodeFee + networkFee + serviceFee;
     }
 
+    public static double expectedTopicCreateWithCustomFeeFullFeeUsd(long sigs, long keys, int txnSize) {
+        return addNodeAndNetworkBytes(expectedTopicCreateWithCustomFeeFullFeeUsd(sigs, keys), txnSize);
+    }
+
     /**
      * SimpleFees formula for ConsensusUpdateTopic:
      * node    = NODE_BASE + SIGNATURE_FEE * max(0, sigs - includedSigsNode)
@@ -484,10 +709,14 @@ public class FeesChargingUtils {
      * total   = node + network + service
      */
     public static double expectedTopicUpdateFullFeeUsd(long sigs, long keys) {
+        return expectedTopicUpdateFullFeeUsd(sigs, keys, 0);
+    }
+
+    public static double expectedTopicUpdateFullFeeUsd(long sigs, long keys, int txnSize) {
         // ----- node fees -----
         final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
         final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
+        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytesUsd(txnSize);
 
         // ----- network fees -----
         final double networkFee = nodeFee * NETWORK_MULTIPLIER;
@@ -537,6 +766,10 @@ public class FeesChargingUtils {
         final double serviceFee = CONS_DELETE_TOPIC_BASE_FEE_USD;
 
         return nodeFee + networkFee + serviceFee;
+    }
+
+    public static double expectedTopicDeleteFullFeeUsd(long sigs, int txnSize) {
+        return addNodeAndNetworkBytes(expectedTopicDeleteFullFeeUsd(sigs), txnSize);
     }
 
     public static double expectedTopicDeleteNetworkFeeOnlyUsd(long sigs) {
@@ -597,6 +830,7 @@ public class FeesChargingUtils {
             double expectedUsd,
             double allowedPercentDifference) {
         return withOpContext((spec, log) -> {
+            final var effectivePercentDiff = Math.max(allowedPercentDifference, 1.0);
 
             // Calculate actual fee in tinybars (negative delta)
             final long initialBalanceTinybars = initialBalance.get();
@@ -644,10 +878,10 @@ public class FeesChargingUtils {
             assertEquals(
                     expectedUsd,
                     chargedUsd,
-                    (allowedPercentDifference / 100.0) * expectedUsd,
+                    (effectivePercentDiff / 100.0) * expectedUsd,
                     String.format(
                             "%s fee (%s) more than %.2f percent different than expected!",
-                            sdec(chargedUsd, 4), txnId, allowedPercentDifference));
+                            sdec(chargedUsd, 4), txnId, effectivePercentDiff));
         });
     }
 

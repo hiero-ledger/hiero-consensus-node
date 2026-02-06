@@ -2,10 +2,12 @@
 package com.hedera.node.app.workflows.standalone;
 
 import com.hedera.node.app.authorization.AuthorizerInjectionModule;
+import com.hedera.node.app.blocks.BlockStreamModule;
 import com.hedera.node.app.config.BootstrapConfigProviderImpl;
 import com.hedera.node.app.config.ConfigProviderImpl;
 import com.hedera.node.app.fees.AppFeeCharging;
 import com.hedera.node.app.fees.ExchangeRateManager;
+import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.service.addressbook.impl.AddressBookServiceImpl;
@@ -52,6 +54,7 @@ import javax.inject.Singleton;
             HederaStateInjectionModule.class,
             ThrottleServiceModule.class,
             FacilityInitModule.class,
+            BlockStreamModule.class
         })
 public interface ExecutorComponent {
     @Component.Builder
@@ -125,4 +128,6 @@ public interface ExecutorComponent {
     StandaloneDispatchFactory standaloneDispatchFactory();
 
     TransactionChecker transactionChecker();
+
+    FeeManager feeManager();
 }

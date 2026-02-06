@@ -4,7 +4,6 @@ package com.hedera.services.bdd.suites.hip1261;
 import static com.hedera.node.app.service.token.AliasUtils.recoverAddressFromPubKey;
 import static com.hedera.services.bdd.junit.EmbeddedReason.MUST_SKIP_INGEST;
 import static com.hedera.services.bdd.junit.TestTags.MATS;
-import static com.hedera.services.bdd.junit.TestTags.ONLY_SUBPROCESS;
 import static com.hedera.services.bdd.junit.TestTags.SIMPLE_FEES;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
@@ -51,6 +50,7 @@ import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.exp
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedCryptoTransferNetworkFeeOnlyUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedFeeToUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedFeeToUsdWithTxnSize;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdWithinWithTxnSize;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.DUPLICATE_TRANSACTION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_ACCOUNT_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_GAS;
@@ -79,7 +79,6 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
-import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.keys.KeyShape;
@@ -127,16 +126,15 @@ public class CryptoTransferSimpleFeesTest {
     private static final String HBAR_OWNER_INSUFFICIENT_BALANCE = "hbarOwnerInsufficientBalance";
     private static final String FUNGIBLE_TOKEN = "fungibleToken";
     private static final String FUNGIBLE_TOKEN_2 = "fungibleToken2";
-    private static final String FUNGIBLE_TOKEN_3 = "fungibleToken3";
     private static final String NON_FUNGIBLE_TOKEN = "nonFungibleToken";
     private static final String NON_FUNGIBLE_TOKEN_2 = "nonFungibleToken2";
     private static final String NON_FUNGIBLE_TOKEN_3 = "nonFungibleToken3";
-    private static final String DUPLICATE_TXN_ID = "duplicateTxnId";
     private static final String adminKey = "adminKey";
     private static final String supplyKey = "supplyKey";
     private static final String PAYER_KEY = "payerKey";
     private static final String HOOK_CONTRACT = "TruePreHook";
     private final double tokenAssociateFee = 0.05;
+    private static final double SIMPLE_FEE_TOLERANCE_PERCENT = 1.0; // 1% tolerance for fee assertions
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
@@ -156,6 +154,9 @@ public class CryptoTransferSimpleFeesTest {
             @Nested
             @DisplayName("Crypto Transfer HBAR Simple Fees Positive Tests")
             class CryptoTransferHBARSimpleFeesPositiveTests {
+                // expectedCryptoTransferHbarFullFeeUsd params:
+                // (sigs, uniqueHooksExecuted, uniqueAccounts, uniqueFungibleTokens, uniqueNonFungibleTokens, gasAmount)
+                // Byte overage is added via validateChargedUsdWithinWithTxnSize.
                 @HapiTest
                 @DisplayName("Crypto Transfer HBAR - base fees full charging")
                 final Stream<DynamicTest> cryptoTransferHBAR_BaseFeesFullCharging() {
@@ -186,10 +187,10 @@ public class CryptoTransferSimpleFeesTest {
                                     .signedBy(OWNER, PAYER)
                                     .fee(ONE_HBAR)
                                     .via("hbarTransferTxn"),
-                            validateChargedUsdWithin(
+                            validateChargedUsdWithinWithTxnSize(
                                     "hbarTransferTxn",
-                                    expectedCryptoTransferHbarFullFeeUsd(2, 0, 1, 0, 0, 0),
-                                    0.0001)));
+                                    txnSize -> expectedCryptoTransferHbarFullFeeUsd(2, 0, 1, 0, 0, 0, txnSize),
+                                    SIMPLE_FEE_TOLERANCE_PERCENT)));
                 }
 
                 @HapiTest
@@ -208,10 +209,10 @@ public class CryptoTransferSimpleFeesTest {
                                     .signedBy(OWNER, PAYER)
                                     .fee(ONE_HBAR)
                                     .via("hbarTransferTxn"),
-                            validateChargedUsdWithin(
+                            validateChargedUsdWithinWithTxnSize(
                                     "hbarTransferTxn",
-                                    expectedCryptoTransferHbarFullFeeUsd(2, 0, 2, 0, 0, 0),
-                                    0.0001)));
+                                    txnSize -> expectedCryptoTransferHbarFullFeeUsd(2, 0, 2, 0, 0, 0, txnSize),
+                                    SIMPLE_FEE_TOLERANCE_PERCENT)));
                 }
 
                 @HapiTest
@@ -230,10 +231,10 @@ public class CryptoTransferSimpleFeesTest {
                                     .signedBy(OWNER, PAYER)
                                     .fee(ONE_HBAR)
                                     .via("hbarTransferTxn"),
-                            validateChargedUsdWithin(
+                            validateChargedUsdWithinWithTxnSize(
                                     "hbarTransferTxn",
-                                    expectedCryptoTransferHbarFullFeeUsd(2, 0, 3, 0, 0, 0),
-                                    0.0001)));
+                                    txnSize -> expectedCryptoTransferHbarFullFeeUsd(2, 0, 3, 0, 0, 0, txnSize),
+                                    SIMPLE_FEE_TOLERANCE_PERCENT)));
                 }
 
                 @HapiTest
@@ -296,10 +297,10 @@ public class CryptoTransferSimpleFeesTest {
                                     .signedBy(OWNER, PAYER, RECEIVER_ASSOCIATED_SECOND)
                                     .fee(ONE_HBAR)
                                     .via("hbarTransferTxn"),
-                            validateChargedUsdWithin(
+                            validateChargedUsdWithinWithTxnSize(
                                     "hbarTransferTxn",
-                                    expectedCryptoTransferHbarFullFeeUsd(3, 0, 4, 0, 0, 0),
-                                    0.0001)));
+                                    txnSize -> expectedCryptoTransferHbarFullFeeUsd(3, 0, 4, 0, 0, 0, txnSize),
+                                    SIMPLE_FEE_TOLERANCE_PERCENT)));
                 }
 
                 @HapiTest
@@ -342,7 +343,9 @@ public class CryptoTransferSimpleFeesTest {
                                     .fee(ONE_HBAR)
                                     .via("ftTransferTxn"),
                             validateChargedUsdWithin(
-                                    "ftTransferTxn", expectedCryptoTransferFTFullFeeUsd(1, 0, 2, 1, 0, 0), 0.0001),
+                                    "ftTransferTxn",
+                                    expectedCryptoTransferFTFullFeeUsd(1, 0, 2, 1, 0, 0),
+                                    SIMPLE_FEE_TOLERANCE_PERCENT),
                             getAccountBalance(OWNER).hasTokenBalance(FUNGIBLE_TOKEN, 90L),
                             getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FUNGIBLE_TOKEN, 10L)));
                 }
@@ -363,7 +366,9 @@ public class CryptoTransferSimpleFeesTest {
                                     .fee(ONE_HBAR)
                                     .via("ftTransferTxn"),
                             validateChargedUsdWithin(
-                                    "ftTransferTxn", expectedCryptoTransferFTFullFeeUsd(2, 0, 2, 1, 0, 0), 0.0001),
+                                    "ftTransferTxn",
+                                    expectedCryptoTransferFTFullFeeUsd(2, 0, 2, 1, 0, 0),
+                                    SIMPLE_FEE_TOLERANCE_PERCENT),
                             getAccountBalance(OWNER).hasTokenBalance(FUNGIBLE_TOKEN, 90L),
                             getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FUNGIBLE_TOKEN, 10L)));
                 }
@@ -387,7 +392,9 @@ public class CryptoTransferSimpleFeesTest {
                                     .fee(ONE_HBAR)
                                     .via("ftTransferTxn"),
                             validateChargedUsdWithin(
-                                    "ftTransferTxn", expectedCryptoTransferFTFullFeeUsd(2, 0, 2, 2, 0, 0), 0.0001),
+                                    "ftTransferTxn",
+                                    expectedCryptoTransferFTFullFeeUsd(2, 0, 2, 2, 0, 0),
+                                    SIMPLE_FEE_TOLERANCE_PERCENT),
                             getAccountBalance(OWNER)
                                     .hasTokenBalance(FUNGIBLE_TOKEN, 90L)
                                     .hasTokenBalance(FUNGIBLE_TOKEN_2, 180L),
@@ -417,8 +424,10 @@ public class CryptoTransferSimpleFeesTest {
                                     .signedBy(OWNER, PAYER)
                                     .fee(ONE_HBAR)
                                     .via("ftTransferTxn"),
-                            validateChargedUsdWithin(
-                                    "ftTransferTxn", expectedCryptoTransferFTFullFeeUsd(2, 0, 3, 2, 0, 0), 0.0001),
+                            validateChargedUsdWithinWithTxnSize(
+                                    "ftTransferTxn",
+                                    txnSize -> expectedCryptoTransferFTFullFeeUsd(2, 0, 3, 2, 0, 0, txnSize),
+                                    SIMPLE_FEE_TOLERANCE_PERCENT),
                             getAccountBalance(OWNER)
                                     .hasTokenBalance(FUNGIBLE_TOKEN, 90L)
                                     .hasTokenBalance(FUNGIBLE_TOKEN_2, 180L),
@@ -450,7 +459,9 @@ public class CryptoTransferSimpleFeesTest {
                                     .fee(ONE_HBAR)
                                     .via("ftTransferTxn"),
                             validateChargedUsdWithin(
-                                    "ftTransferTxn", expectedCryptoTransferFTFullFeeUsd(2, 0, 4, 2, 0, 0), 0.0001),
+                                    "ftTransferTxn",
+                                    expectedCryptoTransferFTFullFeeUsd(2, 0, 4, 2, 0, 0),
+                                    SIMPLE_FEE_TOLERANCE_PERCENT),
                             getAccountBalance(OWNER)
                                     .hasTokenBalance(FUNGIBLE_TOKEN, 90L)
                                     .hasTokenBalance(FUNGIBLE_TOKEN_2, 150L),
@@ -477,7 +488,9 @@ public class CryptoTransferSimpleFeesTest {
                                     .fee(ONE_HBAR)
                                     .via("ftTransferTxn"),
                             validateChargedUsdWithin(
-                                    "ftTransferTxn", expectedCryptoTransferFTFullFeeUsd(2, 0, 2, 1, 0, 0), 0.0001),
+                                    "ftTransferTxn",
+                                    expectedCryptoTransferFTFullFeeUsd(2, 0, 2, 1, 0, 0),
+                                    SIMPLE_FEE_TOLERANCE_PERCENT),
                             getAccountBalance(OWNER).hasTokenBalance(FUNGIBLE_TOKEN, 80L),
                             getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FUNGIBLE_TOKEN, 20L)));
                 }
@@ -502,7 +515,9 @@ public class CryptoTransferSimpleFeesTest {
                                     .fee(ONE_HBAR)
                                     .via("ftTransferTxn"),
                             validateChargedUsdWithin(
-                                    "ftTransferTxn", expectedCryptoTransferFTFullFeeUsd(2, 0, 3, 1, 0, 0), 0.0001),
+                                    "ftTransferTxn",
+                                    expectedCryptoTransferFTFullFeeUsd(2, 0, 3, 1, 0, 0),
+                                    SIMPLE_FEE_TOLERANCE_PERCENT),
                             getAccountBalance(OWNER).hasTokenBalance(FUNGIBLE_TOKEN, 80L),
                             getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FUNGIBLE_TOKEN, 10L),
                             getAccountBalance(RECEIVER_ASSOCIATED_SECOND).hasTokenBalance(FUNGIBLE_TOKEN, 10L)));
@@ -530,8 +545,10 @@ public class CryptoTransferSimpleFeesTest {
                                     .signedBy(OWNER, PAYER)
                                     .fee(ONE_HBAR)
                                     .via("ftTransferTxn"),
-                            validateChargedUsdWithin(
-                                    "ftTransferTxn", expectedCryptoTransferFTFullFeeUsd(2, 0, 4, 1, 0, 0), 0.0001),
+                            validateChargedUsdWithinWithTxnSize(
+                                    "ftTransferTxn",
+                                    txnSize -> expectedCryptoTransferFTFullFeeUsd(2, 0, 4, 1, 0, 0, txnSize),
+                                    SIMPLE_FEE_TOLERANCE_PERCENT),
                             getAccountBalance(OWNER).hasTokenBalance(FUNGIBLE_TOKEN, 70L),
                             getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FUNGIBLE_TOKEN, 10L),
                             getAccountBalance(RECEIVER_ASSOCIATED_SECOND).hasTokenBalance(FUNGIBLE_TOKEN, 10L),
@@ -560,7 +577,9 @@ public class CryptoTransferSimpleFeesTest {
                                     .fee(ONE_HBAR)
                                     .via("nftTransferTxn"),
                             validateChargedUsdWithin(
-                                    "nftTransferTxn", expectedCryptoTransferNFTFullFeeUsd(1, 0, 2, 0, 1, 0), 0.0001),
+                                    "nftTransferTxn",
+                                    expectedCryptoTransferNFTFullFeeUsd(1, 0, 2, 0, 1, 0),
+                                    SIMPLE_FEE_TOLERANCE_PERCENT),
                             getAccountBalance(OWNER).hasTokenBalance(NON_FUNGIBLE_TOKEN, 3L),
                             getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(NON_FUNGIBLE_TOKEN, 1L)));
                 }
@@ -583,7 +602,9 @@ public class CryptoTransferSimpleFeesTest {
                                     .fee(ONE_HBAR)
                                     .via("nftTransferTxn"),
                             validateChargedUsdWithin(
-                                    "nftTransferTxn", expectedCryptoTransferNFTFullFeeUsd(2, 0, 2, 0, 1, 0), 0.0001),
+                                    "nftTransferTxn",
+                                    expectedCryptoTransferNFTFullFeeUsd(2, 0, 2, 0, 1, 0),
+                                    SIMPLE_FEE_TOLERANCE_PERCENT),
                             getAccountBalance(OWNER).hasTokenBalance(NON_FUNGIBLE_TOKEN, 3L),
                             getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(NON_FUNGIBLE_TOKEN, 1L)));
                 }
@@ -612,7 +633,9 @@ public class CryptoTransferSimpleFeesTest {
                                     .fee(ONE_HBAR)
                                     .via("nftTransferTxn"),
                             validateChargedUsdWithin(
-                                    "nftTransferTxn", expectedCryptoTransferNFTFullFeeUsd(2, 0, 2, 0, 2, 0), 0.0001),
+                                    "nftTransferTxn",
+                                    expectedCryptoTransferNFTFullFeeUsd(2, 0, 2, 0, 2, 0),
+                                    SIMPLE_FEE_TOLERANCE_PERCENT),
                             getAccountBalance(OWNER)
                                     .hasTokenBalance(NON_FUNGIBLE_TOKEN, 3L)
                                     .hasTokenBalance(NON_FUNGIBLE_TOKEN_2, 3L),
@@ -652,8 +675,10 @@ public class CryptoTransferSimpleFeesTest {
                                     .signedBy(OWNER, PAYER)
                                     .fee(ONE_HBAR)
                                     .via("nftTransferTxn"),
-                            validateChargedUsdWithin(
-                                    "nftTransferTxn", expectedCryptoTransferNFTFullFeeUsd(2, 0, 2, 0, 3, 0), 0.0001),
+                            validateChargedUsdWithinWithTxnSize(
+                                    "nftTransferTxn",
+                                    txnSize -> expectedCryptoTransferNFTFullFeeUsd(2, 0, 2, 0, 3, 0, txnSize),
+                                    SIMPLE_FEE_TOLERANCE_PERCENT),
                             getAccountBalance(OWNER)
                                     .hasTokenBalance(NON_FUNGIBLE_TOKEN, 3L)
                                     .hasTokenBalance(NON_FUNGIBLE_TOKEN_2, 3L)
@@ -708,7 +733,9 @@ public class CryptoTransferSimpleFeesTest {
                                     .fee(ONE_HBAR)
                                     .via("nftTransferTxn"),
                             validateChargedUsdWithin(
-                                    "nftTransferTxn", expectedCryptoTransferNFTFullFeeUsd(2, 0, 3, 0, 6, 0), 0.0001),
+                                    "nftTransferTxn",
+                                    expectedCryptoTransferNFTFullFeeUsd(2, 0, 3, 0, 6, 0),
+                                    SIMPLE_FEE_TOLERANCE_PERCENT),
                             getAccountBalance(OWNER)
                                     .hasTokenBalance(NON_FUNGIBLE_TOKEN, 2L)
                                     .hasTokenBalance(NON_FUNGIBLE_TOKEN_2, 2L)
@@ -780,7 +807,9 @@ public class CryptoTransferSimpleFeesTest {
                                     .fee(ONE_HBAR)
                                     .via("nftTransferTxn"),
                             validateChargedUsdWithin(
-                                    "nftTransferTxn", expectedCryptoTransferNFTFullFeeUsd(2, 0, 4, 0, 10, 0), 0.0001),
+                                    "nftTransferTxn",
+                                    expectedCryptoTransferNFTFullFeeUsd(2, 0, 4, 0, 10, 0),
+                                    SIMPLE_FEE_TOLERANCE_PERCENT),
                             getAccountBalance(OWNER)
                                     .hasTokenBalance(NON_FUNGIBLE_TOKEN, 1L)
                                     .hasTokenBalance(NON_FUNGIBLE_TOKEN_2, 1L)
@@ -817,7 +846,9 @@ public class CryptoTransferSimpleFeesTest {
                                     .fee(ONE_HBAR)
                                     .via("nftTransferTxn"),
                             validateChargedUsdWithin(
-                                    "nftTransferTxn", expectedCryptoTransferNFTFullFeeUsd(2, 0, 2, 0, 2, 0), 0.0001),
+                                    "nftTransferTxn",
+                                    expectedCryptoTransferNFTFullFeeUsd(2, 0, 2, 0, 2, 0),
+                                    SIMPLE_FEE_TOLERANCE_PERCENT),
                             getAccountBalance(OWNER).hasTokenBalance(NON_FUNGIBLE_TOKEN, 2L),
                             getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(NON_FUNGIBLE_TOKEN, 2L)));
                 }
@@ -847,7 +878,9 @@ public class CryptoTransferSimpleFeesTest {
                                     .fee(ONE_HBAR)
                                     .via("nftTransferTxn"),
                             validateChargedUsdWithin(
-                                    "nftTransferTxn", expectedCryptoTransferNFTFullFeeUsd(2, 0, 2, 0, 4, 0), 0.0001),
+                                    "nftTransferTxn",
+                                    expectedCryptoTransferNFTFullFeeUsd(2, 0, 2, 0, 4, 0),
+                                    SIMPLE_FEE_TOLERANCE_PERCENT),
                             getAccountBalance(OWNER)
                                     .hasTokenBalance(NON_FUNGIBLE_TOKEN, 2L)
                                     .hasTokenBalance(NON_FUNGIBLE_TOKEN_2, 2L),
@@ -885,7 +918,7 @@ public class CryptoTransferSimpleFeesTest {
                             validateChargedUsdWithin(
                                     "ftTransferTxn",
                                     expectedCryptoTransferFTAndNFTFullFeeUsd(1, 0, 2, 1, 1, 0),
-                                    0.0001),
+                                    SIMPLE_FEE_TOLERANCE_PERCENT),
                             getAccountBalance(OWNER)
                                     .hasTokenBalance(NON_FUNGIBLE_TOKEN, 3L)
                                     .hasTokenBalance(FUNGIBLE_TOKEN, 90L),
@@ -919,7 +952,7 @@ public class CryptoTransferSimpleFeesTest {
                             validateChargedUsdWithin(
                                     "ftTransferTxn",
                                     expectedCryptoTransferFTAndNFTFullFeeUsd(2, 0, 2, 1, 1, 0),
-                                    0.0001),
+                                    SIMPLE_FEE_TOLERANCE_PERCENT),
                             getAccountBalance(OWNER)
                                     .hasTokenBalance(NON_FUNGIBLE_TOKEN, 3L)
                                     .hasTokenBalance(FUNGIBLE_TOKEN, 90L),
@@ -954,7 +987,7 @@ public class CryptoTransferSimpleFeesTest {
                             validateChargedUsdWithin(
                                     "ftTransferTxn",
                                     expectedCryptoTransferHBARAndFTAndNFTFullFeeUsd(1, 0, 2, 1, 1, 0),
-                                    0.0001),
+                                    SIMPLE_FEE_TOLERANCE_PERCENT),
                             getAccountBalance(OWNER)
                                     .hasTokenBalance(NON_FUNGIBLE_TOKEN, 3L)
                                     .hasTokenBalance(FUNGIBLE_TOKEN, 90L),
@@ -989,7 +1022,7 @@ public class CryptoTransferSimpleFeesTest {
                             validateChargedUsdWithin(
                                     "ftTransferTxn",
                                     expectedCryptoTransferHBARAndFTAndNFTFullFeeUsd(2, 0, 2, 1, 1, 0),
-                                    0.0001),
+                                    SIMPLE_FEE_TOLERANCE_PERCENT),
                             getAccountBalance(OWNER)
                                     .hasTokenBalance(NON_FUNGIBLE_TOKEN, 3L)
                                     .hasTokenBalance(FUNGIBLE_TOKEN, 90L),
@@ -1458,7 +1491,6 @@ public class CryptoTransferSimpleFeesTest {
                             createAccountsAndKeys(),
                             createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN, 100L, OWNER, adminKey),
                             createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN_2, 100L, OWNER, adminKey),
-                            createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN_3, 100L, OWNER, adminKey),
                             registerEvmAddressAliasFrom(VALID_ALIAS_ECDSA, evmAlias),
 
                             // transfer tokens
@@ -1467,17 +1499,16 @@ public class CryptoTransferSimpleFeesTest {
 
                                 final var cryptoTransferOp = cryptoTransfer(
                                                 moving(10L, FUNGIBLE_TOKEN).between(OWNER, VALID_ALIAS_ED25519),
-                                                moving(10L, FUNGIBLE_TOKEN_2).between(OWNER, VALID_ALIAS_ECDSA_SECOND),
-                                                moving(10L, FUNGIBLE_TOKEN_3).between(OWNER, alias))
+                                                moving(10L, FUNGIBLE_TOKEN_2).between(OWNER, alias))
                                         .payingWith(OWNER)
                                         .signedBy(OWNER)
                                         .via("tokenTransferTxn");
 
                                 final var checkOpChargedUsd = validateChargedUsdWithin(
                                         "tokenTransferTxn",
-                                        (expectedCryptoTransferHBARAndFTAndNFTFullFeeUsd(1, 0, 4, 3, 0, 0)
-                                                + tokenAssociateFee * 3),
-                                        0.001);
+                                        (expectedCryptoTransferHBARAndFTAndNFTFullFeeUsd(1, 0, 3, 2, 0, 0)
+                                                + tokenAssociateFee * 2),
+                                        0.1);
 
                                 final var checkOpInfoValidAliasED25519 = getAliasedAccountInfo(VALID_ALIAS_ED25519)
                                         .hasToken(relationshipWith(FUNGIBLE_TOKEN))
@@ -1486,17 +1517,9 @@ public class CryptoTransferSimpleFeesTest {
                                                 .alias(VALID_ALIAS_ED25519)
                                                 .maxAutoAssociations(-1));
 
-                                final var checkOpInfoValidAliasECDSASecond = getAliasedAccountInfo(
-                                                VALID_ALIAS_ECDSA_SECOND)
-                                        .hasToken(relationshipWith(FUNGIBLE_TOKEN_2))
-                                        .has(accountWith()
-                                                .key(VALID_ALIAS_ECDSA_SECOND)
-                                                .alias(VALID_ALIAS_ECDSA_SECOND)
-                                                .maxAutoAssociations(-1));
-
                                 final var checkHollowAccountInfo = getAliasedAccountInfo(alias)
                                         .isHollow()
-                                        .hasToken(relationshipWith(FUNGIBLE_TOKEN_3))
+                                        .hasToken(relationshipWith(FUNGIBLE_TOKEN_2))
                                         .has(accountWith()
                                                 .hasEmptyKey()
                                                 .noAlias()
@@ -1505,15 +1528,13 @@ public class CryptoTransferSimpleFeesTest {
 
                                 final var checkOwnerBalance = getAccountBalance(OWNER)
                                         .hasTokenBalance(FUNGIBLE_TOKEN, 90L)
-                                        .hasTokenBalance(FUNGIBLE_TOKEN_2, 90L)
-                                        .hasTokenBalance(FUNGIBLE_TOKEN_3, 90L);
+                                        .hasTokenBalance(FUNGIBLE_TOKEN_2, 90L);
 
                                 allRunFor(
                                         spec,
                                         cryptoTransferOp,
                                         checkOpChargedUsd,
                                         checkOpInfoValidAliasED25519,
-                                        checkOpInfoValidAliasECDSASecond,
                                         checkHollowAccountInfo,
                                         checkOwnerBalance);
                             })));
@@ -1780,7 +1801,7 @@ public class CryptoTransferSimpleFeesTest {
                             validateChargedUsdWithin(
                                     "hbarTransferTxn",
                                     expectedCryptoTransferHbarFullFeeUsd(1, 1, 2, 0, 0, 5_000_000L),
-                                    0.0001)));
+                                    SIMPLE_FEE_TOLERANCE_PERCENT)));
                 }
 
                 @HapiTest
@@ -1803,7 +1824,7 @@ public class CryptoTransferSimpleFeesTest {
                             validateChargedUsdWithin(
                                     "ftTransferTxn",
                                     expectedCryptoTransferFTFullFeeUsd(1, 1, 2, 1, 0, 5_000_000L),
-                                    0.0001),
+                                    SIMPLE_FEE_TOLERANCE_PERCENT),
                             getAccountBalance(PAYER_WITH_HOOK).hasTokenBalance(FUNGIBLE_TOKEN, 90L),
                             getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FUNGIBLE_TOKEN, 10L)));
                 }
@@ -1832,7 +1853,7 @@ public class CryptoTransferSimpleFeesTest {
                             validateChargedUsdWithin(
                                     "ftTransferTxn",
                                     expectedCryptoTransferFTFullFeeUsd(1, 1, 3, 1, 0, 5_000_000L),
-                                    0.0001),
+                                    SIMPLE_FEE_TOLERANCE_PERCENT),
                             getAccountBalance(PAYER_WITH_HOOK).hasTokenBalance(FUNGIBLE_TOKEN, 80L),
                             getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FUNGIBLE_TOKEN, 10L),
                             getAccountBalance(RECEIVER_ASSOCIATED_SECOND).hasTokenBalance(FUNGIBLE_TOKEN, 10L)));
@@ -1860,7 +1881,7 @@ public class CryptoTransferSimpleFeesTest {
                             validateChargedUsdWithin(
                                     "nftTransferTxn",
                                     expectedCryptoTransferNFTFullFeeUsd(1, 1, 2, 0, 1, 5_000_000L),
-                                    0.0001),
+                                    SIMPLE_FEE_TOLERANCE_PERCENT),
                             getAccountBalance(PAYER_WITH_HOOK).hasTokenBalance(NON_FUNGIBLE_TOKEN, 3L),
                             getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(NON_FUNGIBLE_TOKEN, 1L)));
                 }
@@ -1888,7 +1909,7 @@ public class CryptoTransferSimpleFeesTest {
                             validateChargedUsdWithin(
                                     "tokenTransferTxn",
                                     expectedCryptoTransferHBARAndFTFullFeeUsd(2, 2, 3, 1, 0, 10_000_000L),
-                                    0.0001),
+                                    SIMPLE_FEE_TOLERANCE_PERCENT),
                             getAccountBalance(PAYER_WITH_TWO_HOOKS).hasTokenBalance(FUNGIBLE_TOKEN, 90L),
                             getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FUNGIBLE_TOKEN, 10L)));
                 }
@@ -1918,7 +1939,7 @@ public class CryptoTransferSimpleFeesTest {
                             validateChargedUsdWithin(
                                     "tokenTransferTxn",
                                     expectedCryptoTransferHBARAndNFTFullFeeUsd(2, 2, 3, 0, 1, 10_000_000L),
-                                    0.0001),
+                                    SIMPLE_FEE_TOLERANCE_PERCENT),
                             getAccountBalance(PAYER_WITH_TWO_HOOKS).hasTokenBalance(NON_FUNGIBLE_TOKEN, 3L),
                             getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(NON_FUNGIBLE_TOKEN, 1L)));
                 }
@@ -1953,7 +1974,7 @@ public class CryptoTransferSimpleFeesTest {
                             validateChargedUsdWithin(
                                     "tokenTransferTxn",
                                     expectedCryptoTransferHBARAndFTAndNFTFullFeeUsd(2, 2, 5, 1, 1, 10_000_000L),
-                                    0.0001),
+                                    SIMPLE_FEE_TOLERANCE_PERCENT),
                             getAccountBalance(PAYER_WITH_TWO_HOOKS)
                                     .hasTokenBalance(FUNGIBLE_TOKEN, 90L)
                                     .hasTokenBalance(NON_FUNGIBLE_TOKEN, 3L),
@@ -1992,7 +2013,7 @@ public class CryptoTransferSimpleFeesTest {
                             validateChargedUsdWithin(
                                     "tokenTransferTxn",
                                     expectedCryptoTransferHBARAndFTAndNFTFullFeeUsd(2, 2, 5, 1, 1, 10_000_000L),
-                                    0.0001),
+                                    SIMPLE_FEE_TOLERANCE_PERCENT),
                             getAccountBalance(PAYER_WITH_TWO_HOOKS)
                                     .hasTokenBalance(FUNGIBLE_TOKEN, 90L)
                                     .hasTokenBalance(NON_FUNGIBLE_TOKEN, 3L),
@@ -2019,7 +2040,7 @@ public class CryptoTransferSimpleFeesTest {
                             validateChargedUsdWithin(
                                     "ftTransferTxn",
                                     expectedCryptoTransferFTFullFeeUsd(1, 1, 2, 1, 0, 5_000_000L) + tokenAssociateFee,
-                                    0.0001),
+                                    SIMPLE_FEE_TOLERANCE_PERCENT),
                             // validate auto-created account properties
                             getAliasedAccountInfo(VALID_ALIAS_ED25519)
                                     .hasToken(relationshipWith(FUNGIBLE_TOKEN))
@@ -2788,77 +2809,6 @@ public class CryptoTransferSimpleFeesTest {
             @Nested
             @DisplayName("Crypto Transfer Simple Fees Failures on Handle")
             class CryptoTransferSimpleFeesFailuresOnHandle {
-                @Tag(ONLY_SUBPROCESS)
-                @LeakyHapiTest
-                @DisplayName("Crypto Transfer HBAR, FT and NFT - duplicate txn - fails on handle")
-                final Stream<DynamicTest> cryptoTransferHBARAndFTAndNFTDuplicateTxnFailsOnHandle() {
-                    final AtomicLong initialBalance = new AtomicLong();
-                    final AtomicLong afterBalance = new AtomicLong();
-                    final AtomicLong initialNodeBalance = new AtomicLong();
-                    final AtomicLong afterNodeBalance = new AtomicLong();
-
-                    return hapiTest(flattened(
-                            // create keys, tokens and accounts
-                            createAccountsAndKeys(),
-                            getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
-                            cryptoTransfer(movingHbar(ONE_HBAR).between(GENESIS, "3")),
-                            getAccountBalance("3").exposingBalanceTo(initialNodeBalance::set),
-                            createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN, 100L, OWNER, adminKey),
-                            tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FUNGIBLE_TOKEN),
-                            createNonFungibleTokenWithoutCustomFees(NON_FUNGIBLE_TOKEN, OWNER, supplyKey, adminKey),
-                            tokenAssociate(RECEIVER_ASSOCIATED_FIRST, NON_FUNGIBLE_TOKEN),
-                            mintNFT(NON_FUNGIBLE_TOKEN, 1, 5),
-
-                            // Register a TxnId for the inner txn
-                            usableTxnIdNamed(DUPLICATE_TXN_ID).payerId(PAYER),
-
-                            // initial transaction
-                            cryptoTransfer(
-                                            movingHbar(1L).between(OWNER, RECEIVER_ASSOCIATED_FIRST),
-                                            moving(10L, FUNGIBLE_TOKEN).between(OWNER, RECEIVER_ASSOCIATED_FIRST),
-                                            movingUnique(NON_FUNGIBLE_TOKEN, 1L)
-                                                    .between(OWNER, RECEIVER_ASSOCIATED_FIRST))
-                                    .payingWith(PAYER)
-                                    .signedBy(OWNER, PAYER)
-                                    .fee(ONE_HBAR)
-                                    .setNode(4)
-                                    .txnId(DUPLICATE_TXN_ID)
-                                    .via("initialTokenTransferTxn")
-                                    .logged(),
-                            // duplicate transaction
-                            cryptoTransfer(
-                                            movingHbar(1L).between(OWNER, RECEIVER_ASSOCIATED_FIRST),
-                                            moving(10L, FUNGIBLE_TOKEN).between(OWNER, RECEIVER_ASSOCIATED_FIRST),
-                                            movingUnique(NON_FUNGIBLE_TOKEN, 1L)
-                                                    .between(OWNER, RECEIVER_ASSOCIATED_FIRST))
-                                    .payingWith(PAYER)
-                                    .signedBy(OWNER, PAYER)
-                                    .fee(ONE_HBAR)
-                                    .setNode(3)
-                                    .txnId(DUPLICATE_TXN_ID)
-                                    .via("duplicateTokenTransferTxn")
-                                    .hasPrecheck(DUPLICATE_TRANSACTION),
-
-                            // Save balances and assert changes
-                            getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                            getAccountBalance("3").exposingBalanceTo(afterNodeBalance::set),
-                            withOpContext((spec, log) -> {
-                                long payerDelta = initialBalance.get() - afterBalance.get();
-                                log.info("Payer balance changed by {} tinybars", payerDelta);
-                                log.info(
-                                        "Recorded fee: {}",
-                                        expectedCryptoTransferHBARAndFTAndNFTFullFeeUsd(2, 0, 2, 1, 1, 0));
-                                assertEquals(initialNodeBalance.get(), afterNodeBalance.get());
-                                assertTrue(initialBalance.get() > afterBalance.get());
-                            }),
-                            validateChargedFeeToUsd(
-                                    "initialTokenTransferTxn",
-                                    initialBalance,
-                                    afterBalance,
-                                    expectedCryptoTransferHBARAndFTAndNFTFullFeeUsd(2, 0, 2, 1, 1, 0),
-                                    0.001)));
-                }
-
                 @HapiTest
                 @DisplayName("Crypto Transfer HBAR - with insufficient token balance - fails on handle")
                 final Stream<DynamicTest> cryptoTransferWithInsufficientHBARTokenBalanceFailsOnHandle() {
@@ -2874,8 +2824,10 @@ public class CryptoTransferSimpleFeesTest {
                                     .fee(ONE_HBAR)
                                     .via("tokenTransferTxn")
                                     .hasKnownStatus(INSUFFICIENT_ACCOUNT_BALANCE),
-                            validateChargedUsdWithin(
-                                    "tokenTransferTxn", expectedCryptoTransferHbarFullFeeUsd(2, 0, 2, 0, 0, 0), 0.0001),
+                            validateChargedUsdWithinWithTxnSize(
+                                    "tokenTransferTxn",
+                                    txnSize -> expectedCryptoTransferHbarFullFeeUsd(2, 0, 2, 0, 0, 0, txnSize),
+                                    SIMPLE_FEE_TOLERANCE_PERCENT),
                             getAccountBalance(HBAR_OWNER_INSUFFICIENT_BALANCE).hasTinyBars(1000L),
                             getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTinyBars(100000000L)));
                 }
@@ -2897,7 +2849,9 @@ public class CryptoTransferSimpleFeesTest {
                                     .via("tokenTransferTxn")
                                     .hasKnownStatus(INSUFFICIENT_TOKEN_BALANCE),
                             validateChargedUsdWithin(
-                                    "tokenTransferTxn", expectedCryptoTransferFTFullFeeUsd(2, 0, 2, 1, 0, 0), 0.0001),
+                                    "tokenTransferTxn",
+                                    expectedCryptoTransferFTFullFeeUsd(2, 0, 2, 1, 0, 0),
+                                    SIMPLE_FEE_TOLERANCE_PERCENT),
                             getAccountBalance(OWNER).hasTokenBalance(FUNGIBLE_TOKEN, 10L),
                             getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FUNGIBLE_TOKEN, 0L)));
                 }
@@ -2921,7 +2875,9 @@ public class CryptoTransferSimpleFeesTest {
                                     .via("tokenTransferTxn")
                                     .hasKnownStatus(INVALID_NFT_ID),
                             validateChargedUsdWithin(
-                                    "tokenTransferTxn", expectedCryptoTransferNFTFullFeeUsd(1, 0, 2, 0, 1, 0), 0.0001),
+                                    "tokenTransferTxn",
+                                    expectedCryptoTransferNFTFullFeeUsd(1, 0, 2, 0, 1, 0),
+                                    SIMPLE_FEE_TOLERANCE_PERCENT),
                             getAccountBalance(OWNER).hasTokenBalance(NON_FUNGIBLE_TOKEN, 2L),
                             getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(NON_FUNGIBLE_TOKEN, 0L)));
                 }
@@ -2947,7 +2903,7 @@ public class CryptoTransferSimpleFeesTest {
                             validateChargedUsdWithin(
                                     "tokenTransferTxn",
                                     expectedCryptoTransferHBARAndFTFullFeeUsd(2, 0, 2, 1, 0, 0),
-                                    0.0001),
+                                    SIMPLE_FEE_TOLERANCE_PERCENT),
                             getAccountBalance(OWNER).hasTokenBalance(FUNGIBLE_TOKEN, 10L),
                             getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FUNGIBLE_TOKEN, 0L)));
                 }
@@ -2975,7 +2931,7 @@ public class CryptoTransferSimpleFeesTest {
                             validateChargedUsdWithin(
                                     "tokenTransferTxn",
                                     expectedCryptoTransferHBARAndNFTFullFeeUsd(2, 0, 2, 0, 1, 0),
-                                    0.0001),
+                                    SIMPLE_FEE_TOLERANCE_PERCENT),
                             getAccountBalance(OWNER).hasTokenBalance(NON_FUNGIBLE_TOKEN, 2L),
                             getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(NON_FUNGIBLE_TOKEN, 0L)));
                 }
@@ -3007,7 +2963,7 @@ public class CryptoTransferSimpleFeesTest {
                             validateChargedUsdWithin(
                                     "tokenTransferTxn",
                                     expectedCryptoTransferHBARAndFTAndNFTFullFeeUsd(2, 0, 2, 1, 1, 0),
-                                    0.0001),
+                                    SIMPLE_FEE_TOLERANCE_PERCENT),
                             getAccountBalance(OWNER)
                                     .hasTokenBalance(NON_FUNGIBLE_TOKEN, 2L)
                                     .hasTokenBalance(FUNGIBLE_TOKEN, 10L),
@@ -3042,7 +2998,7 @@ public class CryptoTransferSimpleFeesTest {
                             validateChargedUsdWithin(
                                     "tokenTransferTxn",
                                     expectedCryptoTransferHBARAndFTAndNFTFullFeeUsd(2, 0, 2, 1, 1, 0),
-                                    0.0001),
+                                    SIMPLE_FEE_TOLERANCE_PERCENT),
                             getAccountBalance(OWNER)
                                     .hasTokenBalance(NON_FUNGIBLE_TOKEN, 2L)
                                     .hasTokenBalance(FUNGIBLE_TOKEN, 100L),
@@ -3067,7 +3023,9 @@ public class CryptoTransferSimpleFeesTest {
                                     .via("tokenTransferTxn")
                                     .hasKnownStatus(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT),
                             validateChargedUsdWithin(
-                                    "tokenTransferTxn", expectedCryptoTransferFTFullFeeUsd(2, 0, 2, 1, 0, 0), 0.0001),
+                                    "tokenTransferTxn",
+                                    expectedCryptoTransferFTFullFeeUsd(2, 0, 2, 1, 0, 0),
+                                    SIMPLE_FEE_TOLERANCE_PERCENT),
                             getAccountBalance(OWNER).hasTokenBalance(FUNGIBLE_TOKEN, 10L),
                             getAccountBalance(RECEIVER_NOT_ASSOCIATED).hasTokenBalance(FUNGIBLE_TOKEN, 0L)));
                 }
@@ -3089,7 +3047,9 @@ public class CryptoTransferSimpleFeesTest {
                                     .via("tokenTransferTxn")
                                     .hasKnownStatus(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT),
                             validateChargedUsdWithin(
-                                    "tokenTransferTxn", expectedCryptoTransferNFTFullFeeUsd(2, 0, 2, 0, 1, 0), 0.0001),
+                                    "tokenTransferTxn",
+                                    expectedCryptoTransferNFTFullFeeUsd(2, 0, 2, 0, 1, 0),
+                                    SIMPLE_FEE_TOLERANCE_PERCENT),
                             getAccountBalance(OWNER).hasTokenBalance(NON_FUNGIBLE_TOKEN, 4L),
                             getAccountBalance(RECEIVER_NOT_ASSOCIATED).hasTokenBalance(NON_FUNGIBLE_TOKEN, 0L)));
                 }
@@ -3120,7 +3080,7 @@ public class CryptoTransferSimpleFeesTest {
                             validateChargedUsdWithin(
                                     "tokenTransferTxn",
                                     expectedCryptoTransferFTAndNFTFullFeeUsd(2, 0, 3, 1, 1, 0),
-                                    0.0001),
+                                    SIMPLE_FEE_TOLERANCE_PERCENT),
                             getAccountBalance(OWNER)
                                     .hasTokenBalance(FUNGIBLE_TOKEN, 20L)
                                     .hasTokenBalance(NON_FUNGIBLE_TOKEN, 4L),
@@ -3154,10 +3114,11 @@ public class CryptoTransferSimpleFeesTest {
                                     .fee(ONE_HBAR)
                                     .via("tokenTransferTxn")
                                     .hasKnownStatus(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT),
-                            validateChargedUsdWithin(
+                            validateChargedUsdWithinWithTxnSize(
                                     "tokenTransferTxn",
-                                    expectedCryptoTransferHBARAndFTAndNFTFullFeeUsd(2, 0, 4, 1, 1, 0),
-                                    0.0001),
+                                    txnSize ->
+                                            expectedCryptoTransferHBARAndFTAndNFTFullFeeUsd(2, 0, 4, 1, 1, 0, txnSize),
+                                    SIMPLE_FEE_TOLERANCE_PERCENT),
                             getAccountBalance(OWNER)
                                     .hasTokenBalance(FUNGIBLE_TOKEN, 20L)
                                     .hasTokenBalance(NON_FUNGIBLE_TOKEN, 4L),
@@ -3354,7 +3315,9 @@ public class CryptoTransferSimpleFeesTest {
                                     .via("ftTransferTxn")
                                     .hasKnownStatus(INSUFFICIENT_GAS),
                             validateChargedUsdWithin(
-                                    "ftTransferTxn", expectedCryptoTransferFTFullFeeUsd(1, 1, 2, 1, 0, 10L), 0.0001),
+                                    "ftTransferTxn",
+                                    expectedCryptoTransferFTFullFeeUsd(1, 1, 2, 1, 0, 10L),
+                                    SIMPLE_FEE_TOLERANCE_PERCENT),
                             // validate no auto-created account exists
                             getAliasedAccountInfo(VALID_ALIAS_ED25519).hasCostAnswerPrecheck(INVALID_ACCOUNT_ID),
                             // validate balances

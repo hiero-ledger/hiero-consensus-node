@@ -12,11 +12,11 @@ import static com.swirlds.platform.eventhandling.TransactionHandlerPhase.SETTING
 import static com.swirlds.platform.eventhandling.TransactionHandlerPhase.UPDATING_PLATFORM_STATE;
 import static com.swirlds.platform.eventhandling.TransactionHandlerPhase.UPDATING_PLATFORM_STATE_RUNNING_HASH;
 import static com.swirlds.platform.eventhandling.TransactionHandlerPhase.WAITING_FOR_PREHANDLE;
-import static com.swirlds.platform.state.service.PlatformStateUtils.bulkUpdateOf;
-import static com.swirlds.platform.state.service.PlatformStateUtils.isInFreezePeriod;
-import static com.swirlds.platform.state.service.PlatformStateUtils.setLegacyRunningEventHashTo;
-import static com.swirlds.platform.state.service.PlatformStateUtils.updateLastFrozenTime;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.bulkUpdateOf;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.isInFreezePeriod;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.setLegacyRunningEventHashTo;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.updateLastFrozenTime;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
@@ -26,7 +26,6 @@ import com.swirlds.component.framework.schedulers.builders.TaskSchedulerType;
 import com.swirlds.platform.metrics.RoundHandlingMetrics;
 import com.swirlds.platform.metrics.TransactionMetrics;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
-import com.swirlds.platform.state.PlatformStateModifier;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
@@ -47,13 +46,14 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.crypto.ConsensusCryptoUtils;
-import org.hiero.consensus.hashgraph.ConsensusConfig;
+import org.hiero.consensus.hashgraph.config.ConsensusConfig;
 import org.hiero.consensus.model.event.CesEvent;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
+import org.hiero.consensus.platformstate.PlatformStateModifier;
 
 /**
  * A standard implementation of {@link TransactionHandler}.
@@ -351,13 +351,10 @@ public class DefaultTransactionHandler implements TransactionHandler {
         final ReservedSignedState reservedSignedState;
         if (isBoundary || freezeRoundReceived) {
             if (freezeRoundReceived && !isBoundary) {
-                logger.error(
-                        EXCEPTION.getMarker(),
-                        """
+                logger.error(EXCEPTION.getMarker(), """
                                 The freeze round {} is not a boundary round. The freeze state will be saved to disk, \
                                 but the app may not have done some work that it needs to (like finishing a block). The \
-                                app must ensure that the freeze round is always a boundary round.""",
-                        consensusRound.getRoundNum());
+                                app must ensure that the freeze round is always a boundary round.""", consensusRound.getRoundNum());
             }
             handlerMetrics.setPhase(GETTING_STATE_TO_SIGN);
             stateLifecycleManager.copyMutableState();
