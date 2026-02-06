@@ -53,8 +53,8 @@ public class TestTags {
      */
     public static final String ADHOC = "ADHOC";
     /**
-     * Tags a test that must run sequentially (not concurrently) in subprocess mode,
+     * Tags a test that must run serially (not concurrently) in subprocess mode,
      * typically because it is state-changing or requires isolation from other tests.
      */
-    public static final String SUBPROCESS_SEQUENTIAL = "SUBPROCESS_SEQUENTIAL";
+    public static final String SERIAL = "SERIAL";
 }

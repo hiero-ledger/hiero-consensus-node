@@ -43,11 +43,6 @@ on:
         type: string
         required: false
         default: "false"
-      enable-hapi-tests-crypto-subprocess-sequential:
-        description: "HAPI Testing (crypto subprocess sequential) Enabled"
-        type: string
-        required: false
-        default: "false"
       enable-hapi-tests-simplefees:
         description: "HAPI Testing (simplefees) Enabled"
         type: string
@@ -286,10 +281,9 @@ jobs:
         env:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
-        # Subprocess concurrent (non-XTS) crypto + embedded crypto
         # Use --rerun-tasks --no-build-cache to ensure tests actually run and aren't cached
         # Crypto uses same task for PR and MATS (no MATS suffix)
-        run: ${GRADLE_EXEC} hapiTestCrypto --no-daemon --rerun-tasks --no-build-cache && ${GRADLE_EXEC} hapiEmbeddedCrypto --no-daemon --rerun-tasks --no-build-cache && ${GRADLE_EXEC} hapiTestCryptoSubprocessSequential --no-daemon --rerun-tasks --no-build-cache
+        run: ${GRADLE_EXEC} hapiTestCrypto --no-daemon --rerun-tasks --no-build-cache && ${GRADLE_EXEC} hapiTestCryptoEmbedded --no-daemon --rerun-tasks --no-build-cache && ${GRADLE_EXEC} hapiTestCryptoSerial --no-daemon --rerun-tasks --no-build-cache
 
       - name: Publish HAPI Test (Crypto) Report
         uses: step-security/publish-unit-test-result-action@5d195d4dec0b9fa7b51a3dbc4298362a021247c7 # v2.20.4
@@ -322,71 +316,6 @@ jobs:
         if: ${{ steps.gradle-hapi-crypto.conclusion == 'failure' && !cancelled() }}
         with:
           name: HAPI Test (Crypto) Failure Artifacts
-          path: |
-            hedera-node/test-clients/build/**/*.blk.gz
-            hedera-node/test-clients/build/**/*.rcd.gz
-            hedera-node/test-clients/build/**/*.pces
-          retention-days: 7
-
-  hapi-tests-crypto-subprocess-sequential:
-    name: "HAPI Tests (Crypto Subprocess Sequential)"
-    if: ${{ inputs.enable-hapi-tests-crypto-subprocess-sequential == 'true' }}
-    runs-on: hl-cn-hapi-lin-lg
-    steps:
-      - name: Prepare Runner
-        uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
-        with:
-          checkout: "true"
-          checkout-ref: "${{ inputs.ref }}"
-          checkout-fetch-depth: "1"
-          checkout-token: "${{ secrets.access-token }}"
-          setup-java: "true"
-          java-version: "${{ inputs.java-version }}"
-          java-distribution: "${{ inputs.java-distribution }}"
-          setup-gradle: "true"
-          gradle-cache-read-only: "false"
-          setup-node: "true"
-          node-version: "${{ inputs.node-version }}"
-
-      - name: HAPI Testing (Crypto Subprocess Sequential)
-        id: gradle-hapi-crypto-subprocess-sequential
-        env:
-          LC_ALL: en.UTF-8
-          LANG: en_US.UTF-8
-        # Use --rerun-tasks --no-build-cache to ensure tests actually run and aren't cached
-        run: ${GRADLE_EXEC} hapiTestCryptoSubprocessSequential --no-daemon --rerun-tasks --no-build-cache
-
-      - name: Publish HAPI Test (Crypto Subprocess Sequential) Report
-        uses: step-security/publish-unit-test-result-action@5d195d4dec0b9fa7b51a3dbc4298362a021247c7 # v2.20.4
-        with:
-          check_name: "Node: HAPI Test (Crypto Subprocess Sequential) Results"
-          json_thousands_separator: ","
-          junit_files: "**/test-clients/build/test-results/**/TEST-*.xml"
-          comment_mode: errors # only comment if we could not find or parse the JUnit XML files
-
-      - name: Upload HAPI Test (Crypto Subprocess Sequential) Report Artifacts
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: HAPI Test (Crypto Subprocess Sequential) Report
-          path: "**/test-clients/build/test-results/**/TEST-*.xml"
-          retention-days: 7
-
-      - name: Upload HAPI Test (Crypto Subprocess Sequential) Network Logs
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ inputs.enable-network-log-capture && steps.gradle-hapi-crypto-subprocess-sequential.conclusion == 'failure' && !cancelled() }}
-        with:
-          name: HAPI Test (Crypto Subprocess Sequential) Network Logs
-          path: |
-            hedera-node/test-clients/build/hapi-test/**/output/**
-            hedera-node/test-clients/build/hapi-test/*.log
-            hedera-node/test-clients/output/**
-          retention-days: 7
-
-      - name: Upload HAPI Test (Crypto Subprocess Sequential) Failure Artifacts
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ steps.gradle-hapi-crypto-subprocess-sequential.conclusion == 'failure' && !cancelled() }}
-        with:
-          name: HAPI Test (Crypto Subprocess Sequential) Failure Artifacts
           path: |
             hedera-node/test-clients/build/**/*.blk.gz
             hedera-node/test-clients/build/**/*.rcd.gz
