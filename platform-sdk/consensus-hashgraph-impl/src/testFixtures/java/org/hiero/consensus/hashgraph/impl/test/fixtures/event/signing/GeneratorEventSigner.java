@@ -5,10 +5,11 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import org.hiero.consensus.model.event.UnsignedEvent;
 
 /**
- * A functional interface for signing an {@link UnsignedEvent} and producing a signature as {@link Bytes}.
+ * A functional interface for signing an {@link UnsignedEvent} and producing a signature as {@link Bytes}, used when
+ * generating events in tests.
  */
 @FunctionalInterface
-public interface EventSigner {
+public interface GeneratorEventSigner {
     /**
      * Signs the given unsigned event and returns the signature bytes.
      *

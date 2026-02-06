@@ -13,10 +13,10 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.test.fixtures.RosterWithKeys;
 
 /**
- * An {@link EventSigner} that produces real cryptographic signatures using the private keys from a
+ * An {@link GeneratorEventSigner} that produces real cryptographic signatures using the private keys from a
  * {@link RosterWithKeys}. Each node's signer is resolved from the roster at construction time.
  */
-public class RealEventSigner implements EventSigner {
+public class RealEventSigner implements GeneratorEventSigner {
     private final Map<NodeId, BytesSigner> signers;
 
     /**

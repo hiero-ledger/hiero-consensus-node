@@ -6,10 +6,10 @@ import org.hiero.consensus.model.event.UnsignedEvent;
 import org.hiero.consensus.test.fixtures.Randotron;
 
 /**
- * An {@link EventSigner} that produces random (non-cryptographic) signature bytes. Useful in tests where signature
+ * An {@link GeneratorEventSigner} that produces random (non-cryptographic) signature bytes. Useful in tests where signature
  * validity is not checked.
  */
-public class RandomEventSigner implements EventSigner {
+public class RandomEventSigner implements GeneratorEventSigner {
     private final Randotron randotron;
 
     /**

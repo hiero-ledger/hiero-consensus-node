@@ -24,7 +24,7 @@ public interface EventGraphSource {
     PlatformEvent next();
 
     /**
-     * Returns a list of the next {@code count} events from this source. If
+     * Returns a list of the next {@code count} events from this source.
      *
      * @param count the number of events to return
      * @return a list of events

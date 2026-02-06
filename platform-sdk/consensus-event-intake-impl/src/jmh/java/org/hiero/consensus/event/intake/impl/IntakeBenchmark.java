@@ -149,6 +149,6 @@ public class IntakeBenchmark {
         for (final PlatformEvent event : events) {
             intake.unhashedEventsInputWire().put(event);
         }
-        counter.waitForAllEvents();
+        counter.waitForAllEvents(5);
     }
 }

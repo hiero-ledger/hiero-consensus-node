@@ -25,7 +25,7 @@ public class EventCounter implements Consumer<PlatformEvent> {
 
     /**
      * Accepts a {@link PlatformEvent}, incrementing the internal counter. When the counter reaches the expected event
-     * count, the internal latch is released, unblocking any thread waiting in {@link #waitForAllEvents()}.
+     * count, the internal latch is released, unblocking any thread waiting in {@link #waitForAllEvents(int)}.
      *
      * @param event the platform event to consume
      */
@@ -40,9 +40,9 @@ public class EventCounter implements Consumer<PlatformEvent> {
      * @throws RuntimeException if the timeout expires before all events are received, or if the thread is interrupted
      *                          while waiting
      */
-    public void waitForAllEvents() {
+    public void waitForAllEvents(final int timeoutSeconds) {
         try {
-            final boolean done = countDownLatch.await(5, TimeUnit.SECONDS);
+            final boolean done = countDownLatch.await(timeoutSeconds, TimeUnit.SECONDS);
             if (!done) {
                 throw new RuntimeException("Timed out waiting for %d events".formatted(countDownLatch.getCount()));
             }

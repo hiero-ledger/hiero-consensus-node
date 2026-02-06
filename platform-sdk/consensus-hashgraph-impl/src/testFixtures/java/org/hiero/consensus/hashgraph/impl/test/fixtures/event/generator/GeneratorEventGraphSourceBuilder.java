@@ -133,7 +133,7 @@ public class GeneratorEventGraphSourceBuilder {
      */
     public GeneratorEventGraphSource build() {
         final Roster actualRoster;
-        final EventSigner signer;
+        final GeneratorEventSigner signer;
         if (roster != null) {
             signer = new RandomEventSigner(getSeed());
             actualRoster = roster;
