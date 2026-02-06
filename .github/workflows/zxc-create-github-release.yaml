@@ -62,6 +62,7 @@ jobs:
 
       - name: Extract the Input Version
         id: extract-version
+        if: ${{ inputs.dry-run != true }}
         run: |
           VERSION=""
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
@@ -75,23 +76,29 @@ jobs:
 
       - name: Validate and Correct Release Identifier
         id: validate
+        env:
+          DRY_RUN: ${{ inputs.dry-run }}
         run: |
           release_identifier="${{ steps.extract-version.outputs.version }}"
 
           echo "Input release identifier: '${release_identifier}'"
 
-          is_valid=$(semver validate "${release_identifier}")
-
-          if [[ "$is_valid" != "valid" ]]; then
-            echo "Invalid semantic version: ${release_identifier}"
-            exit 1
+          # If dry run is enabled, skip validation and use the input as-is. Otherwise, validate the version and clean it if necessary.
+          if [[ $DRY_RUN == "true" ]]; then
+            echo "Dry run mode - skipping validation and using input as-is."
+            release_identifier="${{ inputs.release-version }}"
+          else
+            is_valid=$(semver validate "${release_identifier}")
+            if [[ "$is_valid" != "valid" ]]; then
+              echo "Invalid semantic version: ${release_identifier}"
+              exit 1
+            fi
+            release_identifier="${release_identifier#v}"
           fi
 
-          cleaned="${release_identifier#v}"
-
-          echo "Release identifier is valid: ${cleaned}"
-          echo "release-identifier=${cleaned}" >> "${GITHUB_OUTPUT}"
-          echo "Validated Input: ${cleaned}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "Release identifier is valid: ${release_identifier}"
+          echo "release-identifier=${release_identifier}" >> "${GITHUB_OUTPUT}"
+          echo "Validated Input: ${release_identifier}" >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Checkout Code
         id: checkout_code

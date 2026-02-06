@@ -217,12 +217,14 @@ jobs:
         run: |
           echo "Applying computed version tag"
           if [[ "${{ inputs.dry-run-enabled }}" == "true" ]]; then
-            echo "Dry run enabled, not applying tag v${{ steps.next-release.outputs.version }}"
+            echo "Dry run enabled, not applying tag ${{ steps.next-release.outputs.version }}"
+            echo "Overriding the version number to the build tag for dry run purposes"
+            echo "version=${{ steps.validate.outputs.build-tag }}" >> ${GITHUB_OUTPUT}
           else
-            git tag --sign --annotate "v${{ steps.next-release.outputs.version }}" --message "v${{ steps.next-release.outputs.version }}"
-            echo "Applied tag v${{ steps.next-release.outputs.version }}"
+            git tag --sign --annotate "${{ steps.next-release.outputs.version }}" --message "${{ steps.next-release.outputs.version }}"
+            echo "Applied tag ${{ steps.next-release.outputs.version }}"
             current_version="$(git-semver latest)"
-            echo "Version Tag Applied: v${{ steps.next-release.outputs.version }}" >> ${GITHUB_STEP_SUMMARY}
+            echo "Version Tag Applied: ${{ steps.next-release.outputs.version }}" >> ${GITHUB_STEP_SUMMARY}
             echo "Current Official Version: ${current_version}" >> ${GITHUB_STEP_SUMMARY}
           fi
 
@@ -230,8 +232,8 @@ jobs:
         if: ${{ inputs.dry-run-enabled != true }}
         run: |
           echo "Pushing release tag to remote"
-          git push origin tag "v${{ steps.next-release.outputs.version }}"
-          echo "Pushed new release tag v${{ steps.next-release.outputs.version }} to remote"
+          git push origin tag "${{ steps.next-release.outputs.version }}"
+          echo "Pushed new release tag ${{ steps.next-release.outputs.version }} to remote"
 
       - name: Clean Up git-semver
         run: |
@@ -283,7 +285,7 @@ jobs:
       ref: ${{ needs.create-new-tag.outputs.build-tag }}
       release-version: ${{ needs.create-new-tag.outputs.version }}
       create-release-notes: true
-      create-release: ${{ needs.create-new-tag.outputs.create-release == 'true' || inputs.dry-run-enabled == true}}
+      create-release: ${{ needs.create-new-tag.outputs.create-release == 'true' }}
       dry-run: ${{ inputs.dry-run-enabled }}
     secrets:
       gh-access-token: ${{ secrets.GH_ACCESS_TOKEN }}
