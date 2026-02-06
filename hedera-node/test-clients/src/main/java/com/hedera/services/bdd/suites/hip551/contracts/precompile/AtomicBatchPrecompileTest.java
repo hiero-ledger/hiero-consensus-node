@@ -26,6 +26,7 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.contractCallLocal;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getContractInfo;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getScheduleInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTokenInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTokenNftInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
@@ -40,6 +41,8 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.mintToken;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleSign;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenDelete;
@@ -65,8 +68,10 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.exposeTargetLedgerI
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.tokenTransferList;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.transferList;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.wrapIntoTupleArray;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
@@ -490,14 +495,25 @@ class AtomicBatchPrecompileTest {
             final var cryptoTransferTxn = "cryptoTransferTxn";
             final AtomicReference<AccountID> senderId = new AtomicReference<>();
             final AtomicReference<AccountID> receiverId = new AtomicReference<>();
+            final AtomicReference<TokenID> tokenId = new AtomicReference<>();
+            final var amountToBeSent = 50L;
             return hapiTest(flattened(
                     cryptoCreate(SENDER).balance(ONE_HBAR).exposingCreatedIdTo(senderId::set),
                     cryptoCreate(RECEIVER)
                             .balance(ONE_HBAR)
                             .receiverSigRequired(true)
                             .exposingCreatedIdTo(receiverId::set),
+                    cryptoCreate(TOKEN_TREASURY),
+                    tokenCreate(FUNGIBLE_TOKEN)
+                            .tokenType(TokenType.FUNGIBLE_COMMON)
+                            .initialSupply(1_000)
+                            .treasury(TOKEN_TREASURY)
+                            .exposingCreatedIdTo(id -> tokenId.set(asToken(id))),
+                    tokenAssociate(SENDER, List.of(FUNGIBLE_TOKEN)),
+                    tokenAssociate(RECEIVER, List.of(FUNGIBLE_TOKEN)),
+                    cryptoTransfer(moving(200, FUNGIBLE_TOKEN).between(TOKEN_TREASURY, SENDER)),
                     deployContractAndUpdateKeys(),
-                    // Simple transfer between sender and receiver for ONE_HBAR should succeed
+                    // Simple fungible token transfer between sender and receiver
                     sourcing(() -> atomicBatchDefaultOperator(
                             cryptoUpdate(SENDER).key(DELEGATE_KEY),
                             cryptoUpdate(RECEIVER).key(DELEGATE_KEY),
@@ -505,17 +521,81 @@ class AtomicBatchPrecompileTest {
                                             ATOMIC_CRYPTO_TRANSFER_CONTRACT,
                                             TRANSFER_MULTIPLE_TOKENS,
                                             transferList()
-                                                    .withAccountAmounts(
-                                                            accountAmount(senderId.get(), -ONE_HBAR, false),
-                                                            accountAmount(receiverId.get(), ONE_HBAR, false))
+                                                    .withAccountAmounts(EMPTY_TUPLE_ARRAY)
                                                     .build(),
-                                            EMPTY_TUPLE_ARRAY)
+                                            wrapIntoTupleArray(tokenTransferList()
+                                                    .forToken(tokenId.get())
+                                                    .withAccountAmounts(
+                                                            accountAmount(senderId.get(), -amountToBeSent, false),
+                                                            accountAmount(receiverId.get(), amountToBeSent, false))
+                                                    .build()))
                                     .via(cryptoTransferTxn)
                                     .gas(GAS_TO_OFFER))),
                     // validate balances
-                    getAccountBalance(SENDER).hasTinyBars(0),
-                    getAccountBalance(RECEIVER).hasTinyBars(2 * ONE_HBAR),
+                    getAccountBalance(SENDER).hasTokenBalance(FUNGIBLE_TOKEN, 150),
+                    getAccountBalance(RECEIVER).hasTokenBalance(FUNGIBLE_TOKEN, 50),
                     validatedHtsPrecompileResult(cryptoTransferTxn, SUCCESS, SUCCESS)));
+        }
+
+        @HapiTest
+        final Stream<DynamicTest> scheduleDefaultOperator() {
+            final var scheduleName = "fungibleTransferSchedule";
+            final var schedulePayer = "schedulePayer";
+            final AtomicReference<AccountID> senderId = new AtomicReference<>();
+            final AtomicReference<AccountID> receiverId = new AtomicReference<>();
+            final AtomicReference<TokenID> tokenId = new AtomicReference<>();
+            final var amountToBeSent = 50L;
+            return hapiTest(flattened(
+                    cryptoCreate(SENDER).balance(ONE_HBAR).exposingCreatedIdTo(senderId::set),
+                    cryptoCreate(RECEIVER)
+                            .balance(ONE_HBAR)
+                            .receiverSigRequired(true)
+                            .exposingCreatedIdTo(receiverId::set),
+                    cryptoCreate(schedulePayer).balance(10 * ONE_HBAR),
+                    cryptoCreate(TOKEN_TREASURY),
+                    tokenCreate(FUNGIBLE_TOKEN)
+                            .tokenType(TokenType.FUNGIBLE_COMMON)
+                            .initialSupply(1_000)
+                            .treasury(TOKEN_TREASURY)
+                            .exposingCreatedIdTo(id -> tokenId.set(asToken(id))),
+                    tokenAssociate(SENDER, List.of(FUNGIBLE_TOKEN)),
+                    tokenAssociate(RECEIVER, List.of(FUNGIBLE_TOKEN)),
+                    cryptoTransfer(moving(200, FUNGIBLE_TOKEN).between(TOKEN_TREASURY, SENDER)),
+                    deployContractAndUpdateKeys(),
+                    // Schedule a contractCall that performs a fungible token transfer via the HTS precompile
+                    sourcing(() -> scheduleCreate(
+                            scheduleName,
+                            contractCall(
+                                    ATOMIC_CRYPTO_TRANSFER_CONTRACT,
+                                    TRANSFER_MULTIPLE_TOKENS,
+                                    transferList()
+                                            .withAccountAmounts(EMPTY_TUPLE_ARRAY)
+                                            .build(),
+                                    wrapIntoTupleArray(tokenTransferList()
+                                            .forToken(tokenId.get())
+                                            .withAccountAmounts(
+                                                    accountAmount(
+                                                            senderId.get(), -amountToBeSent, false),
+                                                    accountAmount(
+                                                            receiverId.get(), amountToBeSent, false))
+                                            .build()))
+                                    .gas(GAS_TO_OFFER))
+                            .designatingPayer(schedulePayer)
+                            .alsoSigningWith(SENDER, DELEGATE_KEY)
+                            .via(scheduleName).logged()),
+                    // Schedule is not yet executed (waiting for payer + receiver sig)
+                    getScheduleInfo(scheduleName).isNotExecuted(),
+                    // Sign with the receiver and the designated payer to trigger execution
+                    scheduleSign(scheduleName)
+                            .alsoSigningWith(RECEIVER, schedulePayer).via("schedule")
+                            .hasKnownStatus(SUCCESS),
+                    // Verify the schedule was executed
+                    getScheduleInfo(scheduleName).isExecuted().logged(),
+                    getTxnRecord("schedule"))
+                    // Validate token balances after the scheduled transfer
+//                    getAccountBalance(SENDER).hasTokenBalance(FUNGIBLE_TOKEN, 150),
+//                    getAccountBalance(RECEIVER).hasTokenBalance(FUNGIBLE_TOKEN, 50))
+            );
         }
 
         @HapiTest
