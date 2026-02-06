@@ -4,6 +4,7 @@ package org.hiero.consensus.pces.impl.common;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 
+import com.hedera.hapi.platform.event.GossipEvent;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -47,6 +48,31 @@ public final class PcesUtilities {
     public static PcesFileWriter createWriter(@NonNull final PcesFileWriterType writerType, @NonNull final Path path)
             throws IOException {
         return switch (writerType) {
+            case NO_OP ->
+                new PcesFileWriter() {
+                    @Override
+                    public void writeVersion(final int version) throws IOException {}
+
+                    @Override
+                    public long writeEvent(@NonNull final GossipEvent event) {
+                        final int size = GossipEvent.PROTOBUF.measureRecord(event);
+                        return size + Integer.BYTES;
+                    }
+
+                    @Override
+                    public void flush() throws IOException {}
+
+                    @Override
+                    public void sync() throws IOException {}
+
+                    @Override
+                    public void close() throws IOException {}
+
+                    @Override
+                    public long fileSize() {
+                        return 0;
+                    }
+                };
             case OUTPUT_STREAM -> new PcesOutputStreamFileWriter(path);
             case FILE_CHANNEL -> new PcesFileChannelWriter(path);
             case FILE_CHANNEL_SYNC -> new PcesFileChannelWriter(path, List.of(StandardOpenOption.DSYNC));
