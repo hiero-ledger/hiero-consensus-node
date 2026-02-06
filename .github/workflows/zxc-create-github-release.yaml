@@ -110,7 +110,7 @@ jobs:
 
       - name: Validate Tag Exists
         run: |
-          tag="v${{ steps.validate.outputs.release-identifier }}"
+          tag="${{ steps.validate.outputs.release-identifier }}"
 
           echo "Checking if tag ${tag} exists..."
 
