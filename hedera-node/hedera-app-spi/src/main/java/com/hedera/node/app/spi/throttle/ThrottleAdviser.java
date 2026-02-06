@@ -30,4 +30,6 @@ public interface ThrottleAdviser {
      * the available amount and returns (does not fail).
      */
     void consumeOpsDurationThrottleCapacity(long opsDurationUnitsToConsume);
+
+    int highVolumeThrottleUtilization(HederaFunctionality function);
 }

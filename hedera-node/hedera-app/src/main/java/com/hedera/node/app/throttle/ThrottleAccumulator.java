@@ -11,6 +11,7 @@ import static com.hedera.hapi.node.base.HederaFunctionality.ETHEREUM_TRANSACTION
 import static com.hedera.hapi.node.base.HederaFunctionality.HOOK_DISPATCH;
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_ASSOCIATE_TO_ACCOUNT;
 import static com.hedera.hapi.util.HapiUtils.functionOf;
+import static org.hiero.hapi.fees.HighVolumePricingCalculator.HIGH_VOLUME_FUNCTIONS;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
 import static com.hedera.node.app.hapi.utils.ethereum.EthTxData.populateEthTxData;
 import static com.hedera.node.app.hapi.utils.sysfiles.domain.throttling.ScaleFactor.ONE_TO_ONE;
@@ -73,6 +74,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+
 import java.math.BigInteger;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -85,6 +87,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.IntSupplier;
 import java.util.function.Supplier;
+
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -182,7 +185,7 @@ public class ThrottleAccumulator {
      * @param state the current state of the node
      * @param throttleUsages if not null, a list to accumulate throttle usages into
      * @param gasThrottleAlwaysEnabled if set, gas throttle is always enforced within this call,
-     *                                 even if the throttleByGas configuration flag is off
+     * even if the throttleByGas configuration flag is off
      * @return whether the transaction should be throttled
      */
     public boolean checkAndEnforceThrottle(
@@ -269,9 +272,9 @@ public class ThrottleAccumulator {
 
             return enforceGasThrottle
                     && !gasThrottle.allow(
-                            now,
-                            query.contractCallLocalOrElse(ContractCallLocalQuery.DEFAULT)
-                                    .gas());
+                    now,
+                    query.contractCallLocalOrElse(ContractCallLocalQuery.DEFAULT)
+                            .gas());
         }
         resetLastAllowedUse();
         final var manager = functionReqs.get(queryFunction);
@@ -478,12 +481,13 @@ public class ThrottleAccumulator {
 
         // Check if this is a high-volume transaction and use appropriate throttle bucket
         final boolean isHighVolumeTxn = txBody.highVolume();
-        final var targetFunctionReqs = isHighVolumeTxn ? highVolumeFunctionReqs : functionReqs;
+        final boolean useHighVolumeBucket = isHighVolumeTxn && HIGH_VOLUME_FUNCTIONS.contains(function);
+        final var targetFunctionReqs = useHighVolumeBucket ? highVolumeFunctionReqs : functionReqs;
         final var manager = targetFunctionReqs.get(function);
 
         // If high-volume flag is set but no high-volume bucket exists for this function,
         // fall back to normal throttle bucket
-        final var effectiveManager = (manager == null && isHighVolumeTxn) ? functionReqs.get(function) : manager;
+        final var effectiveManager = (manager == null && useHighVolumeBucket) ? functionReqs.get(function) : manager;
 
         if (effectiveManager == null) {
             return true;
@@ -492,7 +496,7 @@ public class ThrottleAccumulator {
         return switch (function) {
             case SCHEDULE_CREATE -> shouldThrottleScheduleCreate(effectiveManager, txnInfo, now, state, throttleUsages);
             case TOKEN_MINT ->
-                shouldThrottleMint(effectiveManager, txBody.tokenMintOrThrow(), now, configuration, throttleUsages);
+                    shouldThrottleMint(effectiveManager, txBody.tokenMintOrThrow(), now, configuration, throttleUsages);
             case CRYPTO_TRANSFER -> {
                 final var accountStore = new ReadableStoreFactoryImpl(state).readableStore(ReadableAccountStore.class);
                 final var relationStore =
@@ -503,7 +507,8 @@ public class ThrottleAccumulator {
                         configuration,
                         getImplicitCreationsCount(txBody, accountStore),
                         getAutoAssociationsCount(txBody, relationStore),
-                        throttleUsages);
+                        throttleUsages,
+                        isHighVolumeTxn);
             }
             case ETHEREUM_TRANSACTION -> {
                 final var accountStore = new ReadableStoreFactoryImpl(state).readableStore(ReadableAccountStore.class);
@@ -572,9 +577,9 @@ public class ThrottleAccumulator {
                 } else {
                     final var ledgerConfig = config.getConfigData(LedgerConfig.class);
                     expiry = Optional.ofNullable(txnInfo.transactionID())
-                                    .orElse(TransactionID.DEFAULT)
-                                    .transactionValidStartOrElse(Timestamp.DEFAULT)
-                                    .seconds()
+                            .orElse(TransactionID.DEFAULT)
+                            .transactionValidStartOrElse(Timestamp.DEFAULT)
+                            .seconds()
                             + ledgerConfig.scheduleTxExpiryTimeSecs();
                 }
                 final var entityIdStore = new ReadableEntityIdStoreImpl(state.getReadableStates(EntityIdService.NAME));
@@ -611,7 +616,7 @@ public class ThrottleAccumulator {
     /**
      * Returns the gas limit for a contract transaction.
      *
-     * @param txnBody  the transaction body
+     * @param txnBody the transaction body
      * @param function the functionality
      * @return the gas limit for a contract transaction
      */
@@ -619,22 +624,19 @@ public class ThrottleAccumulator {
             @NonNull final TransactionBody txnBody, @NonNull final HederaFunctionality function) {
         final long nominalGas =
                 switch (function) {
-                    case CONTRACT_CREATE ->
-                        txnBody.contractCreateInstanceOrThrow().gas();
+                    case CONTRACT_CREATE -> txnBody.contractCreateInstanceOrThrow().gas();
                     case CONTRACT_CALL -> txnBody.contractCallOrThrow().gas();
-                    case ETHEREUM_TRANSACTION ->
-                        Optional.of(txnBody.ethereumTransactionOrThrow()
-                                        .ethereumData()
-                                        .toByteArray())
-                                .map(EthTxData::populateEthTxData)
-                                .map(EthTxData::gasLimit)
-                                .orElse(0L);
-                    case HOOK_DISPATCH ->
-                        txnBody.hookDispatchOrThrow()
-                                .executionOrElse(HookExecution.DEFAULT)
-                                .callOrElse(HookCall.DEFAULT)
-                                .evmHookCallOrElse(EvmHookCall.DEFAULT)
-                                .gasLimit();
+                    case ETHEREUM_TRANSACTION -> Optional.of(txnBody.ethereumTransactionOrThrow()
+                                    .ethereumData()
+                                    .toByteArray())
+                            .map(EthTxData::populateEthTxData)
+                            .map(EthTxData::gasLimit)
+                            .orElse(0L);
+                    case HOOK_DISPATCH -> txnBody.hookDispatchOrThrow()
+                            .executionOrElse(HookExecution.DEFAULT)
+                            .callOrElse(HookCall.DEFAULT)
+                            .evmHookCallOrElse(EvmHookCall.DEFAULT)
+                            .gasLimit();
                     default -> 0L;
                 };
         // Interpret negative gas as overflow
@@ -680,13 +682,14 @@ public class ThrottleAccumulator {
             @NonNull final Configuration configuration,
             final int implicitCreationsCount,
             final int autoAssociationsCount,
-            List<ThrottleUsage> throttleUsages) {
+            List<ThrottleUsage> throttleUsages,
+            final boolean useHighVolumeBucket) {
         final boolean unlimitedAutoAssociations =
                 configuration.getConfigData(EntitiesConfig.class).unlimitedAutoAssociationsEnabled();
         if (implicitCreationsCount > 0) {
-            return shouldThrottleBasedOnImplicitCreations(manager, implicitCreationsCount, now, throttleUsages);
+            return shouldThrottleBasedOnImplicitCreations(manager, implicitCreationsCount, now, throttleUsages, useHighVolumeBucket);
         } else if (unlimitedAutoAssociations && autoAssociationsCount > 0) {
-            return shouldThrottleBasedOnAutoAssociations(manager, autoAssociationsCount, now, throttleUsages);
+            return shouldThrottleBasedOnAutoAssociations(manager, autoAssociationsCount, now, throttleUsages, useHighVolumeBucket);
         } else {
             return !manager.allReqsMetAt(now, throttleUsages);
         }
@@ -867,10 +870,11 @@ public class ThrottleAccumulator {
             @NonNull final ThrottleReqsManager manager,
             final int implicitCreationsCount,
             @NonNull final Instant now,
-            @Nullable final List<ThrottleUsage> throttleUsages) {
+            @Nullable final List<ThrottleUsage> throttleUsages,
+            final boolean useHighVolumeBucket) {
         return (implicitCreationsCount == 0)
                 ? !manager.allReqsMetAt(now, throttleUsages)
-                : shouldThrottleImplicitCreations(implicitCreationsCount, now, throttleUsages);
+                : shouldThrottleImplicitCreations(implicitCreationsCount, now, throttleUsages, useHighVolumeBucket);
     }
 
     private boolean shouldThrottleBasedExcessBytes(
@@ -888,22 +892,61 @@ public class ThrottleAccumulator {
             @NonNull final ThrottleReqsManager manager,
             final int autoAssociations,
             @NonNull final Instant now,
-            @Nullable final List<ThrottleUsage> throttleUsages) {
+            @Nullable final List<ThrottleUsage> throttleUsages,
+            final boolean useHighVolumeBucket) {
         return (autoAssociations == 0)
                 ? !manager.allReqsMetAt(now, throttleUsages)
-                : shouldThrottleAutoAssociations(autoAssociations, now, throttleUsages);
+                : shouldThrottleAutoAssociations(autoAssociations, now, throttleUsages, useHighVolumeBucket);
     }
 
     private boolean shouldThrottleImplicitCreations(
-            final int n, @NonNull final Instant now, @Nullable final List<ThrottleUsage> throttleUsages) {
-        final var manager = functionReqs.get(CRYPTO_CREATE);
+            final int n,
+            @NonNull final Instant now,
+            @Nullable final List<ThrottleUsage> throttleUsages,
+            final boolean useHighVolumeBucket) {
+        final var manager = useHighVolumeBucket ?
+                Optional.ofNullable(highVolumeFunctionReqs.get(CRYPTO_CREATE)).orElse(functionReqs.get(CRYPTO_CREATE)) :
+                functionReqs.get(CRYPTO_CREATE);
         return manager == null || !manager.allReqsMetAt(now, n, ONE_TO_ONE, throttleUsages);
     }
 
     private boolean shouldThrottleAutoAssociations(
-            final int n, @NonNull final Instant now, @Nullable final List<ThrottleUsage> throttleUsages) {
-        final var manager = functionReqs.get(TOKEN_ASSOCIATE_TO_ACCOUNT);
+            final int n,
+            @NonNull final Instant now,
+            @Nullable final List<ThrottleUsage> throttleUsages,
+            final boolean useHighVolumeBucket) {
+        final var manager = useHighVolumeBucket ?
+                Optional.ofNullable(highVolumeFunctionReqs.get(TOKEN_ASSOCIATE_TO_ACCOUNT)).orElse(functionReqs.get(TOKEN_ASSOCIATE_TO_ACCOUNT)) :
+                functionReqs.get(TOKEN_ASSOCIATE_TO_ACCOUNT);
         return manager == null || !manager.allReqsMetAt(now, n, ONE_TO_ONE, throttleUsages);
+    }
+
+    /**
+     * Returns the current instantaneous utilization percentage of the high-volume throttle
+     * for the given functionality, without accounting for time-based capacity leakage.
+     * The utilization is expressed in basis points (0 to 10,000), where 10,000 = 100%.
+     *
+     * @param function the functionality to get the utilization for
+     * @return the utilization percentage in basis points (0 to 10,000),
+     * or 0 if no high-volume throttle exists for the functionality
+     */
+    public int getHighVolumeThrottleInstantaneousUtilization(@NonNull final HederaFunctionality function) {
+        requireNonNull(function);
+
+        final var manager = highVolumeFunctionReqs.get(function);
+        if (manager == null) {
+            return 0;
+        }
+
+        // Get the maximum utilization across all throttles for this functionality
+        double maxUtilization = 0.0;
+        for (final var throttle : manager.managedThrottles()) {
+            final double utilization = throttle.instantaneousPercentUsed();
+            maxUtilization = Math.max(maxUtilization, utilization);
+        }
+
+        // Convert from percentage (0-100) to basis points (0-10,000)
+        return (int) Math.min(10_000, Math.round(maxUtilization * 100));
     }
 
     /**

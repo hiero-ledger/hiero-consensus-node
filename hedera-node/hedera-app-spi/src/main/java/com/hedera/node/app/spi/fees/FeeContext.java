@@ -126,4 +126,6 @@ public interface FeeContext {
     default long tinybarsFromTinycents(final long amount) {
         return tinycentsToTinybars(amount, fromPbj(activeRate()));
     }
+
+    default int getHighVolumeThrottleUtilization(HederaFunctionality functionality) { return 0; }
 }

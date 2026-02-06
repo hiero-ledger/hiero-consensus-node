@@ -380,6 +380,13 @@ public class ParentTxnFactory {
             if (congestionMultiplier > 1) {
                 baseBuilder.congestionMultiplier(congestionMultiplier);
             }
+            if(txnInfo.txBody().highVolume()){
+                final var highVolumeMultiplier = feeManager.highVolumeMultiplierFor(
+                        txnInfo.txBody(), txnInfo.functionality(), storeFactory.asReadOnly());
+                if (highVolumeMultiplier > 1) {
+                    baseBuilder.highVolumePricingMultiplier(highVolumeMultiplier);
+                }
+            }
         }
         return new RecordDispatch(
                 baseBuilder,

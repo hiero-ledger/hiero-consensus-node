@@ -13,6 +13,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.FEE_DIVISOR_FACTOR;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.hapi.fees.FeeScheduleUtils.isValid;
+import static org.hiero.hapi.fees.FeeScheduleUtils.lookupServiceFee;
 
 import com.hedera.hapi.node.base.CurrentAndNextFeeSchedule;
 import com.hedera.hapi.node.base.FeeComponents;
@@ -46,6 +47,8 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.hapi.fees.HighVolumePricingCalculator;
+import org.hiero.hapi.support.fees.ServiceFeeDefinition;
 
 /**
  * Creates {@link FeeCalculator} instances based on the current fee schedule. Whenever the fee schedule is updated,
@@ -246,8 +249,13 @@ public final class FeeManager {
             @NonNull final TransactionBody body,
             @NonNull final HederaFunctionality functionality,
             @NonNull final ReadableStoreFactory storeFactory) {
-
         return congestionMultipliers.maxCurrentMultiplier(body, functionality, storeFactory);
+    }
+
+    public long highVolumeMultiplierFor(final TransactionBody transactionBody,
+                                        final HederaFunctionality functionality,
+                                        final ReadableStoreFactory readOnly) {
+        return highVolumeMultiplier;
     }
 
     @NonNull

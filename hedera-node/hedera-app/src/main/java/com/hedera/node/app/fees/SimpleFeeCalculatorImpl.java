@@ -1,19 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.fees;
 
-import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_CREATE_TOPIC;
-import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
-import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_APPROVE_ALLOWANCE;
-import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
-import static com.hedera.hapi.node.base.HederaFunctionality.FILE_APPEND;
-import static com.hedera.hapi.node.base.HederaFunctionality.FILE_CREATE;
-import static com.hedera.hapi.node.base.HederaFunctionality.HOOK_STORE;
-import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_CREATE;
-import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_AIRDROP;
-import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_ASSOCIATE_TO_ACCOUNT;
-import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_CLAIM_AIRDROP;
-import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_CREATE;
-import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_MINT;
 import static com.hedera.node.app.workflows.handle.HandleWorkflow.ALERT_MESSAGE;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.hapi.fees.FeeScheduleUtils.lookupServiceFee;
@@ -56,21 +43,6 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
     private final Map<TransactionBody.DataOneOfType, ServiceFeeCalculator> serviceFeeCalculators;
     private final Map<Query.QueryOneOfType, QueryFeeCalculator> queryFeeCalculators;
     private final CongestionMultipliers congestionMultipliers;
-
-    private static final Set<HederaFunctionality> HIGH_VOLUME_FUNCTIONS = Set.of(
-            CRYPTO_CREATE,
-            CONSENSUS_CREATE_TOPIC,
-            SCHEDULE_CREATE,
-            CRYPTO_APPROVE_ALLOWANCE,
-            FILE_CREATE,
-            FILE_APPEND,
-            CONTRACT_CREATE,
-            HOOK_STORE,
-            TOKEN_ASSOCIATE_TO_ACCOUNT,
-            TOKEN_AIRDROP,
-            TOKEN_CLAIM_AIRDROP,
-            TOKEN_MINT,
-            TOKEN_CREATE);
 
     public SimpleFeeCalculatorImpl(
             @NonNull FeeSchedule feeSchedule,
@@ -157,7 +129,7 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
         serviceFeeCalculator.accumulateServiceFee(txnBody, simpleFeeContext, result, feeSchedule);
 
         final var functionality = simpleFeeContext.functionality();
-        final var isHighVolumeFunction = HIGH_VOLUME_FUNCTIONS.contains(functionality);
+        final var isHighVolumeFunction = HighVolumePricingCalculator.HIGH_VOLUME_FUNCTIONS.contains(functionality);
 
         // Apply high-volume pricing multiplier if applicable (HIP-1313)
         if (txnBody.highVolume() && isHighVolumeFunction) {

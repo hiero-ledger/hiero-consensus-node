@@ -72,4 +72,14 @@ public interface NetworkUtilizationManager {
      * at the instant for which throttling should be calculated
      */
     boolean shouldThrottleNOfUnscaled(int n, @NonNull HederaFunctionality function, @NonNull Instant consensusTime);
+
+    /**
+     * Returns the current utilization percentage of the high-volume throttle for the given functionality.
+     * The utilization is expressed in hundredths of one percent (0 to 10,000), where 10,000 = 100%.
+     *
+     * @param function the functionality to get the utilization for
+     * @param consensusTime the consensus time used to calculate leaked capacity
+     * @return the utilization percentage in hundredths of one percent (0 to 10,000), or 0 if unavailable
+     */
+    int highVolumeThrottleUtilization(@NonNull HederaFunctionality function, @NonNull Instant consensusTime);
 }

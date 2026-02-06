@@ -1,11 +1,27 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.hapi.fees;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_CREATE_TOPIC;
+import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_APPROVE_ALLOWANCE;
+import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.FILE_APPEND;
+import static com.hedera.hapi.node.base.HederaFunctionality.FILE_CREATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.HOOK_STORE;
+import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_CREATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_AIRDROP;
+import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_ASSOCIATE_TO_ACCOUNT;
+import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_CLAIM_AIRDROP;
+import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_CREATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_MINT;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.node.base.HederaFunctionality;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
+import java.util.Set;
+
 import org.hiero.hapi.support.fees.PiecewiseLinearCurve;
 import org.hiero.hapi.support.fees.PiecewiseLinearPoint;
 import org.hiero.hapi.support.fees.PricingCurve;
@@ -35,6 +51,20 @@ public final class HighVolumePricingCalculator {
 
     /** The scale factor for multiplier values (1,000 = 1x). */
     public static final long MULTIPLIER_SCALE = 1_000L;
+    public static final Set<HederaFunctionality> HIGH_VOLUME_FUNCTIONS = Set.of(
+            CRYPTO_CREATE,
+            CONSENSUS_CREATE_TOPIC,
+            SCHEDULE_CREATE,
+            CRYPTO_APPROVE_ALLOWANCE,
+            FILE_CREATE,
+            FILE_APPEND,
+            CONTRACT_CREATE,
+            HOOK_STORE,
+            TOKEN_ASSOCIATE_TO_ACCOUNT,
+            TOKEN_AIRDROP,
+            TOKEN_CLAIM_AIRDROP,
+            TOKEN_MINT,
+            TOKEN_CREATE);
 
     private HighVolumePricingCalculator() {
         // Utility class

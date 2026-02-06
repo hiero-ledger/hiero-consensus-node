@@ -28,6 +28,7 @@ import javax.inject.Singleton;
 public class NetworkUtilizationManagerImpl implements NetworkUtilizationManager {
     private final ThrottleAccumulator backendThrottle;
     private final CongestionMultipliers congestionMultipliers;
+    private final HighVolumeMultiplier highVolumeMultiplier;
 
     @Inject
     public NetworkUtilizationManagerImpl(
@@ -85,5 +86,11 @@ public class NetworkUtilizationManagerImpl implements NetworkUtilizationManager 
     public boolean shouldThrottleNOfUnscaled(
             final int n, @NonNull final HederaFunctionality function, @NonNull final Instant consensusTime) {
         return backendThrottle.shouldThrottleNOfUnscaled(n, function, consensusTime);
+    }
+
+    @Override
+    public int highVolumeThrottleUtilization(
+            @NonNull final HederaFunctionality function, @NonNull final Instant consensusTime) {
+        return backendThrottle.getHighVolumeThrottleInstantaneousUtilization(function);
     }
 }
