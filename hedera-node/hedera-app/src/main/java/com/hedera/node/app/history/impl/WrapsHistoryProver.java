@@ -519,6 +519,7 @@ public class WrapsHistoryProver implements HistoryProver {
         final var message = requireNonNull(wrapsMessage);
         return CompletableFuture.supplyAsync(
                 () -> switch (phase) {
+                    case UNRECOGNIZED -> throw new IllegalArgumentException("Unrecognized phase");
                     case R1 -> {
                         if (entropy == null) {
                             entropy = new byte[32];
@@ -648,6 +649,7 @@ public class WrapsHistoryProver implements HistoryProver {
 
     private CompletableFuture<Void> futureOf(@NonNull final WrapsPhase phase) {
         return switch (phase) {
+            case UNRECOGNIZED -> throw new IllegalArgumentException("Unrecognized phase");
             case R1 -> r1Future;
             case R2 -> r2Future;
             case R3 -> r3Future;
@@ -657,6 +659,7 @@ public class WrapsHistoryProver implements HistoryProver {
 
     private Consumer<CompletableFuture<Void>> consumerOf(@NonNull final WrapsPhase phase) {
         return switch (phase) {
+            case UNRECOGNIZED -> throw new IllegalArgumentException("Unrecognized phase");
             case R1 -> f -> r1Future = f;
             case R2 -> f -> r2Future = f;
             case R3 -> f -> r3Future = f;
