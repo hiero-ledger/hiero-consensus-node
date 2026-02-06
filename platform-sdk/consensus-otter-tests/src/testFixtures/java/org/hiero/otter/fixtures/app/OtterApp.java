@@ -13,7 +13,8 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.state.State;
+import com.swirlds.state.merkle.VirtualMapStateImpl;
 import com.swirlds.state.spi.ReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -41,7 +42,7 @@ import org.hiero.otter.fixtures.network.transactions.OtterTransaction;
  * The main entry point for the Otter application. This class is instantiated by the platform when the application is
  * started. It creates the services that make up the application and routes events and rounds to those services.
  */
-public class OtterApp implements ConsensusStateEventHandler<VirtualMapState> {
+public class OtterApp implements ConsensusStateEventHandler {
 
     public static final String UPGRADE_DETECTED_LOG_PAYLOAD = "OtterAppUpgradeDetectedPayload";
 
@@ -122,7 +123,7 @@ public class OtterApp implements ConsensusStateEventHandler<VirtualMapState> {
     @Override
     public void onPreHandle(
             @NonNull final Event event,
-            @NonNull final VirtualMapState state,
+            @NonNull final State state,
             @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> callback) {
         for (final OtterService service : allServices) {
             service.preHandleEvent(event);
@@ -150,7 +151,7 @@ public class OtterApp implements ConsensusStateEventHandler<VirtualMapState> {
     @Override
     public void onHandleConsensusRound(
             @NonNull final Round round,
-            @NonNull final VirtualMapState state,
+            @NonNull final State state,
             @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> callback) {
         for (final OtterService service : allServices) {
             service.onRoundStart(state.getWritableStates(service.name()), round);
@@ -191,7 +192,7 @@ public class OtterApp implements ConsensusStateEventHandler<VirtualMapState> {
             service.onRoundComplete(state.getWritableStates(service.name()), round);
         }
 
-        commitState(state);
+        commitState((VirtualMapStateImpl) state);
 
         maybeDoBottleneck();
     }
@@ -218,7 +219,7 @@ public class OtterApp implements ConsensusStateEventHandler<VirtualMapState> {
      * {@inheritDoc}
      */
     @Override
-    public boolean onSealConsensusRound(@NonNull final Round round, @NonNull final VirtualMapState state) {
+    public boolean onSealConsensusRound(@NonNull final Round round, @NonNull final State state) {
         return true;
     }
 
@@ -227,7 +228,7 @@ public class OtterApp implements ConsensusStateEventHandler<VirtualMapState> {
      */
     @Override
     public void onStateInitialized(
-            @NonNull final VirtualMapState state,
+            @NonNull final State state,
             @NonNull final Platform platform,
             @NonNull final InitTrigger trigger,
             @Nullable final SemanticVersion previousVersion) {
@@ -250,12 +251,12 @@ public class OtterApp implements ConsensusStateEventHandler<VirtualMapState> {
                     .map(state::getReadableStates)
                     .allMatch(ReadableStates::isEmpty);
             if (stateNotInitialized) {
-                OtterStateInitializer.initOtterAppState(state, appServices);
+                OtterStateInitializer.initOtterAppState((VirtualMapStateImpl) state, appServices);
             }
         }
 
         for (final OtterService service : allServices) {
-            service.initialize(trigger, platform.getSelfId(), configuration, state);
+            service.initialize(trigger, platform.getSelfId(), configuration, (VirtualMapStateImpl) state);
         }
     }
 
@@ -263,7 +264,7 @@ public class OtterApp implements ConsensusStateEventHandler<VirtualMapState> {
      * {@inheritDoc}
      */
     @Override
-    public void onNewRecoveredState(@NonNull final VirtualMapState recoveredState) {
+    public void onNewRecoveredState(@NonNull final State recoveredState) {
         // No new recovered state required yet
     }
 

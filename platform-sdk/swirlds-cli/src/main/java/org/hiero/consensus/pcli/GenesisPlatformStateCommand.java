@@ -17,7 +17,7 @@ import com.swirlds.platform.util.BootstrapUtils;
 import com.swirlds.state.State;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.StateLifecycleManagerImpl;
-import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.state.merkle.VirtualMapStateImpl;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.WritableStates;
 import java.io.IOException;
@@ -63,7 +63,7 @@ public class GenesisPlatformStateCommand extends AbstractCommand {
         final StateLifecycleManager stateLifecycleManager = new StateLifecycleManagerImpl(
                 platformContext.getMetrics(),
                 platformContext.getTime(),
-                (virtualMap) -> new VirtualMapState(virtualMap, platformContext.getMetrics()),
+                (virtualMap) -> new VirtualMapStateImpl(virtualMap, platformContext.getMetrics()),
                 platformContext.getConfiguration());
 
         System.out.printf("Reading from %s %n", statePath.toAbsolutePath());
