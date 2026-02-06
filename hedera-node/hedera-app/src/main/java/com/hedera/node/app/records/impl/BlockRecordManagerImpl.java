@@ -55,6 +55,7 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
+import org.jetbrains.annotations.VisibleForTesting;
 
 /**
  * An implementation of {@link BlockRecordManager} primarily responsible for managing state ({@link RunningHashes} and
@@ -306,6 +307,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
      * in which the first consensus time of the current block was not in state.
      * @param consensusTime the consensus time at which to switch to the current block
      */
+    @VisibleForTesting
     public void switchBlocksAt(@NonNull final Instant consensusTime) {
         final long blockNo = lastBlockInfo.lastBlockNumber() + 1;
         streamFileProducer.switchBlocks(lastBlockInfo.lastBlockNumber(), blockNo, consensusTime);
@@ -323,6 +325,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
      * If called, checks if the quiescence command has changed and updates the platform accordingly.
      * @param state the state to use
      */
+    @VisibleForTesting
     public void maybeQuiesce(@NonNull final State state) {
         final var lastCommand = lastQuiescenceCommand.get();
         final var commandNow = quiescenceController.getQuiescenceStatus();
