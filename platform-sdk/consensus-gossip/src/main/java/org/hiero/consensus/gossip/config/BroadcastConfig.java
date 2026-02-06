@@ -20,7 +20,7 @@ import java.time.Duration;
  */
 @ConfigData("broadcast")
 public record BroadcastConfig(
-        @ConfigProperty(defaultValue = "true") boolean enableBroadcast,
+        @ConfigProperty(defaultValue = "false") boolean enableBroadcast,
         @ConfigProperty(defaultValue = "900ms") Duration disablePingThreshold,
         @ConfigProperty(defaultValue = "200") int throttleOutputQueueThreshold,
         @ConfigProperty(defaultValue = "30s") Duration pauseOnLag) {}

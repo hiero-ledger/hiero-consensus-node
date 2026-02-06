@@ -89,7 +89,7 @@ public record SyncConfig(
         @ConfigProperty(defaultValue = "5") double permitsRevokedPerSecond,
         @ConfigProperty(defaultValue = "1") double permitsReturnedPerSecond,
         @ConfigProperty(defaultValue = "1") int minimumHealthyUnrevokedPermitCount,
-        @ConfigProperty(defaultValue = "100ms") Duration rpcSleepAfterSync,
+        @ConfigProperty(defaultValue = "5ms") Duration rpcSleepAfterSync,
         @ConfigProperty(defaultValue = "5ms") Duration rpcIdleWritePollTimeout,
         @ConfigProperty(defaultValue = "5ms") Duration rpcIdleDispatchPollTimeout,
         @ConfigProperty(defaultValue = "-1") double fairMaxConcurrentSyncs,
