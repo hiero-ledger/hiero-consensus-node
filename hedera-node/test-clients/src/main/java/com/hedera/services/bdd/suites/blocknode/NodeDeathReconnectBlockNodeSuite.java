@@ -110,16 +110,24 @@ public class NodeDeathReconnectBlockNodeSuite implements LifecycleTest {
                         blockNodeIds = {0},
                         blockNodePriorities = {0},
                         applicationPropertiesOverrides = {
-                            "blockStream.streamMode", "BOTH",
-                            "blockStream.writerMode", "FILE_AND_GRPC"
+                            "blockStream.buffer.maxBlocks",
+                            "15",
+                            "blockStream.streamMode",
+                            "BLOCKS",
+                            "blockStream.writerMode",
+                            "FILE_AND_GRPC"
                         }),
                 @HapiBlockNode.SubProcessNodeConfig(
                         nodeId = 1,
                         blockNodeIds = {0},
                         blockNodePriorities = {0},
                         applicationPropertiesOverrides = {
-                            "blockStream.streamMode", "BOTH",
-                            "blockStream.writerMode", "FILE_AND_GRPC"
+                            "blockStream.buffer.maxBlocks",
+                            "15",
+                            "blockStream.streamMode",
+                            "BLOCKS",
+                            "blockStream.writerMode",
+                            "FILE_AND_GRPC"
                         }),
             })
     @Order(2)
@@ -137,12 +145,12 @@ public class NodeDeathReconnectBlockNodeSuite implements LifecycleTest {
                 waitForActive(allNodes(), RESTART_TO_ACTIVE_TIMEOUT),
                 doingContextual(spec -> time.set(Instant.now())),
                 // Run some more transactions so that we get the saturation to 100%
-                burstOfTps(MIXED_OPS_BURST_TPS, Duration.ofSeconds(240)),
+                burstOfTps(MIXED_OPS_BURST_TPS, Duration.ofSeconds(25)),
                 sourcingContextual(spec -> assertBlockNodeCommsLogContainsTimeframe(
                         allNodes(),
                         time::get,
-                        Duration.ofMinutes(5),
-                        Duration.ofMinutes(5),
+                        Duration.ofMinutes(1),
+                        Duration.ofMinutes(1),
                         "Block buffer is saturated; backpressure is being enabled",
                         "!!! Block buffer is saturated; blocking thread until buffer is no longer saturated")),
                 assertHgcaaLogDoesNotContainText(allNodes(), "ERROR", Duration.ofSeconds(5)));
