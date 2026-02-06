@@ -4,6 +4,7 @@ package com.hedera.services.bdd.suites.hip1261.utils;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.HapiTxnOp.serializedSignedTxFrom;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
@@ -65,6 +66,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
+import com.hedera.services.bdd.spec.SpecOperation;
 import com.hederahashgraph.api.proto.java.Transaction;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.IntToDoubleFunction;
@@ -1467,5 +1469,24 @@ public class FeesChargingUtils {
         final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
         final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
         return nodeFee * NETWORK_MULTIPLIER;
+    }
+
+    /**
+     * Validates the fee charged for a transaction against a legacy and a simple fee,
+     * depending on the value of the {@code fees.simpleFeesEnabled} property.
+     *
+     * @param txn the name of the transaction
+     * @param legacyFee the expected fee in USD if simple fees are disabled
+     * @param simpleFee the expected fee in USD if simple fees are enabled
+     * @return a {@link SpecOperation} that validates the fee
+     */
+    public static SpecOperation validateFees(final String txn, final double legacyFee, final double simpleFee) {
+        return doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+            if ("true".equals(flag)) {
+                return validateChargedUsdWithin(txn, simpleFee, 0.01);
+            } else {
+                return validateChargedUsdWithin(txn, legacyFee, 0.01);
+            }
+        });
     }
 }
