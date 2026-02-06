@@ -19,7 +19,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
-  "id": 2,
+  "id": 3,
   "links": [],
   "panels": [
     {
@@ -76,7 +76,7 @@
         "h": 7,
         "w": 8,
         "x": 0,
-        "y": 2
+        "y": 1
       },
       "id": 76,
       "options": {
@@ -182,19 +182,6 @@
       "type": "table"
     },
     {
-      "collapsed": false,
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 1
-      },
-      "id": 2,
-      "panels": [],
-      "title": "Block Buffer",
-      "type": "row"
-    },
-    {
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -259,7 +246,7 @@
         "h": 7,
         "w": 7,
         "x": 8,
-        "y": 2
+        "y": 1
       },
       "id": 77,
       "options": {
@@ -298,6 +285,19 @@
       ],
       "title": "Wrapped Record File Block Hashes Gap Detection",
       "type": "state-timeline"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 8
+      },
+      "id": 2,
+      "panels": [],
+      "title": "Block Buffer",
+      "type": "row"
     },
     {
       "datasource": {
@@ -8596,9 +8596,7 @@
       {
         "allValue": ".*",
         "current": {
-          "text": [
-            "All"
-          ],
+          "text": "All",
           "value": [
             "$__all"
           ]
@@ -8665,5 +8663,5 @@
   "timezone": "utc",
   "title": "Block Stream Metrics (CN -> BN)",
   "uid": "eeb41171-20de-401d-b13d-4a5d2d626b2b",
-  "version": 3
+  "version": 1
 }
