@@ -284,7 +284,7 @@ class DataFileCollectionCompactionTest {
             };
 
             final DataFileCompactor compactor =
-                    new DataFileCompactor(MERKLE_DB_CONFIG, storeName, store, indexUpdater, null, null, null, null) {
+                    new DataFileCompactor(MERKLE_DB_CONFIG, storeName, store2, indexUpdater, null, null, null, null) {
                         @Override
                         int getMinNumberOfFilesToCompact() {
                             return 2;
