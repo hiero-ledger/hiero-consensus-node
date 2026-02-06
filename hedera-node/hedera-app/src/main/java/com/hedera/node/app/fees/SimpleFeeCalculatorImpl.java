@@ -183,10 +183,11 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
             @NonNull final SimpleFeeContext simpleFeeContext,
             @NonNull final FeeResult result,
             @NonNull final HederaFunctionality functionality) {
-        requireNonNull(simpleFeeContext.feeContext());
-        requireNonNull(congestionMultipliers);
-
-        final var feeContext = requireNonNull(simpleFeeContext.feeContext());
+        // For standalone fee calculator simpleFeeContext.feeContext() is null
+        if (simpleFeeContext.feeContext() == null) {
+            return;
+        }
+        final var feeContext = simpleFeeContext.feeContext();
         final long congestionMultiplier =
                 congestionMultipliers.maxCurrentMultiplier(txnBody, functionality, feeContext.readableStoreFactory());
         if (congestionMultiplier <= 1) {
@@ -242,6 +243,7 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
      * @return Never returns normally
      * @throws UnsupportedOperationException always
      */
+    @NonNull
     @Override
     public FeeResult calculateQueryFee(@NonNull final Query query, @NonNull final SimpleFeeContext simpleFeeContext) {
         final var result = new FeeResult();
