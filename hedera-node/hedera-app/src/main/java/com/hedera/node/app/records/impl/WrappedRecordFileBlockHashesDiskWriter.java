@@ -88,7 +88,7 @@ public class WrappedRecordFileBlockHashesDiskWriter implements AutoCloseable {
 
         ensureInitialized();
 
-        final CompletableFuture<Void> next = tail.updateAndGet(prev -> prev.thenRunAsync(
+        return tail.updateAndGet(prev -> prev.thenRunAsync(
                         () -> {
                             final WrappedRecordFileBlockHashes entry;
                             try {
@@ -132,7 +132,6 @@ public class WrappedRecordFileBlockHashesDiskWriter implements AutoCloseable {
                     // Swallow to keep the chain alive; errors are logged in-task.
                     return null;
                 }));
-        return next;
     }
 
     private void ensureInitialized() {
@@ -226,6 +225,14 @@ public class WrappedRecordFileBlockHashesDiskWriter implements AutoCloseable {
 
     @Override
     public void close() {
-        executor.shutdownNow();
+        // Ensure all queued appends are flushed to disk before shutting down.
+        try {
+            tail.get().join();
+        } catch (final Exception e) {
+            // The chain should swallow exceptions, but be defensive.
+            logger.warn("Error while awaiting completion of wrapped record hashes append chain", e);
+        } finally {
+            executor.shutdown();
+        }
     }
 }
