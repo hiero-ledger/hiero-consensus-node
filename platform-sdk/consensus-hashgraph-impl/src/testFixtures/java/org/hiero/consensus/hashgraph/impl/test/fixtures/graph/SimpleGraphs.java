@@ -9,7 +9,17 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
 
-public class SimpleGraphs {
+/**
+ * A bank of simple graphs for testing. Graphs are built with events from a provided factory.
+ * @param <T> The type of event to build the graph with, either {@code PlatformEvent} or {@code EventImpl}
+ */
+public class SimpleGraphs<T> {
+
+    private final SimpleGraphFactory<T> factory;
+
+    public SimpleGraphs(@NonNull final SimpleGraphFactory<T> factory) {
+        this.factory = factory;
+    }
 
     /**
      * Builds graph with multiple other-parents below:
@@ -23,7 +33,7 @@ public class SimpleGraphs {
      * </pre>
      *
      */
-    public static @NonNull SimpleGraph mopGraph(@NonNull final Random random) {
+    public @NonNull SimpleGraph<T> mopGraph(@NonNull final Random random) {
         final PlatformEvent e0 = new TestingEventBuilder(random)
                 .setCreatorId(NodeId.of(1))
                 // setting hash to human-readable value for easier debugging
@@ -71,7 +81,7 @@ public class SimpleGraphs {
                 .build();
         final PlatformEvent e11 =
                 new TestingEventBuilder(random).setSelfParent(e7).setHash("11").build();
-        return new SimpleGraph(random, e0, e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11);
+        return factory.createSimpleGraph(random, List.of(e0, e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11));
     }
 
     /**
@@ -87,7 +97,7 @@ public class SimpleGraphs {
      *
      * Note that this graph has two parts which are not connected to each other
      */
-    public static @NonNull SimpleGraph graph8e4n(final Random random) {
+    public @NonNull SimpleGraph<T> graph8e4n(final Random random) {
         final PlatformEvent e0 =
                 new TestingEventBuilder(random).setCreatorId(NodeId.of(1)).build();
         final PlatformEvent e1 =
@@ -115,7 +125,7 @@ public class SimpleGraphs {
                 .setSelfParent(e5)
                 .setOtherParent(e6)
                 .build();
-        return new SimpleGraph(random, e0, e1, e2, e3, e4, e5, e6, e7);
+        return factory.createSimpleGraph(random, List.of(e0, e1, e2, e3, e4, e5, e6, e7));
     }
 
     /**
@@ -134,7 +144,7 @@ public class SimpleGraphs {
      *
      * </pre>
      */
-    public static @NonNull SimpleGraph graph9e3n(final Random random) {
+    public @NonNull SimpleGraph<T> graph9e3n(final Random random) {
         // generation 0
         final PlatformEvent e0 = new TestingEventBuilder(random)
                 .setCreatorId(NodeId.of(1))
@@ -206,6 +216,6 @@ public class SimpleGraphs {
                 .setHash("08")
                 .build();
 
-        return new SimpleGraph(random, e0, e1, e2, e3, e4, e5, e6, e7, e8);
+        return factory.createSimpleGraph(random, List.of(e0, e1, e2, e3, e4, e5, e6, e7, e8));
     }
 }
