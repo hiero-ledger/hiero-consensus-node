@@ -24,13 +24,15 @@ defaults:
 
 permissions:
   id-token: write
-  contents: read
+  contents: write
   actions: read
 
 jobs:
-  create-new-release:
-    name: Create New Release
+  create-new-tag:
+    name: Create New Tag
     runs-on: hl-cn-default-lin-md
+    outputs:
+      version: ${{ steps.next-release.outputs.version }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
@@ -219,31 +221,6 @@ jobs:
           git push origin tag "v${{ steps.next-release.outputs.version }}"
           echo "Pushed new release tag v${{ steps.next-release.outputs.version }} to remote"
 
-      - name: Create Release Notes with Markdown
-        id: release
-        run: |
-          echo git-semver log --markdown "${{ steps.next-release.outputs.version }}" > "RELEASE.md"
-          git-semver log --markdown "${{ steps.next-release.outputs.version }}" > "RELEASE.md"
-          echo "Now we cat the log:"
-          cat RELEASE.md
-
-      - name: Publish Release Notes
-        uses: step-security/action-gh-release@868edcd064bf35267c4b218913c3d36d547086b4 # v2.2.2
-        # Skip step if not alpha release or not dry run
-        if: ${{ inputs.alpha-release != true && inputs.dry-run-enabled != true }}
-        with:
-          name: v${{ steps.next-release.outputs.version }}
-          tag_name: v${{ steps.next-release.outputs.version }}
-          prerelease: ${{ inputs.alpha-release == 'true' }}
-          token: ${{ secrets.GH_ACCESS_TOKEN }}
-          body_path: "RELEASE.md"
-
-      - name: Clean Up Release Notes
-        run: |
-          echo "Removing the release notes file RELEASE.md"
-          rm RELEASE.md
-          echo "Successfully removed the release notes file RELEASE.md"
-
       - name: Clean Up git-semver
         run: |
           echo "Deleting git-semver directory"
@@ -283,3 +260,17 @@ jobs:
             git push -d origin "${{ steps.branch.outputs.name }}"
             echo "Deleted Temporary Branch from Remote" >> ${GITHUB_STEP_SUMMARY}
           fi
+
+  create-github-release:
+    name: Create GitHub Release
+    if: ${{ github.event.repository.private == false }}
+    uses: ./.github/workflows/zxc-create-github-release.yaml
+    needs:
+      - create-new-tag
+    with:
+      ref: ${{ github.ref }}
+      release-version: ${{ needs.create-new-tag.outputs.version }}
+      create-release-notes: true
+      create-release: ${{ inputs.dry-run-enabled }}
+    secrets:
+      gh-access-token: ${{ secrets.GH_ACCESS_TOKEN }}
