@@ -25,6 +25,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLongArray;
 import java.util.function.BooleanSupplier;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.RepeatedTest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -171,7 +172,8 @@ class DataFileCollectionCompactionTest {
         }
     }
 
-    @Test
+    // using RepeatedTest to increase a chance of discovering a thread race, as this test is timing-sensitive
+    @RepeatedTest(10)
     @DisplayName("Re-merge files without deletion")
     void testDoubleMerge() throws Exception {
         final int MAXKEYS = 100;
