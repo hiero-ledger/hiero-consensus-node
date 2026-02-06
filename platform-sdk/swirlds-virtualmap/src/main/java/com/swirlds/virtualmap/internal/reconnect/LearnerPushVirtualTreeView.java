@@ -40,7 +40,7 @@ import org.hiero.consensus.reconnect.config.ReconnectConfig;
  * This implementation uses {@link Long} as the representation of a node and corresponds directly
  * to the path of the node.
  */
-public final class LearnerPushVirtualTreeView extends VirtualTreeViewBase implements LearnerTreeView<Long> {
+public final class LearnerPushVirtualTreeView extends VirtualTreeViewBase implements LearnerTreeView {
 
     private static final Logger logger = LogManager.getLogger(LearnerPushVirtualTreeView.class);
 
@@ -53,7 +53,7 @@ public final class LearnerPushVirtualTreeView extends VirtualTreeViewBase implem
 
     private final ReconnectConfig reconnectConfig;
 
-    private AsyncInputStream<Lesson<Long>> in;
+    private AsyncInputStream<Lesson> in;
 
     /**
      * Handles removal of old nodes.
@@ -123,7 +123,7 @@ public final class LearnerPushVirtualTreeView extends VirtualTreeViewBase implem
             final StandardWorkGroup workGroup,
             final SerializableDataInputStream inputStream,
             final SerializableDataOutputStream outputStream) {
-        in = new AsyncInputStream<>(inputStream, workGroup, () -> new Lesson<>(this), reconnectConfig);
+        in = new AsyncInputStream<>(inputStream, workGroup, () -> new Lesson(this), reconnectConfig);
         in.start();
         final AsyncOutputStream<QueryResponse> out = learningSynchronizer.buildOutputStream(workGroup, outputStream);
         out.start();
@@ -170,23 +170,23 @@ public final class LearnerPushVirtualTreeView extends VirtualTreeViewBase implem
      */
     @Override
     public void expectLessonFor(
-            final Long parent, final int childIndex, final Long original, final boolean nodeAlreadyPresent) {
-        expectedChildren.add(parent == null ? 0 : getChildPath(parent, childIndex));
+            final Long parentPath, final int childIndex, final Long originalPath, final boolean nodeAlreadyPresent) {
+        expectedChildren.add(parentPath == null ? 0 : getChildPath(parentPath, childIndex));
         expectedNodeAlreadyPresent.add(nodeAlreadyPresent);
-        expectedOriginalExists.add(original != null);
+        expectedOriginalExists.add(originalPath != null);
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    public ExpectedLesson<Long> getNextExpectedLesson() {
+    public ExpectedLesson getNextExpectedLesson() {
         final long child = expectedChildren.remove();
         final long parent = getParentPath(child);
         final int index = isLeft(child) ? 0 : 1;
         final Long original = expectedOriginalExists.remove() ? child : null;
         final boolean nodeAlreadyPresent = expectedNodeAlreadyPresent.remove();
-        return new ExpectedLesson<>(parent, index, original, nodeAlreadyPresent);
+        return new ExpectedLesson(parent, index, original, nodeAlreadyPresent);
     }
 
     /**

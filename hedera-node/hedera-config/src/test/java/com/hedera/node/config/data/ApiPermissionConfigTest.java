@@ -45,6 +45,7 @@ final class ApiPermissionConfigTest {
             value = HederaFunctionality.class,
             mode = EnumSource.Mode.EXCLUDE,
             names = {
+                "UNRECOGNIZED",
                 "NONE",
                 "CRYPTO_ADD_LIVE_HASH",
                 "CRYPTO_DELETE_LIVE_HASH",

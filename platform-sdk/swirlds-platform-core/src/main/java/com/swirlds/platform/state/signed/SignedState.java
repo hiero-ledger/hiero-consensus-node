@@ -2,15 +2,15 @@
 package com.swirlds.platform.state.signed;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
-import static com.swirlds.platform.state.service.PlatformStateUtils.consensusTimestampOf;
-import static com.swirlds.platform.state.service.PlatformStateUtils.isGenesisStateOf;
-import static com.swirlds.platform.state.service.PlatformStateUtils.roundOf;
 import static com.swirlds.platform.state.signed.SignedStateHistory.SignedStateAction.CREATION;
 import static com.swirlds.platform.state.signed.SignedStateHistory.SignedStateAction.RELEASE;
 import static com.swirlds.platform.state.signed.SignedStateHistory.SignedStateAction.RESERVE;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.base.utility.Threshold.MAJORITY;
 import static org.hiero.base.utility.Threshold.SUPER_MAJORITY;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.consensusTimestampOf;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.isGenesisStateOf;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.roundOf;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
@@ -23,6 +23,7 @@ import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.state.signed.SignedStateHistory.SignedStateAction;
 import com.swirlds.platform.state.snapshot.StateToDiskReason;
 import com.swirlds.state.MerkleNodeState;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.security.cert.X509Certificate;
@@ -90,7 +91,7 @@ public class SignedState {
     /**
      * The root of the merkle state.
      */
-    private final MerkleNodeState state;
+    private final MerkleNodeState<VirtualMap> state;
 
     /**
      * The timestamp of when this object was created.
@@ -165,7 +166,7 @@ public class SignedState {
     public SignedState(
             @NonNull final Configuration configuration,
             @NonNull final SignatureVerifier signatureVerifier,
-            @NonNull final MerkleNodeState state,
+            @NonNull final MerkleNodeState<VirtualMap> state,
             @NonNull final String reason,
             final boolean freezeState,
             final boolean deleteOnBackgroundThread,
@@ -259,7 +260,7 @@ public class SignedState {
      *
      * @return the state contained in the signed state
      */
-    public @NonNull MerkleNodeState getState() {
+    public @NonNull MerkleNodeState<VirtualMap> getState() {
         return state;
     }
 
