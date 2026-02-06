@@ -214,7 +214,7 @@ jobs:
           path: ./
 
       - name: Create Official Github Release
-        if: ${{ inputs.create-release && !inputs.dry-run }}
+        if: ${{ inputs.create-release && inputs.dry-run != true }}
         uses: step-security/release-action@03a57407052f15d1537fd5469a6fbbc536aba326 # v1.20.0
         with:
           tag: ${{ inputs.release-version }}
