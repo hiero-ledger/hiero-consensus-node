@@ -590,4 +590,9 @@ public class DispatchHandleContext implements HandleContext, FeeContext, FeeChar
         // when it was invoked directly
         return CHILD;
     }
+
+    @Override
+    public int getHighVolumeThrottleUtilization(@NonNull HederaFunctionality functionality) {
+        return throttleAdviser.highVolumeThrottleUtilization(functionality);
+    }
 }

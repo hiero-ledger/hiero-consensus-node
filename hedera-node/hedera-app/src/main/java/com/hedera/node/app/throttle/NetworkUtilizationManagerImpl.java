@@ -28,7 +28,6 @@ import javax.inject.Singleton;
 public class NetworkUtilizationManagerImpl implements NetworkUtilizationManager {
     private final ThrottleAccumulator backendThrottle;
     private final CongestionMultipliers congestionMultipliers;
-    private final HighVolumeMultiplier highVolumeMultiplier;
 
     @Inject
     public NetworkUtilizationManagerImpl(

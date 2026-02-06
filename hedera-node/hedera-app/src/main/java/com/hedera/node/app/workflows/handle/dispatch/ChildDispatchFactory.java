@@ -319,8 +319,9 @@ public class ChildDispatchFactory {
 
         final var isHighVolume = txnInfo.txBody().highVolume();
         if (isHighVolume) {
+            final var utilizationBasisPoints = throttleAdviser.highVolumeThrottleUtilization(txnInfo.functionality());
             final var highVolumeMultiplier = feeManager.highVolumeMultiplierFor(
-                    txnInfo.txBody(), txnInfo.functionality(), storeFactory.asReadOnly());
+                    txnInfo.txBody(), txnInfo.functionality(), storeFactory.asReadOnly(), utilizationBasisPoints);
             if (highVolumeMultiplier > 1) {
                 builder.highVolumePricingMultiplier(highVolumeMultiplier);
             }

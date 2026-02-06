@@ -99,6 +99,11 @@ public class StandaloneFeeCalculatorImpl implements StandaloneFeeCalculator {
             return null;
         }
 
+        @Override
+        public int getHighVolumeThrottleUtilization(final HederaFunctionality functionality) {
+            return 0;
+        }
+
         public void setNumTxnSignatures(int sigcount) {
             this._numTxnSignatures = sigcount;
         }

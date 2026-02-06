@@ -255,7 +255,26 @@ public final class FeeManager {
     public long highVolumeMultiplierFor(final TransactionBody transactionBody,
                                         final HederaFunctionality functionality,
                                         final ReadableStoreFactory readOnly) {
-        return highVolumeMultiplier;
+        return highVolumeMultiplierFor(transactionBody, functionality, readOnly, 0);
+    }
+
+    public long highVolumeMultiplierFor(
+            @NonNull final TransactionBody transactionBody,
+            @NonNull final HederaFunctionality functionality,
+            @NonNull final ReadableStoreFactory readOnly,
+            final int utilizationBasisPoints) {
+        if (!transactionBody.highVolume() || !HighVolumePricingCalculator.HIGH_VOLUME_FUNCTIONS.contains(functionality)) {
+            return HighVolumePricingCalculator.MULTIPLIER_SCALE;
+        }
+        if (simpleFeesSchedule == null) {
+            return HighVolumePricingCalculator.MULTIPLIER_SCALE;
+        }
+        final ServiceFeeDefinition serviceFeeDefinition = lookupServiceFee(simpleFeesSchedule, functionality);
+        if (serviceFeeDefinition == null) {
+            return HighVolumePricingCalculator.MULTIPLIER_SCALE;
+        }
+        return HighVolumePricingCalculator.calculateMultiplier(
+                serviceFeeDefinition.highVolumeRates(), utilizationBasisPoints);
     }
 
     @NonNull

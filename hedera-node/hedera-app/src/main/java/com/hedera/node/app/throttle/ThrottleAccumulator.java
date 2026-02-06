@@ -508,12 +508,16 @@ public class ThrottleAccumulator {
                         getImplicitCreationsCount(txBody, accountStore),
                         getAutoAssociationsCount(txBody, relationStore),
                         throttleUsages,
-                        isHighVolumeTxn);
+                        useHighVolumeBucket);
             }
             case ETHEREUM_TRANSACTION -> {
                 final var accountStore = new ReadableStoreFactoryImpl(state).readableStore(ReadableAccountStore.class);
                 yield shouldThrottleEthTxn(
-                        effectiveManager, now, getImplicitCreationsCount(txBody, accountStore), throttleUsages);
+                        effectiveManager,
+                        now,
+                        getImplicitCreationsCount(txBody, accountStore),
+                        throttleUsages,
+                        useHighVolumeBucket);
             }
             default -> !effectiveManager.allReqsMetAt(now, throttleUsages);
         };
@@ -559,7 +563,7 @@ public class ThrottleAccumulator {
                             .build();
                     final int implicitCreationsCount = getImplicitCreationsCount(transferTxnBody, accountStore);
                     if (implicitCreationsCount > 0) {
-                        return shouldThrottleImplicitCreations(implicitCreationsCount, now, throttleUsages);
+                        return shouldThrottleImplicitCreations(implicitCreationsCount, now, throttleUsages, false);
                     }
                 }
             }
@@ -699,8 +703,10 @@ public class ThrottleAccumulator {
             @NonNull final ThrottleReqsManager manager,
             @NonNull final Instant now,
             final int implicitCreationsCount,
-            @Nullable final List<ThrottleUsage> throttleUsages) {
-        return shouldThrottleBasedOnImplicitCreations(manager, implicitCreationsCount, now, throttleUsages);
+            @Nullable final List<ThrottleUsage> throttleUsages,
+            final boolean useHighVolumeBucket) {
+        return shouldThrottleBasedOnImplicitCreations(
+                manager, implicitCreationsCount, now, throttleUsages, useHighVolumeBucket);
     }
 
     public int getImplicitCreationsCount(

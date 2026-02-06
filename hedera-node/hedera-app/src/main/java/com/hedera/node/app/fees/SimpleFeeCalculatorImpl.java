@@ -129,7 +129,8 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
         serviceFeeCalculator.accumulateServiceFee(txnBody, simpleFeeContext, result, feeSchedule);
 
         final var functionality = simpleFeeContext.functionality();
-        final var isHighVolumeFunction = HighVolumePricingCalculator.HIGH_VOLUME_FUNCTIONS.contains(functionality);
+        final var isHighVolumeFunction =
+                functionality != null && HighVolumePricingCalculator.HIGH_VOLUME_FUNCTIONS.contains(functionality);
 
         // Apply high-volume pricing multiplier if applicable (HIP-1313)
         if (txnBody.highVolume() && isHighVolumeFunction) {
@@ -154,9 +155,10 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
             @NonNull final TransactionBody txnBody,
             @NonNull final SimpleFeeContext simpleFeeContext,
             @NonNull final FeeResult result,
-            @NonNull final HederaFunctionality functionality) {
-        requireNonNull(simpleFeeContext.feeContext());
-        requireNonNull(congestionMultipliers);
+            final HederaFunctionality functionality) {
+        if (functionality == null || congestionMultipliers == null || simpleFeeContext.feeContext() == null) {
+            return;
+        }
 
         final var feeContext = requireNonNull(simpleFeeContext.feeContext());
         final long congestionMultiplier =
