@@ -10,6 +10,7 @@ open module com.swirlds.platform.core.test.fixtures {
     requires transitive com.swirlds.config.extensions.test.fixtures;
     requires transitive com.swirlds.platform.core;
     requires transitive com.swirlds.state.api;
+    requires transitive com.swirlds.state.impl;
     requires transitive org.hiero.base.crypto;
     requires transitive org.hiero.base.utility;
     requires transitive org.hiero.consensus.hashgraph.impl.test.fixtures;
@@ -27,7 +28,6 @@ open module com.swirlds.platform.core.test.fixtures {
     requires com.swirlds.merkledb;
     requires com.swirlds.metrics.api;
     requires com.swirlds.state.impl.test.fixtures;
-    requires com.swirlds.state.impl;
     requires com.swirlds.virtualmap;
     requires org.hiero.base.crypto.test.fixtures;
     requires org.hiero.base.utility.test.fixtures;

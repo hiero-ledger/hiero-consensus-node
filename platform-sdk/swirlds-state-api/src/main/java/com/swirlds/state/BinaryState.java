@@ -3,62 +3,17 @@ package com.swirlds.state;
 
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.Reservable;
-import com.swirlds.state.lifecycle.StateMetadata;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
 import org.hiero.base.crypto.Hash;
 
 /**
- * Represent a state backed up by the Merkle tree. It's a {@link State} implementation that is backed by a Merkle tree.
- * It provides methods to manage the service states in the merkle tree.
- * This interface supports two level of state abstractions:
- * <ul>
- *     <li> codec-based State API, as used by execution </li>
- *     <li> protobuf binary states API supporting notions of singletons, queues, and key-value pairs</li>
- * </ul>
+ * Represents a binary state with methods to access and manipulate singleton, key-value pairs, and queue states.
  *
- * @param <T> The type of the root node of the Merkle tree.
+ * IMPORTANT: This interface is used in other repositories, such as BlockNode
  */
-public interface MerkleNodeState<T extends Reservable> extends State {
-
-    /**
-     * @return an instance representing a root of the Merkle tree. For most of the implementations
-     * this default implementation will be sufficient.
-     */
-    T getRoot();
-
-    /**
-     * {@inheritDoc}
-     */
-    @NonNull
-    @Override
-    MerkleNodeState<T> copy();
-
-    //
-    // The following block of methods is for the high-level codec-based State API operating named service states.
-    //
-
-    /**
-     * Commit all singleton states for every registered service.
-     */
-    void commitSingletons();
-
-    /**
-     * Initializes the defined service state.
-     *
-     * @param md The metadata associated with the state.
-     */
-    void initializeState(@NonNull StateMetadata<?, ?> md);
-
-    /**
-     * Removes the node and metadata from the state merkle tree.
-     *
-     * @param serviceName The service name. Cannot be null.
-     * @param stateId The state ID
-     */
-    void removeServiceState(@NonNull String serviceName, int stateId);
+public interface BinaryState {
 
     /**
      * Get the merkle path of the queue element
@@ -67,8 +22,7 @@ public interface MerkleNodeState<T extends Reservable> extends State {
      * @return The merkle path of the queue element or {@code com.swirlds.virtualmap.internal.Path#INVALID_PATH} if stateId is unknown or element is not found.
      * @param <V> The type of the value of the queue element
      */
-    default <V> long getQueueElementPath(
-            final int stateId, @NonNull final V expectedValue, @NonNull final Codec<V> valueCodec) {
+    default <V> long getQueueElementPath(int stateId, @NonNull V expectedValue, @NonNull Codec<V> valueCodec) {
         return getQueueElementPath(stateId, valueCodec.toBytes(expectedValue));
     }
 
@@ -80,7 +34,7 @@ public interface MerkleNodeState<T extends Reservable> extends State {
      * if the key is not found or the stateId is unknown.
      * @param <V> The type of the value of the queue element
      */
-    default <V> long getKvPath(final int stateId, @NonNull final V key, @NonNull final Codec<V> keyCodec) {
+    default <V> long getKvPath(int stateId, @NonNull V key, @NonNull Codec<V> keyCodec) {
         return getKvPath(stateId, keyCodec.toBytes(key));
     }
 
@@ -97,11 +51,6 @@ public interface MerkleNodeState<T extends Reservable> extends State {
      * @return Merkle proof for the given path or null if the path is non-existent
      */
     MerkleProof getMerkleProof(long path);
-
-    //
-    // The following block of methods is for the mid-level API working with protobuf binary states: singletons, queues,
-    // and key-value pairs.
-    //
 
     /**
      * Get the merkle path of the singleton state by its ID.
@@ -137,7 +86,7 @@ public interface MerkleNodeState<T extends Reservable> extends State {
      * @throws IllegalArgumentException if the stateId is not valid
      */
     @Nullable
-    Bytes getKv(final int stateId, @NonNull final Bytes key);
+    Bytes getKv(int stateId, @NonNull Bytes key);
 
     /**
      * Get a singleton value from the latest state version
@@ -147,7 +96,7 @@ public interface MerkleNodeState<T extends Reservable> extends State {
      * @throws IllegalArgumentException if the singletonId is not valid
      */
     @Nullable
-    Bytes getSingleton(final int singletonId);
+    Bytes getSingleton(int singletonId);
 
     /**
      * Get a queue state from the latest state version
@@ -156,7 +105,7 @@ public interface MerkleNodeState<T extends Reservable> extends State {
      * @return the queue state, which has the indexes of head and tail
      * @throws IllegalArgumentException if the stateId is not valid or not a queue type
      */
-    QueueState getQueueState(final int stateId);
+    QueueState getQueueState(int stateId);
 
     /**
      * Peek at head element in a queue from the latest state version
@@ -165,7 +114,7 @@ public interface MerkleNodeState<T extends Reservable> extends State {
      * @return the binary protobuf encoded value at head
      * @throws IllegalArgumentException if the stateId is not valid or not a queue type
      */
-    Bytes peekQueueHead(final int stateId);
+    Bytes peekQueueHead(int stateId);
 
     /**
      * Peek at tail element in a queue from the latest state version
@@ -174,7 +123,7 @@ public interface MerkleNodeState<T extends Reservable> extends State {
      * @return the binary protobuf encoded value at tail
      * @throws IllegalArgumentException if the stateID is not valid or not a queue type
      */
-    Bytes peekQueueTail(final int stateId);
+    Bytes peekQueueTail(int stateId);
 
     /**
      * Peek at element at index in a queue from the latest state version. Index has to be between the head and the tail
@@ -185,7 +134,7 @@ public interface MerkleNodeState<T extends Reservable> extends State {
      * @return the binary protobuf encoded value at index
      * @throws IllegalArgumentException if the stateID is not valid or not a queue type
      */
-    Bytes peekQueue(final int stateId, final int index);
+    Bytes peekQueue(int stateId, int index);
 
     /**
      * Get all elements in a queue from the latest state version as a list. The list will be ordered from head to tail.
@@ -196,7 +145,7 @@ public interface MerkleNodeState<T extends Reservable> extends State {
      * @return the list of binary protobuf encoded values in the queue
      * @throws IllegalArgumentException if the stateID is not valid or not a queue type
      */
-    List<Bytes> getQueueAsList(final int stateId);
+    List<Bytes> getQueueAsList(int stateId);
 
     /**
      * Add/update a singleton value for the given state ID using raw protobuf bytes of the value.
