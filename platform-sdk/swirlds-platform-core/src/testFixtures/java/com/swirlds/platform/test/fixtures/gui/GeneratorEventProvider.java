@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.gui;
 
-import com.swirlds.platform.internal.EventImpl;
-import com.swirlds.platform.test.fixtures.event.generator.GraphGenerator;
-import com.swirlds.platform.test.fixtures.event.source.EventSource;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Objects;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.GraphGenerator;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.event.source.EventSource;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
 
@@ -28,9 +27,7 @@ public class GeneratorEventProvider implements GuiEventProvider {
 
     @Override
     public @NonNull List<PlatformEvent> provideEvents(final int numberOfEvents) {
-        return graphGenerator.generateEvents(numberOfEvents).stream()
-                .map(EventImpl::getBaseEvent)
-                .toList();
+        return graphGenerator.generateEvents(numberOfEvents);
     }
 
     @Override

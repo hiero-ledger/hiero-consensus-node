@@ -22,8 +22,6 @@ import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.base.crypto.CryptographyException;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.roster.Address;
-import org.hiero.consensus.model.roster.AddressBook;
 import org.hiero.consensus.roster.internal.PbjRecordHasher;
 
 /**
@@ -33,32 +31,6 @@ public final class RosterUtils {
     private static final PbjRecordHasher PBJ_RECORD_HASHER = new PbjRecordHasher();
 
     private RosterUtils() {}
-
-    /**
-     * Formats a "node name" for a given node id, e.g. "node1" for nodeId == 0.
-     * This name can be used for logging purposes, or to support code that
-     * uses strings to identify nodes.
-     *
-     * @param nodeId a node id
-     * @return a "node name"
-     */
-    @NonNull
-    public static String formatNodeName(final long nodeId) {
-        return "node" + (nodeId + 1);
-    }
-
-    /**
-     * Formats a "node name" for a given node id, e.g. "node1" for nodeId == 0.
-     * This name can be used for logging purposes, or to support code that
-     * uses strings to identify nodes.
-     *
-     * @param nodeId a node id
-     * @return a "node name"
-     */
-    @NonNull
-    public static String formatNodeName(final @NonNull NodeId nodeId) {
-        return formatNodeName(nodeId.id());
-    }
 
     /**
      * Fetch the gossip certificate from a given RosterEntry.  If it cannot be parsed successfully, return null.
@@ -280,80 +252,6 @@ public final class RosterUtils {
     @Nullable
     public static String toString(@Nullable final Roster roster) {
         return roster == null ? null : Roster.JSON.toJSON(roster);
-    }
-
-    /**
-     * Build an Address object out of a given RosterEntry object.
-     *
-     * @param entry a RosterEntry
-     * @return an Address
-     * @deprecated To be removed once AddressBook to Roster refactoring is complete.
-     */
-    @Deprecated(forRemoval = true)
-    @NonNull
-    public static Address buildAddress(@NonNull final RosterEntry entry) {
-        Address address = new Address();
-
-        address = address.copySetNodeId(NodeId.of(entry.nodeId()));
-        address = address.copySetWeight(entry.weight());
-
-        X509Certificate sigCert;
-        try {
-            sigCert = CryptoUtils.decodeCertificate(entry.gossipCaCertificate().toByteArray());
-        } catch (final CryptographyException e) {
-            // Malformed or missing gossip certificates are nullified.
-            // https://github.com/hashgraph/hedera-services/issues/16648
-            sigCert = null;
-        }
-        address = address.copySetSigCert(sigCert);
-
-        if (entry.gossipEndpoint().size() > 0) {
-            address = address.copySetHostnameExternal(RosterUtils.fetchHostname(entry, 0));
-            address = address.copySetPortExternal(RosterUtils.fetchPort(entry, 0));
-
-            if (entry.gossipEndpoint().size() > 1) {
-                address = address.copySetHostnameInternal(RosterUtils.fetchHostname(entry, 1));
-                address = address.copySetPortInternal(RosterUtils.fetchPort(entry, 1));
-            } else {
-                // There's code in the app implementation that relies on both the external and internal endpoints at
-                // once.
-                // That code used to fetch the AddressBook from the Platform for some reason.
-                // Since Platform only knows about the Roster now, we have to support both the endpoints
-                // in this reverse conversion here.
-                // Ideally, the app code should manage its AddressBook on its own and should never fetch it from
-                // Platform directly.
-                address = address.copySetHostnameInternal(RosterUtils.fetchHostname(entry, 0));
-                address = address.copySetPortInternal(RosterUtils.fetchPort(entry, 0));
-            }
-        }
-
-        final String name = RosterUtils.formatNodeName(entry.nodeId());
-        address = address.copySetSelfName(name).copySetNickname(name);
-
-        return address;
-    }
-
-    /**
-     * Build an AddressBook object out of a given Roster object.
-     * Returns null if the input roster is null.
-     * @param roster a Roster
-     * @return an AddressBook
-     * @deprecated To be removed once AddressBook to Roster refactoring is complete.
-     */
-    @Deprecated(forRemoval = true)
-    @Nullable
-    public static AddressBook buildAddressBook(@Nullable final Roster roster) {
-        if (roster == null) {
-            return null;
-        }
-
-        AddressBook addressBook = new AddressBook();
-
-        for (final RosterEntry entry : roster.rosterEntries()) {
-            addressBook = addressBook.add(buildAddress(entry));
-        }
-
-        return addressBook;
     }
 
     /**

@@ -7,9 +7,10 @@ import static com.hedera.cryptography.wraps.WRAPSLibraryBridge.SigningProtocolPh
 import static com.hedera.cryptography.wraps.WRAPSLibraryBridge.SigningProtocolPhase.R3;
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.cryptography.rpm.SigningAndVerifyingSchnorrKeys;
 import com.hedera.cryptography.wraps.Proof;
+import com.hedera.cryptography.wraps.SchnorrKeys;
 import com.hedera.cryptography.wraps.WRAPSLibraryBridge;
+import com.hedera.cryptography.wraps.WRAPSVerificationKey;
 import com.hedera.node.app.history.HistoryLibrary;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
@@ -23,11 +24,15 @@ public class HistoryLibraryImpl implements HistoryLibrary {
     public static final WRAPSLibraryBridge WRAPS = WRAPSLibraryBridge.getInstance();
 
     @Override
-    public SigningAndVerifyingSchnorrKeys newSchnorrKeyPair() {
+    public byte[] wrapsVerificationKey() {
+        return WRAPSVerificationKey.getCurrentKey();
+    }
+
+    @Override
+    public SchnorrKeys newSchnorrKeyPair() {
         final var seed = new byte[32];
         RANDOM.nextBytes(seed);
-        final var wrapsKeys = WRAPS.generateSchnorrKeys(seed);
-        return new SigningAndVerifyingSchnorrKeys(wrapsKeys.privateKey(), wrapsKeys.publicKey());
+        return WRAPS.generateSchnorrKeys(seed);
     }
 
     @Override
@@ -161,12 +166,6 @@ public class HistoryLibraryImpl implements HistoryLibrary {
                 targetHintsVerificationKey,
                 aggregatedSignature,
                 sourceAddressBook.signersMask(signers));
-    }
-
-    @Override
-    public boolean isValidWraps(@NonNull final byte[] compressedProof) {
-        requireNonNull(compressedProof);
-        return WRAPS.verifyCompressedProof(compressedProof);
     }
 
     @Override

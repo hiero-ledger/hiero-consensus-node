@@ -5,6 +5,7 @@ import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyTr
 import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
 import static com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils.createTestStateWithVM;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -14,25 +15,28 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
-import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
-import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
-import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils;
 import com.swirlds.state.test.fixtures.merkle.VirtualMapUtils;
+import com.swirlds.virtualmap.VirtualMap;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.hiero.base.exceptions.ReferenceCountException;
+import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
 import org.hiero.consensus.crypto.SignatureVerifier;
+import org.hiero.consensus.platformstate.PlatformStateModifier;
 import org.hiero.consensus.roster.RosterStateUtils;
+import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 @DisplayName("SignedState Tests")
@@ -41,7 +45,7 @@ class SignedStateTests {
     /**
      * Generate a signed state.
      */
-    private SignedState generateSignedState(final Random random, final MerkleNodeState state) {
+    private SignedState generateSignedState(final Random random, final VirtualMapState state) {
         return new RandomSignedStateGenerator(random).setState(state).build();
     }
 
@@ -56,15 +60,15 @@ class SignedStateTests {
      * @param reserveCallback this method is called when the State is reserved
      * @param releaseCallback this method is called when the State is released
      */
-    private MerkleNodeState buildMockState(
+    private VirtualMapState buildMockState(
             final Random random, final Runnable reserveCallback, final Runnable releaseCallback) {
         final var real = VirtualMapStateTestUtils.createTestState();
-        TestingAppStateInitializer.initConsensusModuleStates(real, CONFIGURATION);
+        TestingAppStateInitializer.initConsensusModuleStates(real);
         RosterStateUtils.setActiveRoster(
                 real, RandomRosterBuilder.create(random).build(), 0L);
-        final MerkleNodeState state = spy(real);
-        final MerkleNode realRoot = state.getRoot();
-        final MerkleNode rootSpy = spy(realRoot);
+        final VirtualMapState state = spy(real);
+        final VirtualMap realRoot = state.getRoot();
+        final VirtualMap rootSpy = spy(realRoot);
         when(state.getRoot()).thenReturn(rootSpy);
 
         if (reserveCallback != null) {
@@ -97,7 +101,7 @@ class SignedStateTests {
         final AtomicBoolean reserved = new AtomicBoolean(false);
         final AtomicBoolean released = new AtomicBoolean(false);
 
-        final MerkleNodeState state = buildMockState(
+        final VirtualMapState state = buildMockState(
                 random,
                 () -> {
                     assertFalse(reserved.get(), "should only be reserved once");
@@ -159,7 +163,7 @@ class SignedStateTests {
 
         final Thread mainThread = Thread.currentThread();
 
-        final MerkleNodeState state = buildMockState(
+        final VirtualMapState state = buildMockState(
                 random,
                 () -> {
                     assertFalse(reserved.get(), "should only be reserved once");
@@ -211,7 +215,7 @@ class SignedStateTests {
     void alternateConstructorReservationsTest() {
         final var virtualMap = VirtualMapUtils.createVirtualMap();
 
-        final MerkleNodeState state = spy(createTestStateWithVM(virtualMap));
+        final VirtualMapState state = spy(createTestStateWithVM(virtualMap));
         final PlatformStateModifier platformState = mock(PlatformStateModifier.class);
         TestingAppStateInitializer.initPlatformState(state);
         when(platformState.getRound()).thenReturn(0L);
@@ -223,5 +227,31 @@ class SignedStateTests {
         signedState.reserve("test").close();
 
         assertTrue(state.isDestroyed(), "state should now be destroyed");
+    }
+
+    /**
+     * Verify behavior when something tries to reserve a state.
+     */
+    @Test
+    @Tag(TestComponentTags.MERKLE)
+    @DisplayName("Test Try Reserve")
+    void tryReserveTest() {
+        final Random random = new Random();
+        final VirtualMapState state = VirtualMapStateTestUtils.createTestState();
+        generateSignedState(random, state);
+
+        assertEquals(
+                1,
+                state.getRoot().getReservationCount(),
+                "A state referenced only by a signed state should have a ref count of 1");
+
+        assertTrue(state.getRoot().tryReserve(), "tryReserve() should succeed because the state is not destroyed.");
+        assertEquals(2, state.getRoot().getReservationCount(), "tryReserve() should increment the reference count.");
+
+        state.release();
+        state.release();
+
+        assertTrue(state.isDestroyed(), "state should be destroyed when fully released.");
+        assertFalse(state.getRoot().tryReserve(), "tryReserve() should fail when the state is destroyed");
     }
 }

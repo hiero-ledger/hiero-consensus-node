@@ -5,9 +5,11 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.BATCH_KEY_SET_ON_NON_IN
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_AMOUNTS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ACCOUNT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.KEY_PREFIX_MISMATCH;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PAYER_ACCOUNT_DELETED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PAYER_ACCOUNT_NOT_FOUND;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_OVERSIZE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UNKNOWN;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
@@ -44,10 +46,11 @@ import com.hedera.node.app.signature.SignatureVerificationFuture;
 import com.hedera.node.app.signature.SignatureVerifier;
 import com.hedera.node.app.signature.impl.SignatureVerificationImpl;
 import com.hedera.node.app.spi.fixtures.Scenarios;
+import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.state.DeduplicationCache;
-import com.hedera.node.app.store.ReadableStoreFactory;
+import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.TransactionScenarioBuilder;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
@@ -145,7 +148,7 @@ final class PreHandleWorkflowImplTest extends AppTestBase implements Scenarios {
                         new AtomicReference<>(EntityNumber.newBuilder().build()),
                         ENTITY_COUNTS_STATE_ID,
                         new AtomicReference<>(EntityCounts.DEFAULT)));
-        storeFactory = new ReadableStoreFactory(fakeMerkleState);
+        storeFactory = new ReadableStoreFactoryImpl(fakeMerkleState);
 
         final var config = new VersionedConfigImpl(HederaTestConfigBuilder.createConfig(), DEFAULT_CONFIG_VERSION);
         when(configProvider.getConfiguration()).thenReturn(config);
@@ -401,13 +404,83 @@ final class PreHandleWorkflowImplTest extends AppTestBase implements Scenarios {
             final var result = workflow.preHandleAllTransactions(
                     NODE_1.asInfo(),
                     storeFactory,
-                    storeFactory.getStore(ReadableAccountStore.class),
+                    storeFactory.readableStore(ReadableAccountStore.class),
                     createAppPayloadWrapper(new byte[2]).getApplicationTransaction(),
                     previousResult,
                     (txns, bytes) -> {});
 
             // Then the entire result is re-used
             assertThat(result).isSameAs(previousResult);
+        }
+
+        @Test
+        @DisplayName("Fail pre-handle because checkParsed fails")
+        void preHandleCheckParsedFails() throws PreCheckException {
+            // Given a transaction that fails checkParsed validation
+            final var txInfo = scenario().withPayer(ALICE.accountID()).txInfo();
+            final Transaction platformTx = createAppPayloadWrapper(asByteArray(txInfo.signedTx()));
+            when(transactionChecker.parseSignedAndCheck(any(Bytes.class), anyInt()))
+                    .thenReturn(txInfo);
+            // checkParsed fails (e.g., due to KEY_PREFIX_MISMATCH)
+            doThrow(new PreCheckException(KEY_PREFIX_MISMATCH))
+                    .when(transactionChecker)
+                    .checkParsed(any());
+
+            // When we pre-handle the transaction
+            workflow.preHandle(storeFactory, NODE_1.asInfo(), Stream.of(platformTx), (txns, bytes) -> {});
+
+            // Then the transaction fails and the node is the payer
+            final PreHandleResult result = platformTx.getMetadata();
+            assertThat(result.responseCode()).isEqualTo(KEY_PREFIX_MISMATCH);
+            assertThat(result.payer()).isEqualTo(NODE_1.nodeAccountID());
+            verifyNoInteractions(deduplicationCache);
+        }
+
+        @Test
+        @DisplayName("Fail pre-handle because transaction exceeds size limit")
+        void preHandleTransactionExceedsSizeLimit() throws PreCheckException {
+            // Given a transaction that exceeds the size limit
+            final var txInfo = scenario().withPayer(ALICE.accountID()).txInfo();
+            final Transaction platformTx = createAppPayloadWrapper(asByteArray(txInfo.signedTx()));
+            when(transactionChecker.parseSignedAndCheck(any(Bytes.class), anyInt()))
+                    .thenReturn(txInfo);
+            // checkParsed passes, but checkTransactionSize fails
+            doThrow(new PreCheckException(TRANSACTION_OVERSIZE))
+                    .when(transactionChecker)
+                    .checkTransactionSize(any());
+
+            // When we pre-handle the transaction
+            workflow.preHandle(storeFactory, NODE_1.asInfo(), Stream.of(platformTx), (txns, bytes) -> {});
+
+            // Then the transaction fails and the node is the payer
+            final PreHandleResult result = platformTx.getMetadata();
+            assertThat(result.responseCode()).isEqualTo(TRANSACTION_OVERSIZE);
+            assertThat(result.payer()).isEqualTo(NODE_1.nodeAccountID());
+            verifyNoInteractions(deduplicationCache);
+        }
+
+        @Test
+        @DisplayName("Fail pre-handle because transaction exceeds payer-specific size limit")
+        void preHandleTransactionExceedsPayerSpecificSizeLimit() throws PreCheckException {
+            // Given a transaction that exceeds the payer-specific size limit
+            final var txInfo = scenario().withPayer(ALICE.accountID()).txInfo();
+            final Transaction platformTx = createAppPayloadWrapper(asByteArray(txInfo.signedTx()));
+            when(transactionChecker.parseSignedAndCheck(any(Bytes.class), anyInt()))
+                    .thenReturn(txInfo);
+            // checkParsed and checkTransactionSize pass, but checkTransactionSizeLimitBasedOnPayer fails
+            doThrow(new PreCheckException(TRANSACTION_OVERSIZE))
+                    .when(transactionChecker)
+                    .checkTransactionSizeLimitBasedOnPayer(any(), any());
+
+            // When we pre-handle the transaction
+            workflow.preHandle(storeFactory, NODE_1.asInfo(), Stream.of(platformTx), (txns, bytes) -> {});
+
+            // Then the transaction fails and the node is the payer
+            final PreHandleResult result = platformTx.getMetadata();
+            assertThat(result.responseCode()).isEqualTo(TRANSACTION_OVERSIZE);
+            assertThat(result.payer()).isEqualTo(NODE_1.nodeAccountID());
+            // But we do see this transaction registered with the deduplication cache
+            verify(deduplicationCache).add(txInfo.txBody().transactionIDOrThrow());
         }
     }
 
@@ -615,7 +688,7 @@ final class PreHandleWorkflowImplTest extends AppTestBase implements Scenarios {
             final var result = workflow.preHandleAllTransactions(
                     NODE_1.asInfo(),
                     storeFactory,
-                    storeFactory.getStore(ReadableAccountStore.class),
+                    storeFactory.readableStore(ReadableAccountStore.class),
                     platformTx.getApplicationTransaction(),
                     previousResult,
                     (txns, bytes) -> {});
@@ -667,7 +740,7 @@ final class PreHandleWorkflowImplTest extends AppTestBase implements Scenarios {
             final var result = workflow.preHandleAllTransactions(
                     NODE_1.asInfo(),
                     storeFactory,
-                    storeFactory.getStore(ReadableAccountStore.class),
+                    storeFactory.readableStore(ReadableAccountStore.class),
                     platformTx.getApplicationTransaction(),
                     previousResult,
                     (txns, bytes) -> {});
@@ -719,7 +792,7 @@ final class PreHandleWorkflowImplTest extends AppTestBase implements Scenarios {
             final var result = workflow.preHandleAllTransactions(
                     NODE_1.asInfo(),
                     storeFactory,
-                    storeFactory.getStore(ReadableAccountStore.class),
+                    storeFactory.readableStore(ReadableAccountStore.class),
                     platformTx.getApplicationTransaction(),
                     previousResult,
                     (txns, bytes) -> {});

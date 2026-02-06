@@ -8,10 +8,7 @@ import static com.swirlds.virtualmap.internal.Path.getLeftChildPath;
 import static com.swirlds.virtualmap.internal.Path.getRightChildPath;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.common.io.streams.MerkleDataInputStream;
-import com.swirlds.common.io.streams.MerkleDataOutputStream;
 import com.swirlds.common.merkle.synchronization.TeachingSynchronizer;
-import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.merkle.synchronization.streams.AsyncInputStream;
 import com.swirlds.common.merkle.synchronization.streams.AsyncOutputStream;
 import com.swirlds.common.merkle.synchronization.task.Lesson;
@@ -31,14 +28,16 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
+import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
+import org.hiero.consensus.reconnect.config.ReconnectConfig;
 
 /**
  * An implementation of {@link TeacherTreeView} designed for virtual merkle trees.
  */
-public final class TeacherPushVirtualTreeView extends VirtualTreeViewBase implements TeacherTreeView<Long> {
+public final class TeacherPushVirtualTreeView extends VirtualTreeViewBase implements TeacherTreeView {
 
     private static final Logger logger = LogManager.getLogger(TeacherPushVirtualTreeView.class);
 
@@ -140,12 +139,12 @@ public final class TeacherPushVirtualTreeView extends VirtualTreeViewBase implem
             final TeachingSynchronizer teachingSynchronizer,
             final Time time,
             final StandardWorkGroup workGroup,
-            final MerkleDataInputStream inputStream,
-            final MerkleDataOutputStream outputStream) {
+            final SerializableDataInputStream inputStream,
+            final SerializableDataOutputStream outputStream) {
         final AsyncInputStream<QueryResponse> in =
                 new AsyncInputStream<>(inputStream, workGroup, QueryResponse::new, reconnectConfig);
         in.start();
-        final AsyncOutputStream<Lesson<Long>> out = teachingSynchronizer.buildOutputStream(workGroup, outputStream);
+        final AsyncOutputStream<Lesson> out = teachingSynchronizer.buildOutputStream(workGroup, outputStream);
         out.start();
 
         final AtomicBoolean senderIsFinished = new AtomicBoolean(false);

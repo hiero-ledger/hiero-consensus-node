@@ -6,8 +6,7 @@ import com.hedera.hapi.platform.state.StateKey;
 import com.hedera.statevalidation.exporter.SortedJsonExporter;
 import com.hedera.statevalidation.util.StateUtils;
 import com.swirlds.base.utility.Pair;
-import com.swirlds.state.MerkleNodeState;
-import com.swirlds.virtualmap.VirtualMap;
+import com.swirlds.state.merkle.VirtualMapState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.File;
 import java.util.ArrayList;
@@ -69,10 +68,8 @@ public class SortedExportCommand implements Runnable {
 
         log.info("Initializing the state...");
         long start = System.currentTimeMillis();
-        final MerkleNodeState state = StateUtils.getState();
+        final VirtualMapState state = StateUtils.getDefaultState();
         log.info("State has been initialized in {} seconds.", (System.currentTimeMillis() - start) / 1000);
-
-        ((VirtualMap) state.getRoot()).getDataSource().stopAndDisableBackgroundCompaction();
 
         if (serviceName == null) {
             // processing all

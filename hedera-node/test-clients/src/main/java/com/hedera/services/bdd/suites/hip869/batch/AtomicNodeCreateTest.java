@@ -4,8 +4,9 @@ package com.hedera.services.bdd.suites.hip869.batch;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
 import static com.hedera.services.bdd.junit.EmbeddedReason.MUST_SKIP_INGEST;
 import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
+import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
 import static com.hedera.services.bdd.junit.TestTags.MATS;
-import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.endpointFor;
+import static com.hedera.services.bdd.junit.hedera.utils.NetworkUtils.endpointFor;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFullPrefixesFor;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
@@ -58,19 +59,14 @@ import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.transactions.node.HapiNodeCreate;
 import com.hedera.services.bdd.spec.utilops.embedded.ViewNodeOp;
+import com.hedera.services.bdd.suites.hip869.NodeCreateTest;
 import com.hederahashgraph.api.proto.java.ServiceEndpoint;
-import com.swirlds.platform.test.fixtures.addressbook.RandomAddressBookBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Random;
-import java.util.Spliterators;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
-import org.hiero.consensus.model.roster.Address;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
@@ -78,6 +74,7 @@ import org.junit.jupiter.api.Tag;
 
 // This test cases are direct copies of NodeCreateTest. The difference here is that
 // we are wrapping the operations in an atomic batch to confirm that everything works as expected.
+@Tag(ATOMIC_BATCH)
 @HapiTestLifecycle
 class AtomicNodeCreateTest {
 
@@ -101,7 +98,7 @@ class AtomicNodeCreateTest {
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
         testLifecycle.doAdhoc(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
 
-        gossipCertificates = generateX509Certificates(2);
+        gossipCertificates = NodeCreateTest.generateX509Certificates(2);
     }
 
     /**
@@ -807,15 +804,5 @@ class AtomicNodeCreateTest {
                 "Service endpoint IP address invalid");
         assertEquals(expected.getDomainName(), actual.domainName(), "Service endpoint domain name invalid");
         assertEquals(expected.getPort(), actual.port(), "Service endpoint port invalid");
-    }
-
-    public static List<X509Certificate> generateX509Certificates(final int n) {
-        final var randomAddressBook = RandomAddressBookBuilder.create(new Random())
-                .withSize(n)
-                .withRealKeysEnabled(true)
-                .build();
-        return StreamSupport.stream(Spliterators.spliteratorUnknownSize(randomAddressBook.iterator(), 0), false)
-                .map(Address::getSigCert)
-                .collect(Collectors.toList());
     }
 }

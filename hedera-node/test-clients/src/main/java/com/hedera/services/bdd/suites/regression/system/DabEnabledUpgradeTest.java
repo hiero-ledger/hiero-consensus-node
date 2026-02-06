@@ -6,10 +6,10 @@ import static com.hedera.services.bdd.junit.SharedNetworkLauncherSessionListener
 import static com.hedera.services.bdd.junit.TestTags.UPGRADE;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.exceptNodeIds;
-import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.CLASSIC_NODE_NAMES;
-import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.classicFeeCollectorIdFor;
-import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.entryById;
-import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.nodeIdsFrom;
+import static com.hedera.services.bdd.junit.hedera.utils.NetworkUtils.CLASSIC_NODE_NAMES;
+import static com.hedera.services.bdd.junit.hedera.utils.NetworkUtils.classicFeeCollectorIdFor;
+import static com.hedera.services.bdd.junit.hedera.utils.NetworkUtils.entryById;
+import static com.hedera.services.bdd.junit.hedera.utils.NetworkUtils.nodeIdsFrom;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.VALID_CERT;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccountString;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asServiceEndpoint;
@@ -195,7 +195,7 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
                                 .build())),
                 upgradeToNextConfigVersion(),
                 assertGetVersionInfoMatches(startVersion::get),
-                burstOfTps(MIXED_OPS_BURST_TPS, Duration.ofSeconds(2)),
+                burstOfTps(MIXED_OPS_BURST_TPS, Duration.ofSeconds(5)),
                 getFileContents(NODE_DETAILS).andValidate(bytes -> {
                     final var node0CertHash = AddressBookPojo.nodeDetailsFrom(bytes).getEntries().stream()
                             .filter(entry -> entry.getNodeId() == 0L)

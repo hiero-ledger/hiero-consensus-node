@@ -3,17 +3,15 @@ package com.swirlds.benchmark.reconnect.lag;
 
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
-import com.swirlds.common.io.streams.MerkleDataInputStream;
-import com.swirlds.common.io.streams.MerkleDataOutputStream;
 import com.swirlds.common.merkle.synchronization.LearningSynchronizer;
-import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.merkle.synchronization.streams.AsyncOutputStream;
 import com.swirlds.common.merkle.synchronization.views.LearnerTreeView;
-import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.virtualmap.VirtualMap;
 import org.hiero.base.io.SelfSerializable;
+import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
+import org.hiero.consensus.reconnect.config.ReconnectConfig;
 
 /**
  * A {@link LearningSynchronizer} with simulated delay.
@@ -30,10 +28,10 @@ public class BenchmarkSlowLearningSynchronizer extends LearningSynchronizer {
      * Create a new learning synchronizer with simulated latency.
      */
     public BenchmarkSlowLearningSynchronizer(
-            final MerkleDataInputStream in,
-            final MerkleDataOutputStream out,
+            final SerializableDataInputStream in,
+            final SerializableDataOutputStream out,
             final VirtualMap newRoot,
-            final LearnerTreeView<?> view,
+            final LearnerTreeView view,
             final long randomSeed,
             final long delayStorageMicroseconds,
             final double delayStorageFuzzRangePercent,
@@ -41,15 +39,8 @@ public class BenchmarkSlowLearningSynchronizer extends LearningSynchronizer {
             final double delayNetworkFuzzRangePercent,
             final Runnable breakConnection,
             final ReconnectConfig reconnectConfig) {
-        super(
-                getStaticThreadManager(),
-                in,
-                out,
-                newRoot,
-                view,
-                breakConnection,
-                TestMerkleCryptoFactory.getInstance(),
-                reconnectConfig);
+
+        super(getStaticThreadManager(), in, out, newRoot, view, breakConnection, reconnectConfig);
 
         this.randomSeed = randomSeed;
         this.delayStorageMicroseconds = delayStorageMicroseconds;
