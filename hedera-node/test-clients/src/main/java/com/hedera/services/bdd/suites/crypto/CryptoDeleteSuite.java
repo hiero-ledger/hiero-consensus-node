@@ -30,6 +30,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.createHip32Auto;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.submitModified;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withAddressOfKey;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.spec.utilops.mod.ModificationUtils.withSuccessivelyVariedBodyIds;
 import static com.hedera.services.bdd.suites.HapiSuite.CIVILIAN_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
@@ -93,9 +94,9 @@ public class CryptoDeleteSuite {
                         .payingWith(ACCOUNT_TO_BE_DELETED)
                         .hasKnownStatus(PAYER_ACCOUNT_DELETED),
                 // since the account is already deleted, we have less signatures to verify
-                getAccountBalance(submittingNodeAccount)
-                        .hasTinyBars(approxChangeFromSnapshot(submittingNodeAfterBalanceLoad, -30000, 15000))
-                        .logged());
+                withOpContext((spec, log) -> getAccountBalance(submittingNodeAccount)
+                        .hasTinyBars(approxChangeFromSnapshot(
+                                submittingNodeAfterBalanceLoad, spec.simpleFeesEnabled() ? 75000 : 35000, 15000))));
     }
 
     @HapiTest

@@ -66,6 +66,7 @@ import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movi
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingWithDecimals;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.balanceSnapshot;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.inParallel;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
@@ -174,8 +175,7 @@ public class CryptoTransferSuite {
     private static final String VALID_TXN = "validTxn";
     private static final String UNCHECKED_TXN = "uncheckedTxn";
     private static final String PAYEE_SIG_REQ = "payeeSigReq";
-    private static final String TOKENS_INVOLVED_LOG_MESSAGE =
-            """
+    private static final String TOKENS_INVOLVED_LOG_MESSAGE = """
                     0 tokens involved,
                       2 account adjustments: {} tb, ${}"
                     1 tokens involved,
@@ -1165,9 +1165,12 @@ public class CryptoTransferSuite {
                     double pureOneTokenTwoAccountsUsd = rates.toUsdWithActiveRates(t1a2Fee);
                     double pureTwoTokensFourAccountsUsd = rates.toUsdWithActiveRates(t2a4Fee);
                     double pureThreeTokensSixAccountsUsd = rates.toUsdWithActiveRates(t3a6Fee);
-                    assertEquals(10.0, pureOneTokenTwoAccountsUsd / pureHbarUsd, 1.0);
-                    assertEquals(20.0, pureTwoTokensFourAccountsUsd / pureHbarUsd, 2.0);
-                    assertEquals(30.0, pureThreeTokensSixAccountsUsd / pureHbarUsd, 3.0);
+                    double expectedFeeOneToken = 10.0;
+                    double expectedFeeTwoToken = spec.simpleFeesEnabled() ? 14 : 20;
+                    double expectedFeeThreeToken = spec.simpleFeesEnabled() ? 18 : 20;
+                    assertEquals(expectedFeeOneToken, pureOneTokenTwoAccountsUsd / pureHbarUsd, 1.0);
+                    assertEquals(expectedFeeTwoToken, pureTwoTokensFourAccountsUsd / pureHbarUsd, 2.0);
+                    assertEquals(expectedFeeThreeToken, pureThreeTokensSixAccountsUsd / pureHbarUsd, 3.0);
                 }));
     }
 
@@ -1647,9 +1650,17 @@ public class CryptoTransferSuite {
                     final var bogusTokenId = TokenID.newBuilder().setTokenNum(acctCreate.numOfCreatedAccount());
                     spec.registry().saveTokenId("nonexistent", bogusTokenId.build());
                 }),
-                sourcing(() -> cryptoTransfer(
-                                movingWithDecimals(1L, "nonexistent", 2).betweenWithDecimals(PAYER, TREASURY))
-                        .hasKnownStatus(INVALID_TOKEN_ID)));
+                sourcing(() -> doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return cryptoTransfer(
+                                        movingWithDecimals(1L, "nonexistent", 2).betweenWithDecimals(PAYER, TREASURY))
+                                .hasPrecheck(INVALID_TOKEN_ID);
+                    } else {
+                        return cryptoTransfer(
+                                        movingWithDecimals(1L, "nonexistent", 2).betweenWithDecimals(PAYER, TREASURY))
+                                .hasKnownStatus(INVALID_TOKEN_ID);
+                    }
+                })));
     }
 
     @HapiTest

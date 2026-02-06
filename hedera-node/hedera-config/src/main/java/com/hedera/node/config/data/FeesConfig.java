@@ -17,10 +17,10 @@ public record FeesConfig(
 
         @ConfigProperty(defaultValue = "DEFAULT(0,1:1)") EntityScaleFactors percentUtilizationScaleFactors,
 
-        @ConfigProperty(defaultValue = "true") @NetworkProperty
+        @ConfigProperty(defaultValue = "false") @NetworkProperty
         boolean simpleFeesEnabled,
 
-        @ConfigProperty(defaultValue = "true") @NetworkProperty
+        @ConfigProperty(defaultValue = "false") @NetworkProperty
         boolean createSimpleFeeSchedule,
 
         @ConfigProperty(defaultValue = "380") @NetworkProperty
