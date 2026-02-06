@@ -19,7 +19,7 @@ public class CompactionCommand implements Runnable {
     public void run() {
         parent.initializeStateDir();
         try {
-            runCompaction(StateUtils.getState());
+            runCompaction(StateUtils.getDefaultState());
         } catch (Exception e) {
             throw new RuntimeException(e);
         }

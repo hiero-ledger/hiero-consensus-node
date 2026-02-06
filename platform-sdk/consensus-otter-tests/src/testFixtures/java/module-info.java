@@ -38,6 +38,7 @@ module org.hiero.otter.fixtures {
     requires org.hiero.consensus.metrics;
     requires org.hiero.consensus.pces.impl;
     requires org.hiero.consensus.pces;
+    requires org.hiero.consensus.platformstate;
     requires org.hiero.consensus.roster;
     requires com.fasterxml.jackson.annotation;
     requires com.fasterxml.jackson.core;
