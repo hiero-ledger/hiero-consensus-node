@@ -11,7 +11,8 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
 
 /**
- * A bank of simple graphs for testing. Graphs are built with events from a provided factory.
+ * A bank of simple graphs for testing.
+ *
  * @param <T> The type of event to build the graph with, either {@code PlatformEvent} or {@code EventImpl}
  */
 public class SimpleGraphs<T> {
@@ -21,7 +22,8 @@ public class SimpleGraphs<T> {
     /**
      * Creates a new instance
      *
-     * @param simpleGraphFactory a factory that can create a {@link SimpleGraph} of the appropriate type from a list of {@link PlatformEvent}s
+     * @param simpleGraphFactory a factory that can create a {@link SimpleGraph} of the appropriate type from a list of
+     *                           {@link PlatformEvent}s
      */
     public SimpleGraphs(@NonNull final Function<List<PlatformEvent>, SimpleGraph<T>> simpleGraphFactory) {
         this.factory = simpleGraphFactory;
@@ -100,7 +102,7 @@ public class SimpleGraphs<T> {
      * | \|  | \
      * 0  1  5  6
      * </pre>
-     *
+     * <p>
      * Note that this graph has two parts which are not connected to each other
      */
     public @NonNull SimpleGraph<T> graph8e4n(final Random random) {
