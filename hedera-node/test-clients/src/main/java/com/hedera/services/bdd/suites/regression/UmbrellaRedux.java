@@ -7,7 +7,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.runWithProvider;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.regression.factories.RegressionProviderFactory.factoryFrom;
-import static java.util.concurrent.TimeUnit.MINUTES;
+import static java.util.concurrent.TimeUnit.SECONDS;
 
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.spec.HapiPropertySource;
@@ -24,13 +24,13 @@ import org.junit.jupiter.api.Tag;
 public class UmbrellaRedux {
     public static final String DEFAULT_PROPERTIES = "regression-mixed_ops.properties";
 
-    private final AtomicLong duration = new AtomicLong(120);
-    private final AtomicReference<TimeUnit> unit = new AtomicReference<>(MINUTES);
-    private final AtomicInteger maxOpsPerSec = new AtomicInteger(1);
+    private final AtomicLong duration = new AtomicLong(10);
+    private final AtomicInteger maxOpsPerSec = new AtomicInteger(Integer.MAX_VALUE);
     private final AtomicInteger maxPendingOps = new AtomicInteger(Integer.MAX_VALUE);
     private final AtomicInteger backoffSleepSecs = new AtomicInteger(1);
     private final AtomicInteger statusTimeoutSecs = new AtomicInteger(5);
     private final AtomicReference<String> props = new AtomicReference<>(DEFAULT_PROPERTIES);
+    private final AtomicReference<TimeUnit> unit = new AtomicReference<>(SECONDS);
 
     @LeakyHapiTest
     @Tag(NOT_REPEATABLE)
