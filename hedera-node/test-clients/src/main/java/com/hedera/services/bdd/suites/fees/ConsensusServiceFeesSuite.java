@@ -13,12 +13,12 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.updateTopic;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedConsensusHbarFee;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.safeValidateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.doSafeSimpleValidateChargedUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.EXTRA_PROCESSING_BYTE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
 
@@ -142,8 +142,8 @@ public class ConsensusServiceFeesSuite {
                         .via("submitMessage1024"),
                 sleepFor(1000),
                 validateChargedUsd("submitMessage", BASE_FEE_TOPIC_SUBMIT_MESSAGE),
-                doSafeSimpleValidateChargedUsd("submitMessage500", 0.00088, BASE_FEE_TOPIC_SUBMIT_MESSAGE),
-                doSafeSimpleValidateChargedUsd(
+                safeValidateChargedUsd("submitMessage500", 0.00088, BASE_FEE_TOPIC_SUBMIT_MESSAGE),
+                safeValidateChargedUsd(
                         "submitMessage1024",
                         0.00098,
                         BASE_FEE_TOPIC_SUBMIT_MESSAGE + 125 * EXTRA_PROCESSING_BYTE * 10));

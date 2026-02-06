@@ -13,11 +13,11 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileUpdate;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyListNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.safeValidateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.doSafeSimpleValidateChargedUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.EXTRA_PROCESSING_BYTE;
 
 import com.hedera.services.bdd.junit.HapiTest;
@@ -56,7 +56,7 @@ public class FileServiceFeesSuite {
                         .contents(contents)
                         .payingWith(CIVILIAN)
                         .via("fileCreateBasic"),
-                doSafeSimpleValidateChargedUsd(
+                safeValidateChargedUsd(
                         "fileCreateBasic",
                         BASE_FEE_FILE_CREATE,
                         BASE_FEE_FILE_CREATE + 196 * EXTRA_PROCESSING_BYTE * 10));
@@ -77,7 +77,7 @@ public class FileServiceFeesSuite {
                         .memo(MEMO)
                         .payingWith(CIVILIAN)
                         .via("fileUpdateBasic"),
-                doSafeSimpleValidateChargedUsd(
+                safeValidateChargedUsd(
                         "fileUpdateBasic",
                         BASE_FEE_FILE_UPDATE,
                         BASE_FEE_FILE_UPDATE + 156 * EXTRA_PROCESSING_BYTE * 10));
@@ -124,7 +124,7 @@ public class FileServiceFeesSuite {
                         .content(contentBuilder.toString())
                         .payingWith(civilian)
                         .via(baseAppend),
-                doSafeSimpleValidateChargedUsd(
+                safeValidateChargedUsd(
                         baseAppend, BASE_FEE_FILE_APPEND, BASE_FEE_FILE_APPEND + 100 * EXTRA_PROCESSING_BYTE * 10));
     }
 

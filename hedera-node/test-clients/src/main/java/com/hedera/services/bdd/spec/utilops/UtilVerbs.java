@@ -2134,6 +2134,31 @@ public class UtilVerbs {
         });
     }
 
+    public static SpecOperation safeValidateChargedUsd(String txnName, double oldPrice, double newPrice) {
+        return doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+            if ("true".equalsIgnoreCase(flag)) {
+                return validateChargedUsd(txnName, newPrice);
+            } else {
+                return validateChargedUsd(txnName, oldPrice);
+            }
+        });
+    }
+
+    public static SpecOperation safeValidateChargedUsdWithin(
+            String txnName,
+            double oldPrice,
+            double oldAllowedPercentDiff,
+            double newPrice,
+            double newAllowedPercentDiff) {
+        return doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+            if ("true".equalsIgnoreCase(flag)) {
+                return validateChargedUsdWithin(txnName, newPrice, newAllowedPercentDiff);
+            } else {
+                return validateChargedUsdWithin(txnName, oldPrice, oldAllowedPercentDiff);
+            }
+        });
+    }
+
     @FunctionalInterface
     public interface OpsProvider {
         List<SpecOperation> provide();
