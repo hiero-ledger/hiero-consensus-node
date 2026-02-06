@@ -3,11 +3,10 @@ package com.swirlds.benchmark;
 
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
-import com.swirlds.virtualmap.VirtualValue;
 import java.util.Arrays;
 import java.util.function.LongUnaryOperator;
 
-public class BenchmarkValue implements VirtualValue {
+public class BenchmarkValue {
 
     private static int valueSize = 16;
     private byte[] valueBytes;
@@ -41,16 +40,6 @@ public class BenchmarkValue implements VirtualValue {
 
     public long toLong() {
         return Utils.fromBytes(valueBytes);
-    }
-
-    @Override
-    public VirtualValue copy() {
-        return new BenchmarkValue(this.valueBytes);
-    }
-
-    @Override
-    public VirtualValue asReadOnly() {
-        return this;
     }
 
     public Builder copyBuilder() {
