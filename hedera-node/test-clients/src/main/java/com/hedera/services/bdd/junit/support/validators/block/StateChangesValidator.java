@@ -67,11 +67,10 @@ import com.hedera.services.bdd.junit.support.translators.inputs.TransactionParts
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.utility.Mnemonics;
-import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.lifecycle.Service;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.WritableSingletonState;
-import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -101,7 +100,7 @@ import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.junit.jupiter.api.Assertions;
 
 /**
- * A validator that asserts the state changes in the block stream, when applied directly to a {@link MerkleNodeState}
+ * A validator that asserts the state changes in the block stream, when applied directly to a {@link VirtualMapState}
  * initialized with the genesis {@link Service} schemas, result in the given root hash.
  */
 public class StateChangesValidator implements BlockStreamValidator {
@@ -130,7 +129,7 @@ public class StateChangesValidator implements BlockStreamValidator {
 
     private Instant lastStateChangesTime;
     private StateChanges lastStateChanges;
-    private MerkleNodeState<VirtualMap> state;
+    private VirtualMapState state;
 
     @Nullable
     private Bytes ledgerIdFromState;
@@ -294,7 +293,7 @@ public class StateChangesValidator implements BlockStreamValidator {
         final var hedera = ServicesMain.newHedera(platformConfig, metrics, Time.getCurrent());
         this.state = hedera.newStateRoot();
         final var emptyState = state;
-        final var emptyStateHash = emptyState.getRoot().getHash();
+        final var emptyStateHash = emptyState.getHash();
         state = state.copy();
         hedera.initializeStatesApi(state, GENESIS, platformConfig);
         final var stateToBeCopied = state;
