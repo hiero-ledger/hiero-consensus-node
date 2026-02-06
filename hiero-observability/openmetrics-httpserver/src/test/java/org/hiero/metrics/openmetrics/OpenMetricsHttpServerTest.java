@@ -29,7 +29,10 @@ import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
+import org.junit.jupiter.api.parallel.Execution;
+import org.junit.jupiter.api.parallel.ExecutionMode;
 
+@Execution(ExecutionMode.SAME_THREAD)
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 public class OpenMetricsHttpServerTest {
 
@@ -93,8 +96,8 @@ public class OpenMetricsHttpServerTest {
 
     @AfterAll
     static void shutdown() throws IOException {
-        registry.close();
         httpClient.close();
+        registry.close();
     }
 
     @Test

@@ -24,33 +24,35 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
-import org.hiero.metrics.core.MetricRegistry;
 import org.hiero.metrics.core.MetricRegistrySnapshot;
 import org.hiero.metrics.core.MetricsExporter;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.parallel.Execution;
+import org.junit.jupiter.api.parallel.ExecutionMode;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+@Execution(ExecutionMode.SAME_THREAD)
 @ExtendWith(MockitoExtension.class)
 public class OpenMetricsHttpServerMockTest {
 
-    private static final OpenMetricsHttpServerFactory factory = new OpenMetricsHttpServerFactory();
+    private static final HttpClient httpClient = HttpClient.newHttpClient();
 
-    private MetricsExporter openMetricsServer;
-    private URI uri;
-    private MetricRegistry registry;
-    private HttpClient httpClient;
+    private static URI uri;
+    private static MetricsExporter openMetricsServer;
 
     @Mock
     private Supplier<MetricRegistrySnapshot> snapshotSupplier;
 
-    @BeforeEach
-    void setUp() {
-        httpClient = HttpClient.newHttpClient();
-
+    @BeforeAll
+    static void init() {
         final int port;
         try (ServerSocket s = new ServerSocket(0)) {
             port = s.getLocalPort();
@@ -65,19 +67,27 @@ public class OpenMetricsHttpServerMockTest {
                 .withValue("metrics.exporter.openmetrics.http.path", path)
                 .build();
 
-        openMetricsServer = factory.createExporter(List.of(), config);
+        openMetricsServer = new OpenMetricsHttpServerFactory().createExporter(List.of(), config);
+        if (openMetricsServer == null) {
+            throw new IllegalStateException("Failed to create OpenMetricsHttpServer");
+        }
         uri = URI.create("http://localhost:" + port + path);
-        registry =
-                MetricRegistry.builder().setMetricsExporter(openMetricsServer).build();
+    }
 
+    @AfterAll
+    static void shutdown() throws IOException {
+        httpClient.close();
+        openMetricsServer.close();
+    }
+
+    @BeforeEach
+    void beforeEach() {
         openMetricsServer.setSnapshotSupplier(snapshotSupplier);
     }
 
     @AfterEach
-    void afterEach() throws IOException {
+    void afterEach() {
         verifyNoMoreInteractions(snapshotSupplier);
-        httpClient.close();
-        registry.close();
     }
 
     @Test
@@ -104,20 +114,17 @@ public class OpenMetricsHttpServerMockTest {
         verify(snapshotSupplier).get();
     }
 
-    @Test
-    void testExceptionWhenNoAllowedHttpMethod() {
-        String[] notAllowedMethods = {"POST", "PUT", "DELETE", "PATCH", "OPTIONS"};
+    @ParameterizedTest
+    @ValueSource(strings = {"POST", "PUT", "DELETE", "PATCH", "OPTIONS"})
+    void testExceptionWhenNoAllowedHttpMethod(String notAllowedMethod) {
+        HttpResponse<String> response =
+                send(newRequest().method(notAllowedMethod, HttpRequest.BodyPublishers.noBody()));
 
-        for (String notAllowedMethod : notAllowedMethods) {
-            HttpResponse<String> response =
-                    send(newRequest().method(notAllowedMethod, HttpRequest.BodyPublishers.noBody()));
-
-            assertThat(response.statusCode())
-                    .as("Method is not allowed: " + notAllowedMethod)
-                    .isEqualTo(405);
-            assertThat(response.headers().firstValue("Allow")).hasValue("GET, HEAD");
-            assertThat(response.body()).isEmpty();
-        }
+        assertThat(response.statusCode())
+                .as("Method is not allowed: " + notAllowedMethod)
+                .isEqualTo(405);
+        assertThat(response.headers().firstValue("Allow")).hasValue("GET, HEAD");
+        assertThat(response.body()).isEmpty();
     }
 
     @Test

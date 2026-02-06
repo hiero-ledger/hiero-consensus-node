@@ -85,13 +85,13 @@ class OpenMetricsHttpServer implements MetricsExporter {
     }
 
     private void handleSnapshots(HttpExchange exchange) throws IOException {
+        // use local variable to track if we set the flag for handling GET request, but not HEAD
         boolean handlingRequest = false;
         try {
             // allow only GET and HEAD methods
             final String method = exchange.getRequestMethod().toUpperCase(Locale.ROOT);
             if (!"GET".equals(method) && !"HEAD".equals(method)) {
                 exchange.getResponseHeaders().set("Allow", "GET, HEAD");
-                exchange.getResponseHeaders().set("Cache-Control", "no-store");
                 exchange.sendResponseHeaders(405, -1);
                 return;
             }
