@@ -129,7 +129,7 @@ public class NodeDeathReconnectBlockNodeSuite implements LifecycleTest {
         final AtomicReference<Instant> time = new AtomicReference<>();
         return hapiTest(
                 // Validate we can initially submit transactions to node2
-                cryptoCreate("nobody").setNode("5"),
+                cryptoCreate("nobody").setNode("3"),
                 // Run some mixed transactions
                 burstOfTps(MIXED_OPS_BURST_TPS, MIXED_OPS_BURST_DURATION),
                 // Stop node 2
@@ -154,7 +154,7 @@ public class NodeDeathReconnectBlockNodeSuite implements LifecycleTest {
                 // Run some more transactions
                 burstOfTps(MIXED_OPS_BURST_TPS, MIXED_OPS_BURST_DURATION),
                 // And validate we can still submit transactions to node2
-                cryptoCreate("somebody").setNode("5"),
+                cryptoCreate("somebody").setNode("3"),
                 burstOfTps(MIXED_OPS_BURST_TPS, Duration.ofSeconds(60)),
                 assertHgcaaLogDoesNotContainText(allNodes(), "ERROR", Duration.ofSeconds(5)));
     }
