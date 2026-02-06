@@ -380,8 +380,9 @@ public class ParentTxnFactory {
             if (congestionMultiplier > 1) {
                 baseBuilder.congestionMultiplier(congestionMultiplier);
             }
-            if(txnInfo.txBody().highVolume()){
-                final var utilizationBasisPoints = throttleAdvisor.highVolumeThrottleUtilization(txnInfo.functionality());
+            if (txnInfo.txBody().highVolume()) {
+                final var utilizationBasisPoints =
+                        throttleAdvisor.highVolumeThrottleUtilization(txnInfo.functionality());
                 final var highVolumeMultiplier = feeManager.highVolumeMultiplierFor(
                         txnInfo.txBody(), txnInfo.functionality(), storeFactory.asReadOnly(), utilizationBasisPoints);
                 if (highVolumeMultiplier > 1) {

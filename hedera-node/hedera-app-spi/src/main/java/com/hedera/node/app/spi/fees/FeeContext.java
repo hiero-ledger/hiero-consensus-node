@@ -127,5 +127,7 @@ public interface FeeContext {
         return tinycentsToTinybars(amount, fromPbj(activeRate()));
     }
 
-    default int getHighVolumeThrottleUtilization(HederaFunctionality functionality) { return 0; }
+    default int getHighVolumeThrottleUtilization(HederaFunctionality functionality) {
+        return 0;
+    }
 }

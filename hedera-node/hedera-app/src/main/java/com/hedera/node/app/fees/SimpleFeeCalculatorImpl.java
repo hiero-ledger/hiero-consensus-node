@@ -155,12 +155,12 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
             @NonNull final TransactionBody txnBody,
             @NonNull final SimpleFeeContext simpleFeeContext,
             @NonNull final FeeResult result,
-            final HederaFunctionality functionality) {
-        if (functionality == null || congestionMultipliers == null || simpleFeeContext.feeContext() == null) {
+            @NonNull final HederaFunctionality functionality) {
+        // For standalone fee calculator simpleFeeContext.feeContext() is null
+        if (simpleFeeContext.feeContext() == null || congestionMultipliers == null) {
             return;
         }
-
-        final var feeContext = requireNonNull(simpleFeeContext.feeContext());
+        final var feeContext = simpleFeeContext.feeContext();
         final long congestionMultiplier =
                 congestionMultipliers.maxCurrentMultiplier(txnBody, functionality, feeContext.readableStoreFactory());
         if (congestionMultiplier <= 1) {
@@ -182,6 +182,10 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
             @NonNull final HederaFunctionality functionality,
             @NonNull final SimpleFeeContext feeContext,
             @NonNull final FeeResult result) {
+        // For standalone fee calculator simpleFeeContext.feeContext() is null
+        if (feeContext.feeContext() == null) {
+            return;
+        }
         // Look up the service fee definition to get the high volume rates
         final ServiceFeeDefinition serviceFeeDefinition = lookupServiceFee(feeSchedule, functionality);
         if (serviceFeeDefinition == null || serviceFeeDefinition.highVolumeRates() == null) {
@@ -216,6 +220,7 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
      * @return Never returns normally
      * @throws UnsupportedOperationException always
      */
+    @NonNull
     @Override
     public FeeResult calculateQueryFee(@NonNull final Query query, @NonNull final SimpleFeeContext simpleFeeContext) {
         final var result = new FeeResult();

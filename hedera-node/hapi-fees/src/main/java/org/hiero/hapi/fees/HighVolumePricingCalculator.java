@@ -21,7 +21,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
 import java.util.Set;
-
 import org.hiero.hapi.support.fees.PiecewiseLinearCurve;
 import org.hiero.hapi.support.fees.PiecewiseLinearPoint;
 import org.hiero.hapi.support.fees.PricingCurve;
@@ -51,6 +50,7 @@ public final class HighVolumePricingCalculator {
 
     /** The scale factor for multiplier values (1,000 = 1x). */
     public static final long MULTIPLIER_SCALE = 1_000L;
+
     public static final Set<HederaFunctionality> HIGH_VOLUME_FUNCTIONS = Set.of(
             CRYPTO_CREATE,
             CONSENSUS_CREATE_TOPIC,

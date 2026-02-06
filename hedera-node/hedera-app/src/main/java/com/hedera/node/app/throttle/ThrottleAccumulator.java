@@ -11,7 +11,6 @@ import static com.hedera.hapi.node.base.HederaFunctionality.ETHEREUM_TRANSACTION
 import static com.hedera.hapi.node.base.HederaFunctionality.HOOK_DISPATCH;
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_ASSOCIATE_TO_ACCOUNT;
 import static com.hedera.hapi.util.HapiUtils.functionOf;
-import static org.hiero.hapi.fees.HighVolumePricingCalculator.HIGH_VOLUME_FUNCTIONS;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
 import static com.hedera.node.app.hapi.utils.ethereum.EthTxData.populateEthTxData;
 import static com.hedera.node.app.hapi.utils.sysfiles.domain.throttling.ScaleFactor.ONE_TO_ONE;
@@ -25,6 +24,7 @@ import static com.hedera.node.app.throttle.ThrottleAccumulator.ThrottleType.FRON
 import static com.hedera.node.app.throttle.ThrottleAccumulator.ThrottleType.NOOP_THROTTLE;
 import static java.util.Collections.emptyList;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.hapi.fees.HighVolumePricingCalculator.HIGH_VOLUME_FUNCTIONS;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.node.base.AccountAmount;
@@ -74,7 +74,6 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-
 import java.math.BigInteger;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -87,7 +86,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.IntSupplier;
 import java.util.function.Supplier;
-
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -272,9 +270,9 @@ public class ThrottleAccumulator {
 
             return enforceGasThrottle
                     && !gasThrottle.allow(
-                    now,
-                    query.contractCallLocalOrElse(ContractCallLocalQuery.DEFAULT)
-                            .gas());
+                            now,
+                            query.contractCallLocalOrElse(ContractCallLocalQuery.DEFAULT)
+                                    .gas());
         }
         resetLastAllowedUse();
         final var manager = functionReqs.get(queryFunction);
@@ -496,7 +494,7 @@ public class ThrottleAccumulator {
         return switch (function) {
             case SCHEDULE_CREATE -> shouldThrottleScheduleCreate(effectiveManager, txnInfo, now, state, throttleUsages);
             case TOKEN_MINT ->
-                    shouldThrottleMint(effectiveManager, txBody.tokenMintOrThrow(), now, configuration, throttleUsages);
+                shouldThrottleMint(effectiveManager, txBody.tokenMintOrThrow(), now, configuration, throttleUsages);
             case CRYPTO_TRANSFER -> {
                 final var accountStore = new ReadableStoreFactoryImpl(state).readableStore(ReadableAccountStore.class);
                 final var relationStore =
@@ -581,9 +579,9 @@ public class ThrottleAccumulator {
                 } else {
                     final var ledgerConfig = config.getConfigData(LedgerConfig.class);
                     expiry = Optional.ofNullable(txnInfo.transactionID())
-                            .orElse(TransactionID.DEFAULT)
-                            .transactionValidStartOrElse(Timestamp.DEFAULT)
-                            .seconds()
+                                    .orElse(TransactionID.DEFAULT)
+                                    .transactionValidStartOrElse(Timestamp.DEFAULT)
+                                    .seconds()
                             + ledgerConfig.scheduleTxExpiryTimeSecs();
                 }
                 final var entityIdStore = new ReadableEntityIdStoreImpl(state.getReadableStates(EntityIdService.NAME));
@@ -628,19 +626,22 @@ public class ThrottleAccumulator {
             @NonNull final TransactionBody txnBody, @NonNull final HederaFunctionality function) {
         final long nominalGas =
                 switch (function) {
-                    case CONTRACT_CREATE -> txnBody.contractCreateInstanceOrThrow().gas();
+                    case CONTRACT_CREATE ->
+                        txnBody.contractCreateInstanceOrThrow().gas();
                     case CONTRACT_CALL -> txnBody.contractCallOrThrow().gas();
-                    case ETHEREUM_TRANSACTION -> Optional.of(txnBody.ethereumTransactionOrThrow()
-                                    .ethereumData()
-                                    .toByteArray())
-                            .map(EthTxData::populateEthTxData)
-                            .map(EthTxData::gasLimit)
-                            .orElse(0L);
-                    case HOOK_DISPATCH -> txnBody.hookDispatchOrThrow()
-                            .executionOrElse(HookExecution.DEFAULT)
-                            .callOrElse(HookCall.DEFAULT)
-                            .evmHookCallOrElse(EvmHookCall.DEFAULT)
-                            .gasLimit();
+                    case ETHEREUM_TRANSACTION ->
+                        Optional.of(txnBody.ethereumTransactionOrThrow()
+                                        .ethereumData()
+                                        .toByteArray())
+                                .map(EthTxData::populateEthTxData)
+                                .map(EthTxData::gasLimit)
+                                .orElse(0L);
+                    case HOOK_DISPATCH ->
+                        txnBody.hookDispatchOrThrow()
+                                .executionOrElse(HookExecution.DEFAULT)
+                                .callOrElse(HookCall.DEFAULT)
+                                .evmHookCallOrElse(EvmHookCall.DEFAULT)
+                                .gasLimit();
                     default -> 0L;
                 };
         // Interpret negative gas as overflow
@@ -691,9 +692,11 @@ public class ThrottleAccumulator {
         final boolean unlimitedAutoAssociations =
                 configuration.getConfigData(EntitiesConfig.class).unlimitedAutoAssociationsEnabled();
         if (implicitCreationsCount > 0) {
-            return shouldThrottleBasedOnImplicitCreations(manager, implicitCreationsCount, now, throttleUsages, useHighVolumeBucket);
+            return shouldThrottleBasedOnImplicitCreations(
+                    manager, implicitCreationsCount, now, throttleUsages, useHighVolumeBucket);
         } else if (unlimitedAutoAssociations && autoAssociationsCount > 0) {
-            return shouldThrottleBasedOnAutoAssociations(manager, autoAssociationsCount, now, throttleUsages, useHighVolumeBucket);
+            return shouldThrottleBasedOnAutoAssociations(
+                    manager, autoAssociationsCount, now, throttleUsages, useHighVolumeBucket);
         } else {
             return !manager.allReqsMetAt(now, throttleUsages);
         }
@@ -910,9 +913,9 @@ public class ThrottleAccumulator {
             @NonNull final Instant now,
             @Nullable final List<ThrottleUsage> throttleUsages,
             final boolean useHighVolumeBucket) {
-        final var manager = useHighVolumeBucket ?
-                Optional.ofNullable(highVolumeFunctionReqs.get(CRYPTO_CREATE)).orElse(functionReqs.get(CRYPTO_CREATE)) :
-                functionReqs.get(CRYPTO_CREATE);
+        final var manager = useHighVolumeBucket
+                ? Optional.ofNullable(highVolumeFunctionReqs.get(CRYPTO_CREATE)).orElse(functionReqs.get(CRYPTO_CREATE))
+                : functionReqs.get(CRYPTO_CREATE);
         return manager == null || !manager.allReqsMetAt(now, n, ONE_TO_ONE, throttleUsages);
     }
 
@@ -921,9 +924,10 @@ public class ThrottleAccumulator {
             @NonNull final Instant now,
             @Nullable final List<ThrottleUsage> throttleUsages,
             final boolean useHighVolumeBucket) {
-        final var manager = useHighVolumeBucket ?
-                Optional.ofNullable(highVolumeFunctionReqs.get(TOKEN_ASSOCIATE_TO_ACCOUNT)).orElse(functionReqs.get(TOKEN_ASSOCIATE_TO_ACCOUNT)) :
-                functionReqs.get(TOKEN_ASSOCIATE_TO_ACCOUNT);
+        final var manager = useHighVolumeBucket
+                ? Optional.ofNullable(highVolumeFunctionReqs.get(TOKEN_ASSOCIATE_TO_ACCOUNT))
+                        .orElse(functionReqs.get(TOKEN_ASSOCIATE_TO_ACCOUNT))
+                : functionReqs.get(TOKEN_ASSOCIATE_TO_ACCOUNT);
         return manager == null || !manager.allReqsMetAt(now, n, ONE_TO_ONE, throttleUsages);
     }
 

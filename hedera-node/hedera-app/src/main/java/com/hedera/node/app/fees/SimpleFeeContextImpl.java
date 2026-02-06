@@ -54,7 +54,7 @@ public final class SimpleFeeContextImpl implements SimpleFeeContext {
     }
 
     @Override
-    public int getHighVolumeThrottleUtilization(@NonNull HederaFunctionality functionality){
+    public int getHighVolumeThrottleUtilization(@NonNull HederaFunctionality functionality) {
         return feeContext == null ? 0 : feeContext.getHighVolumeThrottleUtilization(functionality);
     }
 }

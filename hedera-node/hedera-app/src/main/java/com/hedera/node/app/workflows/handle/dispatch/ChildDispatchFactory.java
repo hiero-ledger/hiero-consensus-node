@@ -81,7 +81,6 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-
 import java.time.Instant;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -186,7 +185,7 @@ public class ChildDispatchFactory {
                 : preHandleChild(options.body(), options.payerId(), config, readableStoreFactory, creatorInfo);
         final var childVerifier = overridePreHandleResult != null
                 ? new DefaultKeyVerifier(
-                config.getConfigData(HederaConfig.class), overridePreHandleResult.getVerificationResults())
+                        config.getConfigData(HederaConfig.class), overridePreHandleResult.getVerificationResults())
                 : getKeyVerifier(options.effectiveKeyVerifier(), config, options.authorizingKeys());
         boolean isLastAllowedPreset = false;
         if (options.body().hasScheduleCreate()) {
@@ -200,9 +199,9 @@ public class ChildDispatchFactory {
         final var body = options.usePresetTxnId() == NO
                 ? options.body()
                 : options.body()
-                .copyBuilder()
-                .transactionID(stack.nextPresetTxnId(isLastAllowedPreset))
-                .build();
+                        .copyBuilder()
+                        .transactionID(stack.nextPresetTxnId(isLastAllowedPreset))
+                        .build();
         final var childTxnInfo = overridePreHandleResult != null
                 ? overridePreHandleResult.txInfo()
                 : getTxnInfoFrom(options.payerId(), body);
@@ -461,49 +460,49 @@ public class ChildDispatchFactory {
         final var keys = asSortedSet(authorizingKeys);
         return callback == null
                 ? authorizingKeys.isEmpty()
-                ? NO_OP_KEY_VERIFIER
-                : new NoOpKeyVerifier() {
-            @Override
-            public SortedSet<Key> authorizingSimpleKeys() {
-                return keys;
-            }
-        }
+                        ? NO_OP_KEY_VERIFIER
+                        : new NoOpKeyVerifier() {
+                            @Override
+                            public SortedSet<Key> authorizingSimpleKeys() {
+                                return keys;
+                            }
+                        }
                 : new AppKeyVerifier() {
-            private final AppKeyVerifier verifier =
-                    new DefaultKeyVerifier(config.getConfigData(HederaConfig.class), emptyMap());
+                    private final AppKeyVerifier verifier =
+                            new DefaultKeyVerifier(config.getConfigData(HederaConfig.class), emptyMap());
 
-            @NonNull
-            @Override
-            public SignatureVerification verificationFor(@NonNull final Key key) {
-                // Within the child HandleContext, a key structure has a valid signature ONLY if
-                // the given callback returns true for enough primitive keys in the structure
-                return verifier.verificationFor(key, (k, v) -> callback.test(k));
-            }
+                    @NonNull
+                    @Override
+                    public SignatureVerification verificationFor(@NonNull final Key key) {
+                        // Within the child HandleContext, a key structure has a valid signature ONLY if
+                        // the given callback returns true for enough primitive keys in the structure
+                        return verifier.verificationFor(key, (k, v) -> callback.test(k));
+                    }
 
-            @NonNull
-            @Override
-            public SignatureVerification verificationFor(
-                    @NonNull final Key key, @NonNull final VerificationAssistant callback) {
-                return verifier.verificationFor(key, callback);
-            }
+                    @NonNull
+                    @Override
+                    public SignatureVerification verificationFor(
+                            @NonNull final Key key, @NonNull final VerificationAssistant callback) {
+                        return verifier.verificationFor(key, callback);
+                    }
 
-            @NonNull
-            @Override
-            public SignatureVerification verificationFor(@NonNull final Bytes evmAlias) {
-                // We do not yet support completing hollow accounts from an internal dispatch
-                throw new UnsupportedOperationException();
-            }
+                    @NonNull
+                    @Override
+                    public SignatureVerification verificationFor(@NonNull final Bytes evmAlias) {
+                        // We do not yet support completing hollow accounts from an internal dispatch
+                        throw new UnsupportedOperationException();
+                    }
 
-            @Override
-            public int numSignaturesVerified() {
-                return 0;
-            }
+                    @Override
+                    public int numSignaturesVerified() {
+                        return 0;
+                    }
 
-            @Override
-            public SortedSet<Key> authorizingSimpleKeys() {
-                return keys;
-            }
-        };
+                    @Override
+                    public SortedSet<Key> authorizingSimpleKeys() {
+                        return keys;
+                    }
+                };
     }
 
     /**
@@ -572,9 +571,9 @@ public class ChildDispatchFactory {
         return keys.isEmpty()
                 ? NO_AUTHORIZING_KEYS
                 : unmodifiableSortedSet(new TreeSet<>(KEY_COMPARATOR) {
-            {
-                addAll(keys);
-            }
-        });
+                    {
+                        addAll(keys);
+                    }
+                });
     }
 }

@@ -252,9 +252,10 @@ public final class FeeManager {
         return congestionMultipliers.maxCurrentMultiplier(body, functionality, storeFactory);
     }
 
-    public long highVolumeMultiplierFor(final TransactionBody transactionBody,
-                                        final HederaFunctionality functionality,
-                                        final ReadableStoreFactory readOnly) {
+    public long highVolumeMultiplierFor(
+            final TransactionBody transactionBody,
+            final HederaFunctionality functionality,
+            final ReadableStoreFactory readOnly) {
         return highVolumeMultiplierFor(transactionBody, functionality, readOnly, 0);
     }
 
@@ -263,7 +264,8 @@ public final class FeeManager {
             @NonNull final HederaFunctionality functionality,
             @NonNull final ReadableStoreFactory readOnly,
             final int utilizationBasisPoints) {
-        if (!transactionBody.highVolume() || !HighVolumePricingCalculator.HIGH_VOLUME_FUNCTIONS.contains(functionality)) {
+        if (!transactionBody.highVolume()
+                || !HighVolumePricingCalculator.HIGH_VOLUME_FUNCTIONS.contains(functionality)) {
             return HighVolumePricingCalculator.MULTIPLIER_SCALE;
         }
         if (simpleFeesSchedule == null) {
