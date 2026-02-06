@@ -87,7 +87,6 @@ jobs:
         id: branch
         run: |
           echo "name=ci/release/prep/${{ steps.validate.outputs.build-tag }}" >> ${GITHUB_OUTPUT}
-          echo "The temp branch name is: ${BRANCH_NAME}"
 
       - name: Print Temporary Branch Name
         run: |
