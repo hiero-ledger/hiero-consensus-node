@@ -2,7 +2,7 @@
 package com.hedera.statevalidation.validator;
 
 import static com.hedera.statevalidation.validator.RehashValidator.REHASH_GROUP;
-import static com.swirlds.platform.state.service.PlatformStateUtils.getInfoString;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.getInfoString;
 
 import com.hedera.statevalidation.util.ConfigUtils;
 import com.hedera.statevalidation.validator.util.ValidationAssertions;

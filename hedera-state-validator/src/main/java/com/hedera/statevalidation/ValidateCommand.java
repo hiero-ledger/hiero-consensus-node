@@ -116,7 +116,7 @@ public class ValidateCommand implements Callable<Integer> {
         try {
             // Initialize state
             parent.initializeStateDir();
-            final MerkleNodeState state = StateUtils.getState();
+            final MerkleNodeState state = StateUtils.getDefaultState();
             final VirtualMap virtualMap = (VirtualMap) state.getRoot();
             final MerkleDbDataSource vds = (MerkleDbDataSource) virtualMap.getDataSource();
             if (vds.getFirstLeafPath() == -1) {
