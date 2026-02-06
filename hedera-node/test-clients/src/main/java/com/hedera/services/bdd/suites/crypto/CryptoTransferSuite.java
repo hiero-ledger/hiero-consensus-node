@@ -1165,8 +1165,8 @@ public class CryptoTransferSuite {
                     double pureTwoTokensFourAccountsUsd = rates.toUsdWithActiveRates(t2a4Fee);
                     double pureThreeTokensSixAccountsUsd = rates.toUsdWithActiveRates(t3a6Fee);
                     double expectedFeeOneToken = 10.0;
-                    double expectedFeeTwoToken = spec.simpleFeesEnabled() ? 14 : 20;
-                    double expectedFeeThreeToken = spec.simpleFeesEnabled() ? 18 : 20;
+                    double expectedFeeTwoToken = spec.simpleFeesEnabled() ? 14.0 : 20.0;
+                    double expectedFeeThreeToken = spec.simpleFeesEnabled() ? 18.0 : 30.0;
                     assertEquals(expectedFeeOneToken, pureOneTokenTwoAccountsUsd / pureHbarUsd, 1.0);
                     assertEquals(expectedFeeTwoToken, pureTwoTokensFourAccountsUsd / pureHbarUsd, 2.0);
                     assertEquals(expectedFeeThreeToken, pureThreeTokensSixAccountsUsd / pureHbarUsd, 3.0);
