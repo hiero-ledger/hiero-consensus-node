@@ -46,8 +46,6 @@ public class TargetNetworkPrep {
     final Stream<DynamicTest> ensureSystemStateAsExpectedWithSystemDefaultFiles() {
         final var emptyKey =
                 Key.newBuilder().setKeyList(KeyList.getDefaultInstance()).build();
-        final var snapshot800 = "800startBalance";
-        final var snapshot801 = "801startBalance";
         final var snapshot802 = "802startBalance";
         final var civilian = "civilian";
         final AtomicReference<FeeObject> feeObs = new AtomicReference<>();
@@ -56,21 +54,21 @@ public class TargetNetworkPrep {
                         "nodes.feeCollectionAccountEnabled", "false", "nodes.preserveMinNodeRewardBalance", "false"),
                 cryptoCreate(civilian),
                 balanceSnapshot(snapshot802, FEE_COLLECTOR),
-                balanceSnapshot(snapshot800, STAKING_REWARD),
                 cryptoTransfer(tinyBarsFromTo(civilian, STAKING_REWARD, ONE_HBAR))
                         .payingWith(civilian)
                         .signedBy(civilian)
                         .exposingFeesTo(feeObs)
+						.via("transferToStakingReward")
                         .logged(),
-                sourcing(() -> getAccountBalance(STAKING_REWARD).hasTinyBars(changeFromSnapshot(snapshot800, (long)
-                        (ONE_HBAR + ((feeObs.get().networkFee() + feeObs.get().serviceFee()) * 0.1))))),
-                balanceSnapshot(snapshot801, NODE_REWARD),
+				sourcing(() -> getTxnRecord("transferToStakingReward")
+						.hasHbarAmount(STAKING_REWARD, (long) (ONE_HBAR + ((feeObs.get().networkFee() + feeObs.get().serviceFee()) * 0.1)))),
                 cryptoTransfer(tinyBarsFromTo(civilian, NODE_REWARD, ONE_HBAR))
                         .payingWith(civilian)
                         .signedBy(civilian)
+						.via("transferToNodeReward")
                         .logged(),
-                sourcing(() -> getAccountBalance(NODE_REWARD).hasTinyBars(changeFromSnapshot(snapshot801, (long)
-                        (ONE_HBAR + ((feeObs.get().networkFee() + feeObs.get().serviceFee()) * 0.1))))),
+				sourcing(() -> getTxnRecord("transferToNodeReward")
+								.hasHbarAmount(NODE_REWARD, (long) (ONE_HBAR + ((feeObs.get().networkFee() + feeObs.get().serviceFee()) * 0.1)))),
                 getAccountDetails(STAKING_REWARD)
                         .payingWith(GENESIS)
                         .has(accountDetailsWith()
@@ -118,27 +116,30 @@ public class TargetNetworkPrep {
     final Stream<DynamicTest> ensureSystemStateAsExpectedWithFeeCollector() {
         final var emptyKey =
                 Key.newBuilder().setKeyList(KeyList.getDefaultInstance()).build();
-        final var snapshot802 = "802startBalance";
         final var civilian = "civilian";
         final AtomicReference<FeeObject> feeObs = new AtomicReference<>();
         return hapiTest(
                 overridingTwo(
                         "nodes.feeCollectionAccountEnabled", "true", "nodes.preserveMinNodeRewardBalance", "false"),
                 cryptoCreate(civilian),
-                balanceSnapshot(snapshot802, FEE_COLLECTOR),
                 cryptoTransfer(tinyBarsFromTo(civilian, STAKING_REWARD, ONE_HBAR))
                         .payingWith(civilian)
                         .signedBy(civilian)
                         .exposingFeesTo(feeObs)
                         .via("stakingRewardTransfer")
                         .logged(),
-                getTxnRecord("stakingRewardTransfer").logged().hasHbarAmount(STAKING_REWARD, ONE_HBAR),
+                sourcing(() -> getTxnRecord("stakingRewardTransfer")
+                        .hasHbarAmount(STAKING_REWARD, ONE_HBAR)
+                        .hasHbarAmount(FEE_COLLECTOR, feeObs.get().totalFee())),
                 cryptoTransfer(tinyBarsFromTo(civilian, NODE_REWARD, ONE_HBAR))
                         .payingWith(civilian)
                         .signedBy(civilian)
                         .logged()
                         .via("nodeRewardTransfer"),
-                getTxnRecord("nodeRewardTransfer").logged().hasHbarAmount(NODE_REWARD, ONE_HBAR),
+                sourcing(() -> getTxnRecord("nodeRewardTransfer")
+                        .logged()
+                        .hasHbarAmount(NODE_REWARD, ONE_HBAR)
+                        .hasHbarAmount(FEE_COLLECTOR, feeObs.get().totalFee())),
                 getAccountDetails(STAKING_REWARD)
                         .payingWith(GENESIS)
                         .has(accountDetailsWith()
@@ -170,9 +171,6 @@ public class TargetNetworkPrep {
                             .toArray(HapiSpecOperation[]::new));
                     allRunFor(spec, cloneConfirmations);
                 }),
-                sourcing(() -> getAccountBalance(FEE_COLLECTOR)
-                        .hasTinyBars(changeFromSnapshot(
-                                snapshot802, (long) 2 * feeObs.get().totalFee()))),
                 getAccountDetails(FEE_COLLECTOR)
                         .payingWith(GENESIS)
                         .has(accountDetailsWith()
