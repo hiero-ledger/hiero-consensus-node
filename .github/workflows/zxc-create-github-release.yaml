@@ -55,6 +55,7 @@ jobs:
       - name: Print Parameters
         run: |
           echo "Input Parameters:"
+          echo "  Ref: ${{ inputs.ref }}"
           echo "  Release Version: ${{ inputs.release-version }}"
           echo "  Create Release Notes: ${{ inputs.create-release-notes }}"
           echo "  Create Release: ${{ inputs.create-release }}"

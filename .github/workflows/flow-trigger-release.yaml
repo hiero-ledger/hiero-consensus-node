@@ -32,10 +32,7 @@ jobs:
     name: Create New Tag
     runs-on: hl-cn-default-lin-md
     outputs:
-      build-tag: ${{ steps.validate.outputs.build-tag }}
       version: ${{ steps.next-release.outputs.version }}
-      create-release: ${{ steps.next-release.outputs.create-release }}
-      tag: ${{ steps.tag.outputs.tag }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
@@ -220,15 +217,12 @@ jobs:
           echo "Applying computed version tag"
           if [[ "${{ inputs.dry-run-enabled }}" == "true" ]]; then
             echo "Dry run enabled, not applying tag ${{ steps.next-release.outputs.version }}"
-            echo "Overriding the version number to the build tag for dry run purposes"
-            echo "tag=${{ steps.validate.outputs.build-tag }}" >> ${GITHUB_OUTPUT}
           else
             git tag --sign --annotate "${{ steps.next-release.outputs.version }}" --message "${{ steps.next-release.outputs.version }}"
             echo "Applied tag ${{ steps.next-release.outputs.version }}"
             current_version="$(git-semver latest)"
             echo "Version Tag Applied: ${{ steps.next-release.outputs.version }}" >> ${GITHUB_STEP_SUMMARY}
             echo "Current Official Version: ${current_version}" >> ${GITHUB_STEP_SUMMARY}
-            echo "tag=${{ steps.next-release.outputs.version }}" >> ${GITHUB_OUTPUT}
           fi
 
       - name: Push Release Tag to Remote
@@ -280,13 +274,13 @@ jobs:
 
   create-github-release:
     name: Create GitHub Release
-    if: ${{ inputs.alpha-release != true && github.event.repository.private == false }}
+    if: ${{ inputs.alpha-release != true && inputs.dry-run-enabled != true && github.event.repository.private == false }}
     uses: ./.github/workflows/zxc-create-github-release.yaml
     needs:
       - create-new-tag
     with:
-      ref: ${{ needs.create-new-tag.outputs.build-tag }}
-      release-version: ${{ needs.create-new-tag.outputs.tag }}
+      ref: ${{ steps.next-release.outputs.version }}
+      release-version: ${{ steps.next-release.outputs.version }}
       create-release-notes: true
       create-release: ${{ needs.create-new-tag.outputs.create-release == 'true' }}
       dry-run: ${{ inputs.dry-run-enabled }}
