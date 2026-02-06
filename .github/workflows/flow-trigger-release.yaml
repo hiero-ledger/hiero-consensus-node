@@ -32,7 +32,9 @@ jobs:
     name: Create New Tag
     runs-on: hl-cn-default-lin-md
     outputs:
+      build-tag: ${{ steps.validate.outputs.build-tag }}
       version: ${{ steps.next-release.outputs.version }}
+      create-release: ${{ steps.next-release.outputs.create-release }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
@@ -53,7 +55,7 @@ jobs:
           padded_number="$(printf "%05d" "${{ inputs.build_number }}")"
           echo "Padded number is: ${padded_number}"
 
-          # Add "build_" prefix to the padded number
+          # Add "build-" prefix to the padded number
           build_tag="build-${padded_number}"
           echo "Prefixed number is: ${build_tag}"
 
@@ -114,10 +116,12 @@ jobs:
         uses: pandaswhocode/setup-git-semver@b820991c162d51f81f309c522b2b595d97d645eb # v1.0.8
 
       - name: Identify Current Version Number
+        id: current-version
         run: |
           echo "Find the current version number"
           current_version="$(git-semver latest)"
           echo "Current version is: ${current_version}"
+          echo "current-version=${current_version}" >> ${GITHUB_OUTPUT}
 
       # IF HIERO/HEDERA TRANSITIONS TO A MAJOR RELEASE NUMBER (1.0.0+)
       # stable = false WILL NO LONGER BE VALID
@@ -138,8 +142,16 @@ jobs:
             echo "git-semver failed with status ${STATUS}"
             exit "${STATUS}"
           fi
-          echo "version=${OUTPUT}" >> ${GITHUB_OUTPUT}
+          # Release flag for whether or not we should create the release
+          CREATE_RELEASE=false
+          if [[ "${{ steps.current-version.outputs.current-version }}" != "${OUTPUT}" ]]; then
+            CREATE_RELEASE=true
+          fi
+
+          echo "Release Creation Flag: ${CREATE_RELEASE}"
+          echo "create-release=${CREATE_RELEASE}" >> ${GITHUB_OUTPUT}
           echo "Next release version is: ${OUTPUT}"
+          echo "version=${OUTPUT}" >> ${GITHUB_OUTPUT}
 
       - name: Calculate and Create Release Branch
         env:
@@ -263,14 +275,15 @@ jobs:
 
   create-github-release:
     name: Create GitHub Release
-    if: ${{ github.event.repository.private == false }}
+    if: ${{ inputs.alpha-release != true && github.event.repository.private == false }}
     uses: ./.github/workflows/zxc-create-github-release.yaml
     needs:
       - create-new-tag
     with:
-      ref: ${{ github.ref }}
-      release-version: ${{ needs.create-new-tag.outputs.version }}
+      ref: ${{ needs.create-new-tag.outputs.build-tag }}
+      release-version: v${{ needs.create-new-tag.outputs.version }}
       create-release-notes: true
-      create-release: ${{ inputs.dry-run-enabled }}
+      create-release: ${{ needs.create-new-tag.outputs.create-release || inputs.dry-run-enabled }}
+      dry-run: ${{ inputs.dry-run-enabled }}
     secrets:
       gh-access-token: ${{ secrets.GH_ACCESS_TOKEN }}
