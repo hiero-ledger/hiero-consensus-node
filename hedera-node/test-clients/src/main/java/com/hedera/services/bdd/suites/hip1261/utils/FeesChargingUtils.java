@@ -4,6 +4,8 @@ package com.hedera.services.bdd.suites.hip1261.utils;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.HapiTxnOp.serializedSignedTxFrom;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
@@ -65,6 +67,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
+import com.hedera.services.bdd.spec.SpecOperation;
 import com.hederahashgraph.api.proto.java.Transaction;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.IntToDoubleFunction;
@@ -1467,5 +1470,15 @@ public class FeesChargingUtils {
         final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
         final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
         return nodeFee * NETWORK_MULTIPLIER;
+    }
+
+    public static SpecOperation doSafeSimpleValidateChargedUsd(String txnName, double oldPrice, double newPrice) {
+        return doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+            if ("true".equals(flag.toLowerCase())) {
+                return validateChargedUsd(txnName, newPrice);
+            } else {
+                return validateChargedUsd(txnName, oldPrice);
+            }
+        });
     }
 }

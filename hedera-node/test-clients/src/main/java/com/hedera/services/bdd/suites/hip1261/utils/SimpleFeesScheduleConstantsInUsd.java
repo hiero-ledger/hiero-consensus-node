@@ -1,11 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.hip1261.utils;
 
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
-
-import com.hedera.services.bdd.spec.SpecOperation;
-
 /**
  * Class with constants mirroring the Simple Fees JSON schedule used in tests.
  * All values here are in USD.
@@ -163,14 +158,4 @@ public class SimpleFeesScheduleConstantsInUsd {
     public static final double SCHEDULE_SIGN_BASE_FEE_USD = 0.0009;
 
     public static final double SCHEDULE_DELETE_BASE_FEE_USD = 0.0009;
-
-    public static SpecOperation doSafeSimpleValidateChargedUsd(String txnName, double oldPrice, double newPrice) {
-        return doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-            if ("true".equals(flag.toLowerCase())) {
-                return validateChargedUsd(txnName, newPrice);
-            } else {
-                return validateChargedUsd(txnName, oldPrice);
-            }
-        });
-    }
 }
