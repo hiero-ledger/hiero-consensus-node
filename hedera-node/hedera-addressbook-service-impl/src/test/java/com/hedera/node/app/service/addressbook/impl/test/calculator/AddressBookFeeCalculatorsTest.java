@@ -14,12 +14,12 @@ import com.hedera.hapi.node.addressbook.NodeUpdateTransactionBody;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.fees.SimpleFeeCalculatorImpl;
+import com.hedera.node.app.fees.SimpleFeeContextImpl;
 import com.hedera.node.app.service.addressbook.impl.calculator.NodeCreateFeeCalculator;
 import com.hedera.node.app.service.addressbook.impl.calculator.NodeDeleteFeeCalculator;
 import com.hedera.node.app.service.addressbook.impl.calculator.NodeUpdateFeeCalculator;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
-import com.hedera.node.app.spi.fees.SimpleFeeContextUtil;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Set;
@@ -103,7 +103,7 @@ class AddressBookFeeCalculatorsTest {
     @DisplayName("Fee calculation for all Node*FeeCalculators")
     void testFeeCalculators(TestCase testCase) {
         lenient().when(feeContext.numTxnSignatures()).thenReturn(testCase.numSignatures);
-        final var result = feeCalculator.calculateTxFee(testCase.body, SimpleFeeContextUtil.fromFeeContext(feeContext));
+        final var result = feeCalculator.calculateTxFee(testCase.body, new SimpleFeeContextImpl(feeContext, null));
         assertThat(result).isNotNull();
         assertThat(result.getNodeTotalTinycents()).isEqualTo(testCase.expectedNodeFee);
         assertThat(result.getServiceTotalTinycents()).isEqualTo(testCase.expectedServiceFee);
@@ -121,19 +121,19 @@ class AddressBookFeeCalculatorsTest {
                 .extras(
                         makeExtraDef(Extra.SIGNATURES, 1000000),
                         makeExtraDef(Extra.KEYS, 10000000),
-                        makeExtraDef(Extra.BYTES, 110000))
+                        makeExtraDef(Extra.STATE_BYTES, 110000))
                 .services(makeService(
                         "AddressBookService",
                         makeServiceFee(
                                 HederaFunctionality.NODE_CREATE,
                                 123000000,
                                 makeExtraIncluded(Extra.KEYS, 1),
-                                makeExtraIncluded(Extra.BYTES, 1000)),
+                                makeExtraIncluded(Extra.STATE_BYTES, 1000)),
                         makeServiceFee(
                                 HederaFunctionality.NODE_UPDATE,
                                 234000000,
                                 makeExtraIncluded(Extra.KEYS, 1),
-                                makeExtraIncluded(Extra.BYTES, 1000)),
+                                makeExtraIncluded(Extra.STATE_BYTES, 1000)),
                         makeServiceFee(HederaFunctionality.NODE_DELETE, 345000000)))
                 .build();
     }

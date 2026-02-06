@@ -35,9 +35,8 @@ import com.hedera.node.app.service.token.TokenService;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.statevalidation.report.SlackReportGenerator;
 import com.hedera.statevalidation.util.ParallelProcessingUtils;
-import com.hedera.statevalidation.util.junit.MerkleNodeStateResolver;
-import com.swirlds.platform.state.snapshot.DeserializedSignedState;
-import com.swirlds.state.MerkleNodeState;
+import com.hedera.statevalidation.util.StateUtils;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.virtualmap.VirtualMap;
@@ -52,34 +51,42 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
-@ExtendWith({MerkleNodeStateResolver.class, SlackReportGenerator.class})
+@ExtendWith({SlackReportGenerator.class})
 @Tag("entityIds")
 public class EntityIdUniqueness {
 
     private static final Logger log = LogManager.getLogger(EntityIdUniqueness.class);
 
     @Test
-    void validateEntityIds(final MerkleNodeState servicesState) throws InterruptedException, ExecutionException {
-        final ReadableSingletonState<EntityNumber> entityIdSingleton =
-                servicesState.getReadableStates(EntityIdService.NAME).getSingleton(ENTITY_ID_STATE_ID);
+    void validateEntityIds() throws InterruptedException, ExecutionException {
+        final VirtualMapState state = StateUtils.getDefaultState();
 
+        final ReadableSingletonState<EntityNumber> entityIdSingleton =
+                state.getReadableStates(EntityIdService.NAME).getSingleton(ENTITY_ID_STATE_ID);
+
+        final AtomicLong idCounter = new AtomicLong(0);
         final long lastEntityIdNumber = entityIdSingleton.get().number();
         final AtomicInteger issuesFound = new AtomicInteger(0);
 
         final ReadableKVState<TokenID, Token> tokensState =
-                servicesState.getReadableStates(TokenService.NAME).get(TOKENS_STATE_ID);
+                state.getReadableStates(TokenService.NAME).get(TOKENS_STATE_ID);
         final ReadableKVState<AccountID, Account> accountState =
-                servicesState.getReadableStates(TokenService.NAME).get(ACCOUNTS_STATE_ID);
+                state.getReadableStates(TokenService.NAME).get(ACCOUNTS_STATE_ID);
         final ReadableKVState<ContractID, Bytecode> smartContractState =
-                servicesState.getReadableStates(ContractService.NAME).get(BYTECODE_STATE_ID);
+                state.getReadableStates(ContractService.NAME).get(BYTECODE_STATE_ID);
         final ReadableKVState<TopicID, Topic> topicState =
-                servicesState.getReadableStates(ConsensusService.NAME).get(TOPICS_STATE_ID);
+                state.getReadableStates(ConsensusService.NAME).get(TOPICS_STATE_ID);
         final ReadableKVState<FileID, File> fileState =
-                servicesState.getReadableStates(FileService.NAME).get(FILES_STATE_ID);
+                state.getReadableStates(FileService.NAME).get(FILES_STATE_ID);
         final ReadableKVState<ScheduleID, Schedule> scheduleState =
-                servicesState.getReadableStates(ScheduleService.NAME).get(SCHEDULES_BY_ID_STATE_ID);
+                state.getReadableStates(ScheduleService.NAME).get(SCHEDULES_BY_ID_STATE_ID);
 
         ParallelProcessingUtils.processRange(0, lastEntityIdNumber, number -> {
+                    if (idCounter.incrementAndGet() % 100_000 == 0) {
+                        // from time to time we need to clear cache to prevent OOM errors
+                        StateUtils.resetStateCache();
+                    }
+
                     int counter = 0;
                     final Token token = tokensState.get(new TokenID(0, 0, number));
                     if (token != null) {
@@ -123,8 +130,8 @@ public class EntityIdUniqueness {
                             return;
                         }
 
-                        final String errorMessage = String.format(
-                                """
+                        final String errorMessage =
+                                String.format("""
                         Entity ID %d is not unique, found %d entities.\s
                          Token = %s, \
                         \s
@@ -133,8 +140,7 @@ public class EntityIdUniqueness {
                          Topic = %s,\s
                          File = %s,\s
                          Schedule = %s
-                        """,
-                                number, counter, token, account, contract, topic, file, schedule);
+                        """, number, counter, token, account, contract, topic, file, schedule);
                         log.info(errorMessage);
                         issuesFound.incrementAndGet();
                     }
@@ -146,18 +152,17 @@ public class EntityIdUniqueness {
     }
 
     @Test
-    void validateIdCounts(DeserializedSignedState deserializedState) throws InterruptedException, ExecutionException {
+    void validateIdCounts() throws InterruptedException, ExecutionException {
 
-        final MerkleNodeState servicesState =
-                deserializedState.reservedSignedState().get().getState();
-
-        final VirtualMap vm = (VirtualMap) servicesState.getRoot();
+        final VirtualMapState servicesState = StateUtils.getDefaultState();
+        final AtomicLong pathCounter = new AtomicLong(0);
 
         final ReadableSingletonState<EntityCounts> entityIdSingleton =
                 servicesState.getReadableStates(EntityIdService.NAME).getSingleton(ENTITY_COUNTS_STATE_ID);
 
         final EntityCounts entityCounts = entityIdSingleton.get();
-        final VirtualMapMetadata metadata = vm.getMetadata();
+        final VirtualMapMetadata metadata = (servicesState.getRoot()).getMetadata();
+        final VirtualMap vm = StateUtils.getDefaultState().getRoot();
 
         final AtomicLong accountCount = new AtomicLong(0);
         final AtomicLong aliasesCount = new AtomicLong(0);
@@ -176,6 +181,10 @@ public class EntityIdUniqueness {
         final AtomicLong evmHookStorageCount = new AtomicLong(0);
 
         ParallelProcessingUtils.processRange(metadata.getFirstLeafPath(), metadata.getLastLeafPath(), number -> {
+                    // from time to time we need to clear cache to prevent OOM errors
+                    if (pathCounter.incrementAndGet() % 100_000 == 0) {
+                        StateUtils.resetStateCache();
+                    }
                     VirtualLeafBytes leafRecord = vm.getRecords().findLeafRecord(number);
                     try {
                         StateKey key = StateKey.PROTOBUF.parse(leafRecord.keyBytes());
