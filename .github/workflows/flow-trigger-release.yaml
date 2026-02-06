@@ -139,15 +139,8 @@ jobs:
             echo "git-semver failed with status ${STATUS}"
             exit "${STATUS}"
           fi
-          # Release flag for whether or not we should create the release
-          CREATE_RELEASE=false
-          if [[ "${{ steps.current-version.outputs.current-version }}" != "${OUTPUT}" ]]; then
-            CREATE_RELEASE=true
-          fi
-
-          echo "Release Creation Flag: ${CREATE_RELEASE}"
-          echo "create-release=${CREATE_RELEASE}" >> ${GITHUB_OUTPUT}
-          echo "Next release version is: ${OUTPUT}"
+          
+          echo "Next release version is: v${OUTPUT}"
           echo "version=v${OUTPUT}" >> ${GITHUB_OUTPUT}
 
       - name: Calculate and Create Release Branch
@@ -211,7 +204,6 @@ jobs:
           fi
 
       - name: Apply Tag with Calculated Next Version
-        id: tag
         run: |
           echo "Applying computed version tag"
           if [[ "${{ inputs.dry-run-enabled }}" == "true" ]]; then
