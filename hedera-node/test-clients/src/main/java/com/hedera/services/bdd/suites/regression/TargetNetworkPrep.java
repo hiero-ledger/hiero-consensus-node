@@ -58,17 +58,17 @@ public class TargetNetworkPrep {
                         .payingWith(civilian)
                         .signedBy(civilian)
                         .exposingFeesTo(feeObs)
-						.via("transferToStakingReward")
+                        .via("transferToStakingReward")
                         .logged(),
-				sourcing(() -> getTxnRecord("transferToStakingReward")
-						.hasHbarAmount(STAKING_REWARD, (long) (ONE_HBAR + ((feeObs.get().networkFee() + feeObs.get().serviceFee()) * 0.1)))),
+                sourcing(() -> getTxnRecord("transferToStakingReward").hasHbarAmount(STAKING_REWARD, (long)
+                        (ONE_HBAR + ((feeObs.get().networkFee() + feeObs.get().serviceFee()) * 0.1)))),
                 cryptoTransfer(tinyBarsFromTo(civilian, NODE_REWARD, ONE_HBAR))
                         .payingWith(civilian)
                         .signedBy(civilian)
-						.via("transferToNodeReward")
+                        .via("transferToNodeReward")
                         .logged(),
-				sourcing(() -> getTxnRecord("transferToNodeReward")
-								.hasHbarAmount(NODE_REWARD, (long) (ONE_HBAR + ((feeObs.get().networkFee() + feeObs.get().serviceFee()) * 0.1)))),
+                sourcing(() -> getTxnRecord("transferToNodeReward").hasHbarAmount(NODE_REWARD, (long)
+                        (ONE_HBAR + ((feeObs.get().networkFee() + feeObs.get().serviceFee()) * 0.1)))),
                 getAccountDetails(STAKING_REWARD)
                         .payingWith(GENESIS)
                         .has(accountDetailsWith()
