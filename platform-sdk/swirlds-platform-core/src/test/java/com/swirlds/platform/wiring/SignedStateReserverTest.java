@@ -16,7 +16,7 @@ import com.swirlds.component.framework.schedulers.TaskScheduler;
 import com.swirlds.component.framework.schedulers.builders.TaskSchedulerType;
 import com.swirlds.component.framework.wires.input.BindableInputWire;
 import com.swirlds.component.framework.wires.output.OutputWire;
-import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import java.util.List;
 import java.util.stream.IntStream;
@@ -37,7 +37,7 @@ class SignedStateReserverTest {
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
 
-        MerkleNodeState<VirtualMap> mockState = mock(MerkleNodeState.class);
+        VirtualMapState mockState = mock(VirtualMapState.class);
         VirtualMap root = mock(VirtualMap.class);
         when(mockState.getRoot()).thenReturn(root);
         final SignedState signedState = new SignedState(

@@ -19,8 +19,7 @@ import com.swirlds.common.utility.ReferenceCounter;
 import com.swirlds.common.utility.RuntimeObjectRecord;
 import com.swirlds.common.utility.RuntimeObjectRegistry;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.state.MerkleNodeState;
-import com.swirlds.virtualmap.VirtualMap;
+import com.swirlds.state.merkle.VirtualMapState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.security.cert.X509Certificate;
@@ -91,7 +90,7 @@ public class SignedState {
     /**
      * The root of the merkle state.
      */
-    private final MerkleNodeState<VirtualMap> state;
+    private final VirtualMapState state;
 
     /**
      * The timestamp of when this object was created.
@@ -166,7 +165,7 @@ public class SignedState {
     public SignedState(
             @NonNull final Configuration configuration,
             @NonNull final SignatureVerifier signatureVerifier,
-            @NonNull final MerkleNodeState<VirtualMap> state,
+            @NonNull final VirtualMapState state,
             @NonNull final String reason,
             final boolean freezeState,
             final boolean deleteOnBackgroundThread,
@@ -260,7 +259,7 @@ public class SignedState {
      *
      * @return the state contained in the signed state
      */
-    public @NonNull MerkleNodeState<VirtualMap> getState() {
+    public @NonNull VirtualMapState getState() {
         return state;
     }
 
