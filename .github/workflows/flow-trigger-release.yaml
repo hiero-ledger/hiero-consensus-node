@@ -125,7 +125,7 @@ jobs:
           echo "Find the current version number"
           current_version="$(git-semver latest)"
           echo "Current version is: ${current_version}"
-          echo "current-version=${current_version}" >> ${GITHUB_OUTPUT}
+
 
       # IF HIERO/HEDERA TRANSITIONS TO A MAJOR RELEASE NUMBER (1.0.0+)
       # stable = false WILL NO LONGER BE VALID
@@ -227,7 +227,7 @@ jobs:
         if: ${{ inputs.dry-run-enabled != true }}
         run: |
           echo "Pushing release tag to remote"
-          git push origin tag "${{ steps.next-release.outputs.version }}"
+          git push origin "${{ steps.next-release.outputs.version }}"
           echo "Pushed new release tag ${{ steps.next-release.outputs.version }} to remote"
 
       - name: Clean Up git-semver
