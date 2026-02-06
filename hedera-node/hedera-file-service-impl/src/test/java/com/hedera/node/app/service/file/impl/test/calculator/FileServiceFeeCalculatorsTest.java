@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.file.impl.test.calculator;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.FILE_CREATE;
+import static com.hedera.hapi.util.HapiUtils.functionOf;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hiero.hapi.fees.FeeScheduleUtils.makeExtraDef;
 import static org.hiero.hapi.fees.FeeScheduleUtils.makeExtraIncluded;
@@ -24,6 +26,7 @@ import com.hedera.hapi.node.file.SystemUndeleteTransactionBody;
 import com.hedera.hapi.node.state.file.File;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.hapi.util.UnknownHederaFunctionality;
 import com.hedera.node.app.fees.SimpleFeeCalculatorImpl;
 import com.hedera.node.app.fees.SimpleFeeContextImpl;
 import com.hedera.node.app.service.file.ReadableFileStore;
@@ -177,8 +180,9 @@ class FileServiceFeeCalculatorsTest {
     @ParameterizedTest(name = "{index}: {0}")
     @MethodSource("provideTestCases")
     @DisplayName("Fee calculation for all ScheduleFeeCalculators")
-    void testFeeCalculators(TestCase testCase) {
+    void testFeeCalculators(TestCase testCase) throws UnknownHederaFunctionality {
         lenient().when(feeContext.numTxnSignatures()).thenReturn(testCase.numSignatures);
+        when(feeContext.functionality()).thenReturn(functionOf(testCase.body()));
 
         final var result = feeCalculator.calculateTxFee(testCase.body, new SimpleFeeContextImpl(feeContext, null));
 
@@ -243,7 +247,7 @@ class FileServiceFeeCalculatorsTest {
                 .services(makeService(
                         "ScheduleService",
                         makeServiceFee(
-                                HederaFunctionality.FILE_CREATE,
+                                FILE_CREATE,
                                 499000000,
                                 makeExtraIncluded(Extra.KEYS, 1),
                                 makeExtraIncluded(Extra.STATE_BYTES, 1000)),

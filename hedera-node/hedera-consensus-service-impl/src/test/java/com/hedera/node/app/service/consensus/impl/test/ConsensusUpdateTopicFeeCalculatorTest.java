@@ -6,6 +6,7 @@ import static org.hiero.hapi.fees.FeeScheduleUtils.makeExtraDef;
 import static org.hiero.hapi.fees.FeeScheduleUtils.makeExtraIncluded;
 import static org.hiero.hapi.fees.FeeScheduleUtils.makeService;
 import static org.hiero.hapi.fees.FeeScheduleUtils.makeServiceFee;
+import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Key;
@@ -49,6 +50,7 @@ public class ConsensusUpdateTopicFeeCalculatorTest {
     void setUp() {
         testSchedule = createTestFeeSchedule();
         feeCalculator = new SimpleFeeCalculatorImpl(testSchedule, Set.of(new ConsensusUpdateTopicFeeCalculator()));
+        when(feeContext.functionality()).thenReturn(HederaFunctionality.CONSENSUS_UPDATE_TOPIC);
     }
 
     @Nested
