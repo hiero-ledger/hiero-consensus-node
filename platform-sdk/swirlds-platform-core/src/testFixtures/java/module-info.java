@@ -24,8 +24,6 @@ open module com.swirlds.platform.core.test.fixtures {
     requires org.hiero.base.crypto.test.fixtures;
     requires org.hiero.base.utility.test.fixtures;
     requires org.hiero.consensus.hashgraph.impl.test.fixtures;
-    requires org.hiero.consensus.metrics;
-    requires org.hiero.consensus.model.test.fixtures;
     requires org.hiero.consensus.reconnect;
     requires org.hiero.consensus.roster.test.fixtures;
     requires org.hiero.consensus.utility.test.fixtures;
@@ -34,7 +32,6 @@ open module com.swirlds.platform.core.test.fixtures {
 
     exports com.swirlds.platform.test.fixtures;
     exports com.swirlds.platform.test.fixtures.config;
-    exports com.swirlds.platform.test.fixtures.graph;
     exports com.swirlds.platform.test.fixtures.roster;
     exports com.swirlds.platform.test.fixtures.simulated;
     exports com.swirlds.platform.test.fixtures.stream;
