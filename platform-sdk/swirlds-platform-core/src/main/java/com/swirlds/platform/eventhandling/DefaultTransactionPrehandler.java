@@ -56,7 +56,7 @@ public class DefaultTransactionPrehandler implements TransactionPrehandler {
     public DefaultTransactionPrehandler(
             @NonNull final PlatformContext platformContext,
             @NonNull final Supplier<ReservedSignedState> latestStateSupplier,
-            @NonNull ConsensusStateEventHandler<?> consensusStateEventHandler) {
+            @NonNull ConsensusStateEventHandler consensusStateEventHandler) {
         this.time = platformContext.getTime();
         this.latestStateSupplier = Objects.requireNonNull(latestStateSupplier);
 

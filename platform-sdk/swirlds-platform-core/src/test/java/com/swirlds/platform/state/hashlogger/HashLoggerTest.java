@@ -22,7 +22,7 @@ import com.swirlds.platform.config.StateConfig_;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
-import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.test.fixtures.merkle.VirtualMapUtils;
@@ -43,7 +43,7 @@ public class HashLoggerTest {
     private Logger mockLogger;
     private HashLogger hashLogger;
     private List<String> logged;
-    private Set<VirtualMap> stateRoots = new HashSet<>();
+    private final Set<VirtualMap> stateRoots = new HashSet<>();
 
     /**
      * Get a regex that will match a log message containing the given round number
@@ -139,7 +139,7 @@ public class HashLoggerTest {
 
     private ReservedSignedState createSignedState(final long round) {
         final SignedState signedState = mock(SignedState.class);
-        final MerkleNodeState<VirtualMap> state = mock(MerkleNodeState.class);
+        final VirtualMapState state = mock(VirtualMapState.class);
         final VirtualMap stateRoot = VirtualMapUtils.createVirtualMap();
         stateRoot.getHash();
         stateRoots.add(stateRoot);

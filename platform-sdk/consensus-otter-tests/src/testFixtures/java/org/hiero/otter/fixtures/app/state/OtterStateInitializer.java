@@ -5,7 +5,7 @@ import static org.hiero.otter.fixtures.app.OtterStateUtils.commitState;
 
 import com.swirlds.state.lifecycle.StateDefinition;
 import com.swirlds.state.lifecycle.StateMetadata;
-import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.state.merkle.VirtualMapStateImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import org.hiero.otter.fixtures.app.OtterService;
@@ -24,7 +24,7 @@ public class OtterStateInitializer {
      * @param services the services to initialize
      */
     public static void initOtterAppState(
-            @NonNull final VirtualMapState state, @NonNull final List<OtterService> services) {
+            @NonNull final VirtualMapStateImpl state, @NonNull final List<OtterService> services) {
         for (final OtterService service : services) {
             final OtterServiceStateSpecification specification = service.stateSpecification();
             for (final StateDefinition<?, ?> stateDefinition : specification.statesToCreate()) {
