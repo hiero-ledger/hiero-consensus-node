@@ -151,7 +151,7 @@ jobs:
           echo "Release Creation Flag: ${CREATE_RELEASE}"
           echo "create-release=${CREATE_RELEASE}" >> ${GITHUB_OUTPUT}
           echo "Next release version is: ${OUTPUT}"
-          echo "version=${OUTPUT}" >> ${GITHUB_OUTPUT}
+          echo "version=v${OUTPUT}" >> ${GITHUB_OUTPUT}
 
       - name: Calculate and Create Release Branch
         env:
@@ -281,7 +281,7 @@ jobs:
       - create-new-tag
     with:
       ref: ${{ needs.create-new-tag.outputs.build-tag }}
-      release-version: v${{ needs.create-new-tag.outputs.version }}
+      release-version: ${{ needs.create-new-tag.outputs.version }}
       create-release-notes: true
       create-release: ${{ needs.create-new-tag.outputs.create-release || inputs.dry-run-enabled }}
       dry-run: ${{ inputs.dry-run-enabled }}
