@@ -63,7 +63,6 @@ jobs:
 
       - name: Extract the Input Version
         id: extract-version
-        if: ${{ inputs.dry-run != true }}
         run: |
           VERSION=""
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
@@ -87,11 +86,12 @@ jobs:
             echo "Invalid semantic version: ${release_identifier}"
             exit 1
           fi
-          release_identifier="${release_identifier#v}"
           
-          echo "Release identifier is valid: ${release_identifier}"
-          echo "release-identifier=${release_identifier}" >> "${GITHUB_OUTPUT}"
-          echo "Validated Input: ${release_identifier}" >> "${GITHUB_STEP_SUMMARY}"
+          cleaned="${release_identifier#v}"
+
+          echo "Release identifier is valid: ${cleaned}"
+          echo "release-identifier=${cleaned}" >> "${GITHUB_OUTPUT}"
+          echo "Validated Input: ${cleaned}" >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Checkout Code
         id: checkout_code
@@ -103,7 +103,7 @@ jobs:
 
       - name: Validate Tag Exists
         run: |
-          tag="${{ steps.extract-version.outputs.version }}"
+          tag="v${{ steps.validate.outputs.release-identifier }}"
 
           echo "Checking if tag ${tag} exists..."
 
@@ -214,7 +214,7 @@ jobs:
           path: ./
 
       - name: Create Official Github Release
-        if: ${{ inputs.create-release && inputs.dry-run != true }}
+        if: ${{ inputs.create-release && !inputs.dry-run }}
         uses: step-security/release-action@03a57407052f15d1537fd5469a6fbbc536aba326 # v1.20.0
         with:
           tag: ${{ inputs.release-version }}
