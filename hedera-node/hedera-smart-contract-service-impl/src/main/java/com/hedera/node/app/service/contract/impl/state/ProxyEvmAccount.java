@@ -34,7 +34,7 @@ public class ProxyEvmAccount extends AbstractProxyEvmAccount {
         }
     }
 
-    private Bytes createDelegationIndicator(Bytes delegationAddress) {
+    private static Bytes createDelegationIndicator(Bytes delegationAddress) {
         return Bytes.concatenate(CODE_DELEGATION_PREFIX, delegationAddress);
     }
 

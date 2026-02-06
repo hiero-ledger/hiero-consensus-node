@@ -8,6 +8,7 @@ import static com.hedera.hapi.node.base.ResponseType.ANSWER_ONLY;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbjResponseType;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
 import static java.util.Objects.requireNonNull;
+import static org.hyperledger.besu.evm.worldstate.CodeDelegationHelper.CODE_DELEGATION_PREFIX;
 
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.HederaFunctionality;
@@ -141,8 +142,12 @@ public class ContractGetBytecodeHandler extends AbstractContractPaidQueryHandler
         if (account != null) {
             if (account.deleted()) {
                 return null;
-            } else {
+            } else if (account.smartContract()) {
                 return bytecodeFrom(context, account);
+            } else if (account.delegationAddress().length() > 0) {
+                return Bytes.merge(Bytes.wrap(CODE_DELEGATION_PREFIX.toArray()), account.delegationAddress());
+            } else {
+                return null;
             }
         }
 
