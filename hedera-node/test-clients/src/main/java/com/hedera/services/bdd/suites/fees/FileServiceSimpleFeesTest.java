@@ -21,6 +21,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedFeeFromBytesFor;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SIGNATURE_FEE_AFTER_MULTIPLIER;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.STATE_BYTES_FEE_USD;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.spec.keys.KeyShape;
@@ -40,7 +41,6 @@ public class FileServiceSimpleFeesTest {
     private static final double BASE_FEE_FILE_UPDATE = 0.05;
     private static final double BASE_FEE_FILE_DELETE = 0.007;
     private static final double BASE_FEE_FILE_APPEND = 0.05;
-    public static final double SINGLE_BYTE_FEE = 0.000011;
     private static final double SINGLE_KEY_FEE = 0.01;
     private static final double BASE_FEE_FILE_GET_CONTENT = 0.0001;
     private static final double BASE_FEE_FILE_GET_FILE = 0.0001;
@@ -73,7 +73,8 @@ public class FileServiceSimpleFeesTest {
         final var contentBytes = 4000;
 
         // Service fee extra for content bytes (1000 extra bytes above included 1000)
-        final var serviceFeeFromBytes = (contentBytes - 1000) * SINGLE_BYTE_FEE;
+        // Uses STATE_BYTES fee rate for file content
+        final var serviceFeeFromBytes = (contentBytes - 1000) * STATE_BYTES_FEE_USD;
 
         return hapiTest(
                 newKeyNamed(KEY).shape(KeyShape.SIMPLE),
@@ -197,7 +198,7 @@ public class FileServiceSimpleFeesTest {
                 fileCreate("ntb").key(CIVILIAN).contents(bytesWithLength(1500)),
                 getFileContents("ntb").payingWith(CIVILIAN).signedBy(CIVILIAN).via("getFileContentsBasic"),
                 validateChargedUsdForQueries(
-                        "getFileContentsBasic", BASE_FEE_FILE_GET_CONTENT + 500 * SINGLE_BYTE_FEE, 1));
+                        "getFileContentsBasic", BASE_FEE_FILE_GET_CONTENT + 500 * STATE_BYTES_FEE_USD, 1));
     }
 
     @HapiTest
