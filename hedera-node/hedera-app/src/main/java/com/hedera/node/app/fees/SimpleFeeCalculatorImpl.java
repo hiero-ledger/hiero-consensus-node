@@ -184,7 +184,7 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
             @NonNull final FeeResult result,
             @NonNull final HederaFunctionality functionality) {
         // For standalone fee calculator simpleFeeContext.feeContext() is null
-        if (simpleFeeContext.feeContext() == null) {
+        if (simpleFeeContext.feeContext() == null || congestionMultipliers == null) {
             return;
         }
         final var feeContext = simpleFeeContext.feeContext();
@@ -209,6 +209,10 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
             @NonNull final HederaFunctionality functionality,
             @NonNull final SimpleFeeContext feeContext,
             @NonNull final FeeResult result) {
+        // For standalone fee calculator simpleFeeContext.feeContext() is null
+        if (feeContext.feeContext() == null) {
+            return;
+        }
         // Look up the service fee definition to get the high volume rates
         final ServiceFeeDefinition serviceFeeDefinition = lookupServiceFee(feeSchedule, functionality);
         if (serviceFeeDefinition == null || serviceFeeDefinition.highVolumeRates() == null) {

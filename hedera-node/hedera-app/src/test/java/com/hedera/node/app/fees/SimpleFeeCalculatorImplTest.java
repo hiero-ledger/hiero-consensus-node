@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.fees;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.FILE_CREATE;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hiero.hapi.fees.FeeScheduleUtils.makeExtraDef;
 import static org.hiero.hapi.fees.FeeScheduleUtils.makeExtraIncluded;
@@ -99,7 +101,7 @@ class SimpleFeeCalculatorImplTest {
                 .services(makeService(
                         "FileService",
                         makeServiceFee(
-                                HederaFunctionality.FILE_CREATE,
+                                FILE_CREATE,
                                 499000000,
                                 makeExtraIncluded(Extra.KEYS, 1),
                                 makeExtraIncluded(Extra.BYTES, 1000))))
@@ -115,7 +117,7 @@ class SimpleFeeCalculatorImplTest {
     @Test
     @DisplayName("With congestion multiplier of 1, total fee equals base fee")
     void calculateTxFee_withCongestionMultiplierOne_returnsBaseFee() {
-        var simpleFeeContext = createMockSimpleFeeContext();
+        var simpleFeeContext = createMockSimpleFeeContext(FILE_CREATE);
         when(congestionMultipliers.maxCurrentMultiplier(
                         any(TransactionBody.class), any(HederaFunctionality.class), any(ReadableStoreFactory.class)))
                 .thenReturn(1L);
@@ -135,7 +137,7 @@ class SimpleFeeCalculatorImplTest {
     @Test
     @DisplayName("With congestion multiplier of 7, fee is multiplied by 7")
     void calculateTxFee_withCongestionMultiplierSeven_returnsSevenXFee() {
-        var simpleFeeContext = createMockSimpleFeeContext();
+        var simpleFeeContext = createMockSimpleFeeContext(FILE_CREATE);
 
         // First calculate base fee with multiplier returning 1
         var noMultiplierMock = mock(CongestionMultipliers.class);
@@ -163,11 +165,8 @@ class SimpleFeeCalculatorImplTest {
     @DisplayName("With null fee context inside SimpleFeeContext, no congestion multiplier applied")
     void calculateTxFee_withNullFeeContext_noCongestionApplied() {
         // Create a SimpleFeeContext that returns null for feeContext()
-        var simpleFeeContext = mock(SimpleFeeContext.class);
-        lenient().when(simpleFeeContext.numTxnSignatures()).thenReturn(1);
-        lenient().when(simpleFeeContext.numTxnBytes()).thenReturn(100);
+        var simpleFeeContext = createMockSimpleFeeContext(FILE_CREATE);
         when(simpleFeeContext.feeContext()).thenReturn(null);
-
         var calculator =
                 new SimpleFeeCalculatorImpl(testSchedule, serviceFeeCalculators, Set.of(), congestionMultipliers);
 
@@ -182,11 +181,9 @@ class SimpleFeeCalculatorImplTest {
     @Test
     @DisplayName("Congestion multiplier is correctly passed HederaFunctionality for the transaction type")
     void calculateTxFee_passesCorrectFunctionality() {
-        var simpleFeeContext = createMockSimpleFeeContext();
+        var simpleFeeContext = createMockSimpleFeeContext(FILE_CREATE);
         when(congestionMultipliers.maxCurrentMultiplier(
-                        any(TransactionBody.class),
-                        eq(HederaFunctionality.FILE_CREATE),
-                        any(ReadableStoreFactory.class)))
+                        any(TransactionBody.class), eq(FILE_CREATE), any(ReadableStoreFactory.class)))
                 .thenReturn(3L);
 
         var calculator =
@@ -195,16 +192,13 @@ class SimpleFeeCalculatorImplTest {
         calculator.calculateTxFee(createFileCreateTxnBody(), simpleFeeContext);
 
         verify(congestionMultipliers)
-                .maxCurrentMultiplier(
-                        any(TransactionBody.class),
-                        eq(HederaFunctionality.FILE_CREATE),
-                        any(ReadableStoreFactory.class));
+                .maxCurrentMultiplier(any(TransactionBody.class), eq(FILE_CREATE), any(ReadableStoreFactory.class));
     }
 
     @Test
     @DisplayName("ReadableStoreFactory is passed to congestion multipliers")
     void calculateTxFee_passesStoreFactory() {
-        var simpleFeeContext = createMockSimpleFeeContext();
+        var simpleFeeContext = createMockSimpleFeeContext(FILE_CREATE);
         when(congestionMultipliers.maxCurrentMultiplier(
                         any(TransactionBody.class), any(HederaFunctionality.class), eq(storeFactory)))
                 .thenReturn(2L);
@@ -222,7 +216,7 @@ class SimpleFeeCalculatorImplTest {
     @Test
     @DisplayName("With null congestion multipliers, no congestion multiplier applied")
     void calculateTxFee_withNullCongestionMultipliers_noCongestionApplied() {
-        var simpleFeeContext = createMockSimpleFeeContext();
+        var simpleFeeContext = createMockSimpleFeeContext(FILE_CREATE);
 
         // Use the constructor that passes null for congestionMultipliers
         var calculator = new SimpleFeeCalculatorImpl(testSchedule, serviceFeeCalculators, Set.of());
@@ -252,7 +246,7 @@ class SimpleFeeCalculatorImplTest {
                 .pricingCurve(PricingCurve.newBuilder().piecewiseLinear(curve).build())
                 .build();
         final var cryptoCreateFee = ServiceFeeDefinition.newBuilder()
-                .name(HederaFunctionality.CRYPTO_CREATE)
+                .name(CRYPTO_CREATE)
                 .baseFee(1000)
                 .highVolumeRates(highVolumeRates)
                 .build();
@@ -280,12 +274,7 @@ class SimpleFeeCalculatorImplTest {
         };
 
         var calculator = new SimpleFeeCalculatorImpl(schedule, Set.of(cryptoCreateCalculator), Set.of());
-        var simpleFeeContext = mock(SimpleFeeContext.class);
-        lenient().when(simpleFeeContext.numTxnSignatures()).thenReturn(0);
-        lenient().when(simpleFeeContext.numTxnBytes()).thenReturn(0);
-        lenient()
-                .when(simpleFeeContext.getHighVolumeThrottleUtilization(HederaFunctionality.CRYPTO_CREATE))
-                .thenReturn(0);
+        var simpleFeeContext = createMockSimpleFeeContext(CRYPTO_CREATE);
 
         var txnBody = TransactionBody.newBuilder()
                 .cryptoCreateAccount(CryptoCreateTransactionBody.newBuilder().build())
@@ -317,7 +306,7 @@ class SimpleFeeCalculatorImplTest {
                 .pricingCurve(PricingCurve.newBuilder().piecewiseLinear(curve).build())
                 .build();
         final var cryptoCreateFee = ServiceFeeDefinition.newBuilder()
-                .name(HederaFunctionality.CRYPTO_CREATE)
+                .name(CRYPTO_CREATE)
                 .baseFee(1000)
                 .highVolumeRates(highVolumeRates)
                 .build();
@@ -345,12 +334,7 @@ class SimpleFeeCalculatorImplTest {
         };
 
         var calculator = new SimpleFeeCalculatorImpl(schedule, Set.of(cryptoCreateCalculator), Set.of());
-        var simpleFeeContext = mock(SimpleFeeContext.class);
-        lenient().when(simpleFeeContext.numTxnSignatures()).thenReturn(0);
-        lenient().when(simpleFeeContext.numTxnBytes()).thenReturn(0);
-        lenient()
-                .when(simpleFeeContext.getHighVolumeThrottleUtilization(HederaFunctionality.CRYPTO_CREATE))
-                .thenReturn(1);
+        var simpleFeeContext = createMockSimpleFeeContext(CRYPTO_CREATE, 1);
 
         var txnBody = TransactionBody.newBuilder()
                 .cryptoCreateAccount(CryptoCreateTransactionBody.newBuilder().build())
@@ -363,15 +347,23 @@ class SimpleFeeCalculatorImplTest {
         assertThat(result.totalTinycents()).isEqualTo(4000L);
     }
 
+    private SimpleFeeContext createMockSimpleFeeContext(final HederaFunctionality function) {
+        return createMockSimpleFeeContext(function, 0);
+    }
+
     /**
      * Creates a mock SimpleFeeContext with feeContext configured to return storeFactory.
      */
-    private SimpleFeeContext createMockSimpleFeeContext() {
+    private SimpleFeeContext createMockSimpleFeeContext(final HederaFunctionality function, final int utilization) {
         var simpleFeeContext = mock(SimpleFeeContext.class);
         lenient().when(simpleFeeContext.numTxnSignatures()).thenReturn(1);
+        lenient().when(simpleFeeContext.functionality()).thenReturn(function);
         lenient().when(simpleFeeContext.numTxnBytes()).thenReturn(100);
         lenient().when(simpleFeeContext.feeContext()).thenReturn(feeContext);
         lenient().when(feeContext.readableStoreFactory()).thenReturn(storeFactory);
+        lenient()
+                .when(simpleFeeContext.getHighVolumeThrottleUtilization(function))
+                .thenReturn(utilization);
         return simpleFeeContext;
     }
 }
