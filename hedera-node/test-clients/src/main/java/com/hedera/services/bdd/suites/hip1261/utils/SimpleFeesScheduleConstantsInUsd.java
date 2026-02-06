@@ -12,7 +12,6 @@ public class SimpleFeesScheduleConstantsInUsd {
     public static final double NODE_BASE_FEE_USD = 0.00001;
     public static final long NODE_INCLUDED_SIGNATURES = 1L;
     public static final long NODE_INCLUDED_BYTES = 1024L;
-    public static final double EXTRA_PROCESSING_BYTE = 0.000011;
 
     public static final int NETWORK_MULTIPLIER = 9;
     public static final double NETWORK_BASE_FEE = NODE_BASE_FEE_USD * NETWORK_MULTIPLIER;
