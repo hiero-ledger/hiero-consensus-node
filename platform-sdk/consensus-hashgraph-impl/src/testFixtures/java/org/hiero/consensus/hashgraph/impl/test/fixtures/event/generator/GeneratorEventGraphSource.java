@@ -1,14 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.test.fixtures.event.generator;
+package org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator;
 
-import static com.swirlds.platform.test.fixtures.event.RandomEventUtils.DEFAULT_FIRST_EVENT_TIME_CREATED;
+import static org.hiero.consensus.hashgraph.impl.test.fixtures.event.RandomEventUtils.DEFAULT_FIRST_EVENT_TIME_CREATED;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.event.EventDescriptor;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.platform.test.fixtures.event.signer.EventSigner;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -19,6 +18,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.hiero.consensus.crypto.PbjStreamHasher;
 import org.hiero.consensus.event.EventGraphSource;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.event.signing.EventSigner;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.event.UnsignedEvent;

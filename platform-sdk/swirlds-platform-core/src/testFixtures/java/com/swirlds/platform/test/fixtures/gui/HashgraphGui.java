@@ -3,8 +3,8 @@ package com.swirlds.platform.test.fixtures.gui;
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
-import com.swirlds.platform.test.fixtures.event.generator.GeneratorEventGraphSource;
-import com.swirlds.platform.test.fixtures.event.generator.GeneratorEventGraphSourceBuilder;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.GeneratorEventGraphSource;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.GeneratorEventGraphSourceBuilder;
 
 public class HashgraphGui {
 
