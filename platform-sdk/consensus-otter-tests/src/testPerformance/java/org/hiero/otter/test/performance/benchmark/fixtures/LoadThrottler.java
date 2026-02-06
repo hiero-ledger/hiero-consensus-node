@@ -52,7 +52,7 @@ public class LoadThrottler {
      * @param count the number of transactions to submit
      * @param maxTransactionsPerSecond the maximum rate in seconds to send transactions to the network
      * @throws IllegalArgumentException if count or maxTransactionsPerSecond are less than zero or
-     *  there are non active nodes
+     *  there are non-active nodes
      */
     public void submitWithRate(final int count, final int maxTransactionsPerSecond) {
 
