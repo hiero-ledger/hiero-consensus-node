@@ -166,7 +166,7 @@ public class SimpleFeesScheduleConstantsInUsd {
 
     public static SpecOperation doSafeSimpleValidateChargedUsd(String txnName, double oldPrice, double newPrice) {
         return doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-            if ("true".equals(flag.toLowerCase()) {
+            if ("true".equals(flag.toLowerCase())) {
                 return validateChargedUsd(txnName, newPrice);
             } else {
                 return validateChargedUsd(txnName, oldPrice);
