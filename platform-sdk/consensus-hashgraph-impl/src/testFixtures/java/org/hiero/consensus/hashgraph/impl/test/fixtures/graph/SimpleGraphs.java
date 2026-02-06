@@ -5,6 +5,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.List;
 import java.util.Random;
+import java.util.function.Function;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
@@ -15,10 +16,15 @@ import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
  */
 public class SimpleGraphs<T> {
 
-    private final SimpleGraphFactory<T> factory;
+    private final Function<List<PlatformEvent>, SimpleGraph<T>> factory;
 
-    public SimpleGraphs(@NonNull final SimpleGraphFactory<T> factory) {
-        this.factory = factory;
+    /**
+     * Creates a new instance
+     *
+     * @param simpleGraphFactory a factory that can create a {@link SimpleGraph} of the appropriate type from a list of {@link PlatformEvent}s
+     */
+    public SimpleGraphs(@NonNull final Function<List<PlatformEvent>, SimpleGraph<T>> simpleGraphFactory) {
+        this.factory = simpleGraphFactory;
     }
 
     /**
@@ -81,7 +87,7 @@ public class SimpleGraphs<T> {
                 .build();
         final PlatformEvent e11 =
                 new TestingEventBuilder(random).setSelfParent(e7).setHash("11").build();
-        return factory.createSimpleGraph(random, List.of(e0, e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11));
+        return factory.apply(List.of(e0, e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11));
     }
 
     /**
@@ -125,7 +131,7 @@ public class SimpleGraphs<T> {
                 .setSelfParent(e5)
                 .setOtherParent(e6)
                 .build();
-        return factory.createSimpleGraph(random, List.of(e0, e1, e2, e3, e4, e5, e6, e7));
+        return factory.apply(List.of(e0, e1, e2, e3, e4, e5, e6, e7));
     }
 
     /**
@@ -216,6 +222,6 @@ public class SimpleGraphs<T> {
                 .setHash("08")
                 .build();
 
-        return factory.createSimpleGraph(random, List.of(e0, e1, e2, e3, e4, e5, e6, e7, e8));
+        return factory.apply(List.of(e0, e1, e2, e3, e4, e5, e6, e7, e8));
     }
 }

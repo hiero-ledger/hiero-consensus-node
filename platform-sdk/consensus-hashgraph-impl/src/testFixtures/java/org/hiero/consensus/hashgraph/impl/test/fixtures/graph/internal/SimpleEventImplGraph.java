@@ -21,11 +21,9 @@ import org.hiero.consensus.orphan.DefaultOrphanBuffer;
 
 public class SimpleEventImplGraph implements SimpleGraph<EventImpl> {
 
-    private final Random random;
     private final List<EventImpl> events;
 
-    public SimpleEventImplGraph(@NonNull final Random random, @NonNull final List<PlatformEvent> events) {
-        this.random = random;
+    public SimpleEventImplGraph(@NonNull final List<PlatformEvent> events) {
         final List<EventImpl> eventImpls = new ArrayList<>();
         // we use the orphan buffer to assign nGen values to the events
         final DefaultOrphanBuffer orphanBuffer =
@@ -62,7 +60,7 @@ public class SimpleEventImplGraph implements SimpleGraph<EventImpl> {
      *
      * @return the list of events
      */
-    public @NonNull List<EventImpl> shuffledEvents() {
+    public @NonNull List<EventImpl> shuffledEvents(@NonNull final Random random) {
         final List<EventImpl> shuffledEvents = new ArrayList<>(events);
         Collections.shuffle(shuffledEvents, random);
         return shuffledEvents;

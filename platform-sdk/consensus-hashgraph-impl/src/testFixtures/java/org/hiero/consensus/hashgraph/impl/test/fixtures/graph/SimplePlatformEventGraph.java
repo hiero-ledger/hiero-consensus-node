@@ -17,7 +17,6 @@ import org.hiero.consensus.model.event.PlatformEvent;
  */
 public class SimplePlatformEventGraph implements SimpleGraph<PlatformEvent> {
 
-    private final Random random;
     private final List<PlatformEvent> events;
 
     /**
@@ -25,8 +24,7 @@ public class SimplePlatformEventGraph implements SimpleGraph<PlatformEvent> {
      *
      * @param events the events in the graph
      */
-    public SimplePlatformEventGraph(@NonNull final Random random, @NonNull final List<PlatformEvent> events) {
-        this.random = random;
+    public SimplePlatformEventGraph(@NonNull final List<PlatformEvent> events) {
         this.events = List.copyOf(events);
     }
 
@@ -64,7 +62,7 @@ public class SimplePlatformEventGraph implements SimpleGraph<PlatformEvent> {
     }
 
     @Override
-    public @NonNull List<PlatformEvent> shuffledEvents() {
+    public @NonNull List<PlatformEvent> shuffledEvents(@NonNull final Random random) {
         final List<PlatformEvent> shuffledEvents = new ArrayList<>(events);
         Collections.shuffle(shuffledEvents, random);
         return shuffledEvents;

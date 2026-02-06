@@ -28,7 +28,7 @@ class LocalConsensusGenerationTest {
         // Create a simple graph
         graph = graphs.graph8e4n(randotron);
         // Shuffle the events to simulate random order
-        final List<EventImpl> shuffledEvents = graph.shuffledEvents();
+        final List<EventImpl> shuffledEvents = graph.shuffledEvents(randotron);
 
         // Assign cGen to the events
         LocalConsensusGeneration.assignCGen(shuffledEvents);
