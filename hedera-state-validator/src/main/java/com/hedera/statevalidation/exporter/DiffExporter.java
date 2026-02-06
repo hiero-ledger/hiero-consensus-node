@@ -8,7 +8,7 @@ import com.hedera.hapi.platform.state.StateValue;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.statevalidation.util.ParallelProcessingUtils;
 import com.hedera.statevalidation.util.StateUtils;
-import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
@@ -36,15 +36,15 @@ public class DiffExporter {
     private static final String STATE_1_DIFF_JSON = "state1-diff.json";
     private static final String STATE_2_DIFF_JSON = "state2-diff.json";
     private final File resultDir;
-    private final MerkleNodeState state1;
-    private final MerkleNodeState state2;
+    private final VirtualMapState state1;
+    private final VirtualMapState state2;
     private final int expectedStateId;
     private final AtomicLong objectsProcessed = new AtomicLong(0);
 
     public DiffExporter(
             @NonNull final File resultDir,
-            @NonNull final MerkleNodeState state1,
-            @NonNull final MerkleNodeState state2,
+            @NonNull final VirtualMapState state1,
+            @NonNull final VirtualMapState state2,
             @Nullable final String serviceName,
             @Nullable final String stateKey) {
         this.resultDir = resultDir;
@@ -63,8 +63,8 @@ public class DiffExporter {
      */
     public void export() {
         final long startTimestamp = System.currentTimeMillis();
-        final VirtualMap vm1 = (VirtualMap) state1.getRoot();
-        final VirtualMap vm2 = (VirtualMap) state2.getRoot();
+        final VirtualMap vm1 = state1.getRoot();
+        final VirtualMap vm2 = state2.getRoot();
 
         System.out.println("Start comparing states");
 
