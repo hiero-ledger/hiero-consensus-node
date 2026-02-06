@@ -22,7 +22,7 @@ import com.swirlds.state.spi.WritableStates;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.concurrent.ExecutionException;
-import org.hiero.consensus.hashgraph.impl.consensus.SyntheticSnapshot;
+import org.hiero.consensus.model.hashgraph.GenesisSnapshotFactory;
 import org.hiero.consensus.platformstate.PlatformStateAccessor;
 import org.hiero.consensus.roster.RosterStateId;
 import org.hiero.consensus.roster.WritableRosterStore;
@@ -73,7 +73,7 @@ public class GenesisPlatformStateCommand extends AbstractCommand {
             bulkUpdateOf(reservedSignedState.get().getState(), v -> {
                 System.out.printf("Replacing platform data %n");
                 v.setRound(PlatformStateAccessor.GENESIS_ROUND);
-                v.setSnapshot(SyntheticSnapshot.getGenesisSnapshot());
+                v.setSnapshot(GenesisSnapshotFactory.newGenesisSnapshot());
             });
             {
                 System.out.printf("Resetting the RosterService state %n");
