@@ -272,6 +272,16 @@ jobs:
             echo "Deleted Temporary Branch from Remote" >> ${GITHUB_STEP_SUMMARY}
           fi
 
+      - name: Print Output Parameters for Create Github Release Job
+        if: ${{ inputs.alpha-release != true && github.event.repository.private == false }}
+        run: |
+          echo "Output Parameters for Create GitHub Release Job:"
+          echo "  Ref: ${{ needs.create-new-tag.outputs.version }}"
+          echo "  Release Version: ${{ needs.create-new-tag.outputs.version }}"
+          echo "  Create Release Notes: true"
+          echo "  Create Release: true"
+          echo "  Dry Run: ${{ inputs.dry-run-enabled }}"
+
   create-github-release:
     name: Create GitHub Release
     if: ${{ inputs.alpha-release != true && inputs.dry-run-enabled != true && github.event.repository.private == false }}
