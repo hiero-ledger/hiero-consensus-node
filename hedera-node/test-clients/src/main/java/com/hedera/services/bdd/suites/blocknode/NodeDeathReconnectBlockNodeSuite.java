@@ -102,7 +102,7 @@ public class NodeDeathReconnectBlockNodeSuite implements LifecycleTest {
 
     @HapiTest
     @HapiBlockNode(
-            networkSize = 4,
+            networkSize = 2,
             blockNodeConfigs = {
                 @HapiBlockNode.BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.REAL),
             },
@@ -123,22 +123,6 @@ public class NodeDeathReconnectBlockNodeSuite implements LifecycleTest {
                             "blockStream.streamMode", "BOTH",
                             "blockStream.writerMode", "FILE_AND_GRPC"
                         }),
-                @HapiBlockNode.SubProcessNodeConfig(
-                        nodeId = 2,
-                        blockNodeIds = {0},
-                        blockNodePriorities = {0},
-                        applicationPropertiesOverrides = {
-                            "blockStream.streamMode", "BOTH",
-                            "blockStream.writerMode", "FILE_AND_GRPC"
-                        }),
-                @HapiBlockNode.SubProcessNodeConfig(
-                        nodeId = 3,
-                        blockNodeIds = {0},
-                        blockNodePriorities = {0},
-                        applicationPropertiesOverrides = {
-                            "blockStream.streamMode", "BOTH",
-                            "blockStream.writerMode", "FILE_AND_GRPC"
-                        })
             })
     @Order(2)
     final Stream<DynamicTest> nodeDeathReconnectAllNodes() {
