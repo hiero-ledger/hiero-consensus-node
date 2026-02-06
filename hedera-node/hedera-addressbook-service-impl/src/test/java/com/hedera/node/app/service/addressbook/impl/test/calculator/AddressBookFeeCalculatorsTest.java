@@ -121,19 +121,19 @@ class AddressBookFeeCalculatorsTest {
                 .extras(
                         makeExtraDef(Extra.SIGNATURES, 1000000),
                         makeExtraDef(Extra.KEYS, 10000000),
-                        makeExtraDef(Extra.BYTES, 110000))
+                        makeExtraDef(Extra.STATE_BYTES, 110000))
                 .services(makeService(
                         "AddressBookService",
                         makeServiceFee(
                                 HederaFunctionality.NODE_CREATE,
                                 123000000,
                                 makeExtraIncluded(Extra.KEYS, 1),
-                                makeExtraIncluded(Extra.BYTES, 1000)),
+                                makeExtraIncluded(Extra.STATE_BYTES, 1000)),
                         makeServiceFee(
                                 HederaFunctionality.NODE_UPDATE,
                                 234000000,
                                 makeExtraIncluded(Extra.KEYS, 1),
-                                makeExtraIncluded(Extra.BYTES, 1000)),
+                                makeExtraIncluded(Extra.STATE_BYTES, 1000)),
                         makeServiceFee(HederaFunctionality.NODE_DELETE, 345000000)))
                 .build();
     }

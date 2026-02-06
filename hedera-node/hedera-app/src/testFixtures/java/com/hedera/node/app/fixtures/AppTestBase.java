@@ -52,7 +52,7 @@ import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.Service;
-import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.state.merkle.VirtualMapStateImpl;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
@@ -147,7 +147,7 @@ public class AppTestBase extends TestBase implements TransactionFactory, Scenari
 
         final var virtualMap = VirtualMapUtils.createVirtualMap();
 
-        state = new VirtualMapState(virtualMap, new NoOpMetrics()) {
+        state = new VirtualMapStateImpl(virtualMap, new NoOpMetrics()) {
             @NonNull
             @Override
             public ReadableStates getReadableStates(@NonNull String serviceName) {
