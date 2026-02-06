@@ -76,6 +76,10 @@ public class PrivilegedOpsTest {
     final Stream<DynamicTest> freezeAdminPrivilegesAsExpected() {
         return defaultHapiSpec("freezeAdminPrivilegesAsExpected")
                 .given(
+                        cryptoCreate(FREEZE_ADMIN),
+                        cryptoCreate(ADDRESS_BOOK_CONTROL),
+                        cryptoCreate(EXCHANGE_RATE_CONTROL),
+                        cryptoCreate(FEE_SCHEDULE_CONTROL),
                         cryptoCreate(CIVILIAN),
                         cryptoTransfer(tinyBarsFromTo(GENESIS, EXCHANGE_RATE_CONTROL, ONE_MILLION_HBARS)))
                 .when(
