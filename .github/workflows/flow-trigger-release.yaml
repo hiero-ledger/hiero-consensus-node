@@ -229,8 +229,8 @@ jobs:
         if: ${{ inputs.dry-run-enabled != true }}
         run: |
           echo "Pushing release tag to remote"
-          git push origin tag "${{ steps.tag.outputs.tag }}"
-          echo "Pushed new release tag ${{ steps.tag.outputs.tag }} to remote"
+          git push origin tag "${{ steps.next-release.outputs.version }}"
+          echo "Pushed new release tag ${{ steps.next-release.outputs.version }} to remote"
 
       - name: Clean Up git-semver
         run: |
@@ -279,10 +279,10 @@ jobs:
     needs:
       - create-new-tag
     with:
-      ref: ${{ steps.next-release.outputs.version }}
-      release-version: ${{ steps.next-release.outputs.version }}
+      ref: ${{ needs.create-new-tag.outputs.version }}
+      release-version: ${{ needs.create-new-tag.outputs.version }}
       create-release-notes: true
-      create-release: ${{ needs.create-new-tag.outputs.create-release == 'true' }}
+      create-release: true
       dry-run: ${{ inputs.dry-run-enabled }}
     secrets:
       gh-access-token: ${{ secrets.GH_ACCESS_TOKEN }}
