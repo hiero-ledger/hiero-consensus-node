@@ -283,7 +283,7 @@ jobs:
       ref: ${{ needs.create-new-tag.outputs.build-tag }}
       release-version: ${{ needs.create-new-tag.outputs.version }}
       create-release-notes: true
-      create-release: ${{ needs.create-new-tag.outputs.create-release || inputs.dry-run-enabled }}
+      create-release: ${{ needs.create-new-tag.outputs.create-release == 'true' || inputs.dry-run-enabled == true}}
       dry-run: ${{ inputs.dry-run-enabled }}
     secrets:
       gh-access-token: ${{ secrets.GH_ACCESS_TOKEN }}
