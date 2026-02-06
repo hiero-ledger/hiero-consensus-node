@@ -57,6 +57,7 @@ public class SimpleFeesScheduleConstantsInUsd {
     public static final long CRYPTO_CREATE_INCLUDED_KEYS = 1L;
     public static final long CRYPTO_CREATE_INCLUDED_HOOKS = 0L;
 
+    public static final double CRYPTO_UPDATE_FEE = 0.00022;
     public static final double CRYPTO_UPDATE_BASE_FEE_USD = 0.00012;
     public static final long CRYPTO_UPDATE_INCLUDED_KEYS = 1L;
     public static final long CRYPTO_UPDATE_INCLUDED_HOOKS = 0L;

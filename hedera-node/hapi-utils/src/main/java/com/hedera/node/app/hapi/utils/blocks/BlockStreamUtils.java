@@ -22,6 +22,7 @@ public final class BlockStreamUtils {
 
     public static String stateNameOf(final int stateId) {
         return switch (StateIdentifier.fromProtobufOrdinal(stateId)) {
+            case UNRECOGNIZED -> throw new IllegalArgumentException("Unrecognized state identifier " + stateId);
             case UNKNOWN -> throw new IllegalArgumentException("Unknown state identifier");
             case STATE_ID_NODES -> "AddressBookService.NODES";
             case STATE_ID_ACCOUNT_NODE_REL -> "AddressBookService.ACCOUNT_NODE_REL";
