@@ -6,9 +6,9 @@ import static com.hedera.statevalidation.util.ConfigUtils.getConfiguration;
 import static com.hedera.statevalidation.util.ConfigUtils.resetConfiguration;
 import static com.hedera.statevalidation.util.PlatformContextHelper.getPlatformContext;
 import static com.hedera.statevalidation.util.PlatformContextHelper.resetPlatformContext;
-import static com.swirlds.platform.state.service.PlatformStateUtils.creationSoftwareVersionOf;
 import static com.swirlds.platform.state.signed.StartupStateUtils.copyInitialSignedState;
 import static com.swirlds.platform.state.snapshot.SignedStateFileReader.readState;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.creationSoftwareVersionOf;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.transaction.ThrottleDefinitions;
@@ -58,7 +58,6 @@ import com.hedera.pbj.runtime.JsonCodec;
 import com.hedera.pbj.runtime.OneOf;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
@@ -89,6 +88,7 @@ import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.platformstate.PlatformStateService;
 
 /**
  * Utility for loading and initializing state from disk. Manages the complete initialization
@@ -117,7 +117,7 @@ public final class StateUtils {
      * Returns <b>mutable</b> instance of {@link MerkleNodeState} loaded from disk.
      * @return mutable instance of {@link MerkleNodeState}
      */
-    public static MerkleNodeState getState() {
+    public static MerkleNodeState getDefaultState() {
         return getState(DEFAULT);
     }
 
@@ -131,6 +131,31 @@ public final class StateUtils {
             initState(key);
         }
         return states.get(key);
+    }
+
+    /**
+     * Call to this method resets the state caches
+     */
+    public static synchronized void resetStateCache() {
+        if (states.get(DEFAULT) == null) {
+            throw new IllegalStateException("State is not initialized yet");
+        }
+        VirtualMapState defaultState = (VirtualMapState) getDefaultState();
+        Set<Map.Entry<String, Map<Integer, StateMetadata<?, ?>>>> serviceEntries =
+                defaultState.getServices().entrySet();
+        // resetting readable state caches
+        for (Map.Entry<String, Map<Integer, StateMetadata<?, ?>>> serviceEntry : serviceEntries) {
+            ReadableStates readableStates = defaultState.getReadableStates(serviceEntry.getKey());
+            for (Map.Entry<Integer, StateMetadata<?, ?>> stateEntry :
+                    serviceEntry.getValue().entrySet()) {
+                StateMetadata<?, ?> md = stateEntry.getValue();
+                if (md.stateDefinition().onDisk()) {
+                    ReadableKVStateBase<?, ?> readableState =
+                            (ReadableKVStateBase) readableStates.get(stateEntry.getKey());
+                    readableState.reset();
+                }
+            }
+        }
     }
 
     /**
@@ -250,7 +275,7 @@ public final class StateUtils {
                                 bootstrapConfig
                                         .getConfigData(BlockStreamConfig.class)
                                         .blockPeriod()),
-                        new RosterServiceImpl(roster -> true, (r, b) -> {}, StateUtils::getState, () -> {
+                        new RosterServiceImpl(roster -> true, (r, b) -> {}, StateUtils::getDefaultState, () -> {
                             throw new UnsupportedOperationException("No startup networks available");
                         }),
                         new PlatformStateService())
@@ -285,31 +310,6 @@ public final class StateUtils {
                 new StoreMetricsServiceImpl(new NoOpMetrics()),
                 new ConfigProviderImpl(),
                 InitTrigger.RESTART);
-    }
-
-    /**
-     * Call to this method resets the state caches
-     */
-    public static synchronized void resetStateCache() {
-        if (states.get(DEFAULT) == null) {
-            throw new IllegalStateException("State is not initialized yet");
-        }
-        final VirtualMapState defaultState = (VirtualMapState) getState();
-        final Set<Map.Entry<String, Map<Integer, StateMetadata<?, ?>>>> serviceEntries =
-                defaultState.getServices().entrySet();
-        // resetting readable state caches
-        for (Map.Entry<String, Map<Integer, StateMetadata<?, ?>>> serviceEntry : serviceEntries) {
-            final ReadableStates readableStates = defaultState.getReadableStates(serviceEntry.getKey());
-            for (Map.Entry<Integer, StateMetadata<?, ?>> stateEntry :
-                    serviceEntry.getValue().entrySet()) {
-                final StateMetadata<?, ?> md = stateEntry.getValue();
-                if (md.stateDefinition().onDisk()) {
-                    final ReadableKVStateBase<?, ?> readableState =
-                            (ReadableKVStateBase) readableStates.get(stateEntry.getKey());
-                    readableState.reset();
-                }
-            }
-        }
     }
 
     // Uses cached JSON codecs
