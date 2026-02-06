@@ -19,10 +19,18 @@ import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.orphan.DefaultOrphanBuffer;
 
+/**
+ * A class that stores a simple hand-made graph of linked {@code EventImpl}s for use in tests.
+ */
 public class SimpleEventImplGraph implements SimpleGraph<EventImpl> {
 
     private final List<EventImpl> events;
 
+    /**
+     * Constructor
+     *
+     * @param events the events in the graph
+     */
     public SimpleEventImplGraph(@NonNull final List<PlatformEvent> events) {
         final List<EventImpl> eventImpls = new ArrayList<>();
         // we use the orphan buffer to assign nGen values to the events
@@ -47,11 +55,11 @@ public class SimpleEventImplGraph implements SimpleGraph<EventImpl> {
     }
 
     /**
-     * Get all linked events in the graph.
-     *
-     * @return the list of events
+     * {@inheritDoc}
      */
-    public @NonNull List<EventImpl> events() {
+    @Override
+    @NonNull
+    public List<EventImpl> events() {
         return events;
     }
 
@@ -60,14 +68,19 @@ public class SimpleEventImplGraph implements SimpleGraph<EventImpl> {
      *
      * @return the list of events
      */
-    public @NonNull List<EventImpl> shuffledEvents(@NonNull final Random random) {
+    @NonNull
+    public List<EventImpl> shuffledEvents(@NonNull final Random random) {
         final List<EventImpl> shuffledEvents = new ArrayList<>(events);
         Collections.shuffle(shuffledEvents, random);
         return shuffledEvents;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
-    public @NonNull Set<EventImpl> eventSet(@NonNull int... indices) {
+    @NonNull
+    public Set<EventImpl> eventSet(@NonNull int... indices) {
         final Set<EventImpl> eventSet = new HashSet<>();
         for (final int index : indices) {
             eventSet.add(events.get(index));
@@ -75,8 +88,12 @@ public class SimpleEventImplGraph implements SimpleGraph<EventImpl> {
         return Collections.unmodifiableSet(eventSet);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
-    public @NonNull Set<Hash> hashes(@NonNull int... indices) {
+    @NonNull
+    public Set<Hash> hashes(@NonNull int... indices) {
         return events(indices).stream()
                 .map(EventImpl::getBaseEvent)
                 .map(PlatformEvent::getHash)
@@ -84,12 +101,11 @@ public class SimpleEventImplGraph implements SimpleGraph<EventImpl> {
     }
 
     /**
-     * Create a list of linked events from the provided indices.
-     *
-     * @param indices the indices of events to include in the list
-     * @return the list of events
+     * {@inheritDoc}
      */
-    public @NonNull List<EventImpl> events(@NonNull final int... indices) {
+    @Override
+    @NonNull
+    public List<EventImpl> events(@NonNull final int... indices) {
         final List<EventImpl> selectedEvents = new ArrayList<>();
         for (final int index : indices) {
             selectedEvents.add(events.get(index));
@@ -98,12 +114,11 @@ public class SimpleEventImplGraph implements SimpleGraph<EventImpl> {
     }
 
     /**
-     * Get a specific linked event by index.
-     *
-     * @param index the index of the event
-     * @return the event
+     * {@inheritDoc}
      */
-    public @NonNull EventImpl event(final int index) {
+    @Override
+    @NonNull
+    public EventImpl event(final int index) {
         return events.get(index);
     }
 }

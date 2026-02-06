@@ -13,7 +13,7 @@ import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.event.PlatformEvent;
 
 /**
- * A class that stores a simple hand-made graph for use in tests.
+ * A class that stores a simple hand-made graph of {@code PlatformEvent}s for use in tests.
  */
 public class SimplePlatformEventGraph implements SimpleGraph<PlatformEvent> {
 
