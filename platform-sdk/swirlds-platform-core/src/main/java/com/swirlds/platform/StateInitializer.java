@@ -16,7 +16,6 @@ import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.state.config.StateConfig;
 import org.hiero.consensus.state.signed.SignedState;
 
 /**
