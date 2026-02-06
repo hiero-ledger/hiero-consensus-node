@@ -26,6 +26,7 @@ import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfe
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertionsHold;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.childRecordsCheck;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
@@ -76,7 +77,6 @@ import org.junit.jupiter.api.Tag;
 @Tag(ATOMIC_BATCH)
 @HapiTestLifecycle
 class AtomicAutoAccountCreationUnlimitedAssociationsSuite {
-
     public static final String TRUE = "true";
     public static final String FALSE = "false";
     public static final String LAZY_MEMO = "";
@@ -91,6 +91,7 @@ class AtomicAutoAccountCreationUnlimitedAssociationsSuite {
     private static final String CIVILIAN = "somebody";
     private static final String SPONSOR = "autoCreateSponsor";
     private static final long EXPECTED_HBAR_TRANSFER_AUTO_CREATION_FEE = 39_376_619L;
+    private static final long EXPECTED_HBAR_TRANSFER_AUTO_CREATION_FEE_SIMPLE_FEES = 41666666L;
     private static final String HBAR_XFER = "hbarXfer";
     private static final String FT_XFER = "ftXfer";
     private static final String NFT_XFER = "nftXfer";
@@ -106,6 +107,7 @@ class AtomicAutoAccountCreationUnlimitedAssociationsSuite {
     final Stream<DynamicTest> autoAccountCreationsUnlimitedAssociationHappyPath() {
         final var creationTime = new AtomicLong();
         final long transferFee = 188608L;
+        final long simpleTransferFee = 333333L;
         return customizedHapiTest(
                 Map.of("memo.useSpecName", "false"),
                 newKeyNamed(VALID_ALIAS),
@@ -125,10 +127,19 @@ class AtomicAutoAccountCreationUnlimitedAssociationsSuite {
                         .has(accountWith()
                                 .balance((INITIAL_BALANCE * ONE_HBAR) - ONE_HUNDRED_HBARS)
                                 .noAlias()),
-                childRecordsCheck(
-                        TRANSFER_TXN,
-                        SUCCESS,
-                        recordWith().status(SUCCESS).fee(EXPECTED_HBAR_TRANSFER_AUTO_CREATION_FEE)),
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return childRecordsCheck(
+                                TRANSFER_TXN,
+                                SUCCESS,
+                                recordWith().status(SUCCESS).fee(EXPECTED_HBAR_TRANSFER_AUTO_CREATION_FEE_SIMPLE_FEES));
+                    } else {
+                        return childRecordsCheck(
+                                TRANSFER_TXN,
+                                SUCCESS,
+                                recordWith().status(SUCCESS).fee(EXPECTED_HBAR_TRANSFER_AUTO_CREATION_FEE));
+                    }
+                }),
                 assertionsHold((spec, opLog) -> {
                     final var lookup = getTxnRecord(TRANSFER_TXN)
                             .andAllChildRecords()
@@ -143,8 +154,9 @@ class AtomicAutoAccountCreationUnlimitedAssociationsSuite {
                     if (isEndOfStakingPeriodRecord(child)) {
                         child = lookup.getChildRecord(1);
                     }
+                    final var expectedFee = spec.simpleFeesEnabled() ? simpleTransferFee : transferFee;
                     assertAliasBalanceAndFeeInChildRecord(
-                            parent, child, sponsor, payer, ONE_HUNDRED_HBARS + ONE_HBAR, transferFee, 0);
+                            parent, child, sponsor, payer, ONE_HUNDRED_HBARS + ONE_HBAR, expectedFee, 0);
                     creationTime.set(child.getConsensusTimestamp().getSeconds());
                 }),
                 sourcing(() -> getAliasedAccountInfo(VALID_ALIAS)
@@ -164,6 +176,7 @@ class AtomicAutoAccountCreationUnlimitedAssociationsSuite {
     final Stream<DynamicTest> autoAccountCreationsUnlimitedAssociationsDisabled() {
         final var creationTime = new AtomicLong();
         final long transferFee = 188608L;
+        final var simpleTransferFee = 333333L;
         return customizedHapiTest(
                 Map.of("memo.useSpecName", "false"),
                 overriding("entities.unlimitedAutoAssociationsEnabled", FALSE),
@@ -184,10 +197,19 @@ class AtomicAutoAccountCreationUnlimitedAssociationsSuite {
                         .has(accountWith()
                                 .balance((INITIAL_BALANCE * ONE_HBAR) - ONE_HUNDRED_HBARS)
                                 .noAlias()),
-                childRecordsCheck(
-                        TRANSFER_TXN,
-                        SUCCESS,
-                        recordWith().status(SUCCESS).fee(EXPECTED_HBAR_TRANSFER_AUTO_CREATION_FEE)),
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return childRecordsCheck(
+                                TRANSFER_TXN,
+                                SUCCESS,
+                                recordWith().status(SUCCESS).fee(EXPECTED_HBAR_TRANSFER_AUTO_CREATION_FEE_SIMPLE_FEES));
+                    } else {
+                        return childRecordsCheck(
+                                TRANSFER_TXN,
+                                SUCCESS,
+                                recordWith().status(SUCCESS).fee(EXPECTED_HBAR_TRANSFER_AUTO_CREATION_FEE));
+                    }
+                }),
                 assertionsHold((spec, opLog) -> {
                     final var lookup = getTxnRecord(TRANSFER_TXN)
                             .andAllChildRecords()
@@ -202,8 +224,9 @@ class AtomicAutoAccountCreationUnlimitedAssociationsSuite {
                     if (isEndOfStakingPeriodRecord(child)) {
                         child = lookup.getChildRecord(1);
                     }
+                    final var expectedFee = spec.simpleFeesEnabled() ? simpleTransferFee : transferFee;
                     assertAliasBalanceAndFeeInChildRecord(
-                            parent, child, sponsor, payer, ONE_HUNDRED_HBARS + ONE_HBAR, transferFee, 0);
+                            parent, child, sponsor, payer, ONE_HUNDRED_HBARS + ONE_HBAR, expectedFee, 0);
                     creationTime.set(child.getConsensusTimestamp().getSeconds());
                 }),
                 sourcing(() -> getAliasedAccountInfo(VALID_ALIAS)
