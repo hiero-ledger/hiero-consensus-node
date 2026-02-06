@@ -26,11 +26,7 @@ module com.swirlds.platform.core {
     exports com.swirlds.platform.config.legacy;
     exports com.swirlds.platform.crypto;
     exports com.swirlds.platform.event.report;
-    exports com.swirlds.platform.gui.hashgraph;
-    exports com.swirlds.platform.gui.hashgraph.internal;
     exports com.swirlds.platform.eventhandling;
-    exports com.swirlds.platform.gui;
-    exports com.swirlds.platform.gui.model;
     exports com.swirlds.platform.health;
     exports com.swirlds.platform.health.clock;
     exports com.swirlds.platform.health.entropy;
@@ -91,7 +87,6 @@ module com.swirlds.platform.core {
     requires transitive org.hiero.consensus.event.creator;
     requires transitive org.hiero.consensus.event.intake;
     requires transitive org.hiero.consensus.gossip.impl;
-    requires transitive org.hiero.consensus.hashgraph.impl;
     requires transitive org.hiero.consensus.hashgraph;
     requires transitive org.hiero.consensus.metrics;
     requires transitive org.hiero.consensus.model;
@@ -106,7 +101,6 @@ module com.swirlds.platform.core {
     requires org.hiero.consensus.pces.impl;
     requires org.hiero.consensus.platformstate;
     requires com.github.spotbugs.annotations;
-    requires java.desktop;
     requires java.management;
     requires java.scripting;
     requires jdk.management;

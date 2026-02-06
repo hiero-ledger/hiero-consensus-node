@@ -10,7 +10,6 @@ open module org.hiero.consensus.gossip.impl.test.fixtures {
     requires transitive com.swirlds.config.api;
     requires transitive org.hiero.base.crypto;
     requires transitive org.hiero.consensus.gossip.impl;
-    requires transitive org.hiero.consensus.hashgraph.impl;
     requires transitive org.hiero.consensus.model;
     requires com.swirlds.common.test.fixtures;
     requires com.swirlds.config.extensions.test.fixtures;
