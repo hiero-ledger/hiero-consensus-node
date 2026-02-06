@@ -136,7 +136,7 @@ class ReconnectControllerTest {
                 .getOrCreateConfig();
 
         // Create test states
-        testSignedState = new RandomSignedStateGenerator()
+        testSignedState = new RandomSignedStateGenerator(random)
                 .setRoster(roster)
                 .setState(createTestState())
                 .build();
@@ -434,9 +434,9 @@ class ReconnectControllerTest {
         final AtomicLong counter = new AtomicLong();
         final Runnable peer = () -> {
             if (stateProvider.acquireProvidePermit()) {
+                counter.incrementAndGet();
                 try {
                     stateProvider.provide(new ReservedSignedStateResult(testReservedSignedState, null));
-                    counter.incrementAndGet();
                 } catch (InterruptedException e) {
                     fail();
                 }
