@@ -42,6 +42,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
@@ -80,12 +81,15 @@ public class TransactionRecordParityValidator implements BlockStreamValidator {
     }
 
     /**
-     * Alternative to {@link #main(String[])} for running a standalone validation of the block stream against the
-     * record stream, until IntelliJ fixes running bespoke main methods in our build setup.
+     * Temporary alternative to {@link #main(String[])} for running a standalone validation of the block stream against
+     * the record stream, until IntelliJ fixes running bespoke main methods in our build setup.
+     * <p>
+     * Enable and configure {@code customNode0Data} as needed to use.
      * @throws IOException if there is an error reading the block or record streams
      */
     @Test
     @Tag(TestTags.INTEGRATION)
+    @Disabled
     public void testBlockVsRecordParity() throws IOException {
         // Change if needed
         final long shard = 11L;
