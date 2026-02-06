@@ -116,7 +116,9 @@ public class RecordCreationSuite {
                         .logged()));
     }
 
-    @LeakyRepeatableHapiTest(NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW)
+    @LeakyRepeatableHapiTest(
+            value = NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW,
+            overrides = {"nodes.feeCollectionAccountEnabled"})
     @Tag(MATS)
     final Stream<DynamicTest> submittingNodeChargedNetworkFeeForLackOfDueDiligence() {
         final String disquietingMemo = "\u0000his is ok, it's fine, it's whatever.";
@@ -124,6 +126,7 @@ public class RecordCreationSuite {
         final AtomicReference<FeeObject> feeObsWithTwoSignatures = new AtomicReference<>();
 
         return hapiTest(
+                overriding("nodes.feeCollectionAccountEnabled", "false"),
                 cryptoCreate(PAYER),
                 cryptoTransfer(tinyBarsFromTo(GENESIS, TO_ACCOUNT, ONE_HBAR)).payingWith(GENESIS),
                 cryptoTransfer(tinyBarsFromTo(PAYER, FUNDING, 1L))
