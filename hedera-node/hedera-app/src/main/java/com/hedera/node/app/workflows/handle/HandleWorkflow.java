@@ -16,11 +16,11 @@ import static com.hedera.node.app.workflows.handle.TransactionType.ORDINARY_TRAN
 import static com.hedera.node.app.workflows.handle.TransactionType.POST_UPGRADE_TRANSACTION;
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
-import static com.swirlds.platform.state.service.PlatformStateUtils.isFreezeRound;
 import static com.swirlds.platform.system.InitTrigger.EVENT_STREAM_RECOVERY;
 import static java.time.Instant.EPOCH;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.isFreezeRound;
 
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.input.EventHeader;
@@ -88,11 +88,7 @@ import com.hedera.node.config.data.SchedulingConfig;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.node.config.types.StreamMode;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.platform.state.service.PlatformStateService;
-import com.swirlds.platform.state.service.ReadablePlatformStateStore;
-import com.swirlds.platform.state.service.WritablePlatformStateStore;
 import com.swirlds.platform.system.InitTrigger;
-import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.WritableStates;
@@ -117,6 +113,9 @@ import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.transaction.ConsensusTransaction;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
+import org.hiero.consensus.platformstate.PlatformStateService;
+import org.hiero.consensus.platformstate.ReadablePlatformStateStore;
+import org.hiero.consensus.platformstate.WritablePlatformStateStore;
 import org.hiero.consensus.roster.ReadableRosterStoreImpl;
 import org.hiero.consensus.roster.WritableRosterStore;
 
@@ -263,7 +262,7 @@ public class HandleWorkflow {
      * @param stateSignatureTxnCallback A callback to be called when encountering a {@link StateSignatureTransaction}
      */
     public void handleRound(
-            @NonNull final MerkleNodeState state,
+            @NonNull final State state,
             @NonNull final Round round,
             @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> stateSignatureTxnCallback) {
         logStartRound(round);

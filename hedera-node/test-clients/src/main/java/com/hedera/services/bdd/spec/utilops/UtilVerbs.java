@@ -621,7 +621,7 @@ public class UtilVerbs {
         return new QueryModificationsOp(false, queryOpSupplier, modificationsFn);
     }
 
-    public static SourcedOp sourcing(Supplier<HapiSpecOperation> source) {
+    public static SourcedOp sourcing(Supplier<? extends SpecOperation> source) {
         return new SourcedOp(source);
     }
 
@@ -2087,6 +2087,28 @@ public class UtilVerbs {
         return validateChargedUsdWithin(txn, expectedUsd, allowedPercentDiff);
     }
 
+    public static CustomSpecAssert validateChargedAccount(String txn, String expectedAccount) {
+        return assertionsHold((spec, log) -> {
+            requireNonNull(spec);
+            requireNonNull(txn);
+            var subOp = getTxnRecord(txn);
+            allRunFor(spec, subOp);
+            final var rcd = subOp.getResponseRecord();
+            final var expectedAccountId = asId(expectedAccount, spec);
+            final var negativeAccountAmount = rcd.getTransferList().getAccountAmountsList().stream()
+                    .filter(aa -> aa.getAmount() < 0)
+                    .findFirst();
+            assertTrue(negativeAccountAmount.isPresent());
+            final var actualChargedAccountId = negativeAccountAmount.get().getAccountID();
+            assertEquals(
+                    actualChargedAccountId,
+                    expectedAccountId,
+                    String.format(
+                            "Charged account %s is different than expected: %s",
+                            actualChargedAccountId, expectedAccountId));
+        });
+    }
+
     public static CustomSpecAssert validateChargedFee(String txn, long expectedFee) {
         return assertionsHold((spec, assertLog) -> {
             final var actualFeeCharged = getChargedFee(spec, txn);
@@ -2772,7 +2794,16 @@ public class UtilVerbs {
     }
 
     public static Tuple accountAmountAlias(final byte[] alias, final Long amount) {
-        return Tuple.of(HapiParserUtil.asHeadlongAddress(alias), amount);
+        return Tuple.of(HapiParserUtil.asHeadlongAddress(alias), amount, false);
+    }
+
+    public static Tuple nftTransferToAlias(
+            @NonNull final AccountID sender, @NonNull final byte[] alias, final long serialNumber) {
+        return Tuple.of(
+                HapiParserUtil.asHeadlongAddress(asAddress(sender)),
+                HapiParserUtil.asHeadlongAddress(alias),
+                serialNumber,
+                false);
     }
 
     public static Tuple accountAmountAlias(final byte[] alias, final Long amount, final boolean isApproval) {

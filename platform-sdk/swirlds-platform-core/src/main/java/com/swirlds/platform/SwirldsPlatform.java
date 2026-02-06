@@ -5,11 +5,11 @@ import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.platform.StateInitializer.initializeState;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMetricsProvider;
 import static com.swirlds.platform.state.address.RosterMetrics.registerRosterMetrics;
-import static com.swirlds.platform.state.service.PlatformStateUtils.ancientThresholdOf;
-import static com.swirlds.platform.state.service.PlatformStateUtils.consensusSnapshotOf;
-import static com.swirlds.platform.state.service.PlatformStateUtils.legacyRunningEventHashOf;
-import static com.swirlds.platform.state.service.PlatformStateUtils.setCreationSoftwareVersionTo;
 import static org.hiero.base.CompareTo.isLessThan;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.ancientThresholdOf;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.consensusSnapshotOf;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.legacyRunningEventHashOf;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.setCreationSoftwareVersionTo;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
@@ -49,9 +49,10 @@ import com.swirlds.platform.system.status.actions.DoneReplayingEventsAction;
 import com.swirlds.platform.system.status.actions.StartedReplayingEventsAction;
 import com.swirlds.platform.wiring.PlatformComponents;
 import com.swirlds.platform.wiring.PlatformCoordinator;
-import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
 import com.swirlds.state.StateLifecycleManager;
+import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.List;
@@ -192,12 +193,12 @@ public class SwirldsPlatform implements Platform {
                 () -> latestImmutableStateNexus.getState("PCES replay"),
                 () -> isLessThan(blocks.model().getUnhealthyDuration(), replayHealthThreshold));
 
-        initializeState(this, platformContext, initialState, blocks.consensusStateEventHandler());
+        initializeState(this, initialState, blocks.consensusStateEventHandler());
 
         // This object makes a copy of the state. After this point, initialState becomes immutable.
-        final StateLifecycleManager stateLifecycleManager = blocks.stateLifecycleManager();
-        final MerkleNodeState state = initialState.getState();
-        stateLifecycleManager.initState(state);
+        final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager = blocks.stateLifecycleManager();
+        final State state = initialState.getState();
+        stateLifecycleManager.initState((VirtualMapState) state);
         // Genesis state must stay empty until changes can be externalized in the block stream
         if (!initialState.isGenesisState()) {
             setCreationSoftwareVersionTo(stateLifecycleManager.getMutableState(), blocks.appVersion());
