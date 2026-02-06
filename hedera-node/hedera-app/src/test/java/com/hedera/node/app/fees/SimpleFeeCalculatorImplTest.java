@@ -88,14 +88,14 @@ class SimpleFeeCalculatorImplTest {
                 .extras(
                         makeExtraDef(Extra.SIGNATURES, 1000000),
                         makeExtraDef(Extra.KEYS, 10000000),
-                        makeExtraDef(Extra.BYTES, 10))
+                        makeExtraDef(Extra.STATE_BYTES, 10))
                 .services(makeService(
                         "FileService",
                         makeServiceFee(
                                 HederaFunctionality.FILE_CREATE,
                                 499000000,
                                 makeExtraIncluded(Extra.KEYS, 1),
-                                makeExtraIncluded(Extra.BYTES, 1000))))
+                                makeExtraIncluded(Extra.STATE_BYTES, 1000))))
                 .build();
     }
 

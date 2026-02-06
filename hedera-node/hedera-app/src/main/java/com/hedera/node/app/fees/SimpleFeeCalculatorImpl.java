@@ -87,7 +87,7 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
             final long used =
                     switch (ref.name()) {
                         case SIGNATURES -> signatures;
-                        case BYTES -> bytes;
+                        case PROCESSING_BYTES -> bytes;
                         default -> 0;
                     };
             final long unitFee = getExtraFee(ref.name());
