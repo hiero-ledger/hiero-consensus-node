@@ -2,8 +2,8 @@
 package com.swirlds.platform.state.hashlogger;
 
 import static com.swirlds.logging.legacy.LogMarker.STATE_HASH;
-import static com.swirlds.platform.state.service.PlatformStateService.NAME;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hiero.consensus.platformstate.PlatformStateService.NAME;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -19,8 +19,6 @@ import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.config.StateConfig_;
-import com.swirlds.platform.state.PlatformStateAccessor;
-import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
@@ -35,6 +33,8 @@ import java.util.List;
 import java.util.Set;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.MessageSupplier;
+import org.hiero.consensus.platformstate.PlatformStateAccessor;
+import org.hiero.consensus.platformstate.V0540PlatformStateSchema;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
