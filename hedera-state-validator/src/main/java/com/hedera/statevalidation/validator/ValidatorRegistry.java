@@ -7,7 +7,7 @@ import com.hedera.statevalidation.ValidateCommand;
 import com.hedera.statevalidation.validator.listener.ValidationListener;
 import com.hedera.statevalidation.validator.model.DiskDataItem.Type;
 import com.hedera.statevalidation.validator.util.ValidationException;
-import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.merkle.VirtualMapState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.EnumMap;
 import java.util.HashSet;
@@ -108,7 +108,7 @@ public final class ValidatorRegistry {
      * <ol>
      *     <li>Checks if the validator's group matches the requested groups (or if "all" is specified)</li>
      *     <li>Notifies listeners that validation is starting</li>
-     *     <li>Calls {@link Validator#initialize(MerkleNodeState)}</li>
+     *     <li>Calls {@link Validator#initialize(VirtualMapState)}</li>
      *     <li>On success, adds the validator to the result set</li>
      *     <li>On failure, notifies listeners and excludes the validator</li>
      * </ol>
@@ -119,7 +119,7 @@ public final class ValidatorRegistry {
      * @return a map from {@link Type} to thread-safe sets of initialized validators;
      */
     public static Map<Type, Set<Validator>> createAndInitValidators(
-            @NonNull final MerkleNodeState state,
+            @NonNull final VirtualMapState state,
             @NonNull final String[] validationGroups,
             @NonNull final List<ValidationListener> validationListeners) {
 
@@ -157,7 +157,7 @@ public final class ValidatorRegistry {
      * @return an unmodifiable list of initialized individual validators
      */
     public static List<Validator> createAndInitIndividualValidators(
-            @NonNull final MerkleNodeState state,
+            @NonNull final VirtualMapState state,
             @NonNull final String[] validationGroups,
             @NonNull final List<ValidationListener> validationListeners) {
 
@@ -176,7 +176,7 @@ public final class ValidatorRegistry {
      * <p>This method:
      * <ol>
      *     <li>Notifies all listeners via {@link ValidationListener#onValidationStarted(String)}</li>
-     *     <li>Calls {@link Validator#initialize(MerkleNodeState)}</li>
+     *     <li>Calls {@link Validator#initialize(VirtualMapState)}</li>
      *     <li>On failure, notifies listeners via {@link ValidationListener#onValidationFailed(ValidationException)}</li>
      * </ol>
      *
@@ -187,7 +187,7 @@ public final class ValidatorRegistry {
      */
     public static boolean tryInitialize(
             @NonNull final Validator validator,
-            @NonNull final MerkleNodeState state,
+            @NonNull final VirtualMapState state,
             @NonNull final List<ValidationListener> listeners) {
         listeners.forEach(l -> l.onValidationStarted(validator.getName()));
         try {

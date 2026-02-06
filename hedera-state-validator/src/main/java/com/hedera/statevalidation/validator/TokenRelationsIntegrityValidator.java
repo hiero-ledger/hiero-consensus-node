@@ -14,9 +14,9 @@ import com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.statevalidation.validator.util.ValidationAssertions;
-import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.merkle.StateKeyUtils;
 import com.swirlds.state.merkle.StateValue;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -66,8 +66,8 @@ public class TokenRelationsIntegrityValidator implements LeafBytesValidator {
      * {@inheritDoc}
      */
     @Override
-    public void initialize(@NonNull final MerkleNodeState state) {
-        this.virtualMap = (VirtualMap) state.getRoot();
+    public void initialize(@NonNull final VirtualMapState state) {
+        this.virtualMap = state.getRoot();
 
         final ReadableEntityIdStore entityCounters =
                 new ReadableEntityIdStoreImpl(state.getReadableStates(EntityIdService.NAME));

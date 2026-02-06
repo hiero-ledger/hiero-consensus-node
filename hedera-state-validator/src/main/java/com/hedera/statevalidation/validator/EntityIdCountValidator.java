@@ -9,7 +9,7 @@ import com.hedera.hapi.platform.state.StateKey;
 import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.statevalidation.validator.util.ValidationAssertions;
-import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -62,7 +62,7 @@ public class EntityIdCountValidator implements LeafBytesValidator {
      * {@inheritDoc}
      */
     @Override
-    public void initialize(@NonNull final MerkleNodeState state) {
+    public void initialize(@NonNull final VirtualMapState state) {
         final ReadableSingletonState<EntityCounts> entityIdSingleton =
                 state.getReadableStates(EntityIdService.NAME).getSingleton(ENTITY_COUNTS_STATE_ID);
         this.entityCounts = Objects.requireNonNull(entityIdSingleton.get());

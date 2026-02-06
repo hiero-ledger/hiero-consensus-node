@@ -9,7 +9,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.statevalidation.validator.util.ValidationAssertions;
 import com.swirlds.merkledb.MerkleDbDataSource;
 import com.swirlds.merkledb.files.hashmap.HalfDiskHashMap;
-import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -60,8 +60,8 @@ public class LeafBytesIntegrityValidator implements LeafBytesValidator {
      * {@inheritDoc}
      */
     @Override
-    public void initialize(@NonNull final MerkleNodeState state) {
-        this.virtualMap = (VirtualMap) state.getRoot();
+    public void initialize(@NonNull final VirtualMapState state) {
+        this.virtualMap = state.getRoot();
         final MerkleDbDataSource vds = (MerkleDbDataSource) virtualMap.getDataSource();
         this.keyToPath = vds.getKeyToPath();
     }

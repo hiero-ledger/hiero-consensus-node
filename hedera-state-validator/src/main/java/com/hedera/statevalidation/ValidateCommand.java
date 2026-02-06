@@ -21,7 +21,7 @@ import com.hedera.statevalidation.validator.model.DiskDataItem.Type;
 import com.hedera.statevalidation.validator.pipeline.ValidationPipelineExecutor;
 import com.hedera.statevalidation.validator.util.ValidationException;
 import com.swirlds.merkledb.MerkleDbDataSource;
-import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import java.util.List;
 import java.util.Map;
@@ -116,8 +116,8 @@ public class ValidateCommand implements Callable<Integer> {
         try {
             // Initialize state
             parent.initializeStateDir();
-            final MerkleNodeState state = StateUtils.getDefaultState();
-            final VirtualMap virtualMap = (VirtualMap) state.getRoot();
+            final VirtualMapState state = StateUtils.getDefaultState();
+            final VirtualMap virtualMap = state.getRoot();
             final MerkleDbDataSource vds = (MerkleDbDataSource) virtualMap.getDataSource();
             if (vds.getFirstLeafPath() == -1) {
                 log.info("Skipping the validation as there is no data");

@@ -4,7 +4,7 @@ package com.hedera.statevalidation.validator;
 import com.hedera.statevalidation.validator.listener.ValidationListener;
 import com.hedera.statevalidation.validator.util.ValidationAssertions;
 import com.hedera.statevalidation.validator.util.ValidationException;
-import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.merkle.VirtualMapState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**
@@ -13,7 +13,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  * <h2>Validator Lifecycle</h2>
  * <p>Each validator follows a three-phase lifecycle:
  * <ol>
- *     <li><b>Initialization</b> - {@link #initialize(MerkleNodeState)} is called once before any data
+ *     <li><b>Initialization</b> - {@link #initialize(VirtualMapState)} is called once before any data
  *         processing begins. Validators should extract required state references and initialize counters.</li>
  *     <li><b>Processing</b> - Data items are streamed to validators (for pipeline validators).
  *         Independent validators skip this phase entirely.</li>
@@ -90,7 +90,7 @@ public interface Validator {
      * @param state the state providing read-only access to all service states, virtual maps, data
      *              sources, and the original hash; must not be null
      */
-    void initialize(@NonNull final MerkleNodeState state);
+    void initialize(@NonNull final VirtualMapState state);
 
     /**
      * Finalizes validation and asserts results.

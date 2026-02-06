@@ -6,7 +6,7 @@ import static org.hiero.consensus.platformstate.PlatformStateUtils.getInfoString
 
 import com.hedera.statevalidation.util.ConfigUtils;
 import com.hedera.statevalidation.validator.util.ValidationAssertions;
-import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.merkle.VirtualMapState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -35,7 +35,7 @@ public class RootHashValidator implements Validator {
      */
     public static final String HASH_INFO_FILE_NAME = "hashInfo.txt";
 
-    private MerkleNodeState state;
+    private VirtualMapState state;
     private String expectedRootHashLine;
 
     /**
@@ -60,7 +60,7 @@ public class RootHashValidator implements Validator {
      * {@inheritDoc}
      */
     @Override
-    public void initialize(@NonNull final MerkleNodeState state) {
+    public void initialize(@NonNull final VirtualMapState state) {
         this.state = state;
 
         // Read hash info file

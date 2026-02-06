@@ -5,7 +5,7 @@ import com.hedera.statevalidation.util.StateUtils;
 import com.hedera.statevalidation.validator.pipeline.RehashTaskExecutor;
 import com.hedera.statevalidation.validator.util.ValidationAssertions;
 import com.hedera.statevalidation.validator.util.ValidationException;
-import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.internal.RecordAccessor;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
@@ -55,8 +55,8 @@ public class RehashValidator implements Validator {
      * {@inheritDoc}
      */
     @Override
-    public void initialize(@NonNull final MerkleNodeState state) {
-        final VirtualMap vm = (VirtualMap) state.getRoot();
+    public void initialize(@NonNull final VirtualMapState state) {
+        final VirtualMap vm = state.getRoot();
         this.originalHash = StateUtils.getOriginalStateHash();
         this.records = vm.getRecords();
 

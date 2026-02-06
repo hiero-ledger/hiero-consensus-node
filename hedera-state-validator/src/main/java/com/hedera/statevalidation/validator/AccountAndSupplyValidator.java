@@ -11,9 +11,9 @@ import com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.statevalidation.validator.util.ValidationAssertions;
-import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.merkle.StateKeyUtils;
 import com.swirlds.state.merkle.StateValue;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
@@ -66,8 +66,8 @@ public class AccountAndSupplyValidator implements LeafBytesValidator {
      * {@inheritDoc}
      */
     @Override
-    public void initialize(@NonNull final MerkleNodeState state) {
-        final VirtualMap virtualMap = (VirtualMap) state.getRoot();
+    public void initialize(@NonNull final VirtualMapState state) {
+        final VirtualMap virtualMap = state.getRoot();
         Objects.requireNonNull(virtualMap);
 
         final ReadableEntityIdStore entityCounters =
