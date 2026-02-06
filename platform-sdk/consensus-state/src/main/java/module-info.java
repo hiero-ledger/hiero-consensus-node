@@ -1,4 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
+import com.swirlds.config.api.ConfigurationExtension;
+import org.hiero.consensus.state.config.StateConfigurationExtension;
+
 module org.hiero.consensus.state {
     exports org.hiero.consensus.state.config;
     exports org.hiero.consensus.state.signed;
@@ -29,4 +32,7 @@ module org.hiero.consensus.state {
     requires jdk.management;
     requires jdk.net;
     requires org.apache.logging.log4j;
+
+    provides ConfigurationExtension with
+            StateConfigurationExtension;
 }
