@@ -423,7 +423,7 @@ public class TokenServiceFeeCalculatorTests {
                 .copyBuilder()
                 .node(NodeFee.DEFAULT.copyBuilder().build())
                 .extras(
-                        makeExtraDef(Extra.BYTES, 1),
+                        makeExtraDef(Extra.STATE_BYTES, 1),
                         makeExtraDef(Extra.KEYS, 2),
                         makeExtraDef(Extra.SIGNATURES, 3),
                         makeExtraDef(Extra.TOKEN_MINT_NFT, UNIQUE_TOKEN_FEE))

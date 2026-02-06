@@ -170,7 +170,7 @@ class CryptoUpdateFeeCalculatorTest {
                     .extras(
                             makeExtraDef(Extra.SIGNATURES, 1000000L),
                             makeExtraDef(Extra.KEYS, 100000000L), // 100M per key
-                            makeExtraDef(Extra.BYTES, 110L))
+                            makeExtraDef(Extra.STATE_BYTES, 110L))
                     .services(makeService(
                             "CryptoService",
                             makeServiceFee(
@@ -223,7 +223,7 @@ class CryptoUpdateFeeCalculatorTest {
                     .extras(
                             makeExtraDef(Extra.SIGNATURES, 1000000L),
                             makeExtraDef(Extra.KEYS, 100000000L),
-                            makeExtraDef(Extra.BYTES, 110L))
+                            makeExtraDef(Extra.STATE_BYTES, 110L))
                     .services(makeService(
                             "CryptoService",
                             makeServiceFee(
@@ -347,7 +347,7 @@ class CryptoUpdateFeeCalculatorTest {
                         makeExtraDef(Extra.SIGNATURES, 1000000L),
                         makeExtraDef(Extra.KEYS, 100000000L),
                         makeExtraDef(Extra.HOOK_UPDATES, 10000000L),
-                        makeExtraDef(Extra.BYTES, 110L))
+                        makeExtraDef(Extra.STATE_BYTES, 110L))
                 .services(makeService(
                         "CryptoService",
                         makeServiceFee(
