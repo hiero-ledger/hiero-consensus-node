@@ -39,6 +39,13 @@ jobs:
         with:
           egress-policy: audit
 
+      - name: Print Input Parameters
+        run: |
+          echo "Input Parameters:"
+          echo "  Build Number: ${{ inputs.build_number }}"
+          echo "  Alpha Release: ${{ inputs.alpha-release }}"
+          echo "  Dry Run Enabled: ${{ inputs.dry-run-enabled }}"
+
       - name: Build Input Validation
         id: validate
         run: |
