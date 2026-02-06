@@ -54,6 +54,7 @@ import com.hedera.services.bdd.junit.ContextRequirement;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.spec.HapiSpecSetup;
+import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hederahashgraph.api.proto.java.AccountAmount;
 import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.TransferList;
@@ -98,13 +99,14 @@ public class CryptoDeleteSuite {
                 // from their records (deterministic, no stale balance queries). Since the account
                 // is already deleted, we have less signatures to verify.
                 withOpContext((spec, opLog) -> {
-                    final var nodeAccountId = asAccount(spec.shard(), spec.realm(), 3);
+                    final var nodeAccountId = TxnUtils.asId(submittingNodeAccount, spec);
                     final var deleteRecord = getTxnRecord("deleteTxn");
                     final var failedRecord = getTxnRecord("failedTxn");
                     allRunFor(spec, deleteRecord, failedRecord);
                     long netChange = Stream.of(deleteRecord, failedRecord)
                             .flatMap(r -> r.getResponseRecord().getTransferList().getAccountAmountsList().stream())
                             .filter(aa -> aa.getAccountID().equals(nodeAccountId))
+                            .filter(aa -> aa.getAmount() < 0)
                             .mapToLong(AccountAmount::getAmount)
                             .sum();
                     assertTrue(
