@@ -49,6 +49,8 @@ import static com.hedera.services.bdd.spec.transactions.token.HapiTokenReject.re
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUnique;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.safeValidateChargedUsd;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.safeValidateChargedUsdWithin;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
@@ -58,6 +60,11 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
 import static com.hedera.services.bdd.suites.contract.leaky.LeakyContractTestsSuite.RECEIVER;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenCreateNftFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenCreateNftWithCustomFeesFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenMintNftFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenUpdateFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.PROCESSING_BYTES_FEE_USD;
 import static com.hedera.services.bdd.suites.hip904.TokenAirdropBase.setUpTokensAndAllReceivers;
 import static com.hedera.services.bdd.suites.utils.MiscEETUtils.metadata;
 import static com.hederahashgraph.api.proto.java.TokenPauseStatus.Paused;
@@ -151,7 +158,7 @@ public class TokenServiceFeesSuite {
                         .payingWith(OWNER)
                         .via("second airdrop"),
                 validateChargedUsd("airdrop", 0.1, 1),
-                validateChargedUsd("second airdrop", 0.05, 1));
+                safeValidateChargedUsdWithin("second airdrop", 0.05, 1, 0.051, 1));
     }
 
     @HapiTest
@@ -438,8 +445,18 @@ public class TokenServiceFeesSuite {
                         .via(txnFor(uniqueWithFees)),
                 validateChargedUsdWithin(txnFor(commonNoFees), expectedCommonNoCustomFeesPriceUsd, 1),
                 validateChargedUsdWithin(txnFor(commonWithFees), expectedCommonWithCustomFeesPriceUsd, 1),
-                validateChargedUsdWithin(txnFor(uniqueNoFees), expectedUniqueNoCustomFeesPriceUsd, 1),
-                validateChargedUsdWithin(txnFor(uniqueWithFees), expectedUniqueWithCustomFeesPriceUsd, 1));
+                safeValidateChargedUsdWithin(
+                        txnFor(uniqueNoFees),
+                        expectedUniqueNoCustomFeesPriceUsd,
+                        1,
+                        expectedTokenCreateNftFullFeeUsd(4, 2),
+                        1),
+                safeValidateChargedUsdWithin(
+                        txnFor(uniqueWithFees),
+                        expectedUniqueWithCustomFeesPriceUsd,
+                        1,
+                        expectedTokenCreateNftWithCustomFeesFullFeeUsd(4, 2),
+                        1));
     }
 
     @HapiTest
@@ -543,7 +560,12 @@ public class TokenServiceFeesSuite {
                         .blankMemo()
                         .fee(ONE_HUNDRED_HBARS)
                         .via(BASE_TXN),
-                validateChargedUsdWithin(BASE_TXN, expectedFee, ALLOWED_DIFFERENCE_PERCENTAGE));
+                safeValidateChargedUsdWithin(
+                        BASE_TXN,
+                        expectedFee,
+                        ALLOWED_DIFFERENCE_PERCENTAGE,
+                        expectedTokenMintNftFullFeeUsd(0, 10) + PROCESSING_BYTES_FEE_USD * 117 * 10,
+                        0.01));
     }
 
     @HapiTest
@@ -763,7 +785,8 @@ public class TokenServiceFeesSuite {
                         .payingWith(TOKEN_TREASURY)
                         .fee(10 * ONE_HBAR)
                         .via(nftUpdateTxn),
-                validateChargedUsdWithin(nftUpdateTxn, expectedNftUpdatePriceUsd, 0.01));
+                safeValidateChargedUsdWithin(
+                        nftUpdateTxn, expectedNftUpdatePriceUsd, 0.01, expectedTokenUpdateFullFeeUsd(2, 0, 1), 0.01));
     }
 
     @HapiTest
@@ -835,7 +858,8 @@ public class TokenServiceFeesSuite {
                         .payingWith(TOKEN_TREASURY)
                         .fee(10 * ONE_HBAR)
                         .via(nftUpdateTxn),
-                validateChargedUsdWithin(nftUpdateTxn, expectedNftUpdatePriceUsd, 0.01));
+                safeValidateChargedUsdWithin(
+                        nftUpdateTxn, expectedNftUpdatePriceUsd, 0.01, expectedTokenUpdateFullFeeUsd(2, 0, 5), 0.01));
     }
 
     @HapiTest
@@ -922,7 +946,7 @@ public class TokenServiceFeesSuite {
                         .signedBy(TOKEN_TREASURY, METADATA_KEY)
                         .payingWith(TOKEN_TREASURY)
                         .via("nftUpdateTxn"),
-                validateChargedUsd("nftUpdateTxn", expectedTokenUpdateNfts));
+                safeValidateChargedUsd("nftUpdateTxn", expectedTokenUpdateNfts, expectedTokenUpdateFullFeeUsd(2, 0)));
     }
 
     // verify bulk operations base fees

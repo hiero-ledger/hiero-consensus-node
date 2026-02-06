@@ -60,6 +60,8 @@ import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleCon
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_UNPAUSE_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_UPDATE_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_UPDATE_INCLUDED_KEYS;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_UPDATE_INCLUDED_NFTS;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_UPDATE_NFT_FEE;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_WIPE_BASE_FEE_USD;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -984,7 +986,7 @@ public class FeesChargingUtils {
      * service = TOKEN_UPDATE_BASE + KEYS_FEE * max(0, keys - includedKeys)
      * total   = node + network + service
      */
-    public static double expectedTokenUpdateFullFeeUsd(long sigs, long keys) {
+    public static double expectedTokenUpdateFullFeeUsd(long sigs, long keys, long nfts) {
         // ----- node fees -----
         final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
         final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
@@ -995,9 +997,11 @@ public class FeesChargingUtils {
 
         // ----- service fees -----
         final long keyExtrasService = Math.max(0L, keys - TOKEN_UPDATE_INCLUDED_KEYS);
-        final double serviceExtrasFee = keyExtrasService * KEYS_FEE_USD;
+        final long nftExtrasService = Math.max(0L, nfts - TOKEN_UPDATE_INCLUDED_NFTS);
+        final double serviceExtrasFee = keyExtrasService * KEYS_FEE_USD + nftExtrasService * TOKEN_UPDATE_NFT_FEE;
         final double serviceFee = TOKEN_UPDATE_BASE_FEE_USD + serviceExtrasFee;
-
+        System.out.println("service base" + TOKEN_UPDATE_BASE_FEE_USD + " extras " + serviceExtrasFee + " node "
+                + nodeFee + " network " + networkFee);
         return nodeFee + networkFee + serviceFee;
     }
 
@@ -1005,7 +1009,14 @@ public class FeesChargingUtils {
      * Overload for TokenUpdate with no extra keys.
      */
     public static double expectedTokenUpdateFullFeeUsd(long sigs) {
-        return expectedTokenUpdateFullFeeUsd(sigs, 0L);
+        return expectedTokenUpdateFullFeeUsd(sigs, 0L, 0L);
+    }
+
+    /**
+     * Overload for TokenUpdate with no extra keys.
+     */
+    public static double expectedTokenUpdateFullFeeUsd(long sigs, long keys) {
+        return expectedTokenUpdateFullFeeUsd(sigs, keys, 0L);
     }
 
     /**
