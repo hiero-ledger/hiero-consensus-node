@@ -126,7 +126,6 @@ jobs:
           current_version="$(git-semver latest)"
           echo "Current version is: ${current_version}"
 
-
       # IF HIERO/HEDERA TRANSITIONS TO A MAJOR RELEASE NUMBER (1.0.0+)
       # stable = false WILL NO LONGER BE VALID
       - name: Compute Next Version Number
@@ -146,7 +145,7 @@ jobs:
             echo "git-semver failed with status ${STATUS}"
             exit "${STATUS}"
           fi
-          
+
           echo "Next release version is: v${OUTPUT}"
           echo "version=v${OUTPUT}" >> ${GITHUB_OUTPUT}
 
