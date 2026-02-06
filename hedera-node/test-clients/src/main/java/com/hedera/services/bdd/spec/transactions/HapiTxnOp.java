@@ -275,11 +275,15 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
             final boolean isTransientPlatformError = actualPrecheck == PLATFORM_NOT_ACTIVE
                     || actualPrecheck == PLATFORM_TRANSACTION_NOT_CREATED
                     || actualPrecheck == BUSY;
+            // Don't retry if the test explicitly expects this transient error (e.g., testing throttling)
+            final boolean expectsTransientError =
+                    expectedPrecheck.isPresent() && expectedPrecheck.get() == actualPrecheck;
             // For transient platform errors, use a hard limit of 10 retries to avoid infinite loops
             // when no explicit retryLimits is set (which defaults to unlimited)
             final int maxTransientRetries = 10;
             final boolean withinTransientLimit = retryCount < maxTransientRetries;
-            final boolean shouldRetryTransient = isTransientPlatformError && withinTransientLimit;
+            final boolean shouldRetryTransient =
+                    isTransientPlatformError && withinTransientLimit && !expectsTransientError;
             final boolean shouldRetryExplicit = retryPrechecks.isPresent()
                     && retryPrechecks.get().contains(actualPrecheck)
                     && isWithInRetryLimit(retryCount);

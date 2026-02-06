@@ -103,6 +103,7 @@ Embedded validation is lighter because there's no persistent Merkle tree to vali
 - No state mutation occurs when these errors are returned
 - Transactions/queries can be safely resubmitted
 - The 100ms delay allows platform recovery
+- **Does not retry when test expects the error** - If a test uses `.hasPrecheck(BUSY)` to explicitly test throttling behavior, the retry is skipped to preserve test intent
 
 ## Serial Tests
 
