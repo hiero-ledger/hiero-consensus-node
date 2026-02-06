@@ -12,6 +12,6 @@ public record FeesConfig(
         @ConfigProperty(defaultValue = "60") @NetworkProperty int minCongestionPeriod,
         @ConfigProperty(defaultValue = "90,10x,95,25x,99,100x") CongestionMultipliers percentCongestionMultipliers,
         @ConfigProperty(defaultValue = "DEFAULT(0,1:1)") EntityScaleFactors percentUtilizationScaleFactors,
-        @ConfigProperty(defaultValue = "true") @NetworkProperty boolean simpleFeesEnabled,
-        @ConfigProperty(defaultValue = "true") @NetworkProperty boolean createSimpleFeeSchedule,
+        @ConfigProperty(defaultValue = "false") @NetworkProperty boolean simpleFeesEnabled,
+        @ConfigProperty(defaultValue = "false") @NetworkProperty boolean createSimpleFeeSchedule,
         @ConfigProperty(defaultValue = "380") @NetworkProperty int tokenTransferUsageMultiplier) {}
