@@ -7,7 +7,7 @@ import static org.mockito.BDDMockito.given;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
-import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.merkle.VirtualMapState;
 import java.util.Queue;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
@@ -23,7 +23,7 @@ class StateHashedNotificationTest {
     private static final Hash HASH = new Hash(new byte[48]);
 
     @Mock
-    private MerkleNodeState merkleRoot;
+    private VirtualMapState merkleRoot;
 
     @Mock
     private SignedState signedState;

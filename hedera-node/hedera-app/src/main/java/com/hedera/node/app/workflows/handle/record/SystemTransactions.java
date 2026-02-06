@@ -42,7 +42,6 @@ import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.history.ProofKey;
 import com.hedera.hapi.node.state.roster.RosterEntry;
-import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.StakingNodeInfo;
 import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
@@ -67,7 +66,6 @@ import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.service.token.impl.BlocklistParser;
 import com.hedera.node.app.service.token.impl.WritableStakingInfoStore;
 import com.hedera.node.app.service.token.impl.handlers.staking.EndOfStakingPeriodUtils;
-import com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema;
 import com.hedera.node.app.services.ServicesRegistry;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.info.NetworkInfo;
@@ -477,31 +475,6 @@ public class SystemTransactions {
                 adminConfig.upgradeNodeAdminKeysFile(),
                 SystemTransactions::parseNodeAdminKeys);
         autoNodeAdminKeyUpdates.tryIfPresent(adminConfig.upgradeSysFilesLoc(), systemContext);
-
-        // TODO: Delete this in release 0.71
-        // If fee collection account is enabled, we need to create the fee collection account only for release 0.70
-        if (nodesConfig.feeCollectionAccountEnabled()) {
-            final var accountsConfig = config.getConfigData(AccountsConfig.class);
-            final var feeCollectionAccount = accountsConfig.feeCollectionAccount();
-            // check if account 802 exists
-            final var accounts = state.getWritableStates(TokenService.NAME)
-                    .<AccountID, Account>get(V0490TokenSchema.ACCOUNTS_STATE_ID);
-            if (accounts.contains(idFactory.newAccountId(feeCollectionAccount))) {
-                log.info("Fee collection account already exists, skipping creation");
-                return;
-            }
-
-            final var ledgerConfig = config.getConfigData(LedgerConfig.class);
-            final var systemAutoRenewPeriod = new Duration(ledgerConfig.autoRenewPeriodMaxDuration());
-            systemContext.dispatchCreation(
-                    b -> b.memo("Fee collection account creation for v0.70")
-                            .cryptoCreateAccount(CryptoCreateTransactionBody.newBuilder()
-                                    .key(IMMUTABILITY_SENTINEL_KEY)
-                                    .autoRenewPeriod(systemAutoRenewPeriod)
-                                    .build())
-                            .build(),
-                    feeCollectionAccount);
-        }
     }
 
     /**
