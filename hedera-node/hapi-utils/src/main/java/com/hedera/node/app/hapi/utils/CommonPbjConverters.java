@@ -20,6 +20,7 @@ import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.ResponseType;
+import com.hedera.hapi.node.base.ScheduleID;
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.Timestamp;
@@ -153,10 +154,12 @@ public class CommonPbjConverters {
      *
      * @param responseType the PBJ {@link ResponseType} to convert
      * @return the converted {@link com.hederahashgraph.api.proto.java.ResponseType} if valid
+     * @throws IllegalArgumentException if UNRECOGNIZED
      */
     public static @NonNull com.hederahashgraph.api.proto.java.ResponseType fromPbjResponseType(
             @NonNull final ResponseType responseType) {
         return switch (requireNonNull(responseType)) {
+            case UNRECOGNIZED -> throw new IllegalArgumentException("Unrecognized responseType");
             case ANSWER_ONLY -> com.hederahashgraph.api.proto.java.ResponseType.ANSWER_ONLY;
             case ANSWER_STATE_PROOF -> com.hederahashgraph.api.proto.java.ResponseType.ANSWER_STATE_PROOF;
             case COST_ANSWER -> com.hederahashgraph.api.proto.java.ResponseType.COST_ANSWER;
@@ -238,6 +241,15 @@ public class CommonPbjConverters {
                 .shardNum(tokenID.getShardNum())
                 .realmNum(tokenID.getRealmNum())
                 .tokenNum(tokenID.getTokenNum())
+                .build();
+    }
+
+    public static @NonNull ScheduleID toPbj(@NonNull com.hederahashgraph.api.proto.java.ScheduleID tokenID) {
+        requireNonNull(tokenID);
+        return ScheduleID.newBuilder()
+                .shardNum(tokenID.getShardNum())
+                .realmNum(tokenID.getRealmNum())
+                .scheduleNum(tokenID.getScheduleNum())
                 .build();
     }
 
