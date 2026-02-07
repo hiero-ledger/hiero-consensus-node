@@ -86,6 +86,19 @@ public class WrappedRecordFileBlockHashesDiskWriter implements AutoCloseable {
             return CompletableFuture.completedFuture(null);
         }
 
+        // Best-effort: if there are no record stream items, we cannot compute a deterministic entry.
+        // This can happen after restart if the in-memory record stream items for the in-progress block were lost.
+        if (input.recordStreamItems().isEmpty()) {
+            logger.info(
+                    "Skipping wrapped record-file block hashes append for block {} because recordStreamItems is empty; "
+                            + "input{startRunningHashLen={}, endRunningHashLen={}, sidecars={}}",
+                    input.blockNumber(),
+                    input.startRunningHash().length(),
+                    input.endRunningHash().length(),
+                    input.sidecarRecords().size());
+            return CompletableFuture.completedFuture(null);
+        }
+
         ensureInitialized();
 
         return tail.updateAndGet(prev -> prev.thenRunAsync(
@@ -101,8 +114,8 @@ public class WrappedRecordFileBlockHashesDiskWriter implements AutoCloseable {
                                 return;
                             }
 
-                            if (logger.isDebugEnabled()) {
-                                logger.debug(
+                            if (logger.isInfoEnabled()) {
+                                logger.info(
                                         "Appending wrapped record-file block hashes for block {}: consensusTimestampLeafHash {}, outputItemsRootHash {}",
                                         entry.blockNumber(),
                                         entry.consensusTimestampHash().toHex(),

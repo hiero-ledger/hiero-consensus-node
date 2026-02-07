@@ -257,6 +257,53 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         }
     }
 
+    @Test
+    void doesNotCrashOrAppendIfNoCapturedItemsOnRestart() {
+        final var app = appBuilder()
+                .withService(new BlockRecordService())
+                .withService(new PlatformStateService())
+                .withConfigValue("hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk", true)
+                .build();
+
+        // Seed state as if we are restarting mid-stream with an existing last block hash
+        final var someHash = Bytes.wrap(new byte[BlockRecordInfoUtils.HASH_SIZE]);
+        app.stateMutator(BlockRecordService.NAME)
+                .withSingletonState(
+                        BLOCKS_STATE_ID, new BlockInfo(7, EPOCH, someHash, EPOCH, true, EPOCH, EPOCH, EPOCH))
+                .withSingletonState(
+                        RUNNING_HASHES_STATE_ID,
+                        RunningHashes.newBuilder()
+                                .runningHash(Bytes.wrap(new byte[48]))
+                                .build())
+                .commit();
+
+        app.stateMutator(PlatformStateService.NAME)
+                .withSingletonState(V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID, PlatformState.DEFAULT)
+                .commit();
+
+        final var state = requireNonNullState(app.workingStateAccessor().getState());
+        final var producer = new FakeStreamProducer();
+        final var controller = new QuiescenceController(
+                new QuiescenceConfig(false, Duration.ofSeconds(5)), InstantSource.system(), () -> 0);
+        final var heartbeat = new QuiescedHeartbeat(controller, app.platform());
+        final var diskWriter = mock(WrappedRecordFileBlockHashesDiskWriter.class);
+        try (final var mgr = new BlockRecordManagerImpl(
+                app.configProvider(),
+                state,
+                producer,
+                controller,
+                heartbeat,
+                app.platform(),
+                diskWriter,
+                InitTrigger.RECONNECT)) {
+            // Trigger a block boundary immediately; since no endUserTransaction was called, there are no captured
+            // items.
+            final var t1 = InstantUtils.instant(13, 1);
+            mgr.startUserTransaction(t1, state);
+        }
+        verify(diskWriter, never()).appendAsync(any());
+    }
+
     private static State requireNonNullState(final State state) {
         assertNotNull(state);
         return state;

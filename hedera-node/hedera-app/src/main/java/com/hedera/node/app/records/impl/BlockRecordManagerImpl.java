@@ -212,6 +212,29 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
                 && platformState.freezeTimeOrThrow().equals(platformState.lastFrozenTime());
     }
 
+    @Override
+    public void flushWrappedRecordFileBlockHashesIfPossible() {
+        if (!writeWrappedRecordFileBlockHashesToDisk) {
+            return;
+        }
+        try {
+            // Treat the current in-progress block as "just finished" for purposes of persisting wrapped hashes.
+            final var currentBlockNumber = lastBlockInfo.lastBlockNumber() + 1;
+            final var blockCreationTime = lastBlockInfo.firstConsTimeOfCurrentBlock();
+            if (blockCreationTime == null) {
+                logger.info(
+                        "Skipping wrapped record-file block hashes flush for block {} because firstConsTimeOfCurrentBlock is null",
+                        currentBlockNumber);
+                return;
+            }
+            appendWrappedRecordFileBlockHashesToDisk(
+                    currentBlockNumber, blockCreationTime, streamFileProducer.getRunningHash());
+        } catch (final Exception e) {
+            // Best-effort only; must never take down the node.
+            logger.warn("Failed to flush wrapped record-file block hashes on orderly shutdown", e);
+        }
+    }
+
     /**
      * {@inheritDoc}
      */
@@ -261,6 +284,26 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
             final var lastBlockHashBytes = streamFileProducer.getRunningHash();
             final var justFinishedBlockNumber = lastBlockInfo.lastBlockNumber() + 1;
             if (writeWrappedRecordFileBlockHashesToDisk) {
+                if (logger.isInfoEnabled()) {
+                    logger.info(
+                            "Closing record block {} due to {}{} (currentPeriod={}, newPeriod={}); "
+                                    + "BlockInfo{lastBlockNumber={}, firstConsTimeOfCurrentBlock={}, consTimeOfLastHandledTxn={}}; "
+                                    + "inMemory{startRunningHashSet={}, recordItems={}, sidecars={}}; runningHashLen={}",
+                            justFinishedBlockNumber,
+                            (newBlockPeriod > currentBlockPeriod ? "period boundary" : ""),
+                            (isFirstTransactionAfterFreezeRestart
+                                    ? (newBlockPeriod > currentBlockPeriod ? " + freeze restart" : "freeze restart")
+                                    : ""),
+                            currentBlockPeriod,
+                            newBlockPeriod,
+                            lastBlockInfo.lastBlockNumber(),
+                            lastBlockInfo.firstConsTimeOfCurrentBlock(),
+                            lastBlockInfo.consTimeOfLastHandledTxn(),
+                            currentBlockStartRunningHash != null,
+                            currentBlockRecordStreamItems.size(),
+                            currentBlockSidecarRecords.size(),
+                            lastBlockHashBytes == null ? -1 : lastBlockHashBytes.length());
+                }
                 // Capture the just-finished record block's creation time before updating lastBlockInfo
                 final var justFinishedBlockCreationTime = lastBlockInfo.firstConsTimeOfCurrentBlockOrThrow();
                 appendWrappedRecordFileBlockHashesToDisk(
@@ -380,6 +423,35 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
             final long justFinishedBlockNumber,
             @NonNull final Timestamp justFinishedBlockCreationTime,
             @NonNull final Bytes endRunningHash) {
+        if (currentBlockStartRunningHash == null) {
+            logger.warn(
+                    "Skipping wrapped record-file block hashes append for block {} because startRunningHash is not initialized; "
+                            + "BlockInfo{lastBlockNumber={}, firstConsTimeOfCurrentBlock={}, consTimeOfLastHandledTxn={}}; "
+                            + "inMemory{recordItems={}, sidecars={}}; endRunningHashLen={}",
+                    justFinishedBlockNumber,
+                    lastBlockInfo.lastBlockNumber(),
+                    lastBlockInfo.firstConsTimeOfCurrentBlock(),
+                    lastBlockInfo.consTimeOfLastHandledTxn(),
+                    currentBlockRecordStreamItems.size(),
+                    currentBlockSidecarRecords.size(),
+                    endRunningHash.length());
+            return;
+        }
+        if (currentBlockRecordStreamItems.isEmpty()) {
+            logger.info(
+                    "Skipping wrapped record-file block hashes append for block {} because no record stream items were captured in memory; "
+                            + "BlockInfo{lastBlockNumber={}, firstConsTimeOfCurrentBlock={}, consTimeOfLastHandledTxn={}}; "
+                            + "inMemory{startRunningHashLen={}, sidecars={}}; endRunningHashLen={}. "
+                            + "This can happen on restart/upgrade if a new block was opened but its first txn was never handled before shutdown.",
+                    justFinishedBlockNumber,
+                    lastBlockInfo.lastBlockNumber(),
+                    lastBlockInfo.firstConsTimeOfCurrentBlock(),
+                    lastBlockInfo.consTimeOfLastHandledTxn(),
+                    currentBlockStartRunningHash.length(),
+                    currentBlockSidecarRecords.size(),
+                    endRunningHash.length());
+            return;
+        }
         final var cfg = configProvider.getConfiguration();
         final var cfgServicesVersion = cfg.getConfigData(VersionConfig.class).servicesVersion();
         final var cfgConfigVersion = cfg.getConfigData(HederaConfig.class).configVersion();
@@ -391,8 +463,8 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
                 justFinishedBlockNumber,
                 justFinishedBlockCreationTime,
                 hapiProtoVersion,
-                requireNonNull(currentBlockStartRunningHash),
-                requireNonNull(endRunningHash),
+                currentBlockStartRunningHash,
+                endRunningHash,
                 List.copyOf(currentBlockRecordStreamItems),
                 List.copyOf(currentBlockSidecarRecords),
                 maxSideCarSizeInBytes);

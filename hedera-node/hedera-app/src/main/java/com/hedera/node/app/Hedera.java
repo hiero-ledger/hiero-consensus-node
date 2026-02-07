@@ -656,6 +656,13 @@ public final class Hedera
             case FREEZE_COMPLETE -> {
                 logger.info("Platform status is now FREEZE_COMPLETE");
                 shutdownGrpcServer();
+                // Before closing record streams, best-effort flush the wrapped record-file block hashes for the
+                // current in-progress record block. Without this, a freeze upgrade can shut down the node after the
+                // record file has been written, but before the wrapped-hash append would have been triggered by a
+                // subsequent transaction.
+                if (daggerApp != null) {
+                    daggerApp.blockRecordManager().flushWrappedRecordFileBlockHashesIfPossible();
+                }
                 closeRecordStreams();
                 if (streamToBlockNodes && isNotEmbedded()) {
                     logger.info("FREEZE_COMPLETE - Shutting down connections to Block Nodes");
