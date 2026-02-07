@@ -480,10 +480,12 @@ public class CryptoServiceFeesSuite {
                         .via(nftXferTxn),
                 cryptoTransfer(moving(1, fungibleTokenWithCustomFee).between(nonTreasurySender, RECEIVER))
                         .blankMemo()
+                        .fee(10 * ONE_HBAR)
                         .payingWith(nonTreasurySender)
                         .via(htsXferTxnWithCustomFee),
                 cryptoTransfer(movingUnique(nonFungibleTokenWithCustomFee, 1).between(nonTreasurySender, RECEIVER))
                         .blankMemo()
+                        .fee(10 * ONE_HBAR)
                         .payingWith(nonTreasurySender)
                         .via(nftXferTxnWithCustomFee),
                 validateChargedUsdWithin(hbarXferTxn, BASE_FEE_HBAR_CRYPTO_TRANSFER, 1),
