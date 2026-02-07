@@ -198,6 +198,43 @@ public class EventCreatorLatencyBenchmark {
      *
      * @return the created event (returned to prevent dead-code elimination)
      */
+    /*
+    Results on a M3 Max MacBook Pro:
+
+    Benchmark                                         (numNodes)  (seed)   (signingType)    Mode     Cnt       Score   Error  Units
+    EventCreatorLatencyBenchmark.createEvent                    4       0          RSA_BC  sample   12018    2077.224 ± 5.473  us/op
+    EventCreatorLatencyBenchmark.createEvent:p0.50              4       0          RSA_BC  sample            2019.328          us/op
+    EventCreatorLatencyBenchmark.createEvent:p0.99              4       0          RSA_BC  sample            2514.944          us/op
+    EventCreatorLatencyBenchmark.createEvent:p0.999             4       0          RSA_BC  sample            3682.226          us/op
+    EventCreatorLatencyBenchmark.createEvent                    4       0         RSA_JDK  sample   12806    1948.240 ± 3.484  us/op
+    EventCreatorLatencyBenchmark.createEvent:p0.50              4       0         RSA_JDK  sample            1927.168          us/op
+    EventCreatorLatencyBenchmark.createEvent:p0.99              4       0         RSA_JDK  sample            2158.592          us/op
+    EventCreatorLatencyBenchmark.createEvent:p0.999             4       0         RSA_JDK  sample            3608.076          us/op
+    EventCreatorLatencyBenchmark.createEvent                    4       0  ED25519_SODIUM  sample  769052      13.942 ± 0.762  us/op
+    EventCreatorLatencyBenchmark.createEvent:p0.50              4       0  ED25519_SODIUM  sample              12.992          us/op
+    EventCreatorLatencyBenchmark.createEvent:p0.99              4       0  ED25519_SODIUM  sample              17.888          us/op
+    EventCreatorLatencyBenchmark.createEvent:p0.999             4       0  ED25519_SODIUM  sample              46.016          us/op
+    EventCreatorLatencyBenchmark.createEvent                    4       0     ED25519_SUN  sample   66261     374.331 ± 0.817  us/op
+    EventCreatorLatencyBenchmark.createEvent:p0.50              4       0     ED25519_SUN  sample             369.664          us/op
+    EventCreatorLatencyBenchmark.createEvent:p0.99              4       0     ED25519_SUN  sample             417.987          us/op
+    EventCreatorLatencyBenchmark.createEvent:p0.999             4       0     ED25519_SUN  sample             462.068          us/op
+    EventCreatorLatencyBenchmark.createEvent                   40       0          RSA_BC  sample   12098    2020.314 ± 3.760  us/op
+    EventCreatorLatencyBenchmark.createEvent:p0.50             40       0          RSA_BC  sample            2000.896          us/op
+    EventCreatorLatencyBenchmark.createEvent:p0.99             40       0          RSA_BC  sample            2232.320          us/op
+    EventCreatorLatencyBenchmark.createEvent:p0.999            40       0          RSA_BC  sample            4747.305          us/op
+    EventCreatorLatencyBenchmark.createEvent                   40       0         RSA_JDK  sample   12596    1941.938 ± 3.514  us/op
+    EventCreatorLatencyBenchmark.createEvent:p0.50             40       0         RSA_JDK  sample            1925.120          us/op
+    EventCreatorLatencyBenchmark.createEvent:p0.99             40       0         RSA_JDK  sample            2154.496          us/op
+    EventCreatorLatencyBenchmark.createEvent:p0.999            40       0         RSA_JDK  sample            4667.974          us/op
+    EventCreatorLatencyBenchmark.createEvent                   40       0  ED25519_SODIUM  sample  526655      14.373 ± 0.007  us/op
+    EventCreatorLatencyBenchmark.createEvent:p0.50             40       0  ED25519_SODIUM  sample              14.000          us/op
+    EventCreatorLatencyBenchmark.createEvent:p0.99             40       0  ED25519_SODIUM  sample              18.528          us/op
+    EventCreatorLatencyBenchmark.createEvent:p0.999            40       0  ED25519_SODIUM  sample              27.392          us/op
+    EventCreatorLatencyBenchmark.createEvent                   40       0     ED25519_SUN  sample   60165     375.903 ± 1.119  us/op
+    EventCreatorLatencyBenchmark.createEvent:p0.50             40       0     ED25519_SUN  sample             370.688          us/op
+    EventCreatorLatencyBenchmark.createEvent:p0.99             40       0     ED25519_SUN  sample             424.110          us/op
+    EventCreatorLatencyBenchmark.createEvent:p0.999            40       0     ED25519_SUN  sample             477.611          us/op
+    */
     @Benchmark
     @BenchmarkMode(Mode.SampleTime)
     @OutputTimeUnit(TimeUnit.MICROSECONDS)
