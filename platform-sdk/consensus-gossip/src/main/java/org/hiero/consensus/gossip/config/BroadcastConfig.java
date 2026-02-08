@@ -17,10 +17,12 @@ import java.time.Duration;
  *                                     Therefore we leave sync to manage it temporarily.
  * @param pauseOnLag                   amount of time for which broadcast will be paused if communication overload is
  *                                     detected
+ * @param rpcSleepAfterSyncWhileBroadcasting Override for {@link SyncConfig#rpcSleepAfterSync()} when broadcast is running.
  */
 @ConfigData("broadcast")
 public record BroadcastConfig(
         @ConfigProperty(defaultValue = "false") boolean enableBroadcast,
         @ConfigProperty(defaultValue = "900ms") Duration disablePingThreshold,
         @ConfigProperty(defaultValue = "200") int throttleOutputQueueThreshold,
-        @ConfigProperty(defaultValue = "30s") Duration pauseOnLag) {}
+        @ConfigProperty(defaultValue = "30s") Duration pauseOnLag,
+        @ConfigProperty(defaultValue = "100ms") Duration rpcSleepAfterSyncWhileBroadcasting) {}

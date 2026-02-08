@@ -36,8 +36,8 @@ import org.hiero.consensus.monitoring.FallenBehindStatus;
 
 /**
  * Conversation logic for an RPC exchange between two nodes. At this moment mostly concerned with performing a sync,
- * using {@link ShadowgraphSynchronizer}, but in the future, it can extend to handle more responsibilities. Most of
- * its internal state was externalized to {@link RpcPeerState} for clarity.
+ * using {@link ShadowgraphSynchronizer}, but in the future, it can extend to handle more responsibilities. Most of its
+ * internal state was externalized to {@link RpcPeerState} for clarity.
  */
 public class RpcPeerHandler implements GossipRpcReceiverHandler {
 
@@ -507,7 +507,11 @@ public class RpcPeerHandler implements GossipRpcReceiverHandler {
      */
     private boolean isSyncCooldownComplete() {
         final Duration elapsed = Duration.between(state.lastSyncFinishedTime, this.time.now());
-        return isGreaterThanOrEqualTo(elapsed, syncConfig.rpcSleepAfterSync());
+        return isGreaterThanOrEqualTo(
+                elapsed,
+                isBroadcastRunning()
+                        ? broadcastConfig.rpcSleepAfterSyncWhileBroadcasting()
+                        : syncConfig.rpcSleepAfterSync());
     }
 
     /**
