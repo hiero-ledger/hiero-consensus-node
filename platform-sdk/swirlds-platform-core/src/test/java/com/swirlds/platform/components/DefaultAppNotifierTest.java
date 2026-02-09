@@ -24,7 +24,6 @@ import com.swirlds.platform.system.state.notifications.StateHashedNotification;
 import com.swirlds.state.merkle.VirtualMapState;
 import java.time.Instant;
 import java.util.List;
-import org.hiero.base.concurrent.futures.StandardFuture.CompletionCallback;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.notification.IssNotification;

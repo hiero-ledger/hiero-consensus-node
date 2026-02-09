@@ -179,8 +179,8 @@ public class PlatformWiring {
                 .solderTo(components.stateSnapshotManagerWiring().getInputWire(StateSnapshotManager::saveStateTask));
 
         // Filter to complete states only
-        final OutputWire<ReservedSignedState> completeReservedSignedStatesWire = allReservedSignedStatesWire
-                .buildFilter("completeStateFilter", "states", rs -> {
+        final OutputWire<ReservedSignedState> completeReservedSignedStatesWire =
+                allReservedSignedStatesWire.buildFilter("completeStateFilter", "states", rs -> {
                     if (rs.get().isComplete()) {
                         return true;
                     } else {
