@@ -39,7 +39,6 @@ module com.hedera.state.validator {
     requires org.hiero.base.concurrent;
     requires org.hiero.base.crypto;
     requires org.hiero.base.utility;
-    requires org.hiero.consensus.concurrent;
     requires org.hiero.consensus.metrics;
     requires org.hiero.consensus.model;
     requires org.hiero.consensus.pces;
@@ -50,8 +49,4 @@ module com.hedera.state.validator {
     requires com.github.spotbugs.annotations;
     requires info.picocli;
     requires org.apache.logging.log4j;
-    requires org.junit.jupiter.api;
-    requires org.junit.platform.commons;
-    requires org.junit.platform.engine;
-    requires org.junit.platform.launcher;
 }
