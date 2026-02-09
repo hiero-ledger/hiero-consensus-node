@@ -2,8 +2,8 @@
 package com.hedera.node.app.metrics;
 
 import com.hedera.node.app.spi.metrics.StoreMetricsService;
+import com.hedera.node.app.spi.store.StoreMetrics;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.state.spi.metrics.StoreMetrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.EnumMap;
 import java.util.Map;

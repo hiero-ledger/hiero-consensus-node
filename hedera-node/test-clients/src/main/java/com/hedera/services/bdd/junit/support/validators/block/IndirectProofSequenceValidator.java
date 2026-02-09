@@ -24,7 +24,7 @@ import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.node.app.blocks.impl.BlockImplUtils;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.utility.Pair;
-import com.swirlds.state.SiblingHash;
+import com.swirlds.state.binary.SiblingHash;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Arrays;
@@ -505,8 +505,7 @@ class IndirectProofSequenceValidator {
         final var allSiblings = mp2.siblings();
         var hash = mp2.hashOrThrow();
         var sibPerBlockCounter = 0;
-        for (int i = 0; i < allSiblings.size(); i++) {
-            final var sibling = allSiblings.get(i);
+        for (final SiblingNode sibling : allSiblings) {
             sibPerBlockCounter++;
             if (sibPerBlockCounter == UNSIGNED_BLOCK_SIBLING_COUNT) {
                 // Since this node has no siblings (this is expected), hash the current node as a single-node child

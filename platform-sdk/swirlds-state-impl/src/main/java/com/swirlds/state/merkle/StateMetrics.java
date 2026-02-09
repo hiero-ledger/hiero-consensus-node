@@ -11,7 +11,7 @@ import org.hiero.consensus.metrics.RunningAverageMetric;
 /**
  * Collection of metrics related to the state lifecycle
  */
-public class StateMetrics {
+class StateMetrics {
 
     private static final RunningAverageMetric.Config AVG_STATE_COPY_MICROS_CONFIG = new RunningAverageMetric.Config(
                     INTERNAL_CATEGORY, "stateCopyMicros")
