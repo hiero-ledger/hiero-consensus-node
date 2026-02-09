@@ -175,6 +175,9 @@ public class WrappedRecordFileBlockHashesDiskWriter implements AutoCloseable {
         try {
             final var allBytes = Files.readAllBytes(file);
             if (allBytes.length == 0) {
+                blockStreamMetrics.recordWrappedRecordHashesLowestBlock(-1);
+                blockStreamMetrics.recordWrappedRecordHashesHighestBlock(-1);
+                blockStreamMetrics.recordWrappedRecordHashesHasGaps(false);
                 return;
             }
 
@@ -191,6 +194,21 @@ public class WrappedRecordFileBlockHashesDiskWriter implements AutoCloseable {
             }
         } catch (final Exception e) {
             logger.error("Failed to scan existing wrapped record hashes file {}", file, e);
+            // If we cannot parse the existing file, treat it as corrupt and recreate it empty so subsequent appends
+            // can proceed. This is best-effort and must not prevent node startup.
+            try {
+                index.reset();
+                Files.createDirectories(dir);
+                try (final var ignored = Files.newOutputStream(
+                        file,
+                        StandardOpenOption.CREATE,
+                        StandardOpenOption.TRUNCATE_EXISTING,
+                        StandardOpenOption.WRITE)) {
+                    // Intentionally empty; truncates/creates file.
+                }
+            } catch (final Exception ex) {
+                logger.warn("Failed to recreate corrupt wrapped record hashes file {} as empty", file, ex);
+            }
         }
 
         // If there are already gaps in the file, log them once at startup and remember we logged them.

@@ -31,6 +31,13 @@ final class WrappedRecordHashesIndex {
         return intervals.size() > 1;
     }
 
+    void reset() {
+        lowest = -1;
+        highest = -1;
+        intervals.clear();
+        loggedGaps.clear();
+    }
+
     /**
      * Returns {@code true} if the given block number is already present in this index.
      */

@@ -28,6 +28,45 @@ class WrappedRecordFileBlockHashesDiskWriterTest extends AppTestBase {
     Path tmpDir;
 
     @Test
+    void truncatesCorruptExistingFileOnInit() throws IOException, ParseException {
+        final var app = appBuilder()
+                .withConfigValue("hedera.recordStream.wrappedRecordHashesDir", tmpDir.toString())
+                .withConfigValue("hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk", true)
+                .build();
+
+        // Seed a corrupt file that cannot be parsed
+        final var file = tmpDir.resolve(FILE_NAME);
+        Files.createDirectories(tmpDir);
+        Files.write(file, new byte[] {0x01, 0x02, 0x03});
+
+        try (final var writer = new WrappedRecordFileBlockHashesDiskWriter(
+                app.configProvider(), java.nio.file.FileSystems.getDefault(), mock(BlockStreamMetrics.class))) {
+            final var ts0 = new Timestamp(10, 1);
+            final var item0 = new RecordStreamItem(
+                    com.hedera.hapi.node.base.Transaction.DEFAULT,
+                    TransactionRecord.newBuilder().consensusTimestamp(ts0).build());
+
+            final var in0 = new WrappedRecordFileBlockHashesComputationInput(
+                    0,
+                    ts0,
+                    SemanticVersion.DEFAULT,
+                    Bytes.wrap(new byte[48]),
+                    Bytes.wrap(new byte[48]),
+                    List.of(item0),
+                    List.of(),
+                    1024 * 1024);
+
+            // Should succeed even though the existing file was corrupt
+            writer.appendAsync(in0).join();
+
+            final var allBytes = Files.readAllBytes(file);
+            final WrappedRecordFileBlockHashesLog log = WrappedRecordFileBlockHashesLog.PROTOBUF.parse(
+                    Bytes.wrap(allBytes).toReadableSequentialData(), false, false, 64, allBytes.length);
+            assertEquals(1, log.entries().size(), "Expected corrupt file to be truncated and rewritten");
+        }
+    }
+
+    @Test
     void appendsRepeatedFieldOccurrencesThatParseBack() throws IOException, ParseException {
         final var app = appBuilder()
                 .withConfigValue("hedera.recordStream.wrappedRecordHashesDir", tmpDir.toString())
