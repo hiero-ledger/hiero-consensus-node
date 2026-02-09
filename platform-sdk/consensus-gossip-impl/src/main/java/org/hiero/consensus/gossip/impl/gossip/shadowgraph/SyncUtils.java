@@ -129,7 +129,7 @@ public final class SyncUtils {
      * @param connection           the connection to write to
      * @param theirTipsIHave       for each tip they sent me, write true if I have it, false otherwise. Order
      *                             corresponds to the order in which they sent me their tips.
-     * @param ignoreIncomingEvents
+     * @param ignoreIncomingEvents should remote side stop sending events
      * @return a {@link Callable} that writes the booleans
      */
     public static ThrowingRunnable writeTheirTipsIHave(
@@ -382,23 +382,36 @@ public final class SyncUtils {
      * have and that are unlikely to end up being duplicate events.
      *
      * <p>
-     * General principles:
+     * General principles if broadcast is disabled:
      * <ul>
      * <li>Always send self events right away.</li>
      * <li>Don't send non-ancestors of self events unless we've known about that event for a long time.</li>
      * </ul>
      *
-     * @param selfId               the id of this node
-     * @param nonAncestorThreshold for each event that is not a self event and is not an ancestor of a self event, the
-     *                             amount of time the event must be known about before it is eligible to be sent
-     * @param now                  the current time
-     * @param eventsTheyNeed       the list of events we think they need, expected to be in topological order
+     * <p>
+     * General principles if broadcast is enabled:
+     * <ul>
+     * <li>Don't send ancestors of self events created by other nodes for short amount of time</li>
+     * <li>Don't send non-ancestors of self events or self events themselves unless we've known about that event for a long time.</li>
+     * </ul>
+     *
+     * @param selfId                  the id of this node
+     * @param nonAncestorThreshold    for each event that is not a self event and is not an ancestor of a self event,
+     *                                the amount of time the event must be known about before it is eligible to be sent
+     * @param ancestorFilterThreshold for each event that is not a self event and is an ancestor of a self event, the
+     *                                amount of time the event must be known about before it is eligible to be sent
+     * @param selfFilterThreshold     for each event that is a self event the amount of time the event must be known
+     *                                about before it is eligible to be sent
+     * @param now                     the current time
+     * @param eventsTheyNeed          the list of events we think they need, expected to be in topological order
      * @return the events that should be actually sent, will be a subset of the eventsTheyNeed list
      */
     @NonNull
     public static List<PlatformEvent> filterLikelyDuplicates(
             @NonNull final NodeId selfId,
             @NonNull final Duration nonAncestorThreshold,
+            @NonNull final Duration ancestorFilterThreshold,
+            @NonNull final Duration selfFilterThreshold,
             @NonNull final Instant now,
             @NonNull final List<PlatformEvent> eventsTheyNeed) {
 
@@ -413,27 +426,39 @@ public final class SyncUtils {
         for (int index = eventsTheyNeed.size() - 1; index >= 0; index--) {
             final PlatformEvent event = eventsTheyNeed.get(index);
 
-            final boolean sendEvent =
-                    // Always send self events
-                    event.getCreatorId().equals(selfId)
-                            ||
-                            // Always send parents of other events we plan to send
-                            parentHashesOfEventsToSend.contains(event.getHash())
-                            ||
-                            // Send all other events if we've known about it for long enough
-                            haveWeKnownAboutEventForALongTime(event, nonAncestorThreshold, now);
+            // if it is related to self event or its parent, use shorter time limit
+            // in particular, if broadcast is disabled, that limit will be zero, so all self events and their recursive
+            // parents will be sent immediately
+            final Duration needsToBeAtLeastThatOld;
+            final boolean alwaysRecurse;
+            if (event.getCreatorId().equals(selfId)) {
+                needsToBeAtLeastThatOld = selfFilterThreshold;
+                alwaysRecurse = true;
+            } else if (parentHashesOfEventsToSend.contains(event.getHash())) {
+                needsToBeAtLeastThatOld = ancestorFilterThreshold;
+                alwaysRecurse = true;
+            } else {
+                needsToBeAtLeastThatOld = nonAncestorThreshold;
+                alwaysRecurse = false;
+            }
+
+            final boolean sendEvent = haveWeKnownAboutEventForALongTime(event, needsToBeAtLeastThatOld, now);
 
             if (sendEvent) {
-                // If we've decided to send an event, we also want to send its parents if those parents are needed
-                // by the peer.
                 filteredList.addFirst(event);
+            }
+
+            // we want to have a chance of iterating parents of events we are potentially sending, even if particular
+            // one won't be ultimately sent due to not fitting in time range
+            // this is to cover situation where limit for self events is bigger than for their parents for example
+            if (sendEvent || alwaysRecurse) {
                 for (final EventDescriptorWrapper otherParent : event.getAllParents()) {
                     parentHashesOfEventsToSend.add(otherParent.hash());
                 }
             }
         }
 
-        return filteredList;
+        return filteredList.stream().toList();
     }
 
     /**
