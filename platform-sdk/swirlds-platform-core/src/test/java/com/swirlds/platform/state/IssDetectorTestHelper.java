@@ -3,7 +3,6 @@ package com.swirlds.platform.state;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.platform.state.iss.IssDetector;
-import com.swirlds.platform.state.signed.ReservedSignedState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
@@ -12,6 +11,7 @@ import java.util.List;
 import java.util.Objects;
 import org.hiero.consensus.model.notification.IssNotification;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
+import org.hiero.consensus.state.signed.ReservedSignedState;
 
 /**
  * A helper class for testing the {@link com.swirlds.platform.state.iss.IssDetector}.
