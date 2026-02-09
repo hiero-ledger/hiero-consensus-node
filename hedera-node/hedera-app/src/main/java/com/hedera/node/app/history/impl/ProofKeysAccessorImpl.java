@@ -78,10 +78,10 @@ public class ProofKeysAccessorImpl
          * @return the instance
          */
         public static SchnorrKeyPair fromDelimited(@NonNull final byte[] bytes) {
-            final var m = bytes[0];
+            final var m = bytes[0] & 0xFF;
             final var privateKey = new byte[m];
             System.arraycopy(bytes, 1, privateKey, 0, m);
-            final var n = bytes[m + 1];
+            final var n = bytes[m + 1] & 0xFF;
             final var publicKey = new byte[n];
             System.arraycopy(bytes, m + 2, publicKey, 0, n);
             return new SchnorrKeyPair(Bytes.wrap(privateKey), Bytes.wrap(publicKey));

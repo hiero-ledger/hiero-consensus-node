@@ -2,8 +2,8 @@
 package com.hedera.node.app.history.impl;
 
 import static com.hedera.hapi.util.HapiUtils.asInstant;
+import static com.hedera.node.app.history.HistoryService.isCompleted;
 import static com.hedera.node.app.history.impl.ProofControllers.isWrapsExtensible;
-import static java.util.Collections.emptyMap;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.groupingBy;
 import static java.util.stream.Collectors.summingLong;
@@ -48,7 +48,6 @@ public class ProofControllerImpl implements ProofController {
     private final HistoryService historyService;
     private final HistorySubmissions submissions;
     private final RosterTransitionWeights weights;
-    private final Map<Long, Bytes> sourceProofKeys;
     private final Map<Long, HistoryProofVote> votes = new TreeMap<>();
     private final Map<Long, Bytes> targetProofKeys = new TreeMap<>();
 
@@ -106,7 +105,7 @@ public class ProofControllerImpl implements ProofController {
             });
             // At genesis there is no source proof, so we verify signatures with the target proof keys of
             // the current construction; in the recursive case we use the target keys from the source proof
-            this.sourceProofKeys = sourceProof == null
+            final var sourceProofKeys = sourceProof == null
                     ? targetProofKeys
                     : sourceProof.targetProofKeys().stream().collect(toMap(ProofKey::nodeId, ProofKey::key));
             this.prover = proverFactory.create(
@@ -121,8 +120,6 @@ public class ProofControllerImpl implements ProofController {
                     submissions);
             wrapsMessagePublications.stream().sorted().forEach(publication -> requireNonNull(prover)
                     .replayWrapsSigningMessage(constructionId(), publication));
-        } else {
-            this.sourceProofKeys = emptyMap();
         }
     }
 
@@ -132,8 +129,12 @@ public class ProofControllerImpl implements ProofController {
     }
 
     @Override
-    public boolean isStillInProgress() {
-        return !construction.hasTargetProof() && !construction.hasFailureReason();
+    public boolean isStillInProgress(@NonNull final TssConfig tssConfig) {
+        requireNonNull(tssConfig);
+        if (construction.hasFailureReason()) {
+            return false;
+        }
+        return !isCompleted(construction, tssConfig);
     }
 
     @Override
@@ -146,7 +147,7 @@ public class ProofControllerImpl implements ProofController {
         requireNonNull(now);
         requireNonNull(historyStore);
         requireNonNull(tssConfig);
-        if (construction.hasTargetProof() || construction.hasFailureReason()) {
+        if (!isStillInProgress(tssConfig)) {
             return;
         }
         // Still waiting for the hinTS verification key
@@ -156,8 +157,11 @@ public class ProofControllerImpl implements ProofController {
             }
             return;
         }
-        // Have the hinTS verification key, but not yet assembling the history or computing the WRAPS proof
-        if (!construction.hasAssemblyStartTime() && !construction.hasWrapsSigningState()) {
+        // Have the hinTS verification key, but not yet assembling the history
+        // or computing the WRAPS proof (genesis or incremental)
+        if (!construction.hasTargetProof()
+                && !construction.hasAssemblyStartTime()
+                && !construction.hasWrapsSigningState()) {
             if (shouldAssemble(now)) {
                 log.info("Assembly start time for construction #{} is {}", construction.constructionId(), now);
                 construction = historyStore.setAssemblyTime(construction.constructionId(), now);
@@ -166,7 +170,7 @@ public class ProofControllerImpl implements ProofController {
             }
             return;
         }
-        // Cannot make progress on proof without an active network
+        // Cannot make progress on anything without an active network
         if (!isActive) {
             return;
         }

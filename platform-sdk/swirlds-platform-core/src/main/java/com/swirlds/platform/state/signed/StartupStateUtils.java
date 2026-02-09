@@ -20,8 +20,8 @@ import com.swirlds.platform.internal.SignedStateLoadingException;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.platform.state.snapshot.SavedStateInfo;
 import com.swirlds.platform.state.snapshot.SignedStateFilePath;
-import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.StateLifecycleManager;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -66,7 +66,7 @@ public final class StartupStateUtils {
             @NonNull final String swirldName,
             @NonNull final SemanticVersion currentSoftwareVersion,
             @NonNull final PlatformContext platformContext,
-            @NonNull final StateLifecycleManager stateLifecycleManager) {
+            @NonNull final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager) {
 
         final Configuration config = platformContext.getConfiguration();
         final StateConfig stateConfig = config.getConfigData(StateConfig.class);
@@ -99,7 +99,7 @@ public final class StartupStateUtils {
         requireNonNull(platformContext.getConfiguration());
         requireNonNull(initialSignedState);
 
-        final MerkleNodeState stateCopy = initialSignedState.getState().copy();
+        final VirtualMapState stateCopy = initialSignedState.getState().copy();
         final SignedState signedStateCopy = new SignedState(
                 platformContext.getConfiguration(),
                 ConsensusCryptoUtils::verifySignature,
@@ -147,7 +147,7 @@ public final class StartupStateUtils {
             @NonNull final SemanticVersion currentSoftwareVersion,
             @NonNull final List<SavedStateInfo> savedStateList,
             @NonNull final PlatformContext platformContext,
-            @NonNull final StateLifecycleManager stateLifecycleManager)
+            @NonNull final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager)
             throws SignedStateLoadingException {
 
         logger.info(STARTUP.getMarker(), "Loading latest state from disk.");
@@ -179,7 +179,7 @@ public final class StartupStateUtils {
             @NonNull final SemanticVersion currentSoftwareVersion,
             @NonNull final SavedStateInfo savedStateInfo,
             @NonNull final PlatformContext platformContext,
-            @NonNull final StateLifecycleManager stateLifecycleManager)
+            @NonNull final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager)
             throws SignedStateLoadingException {
 
         logger.info(STARTUP.getMarker(), "Loading signed state from disk: {}", savedStateInfo.stateDirectory());
@@ -201,11 +201,11 @@ public final class StartupStateUtils {
             }
         }
 
-        final MerkleNodeState<VirtualMap> state =
+        final VirtualMapState state =
                 deserializedSignedState.reservedSignedState().get().getState();
 
         final Hash oldHash = deserializedSignedState.originalHash();
-        final Hash newHash = state.getRoot().getHash();
+        final Hash newHash = state.getHash();
 
         final SemanticVersion loadedVersion = creationSoftwareVersionOf(state);
 
@@ -265,12 +265,12 @@ public final class StartupStateUtils {
     public static HashedReservedSignedState loadInitialState(
             @NonNull final RecycleBin recycleBin,
             @NonNull final SemanticVersion softwareVersion,
-            @NonNull final Supplier<MerkleNodeState> stateRootSupplier,
+            @NonNull final Supplier<VirtualMapState> stateRootSupplier,
             @NonNull final String mainClassName,
             @NonNull final String swirldName,
             @NonNull final NodeId selfId,
             @NonNull final PlatformContext platformContext,
-            @NonNull final StateLifecycleManager stateLifecycleManager) {
+            @NonNull final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager) {
         final var loadedState = loadStateFile(
                 recycleBin, selfId, mainClassName, swirldName, softwareVersion, platformContext, stateLifecycleManager);
         try (loadedState) {

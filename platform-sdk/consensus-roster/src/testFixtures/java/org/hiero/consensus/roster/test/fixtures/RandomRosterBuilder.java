@@ -107,6 +107,21 @@ public class RandomRosterBuilder {
     }
 
     /**
+     * Builds the roster and returns it together with the cryptographic keys for each node. Requires
+     * {@link #withRealKeysEnabled(boolean)} to have been set to {@code true}.
+     *
+     * @return the roster bundled with its cryptographic keys
+     * @throws IllegalStateException if real keys are not enabled
+     */
+    public RosterWithKeys buildWithKeys() {
+        if (!realKeys) {
+            throw new IllegalStateException("Cannot build roster with keys when real keys are not enabled");
+        }
+        final Roster roster = build();
+        return new RosterWithKeys(roster, privateKeys);
+    }
+
+    /**
      * Set the size of the roster.
      *
      * @return this object
@@ -161,25 +176,6 @@ public class RandomRosterBuilder {
     public RandomRosterBuilder withRealKeysEnabled(final boolean realKeysEnabled) {
         this.realKeys = realKeysEnabled;
         return this;
-    }
-
-    /**
-     * Get the private keys for a node. Should only be called after the roster has been built and only if
-     * {@link #withRealKeysEnabled(boolean)} was set to true.
-     *
-     * @param nodeId the node id
-     * @return the private keys
-     * @throws IllegalStateException if real keys are not being generated or the roster has not been built
-     */
-    @NonNull
-    public KeysAndCerts getPrivateKeys(@NonNull final NodeId nodeId) {
-        if (!realKeys) {
-            throw new IllegalStateException("Real keys are not being generated");
-        }
-        if (!privateKeys.containsKey(nodeId)) {
-            throw new IllegalStateException("Unknown node ID " + nodeId);
-        }
-        return privateKeys.get(nodeId);
     }
 
     /**

@@ -12,6 +12,7 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
+import com.hedera.node.config.data.TssConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -45,7 +46,8 @@ public class HistoryProofVoteHandler implements TransactionHandler {
         final var op = context.body().historyProofVoteOrThrow();
         final long constructionId = op.constructionId();
         final var vote = op.voteOrElse(HistoryProofVote.DEFAULT);
-        controllers.getInProgressById(constructionId).ifPresent(controller -> {
+        final var tssConfig = context.configuration().getConfigData(TssConfig.class);
+        controllers.getInProgressById(constructionId, tssConfig).ifPresent(controller -> {
             final long nodeId = context.creatorInfo().nodeId();
             final var historyStore = context.storeFactory().writableStore(WritableHistoryStore.class);
             log.info(
