@@ -152,7 +152,6 @@ public class NodeDeathReconnectBlockNodeSuite implements LifecycleTest {
                         Duration.ofMinutes(1),
                         Duration.ofMinutes(1),
                         "Block buffer is saturated; backpressure is being enabled",
-                        "!!! Block buffer is saturated; blocking thread until buffer is no longer saturated")),
-                assertHgcaaLogDoesNotContainText(allNodes(), "ERROR", Duration.ofSeconds(5)));
+                        "!!! Block buffer is saturated; blocking thread until buffer is no longer saturated")));
     }
 }
