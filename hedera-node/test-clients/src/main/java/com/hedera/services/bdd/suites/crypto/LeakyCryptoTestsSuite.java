@@ -50,7 +50,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingTwo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.CIVILIAN_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
@@ -77,6 +76,8 @@ import static com.hedera.services.bdd.suites.crypto.CryptoApproveAllowanceSuite.
 import static com.hedera.services.bdd.suites.crypto.CryptoApproveAllowanceSuite.SPENDER;
 import static com.hedera.services.bdd.suites.crypto.CryptoApproveAllowanceSuite.THIRD_SPENDER;
 import static com.hedera.services.bdd.suites.file.FileUpdateSuite.CIVILIAN;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateFees;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_UPDATE_FEE;
 import static com.hedera.services.bdd.suites.token.TokenTransactSpecs.SUPPLY_KEY;
 import static com.hedera.services.bdd.suites.token.TokenTransactSpecs.TRANSFER_TXN;
 import static com.hedera.services.bdd.suites.token.TokenTransactSpecs.UNIQUE;
@@ -180,7 +181,7 @@ public class LeakyCryptoTestsSuite {
                         .payingWith(shortLivedAutoAssocUser)
                         .maxAutomaticAssociations(10)
                         .via(updateWithExpiredAccount),
-                validateChargedUsd(updateWithExpiredAccount, baseFee, 5));
+                validateFees(updateWithExpiredAccount, baseFee, CRYPTO_UPDATE_FEE));
     }
 
     @RepeatableHapiTest(NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW)
@@ -466,12 +467,14 @@ public class LeakyCryptoTestsSuite {
     }
 
     @HapiTest
+    @LeakyHapiTest(requirement = FEE_SCHEDULE_OVERRIDES, overrides = "fees.simpleFeesEnabled")
     @Tag(MATS)
     final Stream<DynamicTest> hollowAccountCreationChargesExpectedFees() {
         final var BASE_TRASNFER_FEE = 83333L;
         final var payer = "payer";
         final var secondKey = "secondKey";
         return hapiTest(
+                overriding("fees.simpleFeesEnabled", "false"),
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
                 newKeyNamed(secondKey).shape(SECP_256K1_SHAPE),
                 cryptoCreate(payer).balance(2 * ONE_HUNDRED_HBARS),
