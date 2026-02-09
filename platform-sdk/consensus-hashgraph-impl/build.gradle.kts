@@ -26,3 +26,8 @@ testModuleInfo {
     requires("org.junit.jupiter.params")
     requiresStatic("com.github.spotbugs.annotations")
 }
+
+jmhModuleInfo {
+    requires("jmh.core")
+    requires("org.hiero.consensus.hashgraph.impl.test.fixtures")
+}
