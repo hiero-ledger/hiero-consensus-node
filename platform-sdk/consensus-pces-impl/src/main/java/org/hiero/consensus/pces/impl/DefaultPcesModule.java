@@ -29,6 +29,7 @@ import org.hiero.consensus.pces.impl.common.PcesFileManager;
 import org.hiero.consensus.pces.impl.common.PcesFileReader;
 import org.hiero.consensus.pces.impl.common.PcesFileTracker;
 import org.hiero.consensus.pces.impl.common.PcesUtilities;
+import org.hiero.consensus.pces.impl.copy.BestEffortPcesFileCopy;
 import org.hiero.consensus.pces.impl.writer.DefaultInlinePcesWriter;
 import org.hiero.consensus.pces.impl.writer.InlinePcesWriter;
 
@@ -170,5 +171,19 @@ public class DefaultPcesModule implements PcesModule {
     @Override
     public void flush() {
         requireNonNull(pcesWriterWiring, "Not initialized").flush();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void copyPcesFilesRetryOnFailure(
+            @NonNull final Configuration configuration,
+            @NonNull final NodeId selfId,
+            @NonNull final Path destinationDirectory,
+            final long lowerBound,
+            final long round) {
+        BestEffortPcesFileCopy.copyPcesFilesRetryOnFailure(
+                configuration, selfId, destinationDirectory, lowerBound, round);
     }
 }
