@@ -5,7 +5,7 @@ Enables concurrent execution of crypto tests in CI with proper validation.
 ## Test Execution Flow
 
 1. Network starts
-2. Crypto tests run concurrently (367 tests in parallel batches)
+2. Crypto tests run concurrently
 3. `ConcurrentSubprocessValidationTest` runs last:
    - Log validation (network still active)
    - Stream validation (freezes network)
