@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.metrics.openmetrics;
 
+import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import com.sun.net.httpserver.spi.HttpServerProvider;
@@ -10,7 +11,6 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.util.List;
-import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -68,7 +68,7 @@ class OpenMetricsHttpServer implements MetricsExporter {
         // response (e.g., 429) instead of failing at the TCP layer. GET concurrency is limited separately.
         server = HttpServerProvider.provider().createHttpServer(address, 3);
         server.setExecutor(executorService);
-        server.createContext(config.path(), this::handleSnapshots); // main metrics endpoint
+        server.createContext(config.path(), this::handleMetricsPath); // main metrics endpoint
         server.start();
 
         logger.log(
@@ -84,70 +84,18 @@ class OpenMetricsHttpServer implements MetricsExporter {
         this.snapshotSupplier = snapshotSupplier;
     }
 
-    private void handleSnapshots(HttpExchange exchange) throws IOException {
-        // use local variable to track if we set the flag for handling GET request, but not HEAD
-        boolean handlingRequest = false;
+    private void handleMetricsPath(HttpExchange exchange) throws IOException {
         try {
-            // allow only GET and HEAD methods
-            final String method = exchange.getRequestMethod().toUpperCase(Locale.ROOT);
-            if (!"GET".equals(method) && !"HEAD".equals(method)) {
+            if ("GET".equalsIgnoreCase(exchange.getRequestMethod())) {
+                handleGetRequest(exchange);
+            } else if ("HEAD".equalsIgnoreCase(exchange.getRequestMethod())) {
+                handleHeadRequest(exchange);
+            } else {
                 exchange.getResponseHeaders().set("Allow", "GET, HEAD");
                 exchange.sendResponseHeaders(405, -1);
-                return;
-            }
-
-            // No Content if no snapshot supplier is configured yet
-            final Supplier<MetricRegistrySnapshot> supplier = this.snapshotSupplier;
-            if (supplier == null) {
-                logger.log(System.Logger.Level.INFO, "No snapshot supplier configured yet, while handling request");
-                exchange.getResponseHeaders().set("Cache-Control", "no-store");
-                exchange.sendResponseHeaders(204, -1); // No Content
-                return;
-            }
-
-            // allow only one GET request at a time
-            if ("GET".equals(method)) {
-                handlingRequest = isHandlingRequest.compareAndSet(false, true);
-                if (!handlingRequest) {
-                    logger.log(System.Logger.Level.WARNING, "Another request is being processed, rejecting this one");
-                    exchange.getResponseHeaders().set("Retry-After", "3"); // Suggest retry after 3 seconds
-                    exchange.getResponseHeaders().set("Cache-Control", "no-store");
-                    exchange.sendResponseHeaders(429, -1); // Too Many Requests
-                    return;
-                }
-            }
-
-            // Set common response headers for GET and HEAD requests
-            exchange.getResponseHeaders().set("Content-Type", CONTENT_TYPE);
-            exchange.getResponseHeaders().set("Cache-Control", "no-store");
-            exchange.getResponseHeaders().set("Vary", "Accept-Encoding");
-
-            final boolean gzip = shouldGzip(exchange);
-            if (gzip) {
-                exchange.getResponseHeaders().set("Content-Encoding", "gzip");
-            }
-
-            if ("HEAD".equals(method)) {
-                exchange.sendResponseHeaders(200, -1);
-                return;
-            }
-
-            MetricRegistrySnapshot registrySnapshot = supplier.get();
-            exchange.sendResponseHeaders(200, 0);
-
-            // Choose output stream based on compression and buffer size and send body
-            OutputStream outputStream = exchange.getResponseBody();
-            if (gzip) {
-                outputStream = new GZIPOutputStream(outputStream);
-            }
-            if (bufferSize != 0) {
-                outputStream = new BufferedOutputStream(outputStream, bufferSize);
-            }
-            try (OutputStream os = outputStream) {
-                writer.write(registrySnapshot, os);
             }
         } catch (RuntimeException e) {
-            logger.log(System.Logger.Level.WARNING, "Unexpected error during exporting metrics snapshots", e);
+            logger.log(System.Logger.Level.WARNING, "Unexpected error while handling metrics request", e);
             // Best-effort: Only attempt to send 500 if we haven't committed response yet
             try {
                 if (exchange.getResponseCode() == -1) {
@@ -156,15 +104,76 @@ class OpenMetricsHttpServer implements MetricsExporter {
             } catch (IOException ignored) {
             }
         } finally {
-            // reset the flag which could be set only by GET requests
-            if (handlingRequest) {
-                isHandlingRequest.set(false);
-            }
             exchange.close();
         }
     }
 
-    private boolean shouldGzip(HttpExchange exchange) {
+    private void handleHeadRequest(HttpExchange exchange) throws IOException {
+        if (snapshotSupplier == null) {
+            handleNoSnapshotSupplier(exchange);
+        } else {
+            setCommonOkResponseHeaders(exchange.getResponseHeaders());
+            handleGzipHeaders(exchange);
+            exchange.sendResponseHeaders(200, -1);
+        }
+    }
+
+    private void handleGetRequest(HttpExchange exchange) throws IOException {
+        final Supplier<MetricRegistrySnapshot> snapshotSupplierRef = this.snapshotSupplier;
+
+        if (snapshotSupplierRef == null) {
+            handleNoSnapshotSupplier(exchange);
+            return;
+        }
+
+        if (!isHandlingRequest.compareAndSet(false, true)) {
+            logger.log(System.Logger.Level.WARNING, "Another request is being processed, rejecting this one");
+            exchange.getResponseHeaders().set("Retry-After", "3"); // Suggest retry after 3 seconds
+            exchange.getResponseHeaders().set("Cache-Control", "no-store");
+            exchange.sendResponseHeaders(429, -1); // Too Many Requests
+            return;
+        }
+
+        try {
+            MetricRegistrySnapshot registrySnapshot = snapshotSupplierRef.get();
+
+            setCommonOkResponseHeaders(exchange.getResponseHeaders());
+            boolean useGzip = handleGzipHeaders(exchange);
+
+            exchange.sendResponseHeaders(200, 0);
+
+            // Choose output stream based on compression and buffer size and send body
+            OutputStream outputStream = exchange.getResponseBody();
+            if (useGzip) {
+                outputStream = new GZIPOutputStream(outputStream);
+            }
+            if (bufferSize != 0) {
+                outputStream = new BufferedOutputStream(outputStream, bufferSize);
+            }
+            try (OutputStream os = outputStream) {
+                writer.write(registrySnapshot, os);
+            }
+        } finally {
+            isHandlingRequest.set(false);
+        }
+    }
+
+    private void handleNoSnapshotSupplier(HttpExchange exchange) throws IOException {
+        logger.log(
+                System.Logger.Level.INFO,
+                "No snapshot supplier configured yet. method={}",
+                exchange.getRequestMethod());
+        exchange.getResponseHeaders().set("Cache-Control", "no-store");
+        exchange.sendResponseHeaders(204, -1); // No Content
+    }
+
+    private void setCommonOkResponseHeaders(Headers responseHeaders) {
+        responseHeaders.set("Content-Type", CONTENT_TYPE);
+        responseHeaders.set("Cache-Control", "no-store");
+        responseHeaders.set("Vary", "Accept-Encoding");
+    }
+
+    private boolean handleGzipHeaders(HttpExchange exchange) {
         List<String> encodingHeaders = exchange.getRequestHeaders().get("Accept-Encoding");
         if (encodingHeaders == null) {
             return false;
@@ -173,6 +182,7 @@ class OpenMetricsHttpServer implements MetricsExporter {
             String[] encodings = encodingHeader.split(",");
             for (String encoding : encodings) {
                 if (encoding.trim().equalsIgnoreCase("gzip")) {
+                    exchange.getResponseHeaders().set("Content-Encoding", "gzip");
                     return true;
                 }
             }
