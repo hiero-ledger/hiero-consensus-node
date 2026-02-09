@@ -45,9 +45,6 @@ import org.hyperledger.besu.evm.worldstate.WorldUpdater;
  * does not itself provide any transactional semantics. The {@link HandleHederaOperations} alone has the
  * responsibility to {@code commit()} and {@code revert()} changes across all forms of
  * state as a transaction unit.
- *
- * <p><i>Note:</i> The {@code sbhRefund} field in the {@code mono-service} {@link WorldUpdater}
- * hierarchy is---as best I can tell---now always zero. So it does not appear here.
  */
 public class ProxyWorldUpdater implements HederaWorldUpdater {
     private static final String CANNOT_CREATE = "Cannot create ";
@@ -122,6 +119,12 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
     @Override
     public @NonNull Enhancement enhancement() {
         return enhancement;
+    }
+
+    @NonNull
+    @Override
+    public TxStorageUsage getTxStorageUsage(final boolean includeChangedSlotKeys) {
+        return evmFrameState.getTxStorageUsage(includeChangedSlotKeys);
     }
 
     /**

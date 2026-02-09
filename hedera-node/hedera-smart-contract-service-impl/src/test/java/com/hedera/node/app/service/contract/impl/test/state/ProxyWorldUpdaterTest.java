@@ -30,6 +30,7 @@ import static org.mockito.Mockito.verify;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
+import com.hedera.hapi.node.state.contract.SlotKey;
 import com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaOperations;
@@ -42,10 +43,13 @@ import com.hedera.node.app.service.contract.impl.state.EvmFrameStateFactory;
 import com.hedera.node.app.service.contract.impl.state.PendingCreation;
 import com.hedera.node.app.service.contract.impl.state.ProxyEvmContract;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
+import com.hedera.node.app.service.contract.impl.state.StorageAccesses;
+import com.hedera.node.app.service.contract.impl.state.TxStorageUsage;
 import com.hedera.node.app.spi.workflows.ResourceExhaustedException;
 import java.util.ArrayDeque;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.datatypes.Wei;
 import org.hyperledger.besu.evm.account.Account;
@@ -487,6 +491,16 @@ class ProxyWorldUpdaterTest {
     void delegatesEntropy() {
         given(hederaOperations.entropy()).willReturn(OUTPUT_DATA);
         assertEquals(pbjToTuweniBytes(OUTPUT_DATA), subject.entropy());
+    }
+
+    @Test
+    void delegatesGetTxUsage() {
+        final var txStorageUsage = new TxStorageUsage(
+                List.of(new StorageAccesses(
+                        ContractID.newBuilder().contractNum(123L).build(), List.of())),
+                Set.of(SlotKey.DEFAULT));
+        given(evmFrameState.getTxStorageUsage(true)).willReturn(txStorageUsage);
+        assertSame(txStorageUsage, subject.getTxStorageUsage(true));
     }
 
     @Test

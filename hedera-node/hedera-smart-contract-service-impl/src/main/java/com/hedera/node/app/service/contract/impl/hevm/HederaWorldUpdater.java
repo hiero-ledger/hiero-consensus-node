@@ -62,6 +62,16 @@ public interface HederaWorldUpdater extends WorldUpdater {
     Enhancement enhancement();
 
     /**
+     * Returns a {@link TxStorageUsage} summarizing the storage changes accumulated in this updater by the EVM
+     * transaction so far; caller has the option to get an explicit list of the slot keys whose logical <b>values</b>
+     * (not just their previous/next slot pointers).
+     * @param includeChangedSlotKeys whether to include the list of the slot keys whose logical values were changed
+     * @return the full list of account-scoped storage changes
+     */
+    @NonNull
+    TxStorageUsage getTxStorageUsage(boolean includeChangedSlotKeys);
+
+    /**
      * Returns the {@link HederaEvmAccount} for the given account id, or null if no
      * such account (or contract).
      *
