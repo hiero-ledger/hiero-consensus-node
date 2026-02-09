@@ -28,8 +28,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenType;
 import com.hedera.hapi.node.token.TokenAssociateTransactionBody;
@@ -124,7 +126,7 @@ public class TokenServiceFeeCalculatorTests {
     private static final long UNIQUE_TOKEN_FEE = 10;
 
     @Mock
-    private FeeContext calculatorState;
+    private FeeContext feeContext;
 
     @Mock
     private QueryContext queryContext;
@@ -168,24 +170,26 @@ public class TokenServiceFeeCalculatorTests {
 
     @Test
     void createCommonToken() {
-        lenient().when(calculatorState.numTxnSignatures()).thenReturn(1);
+        lenient().when(feeContext.numTxnSignatures()).thenReturn(1);
         final var body = TransactionBody.newBuilder()
                 .tokenCreation(TokenCreateTransactionBody.newBuilder()
                         .tokenType(TokenType.FUNGIBLE_COMMON)
                         .build())
                 .build();
-        final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(calculatorState, null));
+        when(feeContext.functionality()).thenReturn(HederaFunctionality.TOKEN_CREATE);
+        final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(feeContext, null));
         assertNotNull(result);
         assertEquals(TOKEN_CREATE_BASE_FEE, result.totalTinycents());
     }
 
     @Test
     void createUniqueToken() {
-        lenient().when(calculatorState.numTxnSignatures()).thenReturn(1);
+        lenient().when(feeContext.numTxnSignatures()).thenReturn(1);
         final var txBody2 = TransactionBody.newBuilder()
                 .tokenCreation(TokenCreateTransactionBody.newBuilder().tokenType(TokenType.NON_FUNGIBLE_UNIQUE))
                 .build();
-        final var result = feeCalculator.calculateTxFee(txBody2, new SimpleFeeContextImpl(calculatorState, null));
+        when(feeContext.functionality()).thenReturn(HederaFunctionality.TOKEN_CREATE);
+        final var result = feeCalculator.calculateTxFee(txBody2, new SimpleFeeContextImpl(feeContext, null));
 
         assertNotNull(result);
         assertEquals(TOKEN_CREATE_BASE_FEE, result.totalTinycents());
@@ -193,18 +197,19 @@ public class TokenServiceFeeCalculatorTests {
 
     @Test
     void updateCommonToken() {
-        lenient().when(calculatorState.numTxnSignatures()).thenReturn(1);
+        lenient().when(feeContext.numTxnSignatures()).thenReturn(1);
         final var body = TransactionBody.newBuilder()
                 .tokenUpdate(TokenUpdateTransactionBody.newBuilder().build())
                 .build();
-        final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(calculatorState, null));
+        when(feeContext.functionality()).thenReturn(HederaFunctionality.TOKEN_UPDATE);
+        final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(feeContext, null));
         assertNotNull(result);
         assertEquals(TOKEN_UPDATE_BASE_FEE, result.totalTinycents());
     }
 
     @Test
     void mintCommonToken() {
-        lenient().when(calculatorState.numTxnSignatures()).thenReturn(1);
+        lenient().when(feeContext.numTxnSignatures()).thenReturn(1);
         final var commonToken = TokenID.newBuilder().tokenNum(1234).build();
         final var body = TransactionBody.newBuilder()
                 .tokenMint(TokenMintTransactionBody.newBuilder()
@@ -212,14 +217,15 @@ public class TokenServiceFeeCalculatorTests {
                         .amount(10)
                         .build())
                 .build();
-        final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(calculatorState, null));
+        when(feeContext.functionality()).thenReturn(HederaFunctionality.TOKEN_MINT);
+        final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(feeContext, null));
         assertNotNull(result);
         assertEquals(TOKEN_MINT_BASE_FEE, result.totalTinycents());
     }
 
     @Test
     void mintUniqueToken() {
-        lenient().when(calculatorState.numTxnSignatures()).thenReturn(1);
+        lenient().when(feeContext.numTxnSignatures()).thenReturn(1);
         final var uniqueToken = TokenID.newBuilder().tokenNum(1234).build();
         final var txBody2 = TransactionBody.newBuilder()
                 .tokenMint(TokenMintTransactionBody.newBuilder()
@@ -227,7 +233,8 @@ public class TokenServiceFeeCalculatorTests {
                         .metadata(List.of(Bytes.wrap("Bart Simpson")))
                         .build())
                 .build();
-        final var result = feeCalculator.calculateTxFee(txBody2, new SimpleFeeContextImpl(calculatorState, null));
+        when(feeContext.functionality()).thenReturn(HederaFunctionality.TOKEN_MINT);
+        final var result = feeCalculator.calculateTxFee(txBody2, new SimpleFeeContextImpl(feeContext, null));
         assertNotNull(result);
         assertEquals(TOKEN_MINT_BASE_FEE + UNIQUE_TOKEN_FEE, result.totalTinycents());
     }
@@ -240,7 +247,8 @@ public class TokenServiceFeeCalculatorTests {
                         .token(commonToken)
                         .build())
                 .build();
-        final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(calculatorState, null));
+        when(feeContext.functionality()).thenReturn(HederaFunctionality.TOKEN_FREEZE_ACCOUNT);
+        final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(feeContext, null));
         assertNotNull(result);
         assertEquals(TOKEN_FREEZE_BASE_FEE, result.totalTinycents());
     }
@@ -253,7 +261,8 @@ public class TokenServiceFeeCalculatorTests {
                         .token(commonToken)
                         .build())
                 .build();
-        final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(calculatorState, null));
+        when(feeContext.functionality()).thenReturn(HederaFunctionality.TOKEN_UNFREEZE_ACCOUNT);
+        final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(feeContext, null));
         assertNotNull(result);
         assertEquals(TOKEN_UNFREEZE_BASE_FEE, result.totalTinycents());
     }
@@ -265,7 +274,8 @@ public class TokenServiceFeeCalculatorTests {
                 .tokenPause(
                         TokenPauseTransactionBody.newBuilder().token(tokenId).build())
                 .build();
-        final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(calculatorState, null));
+        when(feeContext.functionality()).thenReturn(HederaFunctionality.TOKEN_PAUSE);
+        final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(feeContext, null));
         assertNotNull(result);
         assertEquals(TOKEN_PAUSE_BASE_FEE, result.totalTinycents());
     }
@@ -277,7 +287,8 @@ public class TokenServiceFeeCalculatorTests {
                 .tokenUnpause(
                         TokenUnpauseTransactionBody.newBuilder().token(tokenId).build())
                 .build();
-        final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(calculatorState, null));
+        when(feeContext.functionality()).thenReturn(HederaFunctionality.TOKEN_UNPAUSE);
+        final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(feeContext, null));
         assertNotNull(result);
         assertEquals(TOKEN_UNPAUSE_BASE_FEE, result.totalTinycents());
     }
@@ -288,7 +299,8 @@ public class TokenServiceFeeCalculatorTests {
         final var body = TransactionBody.newBuilder()
                 .tokenBurn(TokenBurnTransactionBody.newBuilder().token(tokenId).build())
                 .build();
-        final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(calculatorState, null));
+        when(feeContext.functionality()).thenReturn(HederaFunctionality.TOKEN_BURN);
+        final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(feeContext, null));
         assertNotNull(result);
         assertEquals(TOKEN_BURN_BASE_FEE, result.totalTinycents());
     }
@@ -299,7 +311,8 @@ public class TokenServiceFeeCalculatorTests {
         final var body = TransactionBody.newBuilder()
                 .tokenBurn(TokenBurnTransactionBody.newBuilder().token(tokenId).build())
                 .build();
-        final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(calculatorState, null));
+        when(feeContext.functionality()).thenReturn(HederaFunctionality.TOKEN_BURN);
+        final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(feeContext, null));
         assertNotNull(result);
         assertEquals(TOKEN_BURN_BASE_FEE, result.totalTinycents());
     }
@@ -310,14 +323,15 @@ public class TokenServiceFeeCalculatorTests {
         final var deleteBody =
                 TokenDeleteTransactionBody.newBuilder().token(tokenId).build();
         final var body = TransactionBody.newBuilder().tokenDeletion(deleteBody).build();
-        final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(calculatorState, null));
+        when(feeContext.functionality()).thenReturn(HederaFunctionality.TOKEN_DELETE);
+        final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(feeContext, null));
         assertNotNull(result);
         assertEquals(TOKEN_DELETE_BASE_FEE, result.totalTinycents());
     }
 
     @Test
     void associateToken() {
-        calculatorState = mock(FeeContext.class);
+        feeContext = mock(FeeContext.class);
 
         final var tokenId = TokenID.newBuilder().tokenNum(1234).build();
         final var accountId = AccountID.newBuilder().accountNum(12345).build();
@@ -326,7 +340,8 @@ public class TokenServiceFeeCalculatorTests {
                 .account(accountId)
                 .build();
         final var txnBody = TransactionBody.newBuilder().tokenAssociate(opBody).build();
-        final var result = feeCalculator.calculateTxFee(txnBody, new SimpleFeeContextImpl(calculatorState, null));
+        when(feeContext.functionality()).thenReturn(HederaFunctionality.TOKEN_ASSOCIATE_TO_ACCOUNT);
+        final var result = feeCalculator.calculateTxFee(txnBody, new SimpleFeeContextImpl(feeContext, null));
         assertNotNull(result);
         assertEquals(TOKEN_ASSOCIATE_BASE_FEE, result.totalTinycents());
     }
@@ -340,7 +355,8 @@ public class TokenServiceFeeCalculatorTests {
                 .account(accountId)
                 .build();
         final var txnBody = TransactionBody.newBuilder().tokenDissociate(opBody).build();
-        final var result = feeCalculator.calculateTxFee(txnBody, new SimpleFeeContextImpl(calculatorState, null));
+        when(feeContext.functionality()).thenReturn(HederaFunctionality.TOKEN_DISSOCIATE_FROM_ACCOUNT);
+        final var result = feeCalculator.calculateTxFee(txnBody, new SimpleFeeContextImpl(feeContext, null));
         assertNotNull(result);
         assertEquals(TOKEN_DISSOCIATE_BASE_FEE, result.totalTinycents());
     }
@@ -349,7 +365,8 @@ public class TokenServiceFeeCalculatorTests {
     void grantKyc() {
         final var opBody = TokenGrantKycTransactionBody.newBuilder().build();
         final var txnBody = TransactionBody.newBuilder().tokenGrantKyc(opBody).build();
-        final var result = feeCalculator.calculateTxFee(txnBody, new SimpleFeeContextImpl(calculatorState, null));
+        when(feeContext.functionality()).thenReturn(HederaFunctionality.TOKEN_GRANT_KYC_TO_ACCOUNT);
+        final var result = feeCalculator.calculateTxFee(txnBody, new SimpleFeeContextImpl(feeContext, null));
         assertNotNull(result);
         assertEquals(TOKEN_GRANT_KYC_BASE_FEE, result.totalTinycents());
     }
@@ -358,7 +375,8 @@ public class TokenServiceFeeCalculatorTests {
     void revokeKyc() {
         final var opBody = TokenRevokeKycTransactionBody.newBuilder().build();
         final var txnBody = TransactionBody.newBuilder().tokenRevokeKyc(opBody).build();
-        final var result = feeCalculator.calculateTxFee(txnBody, new SimpleFeeContextImpl(calculatorState, null));
+        when(feeContext.functionality()).thenReturn(HederaFunctionality.TOKEN_REVOKE_KYC_FROM_ACCOUNT);
+        final var result = feeCalculator.calculateTxFee(txnBody, new SimpleFeeContextImpl(feeContext, null));
         assertNotNull(result);
         assertEquals(TOKEN_REVOKE_KYC_BASE_FEE, result.totalTinycents());
     }
@@ -367,7 +385,8 @@ public class TokenServiceFeeCalculatorTests {
     void reject() {
         final var opBody = TokenRejectTransactionBody.newBuilder().build();
         final var txnBody = TransactionBody.newBuilder().tokenReject(opBody).build();
-        final var result = feeCalculator.calculateTxFee(txnBody, new SimpleFeeContextImpl(calculatorState, null));
+        when(feeContext.functionality()).thenReturn(HederaFunctionality.TOKEN_REJECT);
+        final var result = feeCalculator.calculateTxFee(txnBody, new SimpleFeeContextImpl(feeContext, null));
         assertNotNull(result);
         assertEquals(TOKEN_REJECT_BASE_FEE, result.totalTinycents());
     }
@@ -376,7 +395,8 @@ public class TokenServiceFeeCalculatorTests {
     void tokenWipeAccount() {
         final var opBody = TokenWipeAccountTransactionBody.newBuilder().build();
         final var txnBody = TransactionBody.newBuilder().tokenWipe(opBody).build();
-        final var result = feeCalculator.calculateTxFee(txnBody, new SimpleFeeContextImpl(calculatorState, null));
+        when(feeContext.functionality()).thenReturn(HederaFunctionality.TOKEN_ACCOUNT_WIPE);
+        final var result = feeCalculator.calculateTxFee(txnBody, new SimpleFeeContextImpl(feeContext, null));
         assertNotNull(result);
         assertEquals(TOKEN_WIPE_BASE_FEE, result.totalTinycents());
     }
@@ -386,7 +406,8 @@ public class TokenServiceFeeCalculatorTests {
         final var opBody = TokenFeeScheduleUpdateTransactionBody.newBuilder().build();
         final var txnBody =
                 TransactionBody.newBuilder().tokenFeeScheduleUpdate(opBody).build();
-        final var result = feeCalculator.calculateTxFee(txnBody, new SimpleFeeContextImpl(calculatorState, null));
+        when(feeContext.functionality()).thenReturn(HederaFunctionality.TOKEN_FEE_SCHEDULE_UPDATE);
+        final var result = feeCalculator.calculateTxFee(txnBody, new SimpleFeeContextImpl(feeContext, null));
         assertNotNull(result);
         assertEquals(TOKEN_FEE_SCHEDULE_UPDATE_BASE_FEE, result.totalTinycents());
     }
@@ -395,7 +416,8 @@ public class TokenServiceFeeCalculatorTests {
     void tokenUpdateNft() {
         final var opBody = TokenUpdateNftsTransactionBody.newBuilder().build();
         final var txnBody = TransactionBody.newBuilder().tokenUpdateNfts(opBody).build();
-        final var result = feeCalculator.calculateTxFee(txnBody, new SimpleFeeContextImpl(calculatorState, null));
+        when(feeContext.functionality()).thenReturn(HederaFunctionality.TOKEN_UPDATE_NFTS);
+        final var result = feeCalculator.calculateTxFee(txnBody, new SimpleFeeContextImpl(feeContext, null));
         assertNotNull(result);
         assertEquals(TOKEN_UPDATE_NFTS_BASE_FEE, result.totalTinycents());
     }
@@ -423,7 +445,7 @@ public class TokenServiceFeeCalculatorTests {
                 .copyBuilder()
                 .node(NodeFee.DEFAULT.copyBuilder().build())
                 .extras(
-                        makeExtraDef(Extra.BYTES, 1),
+                        makeExtraDef(Extra.STATE_BYTES, 1),
                         makeExtraDef(Extra.KEYS, 2),
                         makeExtraDef(Extra.SIGNATURES, 3),
                         makeExtraDef(Extra.TOKEN_MINT_NFT, UNIQUE_TOKEN_FEE))

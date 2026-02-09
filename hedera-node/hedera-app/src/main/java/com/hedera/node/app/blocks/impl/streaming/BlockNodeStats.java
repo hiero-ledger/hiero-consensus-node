@@ -25,6 +25,11 @@ public class BlockNodeStats {
     private final Queue<Instant> endOfStreamTimestamps = new ConcurrentLinkedQueue<>();
 
     /**
+     * Queue for tracking BehindPublisher response timestamps for rate limiting.
+     */
+    private final Queue<Instant> behindPublisherTimestamps = new ConcurrentLinkedQueue<>();
+
+    /**
      * Map for tracking the timestamps when blocks are sent to the block node.
      * The key is the block number and the value is the timestamp when the block was sent.
      */
@@ -42,6 +47,15 @@ public class BlockNodeStats {
      */
     public int getEndOfStreamCount() {
         return endOfStreamTimestamps.size();
+    }
+
+    /**
+     * Returns the current count of BehindPublisher events tracked.
+     *
+     * @return the number of BehindPublisher events currently tracked
+     */
+    public int getBehindPublisherCount() {
+        return behindPublisherTimestamps.size();
     }
 
     /**
@@ -75,6 +89,39 @@ public class BlockNodeStats {
             }
         }
         return endOfStreamTimestamps.size() > maxAllowed;
+    }
+
+    /**
+     * Adds a new BehindPublisher event timestamp, prunes any old timestamps that are outside the time window,
+     * and then checks if the number of BehindPublisher events exceeds the configured maximum.
+     *
+     * @param timestamp the timestamp of the last BehindPublisher response received
+     * @param maxAllowed the maximum number of BehindPublisher responses allowed in the time window
+     * @param timeFrame the time window for counting BehindPublisher responses
+     * @return true if the number of BehindPublisher responses exceeds the maximum, otherwise false
+     */
+    public boolean addBehindPublisherAndCheckLimit(
+            @NonNull Instant timestamp, int maxAllowed, @NonNull Duration timeFrame) {
+        requireNonNull(timestamp, "timestamp must not be null");
+        requireNonNull(timeFrame, "timeFrame must not be null");
+
+        // Add the current timestamp to the queue
+        behindPublisherTimestamps.add(timestamp);
+
+        final Instant now = Instant.now();
+        final Instant cutoff = now.minus(timeFrame);
+
+        // Remove expired timestamps
+        final Iterator<Instant> it = behindPublisherTimestamps.iterator();
+        while (it.hasNext()) {
+            final Instant behindPublisherTimestamp = it.next();
+            if (behindPublisherTimestamp.isBefore(cutoff)) {
+                it.remove();
+            } else {
+                break;
+            }
+        }
+        return behindPublisherTimestamps.size() > maxAllowed;
     }
 
     /**

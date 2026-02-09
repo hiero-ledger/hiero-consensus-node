@@ -1,21 +1,33 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.fees;
 
-import static com.hedera.hapi.util.HapiUtils.functionOf;
-import static com.hedera.node.app.hapi.utils.CommonUtils.clampedMultiply;
+import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_CREATE_TOPIC;
+import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_APPROVE_ALLOWANCE;
+import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.FILE_APPEND;
+import static com.hedera.hapi.node.base.HederaFunctionality.FILE_CREATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.HOOK_STORE;
+import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_CREATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_AIRDROP;
+import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_ASSOCIATE_TO_ACCOUNT;
+import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_CLAIM_AIRDROP;
+import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_CREATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_MINT;
+import static com.hedera.node.app.workflows.handle.HandleWorkflow.ALERT_MESSAGE;
+import static java.util.Objects.requireNonNull;
+import static org.hiero.hapi.fees.FeeScheduleUtils.lookupServiceFee;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.hapi.util.UnknownHederaFunctionality;
 import com.hedera.node.app.fees.congestion.CongestionMultipliers;
 import com.hedera.node.app.spi.fees.QueryFeeCalculator;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculator;
 import com.hedera.node.app.spi.fees.SimpleFeeContext;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -23,9 +35,11 @@ import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.hapi.fees.FeeResult;
+import org.hiero.hapi.fees.HighVolumePricingCalculator;
 import org.hiero.hapi.support.fees.Extra;
 import org.hiero.hapi.support.fees.ExtraFeeReference;
 import org.hiero.hapi.support.fees.FeeSchedule;
+import org.hiero.hapi.support.fees.ServiceFeeDefinition;
 
 /**
  * Base class for simple fee calculators. Provides reusable utility methods for common fee
@@ -43,12 +57,27 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
     private final Map<Query.QueryOneOfType, QueryFeeCalculator> queryFeeCalculators;
     private final CongestionMultipliers congestionMultipliers;
 
+    private static final Set<HederaFunctionality> HIGH_VOLUME_FUNCTIONS = Set.of(
+            CRYPTO_CREATE,
+            CONSENSUS_CREATE_TOPIC,
+            SCHEDULE_CREATE,
+            CRYPTO_APPROVE_ALLOWANCE,
+            FILE_CREATE,
+            FILE_APPEND,
+            CONTRACT_CREATE,
+            HOOK_STORE,
+            TOKEN_ASSOCIATE_TO_ACCOUNT,
+            TOKEN_AIRDROP,
+            TOKEN_CLAIM_AIRDROP,
+            TOKEN_MINT,
+            TOKEN_CREATE);
+
     public SimpleFeeCalculatorImpl(
             @NonNull FeeSchedule feeSchedule,
             @NonNull Set<ServiceFeeCalculator> serviceFeeCalculators,
             @NonNull Set<QueryFeeCalculator> queryFeeCalculators,
             @NonNull CongestionMultipliers congestionMultipliers) {
-        this.feeSchedule = feeSchedule;
+        this.feeSchedule = requireNonNull(feeSchedule);
         this.serviceFeeCalculators = serviceFeeCalculators.stream()
                 .collect(Collectors.toMap(ServiceFeeCalculator::getTransactionType, Function.identity()));
         this.queryFeeCalculators = queryFeeCalculators.stream()
@@ -87,7 +116,7 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
             final long used =
                     switch (ref.name()) {
                         case SIGNATURES -> signatures;
-                        case BYTES -> bytes;
+                        case PROCESSING_BYTES -> bytes;
                         default -> 0;
                     };
             final long unitFee = getExtraFee(ref.name());
@@ -99,6 +128,7 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
      * Calculates fees for transactions per HIP-1261.
      * Node fee includes BYTES (full transaction size) and SIGNATURES extras.
      * Service fee is transaction-specific.
+     * For high-volume transactions (HIP-1313), applies a dynamic multiplier based on throttle utilization.
      * If congestion multipliers are configured and a store factory is available,
      * the congestion multiplier will be applied to the total fee.
      *
@@ -116,18 +146,28 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
         final long bytes = simpleFeeContext.numTxnBytes();
         final var result = new FeeResult();
         // Add node base and extras (bytes and payer signatures)
-        result.setNodeBaseFeeTinycents(feeSchedule.node().baseFee());
+        result.setNodeBaseFeeTinycents(requireNonNull(feeSchedule.node()).baseFee());
         addNodeExtras(result, feeSchedule.node().extras(), signatures, bytes);
         // Add network fee
-        final int multiplier = feeSchedule.network().multiplier();
+        final int multiplier = requireNonNull(feeSchedule.network()).multiplier();
         result.setNetworkMultiplier(multiplier);
 
         final var serviceFeeCalculator =
                 serviceFeeCalculators.get(txnBody.data().kind());
         serviceFeeCalculator.accumulateServiceFee(txnBody, simpleFeeContext, result, feeSchedule);
 
-        // Apply congestion multiplier if available
-        return applyCongestionMultiplier(txnBody, simpleFeeContext, result);
+        final var functionality = simpleFeeContext.functionality();
+        final var isHighVolumeFunction = HIGH_VOLUME_FUNCTIONS.contains(functionality);
+
+        // Apply high-volume pricing multiplier if applicable (HIP-1313)
+        if (txnBody.highVolume() && isHighVolumeFunction) {
+            applyHighVolumeMultiplier(functionality, simpleFeeContext, result);
+        } else {
+            // Apply congestion multiplier if available
+            applyCongestionMultiplier(txnBody, simpleFeeContext, result, functionality);
+        }
+
+        return result;
     }
 
     /**
@@ -137,32 +177,57 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
      * @param txnBody the transaction body
      * @param simpleFeeContext the simple fee context
      * @param result the base fee result
-     * @return a new FeeResult with congestion multiplier applied, or the original if no multiplier
      */
-    private FeeResult applyCongestionMultiplier(
+    private void applyCongestionMultiplier(
             @NonNull final TransactionBody txnBody,
-            @Nullable final SimpleFeeContext simpleFeeContext,
+            @NonNull final SimpleFeeContext simpleFeeContext,
+            @NonNull final FeeResult result,
+            @NonNull final HederaFunctionality functionality) {
+        // For standalone fee calculator simpleFeeContext.feeContext() is null
+        if (simpleFeeContext.feeContext() == null || congestionMultipliers == null) {
+            return;
+        }
+        final var feeContext = simpleFeeContext.feeContext();
+        final long congestionMultiplier =
+                congestionMultipliers.maxCurrentMultiplier(txnBody, functionality, feeContext.readableStoreFactory());
+        if (congestionMultiplier <= 1) {
+            return;
+        }
+        result.applyMultiplier(congestionMultiplier, 1);
+    }
+
+    /**
+     * Applies the high-volume pricing multiplier to the total fee based on throttle utilization.
+     * This is applied after total fee is calculated.
+     * Per HIP-1313, the multiplier is calculated from the pricing curve defined in the fee schedule.
+     *
+     * @param functionality the transaction body functionality
+     * @param feeContext the fee context
+     * @param result the fee result to modify
+     */
+    private void applyHighVolumeMultiplier(
+            @NonNull final HederaFunctionality functionality,
+            @NonNull final SimpleFeeContext feeContext,
             @NonNull final FeeResult result) {
-        if (simpleFeeContext == null || simpleFeeContext.feeContext() == null || congestionMultipliers == null) {
-            return result;
+        // For standalone fee calculator simpleFeeContext.feeContext() is null
+        if (feeContext.feeContext() == null) {
+            return;
+        }
+        // Look up the service fee definition to get the high volume rates
+        final ServiceFeeDefinition serviceFeeDefinition = lookupServiceFee(feeSchedule, functionality);
+        if (serviceFeeDefinition == null || serviceFeeDefinition.highVolumeRates() == null) {
+            log.error(" {} - No high volume rates defined for {}", ALERT_MESSAGE, functionality);
+            return;
         }
 
-        try {
-            final HederaFunctionality functionality = functionOf(txnBody);
-            final var feeContext = simpleFeeContext.feeContext();
-            final long congestionMultiplier = congestionMultipliers.maxCurrentMultiplier(
-                    txnBody, functionality, feeContext.readableStoreFactory());
-            if (congestionMultiplier <= 1) {
-                return result;
-            }
-            return new FeeResult(
-                    clampedMultiply(result.getServiceTotalTinycents(), congestionMultiplier),
-                    clampedMultiply(result.getNodeTotalTinycents(), congestionMultiplier),
-                    result.getNetworkMultiplier());
-        } catch (UnknownHederaFunctionality e) {
-            log.error("Unknown Hedera functionality for transaction body: {}", txnBody, e);
-            return result;
-        }
+        // Get the current throttle utilization
+        final int utilizationPercentage = feeContext.getHighVolumeThrottleUtilization(functionality);
+
+        // Calculate the multiplier based on the pricing curve
+        final long rawMultiplier = HighVolumePricingCalculator.calculateMultiplier(
+                serviceFeeDefinition.highVolumeRates(), utilizationPercentage);
+
+        result.applyMultiplier(rawMultiplier, HighVolumePricingCalculator.MULTIPLIER_SCALE);
     }
 
     @Override
@@ -182,6 +247,7 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
      * @return Never returns normally
      * @throws UnsupportedOperationException always
      */
+    @NonNull
     @Override
     public FeeResult calculateQueryFee(@NonNull final Query query, @NonNull final SimpleFeeContext simpleFeeContext) {
         final var result = new FeeResult();
