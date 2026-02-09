@@ -384,7 +384,7 @@ public class ParentTxnFactory {
                 final var utilizationBasisPoints =
                         throttleAdvisor.highVolumeThrottleUtilization(txnInfo.functionality());
                 final var highVolumeMultiplier = feeManager.highVolumeMultiplierFor(
-                        txnInfo.txBody(), txnInfo.functionality(), storeFactory.asReadOnly(), utilizationBasisPoints);
+                        txnInfo.txBody(), txnInfo.functionality(), utilizationBasisPoints);
                 if (highVolumeMultiplier > 1) {
                     baseBuilder.highVolumePricingMultiplier(highVolumeMultiplier);
                 }

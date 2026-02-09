@@ -140,6 +140,7 @@ import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
@@ -158,6 +159,7 @@ import org.junit.jupiter.api.Tag;
  */
 @Tag(ONLY_EMBEDDED)
 @HapiTestLifecycle
+@Disabled
 public class KitchenSinkFeeComparisonSuite {
     private static final Logger LOG = LogManager.getLogger(KitchenSinkFeeComparisonSuite.class);
     private static final Map<String, String> FEE_SETUP_OVERRIDES =

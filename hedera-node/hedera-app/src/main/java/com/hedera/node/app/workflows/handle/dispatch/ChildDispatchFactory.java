@@ -320,7 +320,7 @@ public class ChildDispatchFactory {
         if (isHighVolume) {
             final var utilizationBasisPoints = throttleAdviser.highVolumeThrottleUtilization(txnInfo.functionality());
             final var highVolumeMultiplier = feeManager.highVolumeMultiplierFor(
-                    txnInfo.txBody(), txnInfo.functionality(), storeFactory.asReadOnly(), utilizationBasisPoints);
+                    txnInfo.txBody(), txnInfo.functionality(), utilizationBasisPoints);
             if (highVolumeMultiplier > 1) {
                 builder.highVolumePricingMultiplier(highVolumeMultiplier);
             }

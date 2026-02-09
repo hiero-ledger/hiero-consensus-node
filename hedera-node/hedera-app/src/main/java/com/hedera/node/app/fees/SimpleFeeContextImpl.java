@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.fees;
 
-import com.hedera.hapi.node.base.HederaFunctionality;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
@@ -61,6 +60,9 @@ public final class SimpleFeeContextImpl implements SimpleFeeContext {
 
     @Override
     public int getHighVolumeThrottleUtilization(@NonNull HederaFunctionality functionality) {
-        return feeContext == null ? 0 : feeContext.getHighVolumeThrottleUtilization(functionality);
+        if (feeContext == null) {
+            throw new UnsupportedOperationException("Not implemented for queries");
+        }
+        return feeContext.getHighVolumeThrottleUtilization(functionality);
     }
 }
