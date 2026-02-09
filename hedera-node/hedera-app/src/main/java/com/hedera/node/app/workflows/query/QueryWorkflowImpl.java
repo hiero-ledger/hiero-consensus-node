@@ -183,6 +183,8 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                 final var paymentRequired = handler.requiresNodePayment(responseType);
                 if (paymentRequired) {
                     ingestChecker.verifyPlatformActive();
+                } else {
+                    ingestChecker.verifyFreeQueryable();
                 }
                 if (UNSUPPORTED_RESPONSE_TYPES.contains(responseType)) {
                     throw new PreCheckException(NOT_SUPPORTED);
