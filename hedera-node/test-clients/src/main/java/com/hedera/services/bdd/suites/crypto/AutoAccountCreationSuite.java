@@ -489,8 +489,7 @@ public class AutoAccountCreationSuite {
                                 moving(10, B_TOKEN).between(CIVILIAN, VALID_ALIAS))
                         .via(multiTokenXfer)
                         .payingWith(CIVILIAN)
-                        .signedBy(CIVILIAN, VALID_ALIAS)
-                        .logged(),
+                        .signedBy(CIVILIAN, VALID_ALIAS),
                 withOpContext((spec, opLog) -> updateSpecFor(spec, VALID_ALIAS)),
                 // auto-creation and token association
                 getTxnRecord(multiTokenXfer)
@@ -644,8 +643,7 @@ public class AutoAccountCreationSuite {
                             .andAllChildRecords()
                             .hasNonStakingChildRecordCount(1)
                             .hasPriority(recordWith().autoAssociationCount(1))
-                            .hasNoAliasInChildRecord(0)
-                            .logged();
+                            .hasNoAliasInChildRecord(0);
                     allRunFor(spec, childRecordCheck, lookup);
                     final var sponsor = spec.registry().getAccountID(DEFAULT_PAYER);
                     final var payer = spec.registry().getAccountID(CIVILIAN);
@@ -1137,8 +1135,7 @@ public class AutoAccountCreationSuite {
                     final var lookup = getTxnRecord(TRANSFER_TXN)
                             .andAllChildRecords()
                             .hasNonStakingChildRecordCount(1)
-                            .hasNoAliasInChildRecord(0)
-                            .logged();
+                            .hasNoAliasInChildRecord(0);
                     allRunFor(spec, childRecordsCheck, lookup);
                     final var sponsor = spec.registry().getAccountID(SPONSOR);
                     final var payer = spec.registry().getAccountID(PAYER);
