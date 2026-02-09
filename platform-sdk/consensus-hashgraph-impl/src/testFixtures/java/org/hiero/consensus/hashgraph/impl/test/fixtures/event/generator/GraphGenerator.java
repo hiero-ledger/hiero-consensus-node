@@ -13,8 +13,9 @@ import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Generates a hashgraph of events.
- *
+ * @deprecated intended to be replaced by {@link GeneratorEventGraphSource}
  */
+@Deprecated(forRemoval = true)
 public interface GraphGenerator {
 
     /**

@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.hapi;
 
-import static com.hedera.services.bdd.junit.TestTags.ADHOC;
 import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -106,7 +105,6 @@ public class ContractGetInfoSuite {
     }
 
     @HapiTest
-    @Tag(ADHOC)
     @DisplayName("Inner txs payer/signer gets charged for all gas used after INNER_TRANSACTION_FAILED")
     public Stream<DynamicTest> userPaysTheGasUsed() {
         final var batchOperator = "batchOperator";

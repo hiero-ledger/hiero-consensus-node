@@ -58,6 +58,7 @@ public class StandaloneFeeCalculatorTest {
 
         final var signedTx = SignedTransaction.newBuilder()
                 .bodyBytes(TransactionBody.PROTOBUF.toBytes(body))
+                .sigMap(SignatureMap.newBuilder().build())
                 .build();
 
         final Transaction txn = Transaction.newBuilder()

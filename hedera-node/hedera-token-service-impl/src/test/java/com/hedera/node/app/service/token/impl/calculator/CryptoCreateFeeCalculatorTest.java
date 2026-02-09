@@ -40,6 +40,7 @@ class CryptoCreateFeeCalculatorTest {
     void setUp() {
         final var testSchedule = createTestFeeSchedule();
         feeCalculator = new SimpleFeeCalculatorImpl(testSchedule, Set.of(new CryptoCreateFeeCalculator()));
+        lenient().when(feeContext.functionality()).thenReturn(HederaFunctionality.CRYPTO_CREATE);
     }
 
     @Nested
