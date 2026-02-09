@@ -34,9 +34,9 @@ import org.hiero.base.crypto.HashingOutputStream;
 public final class WrappedRecordSidecarUtils {
     private WrappedRecordSidecarUtils() {}
 
-    record SidecarBundles(List<SidecarFile> sidecarFiles, List<SidecarMetadata> sidecarMetadata) {}
+    public record SidecarBundles(List<SidecarFile> sidecarFiles, List<SidecarMetadata> sidecarMetadata) {}
 
-    static SidecarBundles buildSidecarBundles(
+    public static SidecarBundles buildSidecarBundles(
             @NonNull final List<TransactionSidecarRecord> records, final int maxSideCarSizeInBytes) {
         requireNonNull(records);
         final List<SidecarFile> sidecarFiles = new ArrayList<>();

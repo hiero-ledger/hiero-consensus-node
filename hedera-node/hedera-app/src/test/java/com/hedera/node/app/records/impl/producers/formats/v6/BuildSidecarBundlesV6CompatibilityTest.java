@@ -15,9 +15,8 @@ import com.hedera.hapi.streams.HashObject;
 import com.hedera.hapi.streams.SidecarFile;
 import com.hedera.hapi.streams.SidecarMetadata;
 import com.hedera.hapi.streams.TransactionSidecarRecord;
-import com.hedera.node.app.records.impl.BlockRecordManagerImpl;
+import com.hedera.node.app.records.impl.WrappedRecordSidecarUtils;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import java.lang.reflect.Method;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -107,20 +106,8 @@ class BuildSidecarBundlesV6CompatibilityTest {
 
     private SidecarBundles bundlesFromBuildSidecarBundles(
             final List<TransactionSidecarRecord> records, final int maxSidecarBytes) throws Exception {
-        final Method m = BlockRecordManagerImpl.class.getDeclaredMethod("buildSidecarBundles", List.class, int.class);
-        m.setAccessible(true);
-        final Object bundles = m.invoke(null, records, maxSidecarBytes);
-
-        final Method sidecarFilesMethod = bundles.getClass().getDeclaredMethod("sidecarFiles");
-        sidecarFilesMethod.setAccessible(true);
-        @SuppressWarnings("unchecked")
-        final List<SidecarFile> sidecarFiles = (List<SidecarFile>) sidecarFilesMethod.invoke(bundles);
-
-        final Method sidecarMetadataMethod = bundles.getClass().getDeclaredMethod("sidecarMetadata");
-        sidecarMetadataMethod.setAccessible(true);
-        @SuppressWarnings("unchecked")
-        final List<SidecarMetadata> sidecarMetadata = (List<SidecarMetadata>) sidecarMetadataMethod.invoke(bundles);
-        return new SidecarBundles(sidecarFiles, sidecarMetadata);
+        final var bundles = WrappedRecordSidecarUtils.buildSidecarBundles(records, maxSidecarBytes);
+        return new SidecarBundles(bundles.sidecarFiles(), bundles.sidecarMetadata());
     }
 
     private SidecarBundles expectedBundlesFromActualWriter(
