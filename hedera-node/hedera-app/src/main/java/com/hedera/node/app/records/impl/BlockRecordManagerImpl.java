@@ -282,7 +282,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
             // the last transaction
             final var lastBlockHashBytes = streamFileProducer.getRunningHash();
             final var justFinishedBlockNumber = lastBlockInfo.lastBlockNumber() + 1;
-            if (writeWrappedRecordFileBlockHashesToDisk) {
+            if (currentBlockStartRunningHash != null && writeWrappedRecordFileBlockHashesToDisk) {
                 final var justFinishedBlockCreationTime = lastBlockInfo.firstConsTimeOfCurrentBlockOrThrow();
                 appendWrappedRecordFileBlockHashesToDisk(
                         justFinishedBlockNumber, justFinishedBlockCreationTime, lastBlockHashBytes);
