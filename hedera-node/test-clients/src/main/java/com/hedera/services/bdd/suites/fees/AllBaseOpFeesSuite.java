@@ -22,7 +22,10 @@ import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfe
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertionsHold;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenMintNftFullFeeUsd;
 import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
@@ -86,7 +89,20 @@ public class AllBaseOpFeesSuite {
                         .blankMemo()
                         .fee(ONE_HUNDRED_HBARS)
                         .via("moreSigsTxn"))
-                .then(validateChargedUsdWithin("moreSigsTxn", expectedFee, ALLOWED_DIFFERENCE_PERCENTAGE));
+                .then(doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return withOpContext((spec, log) -> {
+                            allRunFor(
+                                    spec,
+                                    validateChargedUsdWithin(
+                                            "moreSigsTxn",
+                                            expectedTokenMintNftFullFeeUsd(1, 1),
+                                            ALLOWED_DIFFERENCE_PERCENTAGE));
+                        });
+                    } else {
+                        return validateChargedUsdWithin("moreSigsTxn", expectedFee, ALLOWED_DIFFERENCE_PERCENTAGE);
+                    }
+                }));
     }
 
     @HapiTest
