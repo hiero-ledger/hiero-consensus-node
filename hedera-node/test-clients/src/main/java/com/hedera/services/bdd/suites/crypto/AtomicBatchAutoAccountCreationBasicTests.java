@@ -792,10 +792,13 @@ class AtomicBatchAutoAccountCreationBasicTests {
                             .via("batchTxnAllAccounts")
                             .hasKnownStatus(SUCCESS);
 
-                    final var batchTxnFeeCheck = safeValidateChargedUsdWithin("batchTxnAllAccounts",
-                            BASE_FEE_BATCH_TRANSACTION,1,
+                    final var batchTxnFeeCheck = safeValidateChargedUsdWithin(
+                            "batchTxnAllAccounts",
+                            BASE_FEE_BATCH_TRANSACTION,
+                            1,
                             // account for extra bytes in the node + network fee
-                            BASE_FEE_BATCH_TRANSACTION + 199 * PROCESSING_BYTES_FEE_USD * 10,2);
+                            BASE_FEE_BATCH_TRANSACTION + 199 * PROCESSING_BYTES_FEE_USD * 10,
+                            2);
 
                     // validate ED25519 account is created and has the expected balance
                     final var ED25519_AccountCheck = getAliasedAccountInfo(VALID_ALIAS_ED25519)
@@ -902,10 +905,13 @@ class AtomicBatchAutoAccountCreationBasicTests {
                             .via("batchTxnAllAccounts")
                             .hasKnownStatus(SUCCESS);
 
-                    final var batchTxnFeeCheck = safeValidateChargedUsdWithin("batchTxnAllAccounts",
-                            BASE_FEE_BATCH_TRANSACTION,1,
+                    final var batchTxnFeeCheck = safeValidateChargedUsdWithin(
+                            "batchTxnAllAccounts",
+                            BASE_FEE_BATCH_TRANSACTION,
+                            1,
                             // account for extra bytes in the node + network fee
-                            BASE_FEE_BATCH_TRANSACTION + 210 * PROCESSING_BYTES_FEE_USD * 10,2);
+                            BASE_FEE_BATCH_TRANSACTION + 210 * PROCESSING_BYTES_FEE_USD * 10,
+                            2);
 
                     // validate ED25519 account is created and has the expected balance
                     final var ED25519_AccountCheck = getAliasedAccountInfo(VALID_ALIAS_ED25519)
@@ -1020,10 +1026,13 @@ class AtomicBatchAutoAccountCreationBasicTests {
                             .via("batchTxnAllAccounts")
                             .hasKnownStatus(SUCCESS);
 
-                    final var batchTxnFeeCheck = safeValidateChargedUsdWithin("batchTxnAllAccounts",
-                            BASE_FEE_BATCH_TRANSACTION,1,
+                    final var batchTxnFeeCheck = safeValidateChargedUsdWithin(
+                            "batchTxnAllAccounts",
+                            BASE_FEE_BATCH_TRANSACTION,
+                            1,
                             // account for extra bytes in the node + network fee
-                            BASE_FEE_BATCH_TRANSACTION + 235 * PROCESSING_BYTES_FEE_USD * 10,2);
+                            BASE_FEE_BATCH_TRANSACTION + 235 * PROCESSING_BYTES_FEE_USD * 10,
+                            2);
 
                     // validate ED25519 account is created and has the expected balance
                     final var ED25519_AccountCheck = getAliasedAccountInfo(VALID_ALIAS_ED25519)

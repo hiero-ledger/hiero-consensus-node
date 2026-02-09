@@ -25,7 +25,6 @@ import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movi
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.safeValidateChargedUsdWithin;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
@@ -188,11 +187,13 @@ class AtomicBatchAutoAccountCreationEndToEndTests {
                                 .via("batchTxn")
                                 .hasKnownStatus(SUCCESS);
 
-                        final var batchTxnFeeCheck = safeValidateChargedUsdWithin("batchTxn",
-                                BASE_FEE_BATCH_TRANSACTION,1,
+                        final var batchTxnFeeCheck = safeValidateChargedUsdWithin(
+                                "batchTxn",
+                                BASE_FEE_BATCH_TRANSACTION,
+                                1,
                                 // account for extra bytes in the node + network fee
-                                BASE_FEE_BATCH_TRANSACTION + 1214 * PROCESSING_BYTES_FEE_USD * 10,2);
-
+                                BASE_FEE_BATCH_TRANSACTION + 1214 * PROCESSING_BYTES_FEE_USD * 10,
+                                2);
 
                         // validate the public key accounts creation and transfers
                         final var infoCheckED2559First = getAliasedAccountInfo(VALID_ALIAS_ED25519)
@@ -387,10 +388,13 @@ class AtomicBatchAutoAccountCreationEndToEndTests {
                                 .via("batchTxn")
                                 .hasKnownStatus(SUCCESS);
 
-                        final var batchTxnFeeCheck = safeValidateChargedUsdWithin("batchTxn",
-                                BASE_FEE_BATCH_TRANSACTION,1,
+                        final var batchTxnFeeCheck = safeValidateChargedUsdWithin(
+                                "batchTxn",
+                                BASE_FEE_BATCH_TRANSACTION,
+                                1,
                                 // account for extra bytes in the node + network fee
-                                BASE_FEE_BATCH_TRANSACTION + 817 * PROCESSING_BYTES_FEE_USD * 10,2);
+                                BASE_FEE_BATCH_TRANSACTION + 817 * PROCESSING_BYTES_FEE_USD * 10,
+                                2);
 
                         // validate the hollow accounts creation and transfers
                         final var infoCheckEVMFirst = getAliasedAccountInfo(evmAliasFirst.get())

@@ -224,7 +224,7 @@ public class MiscCryptoSuite {
                         .addTokenAllowance(owner, token, spender, 100L)
                         .addNftAllowance(owner, nft, spender, true, List.of(1L))
                         .via("approveTxn")
-                        .fee(ONE_HBAR*2)
+                        .fee(ONE_HBAR * 2)
                         .blankMemo()
                         .logged(),
                 /* NetworkGetExecutionTime requires superuser payer */
