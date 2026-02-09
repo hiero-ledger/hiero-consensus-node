@@ -20,6 +20,7 @@ Hedera uses leaky-bucket throttles with deterministic time progression.
 - A transaction can map to one or more throttle buckets.
 - The transaction is allowed only if **all required buckets** have capacity.
 - There are separate runtime throttle contexts:
+
 1. **Frontend (ingest/query):** per-node admission control.
 2. **Backend (handle/consensus):** network-deterministic usage and congestion accounting.
 
@@ -36,7 +37,7 @@ In addition to TPS-style buckets, there are specialized throttles for:
 - `DiscreteLeakyBucket`: Raw used/capacity bucket with leak and consume operations.
 - `BucketThrottle` : TPS/MTPS leaky-bucket arithmetic (capacity units per tx, leak-by-elapsed-nanos).
 - `DeterministicThrottle` : Wraps `BucketThrottle` with monotonic `Instant` decisions and snapshots.
-- `LeakyBucketThrottle` + `LeakyBucketDeterministicThrottle`: Generic scalar limiter used for gas/bytes style limits.  
+- `LeakyBucketThrottle` + `LeakyBucketDeterministicThrottle`: Generic scalar limiter used for gas/bytes style limits.
 - `OpsDurationDeterministicThrottle` : Contract execution "ops duration" limiter with configured capacity and leak rate.
 - `CongestibleThrottle` : Common read surface (`used`, `capacity`, `instantaneousPercentUsed`) for congestion pricing.
 
@@ -51,12 +52,12 @@ In addition to TPS-style buckets, there are specialized throttles for:
 
 ### 3) Runtime enforcement
 
-- `ThrottleAccumulator` (core runtime engine) : Holds active bucket mappings and specialized throttles 
-(gas/bytes/ops-duration), and performs allow/deny decisions.
+- `ThrottleAccumulator` (core runtime engine) : Holds active bucket mappings and specialized throttles
+  (gas/bytes/ops-duration), and performs allow/deny decisions.
 - `SynchronizedThrottleAccumulator` : Thread-safe wrapper used by ingest/query workflows.
 - `ThrottleServiceManager` : Lifecycle orchestration: init, config refresh, system-file rebuild, save/load snapshots.
-- `NetworkUtilizationManagerImpl` : Backend/consensus tracking entrypoint used by handle workflow.  
-  
+- `NetworkUtilizationManagerImpl` : Backend/consensus tracking entrypoint used by handle workflow.
+
 ## Component Diagram
 
 ```mermaid
@@ -141,7 +142,6 @@ flowchart LR
   - Capacity split by number of nodes.
   - Returns precheck-style throttling (`BUSY`).
   - Thread-safe access via `SynchronizedThrottleAccumulator`.
-
 - Backend (`ThrottleType.BACKEND_THROTTLE`)
   - Used during handle/consensus.
   - Deterministic tracking for congestion and state snapshots.
@@ -185,12 +185,12 @@ On startup/reconnect, `ThrottleServiceManager`:
 
 This table maps common throttle-related statuses to the exact decision point where they are emitted.
 
-| Status | Emitted in phase | Decision point | Source path |
-|---|---|---|---|
-| `BUSY` | Ingest precheck | `synchronizedThrottleAccumulator.shouldThrottle(txInfo, ...)` returns true | `IngestChecker.java` |
-| `BUSY` | Query handling precheck | `synchronizedThrottleAccumulator.shouldThrottle(function, query, ...)` returns true | `QueryWorkflowImpl.java` |
-| `CONSENSUS_GAS_EXHAUSTED` | Handle/consensus | Backend check failed and last tx was gas-throttled (`wasLastTxnGasThrottled()`) | `DispatchUsageManager.java` |
-| `THROTTLED_AT_CONSENSUS` | Handle/consensus | Backend check failed for non-gas reason | `DispatchUsageManager.java` |
-| `CONSENSUS_GAS_EXHAUSTED` | Contract execution path | Ops-duration throttle had zero available capacity before EVM execution | `ContextTransactionProcessor.java` |
+|          Status           |    Emitted in phase     |                                   Decision point                                    |            Source path             |
+|---------------------------|-------------------------|-------------------------------------------------------------------------------------|------------------------------------|
+| `BUSY`                    | Ingest precheck         | `synchronizedThrottleAccumulator.shouldThrottle(txInfo, ...)` returns true          | `IngestChecker.java`               |
+| `BUSY`                    | Query handling precheck | `synchronizedThrottleAccumulator.shouldThrottle(function, query, ...)` returns true | `QueryWorkflowImpl.java`           |
+| `CONSENSUS_GAS_EXHAUSTED` | Handle/consensus        | Backend check failed and last tx was gas-throttled (`wasLastTxnGasThrottled()`)     | `DispatchUsageManager.java`        |
+| `THROTTLED_AT_CONSENSUS`  | Handle/consensus        | Backend check failed for non-gas reason                                             | `DispatchUsageManager.java`        |
+| `CONSENSUS_GAS_EXHAUSTED` | Contract execution path | Ops-duration throttle had zero available capacity before EVM execution              | `ContextTransactionProcessor.java` |
 
 **NEXT: [Workflows](workflows.md)**
