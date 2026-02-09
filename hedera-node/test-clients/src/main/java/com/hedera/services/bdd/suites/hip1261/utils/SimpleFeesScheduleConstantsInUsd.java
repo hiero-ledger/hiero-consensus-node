@@ -122,6 +122,7 @@ public class SimpleFeesScheduleConstantsInUsd {
 
     public static final double TOKEN_UPDATE_BASE_FEE_USD = 0.0009;
     public static final long TOKEN_UPDATE_INCLUDED_KEYS = 1L;
+    public static final long TOKEN_UPDATE_INCLUDED_NFTS = 1L;
 
     public static final double TOKEN_DELETE_BASE_FEE_USD = 0.0009;
 
