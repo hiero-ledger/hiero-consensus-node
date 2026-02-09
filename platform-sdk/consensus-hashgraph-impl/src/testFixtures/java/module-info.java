@@ -14,11 +14,8 @@ open module org.hiero.consensus.hashgraph.impl.test.fixtures {
     requires transitive org.hiero.consensus.roster.test.fixtures;
     requires transitive org.hiero.consensus.utility.test.fixtures;
     requires transitive org.assertj.core;
-    requires com.hedera.pbj.runtime;
     requires com.swirlds.base.test.fixtures;
-    requires com.swirlds.base;
     requires com.swirlds.common.test.fixtures;
-    requires com.swirlds.config.api;
     requires com.swirlds.config.extensions.test.fixtures;
     requires com.swirlds.logging;
     requires com.swirlds.metrics.api;
@@ -27,20 +24,11 @@ open module org.hiero.consensus.hashgraph.impl.test.fixtures {
     requires org.hiero.base.utility.test.fixtures;
     requires org.hiero.consensus.hashgraph.impl;
     requires org.hiero.consensus.metrics;
-    requires org.hiero.consensus.roster.test.fixtures;
     requires org.hiero.consensus.roster;
     requires org.hiero.consensus.utility;
     requires java.desktop;
     requires org.apache.logging.log4j;
-    requires transitive org.hiero.consensus.utility;
-    requires com.swirlds.common.test.fixtures;
-    requires com.swirlds.config.extensions.test.fixtures;
-    requires com.swirlds.metrics.api;
-    requires com.swirlds.platform.core;
-    requires org.hiero.base.crypto.test.fixtures;
-    requires org.hiero.base.crypto;
     requires org.hiero.consensus.gossip.impl;
-    requires org.hiero.consensus.hashgraph.impl;
     requires org.mockito;
     requires static com.github.spotbugs.annotations;
 

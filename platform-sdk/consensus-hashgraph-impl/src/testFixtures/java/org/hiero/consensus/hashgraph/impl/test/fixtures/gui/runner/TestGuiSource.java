@@ -19,6 +19,7 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JSpinner;
 import javax.swing.SpinnerNumberModel;
+import org.hiero.consensus.event.EventGraphSource;
 import org.hiero.consensus.event.NoOpIntakeEventCounter;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.source.BranchingEventSource;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.gui.internal.BranchedEventMetadata;
