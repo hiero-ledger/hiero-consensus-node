@@ -4,6 +4,7 @@ package com.swirlds.platform.state.nexus;
 import com.swirlds.component.framework.component.InputWireLabel;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.consensus.model.hashgraph.EventWindow;
+import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 
 /**
@@ -25,4 +26,11 @@ public interface LatestCompleteStateNexus extends SignedStateNexus {
      */
     @InputWireLabel("complete state")
     void setStateIfNewer(@NonNull ReservedSignedState reservedSignedState);
+
+    /**
+     * Update the current platform status. Cause the latest complete state to be release if the platform is in {@link PlatformStatus#FREEZING}
+     * @param platformStatus the new platform status
+     */
+    @InputWireLabel("platform status")
+    void updatePlatformStatus(@NonNull PlatformStatus platformStatus);
 }
