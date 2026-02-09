@@ -63,18 +63,23 @@ public class GeneratorConsensus {
         it. The event must be hashed and have a descriptor built for its use in the SimpleLinker. */
         final PlatformEvent copy = e.copyGossipedData();
         final List<PlatformEvent> events = orphanBuffer.handleEvent(copy);
-        for (final PlatformEvent event : events) {
-            final EventImpl linkedEvent = linker.linkEvent(event);
-            if (linkedEvent == null) {
-                continue;
-            }
-            final List<ConsensusRound> consensusRounds = consensus.addEvent(linkedEvent);
-            if (consensusRounds.isEmpty()) {
-                continue;
-            }
-            // if we reach consensus, save the snapshot for future use
-            linker.setEventWindow(consensusRounds.getLast().getEventWindow());
+        if (events.size() != 1) {
+            throw new IllegalStateException("Expected exactly one event to be returned from the orphan buffer");
         }
+        final PlatformEvent event = events.getFirst();
+        e.setNGen(event.getNGen());
+
+        final EventImpl linkedEvent = linker.linkEvent(event);
+        if (linkedEvent == null) {
+            return;
+        }
+        final List<ConsensusRound> consensusRounds = consensus.addEvent(linkedEvent);
+        if (consensusRounds.isEmpty()) {
+            return;
+        }
+        // if we reach consensus, save the snapshot for future use
+        linker.setEventWindow(consensusRounds.getLast().getEventWindow());
+
     }
 
     /**

@@ -20,6 +20,7 @@ import org.hiero.consensus.crypto.PbjStreamHasher;
 import org.hiero.consensus.event.EventGraphSource;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.signing.GeneratorEventSigner;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
+import org.hiero.consensus.model.event.NonDeterministicGeneration;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.event.UnsignedEvent;
 import org.hiero.consensus.model.node.NodeId;
@@ -52,6 +53,7 @@ public class GeneratorEventGraphSource implements EventGraphSource {
     private final int maxOtherParents;
 
     private final GeneratorEventSigner eventSigner;
+    private final boolean populateNgen;
 
     /**
      * Creates a new graph generator.
@@ -62,6 +64,7 @@ public class GeneratorEventGraphSource implements EventGraphSource {
      * @param maxOtherParents the maximum number of other-parents an event can have
      * @param roster          the roster of network nodes
      * @param eventSigner     the signer used to produce event signatures
+     * @param populateNgen    whether to populate ngen values on generated events
      */
     GeneratorEventGraphSource(
             @NonNull final Configuration configuration,
@@ -69,7 +72,8 @@ public class GeneratorEventGraphSource implements EventGraphSource {
             final long seed,
             final int maxOtherParents,
             @NonNull final Roster roster,
-            @NonNull final GeneratorEventSigner eventSigner) {
+            @NonNull final GeneratorEventSigner eventSigner,
+            final boolean populateNgen) {
         this.maxOtherParents = maxOtherParents;
         this.random = Randotron.create(seed);
         this.latestEventPerNode = new EventDescriptor[roster.rosterEntries().size()];
@@ -77,6 +81,7 @@ public class GeneratorEventGraphSource implements EventGraphSource {
         this.consensus = new GeneratorConsensus(configuration, time, roster);
         this.hasher = new PbjStreamHasher();
         this.eventSigner = eventSigner;
+        this.populateNgen = populateNgen;
     }
 
     /**
@@ -143,6 +148,9 @@ public class GeneratorEventGraphSource implements EventGraphSource {
         platformEvent.signalPrehandleCompletion();
         consensus.updateConsensus(platformEvent);
         latestEventPerNode[eventCreator] = platformEvent.getDescriptor().eventDescriptor();
+        if(!populateNgen){
+            platformEvent.setNGen(NonDeterministicGeneration.GENERATION_UNDEFINED);
+        }
         return platformEvent;
     }
 
