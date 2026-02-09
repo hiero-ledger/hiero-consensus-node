@@ -123,8 +123,8 @@ public interface PcesModule {
      * @param configuration the configuration
      * @param selfId the ID of this node
      * @param destinationDirectory the directory to copy files to
-     * @param lowerBound the minimum ancient indicator of events to copy, events with lower ancient indicators are not copied
-     * @param round the minimum round of events to copy, events from lower rounds are not copied
+     * @param lowerBound the minimum birth round of events to copy, events with lower birth round are not copied
+     * @param round the round of the state that is being written
      */
     void copyPcesFilesRetryOnFailure(
             @NonNull Configuration configuration,
