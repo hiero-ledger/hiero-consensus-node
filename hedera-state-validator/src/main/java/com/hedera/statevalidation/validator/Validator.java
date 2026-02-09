@@ -51,8 +51,8 @@ public interface Validator {
     String ALL_GROUP = "all";
 
     /**
-     * Returns the group of this validator. There can be multiple validators in the same group.
-     * The group is used for Filtering which validators to run via command-line parameters.
+     * Returns the group this validator belongs to. There can be multiple validators in the same group.
+     * The group is used for filtering which validators to run via command-line parameters.
      *
      * @return a non-null, string identifier for this validator's group
      */

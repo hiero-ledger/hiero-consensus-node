@@ -14,25 +14,25 @@ Can also be used for development purposes, such as verifying that the node's sta
 2. Run the following command to execute the validation:
 
 ```shell
-java -jar ./validator-.jar {path-to-state-round} validate2 {tag} [{tag}...] [options]
+java -jar ./validator-.jar {path-to-state-round} validate {group} [{group}...] [options]
 ```
 
 ### Parameters
 
 - `{path-to-state-round}` - Location of the state files (required).
 - `{group}` - Validation group that should be run, multiple groups can be specified, separated by spaces (at least one required). Current supported groups:
-  - [`all`](/src/main/java/com/hedera/statevalidation/validator/v2/Validator.java) - Runs all validators.
-  - [`internal`](/src/main/java/com/hedera/statevalidation/validator/v2/HashRecordIntegrityValidator.java) - Validates hash record integrity for internal nodes.
-  - [`leaf`](/src/main/java/com/hedera/statevalidation/validator/v2/LeafBytesIntegrityValidator.java) - Validates leaf bytes integrity.
-  - [`hdhm`](/src/main/java/com/hedera/statevalidation/validator/v2/HdhmBucketIntegrityValidator.java) - Validates HDHM bucket integrity in the half-disk hashmap.
-  - [`account`](/src/main/java/com/hedera/statevalidation/validator/v2/AccountAndSupplyValidator.java) - Ensures all accounts have a positive balance and verifies total HBAR supply.
-  - [`tokenRelations`](/src/main/java/com/hedera/statevalidation/validator/v2/TokenRelationsIntegrityValidator.java) - Verifies that the accounts and tokens for every token relationship exist.
+  - [`all`](/src/main/java/com/hedera/statevalidation/validator/Validator.java) - Runs all validators.
+  - [`internal`](/src/main/java/com/hedera/statevalidation/validator/HashRecordIntegrityValidator.java) - Validates hash record integrity for internal nodes.
+  - [`leaf`](/src/main/java/com/hedera/statevalidation/validator/LeafBytesIntegrityValidator.java) - Validates leaf bytes integrity.
+  - [`hdhm`](/src/main/java/com/hedera/statevalidation/validator/HdhmBucketIntegrityValidator.java) - Validates HDHM bucket integrity in the half-disk hashmap.
+  - [`account`](/src/main/java/com/hedera/statevalidation/validator/AccountAndSupplyValidator.java) - Ensures all accounts have a positive balance and verifies total HBAR supply.
+  - [`tokenRelations`](/src/main/java/com/hedera/statevalidation/validator/TokenRelationsIntegrityValidator.java) - Verifies that the accounts and tokens for every token relationship exist.
   - `entityIds` - Verifies entity IDs are valid and unique. Validators:
-    - [`entityIdCount`](/src/main/java/com/hedera/statevalidation/validator/v2/EntityIdCountValidator.java) - Validates entity ID counts match expected values.
-    - [`entityIdUniqueness`](/src/main/java/com/hedera/statevalidation/validator/v2/EntityIdUniquenessValidator.java) - Verifies entity IDs are unique across entity types.
+    - [`entityIdCount`](/src/main/java/com/hedera/statevalidation/validator/EntityIdCountValidator.java) - Validates entity ID counts match expected values.
+    - [`entityIdUniqueness`](/src/main/java/com/hedera/statevalidation/validator/EntityIdUniquenessValidator.java) - Verifies entity IDs are unique across entity types.
   - `rehash` - Compare root hashes. Validators:
-    - [`rehash`](/src/main/java/com/hedera/statevalidation/validator/v2/RehashValidator.java) - Runs a full rehash of the state and compares against the original hash from the `DeserializedSignedState`.
-    - [`rootHash`](/src/main/java/com/hedera/statevalidation/validator/v2/RootHashValidator.java) - Validates the root hash against a `hashInfo.txt`.
+    - [`rehash`](/src/main/java/com/hedera/statevalidation/validator/RehashValidator.java) - Runs a full rehash of the state and compares against the original hash from the `DeserializedSignedState`.
+    - [`rootHash`](/src/main/java/com/hedera/statevalidation/validator/RootHashValidator.java) - Validates the root hash against a `hashInfo.txt`.
 
 ### Options
 
