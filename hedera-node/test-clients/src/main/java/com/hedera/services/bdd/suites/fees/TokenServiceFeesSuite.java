@@ -96,7 +96,6 @@ import org.junit.jupiter.api.Tag;
 @Tag(TOKEN)
 public class TokenServiceFeesSuite {
     private static final double ALLOWED_DIFFERENCE_PERCENTAGE = 0.01;
-    private static final double ALLOWED_DIFFERENCE = 1;
     private static String TOKEN_TREASURY = "treasury";
     private static final String NON_FUNGIBLE_TOKEN = "nonFungible";
     private static final String SUPPLY_KEY = "supplyKey";
