@@ -146,7 +146,6 @@ public class SimpleFeesScheduleConstantsInUsd {
 
     public static final double TOKEN_WIPE_BASE_FEE_USD = 0.0009;
     public static final double TOKEN_WIPE_FEE = 0.001;
-    public static final double TOKEN_CLAIM_FEE = 0.001;
 
     /* ---------- Schedule service ---------- */
 
