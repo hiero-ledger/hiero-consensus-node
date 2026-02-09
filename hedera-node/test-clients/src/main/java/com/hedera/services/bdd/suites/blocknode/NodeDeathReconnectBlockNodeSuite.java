@@ -6,13 +6,12 @@ import static com.hedera.services.bdd.junit.hedera.NodeSelector.allNodes;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertBlockNodeCommsLogContainsTimeframe;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogDoesNotContainText;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.logIt;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForActive;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForAny;
 import static com.hedera.services.bdd.suites.regression.system.MixedOperations.burstOfTps;
 
 import com.hedera.services.bdd.HapiBlockNode;
@@ -25,6 +24,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
+import org.hiero.consensus.model.status.PlatformStatus;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
@@ -145,13 +145,7 @@ public class NodeDeathReconnectBlockNodeSuite implements LifecycleTest {
                 waitForActive(allNodes(), RESTART_TO_ACTIVE_TIMEOUT),
                 doingContextual(spec -> time.set(Instant.now())),
                 // Run some more transactions so that we get the saturation to 100%
-                burstOfTps(MIXED_OPS_BURST_TPS, Duration.ofSeconds(25)),
-                sourcingContextual(spec -> assertBlockNodeCommsLogContainsTimeframe(
-                        allNodes(),
-                        time::get,
-                        Duration.ofMinutes(1),
-                        Duration.ofMinutes(1),
-                        "Block buffer is saturated; backpressure is being enabled",
-                        "!!! Block buffer is saturated; blocking thread until buffer is no longer saturated")));
+                burstOfTps(MIXED_OPS_BURST_TPS, Duration.ofSeconds(20)),
+                waitForAny(allNodes(), Duration.ofSeconds(120), PlatformStatus.CHECKING));
     }
 }
