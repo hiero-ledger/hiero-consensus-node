@@ -570,7 +570,8 @@ public class TokenServiceFeesSuite {
                         .signedBy(SUPPLY_KEY)
                         .blankMemo()
                         .via("fungibleMint"),
-                safeValidateChargedUsd("fungibleMint", EXPECTED_FUNGIBLE_MINT_PRICE_USD, EXPECTED_FUNGIBLE_MINT_PRICE_USD));
+                safeValidateChargedUsd(
+                        "fungibleMint", EXPECTED_FUNGIBLE_MINT_PRICE_USD, EXPECTED_FUNGIBLE_MINT_PRICE_USD));
     }
 
     @HapiTest
@@ -1085,7 +1086,9 @@ public class TokenServiceFeesSuite {
                             .blankMemo()
                             .via("mintTxn"),
                     safeValidateChargedUsd(
-                            "mintTxn", EXPECTED_NFT_MINT_PRICE_USD * rangeAmount, EXPECTED_NFT_MINT_PRICE_USD * rangeAmount));
+                            "mintTxn",
+                            EXPECTED_NFT_MINT_PRICE_USD * rangeAmount,
+                            EXPECTED_NFT_MINT_PRICE_USD * rangeAmount));
         }
 
         private Stream<DynamicTest> associateBulkTokensAndValidateFees(final List<String> tokens) {
