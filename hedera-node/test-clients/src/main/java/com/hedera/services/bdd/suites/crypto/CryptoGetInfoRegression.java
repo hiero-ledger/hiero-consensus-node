@@ -49,7 +49,6 @@ import org.junit.jupiter.api.Tag;
 
 @Tag(CRYPTO)
 public class CryptoGetInfoRegression {
-    static final Logger log = LogManager.getLogger(CryptoGetInfoRegression.class);
     private static final String TARGET_ACC = "targetAcc";
     private static final int NUM_ASSOCIATIONS = 10;
 
@@ -218,9 +217,10 @@ public class CryptoGetInfoRegression {
                         .hasAnswerOnlyPrecheck(INSUFFICIENT_PAYER_BALANCE));
     }
 
-    @HapiTest
+    @LeakyHapiTest(overrides = "fees.simpleFeesEnabled")
     final Stream<DynamicTest> failsForInsufficientPayment() {
         return hapiTest(
+                overriding("fees.simpleFeesEnabled", "false"),
                 cryptoCreate(CIVILIAN_PAYER),
                 getAccountInfo(GENESIS)
                         .payingWith(CIVILIAN_PAYER)
