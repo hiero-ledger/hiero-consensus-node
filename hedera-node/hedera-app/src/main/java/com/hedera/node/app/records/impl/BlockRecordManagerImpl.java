@@ -401,53 +401,32 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
             final long justFinishedBlockNumber,
             @NonNull final Timestamp justFinishedBlockCreationTime,
             @NonNull final Bytes endRunningHash) {
-        if (currentBlockStartRunningHash == null) {
-            logger.warn(
-                    "Skipping wrapped record-file block hashes append for block {} because startRunningHash is not initialized; "
-                            + "BlockInfo{lastBlockNumber={}, firstConsTimeOfCurrentBlock={}, consTimeOfLastHandledTxn={}}; "
-                            + "inMemory{recordItems={}, sidecars={}}; endRunningHashLen={}",
-                    justFinishedBlockNumber,
-                    lastBlockInfo.lastBlockNumber(),
-                    lastBlockInfo.firstConsTimeOfCurrentBlock(),
-                    lastBlockInfo.consTimeOfLastHandledTxn(),
-                    currentBlockRecordStreamItems.size(),
-                    currentBlockSidecarRecords.size(),
-                    endRunningHash.length());
-            return;
-        }
-        if (currentBlockRecordStreamItems.isEmpty()) {
-            logger.info(
-                    "Skipping wrapped record-file block hashes append for block {} because no record stream items were captured in memory; "
-                            + "BlockInfo{lastBlockNumber={}, firstConsTimeOfCurrentBlock={}, consTimeOfLastHandledTxn={}}; "
-                            + "inMemory{startRunningHashLen={}, sidecars={}}; endRunningHashLen={}. "
-                            + "This can happen on restart/upgrade if a new block was opened but its first txn was never handled before shutdown.",
-                    justFinishedBlockNumber,
-                    lastBlockInfo.lastBlockNumber(),
-                    lastBlockInfo.firstConsTimeOfCurrentBlock(),
-                    lastBlockInfo.consTimeOfLastHandledTxn(),
-                    currentBlockStartRunningHash.length(),
-                    currentBlockSidecarRecords.size(),
-                    endRunningHash.length());
-            return;
-        }
-        final var cfg = configProvider.getConfiguration();
-        final var cfgServicesVersion = cfg.getConfigData(VersionConfig.class).servicesVersion();
-        final var cfgConfigVersion = cfg.getConfigData(HederaConfig.class).configVersion();
-        final var hapiProtoVersion =
-                cfgServicesVersion.copyBuilder().build("" + cfgConfigVersion).build();
+        try {
+            final var cfg = configProvider.getConfiguration();
+            final var cfgServicesVersion =
+                    cfg.getConfigData(VersionConfig.class).servicesVersion();
+            final var cfgConfigVersion = cfg.getConfigData(HederaConfig.class).configVersion();
+            final var hapiProtoVersion = cfgServicesVersion
+                    .copyBuilder()
+                    .build("" + cfgConfigVersion)
+                    .build();
 
-        // Snapshot everything needed for async computation + append. (BlockRecordManagerImpl must be free to move on.)
-        final var input = new WrappedRecordFileBlockHashesComputationInput(
-                justFinishedBlockNumber,
-                justFinishedBlockCreationTime,
-                hapiProtoVersion,
-                currentBlockStartRunningHash,
-                endRunningHash,
-                List.copyOf(currentBlockRecordStreamItems),
-                List.copyOf(currentBlockSidecarRecords),
-                maxSideCarSizeInBytes);
+            // Snapshot everything needed for async computation + append. (BlockRecordManagerImpl must be free to move
+            // on.)
+            final var input = new WrappedRecordFileBlockHashesComputationInput(
+                    justFinishedBlockNumber,
+                    justFinishedBlockCreationTime,
+                    hapiProtoVersion,
+                    currentBlockStartRunningHash,
+                    endRunningHash,
+                    List.copyOf(currentBlockRecordStreamItems),
+                    List.copyOf(currentBlockSidecarRecords),
+                    maxSideCarSizeInBytes);
 
-        wrappedRecordHashesDiskWriter.appendAsync(input);
+            wrappedRecordHashesDiskWriter.appendAsync(input);
+        } catch (Exception e) {
+            logger.warn("Failed to append wrapped record-file block hashes to disk", e);
+        }
     }
 
     /**
