@@ -43,7 +43,7 @@ class MerklePathBuilderTest {
     @Test
     @DisplayName("build() should create MerklePath with single sibling")
     void buildWithSingleSibling() {
-        // Given a MerkleProof with one left sibling
+        // Given a MerkleProof with one sibling as represented by the State API (direction inverted)
         final var siblingHash = new SiblingHash(true, TEST_HASH_1);
         final var merkleProof = new MerkleProof(TEST_STATE_ITEM, List.of(siblingHash), List.of(TEST_INNER_HASH));
 
@@ -52,10 +52,10 @@ class MerklePathBuilderTest {
 
         // Then the path should have the correct structure
         assertThat(merklePath).isNotNull();
-        assertThat(merklePath.hasLeaf()).isTrue();
-        assertThat(merklePath.leaf().stateItem()).isEqualTo(TEST_STATE_ITEM);
+        assertThat(merklePath.hasStateItemLeaf()).isTrue();
+        assertThat(merklePath.stateItemLeaf()).isEqualTo(TEST_STATE_ITEM);
         assertThat(merklePath.siblings()).hasSize(1);
-        assertThat(merklePath.siblings().get(0).isLeft()).isTrue();
+        assertThat(merklePath.siblings().get(0).isLeft()).isFalse();
         assertThat(merklePath.siblings().get(0).hash()).isEqualTo(Bytes.wrap(TEST_HASH_1.copyToByteArray()));
         assertThat(merklePath.nextPathIndex()).isEqualTo(-1);
     }
@@ -63,7 +63,7 @@ class MerklePathBuilderTest {
     @Test
     @DisplayName("build() should create MerklePath with multiple siblings")
     void buildWithMultipleSiblings() {
-        // Given a MerkleProof with multiple siblings (mixed left/right)
+        // Given a MerkleProof with multiple siblings as represented by the State API (direction inverted)
         final var sibling1 = new SiblingHash(false, TEST_HASH_1); // Right sibling
         final var sibling2 = new SiblingHash(true, TEST_HASH_2); // Left sibling
         final var merkleProof = new MerkleProof(TEST_STATE_ITEM, List.of(sibling1, sibling2), List.of(TEST_INNER_HASH));
@@ -75,11 +75,11 @@ class MerklePathBuilderTest {
         assertThat(merklePath.siblings()).hasSize(2);
 
         // First sibling (right)
-        assertThat(merklePath.siblings().get(0).isLeft()).isFalse();
+        assertThat(merklePath.siblings().get(0).isLeft()).isTrue();
         assertThat(merklePath.siblings().get(0).hash()).isEqualTo(Bytes.wrap(TEST_HASH_1.copyToByteArray()));
 
         // Second sibling (left)
-        assertThat(merklePath.siblings().get(1).isLeft()).isTrue();
+        assertThat(merklePath.siblings().get(1).isLeft()).isFalse();
         assertThat(merklePath.siblings().get(1).hash()).isEqualTo(Bytes.wrap(TEST_HASH_2.copyToByteArray()));
     }
 
@@ -94,8 +94,8 @@ class MerklePathBuilderTest {
 
         // Then the path should have no siblings
         assertThat(merklePath.siblings()).isEmpty();
-        assertThat(merklePath.hasLeaf()).isTrue();
-        assertThat(merklePath.leaf().stateItem()).isEqualTo(TEST_STATE_ITEM);
+        assertThat(merklePath.hasStateItemLeaf()).isTrue();
+        assertThat(merklePath.stateItemLeaf()).isEqualTo(TEST_STATE_ITEM);
         assertThat(merklePath.nextPathIndex()).isEqualTo(-1);
     }
 
@@ -130,31 +130,31 @@ class MerklePathBuilderTest {
     }
 
     @Test
-    @DisplayName("build() should handle left sibling direction correctly")
-    void buildHandlesLeftSiblingCorrectly() {
-        // Given a MerkleProof with a LEFT sibling (isLeft = true)
+    @DisplayName("fromStateApi() should invert sibling direction flag from the State API")
+    void fromStateApiInvertsSiblingDirection() {
+        // Given a MerkleProof with a sibling marked `isLeft=true` by the State API
         final var leftSibling = new SiblingHash(true, TEST_HASH_1);
         final var merkleProof = new MerkleProof(TEST_STATE_ITEM, List.of(leftSibling), List.of(TEST_INNER_HASH));
 
         // When building the MerklePath
         final var merklePath = MerklePathBuilder.fromStateApi(merkleProof).build();
 
-        // Then the sibling node should also be left (direct mapping)
-        assertThat(merklePath.siblings().get(0).isLeft()).isTrue();
+        // Then the protobuf direction flag is inverted
+        assertThat(merklePath.siblings().get(0).isLeft()).isFalse();
     }
 
     @Test
-    @DisplayName("build() should handle right sibling direction correctly")
-    void buildHandlesRightSiblingCorrectly() {
-        // Given a MerkleProof with a RIGHT sibling (isLeft = false)
+    @DisplayName("fromStateApi() should invert sibling direction flag from the State API (right sibling case)")
+    void fromStateApiInvertsSiblingDirectionForRightSiblingCase() {
+        // Given a MerkleProof with a sibling marked `isLeft=false` by the State API
         final var rightSibling = new SiblingHash(false, TEST_HASH_1);
         final var merkleProof = new MerkleProof(TEST_STATE_ITEM, List.of(rightSibling), List.of(TEST_INNER_HASH));
 
         // When building the MerklePath
         final var merklePath = MerklePathBuilder.fromStateApi(merkleProof).build();
 
-        // Then the sibling node should also be right (direct mapping)
-        assertThat(merklePath.siblings().get(0).isLeft()).isFalse();
+        // Then the protobuf direction flag is inverted
+        assertThat(merklePath.siblings().get(0).isLeft()).isTrue();
     }
 
     @Test
@@ -174,7 +174,7 @@ class MerklePathBuilderTest {
     }
 
     @Test
-    @DisplayName("build() should create MerkleLeaf with correct state item")
+    @DisplayName("build() should create state item leaf with correct bytes")
     void buildCreatesMerkleLeafWithStateItem() {
         // Given a MerkleProof with a specific state item
         final var stateItem = Bytes.wrap("custom-state-item-data");
@@ -183,10 +183,9 @@ class MerklePathBuilderTest {
         // When building the MerklePath
         final var merklePath = MerklePathBuilder.fromStateApi(merkleProof).build();
 
-        // Then the MerkleLeaf should contain the state item
-        assertThat(merklePath.hasLeaf()).isTrue();
-        assertThat(merklePath.leaf().hasStateItem()).isTrue();
-        assertThat(merklePath.leaf().stateItem()).isEqualTo(stateItem);
+        // Then the MerklePath should contain the state item leaf bytes
+        assertThat(merklePath.hasStateItemLeaf()).isTrue();
+        assertThat(merklePath.stateItemLeaf()).isEqualTo(stateItem);
     }
 
     @Test
@@ -200,7 +199,7 @@ class MerklePathBuilderTest {
 
         final var prefix = builder.prefixMerklePathBuilder(1);
 
-        assertThat(prefix.getLeaf()).isNull();
+        assertThat(prefix.hasLeaf()).isFalse();
         assertThat(prefix.getRootHash()).isEqualTo(builder.getRootHash());
         assertThat(prefix.getSiblingNodes()).hasSize(1);
         assertThat(prefix.getSiblingNodes().getFirst())
@@ -218,7 +217,7 @@ class MerklePathBuilderTest {
 
         final var pruned = builder.pruneFromRoot(1);
 
-        assertThat(pruned.getLeaf()).isEqualTo(builder.getLeaf());
+        assertThat(pruned.build().stateItemLeaf()).isEqualTo(builder.build().stateItemLeaf());
         assertThat(pruned.getSiblingNodes()).hasSize(1);
         assertThat(pruned.getSiblingNodes().getFirst())
                 .isEqualTo(builder.getSiblingNodes().getFirst());

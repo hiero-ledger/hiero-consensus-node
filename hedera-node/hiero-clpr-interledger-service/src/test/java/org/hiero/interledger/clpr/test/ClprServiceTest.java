@@ -89,9 +89,8 @@ class ClprServiceTest {
 
     private static ClprLedgerConfiguration extractConfig(final com.hedera.hapi.node.transaction.TransactionBody txn) {
         final StateProof proof = txn.clprSetLedgerConfigurationOrThrow().ledgerConfigurationProofOrThrow();
-        final var leaf = proof.paths().getFirst().leafOrThrow();
         try {
-            final var stateItem = StateItem.PROTOBUF.parse(leaf.stateItemOrThrow());
+            final var stateItem = StateItem.PROTOBUF.parse(proof.paths().getFirst().stateItemLeafOrThrow());
             final StateValue value = stateItem.valueOrThrow();
             return value.clprServiceIConfigurationsOrThrow();
         } catch (final ParseException e) {

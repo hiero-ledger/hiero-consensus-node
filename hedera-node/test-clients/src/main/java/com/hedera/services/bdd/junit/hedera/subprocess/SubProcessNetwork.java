@@ -262,11 +262,19 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
     }
 
     /**
+     * Returns the initial network metadata used at startup.
+     *
+     * @return the genesis network metadata
+     */
+    public @NonNull Network genesisNetwork() {
+        return genesisNetwork;
+    }
+
+    /**
      * Starts all nodes in the network.
      */
     @Override
     public void start() {
-        final var serviceEndpoints = currentGrpcServiceEndpoints();
         nodes.forEach(node -> {
             node.initWorkingDir(network);
             executePostInitWorkingDirActions(node);
@@ -572,10 +580,6 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
         network = NetworkUtils.generateNetworkConfig(
                 nodes, nextInternalGossipPort, nextExternalGossipPort, latestCandidateWeights());
         nodes.get(insertionPoint).initWorkingDir(network);
-        if (blockNodeMode.equals(BlockNodeMode.SIMULATOR)) {
-            executePostInitWorkingDirActions(node);
-        }
-
         ensureApplicationPropertyOverridesForNode(nodeId);
         executePostInitWorkingDirActions(node);
         if (refreshOverrides) {
@@ -1002,16 +1006,16 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
     }
 
     /**
-     * Writes the override <i>config.txt</i> and <i>override-network.json</i> files for each node in the network,
-     * as implied by the current {@link SubProcessNetwork#network} field. (Note the weights in this {@code configTxt}
-     * field are maintained in very brittle fashion by getting up-to-date values from {@code node0}'s
-     * <i>candidate-roster.json</i> file during the {@link FakeNmt} operations that precede the upgrade; at some point
-     * we should clean this up.)
+     * Writes the override <i>override-network.json</i> files for each node in the network, as implied by the current
+     * {@link SubProcessNetwork#network} field. (Note the weights in this network are maintained in very brittle
+     * fashion by getting up-to-date values from {@code node0}'s <i>candidate-roster.json</i> file during the
+     * {@link FakeNmt} operations that precede the upgrade; at some point we should clean this up.)
      */
     private void refreshOverrideNetworks(@NonNull final ReassignPorts reassignPorts) {
         log.info("Refreshing override networks for '{}' - \n{}", name(), network);
         nodes.forEach(node -> {
-            var overrideNetwork = WorkingDirUtils.networkFrom(network, OnlyRoster.NO, currentGrpcServiceEndpoints());
+            var overrideNetwork =
+                    WorkingDirUtils.networkFrom(network, WorkingDirUtils.OnlyRoster.NO, currentGrpcServiceEndpoints());
             if (overrideCustomizer != null) {
                 // Apply the override customizer to the network
                 overrideNetwork = overrideCustomizer.apply(overrideNetwork);
@@ -1035,14 +1039,14 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
                 final var nodePorts = overrideNetwork.nodeMetadata().stream()
                         .map(NodeMetadata::rosterEntryOrThrow)
                         .collect(toMap(RosterEntry::nodeId, RosterEntry::gossipEndpoint));
-                final var updatedMetadata = genesisNetwork.nodeMetadata().stream()
-                        .map(metadata -> withReassignedPorts(
-                                metadata,
-                                nodePorts.get(metadata.rosterEntryOrThrow().nodeId())))
-                        .toList();
                 final var updatedNetwork = genesisNetwork
                         .copyBuilder()
-                        .nodeMetadata(updatedMetadata)
+                        .nodeMetadata(genesisNetwork.nodeMetadata().stream()
+                                .map(metadata -> withReassignedPorts(
+                                        metadata,
+                                        nodePorts.get(
+                                                metadata.rosterEntryOrThrow().nodeId())))
+                                .toList())
                         .build();
                 try {
                     Files.writeString(genesisNetworkPath, Network.JSON.toJSON(updatedNetwork));
@@ -1172,6 +1176,13 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
         }
     }
 
+    /**
+     * Finds an available TCP port by probing random candidates in the {@link #FIRST_CANDIDATE_PORT} to
+     * {@link #LAST_CANDIDATE_PORT} range.
+     *
+     * @return an available port
+     * @throws RuntimeException if no port can be found after a bounded number of attempts
+     */
     public static int findAvailablePort() {
         // Find a random available port between 30000 and 40000
         int attempts = 0;
@@ -1186,25 +1197,31 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
         throw new RuntimeException("Could not find available port after 100 attempts");
     }
 
+    /**
+     * Applies any configured application property overrides for the given node by appending key/value pairs to the
+     * node's {@code application.properties} file.
+     *
+     * <p>This is used by various test extensions (e.g. multi-network and restart flows) to force specific settings
+     * for a given node prior to process start.</p>
+     *
+     * @param node the node whose {@code application.properties} should be updated
+     */
     public void configureApplicationProperties(HederaNode node) {
         // Update bootstrap properties for the node from bootstrapPropertyOverrides if there are any
         final var nodeId = node.getNodeId();
         if (applicationPropertyOverrides.containsKey(nodeId)) {
             final var properties = applicationPropertyOverrides.get(nodeId);
-            log.info("Configuring application properties for node {}: {}", nodeId, properties);
+            // Don't log override values; these can occasionally include sensitive material (e.g. keys/certs).
+            final var keys = new ArrayList<String>();
+            for (int i = 0; i < properties.size(); i += 2) {
+                keys.add(properties.get(i));
+            }
+            log.info("Configuring application properties for node {} keys: {}", nodeId, keys);
             Path appPropertiesPath = node.getExternalPath(APPLICATION_PROPERTIES);
-            log.info(
-                    "Attempting to update application.properties at path {} for node {}",
-                    appPropertiesPath,
-                    node.getNodeId());
+            log.info("Attempting to update application.properties at path {} for node {}", appPropertiesPath, nodeId);
 
             try {
-                // First check if file exists and log current content
-                if (Files.exists(appPropertiesPath)) {
-                    String currentContent = Files.readString(appPropertiesPath);
-                    log.info(
-                            "Current application.properties content for node {}: {}", node.getNodeId(), currentContent);
-                } else {
+                if (!Files.exists(appPropertiesPath)) {
                     log.info(
                             "application.properties does not exist yet for node {}, will create new file",
                             node.getNodeId());
@@ -1225,13 +1242,6 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
                         propertyBuilder.toString(),
                         StandardOpenOption.CREATE,
                         StandardOpenOption.APPEND);
-
-                // Verify the file was updated
-                String updatedContent = Files.readString(appPropertiesPath);
-                log.info(
-                        "application.properties content after update for node {}: {}",
-                        node.getNodeId(),
-                        updatedContent);
             } catch (IOException e) {
                 log.error("Failed to update application.properties for node {}: {}", node.getNodeId(), e.getMessage());
                 throw new RuntimeException("Failed to update application.properties for node " + node.getNodeId(), e);

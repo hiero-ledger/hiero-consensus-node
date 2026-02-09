@@ -73,6 +73,7 @@ import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.migrate.StartupNetworks;
 import com.hedera.node.app.spi.records.RecordSource;
 import com.hedera.node.app.spi.records.SelfNodeAccountIdManager;
+import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.hedera.node.app.spi.workflows.SystemContext;
 import com.hedera.node.app.state.HederaRecordCache;
 import com.hedera.node.app.state.recordcache.LegacyListRecordSource;
@@ -419,7 +420,7 @@ public class SystemTransactions {
         final var nodeStakeUpdate = EndOfStakingPeriodUtils.newNodeStakeUpdate(
                 lastInstantOfPreviousPeriodFor(now), nodeStakes, stakingConfig, 0L, 0L, 0L, 0L);
         systemContext.dispatchAdmin(b -> b.memo(END_OF_PERIOD_MEMO).nodeStakeUpdate(nodeStakeUpdate));
-        //CLPR BOOTSTRAP
+        // CLPR BOOTSTRAP
         maybeDispatchClprBootstrap(systemContext, state);
     }
 
@@ -485,6 +486,8 @@ public class SystemTransactions {
                 adminConfig.upgradeNodeAdminKeysFile(),
                 SystemTransactions::parseNodeAdminKeys);
         autoNodeAdminKeyUpdates.tryIfPresent(adminConfig.upgradeSysFilesLoc(), systemContext);
+        // Ensure CLPR config reflects the post-upgrade roster and any updated CLPR configuration properties.
+        maybeDispatchClprBootstrap(systemContext, state);
     }
 
     /**
@@ -564,14 +567,14 @@ public class SystemTransactions {
      * </ul>
      */
     private void maybeDispatchClprBootstrap(@NonNull final SystemContext systemContext, @NonNull final State state) {
-        final var storeFactory = new ReadableStoreFactory(state);
+        final var storeFactory = new ReadableStoreFactoryImpl(state);
         final ReadableRosterStore rosterStore;
         final ReadableClprMetadataStore metadataStore;
         ReadableClprLedgerConfigurationStore configStore = null;
         try {
-            rosterStore = storeFactory.getStore(ReadableRosterStore.class);
-            metadataStore = storeFactory.getStore(ReadableClprMetadataStore.class);
-            configStore = storeFactory.getStore(ReadableClprLedgerConfigurationStore.class);
+            rosterStore = storeFactory.readableStore(ReadableRosterStore.class);
+            metadataStore = storeFactory.readableStore(ReadableClprMetadataStore.class);
+            configStore = storeFactory.readableStore(ReadableClprLedgerConfigurationStore.class);
         } catch (final IllegalArgumentException e) {
             return;
         }
@@ -662,7 +665,7 @@ public class SystemTransactions {
 
     private Network safeGetNetwork(@NonNull final ReadableStoreFactory storeFactory) {
         try {
-            return storeFactory.getStore(Network.class);
+            return storeFactory.readableStore(Network.class);
         } catch (final IllegalArgumentException e) {
             return null;
         }
@@ -670,7 +673,7 @@ public class SystemTransactions {
 
     private ReadableNodeStore safeGetNodeStore(@NonNull final ReadableStoreFactory storeFactory) {
         try {
-            return storeFactory.getStore(ReadableNodeStore.class);
+            return storeFactory.readableStore(ReadableNodeStore.class);
         } catch (final IllegalArgumentException e) {
             return null;
         }

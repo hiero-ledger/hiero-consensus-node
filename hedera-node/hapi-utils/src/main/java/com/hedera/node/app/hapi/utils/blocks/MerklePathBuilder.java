@@ -1,15 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hapi.utils.blocks;
 
-import static com.hedera.node.app.hapi.utils.blocks.HashUtils.computeLeafHash;
+import static com.hedera.node.app.hapi.utils.blocks.HashUtils.computeBlockItemLeafHash;
+import static com.hedera.node.app.hapi.utils.blocks.HashUtils.computeStateItemLeafHash;
 import static com.hedera.node.app.hapi.utils.blocks.HashUtils.computeSingleChildHash;
+import static com.hedera.node.app.hapi.utils.blocks.HashUtils.computeTimestampLeafHash;
 import static com.hedera.node.app.hapi.utils.blocks.HashUtils.joinHashes;
 import static com.hedera.node.app.hapi.utils.blocks.HashUtils.newMessageDigest;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.MerklePath;
 import com.hedera.hapi.block.stream.SiblingNode;
-import com.hedera.hapi.node.state.blockstream.MerkleLeaf;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.MerkleProof;
 import com.swirlds.state.SiblingHash;
@@ -24,7 +25,7 @@ import java.util.List;
  *
  * <p>A Merkle Path in this code base represents the authentication path from either:
  * <ul>
- *   <li>A concrete leaf (represented by a {@link MerkleLeaf}), or</li>
+ *   <li>A concrete leaf (represented by leaf bytes in a {@link MerklePath}), or</li>
  *   <li>A pre-computed hash (for internal-only path segments), or</li>
  *   <li>An internal starting hash ("startHash") when the path is used purely as an internal connector after
  *       merging.</li>
@@ -43,7 +44,9 @@ public final class MerklePathBuilder {
 
     private final MessageDigest digest = newMessageDigest();
 
-    private MerkleLeaf leaf;
+    private Bytes timestampLeaf;
+    private Bytes blockItemLeaf;
+    private Bytes stateItemLeaf;
     private Bytes hash;
     private byte[] startHash;
     private final List<SiblingNode> siblingNodes = new ArrayList<>();
@@ -52,8 +55,9 @@ public final class MerklePathBuilder {
     private int nextPathIndex = -1;
 
     /**
-     * Constructs an empty Merkle path builder. One of {@link #setLeaf(MerkleLeaf)}, {@link #setHash(Bytes)} or
-     * a merge operation that produces {@link #startHash} must be invoked before hash accessors are used.
+     * Constructs an empty Merkle path builder. One of {@link #setStateItemLeaf(Bytes)}, {@link #setBlockItemLeaf(Bytes)},
+     * {@link #setTimestampLeaf(Bytes)}, {@link #setHash(Bytes)} or a merge operation that produces {@link #startHash}
+     * must be invoked before hash accessors are used.
      */
     public MerklePathBuilder() {}
 
@@ -67,9 +71,7 @@ public final class MerklePathBuilder {
     public static MerklePathBuilder fromStateApi(@NonNull final MerkleProof merkleProof) {
         requireNonNull(merkleProof, "merkleProof must not be null");
         final var builder = new MerklePathBuilder();
-        final var merkleLeaf =
-                MerkleLeaf.newBuilder().stateItem(merkleProof.stateItem()).build();
-        builder.setLeaf(merkleLeaf);
+        builder.setStateItemLeaf(merkleProof.stateItem());
         builder.setSiblingNodes(convertSiblingHashes(merkleProof.siblingHashes()));
         return builder;
     }
@@ -82,17 +84,22 @@ public final class MerklePathBuilder {
         requireNonNull(siblingHashes, "siblingHashes must not be null");
         final var result = new ArrayList<SiblingNode>(siblingHashes.size());
         for (final var siblingHash : siblingHashes) {
+            // The State API currently encodes sibling direction opposite of the protobuf `SiblingNode.is_left`
+            // convention (see `VirtualMapStateImpl.getMerkleProof()`).
+            //
+            // To ensure we compute the same root hash as the underlying VirtualMap, we invert the flag when
+            // mapping into the protobuf representation used in StateProofs.
             result.add(SiblingNode.newBuilder()
-                    .isLeft(siblingHash.isLeft())
+                    .isLeft(!siblingHash.isLeft())
                     .hash(Bytes.wrap(siblingHash.hash().copyToByteArray()))
                     .build());
         }
         return result;
     }
 
-    /** @return leaf payload or null if this path is internal */
-    public MerkleLeaf getLeaf() {
-        return leaf;
+    /** @return true if this path starts from a concrete leaf */
+    public boolean hasLeaf() {
+        return timestampLeaf != null || blockItemLeaf != null || stateItemLeaf != null;
     }
 
     /** @return explicit starting hash if set (null if leaf or startHash is used) */
@@ -118,14 +125,50 @@ public final class MerklePathBuilder {
     }
 
     /**
-     * Set the leaf for this path. Recomputes all inner node hashes using existing sibling nodes.
-     * Leaf takes precedence over a previously set {@link #hash} or {@link #startHash}.
+     * Sets the state-item leaf for this path. Recomputes all inner node hashes using existing sibling nodes.
+     * The leaf takes precedence over a previously set {@link #hash} or {@link #startHash}.
      *
-     * @param newLeaf the concrete leaf payload
+     * @param newLeaf the concrete state item leaf bytes
      * @return this builder
      */
-    public MerklePathBuilder setLeaf(@NonNull final MerkleLeaf newLeaf) {
-        this.leaf = requireNonNull(newLeaf, "leaf must not be null");
+    public MerklePathBuilder setStateItemLeaf(@NonNull final Bytes newLeaf) {
+        this.stateItemLeaf = requireNonNull(newLeaf, "stateItemLeaf must not be null");
+        this.blockItemLeaf = null;
+        this.timestampLeaf = null;
+        this.hash = null;
+        this.startHash = null;
+        recomputeInnerNodeHashes();
+        return this;
+    }
+
+    /**
+     * Sets the block-item leaf for this path. Recomputes all inner node hashes using existing sibling nodes.
+     * The leaf takes precedence over a previously set {@link #hash} or {@link #startHash}.
+     *
+     * @param newLeaf the concrete block item leaf bytes
+     * @return this builder
+     */
+    public MerklePathBuilder setBlockItemLeaf(@NonNull final Bytes newLeaf) {
+        this.blockItemLeaf = requireNonNull(newLeaf, "blockItemLeaf must not be null");
+        this.stateItemLeaf = null;
+        this.timestampLeaf = null;
+        this.hash = null;
+        this.startHash = null;
+        recomputeInnerNodeHashes();
+        return this;
+    }
+
+    /**
+     * Sets the timestamp leaf for this path. Recomputes all inner node hashes using existing sibling nodes.
+     * The leaf takes precedence over a previously set {@link #hash} or {@link #startHash}.
+     *
+     * @param newLeaf the concrete timestamp leaf bytes
+     * @return this builder
+     */
+    public MerklePathBuilder setTimestampLeaf(@NonNull final Bytes newLeaf) {
+        this.timestampLeaf = requireNonNull(newLeaf, "timestampLeaf must not be null");
+        this.stateItemLeaf = null;
+        this.blockItemLeaf = null;
         this.hash = null;
         this.startHash = null;
         recomputeInnerNodeHashes();
@@ -142,7 +185,9 @@ public final class MerklePathBuilder {
      */
     public MerklePathBuilder setHash(@NonNull final Bytes newHash) {
         this.hash = requireNonNull(newHash, "hash must not be null");
-        this.leaf = null;
+        this.timestampLeaf = null;
+        this.blockItemLeaf = null;
+        this.stateItemLeaf = null;
         this.startHash = null;
         recomputeInnerNodeHashes();
         return this;
@@ -214,8 +259,12 @@ public final class MerklePathBuilder {
      */
     public MerklePath build() {
         final var builder = MerklePath.newBuilder().nextPathIndex(nextPathIndex);
-        if (leaf != null) {
-            builder.leaf(leaf);
+        if (stateItemLeaf != null) {
+            builder.stateItemLeaf(stateItemLeaf);
+        } else if (blockItemLeaf != null) {
+            builder.blockItemLeaf(blockItemLeaf);
+        } else if (timestampLeaf != null) {
+            builder.timestampLeaf(timestampLeaf);
         } else if (hash != null) {
             builder.hash(hash);
         }
@@ -263,8 +312,12 @@ public final class MerklePathBuilder {
             throw new IllegalArgumentException("Pruning more sibling nodes than exist");
         }
         final var newBuilder = new MerklePathBuilder();
-        if (leaf != null) {
-            newBuilder.setLeaf(leaf);
+        if (stateItemLeaf != null) {
+            newBuilder.setStateItemLeaf(stateItemLeaf);
+        } else if (blockItemLeaf != null) {
+            newBuilder.setBlockItemLeaf(blockItemLeaf);
+        } else if (timestampLeaf != null) {
+            newBuilder.setTimestampLeaf(timestampLeaf);
         } else if (hash != null) {
             newBuilder.setHash(hash);
         } else if (startHash != null) {
@@ -316,12 +369,14 @@ public final class MerklePathBuilder {
     }
 
     private boolean hasBaseHash() {
-        return leaf != null || hash != null || startHash != null;
+        return hasLeaf() || hash != null || startHash != null;
     }
 
     private MerklePathBuilder setStartHash(@NonNull final byte[] newStartHash) {
         this.startHash = requireNonNull(newStartHash, "startHash must not be null");
-        this.leaf = null;
+        this.timestampLeaf = null;
+        this.blockItemLeaf = null;
+        this.stateItemLeaf = null;
         this.hash = null;
         recomputeInnerNodeHashes();
         return this;
@@ -332,8 +387,12 @@ public final class MerklePathBuilder {
             return;
         }
         final byte[] baseHash;
-        if (leaf != null) {
-            baseHash = computeLeafHash(digest, leaf);
+        if (stateItemLeaf != null) {
+            baseHash = computeStateItemLeafHash(digest, stateItemLeaf);
+        } else if (blockItemLeaf != null) {
+            baseHash = computeBlockItemLeafHash(digest, blockItemLeaf);
+        } else if (timestampLeaf != null) {
+            baseHash = computeTimestampLeafHash(digest, timestampLeaf);
         } else if (hash != null) {
             baseHash = hash.toByteArray();
         } else {

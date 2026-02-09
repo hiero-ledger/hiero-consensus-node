@@ -75,6 +75,14 @@ public class ClprClientImpl implements ClprClient {
     };
 
     final ClprServiceInterface.ClprServiceClient clprServiceClient;
+    /**
+     * The backing PBJ gRPC client, if this instance created its own client stack.
+     * <p>
+     * When {@link ClprClientImpl} is constructed with an already-initialized {@link ClprServiceInterface.ClprServiceClient}
+     * (for tests), there is nothing to close here.
+     */
+    @Nullable
+    private final PbjGrpcClient pbjGrpcClient;
     private final TransactionSigner signer;
 
     /**
@@ -94,8 +102,8 @@ public class ClprClientImpl implements ClprClient {
                 .tls(Tls.builder().enabled(false).build())
                 .build();
 
-        final GrpcClient grpcClient = new PbjGrpcClient(webClient, clientConfig);
-        clprServiceClient = new ClprServiceInterface.ClprServiceClient(grpcClient, requestOptions);
+        pbjGrpcClient = new PbjGrpcClient(webClient, clientConfig);
+        clprServiceClient = new ClprServiceInterface.ClprServiceClient(pbjGrpcClient, requestOptions);
         signer = DevTransactionSignerHolder.signer();
     }
 
@@ -107,6 +115,7 @@ public class ClprClientImpl implements ClprClient {
             @NonNull final ClprServiceInterface.ClprServiceClient clprServiceClient,
             @NonNull final TransactionSigner signer) {
         this.clprServiceClient = Objects.requireNonNull(clprServiceClient);
+        this.pbjGrpcClient = null;
         this.signer = Objects.requireNonNull(signer);
     }
 
@@ -190,7 +199,15 @@ public class ClprClientImpl implements ClprClient {
     }
 
     @Override
-    public void close() {}
+    public void close() {
+        if (pbjGrpcClient != null) {
+            try {
+                pbjGrpcClient.close();
+            } catch (final Exception e) {
+                log.warn("Failed to close CLPR gRPC client", e);
+            }
+        }
+    }
 
     @NonNull
     private static TransactionID newTransactionId(@NonNull final AccountID payerAccountId) {

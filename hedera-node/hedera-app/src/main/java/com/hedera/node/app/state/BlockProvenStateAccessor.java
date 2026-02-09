@@ -3,7 +3,7 @@ package com.hedera.node.app.state;
 
 import com.hedera.node.app.spi.state.BlockProvenSnapshot;
 import com.hedera.node.app.spi.state.BlockProvenSnapshotProvider;
-import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.State;
 import com.swirlds.state.StateLifecycleManager;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
@@ -16,9 +16,9 @@ import javax.inject.Singleton;
  */
 @Singleton
 public final class BlockProvenStateAccessor implements BlockProvenSnapshotProvider {
-    private final StateLifecycleManager stateLifecycleManager;
+    private final StateLifecycleManager<? extends State, ?> stateLifecycleManager;
 
-    public BlockProvenStateAccessor(@NonNull final StateLifecycleManager stateLifecycleManager) {
+    public BlockProvenStateAccessor(@NonNull final StateLifecycleManager<? extends State, ?> stateLifecycleManager) {
         this.stateLifecycleManager = Objects.requireNonNull(stateLifecycleManager);
     }
 
@@ -30,7 +30,7 @@ public final class BlockProvenStateAccessor implements BlockProvenSnapshotProvid
     @Override
     public synchronized Optional<BlockProvenSnapshot> latestSnapshot() {
         try {
-            final var state = stateLifecycleManager.getLatestImmutableState();
+            final State state = stateLifecycleManager.getLatestImmutableState();
             if (state.isDestroyed() || state.isMutable()) {
                 return Optional.empty();
             }
@@ -45,9 +45,9 @@ public final class BlockProvenStateAccessor implements BlockProvenSnapshotProvid
      *
      * @return optional immutable state
      */
-    public synchronized Optional<MerkleNodeState> latestState() {
-        return latestSnapshot().map(BlockProvenSnapshot::merkleState);
+    public synchronized Optional<State> latestState() {
+        return latestSnapshot().map(BlockProvenSnapshot::state);
     }
 
-    private record BasicSnapshot(@NonNull MerkleNodeState merkleState) implements BlockProvenSnapshot {}
+    private record BasicSnapshot(@NonNull State state) implements BlockProvenSnapshot {}
 }

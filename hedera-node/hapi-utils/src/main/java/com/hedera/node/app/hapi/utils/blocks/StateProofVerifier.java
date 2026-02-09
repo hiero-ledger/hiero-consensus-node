@@ -6,7 +6,6 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.block.stream.MerklePath;
 import com.hedera.hapi.block.stream.SiblingNode;
 import com.hedera.hapi.block.stream.StateProof;
-import com.hedera.hapi.node.state.blockstream.MerkleLeaf;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayDeque;
@@ -140,14 +139,14 @@ public final class StateProofVerifier {
         for (int i = 0; i < paths.size(); i++) {
             final var path = paths.get(i);
 
-            if (path.hasLeaf()) {
-                // Leaf path: compute hash and push to stack
-                final byte[] leafPathHash = computeLeafPathHash(path);
-                stack.push(new HashIndexPair(leafPathHash, path.nextPathIndex()));
+            if (hasBaseHash(path)) {
+                // Base path: compute hash and push to stack
+                final byte[] basePathHash = computeBasePathHash(path);
+                stack.push(new HashIndexPair(basePathHash, path.nextPathIndex()));
             } else {
                 // Internal path: must have child hashes on stack
                 if (stack.isEmpty() || stack.peek().nextPathIndex() != i) {
-                    throw new IllegalStateException("Expected child path hashes for non-leaf path at index " + i);
+                    throw new IllegalStateException("Expected child path hashes for non-base path at index " + i);
                 }
 
                 // Collect all children pointing to this path
@@ -175,21 +174,21 @@ public final class StateProofVerifier {
     }
 
     /**
-     * Computes the hash for a leaf {@link MerklePath}.
+     * Computes the hash for a base {@link MerklePath} (i.e. a path that starts from leaf bytes or an explicit hash).
      *
-     * <p>The computation proceeds from leaf to root:
+     * <p>The computation proceeds from base to root:
      * <ol>
-     *   <li>Hash the leaf with 0x00 prefix</li>
+     *   <li>Hash the leaf with 0x00 prefix (if present), or use the explicit base hash</li>
      *   <li>Combine with siblings walking toward the root</li>
      * </ol>
      *
-     * @param path the leaf merkle path
+     * @param path the base merkle path
      * @return the computed hash reaching the path's endpoint
      */
     @NonNull
-    private static byte[] computeLeafPathHash(@NonNull final MerklePath path) {
-        final byte[] leafHash = computeLeafHash(path.leaf());
-        return computeRootOfSiblings(path.siblings(), leafHash);
+    private static byte[] computeBasePathHash(@NonNull final MerklePath path) {
+        final byte[] baseHash = path.hasHash() ? path.hash().toByteArray() : computeLeafHash(path);
+        return computeRootOfSiblings(path.siblings(), baseHash);
     }
 
     /**
@@ -261,16 +260,28 @@ public final class StateProofVerifier {
     }
 
     /**
-     * Computes the hash of a {@link MerkleLeaf} with the leaf prefix (0x00).
+     * Computes the hash of a leaf's raw bytes with the leaf prefix (0x00).
      *
-     * <p>Format: SHA-384(0x00 || protobuf(MerkleLeaf))
+     * <p>Format: SHA-384(0x00 || protobuf(legacy MerkleLeaf))
      *
-     * @param leaf the merkle leaf to hash
+     * <p>Although {@code MerkleLeaf} was removed after migrating its bytes into {@link MerklePath}'s leaf-bytes fields,
+     * the leaf hash input remains the legacy {@code MerkleLeaf} protobuf encoding to preserve historical Merkle hashing.
+     *
+     * @param path a merkle path containing exactly one leaf-bytes field
      * @return the computed leaf hash
      */
     @NonNull
-    private static byte[] computeLeafHash(@NonNull final MerkleLeaf leaf) {
-        return HashUtils.computeLeafHash(HashUtils.newMessageDigest(), leaf);
+    private static byte[] computeLeafHash(@NonNull final MerklePath path) {
+        if (path.hasStateItemLeaf()) {
+            return HashUtils.computeStateItemLeafHash(HashUtils.newMessageDigest(), path.stateItemLeaf());
+        }
+        if (path.hasBlockItemLeaf()) {
+            return HashUtils.computeBlockItemLeafHash(HashUtils.newMessageDigest(), path.blockItemLeaf());
+        }
+        if (path.hasTimestampLeaf()) {
+            return HashUtils.computeTimestampLeafHash(HashUtils.newMessageDigest(), path.timestampLeaf());
+        }
+        throw new IllegalStateException("MerklePath does not contain leaf bytes");
     }
 
     /**
@@ -298,6 +309,10 @@ public final class StateProofVerifier {
     @NonNull
     private static byte[] joinHashes(@NonNull final byte[] leftHash, @NonNull final byte[] rightHash) {
         return HashUtils.joinHashes(HashUtils.newMessageDigest(), leftHash, rightHash);
+    }
+
+    private static boolean hasBaseHash(@NonNull final MerklePath path) {
+        return path.hasHash() || path.hasStateItemLeaf() || path.hasBlockItemLeaf() || path.hasTimestampLeaf();
     }
 
     /**

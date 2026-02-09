@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.spi.state;
 
-import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**
@@ -14,8 +14,8 @@ public interface BlockProvenSnapshot {
     /**
      * Returns the immutable state captured at the block boundary.
      *
-     * @return the sealed {@link MerkleNodeState}
+     * @return the sealed {@link State}
      */
     @NonNull
-    MerkleNodeState merkleState();
+    State state();
 }

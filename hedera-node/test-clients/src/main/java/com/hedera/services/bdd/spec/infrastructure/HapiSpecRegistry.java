@@ -365,20 +365,16 @@ public class HapiSpecRegistry {
         if (txBody.hasLedgerConfigurationProof()) {
             // Extract configuration from state proof
             final var stateProof = txBody.getLedgerConfigurationProof();
-            if (stateProof.getPathsCount() > 0 && stateProof.getPaths(0).hasLeaf()) {
-                final var leaf = stateProof.getPaths(0).getLeaf();
-                if (leaf.hasStateItem()) {
-                    try {
-                        // Parse the configuration from the leaf bytes
-                        final var ledgerConfig = ClprLedgerConfiguration.parseFrom(
-                                leaf.getStateItem().toByteArray());
-                        final var ledgerIdBytes =
-                                ledgerConfig.getLedgerId().getLedgerId().toByteArray();
-                        builder.setLedgerConfigurationProof(stateProof);
-                        put(ByteString.copyFrom(ledgerIdBytes).toStringUtf8(), builder.build());
-                    } catch (com.google.protobuf.InvalidProtocolBufferException e) {
-                        // Skip if configuration cannot be parsed
-                    }
+            if (stateProof.getPathsCount() > 0 && stateProof.getPaths(0).hasStateItemLeaf()) {
+                try {
+                    // Parse the configuration from the leaf bytes
+                    final var stateItemBytes = stateProof.getPaths(0).getStateItemLeaf();
+                    final var ledgerConfig = ClprLedgerConfiguration.parseFrom(stateItemBytes.toByteArray());
+                    final var ledgerIdBytes = ledgerConfig.getLedgerId().getLedgerId().toByteArray();
+                    builder.setLedgerConfigurationProof(stateProof);
+                    put(ByteString.copyFrom(ledgerIdBytes).toStringUtf8(), builder.build());
+                } catch (com.google.protobuf.InvalidProtocolBufferException e) {
+                    // Skip if configuration cannot be parsed
                 }
             }
         }

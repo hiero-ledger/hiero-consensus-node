@@ -125,6 +125,7 @@ public class BlockStreamManagerWrapper {
                 SemanticVersion.DEFAULT,
                 new NoOpDependencies.NoOpLifecycle(),
                 NoOpDependencies.createBenchmarkQuiescedHeartbeat(quiescenceController),
+                NoOpDependencies.createBenchmarkBlockProvenStateAccessor(state),
                 new NoOpDependencies.NoOpMetrics());
 
         manager.init(state, BlockStreamManager.HASH_OF_ZERO);

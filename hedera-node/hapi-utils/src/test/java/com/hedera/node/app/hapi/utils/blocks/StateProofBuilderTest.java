@@ -6,7 +6,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.hedera.hapi.block.stream.StateProof;
 import com.hedera.hapi.block.stream.TssSignedBlockProof;
-import com.hedera.hapi.node.state.blockstream.MerkleLeaf;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.MerkleProof;
 import com.swirlds.state.SiblingHash;
@@ -59,9 +58,8 @@ class StateProofBuilderTest {
                 .addProof(proofs[1])
                 .addProof(proofs[3]);
 
-        final var extensionSibling = HashUtils.computeLeafHash(
-                HashUtils.newMessageDigest(),
-                MerkleLeaf.newBuilder().stateItem(Bytes.wrap("extension")).build());
+        final var extensionSibling =
+                HashUtils.computeStateItemLeafHash(HashUtils.newMessageDigest(), Bytes.wrap("extension"));
         final var extensionPath = new MerklePathBuilder()
                 .appendSiblingNode(com.hedera.hapi.block.stream.SiblingNode.newBuilder()
                         .isLeft(true)
@@ -132,9 +130,8 @@ class StateProofBuilderTest {
         final var tree = computeFourLeafTree();
         final var proofs = createFourLeafProofs(tree);
 
-        final byte[] unrelatedRoot = HashUtils.computeLeafHash(
-                HashUtils.newMessageDigest(),
-                MerkleLeaf.newBuilder().stateItem(Bytes.wrap("different-root")).build());
+        final byte[] unrelatedRoot =
+                HashUtils.computeStateItemLeafHash(HashUtils.newMessageDigest(), Bytes.wrap("different-root"));
         final var mismatchedProof =
                 new MerkleProof(Bytes.wrap("other-leaf"), List.of(), List.of(new Hash(unrelatedRoot)));
 
@@ -154,8 +151,8 @@ class StateProofBuilderTest {
         final var mismatchedInnerProof = new MerkleProof(
                 LEAF_ITEM_0,
                 List.of(
-                        new SiblingHash(false, new Hash(tree.leaf1Hash())),
-                        new SiblingHash(false, new Hash(tree.rightHash()))),
+                        new SiblingHash(true, new Hash(tree.leaf1Hash())),
+                        new SiblingHash(true, new Hash(tree.rightHash()))),
                 new java.util.ArrayList<>(
                         List.of(new Hash(tree.leaf0Hash()), new Hash(tree.leftHash()), new Hash(tree.rootHash()))));
         // Tamper with the inner node hash
@@ -200,37 +197,35 @@ class StateProofBuilderTest {
         final var proof0 = new MerkleProof(
                 LEAF_ITEM_0,
                 List.of(
-                        new SiblingHash(false, new Hash(tree.leaf1Hash())),
-                        new SiblingHash(false, new Hash(tree.rightHash()))),
+                        new SiblingHash(true, new Hash(tree.leaf1Hash())),
+                        new SiblingHash(true, new Hash(tree.rightHash()))),
                 List.of(new Hash(tree.leaf0Hash()), new Hash(tree.leftHash()), new Hash(tree.rootHash())));
 
         final var proof1 = new MerkleProof(
                 LEAF_ITEM_1,
                 List.of(
-                        new SiblingHash(true, new Hash(tree.leaf0Hash())),
-                        new SiblingHash(false, new Hash(tree.rightHash()))),
+                        new SiblingHash(false, new Hash(tree.leaf0Hash())),
+                        new SiblingHash(true, new Hash(tree.rightHash()))),
                 List.of(new Hash(tree.leaf1Hash()), new Hash(tree.leftHash()), new Hash(tree.rootHash())));
 
         final var proof2 = new MerkleProof(
                 LEAF_ITEM_2,
                 List.of(
-                        new SiblingHash(false, new Hash(tree.leaf3Hash())),
-                        new SiblingHash(true, new Hash(tree.leftHash()))),
+                        new SiblingHash(true, new Hash(tree.leaf3Hash())),
+                        new SiblingHash(false, new Hash(tree.leftHash()))),
                 List.of(new Hash(tree.leaf2Hash()), new Hash(tree.rightHash()), new Hash(tree.rootHash())));
 
         final var proof3 = new MerkleProof(
                 LEAF_ITEM_3,
                 List.of(
-                        new SiblingHash(true, new Hash(tree.leaf2Hash())),
-                        new SiblingHash(true, new Hash(tree.leftHash()))),
+                        new SiblingHash(false, new Hash(tree.leaf2Hash())),
+                        new SiblingHash(false, new Hash(tree.leftHash()))),
                 List.of(new Hash(tree.leaf3Hash()), new Hash(tree.rightHash()), new Hash(tree.rootHash())));
 
         return new MerkleProof[] {proof0, proof1, proof2, proof3};
     }
 
     private static byte[] hashLeaf(final Bytes item) {
-        return HashUtils.computeLeafHash(
-                HashUtils.newMessageDigest(),
-                MerkleLeaf.newBuilder().stateItem(item).build());
+        return HashUtils.computeStateItemLeafHash(HashUtils.newMessageDigest(), item);
     }
 }

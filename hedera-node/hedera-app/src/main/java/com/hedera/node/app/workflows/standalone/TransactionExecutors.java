@@ -39,11 +39,11 @@ import com.hedera.node.config.types.StreamMode;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.state.merkle.VirtualMapStateImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.InstantSource;
@@ -305,10 +305,10 @@ public enum TransactionExecutors {
         final StateLifecycleManager stateLifecycleManager = new StateLifecycleManagerImpl(
                 NO_OP_METRICS,
                 Time.getCurrent(),
-                virtualMap -> new VirtualMapState(virtualMap, NO_OP_METRICS),
+                virtualMap -> new VirtualMapStateImpl(virtualMap, NO_OP_METRICS),
                 configProvider.getConfiguration());
-        if (state instanceof MerkleNodeState merkleState && merkleState.isMutable()) {
-            stateLifecycleManager.initState(merkleState);
+        if (state instanceof VirtualMapState virtualMapState && virtualMapState.isMutable()) {
+            stateLifecycleManager.initState(virtualMapState);
         }
         final var component = DaggerExecutorComponent.builder()
                 .appContext(appContext)

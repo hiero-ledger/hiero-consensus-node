@@ -33,6 +33,33 @@ number of temporary bypasses are in place:
 All of these shortcuts are intentionally scoped to the demo experience and must
 be revisited before the CLPR service is enabled in production networks.
 
+### Prototype progress (current)
+
+The prototype has progressed beyond a "hello world" service stub and now
+exercises real node plumbing end-to-end. Highlights:
+
+- **Ledger configuration lifecycle is functional in dev mode**
+  - The `ClprEndpoint` can bootstrap the local ledger configuration and
+    periodically refresh it by submitting `CLPR_SET_LEDGER_CONFIG`
+    transactions with a monotonically advancing timestamp.
+  - Query and transaction handlers are wired through the normal gRPC workflow
+    and update/read `CLPRSERVICE_I_CONFIGURATIONS`.
+- **State proof tooling exists and is tested**
+  - `BlockProvenStateAccessor` provides access to the latest sealed immutable
+    state snapshot at a block boundary.
+  - `StateProofBuilder`, `StateProofVerifier`, and `MerklePathBuilder` provide
+    utilities for constructing and validating state proofs (currently used by
+    the CLPR prototype alongside dev-mode shortcuts).
+- **CLPR state changes are visible in block stream output**
+  - CLPR map updates are represented in the block stream state-changes surface
+    and can be decoded/rendered by tooling.
+- **Test coverage has been added for the prototype paths**
+  - Unit tests cover the endpoint/client/handler flows.
+  - HAPI suites exercise the prototype end-to-end for local/demo runs.
+
+For a pragmatic "where did we touch the node" inventory, see
+`hedera-node/docs/design/clpr-prototype-integration-notes.md`.
+
 ## 2. Core Concepts
 
 - **Ledger Configuration**: Each ledger participating in the CLPR network has a `ClprLedgerConfiguration`, which includes its unique `ClprLedgerId` and a list of network endpoints.

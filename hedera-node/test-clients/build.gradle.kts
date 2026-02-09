@@ -40,8 +40,6 @@ tasks.test {
         configurations.runtimeClasspath
             .get()
             .plus(files(tasks.jar))
-            // Allow access to test resources like hapi-test-gossip-certs.json.
-            .plus(sourceSets.test.get().output)
 
     // Unlike other tests, these intentionally corrupt embedded state to test FAIL_INVALID
     // code paths; hence we do not run LOG_VALIDATION after the test suite finishes
@@ -207,6 +205,7 @@ val prCheckNetSizeOverrides =
             put("$taskName$matsSuffix", size)
         }
     }
+val normalizedInvokedTaskNames = gradle.startParameter.taskNames.map { it.substringAfterLast(':') }
 
 tasks {
     prCheckTags.forEach { (taskName, _) ->
@@ -225,15 +224,11 @@ tasks.register<Test>("testSubprocess") {
         configurations.runtimeClasspath
             .get()
             .plus(files(tasks.jar))
-            // the following line adds access to pregenerated keys in `src/test/resources`.
-            .plus(sourceSets.test.get().output)
 
     val ciTagExpression =
-        gradle.startParameter.taskNames
-            .stream()
+        normalizedInvokedTaskNames
             .map { prCheckTags[it] ?: "" }
             .filter { it.isNotBlank() }
-            .toList()
             .joinToString("|")
     useJUnitPlatform {
         includeTags(
@@ -290,12 +285,9 @@ tasks.register<Test>("testSubprocess") {
 
     // Choose a different initial port for each test task if running as PR check
     val initialPort =
-        gradle.startParameter.taskNames
-            .stream()
+        normalizedInvokedTaskNames
             .map { prCheckStartPorts[it] ?: "" }
-            .filter { it.isNotBlank() }
-            .findFirst()
-            .orElse("")
+            .firstOrNull { it.isNotBlank() } ?: ""
     systemProperty("hapi.spec.initial.port", initialPort)
     // There's nothing special about shard/realm 11.12, except that they are non-zero values.
     // We want to run all tests that execute as part of `testSubprocess`–that is to say,
@@ -306,16 +298,29 @@ tasks.register<Test>("testSubprocess") {
 
     // Gather overrides into a single comma‐separated list
     val testOverrides =
-        gradle.startParameter.taskNames
+        normalizedInvokedTaskNames
             .mapNotNull { prCheckPropOverrides[it] }
             .joinToString(separator = ",")
+    // If a CLPR-targeted test is selected from a non-CLPR task (for example hapiTestMultiNetwork +
+    // --tests Clpr...),
+    // don't force-disable CLPR in subprocess env overrides.
+    val effectiveTestOverrides =
+        if (!shouldEnableClpr) {
+            testOverrides
+        } else {
+            testOverrides
+                .split(",")
+                .map { it.trim() }
+                .filterNot { it.equals("clpr.clprEnabled=false", ignoreCase = true) }
+                .joinToString(",")
+        }
     // Only set the system property if non-empty
-    if (testOverrides.isNotBlank()) {
-        systemProperty("hapi.spec.test.overrides", testOverrides)
+    if (effectiveTestOverrides.isNotBlank()) {
+        systemProperty("hapi.spec.test.overrides", effectiveTestOverrides)
     }
 
     val maxHistoryProofsToObserve =
-        gradle.startParameter.taskNames
+        normalizedInvokedTaskNames
             .mapNotNull { prCheckNumHistoryProofsToObserve[it]?.toIntOrNull() }
             .maxOrNull()
     if (maxHistoryProofsToObserve != null) {
@@ -323,20 +328,15 @@ tasks.register<Test>("testSubprocess") {
     }
 
     val prepareUpgradeOffsets =
-        gradle.startParameter.taskNames
-            .mapNotNull { prCheckPrepareUpgradeOffsets[it] }
-            .joinToString(",")
+        normalizedInvokedTaskNames.mapNotNull { prCheckPrepareUpgradeOffsets[it] }.joinToString(",")
     if (prepareUpgradeOffsets.isNotEmpty()) {
         systemProperty("hapi.spec.prepareUpgradeOffsets", prepareUpgradeOffsets)
     }
 
     val networkSize =
-        gradle.startParameter.taskNames
-            .stream()
+        normalizedInvokedTaskNames
             .map { prCheckNetSizeOverrides[it] ?: "" }
-            .filter { it.isNotBlank() }
-            .findFirst()
-            .orElse("4")
+            .firstOrNull { it.isNotBlank() } ?: "4"
     systemProperty("hapi.spec.network.size", networkSize)
 
     // Note the 1/4 threshold for the restart check; DabEnabledUpgradeTest is a chaotic
@@ -345,7 +345,7 @@ tasks.register<Test>("testSubprocess") {
     // to be completed, meaning a 1/3 threshold in the *actual* roster only accounts for
     // 1/4 total weight in the out-of-date hinTS verification key,
     val hintsThresholdDenominator =
-        if (gradle.startParameter.taskNames.contains("hapiTestRestart")) "4" else "3"
+        if (normalizedInvokedTaskNames.contains("hapiTestRestart")) "4" else "3"
     systemProperty("hapi.spec.hintsThresholdDenominator", hintsThresholdDenominator)
     systemProperty("hapi.spec.block.stateproof.verification", "false")
 
@@ -381,19 +381,15 @@ tasks.register<Test>("testRemote") {
         configurations.runtimeClasspath
             .get()
             .plus(files(tasks.jar))
-            // Allow access to pre-generated gossip keys in `src/test/resources`.
-            .plus(sourceSets.test.get().output)
 
     systemProperty("hapi.spec.remote", "true")
     // Support overriding a single remote target network for all executing specs
     System.getenv("REMOTE_TARGET")?.let { systemProperty("hapi.spec.nodes.remoteYml", it) }
 
     val ciTagExpression =
-        gradle.startParameter.taskNames
-            .stream()
+        normalizedInvokedTaskNames
             .map { remoteCheckTags[it] ?: "" }
             .filter { it.isNotBlank() }
-            .toList()
             .joinToString("|")
     useJUnitPlatform {
         includeTags(
@@ -403,7 +399,7 @@ tasks.register<Test>("testRemote") {
     }
 
     val maxHistoryProofsToObserve =
-        gradle.startParameter.taskNames
+        normalizedInvokedTaskNames
             .mapNotNull { prCheckNumHistoryProofsToObserve[it]?.toIntOrNull() }
             .maxOrNull()
     if (maxHistoryProofsToObserve != null) {
@@ -411,9 +407,7 @@ tasks.register<Test>("testRemote") {
     }
 
     val prepareUpgradeOffsets =
-        gradle.startParameter.taskNames
-            .mapNotNull { prCheckPrepareUpgradeOffsets[it] }
-            .joinToString(",")
+        normalizedInvokedTaskNames.mapNotNull { prCheckPrepareUpgradeOffsets[it] }.joinToString(",")
     if (prepareUpgradeOffsets.isNotEmpty()) {
         systemProperty("hapi.spec.prepareUpgradeOffsets", prepareUpgradeOffsets)
     }
@@ -476,15 +470,11 @@ tasks.register<Test>("testEmbedded") {
         configurations.runtimeClasspath
             .get()
             .plus(files(tasks.jar))
-            // Allow access to pre-generated gossip keys in `src/test/resources`.
-            .plus(sourceSets.test.get().output)
 
     val ciTagExpression =
-        gradle.startParameter.taskNames
-            .stream()
+        normalizedInvokedTaskNames
             .map { prEmbeddedCheckTags[it] ?: "" }
             .filter { it.isNotBlank() }
-            .toList()
             .joinToString("|")
     useJUnitPlatform {
         includeTags(
@@ -514,8 +504,8 @@ tasks.register<Test>("testEmbedded") {
     systemProperty("hapi.spec.default.realm", 0)
 
     if (
-        gradle.startParameter.taskNames.contains("hapiEmbeddedSimpleFees") ||
-            gradle.startParameter.taskNames.contains("hapiEmbeddedSimpleFeesMATS")
+        normalizedInvokedTaskNames.contains("hapiEmbeddedSimpleFees") ||
+            normalizedInvokedTaskNames.contains("hapiEmbeddedSimpleFeesMATS")
     ) {
         systemProperty("fees.createSimpleFeeSchedule", "true")
         systemProperty("fees.simpleFeesEnabled", "true")
@@ -555,15 +545,11 @@ tasks.register<Test>("testRepeatable") {
         configurations.runtimeClasspath
             .get()
             .plus(files(tasks.jar))
-            // Allow access to pre-generated gossip keys in `src/test/resources`.
-            .plus(sourceSets.test.get().output)
 
     val ciTagExpression =
-        gradle.startParameter.taskNames
-            .stream()
+        normalizedInvokedTaskNames
             .map { prRepeatableCheckTags[it] ?: "" }
             .filter { it.isNotBlank() }
-            .toList()
             .joinToString("|")
     useJUnitPlatform {
         includeTags(

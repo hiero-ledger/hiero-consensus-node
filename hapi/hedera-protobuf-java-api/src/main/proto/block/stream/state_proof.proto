@@ -26,7 +26,6 @@ option java_package = "com.hedera.hapi.block.stream.protoc";
 option java_multiple_files = true;
 
 import "services/timestamp.proto";
-import "block/stream/record_file_item.proto";
 import "block/stream/tss_signed_block_proof.proto";
 
 message StateProof {

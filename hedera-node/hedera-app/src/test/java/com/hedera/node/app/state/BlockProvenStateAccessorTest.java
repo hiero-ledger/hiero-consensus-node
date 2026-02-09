@@ -6,7 +6,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.hedera.node.app.spi.state.BlockProvenSnapshot;
-import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.State;
 import com.swirlds.state.StateLifecycleManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -14,11 +14,14 @@ import org.junit.jupiter.api.Test;
 class BlockProvenStateAccessorTest {
 
     private BlockProvenStateAccessor subject;
-    private StateLifecycleManager stateLifecycleManager;
+    private StateLifecycleManager<State, Object> stateLifecycleManager;
 
     @BeforeEach
     void setUp() {
-        stateLifecycleManager = mock(StateLifecycleManager.class);
+        // Mockito can only create a raw mock; we cast to the parameterized type for compilation.
+        @SuppressWarnings("unchecked")
+        final var mocked = (StateLifecycleManager<State, Object>) mock(StateLifecycleManager.class);
+        stateLifecycleManager = mocked;
         subject = new BlockProvenStateAccessor(stateLifecycleManager);
     }
 
@@ -31,10 +34,12 @@ class BlockProvenStateAccessorTest {
 
     @Test
     void latestSnapshotReturnsStateFromLifecycleManager() {
-        final var state = mock(MerkleNodeState.class);
+        final var state = mock(State.class);
+        when(state.isDestroyed()).thenReturn(false);
+        when(state.isMutable()).thenReturn(false);
         when(stateLifecycleManager.getLatestImmutableState()).thenReturn(state);
         final BlockProvenSnapshot snapshot = subject.latestSnapshot().orElseThrow();
-        assertThat(snapshot.merkleState()).isSameAs(state);
+        assertThat(snapshot.state()).isSameAs(state);
         assertThat(subject.latestState()).contains(state);
     }
 }

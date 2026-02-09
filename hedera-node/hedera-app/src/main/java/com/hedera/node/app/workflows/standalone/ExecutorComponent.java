@@ -56,7 +56,7 @@ import org.hiero.interledger.clpr.impl.ClprModule;
             HederaStateInjectionModule.class,
             ThrottleServiceModule.class,
             FacilityInitModule.class,
-            BlockStreamModule.class
+            BlockStreamModule.class,
             ClprModule.class
         })
 public interface ExecutorComponent {

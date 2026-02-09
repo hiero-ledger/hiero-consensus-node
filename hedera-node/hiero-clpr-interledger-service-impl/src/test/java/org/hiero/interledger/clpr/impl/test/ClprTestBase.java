@@ -6,14 +6,13 @@ import static org.hiero.interledger.clpr.impl.schemas.V0700ClprSchema.CLPR_LEDGE
 
 import com.hedera.hapi.block.stream.StateProof;
 import com.hedera.hapi.node.base.Timestamp;
-import com.hedera.hapi.node.state.blockstream.MerkleLeaf;
 import com.hedera.hapi.platform.state.StateItem;
 import com.hedera.hapi.platform.state.StateKey;
 import com.hedera.hapi.platform.state.StateValue;
 import com.hedera.node.app.hapi.utils.blocks.MerklePathBuilder;
 import com.hedera.node.app.hapi.utils.blocks.StateProofBuilder;
 import com.hedera.node.app.history.ReadableHistoryStore;
-import com.hedera.node.app.store.ReadableStoreFactory;
+import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -133,8 +132,7 @@ public class ClprTestBase {
                 .build();
         final var stateItem = new StateItem(stateKey, stateValue);
         final var stateItemBytes = encode(StateItem.PROTOBUF, stateItem);
-        final var leaf = MerkleLeaf.newBuilder().stateItem(stateItemBytes).build();
-        final var path = new MerklePathBuilder().setLeaf(leaf);
+        final var path = new MerklePathBuilder().setStateItemLeaf(stateItemBytes);
         return StateProofBuilder.newBuilder().addMerklePath(path).build();
     }
 

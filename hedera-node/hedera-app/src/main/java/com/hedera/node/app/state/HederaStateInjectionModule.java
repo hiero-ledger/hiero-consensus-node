@@ -5,7 +5,7 @@ import com.hedera.node.app.spi.records.RecordCache;
 import com.hedera.node.app.spi.state.BlockProvenSnapshotProvider;
 import com.hedera.node.app.state.recordcache.DeduplicationCacheImpl;
 import com.hedera.node.app.state.recordcache.RecordCacheImpl;
-import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.BinaryState;
 import com.swirlds.state.State;
 import com.swirlds.state.StateLifecycleManager;
 import dagger.Binds;
@@ -48,8 +48,11 @@ public interface HederaStateInjectionModule {
 
     @Provides
     @Singleton
-    static Supplier<MerkleNodeState> provideBlockProvenStateSupplier(@NonNull final BlockProvenStateAccessor accessor) {
-        return () -> accessor.latestState().orElse(null);
+    static Supplier<BinaryState> provideBlockProvenStateSupplier(@NonNull final BlockProvenStateAccessor accessor) {
+        return () -> accessor.latestState()
+                .filter(s -> s instanceof BinaryState)
+                .map(s -> (BinaryState) s)
+                .orElse(null);
     }
 
     /**

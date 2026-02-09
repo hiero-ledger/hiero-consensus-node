@@ -17,12 +17,12 @@ class SubProcessNetworkPortLayoutTest {
         final var netA = SubProcessNetwork.newIsolatedNetwork("NET_A", 4, 0, 0, 27400);
         final var netB = SubProcessNetwork.newIsolatedNetwork("NET_B", 4, 0, 0, 28400);
         try {
-            netA.nodes().forEach(node -> node.initWorkingDir(netA.genesisConfigTxt()));
+            netA.nodes().forEach(node -> node.initWorkingDir(netA.genesisNetwork()));
             final var node0 = netA.getRequiredNode(byNodeId(0));
             final var base = node0.metadata();
             final var node0Dir = base.workingDirOrThrow();
             Files.createDirectories(node0Dir);
-            final var candidateRoster = WorkingDirUtils.networkFrom(netA.genesisConfigTxt(), OnlyRoster.YES);
+            final var candidateRoster = WorkingDirUtils.networkFrom(netA.genesisNetwork(), OnlyRoster.YES);
             Files.writeString(node0Dir.resolve(CANDIDATE_ROSTER_JSON), Network.JSON.toJSON(candidateRoster));
 
             netA.addNode(4);

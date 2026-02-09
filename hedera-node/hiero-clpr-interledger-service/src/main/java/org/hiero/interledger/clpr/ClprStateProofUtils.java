@@ -56,17 +56,15 @@ public final class ClprStateProofUtils {
         }
 
         final var firstPath = paths.get(0);
-        if (!firstPath.hasLeaf()) {
-            throw new IllegalStateException("First path does not contain a leaf");
-        }
-
-        final var leaf = firstPath.leaf();
-        if (!leaf.hasStateItem()) {
+        if (firstPath.hasBlockItemLeaf() || firstPath.hasTimestampLeaf()) {
             throw new IllegalArgumentException("Leaf does not contain a state item");
+        }
+        if (!firstPath.hasStateItemLeaf()) {
+            throw new IllegalStateException("First path does not contain a state item leaf");
         }
 
         // Deserialize the state item bytes into a ClprLedgerConfiguration
-        final Bytes stateItemBytes = requireNonNull(leaf.stateItem());
+        final Bytes stateItemBytes = requireNonNull(firstPath.stateItemLeaf());
         try {
             final var stateItem = StateItem.PROTOBUF.parse(stateItemBytes);
             return stateItem.valueOrThrow().clprServiceIConfigurationsOrThrow();
@@ -108,11 +106,8 @@ public final class ClprStateProofUtils {
                 .build();
         final var stateItem = new StateItem(stateKey, stateValue);
         final var stateItemBytes = StateItem.PROTOBUF.toBytes(stateItem);
-        final var leaf = com.hedera.hapi.node.state.blockstream.MerkleLeaf.newBuilder()
-                .stateItem(stateItemBytes)
-                .build();
         final var pathBuilder = new com.hedera.node.app.hapi.utils.blocks.MerklePathBuilder();
-        pathBuilder.setLeaf(leaf);
+        pathBuilder.setStateItemLeaf(stateItemBytes);
         return com.hedera.node.app.hapi.utils.blocks.StateProofBuilder.newBuilder()
                 .addMerklePath(pathBuilder)
                 .build();

@@ -9,6 +9,7 @@ import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.MerkleProof;
 import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.state.merkle.VirtualMapStateImpl;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.WritableQueueState;
 import com.swirlds.state.spi.WritableStates;
@@ -39,12 +40,12 @@ class StateProofIntegrationTest extends MerkleTestBase {
         setupSingletonCountry();
         setupSteamQueue();
 
-        state = new VirtualMapState(CONFIGURATION, new NoOpMetrics());
+        state = new VirtualMapStateImpl(CONFIGURATION, new NoOpMetrics());
         state.initializeState(fruitMetadata);
         state.initializeState(countryMetadata);
         state.initializeState(steamMetadata);
 
-        final VirtualMap virtualMap = (VirtualMap) state.getRoot();
+        final VirtualMap virtualMap = state.getRoot();
         addKvState(virtualMap, fruitMetadata, A_KEY, APPLE);
         addKvState(virtualMap, fruitMetadata, B_KEY, BANANA);
         addSingletonState(virtualMap, countryMetadata, GHANA);
@@ -78,9 +79,9 @@ class StateProofIntegrationTest extends MerkleTestBase {
      */
     @Test
     void buildsAndVerifiesStateProofFromRealState() {
-        final long mapPath = state.kvPath(FRUIT_STATE_ID, ProtoBytes.PROTOBUF.toBytes(A_KEY));
-        final long singletonPath = state.singletonPath(COUNTRY_STATE_ID);
-        final long queuePath = state.queueElementPath(STEAM_STATE_ID, ProtoBytes.PROTOBUF.toBytes(ART));
+        final long mapPath = state.getKvPath(FRUIT_STATE_ID, ProtoBytes.PROTOBUF.toBytes(A_KEY));
+        final long singletonPath = state.getSingletonPath(COUNTRY_STATE_ID);
+        final long queuePath = state.getQueueElementPath(STEAM_STATE_ID, ProtoBytes.PROTOBUF.toBytes(ART));
 
         final MerkleProof mapProof = state.getMerkleProof(mapPath);
         final MerkleProof singletonProof = state.getMerkleProof(singletonPath);

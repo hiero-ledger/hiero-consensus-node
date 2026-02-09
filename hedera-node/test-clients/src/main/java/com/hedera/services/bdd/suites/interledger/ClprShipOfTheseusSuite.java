@@ -3,8 +3,8 @@ package com.hedera.services.bdd.suites.interledger;
 
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.exceptNodeIds;
-import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.gossipCaCertificateForNodeId;
-import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.nodeIdsFrom;
+import static com.hedera.services.bdd.junit.hedera.utils.NetworkUtils.nodeIdsFrom;
+import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.gossipCaCertificateForNodeId;
 import static com.hedera.services.bdd.spec.HapiSpec.multiNetworkHapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
@@ -849,15 +849,16 @@ public class ClprShipOfTheseusSuite implements LifecycleTest {
 
     private static ClprLedgerConfiguration tryFetchLedgerConfiguration(final HederaNode node) {
         try {
-            final var client = new ClprClientImpl(toPbjEndpoint(node));
-            final var proof = client.getConfiguration();
-            if (proof == null) {
-                return null;
+            try (var client = new ClprClientImpl(toPbjEndpoint(node))) {
+                final var proof = client.getConfiguration();
+                if (proof == null) {
+                    return null;
+                }
+                final var pbjConfig = ClprStateProofUtils.extractConfiguration(proof);
+                final var configBytes =
+                        org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration.PROTOBUF.toBytes(pbjConfig);
+                return ClprLedgerConfiguration.parseFrom(configBytes.toByteArray());
             }
-            final var pbjConfig = ClprStateProofUtils.extractConfiguration(proof);
-            final var configBytes =
-                    org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration.PROTOBUF.toBytes(pbjConfig);
-            return ClprLedgerConfiguration.parseFrom(configBytes.toByteArray());
         } catch (UnknownHostException | com.google.protobuf.InvalidProtocolBufferException e) {
             throw new IllegalStateException("Unable to fetch CLPR ledger configuration", e);
         }

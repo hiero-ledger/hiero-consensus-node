@@ -66,7 +66,7 @@ public final class StateProofBuilder {
         if (root == null) {
             throw new IllegalStateException("Cannot extend root: no existing root path");
         }
-        if (extension.getLeaf() != null || extension.getHash() != null) {
+        if (extension.hasLeaf() || extension.getHash() != null) {
             throw new IllegalArgumentException("Root extension must not contain a leaf or hash");
         }
         final var siblings = extension.getSiblingNodes();

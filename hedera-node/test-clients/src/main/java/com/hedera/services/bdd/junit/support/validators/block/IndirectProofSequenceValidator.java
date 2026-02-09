@@ -368,7 +368,7 @@ class IndirectProofSequenceValidator {
         for (int j = 0; j < blockSiblings.size(); j++) {
             final var blockSibling = blockSiblings.get(j);
             allSiblingHashes[firstSiblingIndex + j] = SiblingNode.newBuilder()
-                    .isLeft(!blockSibling.isRight())
+                    .isLeft(blockSibling.isLeft())
                     .hash(blockSibling.hash().getBytes())
                     .build();
         }

@@ -116,6 +116,14 @@ class ClprStateProofManagerTest extends ClprTestBase {
     }
 
     @Test
+    void readAllLedgerConfigurationsReturnsAllStoredConfigurations() {
+        final var configs = manager.readAllLedgerConfigurations();
+        assertEquals(2, configs.size());
+        assertEquals(localClprConfig, configs.get(localClprLedgerId));
+        assertEquals(remoteClprConfig, configs.get(remoteClprLedgerId));
+    }
+
+    @Test
     void getLedgerConfigurationReturnsNullWhenStateUnavailable() {
         final BlockProvenSnapshotProvider emptyProvider = () -> java.util.Optional.empty();
         final var emptyManager = new ClprStateProofManager(emptyProvider, devModeConfig);

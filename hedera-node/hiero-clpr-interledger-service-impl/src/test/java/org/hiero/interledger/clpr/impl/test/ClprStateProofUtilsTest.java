@@ -7,7 +7,6 @@ import com.hedera.hapi.block.stream.StateProof;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.base.Timestamp;
-import com.hedera.hapi.node.state.blockstream.MerkleLeaf;
 import com.hedera.node.app.hapi.utils.blocks.MerklePathBuilder;
 import com.hedera.node.app.hapi.utils.blocks.StateProofBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -96,11 +95,8 @@ class ClprStateProofUtilsTest extends ClprTestBase {
     @Test
     void testExtractConfiguration_MalformedConfigurationBytes() {
         // Create leaf with invalid configuration bytes
-        final var merkleLeaf = MerkleLeaf.newBuilder()
-                .stateItem(Bytes.wrap(new byte[] {1, 2, 3, 4, 5})) // Invalid protobuf
-                .build();
-        final var pathBuilder = new MerklePathBuilder();
-        pathBuilder.setLeaf(merkleLeaf);
+        final var pathBuilder = new MerklePathBuilder()
+                .setStateItemLeaf(Bytes.wrap(new byte[] {1, 2, 3, 4, 5})); // Invalid protobuf
 
         final var stateProof =
                 StateProofBuilder.newBuilder().addMerklePath(pathBuilder).build();
@@ -114,9 +110,7 @@ class ClprStateProofUtilsTest extends ClprTestBase {
     @Test
     void testExtractConfiguration_NoStateItemInLeaf() {
         // Create leaf without state item
-        final var merkleLeaf = MerkleLeaf.newBuilder().build();
-        final var pathBuilder = new MerklePathBuilder();
-        pathBuilder.setLeaf(merkleLeaf);
+        final var pathBuilder = new MerklePathBuilder().setTimestampLeaf(Bytes.wrap(new byte[] {1, 2, 3}));
 
         final var stateProof =
                 StateProofBuilder.newBuilder().addMerklePath(pathBuilder).build();

@@ -8,13 +8,16 @@ import com.hedera.node.app.hapi.utils.blocks.StateProofBuilder;
 import com.hedera.node.app.hapi.utils.blocks.StateProofVerifier;
 import com.hedera.node.app.spi.state.BlockProvenSnapshot;
 import com.hedera.node.app.spi.state.BlockProvenSnapshotProvider;
+import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.merkle.StateKeyUtils;
+import com.swirlds.state.merkle.StateUtils;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableSingletonState;
+import com.swirlds.virtualmap.VirtualMapIterator;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -79,7 +82,7 @@ public class ClprStateProofManager {
         if (snapshot == null) {
             return emptyLedgerId();
         }
-        final var state = snapshot.merkleState();
+        final var state = snapshot.state();
         final var readableStates = state.getReadableStates(ClprService.NAME);
         if (!readableStates.contains(V0700ClprSchema.CLPR_LEDGER_METADATA_STATE_ID)) {
             // TODO: Remove this throw once production bootstrapping (HistoryService-provided ledgerId + metadata init)
@@ -108,20 +111,31 @@ public class ClprStateProofManager {
         if (snapshot == null) {
             return Map.of();
         }
-        final var state = snapshot.merkleState();
+        final var state = snapshot.state();
+        if (!(state instanceof VirtualMapState virtualMapState)) {
+            return Map.of();
+        }
         final var readableStates = state.getReadableStates(ClprService.NAME);
         if (!readableStates.contains(V0700ClprSchema.CLPR_LEDGER_CONFIGURATIONS_STATE_ID)) {
             return Map.of();
         }
-        final ReadableKVState<ClprLedgerId, ClprLedgerConfiguration> configsState =
-                readableStates.get(V0700ClprSchema.CLPR_LEDGER_CONFIGURATIONS_STATE_ID);
-        final Iterator<ClprLedgerId> keys = configsState.keys();
         final Map<ClprLedgerId, ClprLedgerConfiguration> configs = new LinkedHashMap<>();
-        while (keys.hasNext()) {
-            final var ledgerId = keys.next();
-            final var configuration = configsState.get(ledgerId);
-            if (configuration != null) {
-                configs.put(ledgerId, configuration);
+        final var iterator = new VirtualMapIterator(virtualMapState.getRoot()).setFilter(leaf -> {
+            try {
+                return StateKeyUtils.extractStateIdFromStateKeyOneOf(leaf.keyBytes())
+                        == V0700ClprSchema.CLPR_LEDGER_CONFIGURATIONS_STATE_ID;
+            } catch (final RuntimeException e) {
+                return false;
+            }
+        });
+        while (iterator.hasNext()) {
+            final var leaf = iterator.next();
+            try {
+                final var ledgerId = StateKeyUtils.extractKeyFromStateKeyOneOf(leaf.keyBytes(), ClprLedgerId.PROTOBUF);
+                final var config = ClprLedgerConfiguration.PROTOBUF.parse(StateUtils.unwrap(leaf.valueBytes()));
+                configs.put(ledgerId, config);
+            } catch (final ParseException e) {
+                throw new IllegalStateException("Unable to decode CLPR ledger configuration from state", e);
             }
         }
         return configs;
@@ -164,14 +178,17 @@ public class ClprStateProofManager {
             return null;
         }
 
-        final var state = snapshot.merkleState();
+        final var state = snapshot.state();
         final var readableStates = state.getReadableStates(ClprService.NAME);
         if (!readableStates.contains(V0700ClprSchema.CLPR_LEDGER_CONFIGURATIONS_STATE_ID)) {
             throw new IllegalStateException(
                     "CLPR ledger configurations state not found - service may not be properly initialized");
         }
+        if (!(state instanceof VirtualMapState virtualMapState)) {
+            throw new IllegalStateException("Unable to build Merkle proofs from a non-VirtualMap state");
+        }
         return buildMerkleStateProof(
-                state,
+                virtualMapState,
                 V0700ClprSchema.CLPR_LEDGER_CONFIGURATIONS_STATE_ID,
                 ClprLedgerId.PROTOBUF.toBytes(resolvedLedgerId));
     }
@@ -192,7 +209,7 @@ public class ClprStateProofManager {
         if (snapshot == null) {
             return null;
         }
-        final var state = snapshot.merkleState();
+        final var state = snapshot.state();
         final var readableStates = state.getReadableStates(ClprService.NAME);
         if (!readableStates.contains(V0700ClprSchema.CLPR_LEDGER_CONFIGURATIONS_STATE_ID)) {
             return null;
@@ -212,14 +229,14 @@ public class ClprStateProofManager {
      */
     @Nullable
     private StateProof buildMerkleStateProof(
-            @NonNull final MerkleNodeState merkleState, final int STATE_ID, @NonNull final Bytes STATE_KEY) {
+            @NonNull final VirtualMapState merkleState, final int STATE_ID, @NonNull final Bytes STATE_KEY) {
         // Ensure state is hashed before getting Merkle proof
         if (!merkleState.isHashed()) {
             merkleState.computeHash();
         }
 
         // Get the Merkle path for this KV entry
-        final long path = merkleState.kvPath(STATE_ID, STATE_KEY);
+        final long path = merkleState.getKvPath(STATE_ID, STATE_KEY);
         if (path < 0) { // INVALID_PATH is -1L
             return null;
         }
