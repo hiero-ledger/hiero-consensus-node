@@ -23,6 +23,7 @@ import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertionsHold;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdForQueries;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
@@ -117,15 +118,32 @@ public class AllBaseOpFeesSuite {
                         cryptoCreate("testAccount").key("repeatingKey").balance(1_000_000_000L))
                 .when()
                 .then(
-                        QueryVerbs.getAccountInfo("testAccount")
-                                .sigControl(forKey("repeatingKey", SIGN_ONCE))
-                                .payingWith("testAccount")
-                                .numPayerSigs(5)
-                                .hasAnswerOnlyPrecheck(INSUFFICIENT_TX_FEE),
-                        QueryVerbs.getAccountInfo("testAccount")
-                                .sigControl(forKey("repeatingKey", SIGN_ONCE))
-                                .payingWith("testAccount")
-                                .numPayerSigs(6));
+                        doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                            if ("true".equals(flag)) {
+                                // With simple fees, the fee doesn't depend on payer sig count,
+                                // so validate the query charges the expected simple fee instead
+                                return QueryVerbs.getAccountInfo("testAccount")
+                                        .sigControl(forKey("repeatingKey", SIGN_ONCE))
+                                        .payingWith("testAccount")
+                                        .via("simpleFeeQuery");
+                            } else {
+                                return QueryVerbs.getAccountInfo("testAccount")
+                                        .sigControl(forKey("repeatingKey", SIGN_ONCE))
+                                        .payingWith("testAccount")
+                                        .numPayerSigs(5)
+                                        .hasAnswerOnlyPrecheck(INSUFFICIENT_TX_FEE);
+                            }
+                        }),
+                        doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                            if ("true".equals(flag)) {
+                                return validateChargedUsdForQueries("simpleFeeQuery", 0.0001, 1.0);
+                            } else {
+                                return QueryVerbs.getAccountInfo("testAccount")
+                                        .sigControl(forKey("repeatingKey", SIGN_ONCE))
+                                        .payingWith("testAccount")
+                                        .numPayerSigs(6);
+                            }
+                        }));
     }
 
     @HapiTest

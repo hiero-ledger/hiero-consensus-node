@@ -81,6 +81,7 @@ public class UnlimitedAutoAssociationSuite {
     private static final double expectedFeeForOneAssociation = 0.05;
     private static final double transferAndAssociationFee =
             expectedCreateHollowAccountFee + transferFee + 2 * expectedFeeForOneAssociation;
+    private static final double simpleFeesTransferAndAssociationFee = 0.1511;
     private static final String ALICE = "ALICE";
     private static final String BOB = "BOB";
     private static final String CAROL = "CAROL";
@@ -306,7 +307,8 @@ public class UnlimitedAutoAssociationSuite {
                 getAliasedAccountInfo(hollowKey)
                         .has(accountWith().key(hollowKey).maxAutoAssociations(-1))
                         .hasAlreadyUsedAutomaticAssociations(2),
-                validateFeesWithChild(hollowAccountTxn, transferAndAssociationFee, transferAndAssociationFee, 1.0));
+                validateFeesWithChild(
+                        hollowAccountTxn, transferAndAssociationFee, simpleFeesTransferAndAssociationFee, 1.0));
     }
 
     @DisplayName("Hollow account creation with NFT transfer has correct auto associations")
@@ -407,7 +409,8 @@ public class UnlimitedAutoAssociationSuite {
                         getAliasedAccountInfo(hollowAccountKey)
                                 .has(accountWith().key(hollowAccountKey).maxAutoAssociations(-1))
                                 .hasAlreadyUsedAutomaticAssociations(2))),
-                validateFeesWithChild(hollowTransferTxn, transferAndAssociationFee, transferAndAssociationFee, 1.0));
+                validateFeesWithChild(
+                        hollowTransferTxn, transferAndAssociationFee, simpleFeesTransferAndAssociationFee, 1.0));
     }
 
     @DisplayName("Hollow account creation with multiple senders correct auto associations")
