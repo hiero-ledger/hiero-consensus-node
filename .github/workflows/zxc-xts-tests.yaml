@@ -160,7 +160,7 @@ jobs:
     needs:
       - commit-info
     with:
-      java-version: "21.0.6"
+      java-version: "25.0.2"
       java-distribution: "temurin"
       ref: ${{ needs.commit-info.outputs.sha }}
     secrets:

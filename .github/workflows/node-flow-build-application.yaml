@@ -35,7 +35,7 @@ jobs:
       enable-snyk-scan: "true"
       enable-gradle-determinism: "true"
       enable-docker-determinism: "true"
-      java-version: "21.0.6"
+      java-version: "25.0.2"
       java-distribution: "temurin"
       custom-job-label: "MATS (main):"
     secrets:
