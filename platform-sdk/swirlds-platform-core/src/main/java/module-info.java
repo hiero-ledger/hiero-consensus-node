@@ -92,6 +92,7 @@ module com.swirlds.platform.core {
     requires transitive org.hiero.consensus.pces;
     requires transitive org.hiero.consensus.reconnect;
     requires transitive org.hiero.consensus.roster;
+    requires transitive org.hiero.consensus.state;
     requires transitive org.hiero.consensus.utility;
     requires com.swirlds.config.extensions;
     requires com.swirlds.logging;

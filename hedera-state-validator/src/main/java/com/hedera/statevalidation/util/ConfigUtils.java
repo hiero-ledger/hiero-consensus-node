@@ -43,12 +43,12 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.SimpleConfigSource;
 import com.swirlds.merkledb.config.MerkleDbConfig;
-import com.swirlds.platform.config.StateConfig;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import org.hiero.base.crypto.config.CryptoConfig;
 import org.hiero.consensus.config.BasicConfig;
 import org.hiero.consensus.metrics.config.MetricsConfig;
 import org.hiero.consensus.pces.config.PcesConfig;
+import org.hiero.consensus.state.config.StateConfig;
 
 /**
  * Configuration utility that provides access to system properties and Hedera platform configuration.

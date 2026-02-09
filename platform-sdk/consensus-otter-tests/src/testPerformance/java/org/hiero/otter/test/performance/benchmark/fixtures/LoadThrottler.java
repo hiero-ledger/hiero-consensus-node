@@ -10,7 +10,6 @@ import java.util.function.Supplier;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TestEnvironment;
-import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.network.transactions.OtterTransaction;
 
 /**
@@ -26,7 +25,6 @@ public class LoadThrottler {
 
     private final Network network;
     private final Supplier<OtterTransaction> transactionFactory;
-    private final TimeManager timeManager;
 
     /**
      * Creates a new LoadThrottler.
@@ -38,7 +36,6 @@ public class LoadThrottler {
     public LoadThrottler(
             @NonNull final TestEnvironment environment, @NonNull final Supplier<OtterTransaction> transactionFactory) {
         this.network = Objects.requireNonNull(environment).network();
-        this.timeManager = environment.timeManager();
         this.transactionFactory = Objects.requireNonNull(transactionFactory);
     }
 
@@ -53,20 +50,22 @@ public class LoadThrottler {
      * </ol>
      *
      * @param count the number of transactions to submit
-     * @param invocationRateInSeconds the maximum rate in seconds to send transactions to the network
+     * @param maxTransactionsPerSecond the maximum rate in seconds to send transactions to the network
+     * @throws IllegalArgumentException if count or maxTransactionsPerSecond are less than zero or
+     *  there are non-active nodes
      */
-    public void submitWithRate(final int count, final int invocationRateInSeconds) {
+    public void submitWithRate(final int count, final int maxTransactionsPerSecond) {
 
         if (count <= 0) {
             throw new IllegalArgumentException("count must be positive, got: " + count);
         }
-        if (invocationRateInSeconds <= 0) {
+        if (maxTransactionsPerSecond <= 0) {
             throw new IllegalArgumentException(
-                    "invocationRateInSeconds must be positive, got: " + invocationRateInSeconds);
+                    "maxTransactionsPerSecond must be positive, got: " + maxTransactionsPerSecond);
         }
 
         final long intervalNanos =
-                InstantUtils.NANOS_IN_MICRO * InstantUtils.MICROS_IN_SECOND / invocationRateInSeconds;
+                InstantUtils.NANOS_IN_MICRO * InstantUtils.MICROS_IN_SECOND / maxTransactionsPerSecond;
         final long startNanos = System.nanoTime();
         final List<Node> candidates =
                 network.nodes().stream().filter(Node::isActive).toList();

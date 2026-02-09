@@ -11,11 +11,10 @@ import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.platform.state.signed.ReservedSignedState;
-import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
-import org.hiero.base.crypto.Signature;
 import org.hiero.consensus.crypto.PlatformSigner;
+import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.state.signed.SignedState;
 import org.hiero.consensus.test.fixtures.Randotron;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -49,8 +48,8 @@ public class StateSignerTests {
                 new RandomSignedStateGenerator().setPcesRound(false).build();
 
         final PlatformSigner platformSigner = mock(PlatformSigner.class);
-        final Signature signature = randotron.nextSignature();
-        when(platformSigner.sign(any(Bytes.class))).thenReturn(signature.getBytes());
+        final Bytes signature = randotron.nextSignatureBytes();
+        when(platformSigner.sign(any(Bytes.class))).thenReturn(signature);
 
         final StateSigner stateSigner = new DefaultStateSigner(platformSigner);
 
@@ -58,6 +57,6 @@ public class StateSignerTests {
         final StateSignatureTransaction payload = stateSigner.signState(reservedSignedState);
         assertTrue(reservedSignedState.isClosed());
         assertNotNull(payload);
-        assertEquals(payload.signature(), signature.getBytes());
+        assertEquals(payload.signature(), signature);
     }
 }

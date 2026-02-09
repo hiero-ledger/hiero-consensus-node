@@ -252,6 +252,11 @@ enum WrapsPhase {
    * Nodes are aggregating all messages to produce a final signature.
    */
   AGGREGATE = 3;
+  /**
+   * Nodes are doing work that must occur in a different event loop
+   * than the one used for the above phases.
+   */
+  POST_AGGREGATION = 4;
 }
 
 /**
