@@ -12,7 +12,6 @@ import com.swirlds.platform.reconnect.api.ReservedSignedStateResult;
 import com.swirlds.platform.scratchpad.Scratchpad;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.iss.IssScratchpad;
-import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.wiring.PlatformComponents;
 import com.swirlds.state.StateLifecycleManager;
@@ -33,6 +32,7 @@ import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.roster.RosterHistory;
+import org.hiero.consensus.state.signed.ReservedSignedState;
 
 /**
  * This record contains core utilities and basic objects needed to build a platform. It should not contain any platform

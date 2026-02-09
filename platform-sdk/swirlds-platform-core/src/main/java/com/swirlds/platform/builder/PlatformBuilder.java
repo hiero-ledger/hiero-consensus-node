@@ -30,7 +30,6 @@ import com.swirlds.platform.metrics.PlatformMetricsConfig;
 import com.swirlds.platform.scratchpad.Scratchpad;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.iss.IssScratchpad;
-import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.wiring.PlatformComponents;
 import com.swirlds.platform.wiring.PlatformWiring;
@@ -69,6 +68,7 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.roster.RosterHistory;
+import org.hiero.consensus.state.signed.ReservedSignedState;
 
 /**
  * Builds a {@link SwirldsPlatform} instance.

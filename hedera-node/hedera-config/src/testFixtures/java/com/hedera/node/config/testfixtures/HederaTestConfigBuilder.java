@@ -76,7 +76,6 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.platform.config.PathsConfig;
-import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.health.OSHealthCheckConfig;
 import com.swirlds.platform.system.status.PlatformStatusConfig;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
@@ -89,6 +88,7 @@ import org.hiero.consensus.gossip.config.SocketConfig;
 import org.hiero.consensus.metrics.config.MetricsConfig;
 import org.hiero.consensus.metrics.platform.prometheus.PrometheusConfig;
 import org.hiero.consensus.reconnect.config.ReconnectConfig;
+import org.hiero.consensus.state.config.StateConfig;
 
 /**
  * A builder for creating {@link TestConfigBuilder} instances, or {@link Configuration} instances for testing. The
