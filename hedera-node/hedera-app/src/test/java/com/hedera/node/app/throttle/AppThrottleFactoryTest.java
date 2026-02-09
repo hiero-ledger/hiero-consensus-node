@@ -104,7 +104,8 @@ class AppThrottleFactoryTest {
         given(throttleAccumulatorFactory.newThrottleAccumulator(
                         eq(config), argThat((IntSupplier i) -> i.getAsInt() == SPLIT_FACTOR), eq(BACKEND_THROTTLE)))
                 .willReturn(throttleAccumulator);
-        given(throttleAccumulator.allActiveThrottles()).willReturn(List.of(firstThrottle, lastThrottle));
+        given(throttleAccumulator.allActiveThrottlesIncludingHighVolume())
+                .willReturn(List.of(firstThrottle, lastThrottle));
         given(throttleAccumulator.gasLimitThrottle()).willReturn(gasThrottle);
         given(throttleAccumulator.opsDurationThrottle()).willReturn(opsDurationThrottle);
 

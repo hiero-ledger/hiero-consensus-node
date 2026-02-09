@@ -379,7 +379,35 @@ public class ThrottleAccumulator {
     }
 
     /**
-     * Gets the current list of active throttles for the given functionality.
+     * Gets the current list of active high-volume throttles.
+     *
+     * @return the current list of active high-volume throttles
+     */
+    @NonNull
+    public List<DeterministicThrottle> allActiveHighVolumeThrottles() {
+        return highVolumeActiveThrottles;
+    }
+
+    /**
+     * Gets the current list of all TPS throttles (normal and high-volume).
+     *
+     * @return the current list of all TPS throttles
+     */
+    @NonNull
+    public List<DeterministicThrottle> allActiveThrottlesIncludingHighVolume() {
+        if (highVolumeActiveThrottles.isEmpty()) {
+            return activeThrottles;
+        }
+        final var combined =
+                new ArrayList<DeterministicThrottle>(activeThrottles.size() + highVolumeActiveThrottles.size());
+        combined.addAll(activeThrottles);
+        combined.addAll(highVolumeActiveThrottles);
+        return combined;
+    }
+
+    /**
+     * Gets the current list of active throttles for the given functionality.This is used for the utilization scaling multiplier
+     * o congestion pricing.
      *
      * @param function the functionality to get the active throttles for
      * @return the current list of active throttles for the given functionality
@@ -607,11 +635,13 @@ public class ThrottleAccumulator {
 
     private void reclaimLastAllowedUse() {
         activeThrottles.forEach(DeterministicThrottle::reclaimLastAllowedUse);
+        highVolumeActiveThrottles.forEach(DeterministicThrottle::reclaimLastAllowedUse);
         gasThrottle.reclaimLastAllowedUse();
     }
 
     private void resetLastAllowedUse() {
         activeThrottles.forEach(DeterministicThrottle::resetLastAllowedUse);
+        highVolumeActiveThrottles.forEach(DeterministicThrottle::resetLastAllowedUse);
         gasThrottle.resetLastAllowedUse();
     }
 
@@ -908,27 +938,53 @@ public class ThrottleAccumulator {
                 : shouldThrottleAutoAssociations(autoAssociations, now, throttleUsages, useHighVolumeBucket);
     }
 
+    /**
+     * Returns whether the given number of implicit creations should be throttled.
+     *
+     * @param n the number of implicit creations
+     * @param now the current time
+     * @param throttleUsages the list of throttle usages to update
+     * @param useHighVolumeBucket whether to use the high-volume bucket
+     * @return whether the given number of implicit creations should be throttled
+     */
     private boolean shouldThrottleImplicitCreations(
             final int n,
             @NonNull final Instant now,
             @Nullable final List<ThrottleUsage> throttleUsages,
             final boolean useHighVolumeBucket) {
-        final var manager = useHighVolumeBucket
-                ? Optional.ofNullable(highVolumeFunctionReqs.get(CRYPTO_CREATE)).orElse(functionReqs.get(CRYPTO_CREATE))
-                : functionReqs.get(CRYPTO_CREATE);
+        final var manager = getReqsManager(CRYPTO_CREATE, useHighVolumeBucket);
         return manager == null || !manager.allReqsMetAt(now, n, ONE_TO_ONE, throttleUsages);
     }
 
+    /**
+     * Returns whether the given number of auto associations should be throttled.
+     *
+     * @param n the number of auto associations
+     * @param now the current time
+     * @param throttleUsages the list of throttle usages to update
+     * @param useHighVolumeBucket whether to use the high-volume bucket
+     * @return whether the given number of auto associations should be throttled
+     */
     private boolean shouldThrottleAutoAssociations(
             final int n,
             @NonNull final Instant now,
             @Nullable final List<ThrottleUsage> throttleUsages,
             final boolean useHighVolumeBucket) {
-        final var manager = useHighVolumeBucket
-                ? Optional.ofNullable(highVolumeFunctionReqs.get(TOKEN_ASSOCIATE_TO_ACCOUNT))
-                        .orElse(functionReqs.get(TOKEN_ASSOCIATE_TO_ACCOUNT))
-                : functionReqs.get(TOKEN_ASSOCIATE_TO_ACCOUNT);
+        final var manager = getReqsManager(TOKEN_ASSOCIATE_TO_ACCOUNT, useHighVolumeBucket);
         return manager == null || !manager.allReqsMetAt(now, n, ONE_TO_ONE, throttleUsages);
+    }
+
+    /**
+     * Returns the throttle requirements manager for the given functionality and high-volume flag.
+     *
+     * @param function the functionality to get the manager for
+     * @param useHighVolumeBucket whether to use the high-volume bucket
+     * @return the throttle requirements manager, or null if none exists
+     */
+    private ThrottleReqsManager getReqsManager(final HederaFunctionality function, final boolean useHighVolumeBucket) {
+        return useHighVolumeBucket
+                ? hasHighVolumeThrottleFor(function) ? highVolumeFunctionReqs.get(function) : functionReqs.get(function)
+                : functionReqs.get(function);
     }
 
     /**
