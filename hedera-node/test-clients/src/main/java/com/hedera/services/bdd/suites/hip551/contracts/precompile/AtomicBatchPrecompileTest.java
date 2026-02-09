@@ -38,6 +38,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoApproveAllowance;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoDelete;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.ethereumCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.mintToken;
@@ -50,6 +51,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenReject;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenUnpause;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
+import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromAccountToAlias;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedHbarFee;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedHtsFee;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fractionalFee;
@@ -77,10 +79,13 @@ import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
+import static com.hedera.services.bdd.suites.HapiSuite.RELAYER;
+import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SOURCE_KEY;
 import static com.hedera.services.bdd.suites.HapiSuite.THOUSAND_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
 import static com.hedera.services.bdd.suites.contract.Utils.asAddress;
+import static com.hedera.services.bdd.suites.crypto.AutoCreateUtils.updateSpecFor;
 import static com.hedera.services.bdd.suites.contract.Utils.asHexedAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.asHexedSolidityAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.asToken;
@@ -129,6 +134,7 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.esaulpaugh.headlong.abi.Address;
+import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.google.protobuf.ByteString;
 import com.hedera.node.app.hapi.utils.contracts.ParsingConstants;
@@ -153,6 +159,7 @@ import com.hedera.services.bdd.spec.dsl.entities.SpecNonFungibleToken;
 import com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
+import com.hedera.services.bdd.spec.transactions.contract.HapiEthereumContractCreate;
 import com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hedera.services.bdd.spec.transactions.util.HapiAtomicBatch;
@@ -539,6 +546,143 @@ class AtomicBatchPrecompileTest {
                     getAccountBalance(RECEIVER).hasTokenBalance(FUNGIBLE_TOKEN, 50),
                     getTxnRecord("atomic").andAllChildRecords().logged()));
 //                    validatedHtsPrecompileResult(cryptoTransferTxn, SUCCESS, SUCCESS)));
+        }
+
+        @HapiTest
+        final Stream<DynamicTest> atomicEthereumCryptoTransferTxn() {
+            final var cryptoTransferTxn = "ethereumCryptoTransferTxn";
+            final AtomicReference<AccountID> senderId = new AtomicReference<>();
+            final AtomicReference<AccountID> receiverId = new AtomicReference<>();
+            final AtomicReference<TokenID> tokenId = new AtomicReference<>();
+            final var amountToBeSent = 50L;
+            return hapiTest(flattened(
+                    cryptoCreate(SENDER).balance(ONE_HBAR).exposingCreatedIdTo(senderId::set),
+                    cryptoCreate(RECEIVER)
+                            .balance(ONE_HBAR)
+                            .receiverSigRequired(true)
+                            .exposingCreatedIdTo(receiverId::set),
+                    cryptoCreate(TOKEN_TREASURY),
+                    tokenCreate(FUNGIBLE_TOKEN)
+                            .tokenType(TokenType.FUNGIBLE_COMMON)
+                            .initialSupply(1_000)
+                            .treasury(TOKEN_TREASURY)
+                            .exposingCreatedIdTo(id -> tokenId.set(asToken(id))),
+                    tokenAssociate(SENDER, List.of(FUNGIBLE_TOKEN)),
+                    tokenAssociate(RECEIVER, List.of(FUNGIBLE_TOKEN)),
+                    cryptoTransfer(moving(200, FUNGIBLE_TOKEN).between(TOKEN_TREASURY, SENDER)),
+                    deployContractAndUpdateKeys(),
+                    // Setup SECP256K1 key and relayer for the Ethereum transaction
+                    newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP256K1),
+                    cryptoCreate(RELAYER).balance(6 * ONE_MILLION_HBARS),
+                    cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS)),
+                    withOpContext((spec, opLog) -> updateSpecFor(spec, SECP_256K1_SOURCE_KEY)),
+                    // Ethereum transaction performing fungible token transfer between sender and receiver
+                    sourcing(() -> atomicBatchDefaultOperator(
+                            cryptoUpdate(SENDER).key(DELEGATE_KEY),
+                            cryptoUpdate(RECEIVER).key(DELEGATE_KEY),
+                            ethereumCall(
+                                            ATOMIC_CRYPTO_TRANSFER_CONTRACT,
+                                            TRANSFER_MULTIPLE_TOKENS,
+                                            transferList()
+                                                    .withAccountAmounts(EMPTY_TUPLE_ARRAY)
+                                                    .build(),
+                                            wrapIntoTupleArray(tokenTransferList()
+                                                    .forToken(tokenId.get())
+                                                    .withAccountAmounts(
+                                                            accountAmount(senderId.get(), -amountToBeSent, false),
+                                                            accountAmount(receiverId.get(), amountToBeSent, false))
+                                                    .build()))
+                                    .type(EthTxData.EthTransactionType.EIP1559)
+                                    .signingWith(SECP_256K1_SOURCE_KEY)
+                                    .payingWith(RELAYER)
+                                    .nonce(0)
+                                    .maxGasAllowance(ONE_HBAR * 10)
+                                    .gasLimit(GAS_TO_OFFER)
+                                    .via(cryptoTransferTxn)).via("atomicEth").logged()),
+                    // validate balances
+                    getAccountBalance(SENDER).hasTokenBalance(FUNGIBLE_TOKEN, 150),
+                    getAccountBalance(RECEIVER).hasTokenBalance(FUNGIBLE_TOKEN, 50),
+                    // The atomic batch record itself is just the orchestrator with no child records
+                    getTxnRecord("atomicEth").andAllChildRecords().logged(),
+                    // The ethereum transaction record contains the contract call result
+                    // and its child record holds the HTS precompile result with synthetic logs
+                    getTxnRecord(cryptoTransferTxn).andAllChildRecords().logged()));
+        }
+
+        @HapiTest
+        final Stream<DynamicTest> atomicCreateEthereumCryptoTransferTxn() {
+            final var createTxn = "ethereumCreateTxn";
+            final var CONSTRUCTOR_CONTRACT = "ConstructorTransferToken";
+            final AtomicReference<AccountID> senderId = new AtomicReference<>();
+            final AtomicReference<AccountID> receiverId = new AtomicReference<>();
+            final AtomicReference<TokenID> tokenId = new AtomicReference<>();
+            final var amountToBeSent = 50L;
+            return hapiTest(flattened(
+                    cryptoCreate(SENDER).balance(ONE_HBAR).exposingCreatedIdTo(senderId::set),
+                    cryptoCreate(RECEIVER)
+                            .balance(ONE_HBAR)
+                            .receiverSigRequired(true)
+                            .exposingCreatedIdTo(receiverId::set),
+                    cryptoCreate(TOKEN_TREASURY),
+                    tokenCreate(FUNGIBLE_TOKEN)
+                            .tokenType(TokenType.FUNGIBLE_COMMON)
+                            .initialSupply(1_000)
+                            .treasury(TOKEN_TREASURY)
+                            .exposingCreatedIdTo(id -> tokenId.set(asToken(id))),
+                    tokenAssociate(SENDER, List.of(FUNGIBLE_TOKEN)),
+                    tokenAssociate(RECEIVER, List.of(FUNGIBLE_TOKEN)),
+                    cryptoTransfer(moving(200, FUNGIBLE_TOKEN).between(TOKEN_TREASURY, SENDER)),
+                    // Setup SECP256K1 key and relayer for the Ethereum transactions
+                    newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP256K1),
+                    cryptoCreate(RELAYER).balance(6 * ONE_MILLION_HBARS),
+                    cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS)),
+                    withOpContext((spec, opLog) -> updateSpecFor(spec, SECP_256K1_SOURCE_KEY)),
+                    uploadInitCode(CONSTRUCTOR_CONTRACT),
+                    // Predict the contract entity number (file entity + 1), pre-register it,
+                    // set up delegate key on sender/receiver BEFORE deployment so the
+                    // constructor's transferToken precompile call is authorized.
+                    withOpContext((spec, opLog) -> {
+                        // The contract will be the next entity after the uploaded file
+                        final var fileId = spec.registry().getFileId(CONSTRUCTOR_CONTRACT);
+                        final var predictedContractNum = fileId.getFileNum() + 1;
+                        final var predictedContractId = ContractID.newBuilder()
+                                .setContractNum(predictedContractNum)
+                                .build();
+                        // Pre-register so the delegate key shape can reference it
+                        spec.registry().saveContractId(CONSTRUCTOR_CONTRACT, predictedContractId);
+
+                        // Create delegate key and update sender/receiver keys before deploy
+                        allRunFor(
+                                spec,
+                                newKeyNamed(DELEGATE_KEY)
+                                        .shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(
+                                                sigs(ON, CONSTRUCTOR_CONTRACT))),
+                                cryptoUpdate(SENDER).key(DELEGATE_KEY),
+                                cryptoUpdate(RECEIVER).key(DELEGATE_KEY));
+
+                        // Deploy via ethereumContractCreate with real constructor args
+                        final var tokenAddr = asHeadlongAddress(asAddress(tokenId.get()));
+                        final var senderAddr = asHeadlongAddress(asAddress(senderId.get()));
+                        final var receiverAddr = asHeadlongAddress(asAddress(receiverId.get()));
+                        var hcc = contractCreate(
+                                        CONSTRUCTOR_CONTRACT, tokenAddr, senderAddr, receiverAddr, amountToBeSent)
+                                .omitAdminKey();
+                        var ethCreate =
+                                new HapiEthereumContractCreate(hcc, SECP_256K1_SOURCE_KEY, null, GAS_TO_OFFER);
+                        ethCreate
+                                .type(EthTxData.EthTransactionType.EIP1559)
+                                .nonce(0)
+                                .maxGasAllowance(ONE_HUNDRED_HBARS)
+                                .payingWith(RELAYER)
+                                .via(createTxn);
+                        allRunFor(spec, ethCreate);
+                    }),
+                    // Validate the constructor transfer happened
+                    getAccountBalance(SENDER).hasTokenBalance(FUNGIBLE_TOKEN, 150),
+                    getAccountBalance(RECEIVER).hasTokenBalance(FUNGIBLE_TOKEN, 50),
+                    // Log the create transaction record with child records
+                    // showing the successful precompile call and synthetic logs
+                    getTxnRecord(createTxn).andAllChildRecords().logged()));
         }
 
         @HapiTest
