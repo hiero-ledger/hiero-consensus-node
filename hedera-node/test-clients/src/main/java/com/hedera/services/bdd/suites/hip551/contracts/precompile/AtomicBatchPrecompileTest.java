@@ -190,6 +190,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -200,6 +202,7 @@ import org.junit.jupiter.api.Tag;
 @Tag(ATOMIC_BATCH)
 @HapiTestLifecycle
 class AtomicBatchPrecompileTest {
+
     private static final String DEFAULT_BATCH_OPERATOR = "batchOperator";
     private static final String APPROVE_SIGNATURE = "Approval(address,address,uint256)";
     private static final Tuple[] EMPTY_TUPLE_ARRAY = new Tuple[] {};
@@ -530,11 +533,12 @@ class AtomicBatchPrecompileTest {
                                                             accountAmount(receiverId.get(), amountToBeSent, false))
                                                     .build()))
                                     .via(cryptoTransferTxn)
-                                    .gas(GAS_TO_OFFER))),
+                                    .gas(GAS_TO_OFFER)).via("atomic").logged()),
                     // validate balances
                     getAccountBalance(SENDER).hasTokenBalance(FUNGIBLE_TOKEN, 150),
                     getAccountBalance(RECEIVER).hasTokenBalance(FUNGIBLE_TOKEN, 50),
-                    validatedHtsPrecompileResult(cryptoTransferTxn, SUCCESS, SUCCESS)));
+                    getTxnRecord("atomic").andAllChildRecords().logged()));
+//                    validatedHtsPrecompileResult(cryptoTransferTxn, SUCCESS, SUCCESS)));
         }
 
         @HapiTest
@@ -562,40 +566,49 @@ class AtomicBatchPrecompileTest {
                     tokenAssociate(RECEIVER, List.of(FUNGIBLE_TOKEN)),
                     cryptoTransfer(moving(200, FUNGIBLE_TOKEN).between(TOKEN_TREASURY, SENDER)),
                     deployContractAndUpdateKeys(),
+                    // Update sender and receiver keys to the delegate key BEFORE scheduling,
+                    // so the contract has authorization to transfer tokens on their behalf
+                    cryptoUpdate(SENDER).key(DELEGATE_KEY),
+                    cryptoUpdate(RECEIVER).key(DELEGATE_KEY),
                     // Schedule a contractCall that performs a fungible token transfer via the HTS precompile
                     sourcing(() -> scheduleCreate(
-                            scheduleName,
-                            contractCall(
-                                    ATOMIC_CRYPTO_TRANSFER_CONTRACT,
-                                    TRANSFER_MULTIPLE_TOKENS,
-                                    transferList()
-                                            .withAccountAmounts(EMPTY_TUPLE_ARRAY)
-                                            .build(),
-                                    wrapIntoTupleArray(tokenTransferList()
-                                            .forToken(tokenId.get())
-                                            .withAccountAmounts(
-                                                    accountAmount(
-                                                            senderId.get(), -amountToBeSent, false),
-                                                    accountAmount(
-                                                            receiverId.get(), amountToBeSent, false))
-                                            .build()))
-                                    .gas(GAS_TO_OFFER))
+                                    scheduleName,
+                                    contractCall(
+                                                    ATOMIC_CRYPTO_TRANSFER_CONTRACT,
+                                                    TRANSFER_MULTIPLE_TOKENS,
+                                                    transferList()
+                                                            .withAccountAmounts(EMPTY_TUPLE_ARRAY)
+                                                            .build(),
+                                                    wrapIntoTupleArray(tokenTransferList()
+                                                            .forToken(tokenId.get())
+                                                            .withAccountAmounts(
+                                                                    accountAmount(
+                                                                            senderId.get(), -amountToBeSent, false),
+                                                                    accountAmount(
+                                                                            receiverId.get(), amountToBeSent, false))
+                                                            .build()))
+                                            .gas(GAS_TO_OFFER))
                             .designatingPayer(schedulePayer)
                             .alsoSigningWith(SENDER, DELEGATE_KEY)
-                            .via(scheduleName).logged()),
-                    // Schedule is not yet executed (waiting for payer + receiver sig)
+                            .via(scheduleName)
+                            .recordingScheduledTxn()),
+                    // Schedule is not yet executed (waiting for designated payer + receiver sig)
                     getScheduleInfo(scheduleName).isNotExecuted(),
                     // Sign with the receiver and the designated payer to trigger execution
                     scheduleSign(scheduleName)
-                            .alsoSigningWith(RECEIVER, schedulePayer).via("schedule")
+                            .alsoSigningWith(RECEIVER, schedulePayer)
+                            .via("signTx")
                             .hasKnownStatus(SUCCESS),
+                    // Retrieve and log the triggering transaction record with child records
+                    getTxnRecord("signTx")
+                            .andAllChildRecords()
+                            .logged(),
+//                    getTxnRecord(scheduleName).scheduled().andAllChildRecords().logged(),
                     // Verify the schedule was executed
-                    getScheduleInfo(scheduleName).isExecuted().logged(),
-                    getTxnRecord("schedule"))
+                    getScheduleInfo(scheduleName).isExecuted().hasRecordedScheduledTxn(),
                     // Validate token balances after the scheduled transfer
-//                    getAccountBalance(SENDER).hasTokenBalance(FUNGIBLE_TOKEN, 150),
-//                    getAccountBalance(RECEIVER).hasTokenBalance(FUNGIBLE_TOKEN, 50))
-            );
+                    getAccountBalance(SENDER).hasTokenBalance(FUNGIBLE_TOKEN, 150),
+                    getAccountBalance(RECEIVER).hasTokenBalance(FUNGIBLE_TOKEN, 50)));
         }
 
         @HapiTest

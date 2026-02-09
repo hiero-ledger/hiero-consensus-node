@@ -8,25 +8,41 @@ import static com.hedera.services.bdd.spec.assertions.AutoAssocAsserts.accountTo
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.infrastructure.providers.ops.crypto.RandomAccount.INITIAL_BALANCE;
+import static com.hedera.services.bdd.spec.keys.KeyShape.sigs;
+import static com.hedera.services.bdd.spec.keys.SigControl.ON;
 import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFullPrefixesFor;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAliasedAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.queries.crypto.ExpectedTokenRel.relationshipWith;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.accountAllowanceHook;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoUpdateAliased;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.mintToken;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUnique;
+import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
+import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
+import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUnique;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.accountAmount;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.tokenTransferList;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.transferList;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.wrapIntoTupleArray;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
@@ -46,8 +62,10 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.TokenSupplyType.FINITE;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
+import static com.hedera.node.app.hapi.utils.CommonUtils.asEvmAddress;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import com.esaulpaugh.headlong.abi.Address;
 import com.esaulpaugh.headlong.abi.Single;
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.esaulpaugh.headlong.abi.TupleType;
@@ -61,6 +79,7 @@ import com.hedera.services.bdd.spec.dsl.annotations.NonFungibleToken;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecFungibleToken;
 import com.hedera.services.bdd.spec.dsl.entities.SpecNonFungibleToken;
+import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer;
 import com.hederahashgraph.api.proto.java.AccountAmount;
 import com.hederahashgraph.api.proto.java.EvmHookCall;
@@ -99,6 +118,9 @@ public class Hip1195StreamParityTest {
     @Contract(contract = "CreateOpHook", creationGas = 5_000_000)
     static SpecContract CREATE_OP_HOOK;
 
+    @Contract(contract = "TransferTokenHook", creationGas = 5_000_000L)
+    static SpecContract TRANSFER_TOKEN_HOOK;
+
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
         testLifecycle.overrideInClass(Map.of("hooks.hooksEnabled", "true"));
@@ -107,6 +129,7 @@ public class Hip1195StreamParityTest {
         testLifecycle.doAdhoc(SET_AND_PASS_HOOK.getInfo());
         testLifecycle.doAdhoc(THREE_PASSES_HOOK.getInfo());
         testLifecycle.doAdhoc(TRUE_PRE_POST_ALLOWANCE_HOOK.getInfo());
+        testLifecycle.doAdhoc(TRANSFER_TOKEN_HOOK.getInfo());
     }
 
     @HapiTest
@@ -437,48 +460,95 @@ public class Hip1195StreamParityTest {
 
     @HapiTest
     final Stream<DynamicTest> hookExecutionsWithAliases() {
-        final var args = TupleType.parse("(uint32)");
+        // Calldata layout for TransferTokenHook: (address token, address receiver, int64 amount)
+        // The hook calls transferToken(token, context.owner, receiver, amount) on the HTS precompile
+        final var HOOK_CALLDATA_TYPE = TupleType.parse("(address,address,int64)");
+        final var FUNGIBLE_TOKEN = "fungibleToken";
+        final long HOOK_GAS_LIMIT = 500_000L;
+        final long HOOK_TOKEN_AMOUNT = 5L;
+        final long TOTAL_SUPPLY = 1_000L;
+
         return hapiTest(
                 newKeyNamed("alias"),
-                cryptoCreate("party").withHooks(accountAllowanceHook(1L, THREE_PASSES_HOOK.name())),
-                cryptoCreate("counterparty"),
-                cryptoTransfer(movingHbar(10L).between("party", "alias"))
+                // Create party with balance
+                cryptoCreate("party")
+                        .balance(10 * ONE_HUNDRED_HBARS)
+                        .maxAutomaticTokenAssociations(5),
+                // Create counterparty who will receive tokens from the hook's inner transferToken
+                cryptoCreate("counterparty").maxAutomaticTokenAssociations(5),
+                // Create a fungible token for the hook to transfer
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(FUNGIBLE_TOKEN)
+                        .tokenType(FUNGIBLE_COMMON)
+                        .initialSupply(TOTAL_SUPPLY)
+                        .treasury(TOKEN_TREASURY),
+                // Auto-create aliased account via HBAR transfer
+                cryptoTransfer(movingHbar(ONE_HUNDRED_HBARS).between("party", "alias"))
                         .signedBy(DEFAULT_PAYER, "party")
                         .via("aliasCreation"),
                 getTxnRecord("aliasCreation")
                         .hasChildRecords(recordWith().status(SUCCESS).memo(AUTO_MEMO)),
-                cryptoTransfer((spec, b) -> b.setTransfers(TransferList.newBuilder()
-                                .addAccountAmounts(AccountAmount.newBuilder()
-                                        .setAccountID(spec.registry().getAccountID("party"))
-                                        .setAmount(-123L)
-                                        .setPreTxAllowanceHook(HookCall.newBuilder()
-                                                .setHookId(1L)
-                                                .setEvmHookCall(EvmHookCall.newBuilder()
-                                                        .setGasLimit(42_000L)
-                                                        .setData(ByteString.copyFrom(args.encode(Single.of(1L)))))))
-                                .addAccountAmounts(AccountAmount.newBuilder()
-                                        .setAccountID(spec.registry().getKeyAlias("alias"))
-                                        .setAmount(+123L))))
-                        .signedBy(DEFAULT_PAYER),
                 withOpContext((spec, opLog) -> updateSpecFor(spec, "alias")),
-                // Update aliased account with hook and use alias with hook invocation
+                // Associate alias with the token and give it some tokens
+                tokenAssociate("alias", List.of(FUNGIBLE_TOKEN)),
+                tokenAssociate("counterparty", List.of(FUNGIBLE_TOKEN)),
+                cryptoTransfer(moving(100, FUNGIBLE_TOKEN).between(TOKEN_TREASURY, "alias")),
+                // Attach TransferTokenHook to the aliased account; the hook calls
+                // HTS.transferToken(token, owner, receiver, amount) on the HTS precompile
                 cryptoUpdateAliased("alias")
-                        .withHook(accountAllowanceHook(1L, THREE_PASSES_HOOK.name()))
+                        .withHook(accountAllowanceHook(1L, TRANSFER_TOKEN_HOOK.name()))
                         .signedBy(DEFAULT_PAYER, "alias"),
-                cryptoTransfer((spec, b) -> b.setTransfers(TransferList.newBuilder()
-                                .addAccountAmounts(AccountAmount.newBuilder()
-                                        .setAccountID(spec.registry().getKeyAlias("alias"))
-                                        .setAmount(-123L)
-                                        .setPreTxAllowanceHook(HookCall.newBuilder()
-                                                .setHookId(1L)
-                                                .setEvmHookCall(EvmHookCall.newBuilder()
-                                                        .setGasLimit(42_000L)
-                                                        .setData(ByteString.copyFrom(args.encode(Single.of(1L)))))))
-                                .addAccountAmounts(AccountAmount.newBuilder()
-                                        .setAccountID(spec.registry().getAccountID("party"))
-                                        .setAmount(+123L))))
-                        .signedBy(DEFAULT_PAYER)
-                        .via("aliasTransfer"),
-                getTxnRecord("aliasTransfer").andAllChildRecords().logged());
+                // Trigger the hook: the main transfer sends 10 tinybar from alias to party,
+                // and the hook performs transferToken of HOOK_TOKEN_AMOUNT fungible tokens
+                // from alias (the hook owner) to counterparty via the HTS precompile
+                withOpContext((spec, opLog) -> {
+                    final var aliasId = spec.registry().getAccountID("alias");
+                    final var partyId = spec.registry().getAccountID("party");
+
+                    // Build the EVM addresses for the hook calldata
+                    final long tokenNum = spec.registry().getTokenID(FUNGIBLE_TOKEN).getTokenNum();
+                    final var tokenAddr = Address.wrap(Address.toChecksumAddress(
+                            new java.math.BigInteger(1, asEvmAddress(tokenNum))));
+                    final long counterpartyNum =
+                            spec.registry().getAccountID("counterparty").getAccountNum();
+                    final var counterpartyAddr = Address.wrap(Address.toChecksumAddress(
+                            new java.math.BigInteger(1, asEvmAddress(counterpartyNum))));
+
+                    allRunFor(
+                            spec,
+                            cryptoTransfer((s, b) -> b.setTransfers(TransferList.newBuilder()
+                                            .addAccountAmounts(AccountAmount.newBuilder()
+                                                    .setAccountID(aliasId)
+                                                    .setAmount(-10L)
+                                                    .setPreTxAllowanceHook(HookCall.newBuilder()
+                                                            .setHookId(1L)
+                                                            .setEvmHookCall(EvmHookCall.newBuilder()
+                                                                    .setGasLimit(HOOK_GAS_LIMIT)
+                                                                    .setData(ByteString.copyFrom(
+                                                                            HOOK_CALLDATA_TYPE
+                                                                                    .encode(Tuple.of(
+                                                                                            tokenAddr,
+                                                                                            counterpartyAddr,
+                                                                                            HOOK_TOKEN_AMOUNT)))))))
+                                            .addAccountAmounts(AccountAmount.newBuilder()
+                                                    .setAccountID(partyId)
+                                                    .setAmount(+10L))))
+                                    .signedBy(DEFAULT_PAYER)
+                                    .via("hookTransfer"));
+                }),
+                // Log the full transaction record including all child records from hook execution.
+                // Child 1: the hook execution (ContractCall to 0.0.365)
+                // Child 2: the inner transferToken dispatched by the hook via the HTS precompile
+                getTxnRecord("hookTransfer")
+                        .andAllChildRecords()
+                        .hasChildRecords(
+                                recordWith()
+                                        .status(SUCCESS)
+                                        .contractCallResult(resultWith().contract(HOOK_CONTRACT_NUM)),
+                                recordWith().status(SUCCESS))
+                        .logged(),
+                // Verify that the counterparty received the tokens from the hook's transferToken call
+                getAccountInfo("counterparty")
+                        .hasToken(relationshipWith(FUNGIBLE_TOKEN).balance(HOOK_TOKEN_AMOUNT)));
     }
 }
