@@ -61,6 +61,7 @@ import static com.hedera.services.bdd.suites.crypto.AutoAccountCreationSuite.CIV
 import static com.hedera.services.bdd.suites.crypto.AutoAccountCreationSuite.EXPECTED_ASSOCIATION_FEE;
 import static com.hedera.services.bdd.suites.crypto.AutoAccountCreationSuite.EXPECTED_HBAR_TRANSFER_AUTO_CREATION_FEE;
 import static com.hedera.services.bdd.suites.crypto.AutoAccountCreationSuite.EXPECTED_MULTI_TOKEN_TRANSFER_AUTO_CREATION_FEE;
+import static com.hedera.services.bdd.suites.crypto.AutoAccountCreationSuite.EXPECTED_SIMPLE_AUTO_CREATION_FEE;
 import static com.hedera.services.bdd.suites.crypto.AutoAccountCreationSuite.EXPECTED_SINGLE_TOKEN_TRANSFER_AUTO_CREATE_FEE;
 import static com.hedera.services.bdd.suites.crypto.AutoAccountCreationSuite.HBAR_XFER;
 import static com.hedera.services.bdd.suites.crypto.AutoAccountCreationSuite.INITIAL_BALANCE;
@@ -305,10 +306,16 @@ class AtomicAutoAccountCreationSuite {
                         .andAllChildRecords()
                         .hasPriority(recordWith().autoAssociationCount(2))
                         .hasNonStakingChildRecordCount(1),
-                childRecordsCheck(
-                        multiNftTransfer,
-                        SUCCESS,
-                        recordWith().status(SUCCESS).fee(EXPECTED_MULTI_TOKEN_TRANSFER_AUTO_CREATION_FEE)),
+                withOpContext((spec, opLog) -> {
+                    final var expectedFee = spec.simpleFeesEnabled()
+                            ? EXPECTED_SIMPLE_AUTO_CREATION_FEE
+                            : EXPECTED_MULTI_TOKEN_TRANSFER_AUTO_CREATION_FEE;
+                    final var childRecordsCheck = childRecordsCheck(
+                            multiNftTransfer,
+                            SUCCESS,
+                            recordWith().status(SUCCESS).fee(expectedFee));
+                    allRunFor(spec, childRecordsCheck);
+                }),
                 getAliasedAccountInfo(VALID_ALIAS)
                         .has(accountWith().balance(0).maxAutoAssociations(-1).ownedNfts(4)));
     }
@@ -415,12 +422,7 @@ class AtomicAutoAccountCreationSuite {
                                         moving(10, A_TOKEN).to(VALID_ALIAS)))
                                 .tokenTransfers(includingFungibleMovement(
                                         moving(10, B_TOKEN).to(VALID_ALIAS)))
-                                .autoAssociationCount(2))
-                        .logged(),
-                childRecordsCheck(
-                        multiTokenXfer,
-                        SUCCESS,
-                        recordWith().status(SUCCESS).fee(EXPECTED_MULTI_TOKEN_TRANSFER_AUTO_CREATION_FEE)),
+                                .autoAssociationCount(2)),
                 getAliasedAccountInfo(VALID_ALIAS)
                         .hasToken(relationshipWith(A_TOKEN).balance(10))
                         .hasToken(relationshipWith(B_TOKEN).balance(10))
@@ -436,13 +438,20 @@ class AtomicAutoAccountCreationSuite {
                                 .signedBy(CIVILIAN, VALID_ALIAS, TOKEN_TREASURY)
                                 .batchKey("batchOperator"))
                         .payingWith("batchOperator"),
-                getTxnRecord("newXfer")
-                        .andAllChildRecords()
-                        .hasNonStakingChildRecordCount(0)
-                        .logged(),
+                getTxnRecord("newXfer").andAllChildRecords().hasNonStakingChildRecordCount(0),
                 getAliasedAccountInfo(VALID_ALIAS)
                         .hasToken(relationshipWith(A_TOKEN).balance(10))
-                        .hasToken(relationshipWith(B_TOKEN).balance(20)));
+                        .hasToken(relationshipWith(B_TOKEN).balance(20)),
+                withOpContext((spec, opLog) -> {
+                    final var expectedFee = spec.simpleFeesEnabled()
+                            ? EXPECTED_SIMPLE_AUTO_CREATION_FEE
+                            : EXPECTED_MULTI_TOKEN_TRANSFER_AUTO_CREATION_FEE;
+                    final var childRecordsCheck = childRecordsCheck(
+                            multiTokenXfer,
+                            SUCCESS,
+                            recordWith().status(SUCCESS).fee(expectedFee));
+                    allRunFor(spec, childRecordsCheck);
+                }));
     }
 
     @HapiTest
@@ -504,6 +513,7 @@ class AtomicAutoAccountCreationSuite {
         // The expected (network + service) fee for two token transfers to a receiver
         // with no auto-creation; note it is approximate because the fee will vary slightly
         // with the size of the sig map, depending on the lengths of the public key prefixes required
+        final var approxSimpleTransferFee = 1083333L;
         final long approxTransferFee = 1218008L;
 
         return hapiTest(
@@ -549,31 +559,31 @@ class AtomicAutoAccountCreationSuite {
                 getTxnRecord(sameTokenXfer)
                         .andAllChildRecords()
                         .hasNonStakingChildRecordCount(1)
-                        .hasPriority(recordWith().autoAssociationCount(1))
-                        .logged(),
-                childRecordsCheck(
-                        sameTokenXfer,
-                        SUCCESS,
-                        recordWith().status(SUCCESS).fee(EXPECTED_SINGLE_TOKEN_TRANSFER_AUTO_CREATE_FEE)),
+                        .hasPriority(recordWith().autoAssociationCount(1)),
                 getAliasedAccountInfo(VALID_ALIAS)
                         .hasToken(relationshipWith(A_TOKEN).balance(20)),
                 getAccountInfo(CIVILIAN)
                         .hasToken(relationshipWith(A_TOKEN).balance(90))
                         .has(accountWith().balanceLessThan(10 * ONE_HBAR)),
                 assertionsHold((spec, opLog) -> {
+                    final var transferRecordFee = spec.simpleFeesEnabled()
+                            ? EXPECTED_SIMPLE_AUTO_CREATION_FEE
+                            : EXPECTED_SINGLE_TOKEN_TRANSFER_AUTO_CREATE_FEE;
+                    final var childRecordCheck = childRecordsCheck(
+                            sameTokenXfer, SUCCESS, recordWith().status(SUCCESS).fee(transferRecordFee));
                     final var lookup = getTxnRecord(sameTokenXfer)
                             .andAllChildRecords()
                             .hasNonStakingChildRecordCount(1)
                             .hasPriority(recordWith().autoAssociationCount(1))
-                            .hasNoAliasInChildRecord(0)
-                            .logged();
-                    allRunFor(spec, lookup);
+                            .hasNoAliasInChildRecord(0);
+                    allRunFor(spec, childRecordCheck, lookup);
                     final var sponsor = spec.registry().getAccountID(DEFAULT_PAYER);
                     final var payer = spec.registry().getAccountID(CIVILIAN);
                     final var parent = lookup.getResponseRecord();
                     final var child = lookup.getFirstNonStakingChildRecord();
+                    final var expectedFee = spec.simpleFeesEnabled() ? approxSimpleTransferFee : approxTransferFee;
                     assertAliasBalanceAndFeeInChildRecord(
-                            parent, child, sponsor, payer, 0L, approxTransferFee, EXPECTED_ASSOCIATION_FEE);
+                            parent, child, sponsor, payer, 0L, expectedFee, EXPECTED_ASSOCIATION_FEE);
                 }),
                 /* --- transfer another token to create alias.
                 Alias created will have -1 as max-auto associations */
@@ -910,6 +920,7 @@ class AtomicAutoAccountCreationSuite {
     @HapiTest
     final Stream<DynamicTest> autoAccountCreationsHappyPath() {
         final var creationTime = new AtomicLong();
+        final var simpleTransferFee = 333333L;
         final long transferFee = 190000L;
         return hapiTest(
                 newKeyNamed(VALID_ALIAS),
@@ -929,16 +940,17 @@ class AtomicAutoAccountCreationSuite {
                         .has(accountWith()
                                 .balance((INITIAL_BALANCE * ONE_HBAR) - ONE_HUNDRED_HBARS)
                                 .noAlias()),
-                childRecordsCheck(
-                        TRANSFER_TXN,
-                        SUCCESS,
-                        recordWith().status(SUCCESS).fee(EXPECTED_HBAR_TRANSFER_AUTO_CREATION_FEE)),
                 assertionsHold((spec, opLog) -> {
+                    final var transferRecordFee = spec.simpleFeesEnabled()
+                            ? EXPECTED_SIMPLE_AUTO_CREATION_FEE
+                            : EXPECTED_HBAR_TRANSFER_AUTO_CREATION_FEE;
+                    final var childRecordsCheck = childRecordsCheck(
+                            TRANSFER_TXN, SUCCESS, recordWith().status(SUCCESS).fee(transferRecordFee));
                     final var lookup = getTxnRecord(TRANSFER_TXN)
                             .andAllChildRecords()
                             .hasNonStakingChildRecordCount(1)
                             .hasNoAliasInChildRecord(0);
-                    allRunFor(spec, lookup);
+                    allRunFor(spec, childRecordsCheck, lookup);
                     final var sponsor = spec.registry().getAccountID(SPONSOR);
                     final var payer = spec.registry().getAccountID(PAYER_1);
                     final var parent = lookup.getResponseRecord();
@@ -946,8 +958,9 @@ class AtomicAutoAccountCreationSuite {
                     if (isEndOfStakingPeriodRecord(child)) {
                         child = lookup.getChildRecord(1);
                     }
+                    final var expectedFee = spec.simpleFeesEnabled() ? simpleTransferFee : transferFee;
                     assertAliasBalanceAndFeeInChildRecord(
-                            parent, child, sponsor, payer, ONE_HUNDRED_HBARS + ONE_HBAR, transferFee, 0);
+                            parent, child, sponsor, payer, ONE_HUNDRED_HBARS + ONE_HBAR, expectedFee, 0);
                     creationTime.set(child.getConsensusTimestamp().getSeconds());
                 }),
                 sourcing(() -> getAliasedAccountInfo(VALID_ALIAS)
@@ -1010,7 +1023,6 @@ class AtomicAutoAccountCreationSuite {
                     final var ecdsaKey = registry.getKey(SECP_256K1_SOURCE_KEY);
                     final var tmp = ecdsaKey.getECDSASecp256K1().toByteArray();
                     final var addressBytes = recoverAddressFromPubKey(tmp);
-                    assert addressBytes != null;
                     partyId.set(registry.getAccountID(PARTY));
                     partyAlias.set(asSolidityAddress(partyId.get()));
                     counterAlias.set(addressBytes);
