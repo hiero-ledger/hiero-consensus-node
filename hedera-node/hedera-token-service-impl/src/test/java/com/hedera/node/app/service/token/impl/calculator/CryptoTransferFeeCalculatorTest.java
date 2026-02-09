@@ -67,6 +67,7 @@ class CryptoTransferFeeCalculatorTest {
     @BeforeEach
     void setUp() {
         feeCalculator = new SimpleFeeCalculatorImpl(createTestFeeSchedule(), Set.of(new CryptoTransferFeeCalculator()));
+        when(feeContext.functionality()).thenReturn(HederaFunctionality.CRYPTO_TRANSFER);
     }
 
     @Nested
