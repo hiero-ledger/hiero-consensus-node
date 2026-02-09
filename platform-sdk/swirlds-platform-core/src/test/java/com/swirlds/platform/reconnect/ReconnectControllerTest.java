@@ -147,8 +147,9 @@ class ReconnectControllerTest {
                 .forEach(rosterEntry -> sigSet.addSignature(NodeId.of(rosterEntry.nodeId()), randomSignature(random)));
 
         testSignedState.setSigSet(sigSet);
-
-        testWorkingState = testSignedState.getState().copy();
+        // making the state immutable
+        testSignedState.getState().copy().release();
+        testWorkingState = testSignedState.getState();
         testReservedSignedState = testSignedState.reserve("test");
 
         // Mock Platform
@@ -170,7 +171,7 @@ class ReconnectControllerTest {
 
         // Mock SwirldStateManager
         stateLifecycleManager = mock(StateLifecycleManager.class);
-        when(stateLifecycleManager.getMutableState()).thenReturn(testWorkingState);
+        when(stateLifecycleManager.getLatestImmutableState()).thenReturn(testWorkingState);
 
         // Mock SavedStateController
         savedStateController = mock(SavedStateController.class);
