@@ -30,6 +30,14 @@ public interface GossipRpcSender {
     void sendEvents(@NonNull List<GossipEvent> gossipEvents);
 
     /**
+     * Send single event coming from broadcast algorithm. Similar to sendEvents(singleton(gossipEvent)), but allows
+     * for different handling on remote side, as it is sometimes needed to know that given event is not coming
+     * as part of sync process
+     * @param gossipEvent event to sent
+     */
+    void sendBroadcastEvent(@NonNull GossipEvent gossipEvent);
+
+    /**
      * Send marker indicating that all events were already provided to the channel
      *
      */
