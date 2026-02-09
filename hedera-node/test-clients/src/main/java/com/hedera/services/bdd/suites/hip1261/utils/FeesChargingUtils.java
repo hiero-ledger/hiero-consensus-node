@@ -1478,8 +1478,7 @@ public class FeesChargingUtils {
      * When simple fees are enabled, validates against {@code simpleFee};
      * otherwise validates against {@code legacyFee}.
      */
-    public static SpecOperation validateFees(
-            final String txn, final double legacyFee, final double simpleFee) {
+    public static SpecOperation validateFees(final String txn, final double legacyFee, final double simpleFee) {
         return doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
             if ("true".equals(flag)) {
                 return validateChargedUsdWithin(txn, simpleFee, 0.01);
