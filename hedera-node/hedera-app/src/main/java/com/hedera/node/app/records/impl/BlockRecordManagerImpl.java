@@ -213,7 +213,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
     }
 
     @Override
-    public void flushWrappedRecordFileBlockHashesIfPossible() {
+    public void flushWrappedRecordFileBlockHashes() {
         if (!writeWrappedRecordFileBlockHashesToDisk) {
             return;
         }
@@ -230,7 +230,6 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
             appendWrappedRecordFileBlockHashesToDisk(
                     currentBlockNumber, blockCreationTime, streamFileProducer.getRunningHash());
         } catch (final Exception e) {
-            // Best-effort only; must never take down the node.
             logger.warn("Failed to flush wrapped record-file block hashes on orderly shutdown", e);
         }
     }

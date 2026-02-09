@@ -114,6 +114,14 @@ public class WrappedRecordFileBlockHashesDiskWriter implements AutoCloseable {
                                 return;
                             }
 
+                            if (index.contains(entry.blockNumber())) {
+                                logger.info(
+                                        "Skipping wrapped record-file block hashes append for block {} because it is already present in {}",
+                                        entry.blockNumber(),
+                                        DEFAULT_FILE_NAME);
+                                return;
+                            }
+
                             if (logger.isInfoEnabled()) {
                                 logger.info(
                                         "Appending wrapped record-file block hashes for block {}: consensusTimestampLeafHash {}, outputItemsRootHash {}",

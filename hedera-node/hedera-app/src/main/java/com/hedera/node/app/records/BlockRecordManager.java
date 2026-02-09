@@ -141,14 +141,10 @@ public interface BlockRecordManager extends BlockRecordInfo, AutoCloseable {
     void markMigrationRecordsStreamed();
 
     /**
-     * Best-effort hook to append wrapped record-file block hashes for the current in-progress record block
+     * Hook to append wrapped record-file block hashes for the current in-progress record block
      * (if the feature is enabled and sufficient in-memory inputs exist).
      *
-     * <p>This is primarily intended to be called on orderly shutdown paths like {@code FREEZE_COMPLETE}, where we
-     * want to avoid losing wrapped-hash entries for a block that has already been written to record streams but has
-     * not yet been "closed" via a subsequent {@link #startUserTransaction(Instant, State)} call.
-     *
-     * <p>Implementations must never throw from this method.
+     * <p>This is primarily intended to be called on orderly shutdown paths like {@code FREEZE_COMPLETE}.
      */
-    void flushWrappedRecordFileBlockHashesIfPossible();
+    void flushWrappedRecordFileBlockHashes();
 }

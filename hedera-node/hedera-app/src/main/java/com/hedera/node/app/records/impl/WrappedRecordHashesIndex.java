@@ -31,6 +31,15 @@ final class WrappedRecordHashesIndex {
         return intervals.size() > 1;
     }
 
+    /**
+     * Returns {@code true} if the given block number is already present in this index.
+     */
+    boolean contains(final long blockNumber) {
+        if (blockNumber < 0) return false;
+        final var floor = intervals.floorEntry(blockNumber);
+        return floor != null && floor.getValue() >= blockNumber;
+    }
+
     void add(final long blockNumber) {
         addIntervalPoint(blockNumber);
     }
