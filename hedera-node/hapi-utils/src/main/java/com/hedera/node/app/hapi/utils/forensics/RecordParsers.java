@@ -3,11 +3,11 @@ package com.hedera.node.app.hapi.utils.forensics;
 
 import static com.hedera.node.app.hapi.utils.CommonUtils.timestampToInstant;
 import static com.hedera.node.app.hapi.utils.exports.recordstreaming.RecordStreamingUtils.readMaybeCompressedRecordStreamFile;
-import static com.hedera.node.app.hapi.utils.exports.recordstreaming.RecordStreamingUtils.readSidecarFile;
 
 import com.hedera.node.app.hapi.utils.exports.recordstreaming.RecordStreamingUtils;
 import com.hedera.services.stream.proto.TransactionSidecarRecord;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -55,10 +55,11 @@ public class RecordParsers {
      */
     public static List<RecordStreamEntry> parseV6RecordStreamEntriesIn(
             final String streamDir, final Predicate<String> inclusionTest) throws IOException {
+        final var authorizedDir = Path.of(streamDir);
         final var recordFiles = RecordStreamingUtils.orderedRecordFilesFrom(streamDir, inclusionTest);
         final List<RecordStreamEntry> entries = new ArrayList<>();
         for (final var recordFile : recordFiles) {
-            readMaybeCompressedRecordStreamFile(recordFile)
+            readMaybeCompressedRecordStreamFile(authorizedDir, recordFile)
                     .getValue()
                     .ifPresent(records -> records.getRecordStreamItemsList().forEach(item -> {
                         final var itemRecord = item.getRecord();
@@ -85,10 +86,11 @@ public class RecordParsers {
     @SuppressWarnings("java:S3655")
     public static Map<Instant, List<TransactionSidecarRecord>> parseV6SidecarRecordsByConsTimeIn(final String streamDir)
             throws IOException {
+        final var authorizedDir = Path.of(streamDir);
         final var sidecarFiles = RecordStreamingUtils.orderedSidecarFilesFrom(streamDir);
         final Map<Instant, List<TransactionSidecarRecord>> sidecarRecords = new HashMap<>();
         for (final var sidecarFile : sidecarFiles) {
-            final var data = readSidecarFile(sidecarFile);
+            final var data = RecordStreamingUtils.readSidecarFile(authorizedDir, sidecarFile);
             data.getSidecarRecordsList().forEach(sidecarRecord -> sidecarRecords
                     .computeIfAbsent(
                             timestampToInstant(sidecarRecord.getConsensusTimestamp()), ignore -> new ArrayList<>())

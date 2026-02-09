@@ -19,6 +19,7 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JSpinner;
 import javax.swing.SpinnerNumberModel;
+import org.hiero.consensus.event.EventGraphSource;
 import org.hiero.consensus.event.NoOpIntakeEventCounter;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.source.BranchingEventSource;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.gui.internal.BranchedEventMetadata;
@@ -39,6 +40,35 @@ public class TestGuiSource {
     private final GuiEventStorage eventStorage;
     private final Map<GossipEvent, BranchedEventMetadata> eventsToBranchMetadata = new HashMap<>();
     private final OrphanBuffer orphanBuffer;
+
+    /**
+     * Construct a {@link TestGuiSource} with the given platform context, address book, and event provider.
+     *
+     * @param platformContext the platform context
+     * @param roster     the roster
+     * @param eventSource   the source of events
+     */
+    public TestGuiSource(
+            @NonNull final PlatformContext platformContext,
+            @NonNull final Roster roster,
+            @NonNull final EventGraphSource eventSource) {
+        this(platformContext, roster, wrapEventGraphSource(eventSource));
+    }
+
+    private static @NonNull GuiEventProvider wrapEventGraphSource(@NonNull final EventGraphSource eventSource) {
+        return new GuiEventProvider() {
+            @NonNull
+            @Override
+            public List<PlatformEvent> provideEvents(final int numberOfEvents) {
+                return eventSource.nextEvents(numberOfEvents);
+            }
+
+            @Override
+            public void reset() {
+                throw new UnsupportedOperationException();
+            }
+        };
+    }
 
     /**
      * Construct a {@link TestGuiSource} with the given platform context, address book, and event provider.
