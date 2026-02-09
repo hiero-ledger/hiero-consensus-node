@@ -98,6 +98,7 @@ public class NodeDeathReconnectBlockNodeSuite implements LifecycleTest {
                 assertHgcaaLogDoesNotContainText(byNodeId(0), "ERROR", Duration.ofSeconds(5)));
     }
 
+    // FUTURE: This scenario should be updated after the behavior changes on the BN side
     @HapiTest
     @HapiBlockNode(
             networkSize = 2,
@@ -144,7 +145,6 @@ public class NodeDeathReconnectBlockNodeSuite implements LifecycleTest {
                 // Wait for all nodes to become active
                 waitForActive(allNodes(), RESTART_TO_ACTIVE_TIMEOUT),
                 doingContextual(spec -> time.set(Instant.now())),
-                // Run some more transactions so that we get the saturation to 100%
                 burstOfTps(MIXED_OPS_BURST_TPS, Duration.ofSeconds(20)),
                 waitForAny(allNodes(), Duration.ofSeconds(120), PlatformStatus.CHECKING));
     }
