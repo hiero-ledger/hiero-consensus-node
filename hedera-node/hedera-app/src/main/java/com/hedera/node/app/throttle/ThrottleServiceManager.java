@@ -37,6 +37,10 @@ import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+/**
+ * Manages the throttling service for the node.
+ * This is a service orchestrator for rebuild/reset/snapshot operations.
+ */
 @Singleton
 public class ThrottleServiceManager {
     private static final Logger log = LogManager.getLogger(ThrottleServiceManager.class);

@@ -20,7 +20,7 @@ import javax.inject.Singleton;
 /**
  * Keeps track of the amount of usage of different TPS throttle categories and gas, and returns whether a given
  * transaction or query should be throttled based on that.
- * Meant to be used in multithreaded context
+ * Meant to be used in multithreaded context. This is thread-safe ingest wrapper.
  */
 @Singleton
 public class SynchronizedThrottleAccumulator {
