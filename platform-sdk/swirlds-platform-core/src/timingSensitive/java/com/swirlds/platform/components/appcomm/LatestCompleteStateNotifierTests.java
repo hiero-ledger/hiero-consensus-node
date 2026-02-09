@@ -10,7 +10,6 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 import com.swirlds.common.notification.NotificationEngine;
-import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.system.state.notifications.NewSignedStateListener;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import java.io.PrintWriter;
@@ -20,6 +19,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import org.hiero.consensus.state.signed.SignedState;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
