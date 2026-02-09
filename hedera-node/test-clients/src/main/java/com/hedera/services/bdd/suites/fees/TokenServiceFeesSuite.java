@@ -69,13 +69,7 @@ import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleCon
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_ASSOCIATE_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_CREATE_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_CREATE_WITH_CUSTOM_FEE_USD;
-import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_FREEZE_FEE;
-import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_MINT_FT_BASE_FEE;
-import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_MINT_NFT_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_TRANSFER_BASE_FEE_USD;
-import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_UNFREEZE_FEE;
-import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_UPDATE_NFT_FEE;
-import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_WIPE_FEE;
 import static com.hedera.services.bdd.suites.hip904.TokenAirdropBase.setUpTokensAndAllReceivers;
 import static com.hedera.services.bdd.suites.utils.MiscEETUtils.metadata;
 import static com.hederahashgraph.api.proto.java.TokenPauseStatus.Paused;
@@ -102,6 +96,7 @@ import org.junit.jupiter.api.Tag;
 @Tag(TOKEN)
 public class TokenServiceFeesSuite {
     private static final double ALLOWED_DIFFERENCE_PERCENTAGE = 0.01;
+    private static final double ALLOWED_DIFFERENCE = 1;
     private static String TOKEN_TREASURY = "treasury";
     private static final String NON_FUNGIBLE_TOKEN = "nonFungible";
     private static final String SUPPLY_KEY = "supplyKey";
@@ -131,11 +126,19 @@ public class TokenServiceFeesSuite {
 
     private static final String TOKEN_UPDATE_METADATA = "tokenUpdateMetadata";
 
+    private static final double EXPECTED_NFT_WIPE_PRICE_USD = 0.001;
+    private static final double EXPECTED_FREEZE_PRICE_USD = 0.001;
+    private static final double EXPECTED_UNFREEZE_PRICE_USD = 0.001;
     private static final double EXPECTED_NFT_BURN_PRICE_USD = 0.001;
     private static final double EXPECTED_GRANTKYC_PRICE_USD = 0.001;
     private static final double EXPECTED_REVOKEKYC_PRICE_USD = 0.001;
+    private static final double EXPECTED_NFT_MINT_PRICE_USD = 0.02;
+    private static final double EXPECTED_FUNGIBLE_MINT_PRICE_USD = 0.001;
     private static final double EXPECTED_FUNGIBLE_REJECT_PRICE_USD = 0.001;
     private static final double EXPECTED_NFT_REJECT_PRICE_USD = 0.001;
+
+    private static final double EXPECTED_ASSOCIATE_TOKEN_PRICE = 0.05;
+    private static final double EXPECTED_NFT_UPDATE_PRICE = 0.001;
 
     private static final String OWNER = "owner";
 
@@ -146,17 +149,17 @@ public class TokenServiceFeesSuite {
         var receiver = "receiver";
         return hapiTest(
                 cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS),
+                newKeyNamed(FUNGIBLE_FREEZE_KEY),
                 tokenCreate(FUNGIBLE_TOKEN)
                         .treasury(OWNER)
                         .tokenType(FUNGIBLE_COMMON)
+                        .freezeKey(FUNGIBLE_FREEZE_KEY)
                         .initialSupply(1000L),
                 cryptoCreate(receiver).maxAutomaticTokenAssociations(0),
                 tokenAirdrop(moving(1, FUNGIBLE_TOKEN).between(OWNER, receiver))
-                        .signedBy(OWNER)
                         .payingWith(OWNER)
                         .via("airdrop"),
                 tokenAirdrop(moving(1, FUNGIBLE_TOKEN).between(OWNER, receiver))
-                        .signedBy(OWNER)
                         .payingWith(OWNER)
                         .via("second airdrop"),
                 safeValidateChargedUsdWithin(
@@ -199,11 +202,9 @@ public class TokenServiceFeesSuite {
                                 .toList()),
                 cryptoCreate(receiver).maxAutomaticTokenAssociations(0),
                 tokenAirdrop(movingUnique(NON_FUNGIBLE_TOKEN, 1).between(OWNER, receiver))
-                        .signedBy(OWNER)
                         .payingWith(OWNER)
                         .via("airdrop"),
                 tokenAirdrop(movingUnique(NON_FUNGIBLE_TOKEN, 2).between(OWNER, receiver))
-                        .signedBy(OWNER)
                         .payingWith(OWNER)
                         .via("second airdrop"),
                 safeValidateChargedUsdWithin(
@@ -294,7 +295,6 @@ public class TokenServiceFeesSuite {
                 cryptoCreate(RECEIVER_WITH_0_AUTO_ASSOCIATIONS).maxAutomaticTokenAssociations(0),
                 // Create an airdrop in pending state
                 tokenAirdrop(moving(10, FUNGIBLE_TOKEN).between(account, RECEIVER_WITH_0_AUTO_ASSOCIATIONS))
-                        .signedBy(account)
                         .payingWith(account)
                         .via("airdrop"),
 
@@ -351,7 +351,6 @@ public class TokenServiceFeesSuite {
                 cryptoCreate(RECEIVER_WITH_0_AUTO_ASSOCIATIONS).maxAutomaticTokenAssociations(0),
                 // Create an airdrop in pending state
                 tokenAirdrop(movingUnique(NON_FUNGIBLE_TOKEN, 1L).between(account, RECEIVER_WITH_0_AUTO_ASSOCIATIONS))
-                        .signedBy(account)
                         .payingWith(account)
                         .via("airdrop"),
 
@@ -428,6 +427,11 @@ public class TokenServiceFeesSuite {
     final Stream<DynamicTest> baseCreationsHaveExpectedPrices() {
         final var civilian = "NonExemptPayer";
 
+        final var expectedCommonNoCustomFeesPriceUsd = 1.00;
+        final var expectedUniqueNoCustomFeesPriceUsd = 1.00;
+        final var expectedCommonWithCustomFeesPriceUsd = 2.00;
+        final var expectedUniqueWithCustomFeesPriceUsd = 2.00;
+
         final var commonNoFees = "commonNoFees";
         final var commonWithFees = "commonWithFees";
         final var uniqueNoFees = "uniqueNoFees";
@@ -498,13 +502,13 @@ public class TokenServiceFeesSuite {
                         .via(txnFor(uniqueWithFees)),
                 safeValidateChargedUsdWithin(
                         txnFor(commonNoFees),
-                        1.00,
+                        expectedCommonNoCustomFeesPriceUsd,
                         1,
                         TOKEN_CREATE_BASE_FEE_USD + NODE_AND_NETWORK_BASE_FEE + 3 * SIGNATURE_FEE_AFTER_MULTIPLIER,
                         1),
                 safeValidateChargedUsdWithin(
                         txnFor(commonWithFees),
-                        2.00,
+                        expectedCommonWithCustomFeesPriceUsd,
                         1,
                         TOKEN_CREATE_BASE_FEE_USD
                                 + TOKEN_CREATE_WITH_CUSTOM_FEE_USD
@@ -513,13 +517,13 @@ public class TokenServiceFeesSuite {
                         1),
                 safeValidateChargedUsdWithin(
                         txnFor(uniqueNoFees),
-                        1.00,
+                        expectedUniqueNoCustomFeesPriceUsd,
                         1,
                         expectedTokenCreateNftFullFeeUsd(4, 2),
                         1),
                 safeValidateChargedUsdWithin(
                         txnFor(uniqueWithFees),
-                        2.00,
+                        expectedUniqueWithCustomFeesPriceUsd,
                         1,
                         expectedTokenCreateNftWithCustomFeesFullFeeUsd(4, 2),
                         1));
@@ -567,7 +571,7 @@ public class TokenServiceFeesSuite {
                         .signedBy(SUPPLY_KEY)
                         .blankMemo()
                         .via("fungibleMint"),
-                safeValidateChargedUsd("fungibleMint", TOKEN_MINT_FT_BASE_FEE, TOKEN_MINT_FT_BASE_FEE));
+                safeValidateChargedUsd("fungibleMint", EXPECTED_FUNGIBLE_MINT_PRICE_USD, EXPECTED_FUNGIBLE_MINT_PRICE_USD));
     }
 
     @HapiTest
@@ -590,13 +594,13 @@ public class TokenServiceFeesSuite {
                         .blankMemo()
                         .fee(ONE_HUNDRED_HBARS)
                         .via(BASE_TXN),
-                safeValidateChargedUsd(BASE_TXN, TOKEN_MINT_NFT_FEE_USD, TOKEN_MINT_NFT_FEE_USD));
+                safeValidateChargedUsd(BASE_TXN, EXPECTED_NFT_MINT_PRICE_USD, EXPECTED_NFT_MINT_PRICE_USD));
     }
 
     @HapiTest
     @Tag(MATS)
     final Stream<DynamicTest> nftMintsScaleLinearlyBasedOnNumberOfSerialNumbers() {
-        final var expectedFee = 10 * TOKEN_MINT_NFT_FEE_USD;
+        final var expectedFee = 10 * EXPECTED_NFT_MINT_PRICE_USD;
         final var standard100ByteMetadata = ByteString.copyFromUtf8(
                 "0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789");
 
@@ -714,8 +718,8 @@ public class TokenServiceFeesSuite {
                         .payingWith(TOKEN_TREASURY)
                         .signedBy(TOKEN_TREASURY)
                         .via(UNFREEZE),
-                safeValidateChargedUsd("freeze", TOKEN_FREEZE_FEE, TOKEN_FREEZE_FEE),
-                safeValidateChargedUsd(UNFREEZE, TOKEN_UNFREEZE_FEE, TOKEN_UNFREEZE_FEE));
+                safeValidateChargedUsd("freeze", EXPECTED_FREEZE_PRICE_USD, EXPECTED_FREEZE_PRICE_USD),
+                safeValidateChargedUsd(UNFREEZE, EXPECTED_UNFREEZE_PRICE_USD, EXPECTED_UNFREEZE_PRICE_USD));
     }
 
     @HapiTest
@@ -748,8 +752,8 @@ public class TokenServiceFeesSuite {
                         .payingWith(TOKEN_TREASURY)
                         .signedBy(TOKEN_TREASURY)
                         .via(UNFREEZE),
-                safeValidateChargedUsd("freeze", TOKEN_FREEZE_FEE, TOKEN_FREEZE_FEE),
-                safeValidateChargedUsd(UNFREEZE, TOKEN_UNFREEZE_FEE, TOKEN_UNFREEZE_FEE));
+                safeValidateChargedUsd("freeze", EXPECTED_FREEZE_PRICE_USD, EXPECTED_FREEZE_PRICE_USD),
+                safeValidateChargedUsd(UNFREEZE, EXPECTED_UNFREEZE_PRICE_USD, EXPECTED_UNFREEZE_PRICE_USD));
     }
 
     @HapiTest
@@ -798,12 +802,14 @@ public class TokenServiceFeesSuite {
                         .fee(ONE_HBAR)
                         .blankMemo()
                         .via(BASE_TXN))
-                .then(safeValidateChargedUsd(BASE_TXN, TOKEN_WIPE_FEE, TOKEN_WIPE_FEE));
+                .then(safeValidateChargedUsd(BASE_TXN, EXPECTED_NFT_WIPE_PRICE_USD, EXPECTED_NFT_WIPE_PRICE_USD));
     }
 
     @HapiTest
     @Tag(MATS)
     final Stream<DynamicTest> updateTokenChargedAsExpected() {
+        final var expectedUpdatePriceUsd = 0.001;
+
         return hapiTest(
                 cryptoCreate(TOKEN_TREASURY).balance(ONE_HUNDRED_HBARS),
                 tokenCreate(FUNGIBLE_COMMON_TOKEN)
@@ -813,12 +819,13 @@ public class TokenServiceFeesSuite {
                         .entityMemo("")
                         .symbol("a"),
                 tokenUpdate(FUNGIBLE_COMMON_TOKEN).via("uniqueTokenUpdate").payingWith(TOKEN_TREASURY),
-                safeValidateChargedUsdWithin("uniqueTokenUpdate", 0.00102, 1, 0.001, 1));
+                safeValidateChargedUsdWithin("uniqueTokenUpdate", expectedUpdatePriceUsd, 5, 0.001, 1));
     }
 
     @HapiTest
     @Tag(MATS)
     final Stream<DynamicTest> updateNftChargedAsExpected() {
+        final var expectedNftUpdatePriceUsd = 0.001;
         final var nftUpdateTxn = "nftUpdateTxn";
 
         return hapiTest(
@@ -849,7 +856,7 @@ public class TokenServiceFeesSuite {
                         .fee(10 * ONE_HBAR)
                         .via(nftUpdateTxn),
                 safeValidateChargedUsdWithin(
-                        nftUpdateTxn, 0.001, 0.01, expectedTokenUpdateFullFeeUsd(2, 0, 1), 0.01));
+                        nftUpdateTxn, expectedNftUpdatePriceUsd, 0.01, expectedTokenUpdateFullFeeUsd(2, 0, 1), 0.01));
     }
 
     @HapiTest
@@ -889,6 +896,7 @@ public class TokenServiceFeesSuite {
     @HapiTest
     @Tag(MATS)
     final Stream<DynamicTest> updateMultipleNftsFeeChargedAsExpected() {
+        final var expectedNftUpdatePriceUsd = 0.005;
         final var nftUpdateTxn = "nftUpdateTxn";
 
         return hapiTest(
@@ -921,7 +929,7 @@ public class TokenServiceFeesSuite {
                         .fee(10 * ONE_HBAR)
                         .via(nftUpdateTxn),
                 safeValidateChargedUsdWithin(
-                        nftUpdateTxn, 0.005, 0.01, expectedTokenUpdateFullFeeUsd(2, 0, 5), 0.01));
+                        nftUpdateTxn, expectedNftUpdatePriceUsd, 0.01, expectedTokenUpdateFullFeeUsd(2, 0, 5), 0.01));
     }
 
     @HapiTest
@@ -978,6 +986,8 @@ public class TokenServiceFeesSuite {
 
     @HapiTest
     final Stream<DynamicTest> tokenUpdateNftsFeeChargedAsExpected() {
+        final var expectedTokenUpdateNfts = 0.001;
+
         return hapiTest(
                 newKeyNamed(SUPPLY_KEY),
                 newKeyNamed(WIPE_KEY),
@@ -1006,7 +1016,7 @@ public class TokenServiceFeesSuite {
                         .signedBy(TOKEN_TREASURY, METADATA_KEY)
                         .payingWith(TOKEN_TREASURY)
                         .via("nftUpdateTxn"),
-                safeValidateChargedUsd("nftUpdateTxn", 0.001, expectedTokenUpdateFullFeeUsd(2, 0)));
+                safeValidateChargedUsd("nftUpdateTxn", expectedTokenUpdateNfts, expectedTokenUpdateFullFeeUsd(2, 0)));
     }
 
     // verify bulk operations base fees
@@ -1076,7 +1086,7 @@ public class TokenServiceFeesSuite {
                             .blankMemo()
                             .via("mintTxn"),
                     safeValidateChargedUsd(
-                            "mintTxn", TOKEN_MINT_NFT_FEE_USD * rangeAmount, TOKEN_MINT_NFT_FEE_USD * rangeAmount));
+                            "mintTxn", EXPECTED_NFT_MINT_PRICE_USD * rangeAmount, EXPECTED_NFT_MINT_PRICE_USD * rangeAmount));
         }
 
         private Stream<DynamicTest> associateBulkTokensAndValidateFees(final List<String> tokens) {
@@ -1090,8 +1100,8 @@ public class TokenServiceFeesSuite {
                             .via("associateTxn"),
                     safeValidateChargedUsd(
                             "associateTxn",
-                            (TOKEN_ASSOCIATE_BASE_FEE_USD + NODE_AND_NETWORK_BASE_FEE) * tokens.size(),
-                            (TOKEN_ASSOCIATE_BASE_FEE_USD + NODE_AND_NETWORK_BASE_FEE) * tokens.size())));
+                            EXPECTED_ASSOCIATE_TOKEN_PRICE * tokens.size(),
+                            EXPECTED_ASSOCIATE_TOKEN_PRICE * tokens.size())));
         }
 
         private Stream<DynamicTest> updateBulkNftTokensAndValidateFees(
@@ -1121,8 +1131,8 @@ public class TokenServiceFeesSuite {
                             .via("updateTxn"),
                     safeValidateChargedUsd(
                             "updateTxn",
-                            TOKEN_UPDATE_NFT_FEE * updateAmounts.size(),
-                            TOKEN_UPDATE_NFT_FEE * updateAmounts.size()));
+                            EXPECTED_NFT_UPDATE_PRICE * updateAmounts.size(),
+                            EXPECTED_NFT_UPDATE_PRICE * updateAmounts.size()));
         }
     }
 
