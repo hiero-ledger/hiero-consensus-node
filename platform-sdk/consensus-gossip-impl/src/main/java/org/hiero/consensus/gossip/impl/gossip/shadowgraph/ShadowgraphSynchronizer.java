@@ -15,8 +15,6 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.gossip.config.SyncConfig;
@@ -34,8 +32,6 @@ import org.hiero.consensus.monitoring.FallenBehindMonitor;
  * This class is designed to use message based protocol (as a precursor to RPC communication)
  */
 public class ShadowgraphSynchronizer {
-
-    private static final Logger logger = LogManager.getLogger();
 
     /**
      * The shadow graph manager to use for this sync
@@ -82,6 +78,20 @@ public class ShadowgraphSynchronizer {
     private final Duration nonAncestorFilterThreshold;
 
     /**
+     * For events that are ancestors of self events, we must have had this event for at least this amount
+     * of time before it is eligible to be sent. Ignored if {@link #filterLikelyDuplicates} is false. It helps to reduce
+     * the duplicate ratio when using broadcast. Not active if broadcast is disabled.
+     */
+    private final Duration ancestorFilterThreshold;
+
+    /**
+     * For events that are self events, we must have had this event for at least this amount
+     * of time before it is eligible to be sent. Ignored if {@link #filterLikelyDuplicates} is false. It helps to reduce
+     * the duplicate ratio when using broadcast. Not active if broadcast is disabled.
+     */
+    private final Duration selfFilterThreshold;
+
+    /**
      * The maximum number of events to send in a single sync, or 0 if there is no limit.
      */
     protected final int maximumEventsPerSync;
@@ -119,6 +129,8 @@ public class ShadowgraphSynchronizer {
 
         final SyncConfig syncConfig = configuration.getConfigData(SyncConfig.class);
         this.nonAncestorFilterThreshold = syncConfig.nonAncestorFilterThreshold();
+        this.ancestorFilterThreshold = syncConfig.ancestorFilterThreshold();
+        this.selfFilterThreshold = syncConfig.selfFilterThreshold();
 
         this.filterLikelyDuplicates = syncConfig.filterLikelyDuplicates();
         this.maximumEventsPerSync = syncConfig.maxSyncEventCount();
@@ -147,6 +159,7 @@ public class ShadowgraphSynchronizer {
      *                         added to during this method)
      * @param myEventWindow    the event window of this node
      * @param theirEventWindow the event window of the peer
+     * @param broadcastRunning is broadcast running currently, which would suggest delaying syncing self events
      * @return a list of events to send to the peer
      */
     @NonNull
@@ -154,7 +167,8 @@ public class ShadowgraphSynchronizer {
             @NonNull final NodeId selfId,
             @NonNull final Set<ShadowEvent> knownSet,
             @NonNull final EventWindow myEventWindow,
-            @NonNull final EventWindow theirEventWindow) {
+            @NonNull final EventWindow theirEventWindow,
+            final boolean broadcastRunning) {
 
         requireNonNull(selfId);
         requireNonNull(knownSet);
@@ -193,7 +207,13 @@ public class ShadowgraphSynchronizer {
         List<PlatformEvent> sendList;
         if (filterLikelyDuplicates) {
             final long startFilterTime = time.nanoTime();
-            sendList = filterLikelyDuplicates(selfId, nonAncestorFilterThreshold, time.now(), eventsTheyMayNeed);
+            sendList = filterLikelyDuplicates(
+                    selfId,
+                    nonAncestorFilterThreshold,
+                    broadcastRunning ? ancestorFilterThreshold : Duration.ZERO,
+                    broadcastRunning ? selfFilterThreshold : Duration.ZERO,
+                    time.now(),
+                    eventsTheyMayNeed);
             final long endFilterTime = time.nanoTime();
             syncMetrics.recordSyncFilterTime(endFilterTime - startFilterTime);
         } else {

@@ -5,7 +5,6 @@ import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_FILES
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_LEDGER_ID;
 import static com.hedera.hapi.node.base.HederaFunctionality.HINTS_PARTIAL_SIGNATURE;
 import static com.hedera.hapi.node.base.HederaFunctionality.LEDGER_ID_PUBLICATION;
-import static com.hedera.hapi.node.state.history.WrapsPhase.R1;
 import static com.hedera.hapi.util.HapiUtils.asInstant;
 import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
 import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
@@ -79,7 +78,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -399,20 +397,19 @@ public class StateChangesValidator implements BlockStreamValidator {
                         }
                     } else if (parts.function() == LEDGER_ID_PUBLICATION) {
                         ledgerIdPublication = parts.body().ledgerIdPublicationOrThrow();
-                        final SortedMap<Long, Bytes> nodeIdsToKeys = new TreeMap<>();
-                        for (final var contribution : ledgerIdPublication.nodeContributions()) {
-                            nodeIdsToKeys.put(contribution.nodeId(), contribution.historyProofKey());
+                        final int k = ledgerIdPublication.nodeContributions().size();
+                        final long[] nodeIds = new long[k];
+                        final long[] weights = new long[k];
+                        final byte[][] publicKeys = new byte[k][];
+                        for (int j = 0; j < k; j++) {
+                            final var contribution =
+                                    ledgerIdPublication.nodeContributions().get(j);
+                            nodeIds[j] = contribution.nodeId();
+                            weights[j] = contribution.weight();
+                            publicKeys[j] = contribution.historyProofKey().toByteArray();
                         }
-                        final var r1Keys = new ArrayList<Bytes>();
-                        nodeIdsToKeys.keySet().forEach(nodeId -> {
-                            final var messages = wrapsMessages.get(nodeId);
-                            if (messages != null && messages.stream().anyMatch(details -> details.phase() == R1)) {
-                                r1Keys.add(nodeIdsToKeys.get(nodeId));
-                            }
-                        });
-                        // Eager-set the relevant public keys for later verification
-                        TSS.setSchnorrPublicKeys(
-                                r1Keys.stream().map(Bytes::toByteArray).toArray(byte[][]::new));
+                        // Set the relevant public keys for later verification
+                        TSS.setAddressBook(publicKeys, weights, nodeIds);
                     }
                 }
             }
