@@ -32,7 +32,7 @@ on:
         description: "Java JDK Version:"
         type: string
         required: false
-        default: "21.0.6"
+        default: "25.0.2"
       node-version:
         description: "NodeJS Version:"
         type: string

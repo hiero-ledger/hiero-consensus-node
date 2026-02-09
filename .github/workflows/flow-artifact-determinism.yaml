@@ -17,7 +17,7 @@ on:
         description: "Java JDK Version:"
         type: string
         required: false
-        default: "21.0.6"
+        default: "25.0.2"
 
 defaults:
   run:
@@ -57,7 +57,7 @@ jobs:
     with:
       ref: ${{ needs.commit-info.outputs.sha }}
       java-distribution: ${{ inputs.java-distribution || 'temurin' }}
-      java-version: ${{ inputs.java-version || '21.0.6' }}
+      java-version: ${{ inputs.java-version || '25.0.2' }}
     secrets:
       gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
@@ -70,7 +70,7 @@ jobs:
     with:
       ref: ${{ needs.commit-info.outputs.sha }}
       java-distribution: ${{ inputs.java-distribution || 'temurin' }}
-      java-version: ${{ inputs.java-version || '21.0.6' }}
+      java-version: ${{ inputs.java-version || '25.0.2' }}
     secrets:
       github-token: ${{ secrets.GITHUB_TOKEN }}
       gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
