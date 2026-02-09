@@ -283,27 +283,6 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
             final var lastBlockHashBytes = streamFileProducer.getRunningHash();
             final var justFinishedBlockNumber = lastBlockInfo.lastBlockNumber() + 1;
             if (writeWrappedRecordFileBlockHashesToDisk) {
-                if (logger.isInfoEnabled()) {
-                    logger.info(
-                            "Closing record block {} due to {}{} (currentPeriod={}, newPeriod={}); "
-                                    + "BlockInfo{lastBlockNumber={}, firstConsTimeOfCurrentBlock={}, consTimeOfLastHandledTxn={}}; "
-                                    + "inMemory{startRunningHashSet={}, recordItems={}, sidecars={}}; runningHashLen={}",
-                            justFinishedBlockNumber,
-                            (newBlockPeriod > currentBlockPeriod ? "period boundary" : ""),
-                            (isFirstTransactionAfterFreezeRestart
-                                    ? (newBlockPeriod > currentBlockPeriod ? " + freeze restart" : "freeze restart")
-                                    : ""),
-                            currentBlockPeriod,
-                            newBlockPeriod,
-                            lastBlockInfo.lastBlockNumber(),
-                            lastBlockInfo.firstConsTimeOfCurrentBlock(),
-                            lastBlockInfo.consTimeOfLastHandledTxn(),
-                            currentBlockStartRunningHash != null,
-                            currentBlockRecordStreamItems.size(),
-                            currentBlockSidecarRecords.size(),
-                            lastBlockHashBytes == null ? -1 : lastBlockHashBytes.length());
-                }
-                // Capture the just-finished record block's creation time before updating lastBlockInfo
                 final var justFinishedBlockCreationTime = lastBlockInfo.firstConsTimeOfCurrentBlockOrThrow();
                 appendWrappedRecordFileBlockHashesToDisk(
                         justFinishedBlockNumber, justFinishedBlockCreationTime, lastBlockHashBytes);

@@ -122,8 +122,8 @@ public class WrappedRecordFileBlockHashesDiskWriter implements AutoCloseable {
                                 return;
                             }
 
-                            if (logger.isInfoEnabled()) {
-                                logger.info(
+                            if (logger.isDebugEnabled()) {
+                                logger.debug(
                                         "Appending wrapped record-file block hashes for block {}: consensusTimestampLeafHash {}, outputItemsRootHash {}",
                                         entry.blockNumber(),
                                         entry.consensusTimestampHash().toHex(),
