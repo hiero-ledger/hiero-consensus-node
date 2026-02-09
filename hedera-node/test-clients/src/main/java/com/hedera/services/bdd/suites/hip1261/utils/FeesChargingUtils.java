@@ -5,7 +5,6 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.HapiTxnOp.serializedSignedTxFrom;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithChild;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
@@ -1482,22 +1481,5 @@ public class FeesChargingUtils {
         final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
         final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
         return nodeFee * NETWORK_MULTIPLIER;
-    }
-
-    /**
-     * Dual-mode fee validation with child records that branches on {@code fees.simpleFeesEnabled} at runtime.
-     * When simple fees are enabled, validates against {@code simpleFee};
-     * otherwise validates against {@code legacyFee}.
-     * Uses {@code validateChargedUsdWithChild} which includes child dispatch fees.
-     */
-    public static SpecOperation validateFeesWithChild(
-            final String txn, final double legacyFee, final double simpleFee, final double tolerance) {
-        return doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-            if ("true".equals(flag)) {
-                return validateChargedUsdWithChild(txn, simpleFee, tolerance);
-            } else {
-                return validateChargedUsdWithChild(txn, legacyFee, tolerance);
-            }
-        });
     }
 }
