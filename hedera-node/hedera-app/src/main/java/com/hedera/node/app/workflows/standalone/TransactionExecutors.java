@@ -42,7 +42,6 @@ import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.State;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.StateLifecycleManagerImpl;
-import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.merkle.VirtualMapStateImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -307,7 +306,10 @@ public enum TransactionExecutors {
                 Time.getCurrent(),
                 virtualMap -> new VirtualMapStateImpl(virtualMap, NO_OP_METRICS),
                 configProvider.getConfiguration());
-        if (state instanceof VirtualMapState virtualMapState && virtualMapState.isMutable()) {
+        // The state lifecycle manager assumes merkle-backed states that support fast-copy and reserving/releasing
+        // the same root VirtualMap instance. Many tests use lightweight fakes that implement VirtualMapState but
+        // don't satisfy these semantics, leading to leaked MerkleDB instances and flaky "open databases" failures.
+        if (state instanceof VirtualMapStateImpl virtualMapState && virtualMapState.isMutable()) {
             stateLifecycleManager.initState(virtualMapState);
         }
         final var component = DaggerExecutorComponent.builder()
