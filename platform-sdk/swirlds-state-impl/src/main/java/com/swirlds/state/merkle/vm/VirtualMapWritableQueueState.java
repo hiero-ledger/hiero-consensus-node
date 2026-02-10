@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.state.merkle.disk;
+package com.swirlds.state.merkle.vm;
 
 import static java.util.Objects.requireNonNull;
 
