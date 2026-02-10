@@ -73,12 +73,6 @@ public interface HederaNode {
     @NonNull
     HederaNode initWorkingDir(@NonNull Network network);
 
-    default HederaNode initWorkingDir(
-            @NonNull final String configTxt,
-            @NonNull final java.util.Map<Long, com.hedera.hapi.node.base.ServiceEndpoint> serviceEndpoints) {
-        return initWorkingDir(configTxt);
-    }
-
     /**
      * Starts the node software.
      *
