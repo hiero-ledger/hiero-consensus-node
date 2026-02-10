@@ -96,8 +96,6 @@ public class DefaultPcesModule implements PcesModule {
         // Create and bind components
         try {
             final Path databaseDirectory = PcesUtilities.getDatabaseDirectory(configuration, selfId);
-            // When we perform the migration to using birth round bounding, we will need to read
-            // the old type and start writing the new type.
             final boolean permitGaps =
                     configuration.getConfigData(PcesConfig.class).permitGaps();
             initialPcesFiles = PcesFileReader.readFilesFromDisk(
@@ -166,9 +164,9 @@ public class DefaultPcesModule implements PcesModule {
      */
     @Override
     @NonNull
-    public InputWire<Long> minimumAncientIdentifierInputWire() {
+    public InputWire<Long> minimumBirthRoundInputWire() {
         return requireNonNull(pcesWriterWiring, "Not initialized")
-                .getInputWire(InlinePcesWriter::setMinimumAncientIdentifierToStore);
+                .getInputWire(InlinePcesWriter::setMinimumBirthRoundToStore);
     }
 
     /**

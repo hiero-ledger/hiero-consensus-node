@@ -80,13 +80,13 @@ public interface PcesModule {
     InputWire<EventWindow> eventWindowInputWire();
 
     /**
-     * {@link InputWire} for the minimum ancient identifier to store on disk.
+     * {@link InputWire} for the minimum birth round to store on disk.
      *
-     * @return the {@link InputWire} for the minimum ancient identifier
+     * @return the {@link InputWire} for the minimum birth round
      */
-    @InputWireLabel("minimum identifier to store")
+    @InputWireLabel("minimum birth round to store")
     @NonNull
-    InputWire<Long> minimumAncientIdentifierInputWire();
+    InputWire<Long> minimumBirthRoundInputWire();
 
     /**
      * {@link InputWire} for the iterator of events to replay from the preconsensus event stream.
@@ -110,12 +110,11 @@ public interface PcesModule {
     InputWire<Long> discontinuityInputWire();
 
     /**
-     * Get an iterator over stored events starting from a given ancient indicator and round.
+     * Get an iterator over stored events starting from a given birth round and round.
      *
      * <p>This is a temporary method that will be removed once the {@code PcesReplayer} also moves into this module.
      *
-     * @param pcesReplayLowerBound the minimum ancient indicator of events to return, events with lower ancient indicators
-     *                             are not returned
+     * @param pcesReplayLowerBound the minimum birth round of events to return, events with lower birth rounds are not returned
      * @param startingRound        the round from which to start returning events
      * @return an iterator over stored events
      */
@@ -128,7 +127,7 @@ public interface PcesModule {
     void flush();
 
     /**
-     * Copy all PCES files with events that have an ancient indicator greater than or equal to the given lower bound and
+     * Copy all PCES files with events that have a birth round greater than or equal to the given lower bound and
      * that are from rounds greater than or equal to the given round, to the given destination directory.
      *
      * @param configuration the configuration

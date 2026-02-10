@@ -301,7 +301,7 @@ public class PlatformWiring {
         components
                 .stateSnapshotManagerWiring()
                 .getTransformedOutput(StateSnapshotManager::extractOldestMinimumBirthRoundOnDisk)
-                .solderTo(components.pcesModule().minimumAncientIdentifierInputWire(), INJECT);
+                .solderTo(components.pcesModule().minimumBirthRoundInputWire(), INJECT);
 
         components
                 .stateSnapshotManagerWiring()
