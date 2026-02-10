@@ -772,15 +772,14 @@ class BEVM {
     }
     // Check the relationship amongst the sign bits only; the lower 63 bits are
     // computed but ignored.
-    private static boolean overflowSub( long x, long y, long sum ) { return ((x^y) & (x^~sum)) < 0; }
+    private static boolean overflowSub( long x, long y, long sum ) { return ((x^~y) & (x^sum)) < 0; }
 
     private int shf( int  rbc0, int  rbc1, int  rbc2, int  rbc3,
                      long rhs0, long rhs1, long rhs2, long rhs3) {
-        if( rbc0==1 ) return Long.numberOfTrailingZeros(rhs0)    ;
-        if( rbc1==1 ) return Long.numberOfTrailingZeros(rhs1)+ 64;
-        if( rbc1==2 ) return Long.numberOfTrailingZeros(rhs2)+128;
+        if( rbc0!=0 ) return Long.numberOfTrailingZeros(rhs0)    ;
+        if( rbc1!=0 ) return Long.numberOfTrailingZeros(rhs1)+ 64;
+        if( rbc2!=0 ) return Long.numberOfTrailingZeros(rhs2)+128;
         return               Long.numberOfTrailingZeros(rhs3)+192;
-
     }
 
     // Unsigned divide
