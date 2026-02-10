@@ -23,8 +23,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.safeValidateChargedUsdWithin;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
-import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.BATCH_BASE_FEE;
-import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.PROCESSING_BYTES_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedBatchFullFeeUsd;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_PAYER_SIGNATURE;
@@ -134,11 +133,7 @@ class AtomicBatchConsensusServiceTest {
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
                 // account for extra bytes in the node + network fee
                 safeValidateChargedUsdWithin(
-                        "batchTxn",
-                        BASE_FEE_BATCH_TRANSACTION,
-                        0,
-                        BATCH_BASE_FEE + 134 * PROCESSING_BYTES_FEE_USD * 10,
-                        3));
+                        "batchTxn", BASE_FEE_BATCH_TRANSACTION, 0, expectedBatchFullFeeUsd(134), 3));
     }
 
     @HapiTest
@@ -174,11 +169,7 @@ class AtomicBatchConsensusServiceTest {
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
                 // account for extra bytes in the node + network fee
                 safeValidateChargedUsdWithin(
-                        "batchTxn",
-                        BASE_FEE_BATCH_TRANSACTION,
-                        1,
-                        BATCH_BASE_FEE + 131 * PROCESSING_BYTES_FEE_USD * 10,
-                        3));
+                        "batchTxn", BASE_FEE_BATCH_TRANSACTION, 1, expectedBatchFullFeeUsd(131), 3));
     }
 
     @HapiTest
@@ -213,11 +204,7 @@ class AtomicBatchConsensusServiceTest {
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
                 // account for extra bytes in the node + network fee
                 safeValidateChargedUsdWithin(
-                        "batchTxn",
-                        BASE_FEE_BATCH_TRANSACTION,
-                        0,
-                        BATCH_BASE_FEE + 48 * PROCESSING_BYTES_FEE_USD * 10,
-                        6));
+                        "batchTxn", BASE_FEE_BATCH_TRANSACTION, 0, expectedBatchFullFeeUsd(48), 6));
     }
 
     @HapiTest

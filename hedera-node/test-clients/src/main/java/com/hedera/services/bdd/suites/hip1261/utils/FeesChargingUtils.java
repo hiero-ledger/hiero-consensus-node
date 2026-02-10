@@ -10,6 +10,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.crypto.CryptoTransferSuite.sdec;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.ACCOUNTS_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.BATCH_BASE_FEE;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONS_CREATE_TOPIC_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONS_CREATE_TOPIC_INCLUDED_KEYS;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONS_CREATE_TOPIC_WITH_CUSTOM_FEE_USD;
@@ -1500,5 +1501,15 @@ public class FeesChargingUtils {
                 return validateChargedUsdWithin(txn, legacyFee, 0.01);
             }
         });
+    }
+
+    /** SimpleFees formula for Atomic Batch:
+     * node = NODE_BASE + bytes over 1024
+     * network = node * NETWORK_MULTIPLIER
+     * service = BATCH_BASE_FEE
+     * total   = node + network + service
+     */
+    public static double expectedBatchFullFeeUsd(long extraBytes) {
+        return BATCH_BASE_FEE + extraBytes * PROCESSING_BYTES_FEE_USD * 10;
     }
 }
