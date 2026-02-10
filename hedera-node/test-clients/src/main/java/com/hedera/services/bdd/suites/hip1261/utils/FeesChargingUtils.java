@@ -894,12 +894,31 @@ public class FeesChargingUtils {
         });
     }
 
+    /**
+     * Calculates the <em>bytes-dependent portion</em> of the node fee for a transaction.
+     *
+     * <p>This method retrieves the transaction bytes from the spec registry using the provided
+     * {@code txnName}, then computes only the byte-size component of the node fee as follows:</p>
+     * <ul>
+     *   <li>Node bytes overage = {@code max(0, txnSize - NODE_INCLUDED_BYTES)}</li>
+     *   <li>Bytes fee = {@code nodeBytesOverage × PROCESSING_BYTES_FEE_USD × (1 + NETWORK_MULTIPLIER)}</li>
+     * </ul>
+     *
+     * <p><strong>Note:</strong> This returns <em>only</em> the bytes-overage fee portion.
+     * The complete node fee includes additional fixed components not calculated here.
+     * The first {@code NODE_INCLUDED_BYTES} bytes incur no byte-based fee. Logs transaction
+     * details including size, overage bytes, and this bytes-dependent fee.</p>
+     *
+     * @param spec the HapiSpec containing the transaction registry
+     * @param opLog the logger for operation logging
+     * @param txnName the transaction name key in the registry
+     * @return the bytes-dependent portion of the node fee in USD
+     *         (0.0 if transaction fits within included bytes)
+     */
     public static double expectedFeeFromBytesFor(HapiSpec spec, Logger opLog, String txnName) {
-        // Get the transaction bytes from the registry
         final var txnBytes = spec.registry().getBytes(txnName);
         final var txnSize = txnBytes.length;
 
-        // Node fee BYTES extra: (txnBytes - NODE_INCLUDED_BYTES) * PROCESSING_BYTES_FEE_USD * networkMultiplier
         final var nodeBytesOverage = Math.max(0, txnSize - NODE_INCLUDED_BYTES);
         double expectedFee = nodeBytesOverage * PROCESSING_BYTES_FEE_USD * (1 + NETWORK_MULTIPLIER);
 
