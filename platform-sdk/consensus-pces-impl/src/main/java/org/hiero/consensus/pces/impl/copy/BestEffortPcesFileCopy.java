@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.event.preconsensus;
+package org.hiero.consensus.pces.impl.copy;
 
 import static com.swirlds.common.io.utility.FileUtils.executeAndRename;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;

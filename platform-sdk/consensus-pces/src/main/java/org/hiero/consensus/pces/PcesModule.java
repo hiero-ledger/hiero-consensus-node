@@ -11,6 +11,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.nio.file.Path;
 import org.hiero.consensus.io.IOIterator;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
@@ -114,4 +115,21 @@ public interface PcesModule {
      * Flushes all events of the internal components.
      */
     void flush();
+
+    /**
+     * Copy all PCES files with events that have an ancient indicator greater than or equal to the given lower bound and
+     * that are from rounds greater than or equal to the given round, to the given destination directory.
+     *
+     * @param configuration the configuration
+     * @param selfId the ID of this node
+     * @param destinationDirectory the directory to copy files to
+     * @param lowerBound the minimum birth round of events to copy, events with lower birth round are not copied
+     * @param round the round of the state that is being written
+     */
+    void copyPcesFilesRetryOnFailure(
+            @NonNull Configuration configuration,
+            @NonNull NodeId selfId,
+            @NonNull Path destinationDirectory,
+            long lowerBound,
+            long round);
 }
