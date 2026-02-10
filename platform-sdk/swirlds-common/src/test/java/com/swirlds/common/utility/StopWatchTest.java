@@ -81,7 +81,7 @@ class StopWatchTest {
 
         stopWatch.start();
         assertTrue(stopWatch.isRunning());
-        fakeTime.tick(Duration.ofMillis(60)); // Simulate 50ms passing
+        fakeTime.tick(Duration.ofMillis(60)); // Simulate 60ms passing
         stopWatch.stop();
 
         assertEquals(60, stopWatch.getTime(TimeUnit.MILLISECONDS)); // Ensure it still works as expected after a reset
