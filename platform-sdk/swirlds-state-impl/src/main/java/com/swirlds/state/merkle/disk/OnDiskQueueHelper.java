@@ -9,8 +9,8 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.state.QueueState;
-import com.swirlds.state.QueueState.QueueStateCodec;
+import com.swirlds.state.binary.QueueState;
+import com.swirlds.state.binary.QueueState.QueueStateCodec;
 import com.swirlds.state.merkle.StateUtils;
 import com.swirlds.state.merkle.StateValue;
 import com.swirlds.state.merkle.StateValue.StateValueCodec;

@@ -8,8 +8,6 @@ import static org.hiero.consensus.platformstate.PlatformStateUtils.latestFreezeR
 import com.swirlds.common.merkle.utility.SerializableLong;
 import com.swirlds.component.framework.component.ComponentWiring;
 import com.swirlds.platform.SwirldsPlatform;
-import com.swirlds.platform.components.appcomm.DefaultLatestCompleteStateNotifier;
-import com.swirlds.platform.components.appcomm.LatestCompleteStateNotifier;
 import com.swirlds.platform.event.branching.BranchDetector;
 import com.swirlds.platform.event.branching.BranchReporter;
 import com.swirlds.platform.event.branching.DefaultBranchDetector;
@@ -85,11 +83,8 @@ public class PlatformComponentBuilder {
     private BranchReporter branchReporter;
     private StateSigner stateSigner;
     private TransactionHandler transactionHandler;
-    private LatestCompleteStateNotifier latestCompleteStateNotifier;
 
     private SwirldsPlatform swirldsPlatform;
-
-    private boolean metricsDocumentationEnabled = true;
 
     /**
      * False if this builder has not yet been used to build a platform (or platform component builder), true if it has.
@@ -652,38 +647,5 @@ public class PlatformComponentBuilder {
                     blocks.selfId());
         }
         return transactionHandler;
-    }
-
-    /**
-     * Provide a latest complete state notifier in place of the platform's default latest complete state notifier.
-     *
-     * @param latestCompleteStateNotifier the latest complete state notifier to use
-     * @return this builder
-     */
-    @NonNull
-    public PlatformComponentBuilder withLatestCompleteStateNotifier(
-            @NonNull final LatestCompleteStateNotifier latestCompleteStateNotifier) {
-        throwIfAlreadyUsed();
-        if (this.latestCompleteStateNotifier != null) {
-            throw new IllegalStateException("Latest complete state notifier has already been set");
-        }
-        this.latestCompleteStateNotifier = Objects.requireNonNull(latestCompleteStateNotifier);
-        return this;
-    }
-
-    /**
-     * Build the latest complete state notifier if it has not yet been built. If one has been provided via
-     * {@link #withLatestCompleteStateNotifier(LatestCompleteStateNotifier)}, that notifier will be used. If this method
-     * is called more than once, only the first call will build the latest complete state notifier. Otherwise, the
-     * default notifier will be created and returned.
-     *
-     * @return the latest complete state notifier
-     */
-    @NonNull
-    public LatestCompleteStateNotifier buildLatestCompleteStateNotifier() {
-        if (latestCompleteStateNotifier == null) {
-            latestCompleteStateNotifier = new DefaultLatestCompleteStateNotifier();
-        }
-        return latestCompleteStateNotifier;
     }
 }
