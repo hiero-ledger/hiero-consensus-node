@@ -385,8 +385,10 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
                 currentBlockRecordStreamItems.add(new RecordStreamItem(item.transaction(), item.transactionRecord()));
                 currentBlockSidecarRecords.addAll(item.transactionSidecarRecords());
             }
+            streamFileProducer.writeRecordStreamItems(items.stream());
+        } else {
+            streamFileProducer.writeRecordStreamItems(recordStreamItems);
         }
-        streamFileProducer.writeRecordStreamItems(recordStreamItems);
     }
 
     private void beginTrackingNewBlock(@NonNull final Bytes startRunningHash) {
