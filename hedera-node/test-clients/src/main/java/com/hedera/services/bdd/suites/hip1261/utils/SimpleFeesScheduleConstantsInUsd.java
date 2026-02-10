@@ -164,4 +164,7 @@ public class SimpleFeesScheduleConstantsInUsd {
     public static final double SCHEDULE_SIGN_BASE_FEE_USD = 0.0009;
 
     public static final double SCHEDULE_DELETE_BASE_FEE_USD = 0.0009;
+
+    /* ---------- Atomic Batch service ------------ */
+    public static final double BATCH_BASE_FEE = 0.001;
 }

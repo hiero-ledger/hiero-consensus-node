@@ -263,10 +263,8 @@ class AtomicTopicCreateSuite {
                 getTopicInfo("noAdminKeyExplicitAutoRenewAccount")
                         .hasNoAdminKey()
                         .hasAutoRenewAccount("autoRenewAccount"),
-                safeValidateInnerTxnChargedUsd("createTopic", ATOMIC_BATCH,
-                        expectedPriceUsd, 5.0,
-                        expectedTopicCreateFullFeeUsd(1,1), 5.0
-                        ));
+                safeValidateInnerTxnChargedUsd(
+                        "createTopic", ATOMIC_BATCH, expectedPriceUsd, 5.0, expectedTopicCreateFullFeeUsd(1, 1), 5.0));
     }
 
     @HapiTest
