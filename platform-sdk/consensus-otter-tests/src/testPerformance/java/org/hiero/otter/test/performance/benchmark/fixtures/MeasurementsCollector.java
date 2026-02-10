@@ -166,7 +166,6 @@ public class MeasurementsCollector {
     @NonNull
     public String generateReport() {
         final StringBuilder jmhStyleReport = new StringBuilder();
-        final StringBuilder tsvStyleReport = new StringBuilder();
         final Statistics totalStats = computeStatistics();
 
         if (totalStats.sampleCount() == 0) {
@@ -174,21 +173,75 @@ public class MeasurementsCollector {
             return jmhStyleReport.toString();
         }
 
-        // JMH-style header
+        final org.hiero.base.utility.StringTable table = org.hiero.base.utility.StringTable.column("Benchmark")
+                .column("Cnt")
+                .column("Score")
+                .typeFloat(10, 3)
+                .headlessColumn()
+                .withFixedValue(UNIT)
+                .headlessColumn()
+                .fixedValue("±")
+                .column("Error")
+                .typeFloat(6, 3)
+                .headlessColumn()
+                .withFixedValue(UNIT)
+                .column("StdDev")
+                .typeFloat(6, 3)
+                .headlessColumn()
+                .withFixedValue(UNIT)
+                .column("p50")
+                .typeInt(6)
+                .headlessColumn()
+                .withFixedValue(UNIT)
+                .column("p95")
+                .typeInt(6)
+                .headlessColumn()
+                .withFixedValue(UNIT)
+                .column("p99")
+                .typeInt(6)
+                .headlessColumn()
+                .withFixedValue(UNIT)
+                .column("Max")
+                .typeInt(6)
+                .headlessColumn()
+                .withFixedValue(UNIT)
+                .column("Throughput")
+                .typeFloat(6, 3)
+                .headlessColumn()
+                .fixedValue("ops/s")
+                .build();
+
         jmhStyleReport.append("\n");
-        jmhStyleReport.append(String.format(
-                "%-12s %6s %10s  %10s %10s %8s %8s %8s %8s %10s %5s%n",
-                "Benchmark", "Cnt", "Score", "Error", "StdDev", "p50", "p95", "p99", "Max", "Throughput", "Units"));
 
         // Per-node results
         for (final NodeId nodeId : getNodeIds()) {
             final Statistics stats = computeStatistics(nodeId);
-            appendJmhRow(jmhStyleReport, "Node " + nodeId, stats);
+            table.addRow(
+                    "Node " + nodeId,
+                    stats.sampleCount(),
+                    stats.average(),
+                    stats.error(),
+                    stats.stdDev(),
+                    stats.p50(),
+                    stats.p95(),
+                    stats.p99(),
+                    stats.max(),
+                    stats.throughput());
         }
 
+        table.addRow(
+                "TOTAL",
+                totalStats.sampleCount(),
+                totalStats.average(),
+                totalStats.error(),
+                totalStats.stdDev(),
+                totalStats.p50(),
+                totalStats.p95(),
+                totalStats.p99(),
+                totalStats.max(),
+                totalStats.throughput());
         // Total
-        appendJmhRow(jmhStyleReport, "TOTAL", totalStats);
-
+        jmhStyleReport.append(table);
         // Throughput summary
         jmhStyleReport.append("\n");
         jmhStyleReport.append(String.format(
@@ -200,44 +253,22 @@ public class MeasurementsCollector {
                     "Warning: %d measurements with negative latency%n", totalStats.invalidMeasurements()));
         }
         jmhStyleReport.append("\n");
-
         // TSV for spreadsheet
-        tsvStyleReport
-                .append("# Copy below for spreadsheet (unit: ")
-                .append(UNIT)
-                .append("):\n");
-        tsvStyleReport.append("Avg\tError(99.9%)\tStdDev\tp50\tp95\tp99\tMin\tMax\n");
-        appendTsvRow(tsvStyleReport, totalStats);
+        final String tsvStyleReport = "# Copy below for spreadsheet (unit: "
+                + UNIT
+                + "):\n"
+                + "Avg\tError(99.9%)\tStdDev\tp50\tp95\tp99\tMin\tMax\n"
+                + String.format(
+                        "%.3f\t%.3f\t%.3f\t%d\t%d\t%d\t%d\t%d%n",
+                        totalStats.average(),
+                        totalStats.error(),
+                        totalStats.stdDev(),
+                        totalStats.p50(),
+                        totalStats.p95(),
+                        totalStats.p99(),
+                        totalStats.min(),
+                        totalStats.max());
 
         return jmhStyleReport + "\n" + tsvStyleReport;
-    }
-
-    private void appendJmhRow(final StringBuilder sb, final String label, final Statistics stats) {
-        sb.append(String.format(
-                "%-12s %6d %10.3f ±%10.3f %10.3f %8d %8d %8d %8d %10.3f %s/op%n",
-                label,
-                stats.sampleCount(),
-                stats.average(),
-                stats.error(),
-                stats.stdDev(),
-                stats.p50(),
-                stats.p95(),
-                stats.p99(),
-                stats.max(),
-                stats.throughput(),
-                MeasurementsCollector.UNIT));
-    }
-
-    private void appendTsvRow(final StringBuilder sb, final Statistics stats) {
-        sb.append(String.format(
-                "%.3f\t%.3f\t%.3f\t%d\t%d\t%d\t%d\t%d%n",
-                stats.average(),
-                stats.error(),
-                stats.stdDev(),
-                stats.p50(),
-                stats.p95(),
-                stats.p99(),
-                stats.min(),
-                stats.max()));
     }
 }

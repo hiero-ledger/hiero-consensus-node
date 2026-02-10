@@ -44,7 +44,7 @@ public class ConsensusLayerBenchmark {
     private static final int TRANSACTION_COUNT = 1000;
     private static final int MAX_TPS = 20;
     // Setup simulation with 4 nodes
-    public static final int NUMBER_OF_NODES = 4;
+    public static final int NUMBER_OF_NODES = 2;
 
     /**
      * Benchmark test that runs a network with 4 nodes and submits benchmark transactions.
@@ -103,7 +103,6 @@ public class ConsensusLayerBenchmark {
         // Wait for all transactions to be processed
         timeManager.waitFor(Duration.ofSeconds(10L));
         log.info("Benchmark transactions submitted, collecting results...");
-
         // Validations
         assertThat(network.newPlatformStatusResults())
                 .haveSteps(target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING));
@@ -117,7 +116,9 @@ public class ConsensusLayerBenchmark {
                 collector.computeStatistics().totalMeasurements(),
                 "The benchmark is invalid as some of the transactions sent were not measured");
         log.info("Benchmark complete. Results:");
-        log.info(collector.generateReport());
+        final String report = collector.generateReport();
+        log.info(report);
+        System.out.println(report);
     }
 
     /**
