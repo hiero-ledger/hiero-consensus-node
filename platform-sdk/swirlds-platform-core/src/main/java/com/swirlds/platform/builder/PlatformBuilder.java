@@ -6,6 +6,7 @@ import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.platform.builder.ConsensusModuleBuilder.createEventCreatorModule;
 import static com.swirlds.platform.builder.ConsensusModuleBuilder.createEventIntakeModule;
+import static com.swirlds.platform.builder.ConsensusModuleBuilder.createGossipModule;
 import static com.swirlds.platform.builder.ConsensusModuleBuilder.createHashgraphModule;
 import static com.swirlds.platform.builder.ConsensusModuleBuilder.createPcesModule;
 import static com.swirlds.platform.builder.PlatformBuildConstants.DEFAULT_SETTINGS_FILE_NAME;
@@ -54,13 +55,14 @@ import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.base.crypto.Signature;
 import org.hiero.consensus.crypto.ConsensusCryptoUtils;
 import org.hiero.consensus.crypto.PlatformSigner;
+import org.hiero.consensus.event.DefaultIntakeEventCounter;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.event.NoOpIntakeEventCounter;
 import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.event.intake.EventIntakeModule;
 import org.hiero.consensus.gossip.GossipModule;
+import org.hiero.consensus.gossip.ReservedSignedStateResult;
 import org.hiero.consensus.gossip.config.SyncConfig;
-import org.hiero.consensus.gossip.impl.gossip.DefaultIntakeEventCounter;
 import org.hiero.consensus.hashgraph.HashgraphModule;
 import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -444,7 +446,11 @@ public final class PlatformBuilder {
         return this;
     }
 
-    private void initializeGossipModule() {
+    private void initializeGossipModule(
+            @NonNull final IntakeEventCounter intakeEventCounter,
+            @NonNull final AtomicReference<Supplier<ReservedSignedState>> getLatestCompleteStateReference,
+            @NonNull final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise,
+            @NonNull final FallenBehindMonitor fallenBehindMonitor) {
         if (this.gossipModule == null) {
             this.gossipModule = createGossipModule();
         }
@@ -454,12 +460,15 @@ public final class PlatformBuilder {
                 platformContext.getConfiguration(),
                 platformContext.getMetrics(),
                 platformContext.getTime(),
-                secureRandomSupplier.get(),
                 keysAndCerts,
                 rosterHistory.getCurrentRoster(),
                 selfId,
-                execution,
-                execution);
+                softwareVersion,
+                intakeEventCounter,
+                () -> getLatestCompleteStateReference.get().get(),
+                reservedSignedStateResultPromise,
+                fallenBehindMonitor,
+                stateLifecycleManager);
     }
 
     /**
@@ -539,15 +548,30 @@ public final class PlatformBuilder {
                 .eventPipelineMetricsEnabled();
         final EventPipelineTracker pipelineTracker =
                 eventPipelineMetricsEnabled ? new EventPipelineTracker(platformContext.getMetrics()) : null;
+        final AtomicReference<Supplier<ReservedSignedState>> getLatestCompleteStateReference = new AtomicReference<>();
+        final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise =
+                new BlockingResourceProvider<>();
+        final FallenBehindMonitor fallenBehindMonitor =
+                new FallenBehindMonitor(currentRoster, configuration, platformContext.getMetrics());
 
         initializeEventCreatorModule();
         initializeEventIntakeModule(intakeEventCounter, pipelineTracker);
         initializePcesModule(pipelineTracker);
         initializeHashgraphModule(pipelineTracker);
-        initializeGossipModule();
+        initializeGossipModule(
+                intakeEventCounter,
+                getLatestCompleteStateReference,
+                reservedSignedStateResultPromise,
+                fallenBehindMonitor);
 
         final PlatformComponents platformComponents = PlatformComponents.create(
-                platformContext, model, eventCreatorModule, eventIntakeModule, pcesModule, hashgraphModule);
+                platformContext,
+                model,
+                eventCreatorModule,
+                eventIntakeModule,
+                pcesModule,
+                hashgraphModule,
+                gossipModule);
 
         PlatformWiring.wire(platformContext, execution, platformComponents, callbacks);
 
@@ -574,12 +598,12 @@ public final class PlatformBuilder {
                 NotificationEngine.buildEngine(getStaticThreadManager()),
                 new AtomicReference<>(),
                 stateLifecycleManager,
-                new AtomicReference<>(),
+                getLatestCompleteStateReference,
                 firstPlatform,
                 consensusStateEventHandler,
                 execution,
-                new FallenBehindMonitor(rosterHistory.getCurrentRoster(), configuration, platformContext.getMetrics()),
-                new BlockingResourceProvider<>());
+                fallenBehindMonitor,
+                reservedSignedStateResultPromise);
 
         return new PlatformComponentBuilder(buildingBlocks);
     }

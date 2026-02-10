@@ -20,7 +20,6 @@ import com.swirlds.platform.eventhandling.DefaultTransactionHandler;
 import com.swirlds.platform.eventhandling.DefaultTransactionPrehandler;
 import com.swirlds.platform.eventhandling.TransactionHandler;
 import com.swirlds.platform.eventhandling.TransactionPrehandler;
-import com.swirlds.platform.reconnect.api.ProtocolFactory;
 import com.swirlds.platform.state.hasher.DefaultStateHasher;
 import com.swirlds.platform.state.hasher.StateHasher;
 import com.swirlds.platform.state.hashlogger.DefaultHashLogger;
@@ -42,14 +41,7 @@ import com.swirlds.platform.system.PlatformMonitor;
 import com.swirlds.platform.system.SystemExitUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
-import java.util.ServiceLoader;
-import java.util.function.Supplier;
-import org.hiero.consensus.concurrent.manager.AdHocThreadManager;
-import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.crypto.PlatformSigner;
-import org.hiero.consensus.gossip.impl.gossip.Gossip;
-import org.hiero.consensus.gossip.impl.gossip.SyncGossipModular;
-import org.hiero.consensus.gossip.impl.network.protocol.Protocol;
 import org.hiero.consensus.model.event.CesEvent;
 import org.hiero.consensus.pces.config.PcesConfig;
 import org.hiero.consensus.state.config.StateConfig;
@@ -86,7 +78,6 @@ public class PlatformComponentBuilder {
     private TransactionPrehandler transactionPrehandler;
     private IssDetector issDetector;
     private IssHandler issHandler;
-    private Gossip gossip;
     private StateHasher stateHasher;
     private StateSnapshotManager stateSnapshotManager;
     private HashLogger hashLogger;
@@ -425,64 +416,6 @@ public class PlatformComponentBuilder {
                     blocks.platformContext(), SystemExitUtils::handleFatalError, blocks.issScratchpad());
         }
         return issHandler;
-    }
-
-    /**
-     * Provide a gossip in place of the platform's default gossip.
-     *
-     * @param gossip the gossip to use
-     * @return this builder
-     */
-    @NonNull
-    public PlatformComponentBuilder withGossip(@NonNull final Gossip gossip) {
-        throwIfAlreadyUsed();
-        if (this.gossip != null) {
-            throw new IllegalStateException("Gossip has already been set");
-        }
-        this.gossip = Objects.requireNonNull(gossip);
-        return this;
-    }
-
-    /**
-     * Build the gossip if it has not yet been built. If one has been provided via {@link #withGossip(Gossip)}, that
-     * gossip will be used. If this method is called more than once, only the first call will build the gossip.
-     * Otherwise, the default gossip will be created and returned.
-     *
-     * @return the gossip
-     */
-    @NonNull
-    public Gossip buildGossip() {
-        if (gossip == null) {
-            final ThreadManager threadManager = AdHocThreadManager.getStaticThreadManager();
-            final Supplier<ReservedSignedState> latestCompleteState =
-                    () -> blocks.getLatestCompleteStateReference().get().get();
-
-            final ProtocolFactory factory =
-                    ServiceLoader.load(ProtocolFactory.class).findFirst().orElseThrow();
-            final Protocol reconnectProtocol = factory.createProtocol(
-                    blocks.platformContext().getConfiguration(),
-                    blocks.platformContext().getMetrics(),
-                    blocks.platformContext().getTime(),
-                    threadManager,
-                    latestCompleteState,
-                    blocks.reservedSignedStateResultPromise(),
-                    blocks.fallenBehindMonitor(),
-                    blocks.stateLifecycleManager());
-
-            gossip = new SyncGossipModular(
-                    blocks.platformContext().getConfiguration(),
-                    blocks.platformContext().getMetrics(),
-                    blocks.platformContext().getTime(),
-                    threadManager,
-                    blocks.keysAndCerts(),
-                    blocks.rosterHistory().getCurrentRoster(),
-                    blocks.selfId(),
-                    blocks.appVersion(),
-                    blocks.intakeEventCounter(),
-                    blocks.fallenBehindMonitor(),
-                    reconnectProtocol);
-        }
-        return gossip;
     }
 
     /**

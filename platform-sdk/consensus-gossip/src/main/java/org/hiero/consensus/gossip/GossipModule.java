@@ -11,14 +11,22 @@ import com.swirlds.component.framework.wires.input.NoInput;
 import com.swirlds.component.framework.wires.output.OutputWire;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
+import com.swirlds.state.StateLifecycleManager;
+import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
+import java.util.function.Supplier;
+import org.hiero.base.concurrent.BlockingResourceProvider;
+import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.gossip.SyncProgress;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.consensus.monitoring.FallenBehindMonitor;
+import org.hiero.consensus.state.signed.ReservedSignedState;
 
 /**
  * Gossip module interface.
@@ -33,14 +41,15 @@ public interface GossipModule {
             @NonNull Configuration configuration,
             @NonNull Metrics metrics,
             @NonNull Time time,
-            @NonNull ThreadManager threadManager,
             @NonNull KeysAndCerts keysAndCerts,
             @NonNull Roster currentRoster,
             @NonNull NodeId selfId,
             @NonNull SemanticVersion appVersion,
             @NonNull IntakeEventCounter intakeEventCounter,
+            @NonNull Supplier<ReservedSignedState> latestCompleteState,
+            @NonNull BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise,
             @NonNull FallenBehindMonitor fallenBehindMonitor,
-            @NonNull Protocol reconnectProtocol);
+            @NonNull StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager);
 
     /**
      * {@link OutputWire} for events received through gossip.

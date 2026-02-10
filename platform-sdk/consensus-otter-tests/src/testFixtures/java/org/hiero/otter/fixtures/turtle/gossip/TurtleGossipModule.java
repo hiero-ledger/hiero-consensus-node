@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.gossip.impl;
+package org.hiero.otter.fixtures.turtle.gossip;
 
 import static java.util.Objects.requireNonNull;
 
@@ -18,19 +18,12 @@ import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
-import java.util.ServiceLoader;
 import java.util.function.Supplier;
 import org.hiero.base.concurrent.BlockingResourceProvider;
-import org.hiero.consensus.concurrent.manager.AdHocThreadManager;
-import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.gossip.GossipModule;
 import org.hiero.consensus.gossip.ReservedSignedStateResult;
-import org.hiero.consensus.gossip.impl.gossip.Gossip;
 import org.hiero.consensus.gossip.impl.gossip.GossipWiring;
-import org.hiero.consensus.gossip.impl.gossip.SyncGossipModular;
-import org.hiero.consensus.gossip.impl.network.protocol.Protocol;
-import org.hiero.consensus.gossip.impl.reconnect.ProtocolFactory;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.gossip.SyncProgress;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -41,12 +34,23 @@ import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 
 /**
- * Default implementation of {@link GossipModule}.
+ * A test implementation of {@link GossipModule} that uses a {@link SimulatedGossip} instance to simulate gossip behavior in tests.
  */
-public final class DefaultGossipModule implements GossipModule {
+public class TurtleGossipModule implements GossipModule {
+
+    private final SimulatedGossip gossip;
 
     @Nullable
     private GossipWiring gossipWiring;
+
+    /**
+     * Constructor.
+     *
+     * @param gossip the simulated gossip instance to use for this module
+     */
+    public TurtleGossipModule(final SimulatedGossip gossip) {
+        this.gossip = requireNonNull(gossip);
+    }
 
     /**
      * {@inheritDoc}
@@ -70,34 +74,7 @@ public final class DefaultGossipModule implements GossipModule {
             throw new IllegalStateException("Gossip module has already been initialized");
         }
 
-        // Set up wiring (the gossip module is initialized differently. This should be revisited.
         this.gossipWiring = new GossipWiring(configuration, model);
-
-        // Create and bind components
-        final ThreadManager threadManager = AdHocThreadManager.getStaticThreadManager();
-        final ProtocolFactory factory =
-                ServiceLoader.load(ProtocolFactory.class).findFirst().orElseThrow();
-        final Protocol reconnectProtocol = factory.createProtocol(
-                configuration,
-                metrics,
-                time,
-                threadManager,
-                latestCompleteState,
-                reservedSignedStateResultPromise,
-                fallenBehindMonitor,
-                stateLifecycleManager);
-        final Gossip gossip = new SyncGossipModular(
-                configuration,
-                metrics,
-                time,
-                threadManager,
-                keysAndCerts,
-                currentRoster,
-                selfId,
-                appVersion,
-                intakeEventCounter,
-                fallenBehindMonitor,
-                reconnectProtocol);
         gossipWiring.bind(gossip);
     }
 

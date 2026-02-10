@@ -3,8 +3,6 @@ package org.hiero.consensus.gossip.impl.network;
 
 import java.io.IOException;
 import java.net.SocketException;
-import org.hiero.base.io.streams.SerializableDataInputStream;
-import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.gossip.impl.gossip.sync.SyncInputStream;
 import org.hiero.consensus.gossip.impl.gossip.sync.SyncOutputStream;
 import org.hiero.consensus.model.node.NodeId;
@@ -38,14 +36,14 @@ public interface Connection {
      *
      * @return the input stream
      */
-    SerializableDataInputStream getDis();
+    SyncInputStream getDis();
 
     /**
      * The output stream used to send data to the connected node.
      *
      * @return the output stream
      */
-    SerializableDataOutputStream getDos();
+    SyncOutputStream getDos();
 
     /**
      * Is there currently a valid connection from me to the member at the given index in the address book?
