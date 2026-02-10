@@ -34,7 +34,7 @@ public class LatestCompleteStateNexusTests {
         try (final ReservedSignedState ignored = state.reserve("test")) {
             final ReservedSignedState reservationForNexus = state.reserve("nexus");
             nexus.setState(reservationForNexus);
-            assertEquals(2, state.getReservationCount(), "There should be 2 reservations");
+            assertEquals(2, state.getReservationCount(), "There should be 2 reservations: test and nexus");
 
             nexus.updatePlatformStatus(PlatformStatus.FREEZING);
             assertEquals(
@@ -63,7 +63,7 @@ public class LatestCompleteStateNexusTests {
                 new RandomSignedStateGenerator().setRound(round).build();
         try (final ReservedSignedState reservationForNexus = state.reserve("nexus")) {
             nexus.setState(reservationForNexus);
-            assertEquals(1, state.getReservationCount(), "There should be 1 reservation");
+            assertEquals(1, state.getReservationCount(), "There should be 1 reservation: nexus");
 
             for (final PlatformStatus status : PlatformStatus.values()) {
                 if (!PlatformStatus.FREEZING.equals(status)) {
