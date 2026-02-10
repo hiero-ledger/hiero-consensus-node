@@ -40,9 +40,11 @@ import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movi
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingWithAllowance;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.childRecordsCheck;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.emptyChildRecordsCheck;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateInnerTxnChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
@@ -59,6 +61,14 @@ import static com.hedera.services.bdd.suites.contract.leaky.LeakyContractTestsSu
 import static com.hedera.services.bdd.suites.contract.leaky.LeakyContractTestsSuite.ERC_20_CONTRACT;
 import static com.hedera.services.bdd.suites.contract.leaky.LeakyContractTestsSuite.TRANSFER_FROM;
 import static com.hedera.services.bdd.suites.contract.leaky.LeakyContractTestsSuite.TRANSFER_SIGNATURE;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.FeeParam.ALLOWANCES;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.FeeParam.SIGNATURES;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.FeeParam.TXN_SIZE;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedAtomicBatchFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedCryptoApproveAllowanceFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedCryptoCreateFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdWithinWithTxnSize;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateInnerChargedUsdWithinWithTxnSize;
 import static com.hedera.services.bdd.suites.token.TokenTransactSpecs.TRANSFER_TXN;
 import static com.hedera.services.bdd.suites.utils.contracts.precompile.HTSPrecompileResult.htsPrecompileResult;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.AMOUNT_EXCEEDS_TOKEN_MAX_SUPPLY;
@@ -100,6 +110,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
@@ -798,7 +809,19 @@ class AtomicBatchApproveAllowanceTest {
                         .addNftAllowance(MISSING_OWNER, NON_FUNGIBLE_TOKEN, SPENDER, false, List.of(1L))
                         .via(APPROVE_TXN)
                         .blankMemo(),
-                validateChargedUsdWithin(APPROVE_TXN, 0.052_380, 0.01),
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return validateChargedUsdWithinWithTxnSize(
+                                APPROVE_TXN,
+                                txnSize -> expectedCryptoApproveAllowanceFullFeeUsd(Map.of(
+                                        SIGNATURES, 2,
+                                        ALLOWANCES, 3,
+                                        TXN_SIZE, txnSize)), 0.001);
+                    } else {
+                        return validateChargedUsdWithin(APPROVE_TXN, 0.052_380, 0.01);
+                    }
+                }),
+
                 getAccountDetails(PAYER)
                         .payingWith(GENESIS)
                         .has(accountDetailsWith()
@@ -1334,9 +1357,45 @@ class AtomicBatchApproveAllowanceTest {
                                         .via(BASE_APPROVE_TXN + "_3")
                                         .blankMemo())
                         .via(batchTxn),
-                validateInnerTxnChargedUsd(BASE_APPROVE_TXN + "_1", batchTxn, 0.05, 0.01),
-                validateInnerTxnChargedUsd(BASE_APPROVE_TXN + "_2", batchTxn, 0.0505, 0.1),
-                validateInnerTxnChargedUsd(BASE_APPROVE_TXN + "_3", batchTxn, 0.0509, 0.1));
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return validateInnerChargedUsdWithinWithTxnSize(
+                                BASE_APPROVE_TXN + "_1",
+                                batchTxn,
+                                txnSize -> expectedCryptoApproveAllowanceFullFeeUsd(Map.of(
+                                        SIGNATURES, 1,
+                                        ALLOWANCES, 1,
+                                        TXN_SIZE, txnSize)), 0.001);
+                    } else {
+                        return validateInnerTxnChargedUsd(BASE_APPROVE_TXN + "_1", batchTxn, 0.05, 0.01);
+                    }
+                }),
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return validateInnerChargedUsdWithinWithTxnSize(
+                                BASE_APPROVE_TXN + "_2",
+                                batchTxn,
+                                txnSize -> expectedCryptoApproveAllowanceFullFeeUsd(Map.of(
+                                        SIGNATURES, 1,
+                                        ALLOWANCES, 2,
+                                        TXN_SIZE, txnSize)), 0.001);
+                    } else {
+                        return validateInnerTxnChargedUsd(BASE_APPROVE_TXN + "_2", batchTxn, 0.0505, 0.1);
+                    }
+                }),
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return validateInnerChargedUsdWithinWithTxnSize(
+                                BASE_APPROVE_TXN + "_3",
+                                batchTxn,
+                                txnSize -> expectedCryptoApproveAllowanceFullFeeUsd(Map.of(
+                                        SIGNATURES, 1,
+                                        ALLOWANCES, 3,
+                                        TXN_SIZE, txnSize)), 0.001);
+                    } else {
+                        return validateInnerTxnChargedUsd(BASE_APPROVE_TXN + "_3", batchTxn, 0.0509, 0.1);
+                    }
+                }));
     }
 
     /**
@@ -1392,8 +1451,32 @@ class AtomicBatchApproveAllowanceTest {
                                         .via(APPROVE_TXN)
                                         .blankMemo())
                         .via(batchTxn),
-                validateInnerTxnChargedUsd(BASE_APPROVE_TXN, batchTxn, 0.05, 0.01),
-                validateInnerTxnChargedUsd(APPROVE_TXN, batchTxn, 0.052_380, 0.01),
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return validateInnerChargedUsdWithinWithTxnSize(
+                                BASE_APPROVE_TXN,
+                                batchTxn,
+                                txnSize -> expectedCryptoApproveAllowanceFullFeeUsd(Map.of(
+                                        SIGNATURES, 1,
+                                        ALLOWANCES, 1,
+                                        TXN_SIZE, txnSize)), 0.001);
+                    } else {
+                        return validateInnerTxnChargedUsd(BASE_APPROVE_TXN, batchTxn, 0.05, 0.01);
+                    }
+                }),
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return validateInnerChargedUsdWithinWithTxnSize(
+                                APPROVE_TXN,
+                                batchTxn,
+                                txnSize -> expectedCryptoApproveAllowanceFullFeeUsd(Map.of(
+                                        SIGNATURES, 1,
+                                        ALLOWANCES, 3,
+                                        TXN_SIZE, txnSize)), 0.001);
+                    } else {
+                        return validateInnerTxnChargedUsd(APPROVE_TXN, batchTxn, 0.052_380, 0.01);
+                    }
+                }),
                 getAccountDetails(OWNER)
                         .payingWith(GENESIS)
                         .has(accountDetailsWith()

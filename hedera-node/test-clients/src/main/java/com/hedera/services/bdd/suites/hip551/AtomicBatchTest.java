@@ -45,6 +45,7 @@ import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movi
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.accountAmount;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.childRecordsCheck;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyListNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingThrottles;
@@ -69,6 +70,16 @@ import static com.hedera.services.bdd.suites.HapiSuite.flattened;
 import static com.hedera.services.bdd.suites.contract.precompile.ContractBurnHTSSuite.ALICE;
 import static com.hedera.services.bdd.suites.crypto.AutoCreateUtils.createHollowAccountFrom;
 import static com.hedera.services.bdd.suites.crypto.AutoCreateUtils.updateSpecFor;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.FeeParam.BYTES;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.FeeParam.SIGNATURES;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.FeeParam.TXN_SIZE;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedAtomicBatchFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedCryptoCreateFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedCryptoTransferHbarFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTopicSubmitMessageFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTopicSubmitMessageWithCustomFeeFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdWithinWithTxnSize;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateInnerChargedUsdWithinWithTxnSize;
 import static com.hedera.services.bdd.suites.utils.MiscEETUtils.genRandomBytes;
 import static com.hedera.services.bdd.suites.utils.sysfiles.serdes.ThrottleDefsLoader.protoDefsFromResource;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.DUPLICATE_TRANSACTION;
@@ -113,9 +124,10 @@ import org.junit.jupiter.api.Tag;
 
 @Tag(ATOMIC_BATCH)
 public class AtomicBatchTest {
+    private static final double BASE_FEE_BATCH_TRANSACTION = 0.001;
+
     @HapiTest
     public Stream<DynamicTest> validateFeesForChildren() {
-        final double BASE_FEE_BATCH_TRANSACTION = 0.001;
         final double BASE_FEE_HBAR_CRYPTO_TRANSFER = 0.0001;
         final double BASE_FEE_SUBMIT_MESSAGE_CUSTOM_FEE = 0.05;
 
@@ -143,9 +155,42 @@ public class AtomicBatchTest {
                         .feeScheduleKeyName("feeScheduleKey")
                         .withConsensusCustomFee(fixedConsensusHbarFee(ONE_HBAR, "collector")),
                 atomicBatch(innerTxn1, innerTxn2).payingWith("batchOperator").via("batchTxn"),
-                validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
-                validateInnerTxnChargedUsd("innerTxn", "batchTxn", BASE_FEE_HBAR_CRYPTO_TRANSFER, 5),
-                validateInnerTxnChargedUsd("innerTxn2", "batchTxn", BASE_FEE_SUBMIT_MESSAGE_CUSTOM_FEE, 5));
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return validateChargedUsdWithinWithTxnSize(
+                                "batchTxn",
+                                txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
+                                        SIGNATURES, 1,
+                                        TXN_SIZE, txnSize)), 0.001);
+                    } else {
+                        return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
+                    }
+                }),
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return validateInnerChargedUsdWithinWithTxnSize(
+                                "innerTxn",
+                                "batchTxn",
+                                txnSize -> expectedCryptoTransferHbarFullFeeUsd(Map.of(
+                                        SIGNATURES, 1,
+                                        TXN_SIZE, txnSize)), 0.001);
+                    } else {
+                        return validateInnerTxnChargedUsd("innerTxn", "batchTxn", BASE_FEE_HBAR_CRYPTO_TRANSFER, 5);
+                    }
+                }),
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return validateInnerChargedUsdWithinWithTxnSize(
+                                "innerTxn2",
+                                "batchTxn",
+                                txnSize -> expectedTopicSubmitMessageWithCustomFeeFullFeeUsd(Map.of(
+                                        SIGNATURES, 1,
+                                        BYTES, 4,
+                                        TXN_SIZE, txnSize)), 0.001);
+                    } else {
+                        return validateInnerTxnChargedUsd("innerTxn2", "batchTxn", BASE_FEE_SUBMIT_MESSAGE_CUSTOM_FEE, 5);
+                    }
+                }));
     }
 
     @HapiTest
@@ -175,7 +220,17 @@ public class AtomicBatchTest {
                 getTxnRecord("innerTxn").logged(),
                 // validate the batch txn result
                 getAccountBalance("foo").hasTinyBars(ONE_HBAR),
-                validateChargedUsd("batchTxn", 0.001));
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return validateChargedUsdWithinWithTxnSize(
+                                "batchTxn",
+                                txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
+                                        SIGNATURES, 1,
+                                        TXN_SIZE, txnSize)), 0.001);
+                    } else {
+                        return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
+                    }
+                }));
     }
 
     @HapiTest
@@ -634,9 +689,41 @@ public class AtomicBatchTest {
                             .payingWith(batchOperator)
                             .via("batchTxn"),
                     // validate the fee charged for the batch txn and the inner txns
-                    validateChargedUsd("batchTxn", 0.001),
-                    validateInnerTxnChargedUsd("innerTxn1", "batchTxn", 0.05, 5),
-                    validateInnerTxnChargedUsd("innerTxn2", "batchTxn", 0.05, 5));
+                    doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                        if ("true".equals(flag)) {
+                            return validateChargedUsdWithinWithTxnSize(
+                                    "batchTxn",
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
+                                            SIGNATURES, 1,
+                                            TXN_SIZE, txnSize)), 0.001);
+                        } else {
+                            return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
+                        }
+                    }),
+                    doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                        if ("true".equals(flag)) {
+                            return validateInnerChargedUsdWithinWithTxnSize(
+                                    "innerTxn1",
+                                    "batchTxn",
+                                    txnSize -> expectedCryptoCreateFullFeeUsd(Map.of(
+                                            SIGNATURES, 1,
+                                            TXN_SIZE, txnSize)), 0.001);
+                        } else {
+                            return validateInnerTxnChargedUsd("innerTxn1", "batchTxn", 0.05, 5);
+                        }
+                    }),
+                    doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                        if ("true".equals(flag)) {
+                            return validateInnerChargedUsdWithinWithTxnSize(
+                                    "innerTxn2",
+                                    "batchTxn",
+                                    txnSize -> expectedCryptoCreateFullFeeUsd(Map.of(
+                                            SIGNATURES, 1,
+                                            TXN_SIZE, txnSize)), 0.001);
+                        } else {
+                            return validateInnerTxnChargedUsd("innerTxn2", "batchTxn", 0.05, 5);
+                        }
+                    }));
         }
 
         @Nested

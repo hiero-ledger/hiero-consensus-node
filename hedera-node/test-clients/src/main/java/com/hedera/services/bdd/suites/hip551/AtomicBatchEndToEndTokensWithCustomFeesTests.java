@@ -24,12 +24,18 @@ import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.roy
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUnique;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_BILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.FeeParam.SIGNATURES;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.FeeParam.TXN_SIZE;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedAtomicBatchFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdWithinWithTxnSize;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_DELETED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_IS_TREASURY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
@@ -47,6 +53,7 @@ import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.transactions.token.HapiTokenCreate;
 import com.hedera.services.bdd.spec.transactions.token.HapiTokenMint;
 import java.util.List;
+import java.util.Map;
 import java.util.OptionalLong;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -147,7 +154,17 @@ public class AtomicBatchEndToEndTokensWithCustomFeesTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+                    doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                        if ("true".equals(flag)) {
+                            return validateChargedUsdWithinWithTxnSize(
+                                    "batchTxn",
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
+                                            SIGNATURES, 1,
+                                            TXN_SIZE, txnSize)), 0.001);
+                        } else {
+                            return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
+                        }
+                    }),
 
                     // validate account balances and token info
                     getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FT_WITH_HBAR_FIXED_FEE, 1L),
@@ -205,7 +222,17 @@ public class AtomicBatchEndToEndTokensWithCustomFeesTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+                    doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                        if ("true".equals(flag)) {
+                            return validateChargedUsdWithinWithTxnSize(
+                                    "batchTxn",
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
+                                            SIGNATURES, 1,
+                                            TXN_SIZE, txnSize)), 0.001);
+                        } else {
+                            return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
+                        }
+                    }),
 
                     // validate account balances and token info
                     getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FT_WITH_HBAR_FIXED_FEE, 0L),
@@ -270,7 +297,17 @@ public class AtomicBatchEndToEndTokensWithCustomFeesTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+                    doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                        if ("true".equals(flag)) {
+                            return validateChargedUsdWithinWithTxnSize(
+                                    "batchTxn",
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
+                                            SIGNATURES, 1,
+                                            TXN_SIZE, txnSize)), 0.001);
+                        } else {
+                            return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
+                        }
+                    }),
 
                     // validate account balances and token info
                     getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FT_WITH_HBAR_FIXED_FEE, 0L),
@@ -348,7 +385,17 @@ public class AtomicBatchEndToEndTokensWithCustomFeesTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+                    doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                        if ("true".equals(flag)) {
+                            return validateChargedUsdWithinWithTxnSize(
+                                    "batchTxn",
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
+                                            SIGNATURES, 1,
+                                            TXN_SIZE, txnSize)), 0.001);
+                        } else {
+                            return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
+                        }
+                    }),
 
                     // validate account balances and token info
                     getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FT_WITH_HBAR_FIXED_FEE, 1L),
@@ -416,7 +463,17 @@ public class AtomicBatchEndToEndTokensWithCustomFeesTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+                    doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                        if ("true".equals(flag)) {
+                            return validateChargedUsdWithinWithTxnSize(
+                                    "batchTxn",
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
+                                            SIGNATURES, 1,
+                                            TXN_SIZE, txnSize)), 0.001);
+                        } else {
+                            return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
+                        }
+                    }),
 
                     // validate account balances and token info
                     getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FT_WITH_HBAR_FIXED_FEE, 5L),
@@ -483,7 +540,17 @@ public class AtomicBatchEndToEndTokensWithCustomFeesTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+                    doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                        if ("true".equals(flag)) {
+                            return validateChargedUsdWithinWithTxnSize(
+                                    "batchTxn",
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
+                                            SIGNATURES, 1,
+                                            TXN_SIZE, txnSize)), 0.001);
+                        } else {
+                            return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
+                        }
+                    }),
 
                     // validate account balances and token info
                     getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FT_WITH_HBAR_FIXED_FEE, 5L),
@@ -550,7 +617,17 @@ public class AtomicBatchEndToEndTokensWithCustomFeesTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+                    doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                        if ("true".equals(flag)) {
+                            return validateChargedUsdWithinWithTxnSize(
+                                    "batchTxn",
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
+                                            SIGNATURES, 1,
+                                            TXN_SIZE, txnSize)), 0.001);
+                        } else {
+                            return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
+                        }
+                    }),
 
                     // validate account balances and token info
                     getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FT_WITH_HBAR_FIXED_FEE, 5L),
@@ -615,7 +692,17 @@ public class AtomicBatchEndToEndTokensWithCustomFeesTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+                    doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                        if ("true".equals(flag)) {
+                            return validateChargedUsdWithinWithTxnSize(
+                                    "batchTxn",
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
+                                            SIGNATURES, 1,
+                                            TXN_SIZE, txnSize)), 0.001);
+                        } else {
+                            return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
+                        }
+                    }),
 
                     // validate account balances and token info
                     getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FT_WITH_FRACTIONAL_FEE, 1L),
@@ -674,7 +761,17 @@ public class AtomicBatchEndToEndTokensWithCustomFeesTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+                    doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                        if ("true".equals(flag)) {
+                            return validateChargedUsdWithinWithTxnSize(
+                                    "batchTxn",
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
+                                            SIGNATURES, 1,
+                                            TXN_SIZE, txnSize)), 0.001);
+                        } else {
+                            return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
+                        }
+                    }),
 
                     // validate account balances and token info
                     getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FT_WITH_FRACTIONAL_FEE, 3L),
@@ -751,7 +848,17 @@ public class AtomicBatchEndToEndTokensWithCustomFeesTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+                    doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                        if ("true".equals(flag)) {
+                            return validateChargedUsdWithinWithTxnSize(
+                                    "batchTxn",
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
+                                            SIGNATURES, 1,
+                                            TXN_SIZE, txnSize)), 0.001);
+                        } else {
+                            return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
+                        }
+                    }),
 
                     // validate account balances and token info
                     getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FT_WITH_FRACTIONAL_FEE, 4L),
@@ -821,7 +928,17 @@ public class AtomicBatchEndToEndTokensWithCustomFeesTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+                    doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                        if ("true".equals(flag)) {
+                            return validateChargedUsdWithinWithTxnSize(
+                                    "batchTxn",
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
+                                            SIGNATURES, 1,
+                                            TXN_SIZE, txnSize)), 0.001);
+                        } else {
+                            return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
+                        }
+                    }),
 
                     // validate account balances and token info
                     getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FT_WITH_FRACTIONAL_FEE, 4L),
@@ -886,7 +1003,17 @@ public class AtomicBatchEndToEndTokensWithCustomFeesTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+                    doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                        if ("true".equals(flag)) {
+                            return validateChargedUsdWithinWithTxnSize(
+                                    "batchTxn",
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
+                                            SIGNATURES, 1,
+                                            TXN_SIZE, txnSize)), 0.001);
+                        } else {
+                            return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
+                        }
+                    }),
 
                     // validate account balances and token info
                     getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FT_WITH_FRACTIONAL_FEE, 4L),
@@ -939,7 +1066,17 @@ public class AtomicBatchEndToEndTokensWithCustomFeesTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+                    doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                        if ("true".equals(flag)) {
+                            return validateChargedUsdWithinWithTxnSize(
+                                    "batchTxn",
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
+                                            SIGNATURES, 1,
+                                            TXN_SIZE, txnSize)), 0.001);
+                        } else {
+                            return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
+                        }
+                    }),
 
                     // validate account balances and token info
                     getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FT_WITH_FRACTIONAL_FEE, 1995L),
@@ -1001,7 +1138,17 @@ public class AtomicBatchEndToEndTokensWithCustomFeesTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+                    doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                        if ("true".equals(flag)) {
+                            return validateChargedUsdWithinWithTxnSize(
+                                    "batchTxn",
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
+                                            SIGNATURES, 1,
+                                            TXN_SIZE, txnSize)), 0.001);
+                        } else {
+                            return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
+                        }
+                    }),
 
                     // validate account balances and token info
                     getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FT_FIXED_AND_FRACTIONAL_FEE, 1L),
@@ -1074,7 +1221,17 @@ public class AtomicBatchEndToEndTokensWithCustomFeesTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+                    doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                        if ("true".equals(flag)) {
+                            return validateChargedUsdWithinWithTxnSize(
+                                    "batchTxn",
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
+                                            SIGNATURES, 1,
+                                            TXN_SIZE, txnSize)), 0.001);
+                        } else {
+                            return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
+                        }
+                    }),
 
                     // validate account balances and token info
                     getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FT_FIXED_AND_FRACTIONAL_FEE, 4L),
@@ -1144,7 +1301,17 @@ public class AtomicBatchEndToEndTokensWithCustomFeesTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+                    doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                        if ("true".equals(flag)) {
+                            return validateChargedUsdWithinWithTxnSize(
+                                    "batchTxn",
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
+                                            SIGNATURES, 1,
+                                            TXN_SIZE, txnSize)), 0.001);
+                        } else {
+                            return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
+                        }
+                    }),
 
                     // validate account balances and token info
                     getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FT_FIXED_AND_FRACTIONAL_FEE, 4L),
@@ -1218,7 +1385,17 @@ public class AtomicBatchEndToEndTokensWithCustomFeesTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+                    doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                        if ("true".equals(flag)) {
+                            return validateChargedUsdWithinWithTxnSize(
+                                    "batchTxn",
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
+                                            SIGNATURES, 1,
+                                            TXN_SIZE, txnSize)), 0.001);
+                        } else {
+                            return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
+                        }
+                    }),
 
                     // validate account balances and token info
                     getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(NFT_WITH_HTS_FEE, 1L),
@@ -1291,7 +1468,17 @@ public class AtomicBatchEndToEndTokensWithCustomFeesTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+                    doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                        if ("true".equals(flag)) {
+                            return validateChargedUsdWithinWithTxnSize(
+                                    "batchTxn",
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
+                                            SIGNATURES, 1,
+                                            TXN_SIZE, txnSize)), 0.001);
+                        } else {
+                            return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
+                        }
+                    }),
 
                     // validate account balances and token info
                     getAccountBalance(RECEIVER_ASSOCIATED_FIRST)
@@ -1359,7 +1546,17 @@ public class AtomicBatchEndToEndTokensWithCustomFeesTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+                    doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                        if ("true".equals(flag)) {
+                            return validateChargedUsdWithinWithTxnSize(
+                                    "batchTxn",
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
+                                            SIGNATURES, 1,
+                                            TXN_SIZE, txnSize)), 0.001);
+                        } else {
+                            return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
+                        }
+                    }),
 
                     // validate account balances and token info
                     getAccountBalance(RECEIVER_ASSOCIATED_FIRST)
@@ -1435,7 +1632,17 @@ public class AtomicBatchEndToEndTokensWithCustomFeesTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+                    doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                        if ("true".equals(flag)) {
+                            return validateChargedUsdWithinWithTxnSize(
+                                    "batchTxn",
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
+                                            SIGNATURES, 1,
+                                            TXN_SIZE, txnSize)), 0.001);
+                        } else {
+                            return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
+                        }
+                    }),
 
                     // validate account balances and token info
                     getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(NFT_WITH_ROYALTY_FEE_NO_FALLBACK, 1L),
@@ -1496,7 +1703,17 @@ public class AtomicBatchEndToEndTokensWithCustomFeesTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+                    doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                        if ("true".equals(flag)) {
+                            return validateChargedUsdWithinWithTxnSize(
+                                    "batchTxn",
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
+                                            SIGNATURES, 1,
+                                            TXN_SIZE, txnSize)), 0.001);
+                        } else {
+                            return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
+                        }
+                    }),
 
                     // validate account balances and token info
                     getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(NFT_WITH_ROYALTY_FEE_NO_FALLBACK, 0L),
@@ -1566,7 +1783,17 @@ public class AtomicBatchEndToEndTokensWithCustomFeesTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+                    doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                        if ("true".equals(flag)) {
+                            return validateChargedUsdWithinWithTxnSize(
+                                    "batchTxn",
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
+                                            SIGNATURES, 1,
+                                            TXN_SIZE, txnSize)), 0.001);
+                        } else {
+                            return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
+                        }
+                    }),
 
                     // validate account balances and token info
                     getAccountBalance(RECEIVER_ASSOCIATED_FIRST)
@@ -1642,7 +1869,17 @@ public class AtomicBatchEndToEndTokensWithCustomFeesTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+                    doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                        if ("true".equals(flag)) {
+                            return validateChargedUsdWithinWithTxnSize(
+                                    "batchTxn",
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
+                                            SIGNATURES, 1,
+                                            TXN_SIZE, txnSize)), 0.001);
+                        } else {
+                            return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
+                        }
+                    }),
 
                     // validate account balances and token info
                     getAccountBalance(RECEIVER_ASSOCIATED_FIRST)
@@ -1701,7 +1938,17 @@ public class AtomicBatchEndToEndTokensWithCustomFeesTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+                    doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                        if ("true".equals(flag)) {
+                            return validateChargedUsdWithinWithTxnSize(
+                                    "batchTxn",
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
+                                            SIGNATURES, 1,
+                                            TXN_SIZE, txnSize)), 0.001);
+                        } else {
+                            return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
+                        }
+                    }),
 
                     // validate account balances and token info
                     getAccountBalance(RECEIVER_ASSOCIATED_FIRST)
@@ -1766,7 +2013,17 @@ public class AtomicBatchEndToEndTokensWithCustomFeesTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+                    doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                        if ("true".equals(flag)) {
+                            return validateChargedUsdWithinWithTxnSize(
+                                    "batchTxn",
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
+                                            SIGNATURES, 1,
+                                            TXN_SIZE, txnSize)), 0.001);
+                        } else {
+                            return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
+                        }
+                    }),
 
                     // validate account balances and token info
                     getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FT_WITH_FRACTIONAL_FEE, 4L),
@@ -1833,7 +2090,17 @@ public class AtomicBatchEndToEndTokensWithCustomFeesTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+                    doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                        if ("true".equals(flag)) {
+                            return validateChargedUsdWithinWithTxnSize(
+                                    "batchTxn",
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
+                                            SIGNATURES, 1,
+                                            TXN_SIZE, txnSize)), 0.001);
+                        } else {
+                            return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
+                        }
+                    }),
 
                     // validate account balances and token info
                     getAccountBalance(RECEIVER_ASSOCIATED_FIRST)
@@ -1901,7 +2168,17 @@ public class AtomicBatchEndToEndTokensWithCustomFeesTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+                    doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                        if ("true".equals(flag)) {
+                            return validateChargedUsdWithinWithTxnSize(
+                                    "batchTxn",
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
+                                            SIGNATURES, 1,
+                                            TXN_SIZE, txnSize)), 0.001);
+                        } else {
+                            return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
+                        }
+                    }),
 
                     // validate account balances and token info
                     getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FT_WITH_FRACTIONAL_FEE, 0L),
@@ -1959,7 +2236,17 @@ public class AtomicBatchEndToEndTokensWithCustomFeesTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+                    doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                        if ("true".equals(flag)) {
+                            return validateChargedUsdWithinWithTxnSize(
+                                    "batchTxn",
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
+                                            SIGNATURES, 1,
+                                            TXN_SIZE, txnSize)), 0.001);
+                        } else {
+                            return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
+                        }
+                    }),
 
                     // validate account balances and token info
                     getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FT_WITH_FRACTIONAL_FEE, 0L),
@@ -2012,7 +2299,17 @@ public class AtomicBatchEndToEndTokensWithCustomFeesTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+                    doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                        if ("true".equals(flag)) {
+                            return validateChargedUsdWithinWithTxnSize(
+                                    "batchTxn",
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
+                                            SIGNATURES, 1,
+                                            TXN_SIZE, txnSize)), 0.001);
+                        } else {
+                            return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
+                        }
+                    }),
 
                     // validate account balances and token info
                     getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FT_WITH_FRACTIONAL_FEE, 0L),
@@ -2081,7 +2378,17 @@ public class AtomicBatchEndToEndTokensWithCustomFeesTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+                    doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                        if ("true".equals(flag)) {
+                            return validateChargedUsdWithinWithTxnSize(
+                                    "batchTxn",
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
+                                            SIGNATURES, 1,
+                                            TXN_SIZE, txnSize)), 0.001);
+                        } else {
+                            return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
+                        }
+                    }),
 
                     // validate account balances and token info
                     getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FT_WITH_FRACTIONAL_FEE, 0L),
@@ -2139,7 +2446,17 @@ public class AtomicBatchEndToEndTokensWithCustomFeesTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+                    doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                        if ("true".equals(flag)) {
+                            return validateChargedUsdWithinWithTxnSize(
+                                    "batchTxn",
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
+                                            SIGNATURES, 1,
+                                            TXN_SIZE, txnSize)), 0.001);
+                        } else {
+                            return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
+                        }
+                    }),
 
                     // validate account balances and token info
                     getAccountBalance(RECEIVER_ASSOCIATED_FIRST)
@@ -2193,7 +2510,17 @@ public class AtomicBatchEndToEndTokensWithCustomFeesTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+                    doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                        if ("true".equals(flag)) {
+                            return validateChargedUsdWithinWithTxnSize(
+                                    "batchTxn",
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
+                                            SIGNATURES, 1,
+                                            TXN_SIZE, txnSize)), 0.001);
+                        } else {
+                            return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
+                        }
+                    }),
 
                     // validate account balances and token info
                     getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FT_WITH_FRACTIONAL_FEE, 0L),
@@ -2246,7 +2573,17 @@ public class AtomicBatchEndToEndTokensWithCustomFeesTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+                    doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                        if ("true".equals(flag)) {
+                            return validateChargedUsdWithinWithTxnSize(
+                                    "batchTxn",
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
+                                            SIGNATURES, 1,
+                                            TXN_SIZE, txnSize)), 0.001);
+                        } else {
+                            return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
+                        }
+                    }),
 
                     // validate account balances and token info
                     getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FT_WITH_FRACTIONAL_FEE, 0L),
@@ -2383,7 +2720,7 @@ public class AtomicBatchEndToEndTokensWithCustomFeesTests {
 
     private List<SpecOperation> createAccountsAndKeys() {
         return List.of(
-                cryptoCreate(BATCH_OPERATOR).balance(ONE_HBAR),
+                cryptoCreate(BATCH_OPERATOR).balance(ONE_HUNDRED_HBARS),
                 cryptoCreate(OWNER).balance(ONE_BILLION_HBARS),
                 cryptoCreate(NEW_TREASURY_WITH_UNLIMITED_AUTO_ASSOCIATIONS)
                         .balance(ONE_MILLION_HBARS)

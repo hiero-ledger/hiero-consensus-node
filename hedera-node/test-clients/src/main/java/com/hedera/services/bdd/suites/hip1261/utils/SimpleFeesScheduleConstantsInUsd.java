@@ -37,8 +37,12 @@ public class SimpleFeesScheduleConstantsInUsd {
     public static final double TOKEN_MINT_FT_BASE_FEE = 0.001;
     public static final double TOKEN_MINT_NFT_FEE_USD = 0.02;
     public static final double TOKEN_UPDATE_NFT_FEE = 0.001;
+    public static final long  TOKEN_UPDATE_INCLUDED_NFT_COUNT = 1L;
 
     public static final double AIRDROPS_FEE_USD = 0.05;
+    public static final double AIRDROP_CLAIM_FEE_USD = 0.0009;
+    public static final double AIRDROP_CANCEL_FEE_USD = 0.0009;
+
     public static final double HOOK_UPDATES_FEE_USD = 1.0;
     public static final double HOOK_EXECUTION_FEE_USD = 0.005;
 
@@ -73,6 +77,12 @@ public class SimpleFeesScheduleConstantsInUsd {
 
     public static final double CRYPTO_APPROVE_ALLOWANCE_FEE = 0.05;
     public static final double CRYPTO_DELETE_ALLOWANCE_FEE = 0.05;
+    public static final double CRYPTO_DELETE_ALLOWANCE_BASE_FEE_USD = 0.0499;
+    public static final double CRYPTO_DELETE_ALLOWANCE_EXTRA_FEE_USD = 0.05;
+    public static final long CRYPTO_DELETE_ALLOWANCE_INCLUDED_COUNT = 1L;
+    public static final double CRYPTO_APPROVE_ALLOWANCE_BASE_FEE_USD = 0.0499;
+    public static final double CRYPTO_APPROVE_ALLOWANCE_EXTRA_FEE_USD = 0.05;
+    public static final long CRYPTO_APPROVE_ALLOWANCE_INCLUDED_COUNT = 1L;
 
     /* ---------- Consensus service ---------- */
 
@@ -92,7 +102,7 @@ public class SimpleFeesScheduleConstantsInUsd {
 
     /* ---------- File service ---------- */
 
-    public static final double FILE_CREATE_BASE_FEE_USD = 0.000000005;
+    public static final double FILE_CREATE_BASE_FEE_USD = 0.0499;
     public static final long FILE_CREATE_INCLUDED_KEYS = 1L;
     public static final long FILE_CREATE_INCLUDED_BYTES = 1000L;
 
@@ -100,11 +110,10 @@ public class SimpleFeesScheduleConstantsInUsd {
     public static final long FILE_UPDATE_INCLUDED_KEYS = 1L;
     public static final long FILE_UPDATE_INCLUDED_BYTES = 1000L;
 
-    public static final double FILE_APPEND_BASE_FEE_USD = 0.000000005;
-    public static final long FILE_APPEND_INCLUDED_KEYS = 1L;
+    public static final double FILE_APPEND_BASE_FEE_USD = 0.0499;
     public static final long FILE_APPEND_INCLUDED_BYTES = 1000L;
 
-    public static final double FILE_DELETE_BASE_FEE_USD = 0.0000000007;
+    public static final double FILE_DELETE_BASE_FEE_USD = 0.0069;
     public static final long FILE_DELETE_INCLUDED_KEYS = 1L;
 
     public static final double FILE_GET_CONTENTS_BASE_FEE_USD = 0.000000001;
@@ -123,6 +132,7 @@ public class SimpleFeesScheduleConstantsInUsd {
     public static final double TOKEN_DELETE_BASE_FEE_USD = 0.0009;
 
     public static final double TOKEN_MINT_BASE_FEE_USD = 0.0009;
+    public static final double TOKEN_MINT_NFT_BASE_FEE_USD = 0.019;
     public static final long TOKEN_MINT_INCLUDED_NFT = 0L;
 
     public static final double TOKEN_BURN_BASE_FEE_USD = 0.0009;
@@ -149,6 +159,9 @@ public class SimpleFeesScheduleConstantsInUsd {
     public static final double TOKEN_WIPE_BASE_FEE_USD = 0.0009;
     public static final double TOKEN_WIPE_FEE = 0.001;
 
+    public static final double TOKEN_REJECT_FEE_USD = 0.0009;
+    public static final double TOKEN_FEE_SCHEDULE_UPDATE_FEE_USD = 0.0009;
+
     /* ---------- Schedule service ---------- */
 
     public static final double SCHEDULE_CREATE_BASE_FEE_USD = 0.0099;
@@ -157,4 +170,9 @@ public class SimpleFeesScheduleConstantsInUsd {
     public static final double SCHEDULE_SIGN_BASE_FEE_USD = 0.0009;
 
     public static final double SCHEDULE_DELETE_BASE_FEE_USD = 0.0009;
+
+    /* ---------- Util service ---------- */
+
+    public static final double ATOMIC_BATCH_BASE_FEE_USD = 0.0009;
+    public static final double UTIL_PRNG_BASE_FEE_USD = 0.0009;
 }

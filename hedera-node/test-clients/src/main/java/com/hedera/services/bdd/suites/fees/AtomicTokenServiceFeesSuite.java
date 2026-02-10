@@ -38,6 +38,7 @@ import static com.hedera.services.bdd.spec.transactions.token.HapiTokenReject.re
 import static com.hedera.services.bdd.spec.transactions.token.HapiTokenReject.rejectingToken;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUnique;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateInnerTxnChargedUsd;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_BILLION_HBARS;
@@ -47,6 +48,39 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
 import static com.hedera.services.bdd.suites.contract.leaky.LeakyContractTestsSuite.RECEIVER;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.FeeParam.ACCOUNTS;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.FeeParam.FUNGIBLE_TOKENS;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.FeeParam.KEYS;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.FeeParam.NON_FUNGIBLE_TOKENS;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.FeeParam.SIGNATURES;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.FeeParam.TOKENS;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.FeeParam.TXN_SIZE;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedCryptoTransferFTFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedCryptoTransferNFTFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedPrngFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenAssociateFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenBurnFungibleFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenCancelAirdropFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenClaimAirdropFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenCreateFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenCreateWithCustomFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenDeleteFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenDissociateFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenFeeScheduleUpdateFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenFreezeFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenGrantKycFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenMintFungibleFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenMintNftFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenNftUpdateFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenPauseFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenRejectFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenRevokeKycFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenUnfreezeFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenUnpauseFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenUpdateFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateInnerChargedUsdWithinWithTxnSize;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.AIRDROPS_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_ASSOCIATE_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip904.TokenAirdropBase.setUpTokensAndAllReceivers;
 import static com.hedera.services.bdd.suites.utils.MiscEETUtils.metadata;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
@@ -147,7 +181,20 @@ class AtomicTokenServiceFeesSuite {
                         .via(ATOMIC_BATCH)
                         .signedByPayerAnd(BATCH_OPERATOR)
                         .payingWith(BATCH_OPERATOR),
-                validateInnerTxnChargedUsd("airdrop", ATOMIC_BATCH, 0.1, 1));
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return validateInnerChargedUsdWithinWithTxnSize(
+                                "airdrop",
+                                ATOMIC_BATCH,
+                                txnSize -> expectedCryptoTransferFTFullFeeUsd(Map.of(
+                                        SIGNATURES, 1,
+                                        ACCOUNTS, 2,
+                                        FUNGIBLE_TOKENS, 1,
+                                        TXN_SIZE, txnSize)) + TOKEN_ASSOCIATE_BASE_FEE_USD + AIRDROPS_FEE_USD, 0.1);
+                    } else {
+                        return validateInnerTxnChargedUsd("airdrop", ATOMIC_BATCH, 0.1, 1);
+                    }
+                }));
     }
 
     @HapiTest
@@ -181,7 +228,20 @@ class AtomicTokenServiceFeesSuite {
                         .via(ATOMIC_BATCH)
                         .signedByPayerAnd(BATCH_OPERATOR)
                         .payingWith(BATCH_OPERATOR),
-                validateInnerTxnChargedUsd("airdrop", ATOMIC_BATCH, 0.1, 1));
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return validateInnerChargedUsdWithinWithTxnSize(
+                                "airdrop",
+                                ATOMIC_BATCH,
+                                txnSize -> expectedCryptoTransferNFTFullFeeUsd(Map.of(
+                                        SIGNATURES, 1,
+                                        ACCOUNTS, 2,
+                                        NON_FUNGIBLE_TOKENS, 1,
+                                        TXN_SIZE, txnSize)) + TOKEN_ASSOCIATE_BASE_FEE_USD + AIRDROPS_FEE_USD, 0.1);
+                    } else {
+                        return validateInnerTxnChargedUsd("airdrop", ATOMIC_BATCH, 0.1, 1);
+                    }
+                }));
     }
 
     @HapiTest
@@ -220,7 +280,18 @@ class AtomicTokenServiceFeesSuite {
                         .via(ATOMIC_BATCH)
                         .signedByPayerAnd(BATCH_OPERATOR)
                         .payingWith(BATCH_OPERATOR),
-                validateInnerTxnChargedUsd("claimTxn", ATOMIC_BATCH, 0.001, 1)));
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return validateInnerChargedUsdWithinWithTxnSize(
+                                "claimTxn",
+                                ATOMIC_BATCH,
+                                txnSize -> expectedTokenClaimAirdropFullFeeUsd(Map.of(
+                                        SIGNATURES, 1,
+                                        TXN_SIZE, txnSize)), 0.1);
+                    } else {
+                        return validateInnerTxnChargedUsd("claimTxn", ATOMIC_BATCH, 0.001, 1);
+                    }
+                })));
     }
 
     @HapiTest
@@ -262,7 +333,18 @@ class AtomicTokenServiceFeesSuite {
 
                 // Verify that the receiver doesn't have the token
                 getAccountBalance(RECEIVER_WITH_0_AUTO_ASSOCIATIONS).hasTokenBalance(FUNGIBLE_TOKEN, 0),
-                validateInnerTxnChargedUsd("cancelAirdrop", ATOMIC_BATCH, 0.001, 1));
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return validateInnerChargedUsdWithinWithTxnSize(
+                                "cancelAirdrop",
+                                ATOMIC_BATCH,
+                                txnSize -> expectedTokenCancelAirdropFullFeeUsd(Map.of(
+                                        SIGNATURES, 1,
+                                        TXN_SIZE, txnSize)), 0.1);
+                    } else {
+                        return validateInnerTxnChargedUsd("cancelAirdrop", ATOMIC_BATCH, 0.001, 1);
+                    }
+                }));
     }
 
     @HapiTest
@@ -312,7 +394,18 @@ class AtomicTokenServiceFeesSuite {
 
                 // Verify that the receiver doesn't have the token
                 getAccountBalance(RECEIVER_WITH_0_AUTO_ASSOCIATIONS).hasTokenBalance(NON_FUNGIBLE_TOKEN, 0),
-                validateInnerTxnChargedUsd("cancelAirdrop", ATOMIC_BATCH, 0.001, 1));
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return validateInnerChargedUsdWithinWithTxnSize(
+                                "cancelAirdrop",
+                                ATOMIC_BATCH,
+                                txnSize -> expectedTokenCancelAirdropFullFeeUsd(Map.of(
+                                        SIGNATURES, 1,
+                                        TXN_SIZE, txnSize)), 0.1);
+                    } else {
+                        return validateInnerTxnChargedUsd("cancelAirdrop", ATOMIC_BATCH, 0.001, 1);
+                    }
+                }));
     }
 
     private HapiSpecOperation[] baseCommonTokenRejectSetup() {
@@ -357,8 +450,21 @@ class AtomicTokenServiceFeesSuite {
                         .via(ATOMIC_BATCH)
                         .signedByPayerAnd(BATCH_OPERATOR)
                         .payingWith(BATCH_OPERATOR),
-                validateInnerTxnChargedUsd(
-                        "nftTransfer", ATOMIC_BATCH, EXPECTED_NFT_REJECT_PRICE_USD, ALLOWED_DIFFERENCE)));
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return validateInnerChargedUsdWithinWithTxnSize(
+                                "nftTransfer",
+                                ATOMIC_BATCH,
+                                txnSize -> expectedCryptoTransferNFTFullFeeUsd(Map.of(
+                                        SIGNATURES, 1,
+                                        ACCOUNTS, 2,
+                                        NON_FUNGIBLE_TOKENS, 1,
+                                        TXN_SIZE, txnSize)), 0.1);
+                    } else {
+                        return validateInnerTxnChargedUsd(
+                                "nftTransfer", ATOMIC_BATCH, EXPECTED_NFT_REJECT_PRICE_USD, ALLOWED_DIFFERENCE);
+                    }
+                })));
     }
 
     @HapiTest
@@ -373,8 +479,21 @@ class AtomicTokenServiceFeesSuite {
                         .via(ATOMIC_BATCH)
                         .signedByPayerAnd(BATCH_OPERATOR)
                         .payingWith(BATCH_OPERATOR),
-                validateInnerTxnChargedUsd(
-                        "fungibleTransfer", ATOMIC_BATCH, EXPECTED_FUNGIBLE_REJECT_PRICE_USD, ALLOWED_DIFFERENCE)));
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return validateInnerChargedUsdWithinWithTxnSize(
+                                "fungibleTransfer",
+                                ATOMIC_BATCH,
+                                txnSize -> expectedCryptoTransferFTFullFeeUsd(Map.of(
+                                        SIGNATURES, 1,
+                                        ACCOUNTS, 2,
+                                        FUNGIBLE_TOKENS, 1,
+                                        TXN_SIZE, txnSize)), 0.1);
+                    } else {
+                        return validateInnerTxnChargedUsd(
+                                "fungibleTransfer", ATOMIC_BATCH, EXPECTED_FUNGIBLE_REJECT_PRICE_USD, ALLOWED_DIFFERENCE);
+                    }
+                })));
     }
 
     @HapiTest
@@ -395,8 +514,19 @@ class AtomicTokenServiceFeesSuite {
                         .via(ATOMIC_BATCH)
                         .signedByPayerAnd(BATCH_OPERATOR)
                         .payingWith(BATCH_OPERATOR),
-                validateInnerTxnChargedUsd(
-                        "rejectFungible", ATOMIC_BATCH, EXPECTED_FUNGIBLE_REJECT_PRICE_USD, ALLOWED_DIFFERENCE)));
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return validateInnerChargedUsdWithinWithTxnSize(
+                                "rejectFungible",
+                                ATOMIC_BATCH,
+                                txnSize -> expectedTokenRejectFullFeeUsd(Map.of(
+                                        SIGNATURES, 1,
+                                        TXN_SIZE, txnSize)), 0.1);
+                    } else {
+                        return validateInnerTxnChargedUsd(
+                                "rejectFungible", ATOMIC_BATCH, EXPECTED_FUNGIBLE_REJECT_PRICE_USD, ALLOWED_DIFFERENCE);
+                    }
+                })));
     }
 
     @HapiTest
@@ -416,8 +546,19 @@ class AtomicTokenServiceFeesSuite {
                         .via(ATOMIC_BATCH)
                         .signedByPayerAnd(BATCH_OPERATOR)
                         .payingWith(BATCH_OPERATOR),
-                validateInnerTxnChargedUsd(
-                        "rejectNft", ATOMIC_BATCH, EXPECTED_NFT_REJECT_PRICE_USD, ALLOWED_DIFFERENCE)));
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return validateInnerChargedUsdWithinWithTxnSize(
+                                "rejectNft",
+                                ATOMIC_BATCH,
+                                txnSize -> expectedTokenRejectFullFeeUsd(Map.of(
+                                        SIGNATURES, 1,
+                                        TXN_SIZE, txnSize)), 0.1);
+                    } else {
+                        return validateInnerTxnChargedUsd(
+                                "rejectNft", ATOMIC_BATCH, EXPECTED_NFT_REJECT_PRICE_USD, ALLOWED_DIFFERENCE);
+                    }
+                })));
     }
 
     private HapiSpecOperation[] baseCreationsSetup() {
@@ -459,7 +600,18 @@ class AtomicTokenServiceFeesSuite {
                         .via(ATOMIC_BATCH)
                         .signedByPayerAnd(BATCH_OPERATOR)
                         .payingWith(BATCH_OPERATOR),
-                validateInnerTxnChargedUsd(txnFor(commonNoFees), ATOMIC_BATCH, expectedCommonNoCustomFeesPriceUsd, 1)));
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return validateInnerChargedUsdWithinWithTxnSize(
+                                txnFor(commonNoFees),
+                                ATOMIC_BATCH,
+                                txnSize -> expectedTokenCreateFullFeeUsd(Map.of(
+                                        SIGNATURES, 1,
+                                        TXN_SIZE, txnSize)), 0.1);
+                    } else {
+                        return validateInnerTxnChargedUsd(txnFor(commonNoFees), ATOMIC_BATCH, expectedCommonNoCustomFeesPriceUsd, 1);
+                    }
+                })));
     }
 
     @HapiTest
@@ -489,8 +641,20 @@ class AtomicTokenServiceFeesSuite {
                         .via(ATOMIC_BATCH)
                         .signedByPayerAnd(BATCH_OPERATOR)
                         .payingWith(BATCH_OPERATOR),
-                validateInnerTxnChargedUsd(
-                        txnFor(commonWithFees), ATOMIC_BATCH, expectedCommonWithCustomFeesPriceUsd, 1)));
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return validateInnerChargedUsdWithinWithTxnSize(
+                                txnFor(commonWithFees),
+                                ATOMIC_BATCH,
+                                txnSize -> expectedTokenCreateWithCustomFullFeeUsd(Map.of(
+                                        SIGNATURES, 1,
+                                        KEYS, 2,
+                                        TXN_SIZE, txnSize)), 0.1);
+                    } else {
+                        return validateInnerTxnChargedUsd(
+                                txnFor(commonWithFees), ATOMIC_BATCH, expectedCommonWithCustomFeesPriceUsd, 1);
+                    }
+                })));
     }
 
     @HapiTest
@@ -520,7 +684,19 @@ class AtomicTokenServiceFeesSuite {
                         .via(ATOMIC_BATCH)
                         .signedByPayerAnd(BATCH_OPERATOR)
                         .payingWith(BATCH_OPERATOR),
-                validateInnerTxnChargedUsd(txnFor(uniqueNoFees), ATOMIC_BATCH, expectedUniqueNoCustomFeesPriceUsd, 1)));
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return validateInnerChargedUsdWithinWithTxnSize(
+                                txnFor(uniqueNoFees),
+                                ATOMIC_BATCH,
+                                txnSize -> expectedTokenCreateFullFeeUsd(Map.of(
+                                        SIGNATURES, 1,
+                                        KEYS, 2,
+                                        TXN_SIZE, txnSize)), 0.1);
+                    } else {
+                        return validateInnerTxnChargedUsd(txnFor(uniqueNoFees), ATOMIC_BATCH, expectedUniqueNoCustomFeesPriceUsd, 1);
+                    }
+                })));
     }
 
     @HapiTest
@@ -553,8 +729,20 @@ class AtomicTokenServiceFeesSuite {
                         .via(ATOMIC_BATCH)
                         .signedByPayerAnd(BATCH_OPERATOR)
                         .payingWith(BATCH_OPERATOR),
-                validateInnerTxnChargedUsd(
-                        txnFor(uniqueWithFees), ATOMIC_BATCH, expectedUniqueWithCustomFeesPriceUsd, 1)));
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return validateInnerChargedUsdWithinWithTxnSize(
+                                txnFor(uniqueWithFees),
+                                ATOMIC_BATCH,
+                                txnSize -> expectedTokenCreateWithCustomFullFeeUsd(Map.of(
+                                        SIGNATURES, 1,
+                                        KEYS, 3,
+                                        TXN_SIZE, txnSize)), 0.1);
+                    } else {
+                        return validateInnerTxnChargedUsd(
+                                txnFor(uniqueWithFees), ATOMIC_BATCH, expectedUniqueWithCustomFeesPriceUsd, 1);
+                    }
+                })));
     }
 
     @HapiTest
@@ -587,7 +775,18 @@ class AtomicTokenServiceFeesSuite {
                         .via(ATOMIC_BATCH)
                         .signedByPayerAnd(BATCH_OPERATOR)
                         .payingWith(BATCH_OPERATOR),
-                validateInnerTxnChargedUsd("baseFeeSchUpd", ATOMIC_BATCH, expectedBasePriceUsd, 5));
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return validateInnerChargedUsdWithinWithTxnSize(
+                                "baseFeeSchUpd",
+                                ATOMIC_BATCH,
+                                txnSize -> expectedTokenFeeScheduleUpdateFullFeeUsd(Map.of(
+                                        SIGNATURES, 1,
+                                        TXN_SIZE, txnSize)), 0.1);
+                    } else {
+                        return validateInnerTxnChargedUsd("baseFeeSchUpd", ATOMIC_BATCH, expectedBasePriceUsd, 5);
+                    }
+                }));
     }
 
     @HapiTest
@@ -614,7 +813,18 @@ class AtomicTokenServiceFeesSuite {
                         .via(ATOMIC_BATCH)
                         .signedByPayerAnd(BATCH_OPERATOR)
                         .payingWith(BATCH_OPERATOR),
-                validateInnerTxnChargedUsd("fungibleMint", ATOMIC_BATCH, EXPECTED_FUNGIBLE_MINT_PRICE_USD, 10));
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return validateInnerChargedUsdWithinWithTxnSize(
+                                "fungibleMint",
+                                ATOMIC_BATCH,
+                                txnSize -> expectedTokenMintFungibleFullFeeUsd(Map.of(
+                                        SIGNATURES, 1,
+                                        TXN_SIZE, txnSize)), 0.1);
+                    } else {
+                        return validateInnerTxnChargedUsd("fungibleMint", ATOMIC_BATCH, EXPECTED_FUNGIBLE_MINT_PRICE_USD, 10);
+                    }
+                }));
     }
 
     @HapiTest
@@ -646,8 +856,20 @@ class AtomicTokenServiceFeesSuite {
                         .via(ATOMIC_BATCH)
                         .signedByPayerAnd(BATCH_OPERATOR)
                         .payingWith(BATCH_OPERATOR),
-                validateInnerTxnChargedUsd(
-                        BASE_TXN, ATOMIC_BATCH, EXPECTED_NFT_MINT_PRICE_USD, ALLOWED_DIFFERENCE_PERCENTAGE));
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return validateInnerChargedUsdWithinWithTxnSize(
+                                BASE_TXN,
+                                ATOMIC_BATCH,
+                                txnSize -> expectedTokenMintNftFullFeeUsd(Map.of(
+                                        SIGNATURES, 1,
+                                        NON_FUNGIBLE_TOKENS, 1,
+                                        TXN_SIZE, txnSize)), 0.1);
+                    } else {
+                        return validateInnerTxnChargedUsd(
+                                BASE_TXN, ATOMIC_BATCH, EXPECTED_NFT_MINT_PRICE_USD, ALLOWED_DIFFERENCE_PERCENTAGE);
+                    }
+                }));
     }
 
     @HapiTest
@@ -692,7 +914,19 @@ class AtomicTokenServiceFeesSuite {
                         .via(ATOMIC_BATCH)
                         .signedByPayerAnd(BATCH_OPERATOR)
                         .payingWith(BATCH_OPERATOR),
-                validateInnerTxnChargedUsd(BASE_TXN, ATOMIC_BATCH, expectedFee, ALLOWED_DIFFERENCE_PERCENTAGE));
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return validateInnerChargedUsdWithinWithTxnSize(
+                                BASE_TXN,
+                                ATOMIC_BATCH,
+                                txnSize -> expectedTokenMintNftFullFeeUsd(Map.of(
+                                        SIGNATURES, 1,
+                                        NON_FUNGIBLE_TOKENS, 10,
+                                        TXN_SIZE, txnSize)), 0.1);
+                    } else {
+                        return validateInnerTxnChargedUsd(BASE_TXN, ATOMIC_BATCH, expectedFee, ALLOWED_DIFFERENCE_PERCENTAGE);
+                    }
+                }));
     }
 
     @HapiTest
@@ -719,7 +953,18 @@ class AtomicTokenServiceFeesSuite {
                         .via(ATOMIC_BATCH)
                         .signedByPayerAnd(BATCH_OPERATOR)
                         .payingWith(BATCH_OPERATOR),
-                validateInnerTxnChargedUsd(BASE_TXN, ATOMIC_BATCH, EXPECTED_NFT_BURN_PRICE_USD, 5));
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return validateInnerChargedUsdWithinWithTxnSize(
+                                BASE_TXN,
+                                ATOMIC_BATCH,
+                                txnSize -> expectedTokenBurnFungibleFullFeeUsd(Map.of(
+                                        SIGNATURES, 1,
+                                        TXN_SIZE, txnSize)), 0.1);
+                    } else {
+                        return validateInnerTxnChargedUsd(BASE_TXN, ATOMIC_BATCH, EXPECTED_NFT_BURN_PRICE_USD, 5);
+                    }
+                }));
     }
 
     private HapiSpecOperation[] baseKycSetup() {
@@ -754,7 +999,18 @@ class AtomicTokenServiceFeesSuite {
                         .via(ATOMIC_BATCH)
                         .signedByPayerAnd(BATCH_OPERATOR)
                         .payingWith(BATCH_OPERATOR),
-                validateInnerTxnChargedUsd("grantKyc", ATOMIC_BATCH, EXPECTED_GRANTKYC_PRICE_USD, 10)));
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return validateInnerChargedUsdWithinWithTxnSize(
+                                "grantKyc",
+                                ATOMIC_BATCH,
+                                txnSize -> expectedTokenGrantKycFullFeeUsd(Map.of(
+                                        SIGNATURES, 1,
+                                        TXN_SIZE, txnSize)), 0.1);
+                    } else {
+                        return validateInnerTxnChargedUsd("grantKyc", ATOMIC_BATCH, EXPECTED_GRANTKYC_PRICE_USD, 10);
+                    }
+                })));
     }
 
     @HapiTest
@@ -771,7 +1027,18 @@ class AtomicTokenServiceFeesSuite {
                         .via(ATOMIC_BATCH)
                         .signedByPayerAnd(BATCH_OPERATOR)
                         .payingWith(BATCH_OPERATOR),
-                validateInnerTxnChargedUsd("revokeKyc", ATOMIC_BATCH, EXPECTED_REVOKEKYC_PRICE_USD, 10)));
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return validateInnerChargedUsdWithinWithTxnSize(
+                                "revokeKyc",
+                                ATOMIC_BATCH,
+                                txnSize -> expectedTokenRevokeKycFullFeeUsd(Map.of(
+                                        SIGNATURES, 1,
+                                        TXN_SIZE, txnSize)), 0.1);
+                    } else {
+                        return validateInnerTxnChargedUsd("revokeKyc", ATOMIC_BATCH, EXPECTED_REVOKEKYC_PRICE_USD, 10);
+                    }
+                })));
     }
 
     private HapiSpecOperation[] baseNftFreezeUnfreezeSetup() {
@@ -816,7 +1083,18 @@ class AtomicTokenServiceFeesSuite {
                         .via(ATOMIC_BATCH)
                         .signedByPayerAnd(BATCH_OPERATOR)
                         .payingWith(BATCH_OPERATOR),
-                validateInnerTxnChargedUsd("freeze", ATOMIC_BATCH, EXPECTED_FREEZE_PRICE_USD, 5)));
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return validateInnerChargedUsdWithinWithTxnSize(
+                                "freeze",
+                                ATOMIC_BATCH,
+                                txnSize -> expectedTokenFreezeFullFeeUsd(Map.of(
+                                        SIGNATURES, 1,
+                                        TXN_SIZE, txnSize)), 0.1);
+                    } else {
+                        return validateInnerTxnChargedUsd("freeze", ATOMIC_BATCH, EXPECTED_FREEZE_PRICE_USD, 5);
+                    }
+                })));
     }
 
     @HapiTest
@@ -833,7 +1111,18 @@ class AtomicTokenServiceFeesSuite {
                         .via(ATOMIC_BATCH)
                         .signedByPayerAnd(BATCH_OPERATOR)
                         .payingWith(BATCH_OPERATOR),
-                validateInnerTxnChargedUsd(UNFREEZE, ATOMIC_BATCH, EXPECTED_UNFREEZE_PRICE_USD, 5)));
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return validateInnerChargedUsdWithinWithTxnSize(
+                                UNFREEZE,
+                                ATOMIC_BATCH,
+                                txnSize -> expectedTokenUnfreezeFullFeeUsd(Map.of(
+                                        SIGNATURES, 1,
+                                        TXN_SIZE, txnSize)), 0.1);
+                    } else {
+                        return validateInnerTxnChargedUsd(UNFREEZE, ATOMIC_BATCH, EXPECTED_UNFREEZE_PRICE_USD, 5);
+                    }
+                })));
     }
 
     private HapiSpecOperation[] baseCommonFreezeUnfreezeSetup() {
@@ -875,7 +1164,18 @@ class AtomicTokenServiceFeesSuite {
                         .via(ATOMIC_BATCH)
                         .signedByPayerAnd(BATCH_OPERATOR)
                         .payingWith(BATCH_OPERATOR),
-                validateInnerTxnChargedUsd("freeze", ATOMIC_BATCH, EXPECTED_FREEZE_PRICE_USD, 5)));
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return validateInnerChargedUsdWithinWithTxnSize(
+                                "freeze",
+                                ATOMIC_BATCH,
+                                txnSize -> expectedTokenFreezeFullFeeUsd(Map.of(
+                                        SIGNATURES, 1,
+                                        TXN_SIZE, txnSize)), 0.1);
+                    } else {
+                        return validateInnerTxnChargedUsd("freeze", ATOMIC_BATCH, EXPECTED_FREEZE_PRICE_USD, 5);
+                    }
+                })));
     }
 
     @HapiTest
@@ -892,7 +1192,18 @@ class AtomicTokenServiceFeesSuite {
                         .via(ATOMIC_BATCH)
                         .signedByPayerAnd(BATCH_OPERATOR)
                         .payingWith(BATCH_OPERATOR),
-                validateInnerTxnChargedUsd(UNFREEZE, ATOMIC_BATCH, EXPECTED_UNFREEZE_PRICE_USD, 5)));
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return validateInnerChargedUsdWithinWithTxnSize(
+                                UNFREEZE,
+                                ATOMIC_BATCH,
+                                txnSize -> expectedTokenUnfreezeFullFeeUsd(Map.of(
+                                        SIGNATURES, 1,
+                                        TXN_SIZE, txnSize)), 0.1);
+                    } else {
+                        return validateInnerTxnChargedUsd(UNFREEZE, ATOMIC_BATCH, EXPECTED_UNFREEZE_PRICE_USD, 5);
+                    }
+                })));
     }
 
     private HapiSpecOperation[] basePauseAndUnpauseSetup() {
@@ -925,7 +1236,18 @@ class AtomicTokenServiceFeesSuite {
                         .via(ATOMIC_BATCH)
                         .signedByPayerAnd(BATCH_OPERATOR)
                         .payingWith(BATCH_OPERATOR),
-                validateInnerTxnChargedUsd(tokenPauseTransaction, ATOMIC_BATCH, expectedBaseFee, 5)));
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return validateInnerChargedUsdWithinWithTxnSize(
+                                tokenPauseTransaction,
+                                ATOMIC_BATCH,
+                                txnSize -> expectedTokenPauseFullFeeUsd(Map.of(
+                                        SIGNATURES, 1,
+                                        TXN_SIZE, txnSize)), 0.1);
+                    } else {
+                        return validateInnerTxnChargedUsd(tokenPauseTransaction, ATOMIC_BATCH, expectedBaseFee, 5);
+                    }
+                })));
     }
 
     @HapiTest
@@ -946,7 +1268,18 @@ class AtomicTokenServiceFeesSuite {
                         .via(ATOMIC_BATCH)
                         .signedByPayerAnd(BATCH_OPERATOR)
                         .payingWith(BATCH_OPERATOR),
-                validateInnerTxnChargedUsd(tokenUnpauseTransaction, ATOMIC_BATCH, expectedBaseFee, 5)));
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return validateInnerChargedUsdWithinWithTxnSize(
+                                tokenUnpauseTransaction,
+                                ATOMIC_BATCH,
+                                txnSize -> expectedTokenUnpauseFullFeeUsd(Map.of(
+                                        SIGNATURES, 1,
+                                        TXN_SIZE, txnSize)), 0.1);
+                    } else {
+                        return validateInnerTxnChargedUsd(tokenUnpauseTransaction, ATOMIC_BATCH, expectedBaseFee, 5);
+                    }
+                })));
     }
 
     @HapiTest
@@ -1007,7 +1340,18 @@ class AtomicTokenServiceFeesSuite {
                         .via(ATOMIC_BATCH)
                         .signedByPayerAnd(BATCH_OPERATOR)
                         .payingWith(BATCH_OPERATOR),
-                validateInnerTxnChargedUsd("uniqueTokenUpdate", ATOMIC_BATCH, expectedUpdatePriceUsd, 5));
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return validateInnerChargedUsdWithinWithTxnSize(
+                                "uniqueTokenUpdate",
+                                ATOMIC_BATCH,
+                                txnSize -> expectedTokenUpdateFullFeeUsd(Map.of(
+                                        SIGNATURES, 1,
+                                        TXN_SIZE, txnSize)), 0.1);
+                    } else {
+                        return validateInnerTxnChargedUsd("uniqueTokenUpdate", ATOMIC_BATCH, expectedUpdatePriceUsd, 5);
+                    }
+                }));
     }
 
     @HapiTest
@@ -1050,7 +1394,19 @@ class AtomicTokenServiceFeesSuite {
                         .via(ATOMIC_BATCH)
                         .signedByPayerAnd(BATCH_OPERATOR)
                         .payingWith(BATCH_OPERATOR),
-                validateInnerTxnChargedUsd(nftUpdateTxn, ATOMIC_BATCH, expectedNftUpdatePriceUsd, 0.01));
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return validateInnerChargedUsdWithinWithTxnSize(
+                                nftUpdateTxn,
+                                ATOMIC_BATCH,
+                                txnSize -> expectedTokenNftUpdateFullFeeUsd(Map.of(
+                                        SIGNATURES, 1,
+                                        NON_FUNGIBLE_TOKENS, 7,
+                                        TXN_SIZE, txnSize)), 0.1);
+                    } else {
+                        return validateInnerTxnChargedUsd(nftUpdateTxn, ATOMIC_BATCH, expectedNftUpdatePriceUsd, 0.01);
+                    }
+                }));
     }
 
     @HapiTest
@@ -1073,7 +1429,19 @@ class AtomicTokenServiceFeesSuite {
                         .via(ATOMIC_BATCH)
                         .signedByPayerAnd(BATCH_OPERATOR)
                         .payingWith(BATCH_OPERATOR),
-                validateInnerTxnChargedUsd("uniqueTokenDelete", ATOMIC_BATCH, expectedDeletePriceUsd, 5));
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return validateInnerChargedUsdWithinWithTxnSize(
+                                "uniqueTokenDelete",
+                                ATOMIC_BATCH,
+                                txnSize -> expectedTokenDeleteFullFeeUsd(Map.of(
+                                        SIGNATURES, 1,
+                                        NON_FUNGIBLE_TOKENS, 1,
+                                        TXN_SIZE, txnSize)), 0.1);
+                    } else {
+                        return validateInnerTxnChargedUsd("uniqueTokenDelete", ATOMIC_BATCH, expectedDeletePriceUsd, 5);
+                    }
+                }));
     }
 
     private HapiSpecOperation[] tokenAssociateDissociateSetup() {
@@ -1101,7 +1469,19 @@ class AtomicTokenServiceFeesSuite {
                                 .via(ATOMIC_BATCH)
                                 .signedByPayerAnd(BATCH_OPERATOR)
                                 .payingWith(BATCH_OPERATOR),
-                        validateInnerTxnChargedUsd("tokenAssociate", ATOMIC_BATCH, 0.05, 5)));
+                        doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                            if ("true".equals(flag)) {
+                                return validateInnerChargedUsdWithinWithTxnSize(
+                                        "tokenAssociate",
+                                        ATOMIC_BATCH,
+                                        txnSize -> expectedTokenAssociateFullFeeUsd(Map.of(
+                                                SIGNATURES, 1,
+                                                TOKENS, 1,
+                                                TXN_SIZE, txnSize)), 0.1);
+                            } else {
+                                return validateInnerTxnChargedUsd("tokenAssociate", ATOMIC_BATCH, 0.05, 5);
+                            }
+                        })));
     }
 
     @HapiTest
@@ -1123,7 +1503,18 @@ class AtomicTokenServiceFeesSuite {
                                 .via(ATOMIC_BATCH)
                                 .signedByPayerAnd(BATCH_OPERATOR)
                                 .payingWith(BATCH_OPERATOR),
-                        validateInnerTxnChargedUsd("tokenDissociate", ATOMIC_BATCH, 0.05, 5)));
+                        doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                            if ("true".equals(flag)) {
+                                return validateInnerChargedUsdWithinWithTxnSize(
+                                        "tokenDissociate",
+                                        ATOMIC_BATCH,
+                                        txnSize -> expectedTokenDissociateFullFeeUsd(Map.of(
+                                                SIGNATURES, 1,
+                                                TXN_SIZE, txnSize)), 0.1);
+                            } else {
+                                return validateInnerTxnChargedUsd("tokenDissociate", ATOMIC_BATCH, 0.05, 5);
+                            }
+                        })));
     }
 
     @HapiTest
@@ -1168,7 +1559,19 @@ class AtomicTokenServiceFeesSuite {
                         .via(ATOMIC_BATCH)
                         .signedByPayerAnd(BATCH_OPERATOR)
                         .payingWith(BATCH_OPERATOR),
-                validateInnerTxnChargedUsd(nftUpdateTxn, ATOMIC_BATCH, expectedNftUpdatePriceUsd, 0.01));
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return validateInnerChargedUsdWithinWithTxnSize(
+                                nftUpdateTxn,
+                                ATOMIC_BATCH,
+                                txnSize -> expectedTokenNftUpdateFullFeeUsd(Map.of(
+                                        SIGNATURES, 1,
+                                        NON_FUNGIBLE_TOKENS, 5,
+                                        TXN_SIZE, txnSize)), 0.1);
+                    } else {
+                        return validateInnerTxnChargedUsd(nftUpdateTxn, ATOMIC_BATCH, expectedNftUpdatePriceUsd, 0.01);
+                    }
+                }));
     }
 
     @HapiTest
@@ -1210,7 +1613,19 @@ class AtomicTokenServiceFeesSuite {
                         .via(ATOMIC_BATCH)
                         .signedByPayerAnd(BATCH_OPERATOR)
                         .payingWith(BATCH_OPERATOR),
-                validateInnerTxnChargedUsd("nftUpdateTxn", ATOMIC_BATCH, expectedTokenUpdateNfts, 1));
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return validateInnerChargedUsdWithinWithTxnSize(
+                                "nftUpdateTxn",
+                                ATOMIC_BATCH,
+                                txnSize -> expectedTokenNftUpdateFullFeeUsd(Map.of(
+                                        SIGNATURES, 1,
+                                        NON_FUNGIBLE_TOKENS, 1,
+                                        TXN_SIZE, txnSize)), 0.1);
+                    } else {
+                        return validateInnerTxnChargedUsd("nftUpdateTxn", ATOMIC_BATCH, expectedTokenUpdateNfts, 1);
+                    }
+                }));
     }
 
     // verify bulk operations base fees
