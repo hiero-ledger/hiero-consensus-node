@@ -18,6 +18,7 @@ import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewNode;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingTwo;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.safeValidateChargedUsdWithin;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.suites.HapiSuite.ADDRESS_BOOK_CONTROL;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
@@ -453,7 +454,7 @@ public class NodeCreateTest {
                         .via("nodeCreationFailed"),
                 getTxnRecord("nodeCreationFailed").logged(),
                 // Validate that the failed transaction charges the correct fees.
-                validateChargedUsdWithin("nodeCreationFailed", 0.001, 3),
+                safeValidateChargedUsdWithin("nodeCreationFailed", 0.001, 1, 0.001, 1),
                 nodeCreate("ntb", nodeAccount)
                         .adminKey(ED_25519_KEY)
                         .fee(ONE_HBAR)
@@ -474,7 +475,7 @@ public class NodeCreateTest {
                         .gossipCaCertificate(gossipCertificates.getLast().getEncoded())
                         .hasKnownStatus(UNAUTHORIZED)
                         .via("multipleSigsCreation"),
-                validateChargedUsdWithin("multipleSigsCreation", 0.0011276316, 3.0));
+                safeValidateChargedUsdWithin("multipleSigsCreation", 0.0011276316, 1.0, 0.001, 1.0));
     }
 
     /**

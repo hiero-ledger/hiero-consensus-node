@@ -15,6 +15,7 @@ import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfe
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewNode;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.safeValidateChargedUsdWithin;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.suites.HapiSuite.ADDRESS_BOOK_CONTROL;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
@@ -87,7 +88,7 @@ public class NodeDeleteTest {
                         .via("failedDeletion"),
                 getTxnRecord("failedDeletion").logged(),
                 // The fee is charged here because the payer is not privileged
-                validateChargedUsdWithin("failedDeletion", 0.001, 3.0),
+                safeValidateChargedUsdWithin("failedDeletion", 0.001, 1.0, 0.001, 1.0),
 
                 // Submit with several signatures and the price should increase
                 nodeDelete("node100")
@@ -97,11 +98,11 @@ public class NodeDeleteTest {
                         .sigMapPrefixes(uniqueWithFullPrefixesFor("payer", "randomAccount", "testKey"))
                         .hasKnownStatus(INVALID_SIGNATURE)
                         .via("multipleSigsDeletion"),
-                validateChargedUsdWithin("multipleSigsDeletion", 0.0011276316, 3.0),
+                safeValidateChargedUsdWithin("multipleSigsDeletion", 0.0011276316, 1.0, 0.001, 1.0),
                 nodeDelete("node100").via("deleteNode"),
                 getTxnRecord("deleteNode").logged(),
                 // The fee is not charged here because the payer is privileged
-                validateChargedUsdWithin("deleteNode", 0.0, 3.0));
+                validateChargedUsdWithin("deleteNode", 0.0, 1.0));
     }
 
     @EmbeddedHapiTest(MUST_SKIP_INGEST)
