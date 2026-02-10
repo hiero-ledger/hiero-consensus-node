@@ -244,7 +244,9 @@ public class CryptoGetInfoRegression {
                         .hasAnswerOnlyPrecheck(INSUFFICIENT_PAYER_BALANCE));
     }
 
-    @LeakyHapiTest(overrides = "fees.simpleFeesEnabled")
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"fees.simpleFeesEnabled"})
     final Stream<DynamicTest> failsForInsufficientPayment() {
         return hapiTest(
                 overriding("fees.simpleFeesEnabled", "false"),
