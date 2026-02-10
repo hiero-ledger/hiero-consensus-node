@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.integration;
 
-import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION;
-import static com.hedera.services.bdd.junit.TestTags.INTEGRATION;
-import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.REPEATABLE;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
+import static com.hedera.services.bdd.junit.TestTags.SIMPLE_FEES;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.resourceAsString;
@@ -22,8 +21,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 
-import com.hedera.services.bdd.junit.LeakyRepeatableHapiTest;
-import com.hedera.services.bdd.junit.TargetEmbeddedMode;
+import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hedera.services.bdd.spec.utilops.SysFileOverrideOp;
 import java.util.Arrays;
@@ -34,7 +32,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 
 /**
@@ -42,9 +39,8 @@ import org.junit.jupiter.api.Tag;
  * Verifies that the SimpleFeeCalculatorImpl correctly applies congestion multipliers
  * when network conditions warrant increased fees.
  */
-@Order(-1)
-@Tag(INTEGRATION)
-@TargetEmbeddedMode(REPEATABLE)
+@Tag(SIMPLE_FEES)
+@Tag(MATS)
 public class SimpleFeesCongestionPricingTest {
     private static final Logger log = LogManager.getLogger(SimpleFeesCongestionPricingTest.class);
 
@@ -61,9 +57,7 @@ public class SimpleFeesCongestionPricingTest {
      * 5. Performs another transfer under congestion and verifies the fee increased
      * 6. Asserts the fee multiplier is approximately 7x as configured
      */
-    @LeakyRepeatableHapiTest(
-            value = {NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION},
-            overrides = {"fees.percentCongestionMultipliers", "fees.minCongestionPeriod"})
+    @LeakyHapiTest(overrides = {"fees.percentCongestionMultipliers", "fees.minCongestionPeriod"})
     Stream<DynamicTest> simpleFeesApplyCongestionMultiplierToTransfers() {
         AtomicLong normalPrice = new AtomicLong();
         AtomicLong congestedPrice = new AtomicLong();
