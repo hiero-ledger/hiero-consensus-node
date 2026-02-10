@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.state.signed;
+package org.hiero.consensus.state.signed;
 
 import static com.swirlds.base.units.TimeUnit.UNIT_MICROSECONDS;
 import static com.swirlds.base.units.TimeUnit.UNIT_NANOSECONDS;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 
-import com.swirlds.common.context.PlatformContext;
+import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.time.Instant;
@@ -42,11 +42,11 @@ public class DefaultStateGarbageCollector implements StateGarbageCollector {
     /**
      * Create a new instance of the garbage collector.
      *
-     * @param platformContext the platform context
+     * @param metrics the metrics system to use for recording garbage collector metrics
      */
-    public DefaultStateGarbageCollector(@NonNull final PlatformContext platformContext) {
-        undeletableStates = platformContext.getMetrics().getOrCreate(STATES_INELIGIBLE_FOR_DELETION);
-        timeToDeleteState = platformContext.getMetrics().getOrCreate(TIME_TO_DELETE_STATE_CONFIG);
+    public DefaultStateGarbageCollector(@NonNull final Metrics metrics) {
+        undeletableStates = metrics.getOrCreate(STATES_INELIGIBLE_FOR_DELETION);
+        timeToDeleteState = metrics.getOrCreate(TIME_TO_DELETE_STATE_CONFIG);
     }
 
     /**

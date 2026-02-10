@@ -16,7 +16,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 /**
@@ -100,7 +99,8 @@ public final class ConfigExport {
 
     private static String buildLine(
             final String name, final Object value, final int maxValueLength, final String suffix) {
-        return name + ", " + value + createSpaces(value.toString(), maxValueLength) + suffix;
+        final String valueString = String.valueOf(value);
+        return name + ", " + valueString + createSpaces(valueString, maxValueLength) + suffix;
     }
 
     public static void addConfigContents(
@@ -141,7 +141,8 @@ public final class ConfigExport {
     }
 
     private static String createSpaces(final String value, final int maxLength) {
-        return IntStream.range(value.length(), maxLength).mapToObj(i -> " ").reduce("", (a, b) -> a + b);
+        final int padCount = Math.max(0, maxLength - value.length());
+        return " ".repeat(padCount);
     }
 
     private static int getMaxPropertyLength(final Set<?> values) {

@@ -1157,9 +1157,12 @@ public class CryptoTransferSuite {
                     double pureOneTokenTwoAccountsUsd = rates.toUsdWithActiveRates(t1a2Fee);
                     double pureTwoTokensFourAccountsUsd = rates.toUsdWithActiveRates(t2a4Fee);
                     double pureThreeTokensSixAccountsUsd = rates.toUsdWithActiveRates(t3a6Fee);
-                    assertEquals(10.0, pureOneTokenTwoAccountsUsd / pureHbarUsd, 1.0);
-                    assertEquals(20.0, pureTwoTokensFourAccountsUsd / pureHbarUsd, 2.0);
-                    assertEquals(30.0, pureThreeTokensSixAccountsUsd / pureHbarUsd, 3.0);
+                    double expectedFeeOneToken = 10.0;
+                    double expectedFeeTwoToken = spec.simpleFeesEnabled() ? 14.0 : 20.0;
+                    double expectedFeeThreeToken = spec.simpleFeesEnabled() ? 18.0 : 30.0;
+                    assertEquals(expectedFeeOneToken, pureOneTokenTwoAccountsUsd / pureHbarUsd, 1.0);
+                    assertEquals(expectedFeeTwoToken, pureTwoTokensFourAccountsUsd / pureHbarUsd, 2.0);
+                    assertEquals(expectedFeeThreeToken, pureThreeTokensSixAccountsUsd / pureHbarUsd, 3.0);
                 }));
     }
 
@@ -1637,9 +1640,9 @@ public class CryptoTransferSuite {
                     final var bogusTokenId = TokenID.newBuilder().setTokenNum(acctCreate.numOfCreatedAccount());
                     spec.registry().saveTokenId("nonexistent", bogusTokenId.build());
                 }),
-                sourcing(() -> cryptoTransfer(
-                                movingWithDecimals(1L, "nonexistent", 2).betweenWithDecimals(PAYER, TREASURY))
-                        .hasKnownStatus(INVALID_TOKEN_ID)));
+                cryptoTransfer(movingWithDecimals(1L, "nonexistent", 2).betweenWithDecimals(PAYER, TREASURY))
+                        .hasPrecheckFrom(OK, INVALID_TOKEN_ID)
+                        .hasKnownStatus(INVALID_TOKEN_ID));
     }
 
     @HapiTest

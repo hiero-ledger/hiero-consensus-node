@@ -16,7 +16,6 @@ import com.swirlds.logging.legacy.payload.ReconnectFailurePayload.CauseOfFailure
 import com.swirlds.platform.components.SavedStateController;
 import com.swirlds.platform.reconnect.api.ReservedSignedStateResult;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
-import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.signed.SignedStateValidationData;
 import com.swirlds.platform.state.signed.SignedStateValidator;
 import com.swirlds.platform.state.snapshot.SignedStateFileReader;
@@ -46,6 +45,7 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.reconnect.config.ReconnectConfig;
 import org.hiero.consensus.roster.RosterRetriever;
+import org.hiero.consensus.state.signed.SignedState;
 
 /**
  * Orchestrates the reconnect process when a node falls behind.

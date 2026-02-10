@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.state.signed;
+package org.hiero.consensus.state.signed;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
-import static com.swirlds.platform.state.signed.SignedStateHistory.SignedStateAction.CREATION;
-import static com.swirlds.platform.state.signed.SignedStateHistory.SignedStateAction.RELEASE;
-import static com.swirlds.platform.state.signed.SignedStateHistory.SignedStateAction.RESERVE;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.base.utility.Threshold.MAJORITY;
 import static org.hiero.base.utility.Threshold.SUPER_MAJORITY;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.consensusTimestampOf;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.isGenesisStateOf;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.roundOf;
+import static org.hiero.consensus.state.signed.SignedStateHistory.SignedStateAction.CREATION;
+import static org.hiero.consensus.state.signed.SignedStateHistory.SignedStateAction.RELEASE;
+import static org.hiero.consensus.state.signed.SignedStateHistory.SignedStateAction.RESERVE;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
@@ -19,9 +19,6 @@ import com.swirlds.common.utility.ReferenceCounter;
 import com.swirlds.common.utility.RuntimeObjectRecord;
 import com.swirlds.common.utility.RuntimeObjectRegistry;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.platform.config.StateConfig;
-import com.swirlds.platform.state.signed.SignedStateHistory.SignedStateAction;
-import com.swirlds.platform.state.snapshot.StateToDiskReason;
 import com.swirlds.state.merkle.VirtualMapState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -40,6 +37,9 @@ import org.hiero.consensus.crypto.SignatureVerifier;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterRetriever;
 import org.hiero.consensus.roster.RosterUtils;
+import org.hiero.consensus.state.config.StateConfig;
+import org.hiero.consensus.state.signed.SignedStateHistory.SignedStateAction;
+import org.hiero.consensus.state.snapshot.StateToDiskReason;
 
 /**
  * <p>
