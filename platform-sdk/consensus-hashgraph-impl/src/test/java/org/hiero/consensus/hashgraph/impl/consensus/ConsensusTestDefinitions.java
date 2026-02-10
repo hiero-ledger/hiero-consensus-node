@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.hashgraph.impl.consensus;
 
-import static com.swirlds.platform.test.fixtures.graph.OtherParentMatrixFactory.createBalancedOtherParentMatrix;
-import static com.swirlds.platform.test.fixtures.graph.OtherParentMatrixFactory.createCliqueOtherParentMatrix;
-import static com.swirlds.platform.test.fixtures.graph.OtherParentMatrixFactory.createPartitionedOtherParentAffinityMatrix;
-import static com.swirlds.platform.test.fixtures.graph.OtherParentMatrixFactory.createShunnedNodeOtherParentAffinityMatrix;
 import static org.hiero.consensus.hashgraph.impl.test.fixtures.event.EventUtils.integerPowerDistribution;
+import static org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.OtherParentMatrixFactory.createBalancedOtherParentMatrix;
+import static org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.OtherParentMatrixFactory.createCliqueOtherParentMatrix;
+import static org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.OtherParentMatrixFactory.createPartitionedOtherParentAffinityMatrix;
+import static org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.OtherParentMatrixFactory.createShunnedNodeOtherParentAffinityMatrix;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
