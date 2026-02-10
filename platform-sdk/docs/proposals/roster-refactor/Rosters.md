@@ -172,7 +172,7 @@ Change all protobuf `Roster` usages to `RosterData`. After this task is complete
 * DefaultSignedStateValidator support code
   * `com.swirlds.platform.reconnect.DefaultSignedStateValidator`
   * `com.swirlds.platform.state.signed.SignedStateValidator`
-  * `com.swirlds.platform.state.signed.SignedState`
+  * `org.hiero.consensus.state.signed.SignedState`
   * `com.swirlds.platform.state.signed.SignedStateInfo`
   * `com.swirlds.platform.state.signed.SignedStateValidationData`
   * `com.swirlds.platform.metrics.IssMetrics`

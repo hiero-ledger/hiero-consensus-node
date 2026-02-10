@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.state.signed;
+package org.hiero.consensus.state.signed;
 
-import static com.swirlds.platform.state.signed.SignedStateHistory.SignedStateAction.RESERVE;
+import static org.hiero.consensus.state.signed.SignedStateHistory.SignedStateAction.RESERVE;
 
 import com.swirlds.base.formatting.TextTable;
 import com.swirlds.base.time.Time;
