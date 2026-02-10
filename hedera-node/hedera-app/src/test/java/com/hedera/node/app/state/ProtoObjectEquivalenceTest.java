@@ -24,11 +24,10 @@ import org.junit.jupiter.api.Test;
 
 /**
  * Verifies binary compatibility between swirlds-impl protos and HAPI-generated PBJ objects/codecs.
- *
  * The following types are covered:
  * - com.swirlds.state.merkle.StateItem vs com.hedera.hapi.platform.state.StateItem
  * - com.swirlds.state.merkle.StateValue vs com.hedera.hapi.platform.state.StateValue
- * - com.swirlds.state.QueueState vs com.hedera.hapi.platform.state.QueueState
+ * - com.swirlds.state.proof.QueueState vs com.hedera.hapi.platform.state.QueueState
  */
 public class ProtoObjectEquivalenceTest {
 
@@ -56,17 +55,17 @@ public class ProtoObjectEquivalenceTest {
     @Test
     @DisplayName("QueueState: bytes match and codecs cross-parse")
     void queueState_bytes_match_and_cross_parse() {
-        final com.swirlds.state.QueueState sw = new com.swirlds.state.QueueState(123L, 456L);
+        final com.swirlds.state.binary.QueueState sw = new com.swirlds.state.binary.QueueState(123L, 456L);
         final QueueState pbj = new QueueState(123L, 456L);
 
-        final byte[] swBytes = encode(new com.swirlds.state.QueueState.QueueStateCodec(), sw);
+        final byte[] swBytes = encode(new com.swirlds.state.binary.QueueState.QueueStateCodec(), sw);
         final byte[] pbjBytes = encode(QueueState.PROTOBUF, pbj);
 
         assertArrayEquals(pbjBytes, swBytes, "Swirlds and PBJ bytes must be identical for QueueState");
 
         // Cross-parse: PBJ bytes with Swirlds codec and vice versa
-        final com.swirlds.state.QueueState swParsedFromPbj =
-                decode(new com.swirlds.state.QueueState.QueueStateCodec(), pbjBytes);
+        final com.swirlds.state.binary.QueueState swParsedFromPbj =
+                decode(new com.swirlds.state.binary.QueueState.QueueStateCodec(), pbjBytes);
         assertEquals(sw, swParsedFromPbj, "Swirlds codec should parse PBJ bytes into equal value");
 
         final QueueState pbjParsedFromSw = decode(QueueState.PROTOBUF, swBytes);
