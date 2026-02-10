@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.reconnect.api;
 
-import com.swirlds.platform.state.signed.ReservedSignedState;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import org.hiero.consensus.state.signed.ReservedSignedState;
 
 /**
  * Represents the result of a reconnect operation, containing either a reserved signed state or an exception.

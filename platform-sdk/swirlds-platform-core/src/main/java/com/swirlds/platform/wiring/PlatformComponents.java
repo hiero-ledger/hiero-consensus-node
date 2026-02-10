@@ -12,8 +12,6 @@ import com.swirlds.platform.builder.PlatformComponentBuilder;
 import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.components.SavedStateController;
-import com.swirlds.platform.components.appcomm.CompleteStateNotificationWithCleanup;
-import com.swirlds.platform.components.appcomm.LatestCompleteStateNotifier;
 import com.swirlds.platform.event.branching.BranchDetector;
 import com.swirlds.platform.event.branching.BranchReporter;
 import com.swirlds.platform.event.preconsensus.PcesReplayer;
@@ -29,9 +27,7 @@ import com.swirlds.platform.state.iss.IssDetector;
 import com.swirlds.platform.state.iss.IssHandler;
 import com.swirlds.platform.state.nexus.LatestCompleteStateNexus;
 import com.swirlds.platform.state.nexus.SignedStateNexus;
-import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedStateSentinel;
-import com.swirlds.platform.state.signed.StateGarbageCollector;
 import com.swirlds.platform.state.signed.StateSignatureCollector;
 import com.swirlds.platform.state.signer.StateSigner;
 import com.swirlds.platform.state.snapshot.StateSnapshotManager;
@@ -53,6 +49,8 @@ import org.hiero.consensus.model.state.StateSavingResult;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.consensus.pces.PcesModule;
+import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.state.signed.StateGarbageCollector;
 
 /**
  * Encapsulates wiring for {@link SwirldsPlatform}.
@@ -78,8 +76,6 @@ public record PlatformComponents(
         ComponentWiring<IssDetector, List<IssNotification>> issDetectorWiring,
         ComponentWiring<IssHandler, Void> issHandlerWiring,
         ComponentWiring<HashLogger, Void> hashLoggerWiring,
-        ComponentWiring<LatestCompleteStateNotifier, CompleteStateNotificationWithCleanup>
-                latestCompleteStateNotifierWiring,
         ComponentWiring<SignedStateNexus, Void> latestImmutableStateNexusWiring,
         ComponentWiring<LatestCompleteStateNexus, Void> latestCompleteStateNexusWiring,
         ComponentWiring<SavedStateController, StateWithHashComplexity> savedStateControllerWiring,
@@ -123,7 +119,6 @@ public record PlatformComponents(
         issDetectorWiring.bind(builder::buildIssDetector);
         issHandlerWiring.bind(builder::buildIssHandler);
         hashLoggerWiring.bind(builder::buildHashLogger);
-        latestCompleteStateNotifierWiring.bind(builder::buildLatestCompleteStateNotifier);
         latestImmutableStateNexusWiring.bind(latestImmutableStateNexus);
         latestCompleteStateNexusWiring.bind(latestCompleteStateNexus);
         savedStateControllerWiring.bind(savedStateController);
@@ -185,7 +180,6 @@ public record PlatformComponents(
                 new ComponentWiring<>(model, IssDetector.class, config.issDetector()),
                 new ComponentWiring<>(model, IssHandler.class, config.issHandler()),
                 new ComponentWiring<>(model, HashLogger.class, config.hashLogger()),
-                new ComponentWiring<>(model, LatestCompleteStateNotifier.class, config.latestCompleteStateNotifier()),
                 new ComponentWiring<>(model, SignedStateNexus.class, DIRECT_THREADSAFE_CONFIGURATION),
                 new ComponentWiring<>(model, LatestCompleteStateNexus.class, DIRECT_THREADSAFE_CONFIGURATION),
                 new ComponentWiring<>(model, SavedStateController.class, DIRECT_THREADSAFE_CONFIGURATION),

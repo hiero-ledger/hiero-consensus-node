@@ -1105,6 +1105,26 @@ public class BlockNodeConnectionManager {
     }
 
     /**
+     * Increments the count of BehindPublisher responses for the specified block node
+     * and then checks if this new count exceeds the configured rate limit.
+     *
+     * @param blockNodeConfig the configuration for the block node
+     * @param timestamp the timestamp of the BehindPublisher response
+     * @return true if the rate limit is exceeded, otherwise false
+     */
+    public boolean recordBehindPublisherAndCheckLimit(
+            @NonNull final BlockNodeConfiguration blockNodeConfig, @NonNull final Instant timestamp) {
+        if (!isStreamingEnabled()) {
+            return false;
+        }
+        requireNonNull(blockNodeConfig, "blockNodeConfig must not be null");
+
+        final BlockNodeStats stats = nodeStats.computeIfAbsent(blockNodeConfig, k -> new BlockNodeStats());
+        return stats.addBehindPublisherAndCheckLimit(
+                timestamp, getMaxBehindPublishersAllowed(), getBehindPublisherTimeframe());
+    }
+
+    /**
      * Gets the configured delay for EndOfStream rate limit violations.
      *
      * @return the delay before retrying after rate limit exceeded
@@ -1117,6 +1137,18 @@ public class BlockNodeConnectionManager {
     }
 
     /**
+     * Gets the configured delay for BehindPublisher rate limit violations.
+     *
+     * @return the delay before retrying after BehindPublisher rate limit exceeded
+     */
+    public Duration getBehindPublisherScheduleDelay() {
+        return configProvider
+                .getConfiguration()
+                .getConfigData(BlockNodeConnectionConfig.class)
+                .behindPublisherScheduleDelay();
+    }
+
+    /**
      * Gets the configured timeframe for counting EndOfStream responses.
      *
      * @return the timeframe for rate limiting EndOfStream responses
@@ -1126,6 +1158,18 @@ public class BlockNodeConnectionManager {
                 .getConfiguration()
                 .getConfigData(BlockNodeConnectionConfig.class)
                 .endOfStreamTimeFrame();
+    }
+
+    /**
+     * Gets the configured timeframe for counting BehindPublisher responses.
+     *
+     * @return the timeframe for rate limiting BehindPublisher responses
+     */
+    public Duration getBehindPublisherTimeframe() {
+        return configProvider
+                .getConfiguration()
+                .getConfigData(BlockNodeConnectionConfig.class)
+                .behindPublisherTimeFrame();
     }
 
     private Duration getForcedSwitchRescheduleDelay() {
@@ -1148,6 +1192,18 @@ public class BlockNodeConnectionManager {
     }
 
     /**
+     * Gets the maximum number of BehindPublisher responses allowed before taking corrective action.
+     *
+     * @return the maximum number of BehindPublisher responses permitted
+     */
+    public int getMaxBehindPublishersAllowed() {
+        return configProvider
+                .getConfiguration()
+                .getConfigData(BlockNodeConnectionConfig.class)
+                .maxBehindPublishersAllowed();
+    }
+
+    /**
      * Retrieves the total count of EndOfStream responses received from the specified block node.
      *
      * @param blockNodeConfig the configuration for the block node
@@ -1160,6 +1216,21 @@ public class BlockNodeConnectionManager {
         requireNonNull(blockNodeConfig, "blockNodeConfig must not be null");
         final BlockNodeStats stats = nodeStats.get(blockNodeConfig);
         return stats != null ? stats.getEndOfStreamCount() : 0;
+    }
+
+    /**
+     * Retrieves the total count of BehindPublisher responses received from the specified block node.
+     *
+     * @param blockNodeConfig the configuration for the block node
+     * @return the total count of BehindPublisher responses
+     */
+    public int getBehindPublisherCount(@NonNull final BlockNodeConfiguration blockNodeConfig) {
+        if (!isStreamingEnabled()) {
+            return 0;
+        }
+        requireNonNull(blockNodeConfig, "blockNodeConfig must not be null");
+        final BlockNodeStats stats = nodeStats.get(blockNodeConfig);
+        return stats != null ? stats.getBehindPublisherCount() : 0;
     }
 
     private Duration getHighLatencyThreshold() {

@@ -19,7 +19,6 @@ module com.swirlds.platform.core {
     exports com.swirlds.platform;
     exports com.swirlds.platform.builder;
     exports com.swirlds.platform.components;
-    exports com.swirlds.platform.components.appcomm;
     exports com.swirlds.platform.components.common.output;
     exports com.swirlds.platform.components.state.output;
     exports com.swirlds.platform.config;
@@ -93,6 +92,7 @@ module com.swirlds.platform.core {
     requires transitive org.hiero.consensus.pces;
     requires transitive org.hiero.consensus.reconnect;
     requires transitive org.hiero.consensus.roster;
+    requires transitive org.hiero.consensus.state;
     requires transitive org.hiero.consensus.utility;
     requires com.swirlds.config.extensions;
     requires com.swirlds.logging;

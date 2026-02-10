@@ -14,6 +14,7 @@ open module com.swirlds.platform.core.test.fixtures {
     requires transitive org.hiero.base.utility;
     requires transitive org.hiero.consensus.model;
     requires transitive org.hiero.consensus.platformstate;
+    requires transitive org.hiero.consensus.state;
     requires transitive org.hiero.consensus.utility;
     requires com.swirlds.config.extensions;
     requires com.swirlds.logging;

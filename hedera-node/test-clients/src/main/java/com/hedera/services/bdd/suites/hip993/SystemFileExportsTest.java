@@ -418,7 +418,7 @@ public class SystemFileExportsTest {
                                 19,
                                 (ignore, item) -> item.getRecord().getReceipt().hasFileID()
                                         || item.getRecord().getMemo().equals(END_OF_PERIOD_MEMO)),
-                        Duration.ofSeconds(100000)),
+                        Duration.ofSeconds(10)),
                 getSystemFiles(preGenesisContents::set),
                 cryptoCreate("firstUser").via("genesisTxn"),
                 // Assert the first created entity still has the expected number
@@ -616,8 +616,8 @@ public class SystemFileExportsTest {
                     postGenesisContents.get(entry.createdFileId()), "No post-genesis contents for " + fileId);
             final var exportedContents =
                     fromByteString(entry.body().getFileCreate().getContents());
-            if (fileId.fileNum()
-                    != 102) { // for nodedetail, the node's weight changed between preContent and exportedContents
+            if (fileId.fileNum() != 102) {
+                //  The node's weight in node details can change between preContent and exportedContents
                 assertEquals(exportedContents, preContents, fileId + " contents don't match pre-genesis query");
             }
             assertEquals(exportedContents, postContents, fileId + " contents don't match post-genesis query");

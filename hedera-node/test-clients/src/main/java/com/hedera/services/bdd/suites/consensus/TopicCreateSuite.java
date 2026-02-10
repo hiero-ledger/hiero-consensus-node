@@ -19,6 +19,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.updateTopic;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.exposeTargetLedgerIdTo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sendModified;
@@ -166,7 +167,6 @@ public class TopicCreateSuite {
     // TOPIC_RENEW_5
     @HapiTest
     final Stream<DynamicTest> autoRenewAccountIdDoesNotNeedAdminKeyAutoRenewIsAlsoPayer_ECDSA() {
-        final var expectedPriceUsd = 0.0103;
         return hapiTest(
                 newKeyNamed("autoRenewAccountKey").shape(KeyShape.SECP256K1),
                 cryptoCreate("autoRenewAccount").key("autoRenewAccountKey").balance(ONE_HBAR),
@@ -178,13 +178,18 @@ public class TopicCreateSuite {
                 getTopicInfo("noAdminKeyExplicitAutoRenewAccount")
                         .hasNoAdminKey()
                         .hasAutoRenewAccount("autoRenewAccount"),
-                validateChargedUsd("createTopic", expectedPriceUsd, 1.0));
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return validateChargedUsd("createTopic", 0.01, 1.0);
+                    } else {
+                        return validateChargedUsd("createTopic", 0.0103, 1.0);
+                    }
+                }));
     }
 
     // TOPIC_RENEW_6 - Public topic
     @HapiTest
     final Stream<DynamicTest> autoRenewAccountIdDoesNotNeedAdminKeyAutoRenewIsAlsoPayer() {
-        final var expectedPriceUsd = 0.0103;
         return hapiTest(
                 cryptoCreate("autoRenewAccount").balance(ONE_HBAR),
                 createTopic("noAdminKeyExplicitAutoRenewAccount")
@@ -195,13 +200,18 @@ public class TopicCreateSuite {
                 getTopicInfo("noAdminKeyExplicitAutoRenewAccount")
                         .hasNoAdminKey()
                         .hasAutoRenewAccount("autoRenewAccount"),
-                validateChargedUsd("createTopic", expectedPriceUsd, 1.0));
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return validateChargedUsd("createTopic", 0.01, 1.0);
+                    } else {
+                        return validateChargedUsd("createTopic", 0.0103, 1.0);
+                    }
+                }));
     }
 
     // TOPIC_RENEW_6 - Private topic
     @HapiTest
     final Stream<DynamicTest> autoRenewAccountIdDoesNotNeedAdminKeyAutoRenewIsAlsoPayerPrivateTopic() {
-        final var expectedPriceUsd = 0.0105;
         return hapiTest(
                 newKeyNamed("submitKey"),
                 cryptoCreate("autoRenewAccount").balance(ONE_HBAR),
@@ -214,7 +224,13 @@ public class TopicCreateSuite {
                 getTopicInfo("noAdminKeyExplicitAutoRenewAccount")
                         .hasNoAdminKey()
                         .hasAutoRenewAccount("autoRenewAccount"),
-                validateChargedUsd("createTopic", expectedPriceUsd, 1.0));
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return validateChargedUsd("createTopic", 0.02, 1.0);
+                    } else {
+                        return validateChargedUsd("createTopic", 0.0105, 1.0);
+                    }
+                }));
     }
 
     @HapiTest
