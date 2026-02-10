@@ -17,11 +17,9 @@ import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
-
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Map;
 import java.util.stream.Stream;
-
-import edu.umd.cs.findbugs.annotations.NonNull;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
@@ -32,14 +30,16 @@ public class Hip1313DisabledTest {
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(Map.of("fees.simpleFeesEnabled", "false",
-                "networkAdmin.highVolumeThrottlesEnabled", "false"));
+        testLifecycle.overrideInClass(
+                Map.of("fees.simpleFeesEnabled", "false", "networkAdmin.highVolumeThrottlesEnabled", "false"));
     }
 
     @HapiTest
     final Stream<DynamicTest> highVolumeTxnRejectedWhenFeatureDisabled() {
-        return hapiTest(
-                createTopic("hvDisabledTopic").payingWith(CIVILIAN_PAYER).withHighVolume().hasPrecheck(NOT_SUPPORTED));
+        return hapiTest(createTopic("hvDisabledTopic")
+                .payingWith(CIVILIAN_PAYER)
+                .withHighVolume()
+                .hasPrecheck(NOT_SUPPORTED));
     }
 
     @LeakyHapiTest(
@@ -49,8 +49,14 @@ public class Hip1313DisabledTest {
     final Stream<DynamicTest> existingThrottlesStillApplyWhenHip1313Disabled() {
         return hapiTest(
                 overridingThrottles("testSystemFiles/hip1313-disabled-one-tps-create.json"),
-                cryptoCreate("regularCreateA").payingWith(CIVILIAN_PAYER).withHighVolume().hasPrecheck(NOT_SUPPORTED),
-                cryptoCreate("regularCreateA").payingWith(CIVILIAN_PAYER).deferStatusResolution().hasPrecheck(OK),
+                cryptoCreate("regularCreateA")
+                        .payingWith(CIVILIAN_PAYER)
+                        .withHighVolume()
+                        .hasPrecheck(NOT_SUPPORTED),
+                cryptoCreate("regularCreateA")
+                        .payingWith(CIVILIAN_PAYER)
+                        .deferStatusResolution()
+                        .hasPrecheck(OK),
                 cryptoCreate("regularCreateB").payingWith(CIVILIAN_PAYER).hasPrecheck(BUSY));
     }
 }
