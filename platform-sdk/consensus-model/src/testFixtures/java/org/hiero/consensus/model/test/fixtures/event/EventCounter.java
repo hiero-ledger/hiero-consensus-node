@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.event.intake.impl;
+package org.hiero.consensus.model.test.fixtures.event;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
