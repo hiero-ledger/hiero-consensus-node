@@ -304,11 +304,11 @@ public class LeakyCryptoTestsSuite {
                 tokenAssociate(OWNER, FUNGIBLE_TOKEN),
                 tokenAssociate(OWNER, NON_FUNGIBLE_TOKEN),
                 mintToken(
-                        NON_FUNGIBLE_TOKEN,
-                        List.of(
-                                ByteString.copyFromUtf8("a"),
-                                ByteString.copyFromUtf8("b"),
-                                ByteString.copyFromUtf8("c")))
+                                NON_FUNGIBLE_TOKEN,
+                                List.of(
+                                        ByteString.copyFromUtf8("a"),
+                                        ByteString.copyFromUtf8("b"),
+                                        ByteString.copyFromUtf8("c")))
                         .via(NFT_TOKEN_MINT_TXN),
                 mintToken(FUNGIBLE_TOKEN, 500L).via(FUNGIBLE_TOKEN_MINT_TXN),
                 cryptoTransfer(movingUnique(NON_FUNGIBLE_TOKEN, 1L, 2L, 3L).between(TOKEN_TREASURY, OWNER)),
@@ -363,11 +363,11 @@ public class LeakyCryptoTestsSuite {
                 tokenAssociate(OWNER, FUNGIBLE_TOKEN),
                 tokenAssociate(OWNER, NON_FUNGIBLE_TOKEN),
                 mintToken(
-                        NON_FUNGIBLE_TOKEN,
-                        List.of(
-                                ByteString.copyFromUtf8("a"),
-                                ByteString.copyFromUtf8("b"),
-                                ByteString.copyFromUtf8("c")))
+                                NON_FUNGIBLE_TOKEN,
+                                List.of(
+                                        ByteString.copyFromUtf8("a"),
+                                        ByteString.copyFromUtf8("b"),
+                                        ByteString.copyFromUtf8("c")))
                         .via(NFT_TOKEN_MINT_TXN),
                 mintToken(FUNGIBLE_TOKEN, 500L).via(FUNGIBLE_TOKEN_MINT_TXN),
                 cryptoTransfer(movingUnique(NON_FUNGIBLE_TOKEN, 1L, 2L, 3L).between(TOKEN_TREASURY, OWNER)),
@@ -416,59 +416,59 @@ public class LeakyCryptoTestsSuite {
         return hapiTest(
                 cryptoCreate(CIVILIAN_PAYER),
                 explicit(
-                        StateSignatureTransaction,
-                        (spec, b) ->
-                                b.setStateSignatureTransaction(com.hedera.hapi.platform.event.legacy
-                                        .StateSignatureTransaction.getDefaultInstance()))
+                                StateSignatureTransaction,
+                                (spec, b) ->
+                                        b.setStateSignatureTransaction(com.hedera.hapi.platform.event.legacy
+                                                .StateSignatureTransaction.getDefaultInstance()))
                         .payingWith(CIVILIAN_PAYER)
                         .hasPrecheck(BUSY),
                 explicit(
-                        HintsPreprocessingVote,
-                        (spec, b) -> b.setHintsPreprocessingVote(
-                                HintsPreprocessingVoteTransactionBody.getDefaultInstance()))
+                                HintsPreprocessingVote,
+                                (spec, b) -> b.setHintsPreprocessingVote(
+                                        HintsPreprocessingVoteTransactionBody.getDefaultInstance()))
                         .payingWith(CIVILIAN_PAYER)
                         .hasPrecheck(BUSY),
                 explicit(
-                        HintsKeyPublication,
-                        (spec, b) -> b.setHintsKeyPublication(
-                                HintsKeyPublicationTransactionBody.getDefaultInstance()))
+                                HintsKeyPublication,
+                                (spec, b) -> b.setHintsKeyPublication(
+                                        HintsKeyPublicationTransactionBody.getDefaultInstance()))
                         .payingWith(CIVILIAN_PAYER)
                         .hasPrecheck(BUSY),
                 explicit(
-                        HintsPartialSignature,
-                        (spec, b) -> b.setHintsPartialSignature(
-                                HintsPartialSignatureTransactionBody.getDefaultInstance()))
+                                HintsPartialSignature,
+                                (spec, b) -> b.setHintsPartialSignature(
+                                        HintsPartialSignatureTransactionBody.getDefaultInstance()))
                         .payingWith(CIVILIAN_PAYER)
                         .hasPrecheck(BUSY),
                 explicit(
-                        HistoryProofKeyPublication,
-                        (spec, b) -> b.setHistoryProofKeyPublication(
-                                HistoryProofKeyPublicationTransactionBody.getDefaultInstance()))
+                                HistoryProofKeyPublication,
+                                (spec, b) -> b.setHistoryProofKeyPublication(
+                                        HistoryProofKeyPublicationTransactionBody.getDefaultInstance()))
                         .payingWith(CIVILIAN_PAYER)
                         .hasPrecheck(BUSY),
                 explicit(
-                        HistoryAssemblySignature,
-                        (spec, b) -> b.setHistoryProofSignature(
-                                HistoryProofSignatureTransactionBody.getDefaultInstance()))
+                                HistoryAssemblySignature,
+                                (spec, b) -> b.setHistoryProofSignature(
+                                        HistoryProofSignatureTransactionBody.getDefaultInstance()))
                         .payingWith(CIVILIAN_PAYER)
                         .hasPrecheck(BUSY),
                 explicit(
-                        HistoryProofVote,
-                        (spec, b) ->
-                                b.setHistoryProofVote(HistoryProofVoteTransactionBody.getDefaultInstance()))
+                                HistoryProofVote,
+                                (spec, b) ->
+                                        b.setHistoryProofVote(HistoryProofVoteTransactionBody.getDefaultInstance()))
                         .payingWith(CIVILIAN_PAYER)
                         .hasPrecheck(BUSY),
                 explicit(
-                        CrsPublication,
-                        (spec, b) -> b.setCrsPublication(CrsPublicationTransactionBody.getDefaultInstance()))
+                                CrsPublication,
+                                (spec, b) -> b.setCrsPublication(CrsPublicationTransactionBody.getDefaultInstance()))
                         .payingWith(CIVILIAN_PAYER)
                         .hasPrecheck(BUSY),
                 explicit(HookDispatch, (spec, b) -> b.setHookDispatch(HookDispatchTransactionBody.getDefaultInstance()))
                         .payingWith(CIVILIAN_PAYER)
                         .hasPrecheck(BUSY),
                 explicit(
-                        NodeStakeUpdate,
-                        (spec, b) -> b.setNodeStakeUpdate(NodeStakeUpdateTransactionBody.getDefaultInstance()))
+                                NodeStakeUpdate,
+                                (spec, b) -> b.setNodeStakeUpdate(NodeStakeUpdateTransactionBody.getDefaultInstance()))
                         .payingWith(CIVILIAN_PAYER)
                         .hasPrecheck(BUSY));
     }
@@ -757,9 +757,9 @@ public class LeakyCryptoTestsSuite {
                         moving(100_000, ftWithNonNetOfTransfersFractional).between(TOKEN_TREASURY, CIVILIAN),
                         movingUnique(nftWithRoyaltyPlusHtsFallback, 1L).between(TOKEN_TREASURY, CIVILIAN)),
                 cryptoTransfer(
-                        moving(10_000, ftWithNonNetOfTransfersFractional)
-                                .between(CIVILIAN, finalReceiverKey),
-                        movingUnique(nftWithRoyaltyPlusHtsFallback, 1L).between(CIVILIAN, finalReceiverKey))
+                                moving(10_000, ftWithNonNetOfTransfersFractional)
+                                        .between(CIVILIAN, finalReceiverKey),
+                                movingUnique(nftWithRoyaltyPlusHtsFallback, 1L).between(CIVILIAN, finalReceiverKey))
                         .hasKnownStatus(INSUFFICIENT_SENDER_ACCOUNT_BALANCE_FOR_CUSTOM_FEE)
                         .via(finalTxn));
     }
