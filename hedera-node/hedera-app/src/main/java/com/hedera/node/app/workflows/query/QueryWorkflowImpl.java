@@ -180,14 +180,18 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
 
             try (final var wrappedState = stateAccessor.apply(responseType)) {
                 // 2. Do some general pre-checks
-                ingestChecker.verifyPlatformActive();
+                final var paymentRequired = handler.requiresNodePayment(responseType);
+                if (paymentRequired) {
+                    ingestChecker.verifyPlatformActive();
+                } else {
+                    ingestChecker.verifyFreeQueryable();
+                }
                 if (UNSUPPORTED_RESPONSE_TYPES.contains(responseType)) {
                     throw new PreCheckException(NOT_SUPPORTED);
                 }
 
                 final var state = wrappedState.get();
                 final var storeFactory = new ReadableStoreFactoryImpl(state);
-                final var paymentRequired = handler.requiresNodePayment(responseType);
                 final var feeCalculator = feeManager.createFeeCalculator(function, consensusTime, storeFactory);
                 final QueryContext context;
                 TransactionBody txBody;

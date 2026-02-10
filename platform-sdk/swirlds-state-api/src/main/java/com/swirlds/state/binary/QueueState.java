@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.state;
+package com.swirlds.state.binary;
 
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.FieldDefinition;
