@@ -287,7 +287,9 @@ public class RoleFreeBlockUnitSplit {
             final boolean isTopLevel = topLevelIds.containsKey(idx);
             final boolean usesEnrichedLegacyRecord =
                     isTopLevel || nextContractOpUsesEnrichedLegacyRecord(unitParts, pending);
-            final boolean isBatchUnit = unitParts.stream().anyMatch(part -> part.functionality() == ATOMIC_BATCH);
+            final boolean isBatchUnit = unitParts.stream()
+                    .anyMatch(part ->
+                            part.transactionParts() != null && part.functionality() == ATOMIC_BATCH);
             unitParts.add(pending.toBlockTransactionParts(
                     topLevelIds.containsKey(idx), usesEnrichedLegacyRecord, isBatchUnit));
         }
@@ -317,6 +319,7 @@ public class RoleFreeBlockUnitSplit {
                 }
             }
             return topLevelParts != null
+                    && topLevelParts.transactionParts() != null
                     && TRIGGERING_OPS.contains(topLevelParts.functionality())
                     && CONTRACT_OPERATIONS.contains(
                             requireNonNull(pendingParts.parts).function())
