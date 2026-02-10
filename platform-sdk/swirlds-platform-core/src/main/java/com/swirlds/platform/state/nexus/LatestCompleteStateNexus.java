@@ -28,7 +28,8 @@ public interface LatestCompleteStateNexus extends SignedStateNexus {
     void setStateIfNewer(@NonNull ReservedSignedState reservedSignedState);
 
     /**
-     * Update the current platform status. Cause the latest complete state to be release if the platform is in {@link PlatformStatus#FREEZING}
+     * Update the current platform status. Causes the latest complete state to be released if the platform is in {@link PlatformStatus#FREEZING}
+     *
      * @param platformStatus the new platform status
      */
     @InputWireLabel("platform status")
