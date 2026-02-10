@@ -756,8 +756,6 @@ class BEVM {
         long lhs0 = STK0[--_sp], lhs1 = STK1[_sp], lhs2 = STK2[_sp], lhs3 = STK3[_sp];
         long rhs0 = STK0[--_sp], rhs1 = STK1[_sp], rhs2 = STK2[_sp], rhs3 = STK3[_sp];
 
-        // TODO: BUG: 0 - -1 is busted result
-
         // If both sign bits are the same and differ from the result, we overflowed
         long sub0 = lhs0 - rhs0;
         long sub1 = lhs1 - rhs1;
@@ -774,7 +772,7 @@ class BEVM {
     }
     // Check the relationship amongst the sign bits only; the lower 63 bits are
     // computed but ignored.
-    private static boolean overflowSub( long x, long y, long sum ) { return ((x^~y) & (x^sum)) < 0; }
+    private static boolean overflowSub( long x, long y, long sum ) { return ((x^y) & (x^~sum)) < 0; }
 
     private int shf( int  rbc0, int  rbc1, int  rbc2, int  rbc3,
                      long rhs0, long rhs1, long rhs2, long rhs3) {
@@ -2133,20 +2131,37 @@ class BEVM {
         assert child.getState() == MessageFrame.State.NOT_STARTED;
         _tracing.traceContextEnter(child);
         msg.start(child, _tracing);
-        assert child.getState() == MessageFrame.State.CODE_EXECUTING;
 
-        // ----------------------------
-        // Recursively call
-        _bevm.runToHalt(this,child,_tracing);
-        // ----------------------------
+        if( child.getState() == MessageFrame.State.CODE_EXECUTING ) {
+            // ----------------------------
+            // Recursively call
+            _bevm.runToHalt(this,child,_tracing);
+            // ----------------------------
+        }
 
         switch( child.getState() ) {
         case MessageFrame.State.CODE_SUSPENDED:    throw new TODO("Should not reach here");
         case MessageFrame.State.CODE_SUCCESS:      msg.codeSuccess(child, _tracing);  break; // Sets COMPLETED_SUCCESS
-        case MessageFrame.State.EXCEPTIONAL_HALT:  throw new TODO(); // msg.exceptionalHalt(child); break;
         case MessageFrame.State.REVERT:            msg.revert(child);  break;
         case MessageFrame.State.COMPLETED_SUCCESS: throw new TODO("cant find who sets this");
         case MessageFrame.State.COMPLETED_FAILED:  throw new TODO("cant find who sets this");
+        case MessageFrame.State.EXCEPTIONAL_HALT:  {
+            FrameUtils.exceptionalHalt(child);
+            var haltReason = child.getExceptionalHaltReason().get();
+            // Fairly obnoxious back-door signal to propagate a particular
+            // failure 1 call level, or not.  From CustomMessageCallProcessor:324
+            var maybeFailureToPropagate = FrameUtils.getAndClearPropagatedCallFailure(_frame);
+            if( maybeFailureToPropagate != HevmPropagatedCallFailure.NONE ) {
+                assert maybeFailureToPropagate.exceptionalHaltReason().get() == haltReason;
+                halt = haltReason;
+            }
+            // These propagate indefinitely, killing the code at the top level.
+            if( haltReason == CustomExceptionalHaltReason.INVALID_CONTRACT_ID ||
+                haltReason == CustomExceptionalHaltReason.INSUFFICIENT_CHILD_RECORDS )
+                halt = haltReason;
+            break;
+        }
+        default: throw new TODO();
         };
 
         _tracing.traceContextExit(child);
@@ -2165,7 +2180,8 @@ class BEVM {
 
         if( trace != null )
             System.out.println(trace.clear().p("RETURN ").p(str).nl());
-        return push(child.getState() == MessageFrame.State.COMPLETED_SUCCESS ? child.getContractAddress() : null);
+        push(child.getState() == MessageFrame.State.COMPLETED_SUCCESS ? child.getContractAddress() : null);
+        return halt;
     }
 
     public void complete( MessageFrame frame, MessageFrame child ) {/*nothing*/}
@@ -2238,7 +2254,7 @@ class BEVM {
         if( (recipient == null || recipient.isEmpty()) && hasValue )
             throw new TODO();
         // Check the cold account cost, but do not charge
-        if( _gas < gas+_gasCalc.getColdAccountAccessCost() )
+        if( _gas < gas+ (isStatic ? _gasCalc.getWarmStorageReadCost() : _gasCalc.getColdAccountAccessCost()) )
             return ExceptionalHaltReason.INSUFFICIENT_GAS;
 
         if( mustBePresent(contract, hasValue) ) {
@@ -2248,7 +2264,7 @@ class BEVM {
         }
 
         // CallOperation
-        if( _frame.isStatic() && hasValue )
+        if( isStatic && hasValue )
             return ExceptionalHaltReason.ILLEGAL_STATE_CHANGE;
 
         // AbstractCallOperation
@@ -2344,7 +2360,9 @@ class BEVM {
                 assert maybeFailureToPropagate.exceptionalHaltReason().get() == haltReason;
                 halt = haltReason;
             }
-            if( haltReason == CustomExceptionalHaltReason.INVALID_CONTRACT_ID )
+            // These propagate indefinitely, killing the code at the top level.
+            if( haltReason == CustomExceptionalHaltReason.INVALID_CONTRACT_ID ||
+                haltReason == CustomExceptionalHaltReason.INSUFFICIENT_CHILD_RECORDS )
                 halt = haltReason;
             break;
         }
