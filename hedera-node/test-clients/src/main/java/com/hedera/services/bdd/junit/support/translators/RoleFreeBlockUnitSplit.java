@@ -335,14 +335,24 @@ public class RoleFreeBlockUnitSplit {
 
     private static boolean hasUserStateChanges(@NonNull final StateChanges stateChanges) {
         final var changes = stateChanges.stateChanges();
-        return changes.isEmpty()
-                || changes.stream()
-                        .anyMatch(change -> change.hasMapUpdate()
-                                || (change.hasMapDelete() && !SYSTEM_PURGED_KV_STATES.contains(change.stateId()))
-                                || (change.hasQueuePush()
-                                        && change.stateId() != STATE_ID_TRANSACTION_RECEIPTS.protoOrdinal())
-                                || (change.hasQueuePop()
-                                        && change.stateId() != STATE_ID_TRANSACTION_RECEIPTS.protoOrdinal()));
+        if (changes.isEmpty()) {
+            return true;
+        }
+        // Usually we ignore deletes in certain system-purged KV states so they do not affect
+        // unit splitting. However, some transactions can legitimately have *only* deletes in
+        // these states; if we ignore those deletes, we may fail to identify the top-level
+        // transaction---leaving stateChangeIndexes empty, topLevelIds empty, and the first
+        // unit assignment at -1
+        final boolean onlyPurgedDeletes = changes.stream()
+                .allMatch(change -> change.hasMapDelete() && SYSTEM_PURGED_KV_STATES.contains(change.stateId()));
+        if (onlyPurgedDeletes) {
+            return true;
+        }
+        return changes.stream()
+                .anyMatch(change -> change.hasMapUpdate()
+                        || (change.hasMapDelete() && !SYSTEM_PURGED_KV_STATES.contains(change.stateId()))
+                        || (change.hasQueuePush() && change.stateId() != STATE_ID_TRANSACTION_RECEIPTS.protoOrdinal())
+                        || (change.hasQueuePop() && change.stateId() != STATE_ID_TRANSACTION_RECEIPTS.protoOrdinal()));
     }
 
     /**
