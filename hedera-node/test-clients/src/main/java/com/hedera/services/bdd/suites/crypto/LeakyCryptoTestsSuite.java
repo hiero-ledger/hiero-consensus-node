@@ -49,6 +49,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.inParallel;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingTwo;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.reduceFeeFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
@@ -66,6 +67,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SOURCE_KEY;
 import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
 import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
 import static com.hedera.services.bdd.suites.contract.hapi.ContractCreateSuite.EMPTY_CONSTRUCTOR_CONTRACT;
+import static com.hedera.services.bdd.suites.crypto.AutoAccountCreationSuite.LAZY_MEMO;
 import static com.hedera.services.bdd.suites.crypto.AutoAccountCreationSuite.VALID_ALIAS;
 import static com.hedera.services.bdd.suites.crypto.CryptoApproveAllowanceSuite.ANOTHER_SPENDER;
 import static com.hedera.services.bdd.suites.crypto.CryptoApproveAllowanceSuite.FUNGIBLE_TOKEN;
@@ -84,6 +86,9 @@ import static com.hedera.services.bdd.suites.token.TokenTransactSpecs.TRANSFER_T
 import static com.hedera.services.bdd.suites.token.TokenTransactSpecs.UNIQUE;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ContractCreate;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.CrsPublication;
+import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoCreate;
+import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoTransfer;
+import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoUpdate;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.HintsKeyPublication;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.HintsPartialSignature;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.HintsPreprocessingVote;
@@ -127,6 +132,7 @@ import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts;
 import com.hedera.services.bdd.spec.assertions.ContractInfoAsserts;
 import com.hedera.services.bdd.spec.transactions.TxnVerbs;
+import com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
 import com.hederahashgraph.api.proto.java.NodeStakeUpdateTransactionBody;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
@@ -298,11 +304,11 @@ public class LeakyCryptoTestsSuite {
                 tokenAssociate(OWNER, FUNGIBLE_TOKEN),
                 tokenAssociate(OWNER, NON_FUNGIBLE_TOKEN),
                 mintToken(
-                                NON_FUNGIBLE_TOKEN,
-                                List.of(
-                                        ByteString.copyFromUtf8("a"),
-                                        ByteString.copyFromUtf8("b"),
-                                        ByteString.copyFromUtf8("c")))
+                        NON_FUNGIBLE_TOKEN,
+                        List.of(
+                                ByteString.copyFromUtf8("a"),
+                                ByteString.copyFromUtf8("b"),
+                                ByteString.copyFromUtf8("c")))
                         .via(NFT_TOKEN_MINT_TXN),
                 mintToken(FUNGIBLE_TOKEN, 500L).via(FUNGIBLE_TOKEN_MINT_TXN),
                 cryptoTransfer(movingUnique(NON_FUNGIBLE_TOKEN, 1L, 2L, 3L).between(TOKEN_TREASURY, OWNER)),
@@ -357,11 +363,11 @@ public class LeakyCryptoTestsSuite {
                 tokenAssociate(OWNER, FUNGIBLE_TOKEN),
                 tokenAssociate(OWNER, NON_FUNGIBLE_TOKEN),
                 mintToken(
-                                NON_FUNGIBLE_TOKEN,
-                                List.of(
-                                        ByteString.copyFromUtf8("a"),
-                                        ByteString.copyFromUtf8("b"),
-                                        ByteString.copyFromUtf8("c")))
+                        NON_FUNGIBLE_TOKEN,
+                        List.of(
+                                ByteString.copyFromUtf8("a"),
+                                ByteString.copyFromUtf8("b"),
+                                ByteString.copyFromUtf8("c")))
                         .via(NFT_TOKEN_MINT_TXN),
                 mintToken(FUNGIBLE_TOKEN, 500L).via(FUNGIBLE_TOKEN_MINT_TXN),
                 cryptoTransfer(movingUnique(NON_FUNGIBLE_TOKEN, 1L, 2L, 3L).between(TOKEN_TREASURY, OWNER)),
@@ -410,108 +416,137 @@ public class LeakyCryptoTestsSuite {
         return hapiTest(
                 cryptoCreate(CIVILIAN_PAYER),
                 explicit(
-                                StateSignatureTransaction,
-                                (spec, b) ->
-                                        b.setStateSignatureTransaction(com.hedera.hapi.platform.event.legacy
-                                                .StateSignatureTransaction.getDefaultInstance()))
+                        StateSignatureTransaction,
+                        (spec, b) ->
+                                b.setStateSignatureTransaction(com.hedera.hapi.platform.event.legacy
+                                        .StateSignatureTransaction.getDefaultInstance()))
                         .payingWith(CIVILIAN_PAYER)
                         .hasPrecheck(BUSY),
                 explicit(
-                                HintsPreprocessingVote,
-                                (spec, b) -> b.setHintsPreprocessingVote(
-                                        HintsPreprocessingVoteTransactionBody.getDefaultInstance()))
+                        HintsPreprocessingVote,
+                        (spec, b) -> b.setHintsPreprocessingVote(
+                                HintsPreprocessingVoteTransactionBody.getDefaultInstance()))
                         .payingWith(CIVILIAN_PAYER)
                         .hasPrecheck(BUSY),
                 explicit(
-                                HintsKeyPublication,
-                                (spec, b) -> b.setHintsKeyPublication(
-                                        HintsKeyPublicationTransactionBody.getDefaultInstance()))
+                        HintsKeyPublication,
+                        (spec, b) -> b.setHintsKeyPublication(
+                                HintsKeyPublicationTransactionBody.getDefaultInstance()))
                         .payingWith(CIVILIAN_PAYER)
                         .hasPrecheck(BUSY),
                 explicit(
-                                HintsPartialSignature,
-                                (spec, b) -> b.setHintsPartialSignature(
-                                        HintsPartialSignatureTransactionBody.getDefaultInstance()))
+                        HintsPartialSignature,
+                        (spec, b) -> b.setHintsPartialSignature(
+                                HintsPartialSignatureTransactionBody.getDefaultInstance()))
                         .payingWith(CIVILIAN_PAYER)
                         .hasPrecheck(BUSY),
                 explicit(
-                                HistoryProofKeyPublication,
-                                (spec, b) -> b.setHistoryProofKeyPublication(
-                                        HistoryProofKeyPublicationTransactionBody.getDefaultInstance()))
+                        HistoryProofKeyPublication,
+                        (spec, b) -> b.setHistoryProofKeyPublication(
+                                HistoryProofKeyPublicationTransactionBody.getDefaultInstance()))
                         .payingWith(CIVILIAN_PAYER)
                         .hasPrecheck(BUSY),
                 explicit(
-                                HistoryAssemblySignature,
-                                (spec, b) -> b.setHistoryProofSignature(
-                                        HistoryProofSignatureTransactionBody.getDefaultInstance()))
+                        HistoryAssemblySignature,
+                        (spec, b) -> b.setHistoryProofSignature(
+                                HistoryProofSignatureTransactionBody.getDefaultInstance()))
                         .payingWith(CIVILIAN_PAYER)
                         .hasPrecheck(BUSY),
                 explicit(
-                                HistoryProofVote,
-                                (spec, b) ->
-                                        b.setHistoryProofVote(HistoryProofVoteTransactionBody.getDefaultInstance()))
+                        HistoryProofVote,
+                        (spec, b) ->
+                                b.setHistoryProofVote(HistoryProofVoteTransactionBody.getDefaultInstance()))
                         .payingWith(CIVILIAN_PAYER)
                         .hasPrecheck(BUSY),
                 explicit(
-                                CrsPublication,
-                                (spec, b) -> b.setCrsPublication(CrsPublicationTransactionBody.getDefaultInstance()))
+                        CrsPublication,
+                        (spec, b) -> b.setCrsPublication(CrsPublicationTransactionBody.getDefaultInstance()))
                         .payingWith(CIVILIAN_PAYER)
                         .hasPrecheck(BUSY),
                 explicit(HookDispatch, (spec, b) -> b.setHookDispatch(HookDispatchTransactionBody.getDefaultInstance()))
                         .payingWith(CIVILIAN_PAYER)
                         .hasPrecheck(BUSY),
                 explicit(
-                                NodeStakeUpdate,
-                                (spec, b) -> b.setNodeStakeUpdate(NodeStakeUpdateTransactionBody.getDefaultInstance()))
+                        NodeStakeUpdate,
+                        (spec, b) -> b.setNodeStakeUpdate(NodeStakeUpdateTransactionBody.getDefaultInstance()))
                         .payingWith(CIVILIAN_PAYER)
                         .hasPrecheck(BUSY));
     }
 
-    @HapiTest
     @LeakyHapiTest(requirement = FEE_SCHEDULE_OVERRIDES, overrides = "fees.simpleFeesEnabled")
     @Tag(MATS)
     final Stream<DynamicTest> hollowAccountCreationChargesExpectedFees() {
-        final var BASE_TRASNFER_FEE = 83333L;
+        final long REDUCED_NODE_FEE = 2L;
+        final long REDUCED_NETWORK_FEE = 3L;
+        final long REDUCED_SERVICE_FEE = 3L;
+        final long REDUCED_TOTAL_FEE = REDUCED_NODE_FEE + REDUCED_NETWORK_FEE + REDUCED_SERVICE_FEE;
         final var payer = "payer";
         final var secondKey = "secondKey";
         return hapiTest(
                 overriding("fees.simpleFeesEnabled", "false"),
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
                 newKeyNamed(secondKey).shape(SECP_256K1_SHAPE),
-                cryptoCreate(payer).balance(2 * ONE_HUNDRED_HBARS),
+                cryptoCreate(payer).balance(0L),
+                reduceFeeFor(
+                        List.of(CryptoTransfer, CryptoUpdate, CryptoCreate),
+                        REDUCED_NODE_FEE,
+                        REDUCED_NETWORK_FEE,
+                        REDUCED_SERVICE_FEE),
                 withOpContext((spec, opLog) -> {
+                    // crypto transfer fees check
+                    final HapiCryptoTransfer transferToPayerAgain =
+                            cryptoTransfer(tinyBarsFromTo(GENESIS, payer, ONE_HUNDRED_HBARS + 2 * REDUCED_TOTAL_FEE));
                     final var secondEvmAddress = ByteString.copyFrom(recoverAddressFromPubKey(spec.registry()
                             .getKey(secondKey)
                             .getECDSASecp256K1()
                             .toByteArray()));
                     // try to create the hollow account without having enough
                     // balance to pay for the finalization (CryptoUpdate) fee
-                    final var op5 = cryptoTransfer(tinyBarsFromTo(payer, secondEvmAddress, ONE_MILLION_HBARS))
+                    final var op5 = cryptoTransfer(tinyBarsFromTo(payer, secondEvmAddress, ONE_HUNDRED_HBARS))
                             .payingWith(payer)
-                            .hasPrecheckFrom(INSUFFICIENT_PAYER_BALANCE, INSUFFICIENT_ACCOUNT_BALANCE)
+                            .hasKnownStatusFrom(INSUFFICIENT_PAYER_BALANCE, INSUFFICIENT_ACCOUNT_BALANCE)
                             .via(TRANSFER_TXN);
+                    final var op5FeeAssertion = getTxnRecord(TRANSFER_TXN)
+                            .logged()
+                            .exposingTo(record -> {
+                                Assertions.assertEquals(REDUCED_TOTAL_FEE, record.getTransactionFee());
+                            });
                     final var notExistingAccountInfo =
                             getAliasedAccountInfo(secondKey).hasCostAnswerPrecheck(INVALID_ACCOUNT_ID);
                     // transfer the needed balance for the finalization fee to the
                     // sponsor; we need + 2 * TOTAL_FEE, not 1, since we paid for
                     // the
                     // failed crypto transfer
-                    final var op6 = cryptoTransfer(tinyBarsFromTo(GENESIS, payer, 2 * BASE_TRASNFER_FEE));
+                    final var op6 = cryptoTransfer(tinyBarsFromTo(GENESIS, payer, 2 * REDUCED_TOTAL_FEE));
                     // now the sponsor can successfully create the hollow account
                     final var op7 = cryptoTransfer(tinyBarsFromTo(payer, secondEvmAddress, ONE_HUNDRED_HBARS))
                             .payingWith(payer)
                             .via(TRANSFER_TXN);
                     final var op7FeeAssertion = getTxnRecord(TRANSFER_TXN)
+                            .logged()
                             .andAllChildRecords()
-                            .exposingTo(
-                                    record -> Assertions.assertEquals(BASE_TRASNFER_FEE, record.getTransactionFee()));
+                            .exposingTo(record -> {
+                                Assertions.assertEquals(REDUCED_TOTAL_FEE, record.getTransactionFee());
+                            });
                     final var op8 = getAliasedAccountInfo(secondKey)
                             .has(accountWith()
                                     .hasEmptyKey()
                                     .expectedBalanceWithChargedUsd(ONE_HUNDRED_HBARS, 0, 0)
                                     .autoRenew(THREE_MONTHS_IN_SECONDS)
-                                    .receiverSigReq(false));
-                    allRunFor(spec, op5, notExistingAccountInfo, op6, op7, op7FeeAssertion, op8);
+                                    .receiverSigReq(false)
+                                    .memo(LAZY_MEMO));
+                    final var op9 = getAccountBalance(payer).hasTinyBars(0);
+                    allRunFor(
+                            spec,
+                            transferToPayerAgain,
+                            op5,
+                            op5FeeAssertion,
+                            notExistingAccountInfo,
+                            op6,
+                            op7,
+                            op7FeeAssertion,
+                            op8,
+                            op9);
                 }));
     }
 
@@ -722,9 +757,9 @@ public class LeakyCryptoTestsSuite {
                         moving(100_000, ftWithNonNetOfTransfersFractional).between(TOKEN_TREASURY, CIVILIAN),
                         movingUnique(nftWithRoyaltyPlusHtsFallback, 1L).between(TOKEN_TREASURY, CIVILIAN)),
                 cryptoTransfer(
-                                moving(10_000, ftWithNonNetOfTransfersFractional)
-                                        .between(CIVILIAN, finalReceiverKey),
-                                movingUnique(nftWithRoyaltyPlusHtsFallback, 1L).between(CIVILIAN, finalReceiverKey))
+                        moving(10_000, ftWithNonNetOfTransfersFractional)
+                                .between(CIVILIAN, finalReceiverKey),
+                        movingUnique(nftWithRoyaltyPlusHtsFallback, 1L).between(CIVILIAN, finalReceiverKey))
                         .hasKnownStatus(INSUFFICIENT_SENDER_ACCOUNT_BALANCE_FOR_CUSTOM_FEE)
                         .via(finalTxn));
     }
