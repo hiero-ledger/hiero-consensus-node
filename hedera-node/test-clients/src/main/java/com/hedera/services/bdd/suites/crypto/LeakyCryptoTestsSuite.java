@@ -485,7 +485,10 @@ public class LeakyCryptoTestsSuite {
                         .hasPrecheck(BUSY));
     }
 
-    @LeakyEmbeddedHapiTest(reason = NEEDS_STATE_ACCESS, requirement = FEE_SCHEDULE_OVERRIDES, overrides = "fees.simpleFeesEnabled")
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            requirement = FEE_SCHEDULE_OVERRIDES,
+            overrides = "fees.simpleFeesEnabled")
     final Stream<DynamicTest> hollowAccountCreationChargesExpectedFees() {
         final long REDUCED_NODE_FEE = 2L;
         final long REDUCED_NETWORK_FEE = 3L;
