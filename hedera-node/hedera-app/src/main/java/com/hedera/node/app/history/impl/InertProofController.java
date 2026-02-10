@@ -26,7 +26,8 @@ public class InertProofController implements ProofController {
     }
 
     @Override
-    public boolean isStillInProgress() {
+    public boolean isStillInProgress(@NonNull final TssConfig tssConfig) {
+        requireNonNull(tssConfig);
         return false;
     }
 
@@ -60,11 +61,9 @@ public class InertProofController implements ProofController {
     @Override
     public boolean addWrapsMessagePublication(
             @NonNull final WrapsMessagePublication publication,
-            @NonNull final WritableHistoryStore writableHistoryStore,
-            @NonNull final TssConfig tssConfig) {
+            @NonNull final WritableHistoryStore writableHistoryStore) {
         requireNonNull(publication);
         requireNonNull(writableHistoryStore);
-        requireNonNull(tssConfig);
         return false;
     }
 

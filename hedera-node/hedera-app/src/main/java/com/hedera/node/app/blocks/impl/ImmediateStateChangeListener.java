@@ -40,8 +40,8 @@ import com.hedera.hapi.node.state.history.HistoryProofVote;
 import com.hedera.hapi.node.state.history.ProofKeySet;
 import com.hedera.hapi.node.state.history.RecordedHistorySignature;
 import com.hedera.hapi.node.state.history.WrapsMessageHistory;
+import com.hedera.hapi.node.state.hooks.EvmHookSlotKey;
 import com.hedera.hapi.node.state.hooks.EvmHookState;
-import com.hedera.hapi.node.state.hooks.LambdaSlotKey;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.primitives.ProtoLong;
 import com.hedera.hapi.node.state.primitives.ProtoString;
@@ -92,7 +92,7 @@ public class ImmediateStateChangeListener implements StateChangeListener {
     private Predicate<Object> logicallyIdenticalMapping;
 
     /**
-     * Resets kv state changes.
+     * Resets keyValue state changes.
      */
     public void resetKvStateChanges(@Nullable final Predicate<Object> logicallyIdenticalMapping) {
         this.logicallyIdenticalMapping = logicallyIdenticalMapping;
@@ -161,8 +161,8 @@ public class ImmediateStateChangeListener implements StateChangeListener {
     }
 
     /**
-     * Returns the list of kv state changes.
-     * @return the list of kv state changes
+     * Returns the list of keyValue state changes.
+     * @return the list of keyValue state changes
      */
     public List<StateChange> getKvStateChanges() {
         return kvStateChanges;
@@ -234,8 +234,8 @@ public class ImmediateStateChangeListener implements StateChangeListener {
             case ConstructionNodeId constructionNodeId ->
                 new MapChangeKey(
                         new OneOf<>(MapChangeKey.KeyChoiceOneOfType.CONSTRUCTION_NODE_ID_KEY, constructionNodeId));
-            case LambdaSlotKey lambdaSlotKey ->
-                new MapChangeKey(new OneOf<>(MapChangeKey.KeyChoiceOneOfType.LAMBDA_SLOT_KEY, lambdaSlotKey));
+            case EvmHookSlotKey evmHookSlotKey ->
+                new MapChangeKey(new OneOf<>(MapChangeKey.KeyChoiceOneOfType.EVM_HOOK_SLOT_KEY, evmHookSlotKey));
             case HookId HookId -> new MapChangeKey(new OneOf<>(MapChangeKey.KeyChoiceOneOfType.HOOK_ID_KEY, HookId));
             default ->
                 throw new IllegalStateException(

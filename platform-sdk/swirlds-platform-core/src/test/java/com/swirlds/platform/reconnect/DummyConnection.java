@@ -3,20 +3,19 @@ package com.swirlds.platform.reconnect;
 
 import static org.mockito.Mockito.mock;
 
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import com.swirlds.platform.gossip.sync.SyncInputStream;
-import com.swirlds.platform.gossip.sync.SyncOutputStream;
-import com.swirlds.platform.network.Connection;
-import com.swirlds.platform.network.ConnectionTracker;
-import com.swirlds.platform.network.SocketConnection;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.net.Socket;
 import java.net.SocketException;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
+import org.hiero.consensus.gossip.impl.gossip.sync.SyncInputStream;
+import org.hiero.consensus.gossip.impl.gossip.sync.SyncOutputStream;
+import org.hiero.consensus.gossip.impl.network.Connection;
+import org.hiero.consensus.gossip.impl.network.ConnectionTracker;
+import org.hiero.consensus.gossip.impl.network.SocketConnection;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
@@ -30,7 +29,7 @@ public class DummyConnection extends SocketConnection {
     private final Socket socket;
 
     public DummyConnection(
-            @NonNull final PlatformContext platformContext,
+            @NonNull final Configuration configuration,
             @NonNull final NodeId selfId,
             @NonNull final NodeId otherId,
             @NonNull final SerializableDataInputStream in,
@@ -38,18 +37,18 @@ public class DummyConnection extends SocketConnection {
         this(
                 selfId,
                 otherId,
-                SyncInputStream.createSyncInputStream(platformContext, in, 1024 * 8),
-                SyncOutputStream.createSyncOutputStream(platformContext, out, 1024 * 8),
+                SyncInputStream.createSyncInputStream(configuration, in, 1024 * 8),
+                SyncOutputStream.createSyncOutputStream(configuration, out, 1024 * 8),
                 mock(Socket.class));
     }
 
     public DummyConnection(
-            @NonNull final PlatformContext platformContext,
+            @NonNull final Configuration configuration,
             @NonNull final SerializableDataInputStream in,
             @NonNull final SerializableDataOutputStream out) {
         this(
-                SyncInputStream.createSyncInputStream(platformContext, in, 1024 * 8),
-                SyncOutputStream.createSyncOutputStream(platformContext, out, 1024 * 8),
+                SyncInputStream.createSyncInputStream(configuration, in, 1024 * 8),
+                SyncOutputStream.createSyncOutputStream(configuration, out, 1024 * 8),
                 mock(Socket.class));
     }
 

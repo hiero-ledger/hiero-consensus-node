@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.test.fixtures.threading;
 
-import com.swirlds.common.threading.manager.ThreadManager;
-import com.swirlds.common.threading.pool.CachedPoolParallelExecutor;
-import com.swirlds.common.threading.pool.ParallelExecutionException;
-import com.swirlds.common.threading.pool.ParallelExecutor;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Arrays;
 import java.util.Objects;
 import java.util.concurrent.Callable;
 import org.hiero.base.concurrent.ThrowingRunnable;
+import org.hiero.consensus.concurrent.manager.ThreadManager;
+import org.hiero.consensus.concurrent.pool.CachedPoolParallelExecutor;
+import org.hiero.consensus.concurrent.pool.ParallelExecutionException;
+import org.hiero.consensus.concurrent.pool.ParallelExecutor;
 
 /**
  * Executes two tasks simultaneously and replacing a specified task at a specified phase. Only one instance of this

@@ -105,8 +105,7 @@ public class GrpcUtils {
                 clients.getScSvcStub(nodeAccountId, false, false).deleteContract(transaction);
             case EthereumTransaction ->
                 clients.getScSvcStub(nodeAccountId, false, false).callEthereum(transaction);
-            case LambdaSStore ->
-                clients.getScSvcStub(nodeAccountId, false, false).lambdaSStore(transaction);
+            case HookStore -> clients.getScSvcStub(nodeAccountId, false, false).hookStore(transaction);
             case CryptoAddLiveHash ->
                 clients.getCryptoSvcStub(nodeAccountId, false, false).addLiveHash(transaction);
             case CryptoApproveAllowance ->

@@ -29,7 +29,7 @@ env:
 jobs:
   validate-input-ref:
     name: Validate Input Reference
-    runs-on: hiero-citr-linux-medium
+    runs-on: hl-cn-default-lin-sm
     outputs:
       commit-is-present: ${{ steps.validate-input.outputs.commit_on_dev }}
     steps:
@@ -62,7 +62,7 @@ jobs:
 
   tag-for-xts:
     name: Tag for XTS promotion
-    runs-on: hiero-citr-linux-medium
+    runs-on: hl-cn-default-lin-sm
     needs:
       - validate-input-ref
     if: ${{ needs.validate-input-ref.outputs.commit-is-present == 'true' }}
@@ -141,7 +141,7 @@ jobs:
 
   report-failures:
     name: Report Failures
-    runs-on: hiero-citr-linux-medium
+    runs-on: hl-cn-default-lin-sm
     needs:
       - validate-input-ref
       - tag-for-xts

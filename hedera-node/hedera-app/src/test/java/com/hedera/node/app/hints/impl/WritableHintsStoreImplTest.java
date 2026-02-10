@@ -55,8 +55,8 @@ import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.node.config.data.VersionConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.metrics.api.Metrics;
+import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.ReadableKVState;
@@ -70,6 +70,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicReference;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -462,17 +463,13 @@ class WritableHintsStoreImplTest {
     private State emptyState() {
         final var state = new FakeState();
         final var servicesRegistry = new FakeServicesRegistry();
-        Set.of(
-                        new EntityIdServiceImpl(),
-                        new HintsServiceImpl(
-                                NO_OP_METRICS,
-                                ForkJoinPool.commonPool(),
-                                appContext,
-                                library,
-                                DEFAULT_CONFIG
-                                        .getConfigData(BlockStreamConfig.class)
-                                        .blockPeriod()))
-                .forEach(servicesRegistry::register);
+        final var hintsServiceImpl = new HintsServiceImpl(
+                NO_OP_METRICS,
+                ForkJoinPool.commonPool(),
+                appContext,
+                library,
+                DEFAULT_CONFIG.getConfigData(BlockStreamConfig.class).blockPeriod());
+        Set.of(new EntityIdServiceImpl(), hintsServiceImpl).forEach(servicesRegistry::register);
         final var migrator = new FakeServiceMigrator();
         final var bootstrapConfig = new BootstrapConfigProviderImpl().getConfiguration();
         migrator.doMigrations(
@@ -484,7 +481,11 @@ class WritableHintsStoreImplTest {
                 DEFAULT_CONFIG,
                 startupNetworks,
                 storeMetricsService,
-                configProvider);
+                configProvider,
+                InitTrigger.GENESIS);
+        final var writableStates = state.getWritableStates(HintsService.NAME);
+        hintsServiceImpl.doGenesisSetup(writableStates, DEFAULT_CONFIG);
+        ((CommittableWritableStates) writableStates).commit();
         return state;
     }
 }

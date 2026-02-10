@@ -21,13 +21,17 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertionsHold;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdForQueries;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenMintNftFullFeeUsd;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -86,7 +90,20 @@ public class AllBaseOpFeesSuite {
                         .blankMemo()
                         .fee(ONE_HUNDRED_HBARS)
                         .via("moreSigsTxn"))
-                .then(validateChargedUsdWithin("moreSigsTxn", expectedFee, ALLOWED_DIFFERENCE_PERCENTAGE));
+                .then(doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return withOpContext((spec, log) -> {
+                            allRunFor(
+                                    spec,
+                                    validateChargedUsdWithin(
+                                            "moreSigsTxn",
+                                            expectedTokenMintNftFullFeeUsd(1, 1),
+                                            ALLOWED_DIFFERENCE_PERCENTAGE));
+                        });
+                    } else {
+                        return validateChargedUsdWithin("moreSigsTxn", expectedFee, ALLOWED_DIFFERENCE_PERCENTAGE);
+                    }
+                }));
     }
 
     @HapiTest
@@ -101,15 +118,32 @@ public class AllBaseOpFeesSuite {
                         cryptoCreate("testAccount").key("repeatingKey").balance(1_000_000_000L))
                 .when()
                 .then(
-                        QueryVerbs.getAccountInfo("testAccount")
-                                .sigControl(forKey("repeatingKey", SIGN_ONCE))
-                                .payingWith("testAccount")
-                                .numPayerSigs(5)
-                                .hasAnswerOnlyPrecheck(INSUFFICIENT_TX_FEE),
-                        QueryVerbs.getAccountInfo("testAccount")
-                                .sigControl(forKey("repeatingKey", SIGN_ONCE))
-                                .payingWith("testAccount")
-                                .numPayerSigs(6));
+                        doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                            if ("true".equals(flag)) {
+                                // With simple fees, the fee doesn't depend on payer sig count,
+                                // so validate the query charges the expected simple fee instead
+                                return QueryVerbs.getAccountInfo("testAccount")
+                                        .sigControl(forKey("repeatingKey", SIGN_ONCE))
+                                        .payingWith("testAccount")
+                                        .via("simpleFeeQuery");
+                            } else {
+                                return QueryVerbs.getAccountInfo("testAccount")
+                                        .sigControl(forKey("repeatingKey", SIGN_ONCE))
+                                        .payingWith("testAccount")
+                                        .numPayerSigs(5)
+                                        .hasAnswerOnlyPrecheck(INSUFFICIENT_TX_FEE);
+                            }
+                        }),
+                        doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                            if ("true".equals(flag)) {
+                                return validateChargedUsdForQueries("simpleFeeQuery", 0.0001, 1.0);
+                            } else {
+                                return QueryVerbs.getAccountInfo("testAccount")
+                                        .sigControl(forKey("repeatingKey", SIGN_ONCE))
+                                        .payingWith("testAccount")
+                                        .numPayerSigs(6);
+                            }
+                        }));
     }
 
     @HapiTest

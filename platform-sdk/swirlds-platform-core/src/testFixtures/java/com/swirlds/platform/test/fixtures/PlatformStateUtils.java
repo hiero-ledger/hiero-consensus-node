@@ -1,25 +1,25 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures;
 
-import static com.swirlds.platform.state.service.PlatformStateUtils.bulkUpdateOf;
-import static com.swirlds.platform.state.service.PlatformStateUtils.getWritablePlatformStateOf;
-import static com.swirlds.platform.state.service.PlatformStateUtils.setSnapshotTo;
 import static java.util.Arrays.asList;
 import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomHash;
 import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomHashBytes;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.nextInt;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.randomInstant;
+import static org.hiero.consensus.model.PbjConverters.toPbjTimestamp;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.bulkUpdateOf;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.getWritablePlatformStateOf;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.setSnapshotTo;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.JudgeId;
 import com.hedera.hapi.platform.state.MinimumJudgeInfo;
-import com.swirlds.platform.state.PlatformStateModifier;
 import com.swirlds.state.State;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Random;
-import org.hiero.base.utility.CommonUtils;
+import org.hiero.consensus.platformstate.PlatformStateModifier;
 
 public final class PlatformStateUtils {
 
@@ -60,7 +60,7 @@ public final class PlatformStateUtils {
                         .judgeIds(judges)
                         .minimumJudgeInfoList(minimumJudgeInfo)
                         .nextConsensusNumber(random.nextLong())
-                        .consensusTimestamp(CommonUtils.toPbjTimestamp(randomInstant(random)))
+                        .consensusTimestamp(toPbjTimestamp(randomInstant(random)))
                         .build());
 
         return getWritablePlatformStateOf(state);

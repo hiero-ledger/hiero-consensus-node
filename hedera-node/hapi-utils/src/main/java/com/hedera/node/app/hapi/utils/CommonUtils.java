@@ -8,7 +8,6 @@ import static java.lang.System.arraycopy;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.base.crypto.Cryptography.NULL_HASH;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Longs;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
@@ -34,8 +33,6 @@ public final class CommonUtils {
     private CommonUtils() {
         throw new UnsupportedOperationException("Utility Class");
     }
-
-    private static String sha384HashTag = "SHA-384";
 
     public static String base64encode(final byte[] bytes) {
         return Base64.getEncoder().encodeToString(bytes);
@@ -100,16 +97,64 @@ public final class CommonUtils {
         }
     }
 
-    public static Bytes noThrowSha384HashOf(final Bytes bytes) {
-        return Bytes.wrap(noThrowSha384HashOf(bytes.toByteArray()));
+    // SHA-384 hash functions with the default-provided message digest
+    // ** BEGIN Bytes Variants **
+    // (FUTURE) Rename since 'no throw' is confusing
+    public static Bytes noThrowSha384HashOf(@NonNull final Bytes bytes) {
+        final var digest = sha384DigestOrThrow();
+        return hashOfAll(digest, bytes);
     }
 
-    public static byte[] noThrowSha384HashOf(final byte[] byteArray) {
-        try {
-            return MessageDigest.getInstance(sha384HashTag).digest(byteArray);
-        } catch (final NoSuchAlgorithmException fatal) {
-            throw new IllegalStateException(fatal);
+    public static Bytes sha384HashOfAll(final Bytes... allBytes) {
+        final var digest = sha384DigestOrThrow();
+        return hashOfAll(digest, allBytes);
+    }
+
+    public static Bytes hashOfAll(@NonNull final MessageDigest digest, @NonNull final Bytes... allBytes) {
+        requireNonNull(digest);
+        requireNonNull(allBytes);
+        for (final var bytes : allBytes) {
+            bytes.writeTo(digest);
         }
+        return Bytes.wrap(digest.digest());
+    }
+
+    // ** BEGIN byte[] Variants **
+    // (FUTURE) Rename since 'no throw' is confusing
+    public static byte[] noThrowSha384HashOf(final byte[] byteArray) {
+        requireNonNull(byteArray);
+
+        final var digest = sha384DigestOrThrow();
+        return digest.digest(byteArray);
+    }
+
+    public static Bytes sha384HashOfAll(final byte[]... bytes) {
+        return Bytes.wrap(sha384HashOf(bytes));
+    }
+
+    public static byte[] sha384HashOf(final byte[]... bytes) {
+        return hashOfAll(sha384DigestOrThrow(), bytes);
+    }
+
+    public static Bytes sha384HashOf(
+            @NonNull final Bytes first, @NonNull final Bytes second, @NonNull final byte[] third) {
+        requireNonNull(first);
+        requireNonNull(second);
+        requireNonNull(third);
+
+        final var digest = sha384DigestOrThrow();
+        first.writeTo(digest);
+        second.writeTo(digest);
+        return Bytes.wrap(digest.digest(third));
+    }
+
+    public static byte[] hashOfAll(@NonNull final MessageDigest digest, @NonNull final byte[]... bytes) {
+        requireNonNull(digest);
+        requireNonNull(bytes);
+        for (final var member : bytes) {
+            digest.update(member);
+        }
+        return digest.digest();
     }
 
     public static boolean productWouldOverflow(final long multiplier, final long multiplicand) {
@@ -118,11 +163,6 @@ public final class CommonUtils {
         }
         final var maxMultiplier = Long.MAX_VALUE / multiplicand;
         return multiplier > maxMultiplier;
-    }
-
-    @VisibleForTesting
-    static void setSha384HashTag(final String sha384HashTag) {
-        CommonUtils.sha384HashTag = sha384HashTag;
     }
 
     /**

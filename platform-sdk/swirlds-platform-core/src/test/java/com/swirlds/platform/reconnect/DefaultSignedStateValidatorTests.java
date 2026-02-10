@@ -1,21 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.reconnect;
 
-import static com.swirlds.common.utility.Threshold.MAJORITY;
+import static org.hiero.base.utility.Threshold.MAJORITY;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.Randotron;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
-import com.swirlds.platform.crypto.SignatureVerifier;
-import com.swirlds.platform.state.signed.SignedState;
-import com.swirlds.platform.state.signed.SignedStateInvalidException;
 import com.swirlds.platform.state.signed.SignedStateValidationData;
-import com.swirlds.platform.test.fixtures.addressbook.RandomRosterEntryBuilder;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils;
@@ -34,7 +29,12 @@ import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Signature;
 import org.hiero.base.crypto.SignatureType;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
+import org.hiero.consensus.crypto.SignatureVerifier;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.roster.test.fixtures.RandomRosterEntryBuilder;
+import org.hiero.consensus.state.signed.SignedState;
+import org.hiero.consensus.state.signed.SignedStateInvalidException;
+import org.hiero.consensus.test.fixtures.Randotron;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -251,10 +251,9 @@ class DefaultSignedStateValidatorTests {
         final Randotron randotron = Randotron.create();
         roster = createRoster(randotron, nodes);
 
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().build();
+        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
 
-        validator = new DefaultSignedStateValidator(platformContext);
+        validator = new DefaultSignedStateValidator();
 
         final SignedState signedState = stateSignedByNodes(signingNodes);
         final SignedStateValidationData originalData = new SignedStateValidationData(signedState.getState(), roster);

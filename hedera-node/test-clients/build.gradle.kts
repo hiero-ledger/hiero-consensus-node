@@ -63,30 +63,38 @@ tasks.test {
 }
 
 val miscTags =
-    "!(INTEGRATION|CRYPTO|TOKEN|RESTART|UPGRADE|SMART_CONTRACT|ND_RECONNECT|LONG_RUNNING|ISS|BLOCK_NODE|SIMPLE_FEES)"
+    "!(INTEGRATION|CRYPTO|TOKEN|RESTART|UPGRADE|SMART_CONTRACT|ND_RECONNECT|LONG_RUNNING|ISS|BLOCK_NODE|SIMPLE_FEES|ATOMIC_BATCH)"
 val matsSuffix = "MATS"
+
+val basePrCheckTags =
+    mapOf(
+        "hapiTestAdhoc" to "ADHOC",
+        "hapiTestCrypto" to "CRYPTO",
+        "hapiTestToken" to "TOKEN",
+        "hapiTestRestart" to "RESTART|UPGRADE",
+        "hapiTestSmartContract" to "SMART_CONTRACT",
+        "hapiTestNDReconnect" to "ND_RECONNECT",
+        "hapiTestTimeConsuming" to "LONG_RUNNING",
+        "hapiTestIss" to "ISS",
+        "hapiTestBlockNodeCommunication" to "BLOCK_NODE",
+        "hapiTestMisc" to miscTags,
+        "hapiTestMiscRecords" to miscTags,
+        "hapiTestSimpleFees" to "SIMPLE_FEES",
+        "hapiTestAtomicBatch" to "ATOMIC_BATCH",
+    )
 
 val prCheckTags =
     buildMap<String, String> {
-        put("hapiTestAdhoc", "ADHOC")
-        put("hapiTestCrypto", "CRYPTO")
-        put("hapiTestToken", "TOKEN")
-        put("hapiTestRestart", "RESTART|UPGRADE")
-        put("hapiTestSmartContract", "SMART_CONTRACT")
-        put("hapiTestNDReconnect", "ND_RECONNECT")
-        put("hapiTestTimeConsuming", "LONG_RUNNING")
-        put("hapiTestIss", "ISS")
-        put("hapiTestBlockNodeCommunication", "BLOCK_NODE")
-        put("hapiTestMisc", miscTags)
-        put("hapiTestMiscRecords", miscTags)
-        put("hapiTestSimpleFees", "SIMPLE_FEES")
+        basePrCheckTags.forEach { (task, tags) ->
 
-        // Copy vals to the MATS variants
-        val originalEntries = toMap() // Create a snapshot of current entries
-        originalEntries.forEach { (taskName: String, tags: String) ->
-            put("$taskName$matsSuffix", "($tags)&MATS")
+            // XTS task → explicitly EXCLUDE MATS
+            put(task, "($tags)&(!MATS)")
+
+            // MATS task → explicitly REQUIRE MATS
+            put("$task$matsSuffix", "($tags)&MATS")
         }
     }
+
 val remoteCheckTags =
     prCheckTags
         .filterNot {
@@ -114,6 +122,7 @@ val prCheckStartPorts =
         put("hapiTestMisc", "26800")
         put("hapiTestBlockNodeCommunication", "27000")
         put("hapiTestMiscRecords", "27200")
+        put("hapiTestAtomicBatch", "27400")
 
         // Create the MATS variants
         val originalEntries = toMap() // Create a snapshot of current entries
@@ -125,24 +134,32 @@ val prCheckPropOverrides =
     buildMap<String, String> {
         put(
             "hapiTestAdhoc",
-            "tss.hintsEnabled=true,tss.forceHandoffs=false,tss.initialCrsParties=16,blockStream.blockPeriod=2s",
+            "tss.hintsEnabled=true,tss.historyEnabled=true,tss.wrapsEnabled=true,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true",
         )
         put(
             "hapiTestCrypto",
-            "tss.hintsEnabled=true,tss.historyEnabled=true,tss.wrapsEnabled=false,blockStream.blockPeriod=1s",
+            "tss.hintsEnabled=true,tss.historyEnabled=true,tss.wrapsEnabled=false,blockStream.blockPeriod=1s,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true",
         )
         put("hapiTestSmartContract", "tss.historyEnabled=false")
         put(
             "hapiTestRestart",
-            "tss.hintsEnabled=true,tss.forceHandoffs=true,tss.initialCrsParties=16,blockStream.blockPeriod=1s,quiescence.enabled=true",
+            "tss.hintsEnabled=true,tss.forceHandoffs=true,tss.initialCrsParties=16,blockStream.blockPeriod=1s,quiescence.enabled=true,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true",
         )
-        put("hapiTestMisc", "nodes.nodeRewardsEnabled=false,quiescence.enabled=true")
+        put(
+            "hapiTestMisc",
+            "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true",
+        )
         put("hapiTestTimeConsuming", "nodes.nodeRewardsEnabled=false,quiescence.enabled=true")
         put(
             "hapiTestMiscRecords",
-            "blockStream.streamMode=RECORDS,nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
+            "blockStream.streamMode=RECORDS,nodes.nodeRewardsEnabled=false,quiescence.enabled=true,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true",
         )
         put("hapiTestSimpleFees", "fees.simpleFeesEnabled=true")
+        put(
+            "hapiTestNDReconnect",
+            "blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true",
+        )
+        put("hapiTestAtomicBatch", "nodes.nodeRewardsEnabled=false,quiescence.enabled=true")
 
         // Copy vals to the MATS variants
         val originalEntries = toMap() // Create a snapshot of current entries
@@ -269,6 +286,7 @@ tasks.register<Test>("testSubprocess") {
     val hintsThresholdDenominator =
         if (gradle.startParameter.taskNames.contains("hapiTestRestart")) "4" else "3"
     systemProperty("hapi.spec.hintsThresholdDenominator", hintsThresholdDenominator)
+    systemProperty("hapi.spec.block.stateproof.verification", "false")
 
     // Default quiet mode is "false" unless we are running in CI or set it explicitly to "true"
     systemProperty(
@@ -359,20 +377,29 @@ tasks.register<Test>("testRemote") {
     maxParallelForks = 1
 }
 
+val embeddedBaseTags =
+    mapOf(
+        "hapiEmbeddedMisc" to "EMBEDDED&!(SIMPLE_FEES)",
+        "hapiEmbeddedSimpleFees" to "EMBEDDED&SIMPLE_FEES",
+    )
+
 val prEmbeddedCheckTags =
     buildMap<String, String> {
-        put("hapiEmbeddedMisc", "EMBEDDED")
+        embeddedBaseTags.forEach { (taskName, tags) ->
+            // XTS embedded → all tests
+            put(taskName, "($tags)")
 
-        // Copy vals to the MATS variants
-        val originalEntries = toMap() // Create a snapshot of current entries
-        originalEntries.forEach { (taskName: String, size: String) ->
-            put("$taskName$matsSuffix", size)
+            // Embedded MATS variant → REQUIRE MATS
+            put("$taskName$matsSuffix", "($tags)&MATS")
         }
     }
 
 tasks {
     prEmbeddedCheckTags.forEach { (taskName, _) ->
-        register(taskName) { dependsOn("testEmbedded") }
+        register(taskName) {
+            getByName(taskName).group = "hapi-test-embedded"
+            dependsOn("testEmbedded")
+        }
     }
 }
 
@@ -415,20 +442,31 @@ tasks.register<Test>("testEmbedded") {
     systemProperty("hapi.spec.default.shard", 0)
     systemProperty("hapi.spec.default.realm", 0)
 
+    if (
+        gradle.startParameter.taskNames.contains("hapiEmbeddedSimpleFees") ||
+            gradle.startParameter.taskNames.contains("hapiEmbeddedSimpleFeesMATS")
+    ) {
+        systemProperty("fees.createSimpleFeeSchedule", "true")
+        systemProperty("fees.simpleFeesEnabled", "true")
+    }
+
     // Limit heap and number of processors
     maxHeapSize = "8g"
     jvmArgs("-XX:ActiveProcessorCount=6")
     modularity.inferModulePath.set(false)
 }
 
+val repeatableBaseTags = mapOf("hapiRepeatableMisc" to "REPEATABLE")
+
 val prRepeatableCheckTags =
     buildMap<String, String> {
-        put("hapiRepeatableMisc", "REPEATABLE")
+        repeatableBaseTags.forEach { (taskName, tags) ->
 
-        // Copy vals to the MATS variants
-        val originalEntries = toMap() // Create a snapshot of current entries
-        originalEntries.forEach { (taskName: String, size: String) ->
-            put("$taskName$matsSuffix", size)
+            // XTS repeatable → EXCLUDE MATS
+            put(taskName, "($tags)&(!MATS)")
+
+            // Repeatable MATS variant → REQUIRE MATS
+            put("$taskName$matsSuffix", "($tags)&MATS")
         }
     }
 

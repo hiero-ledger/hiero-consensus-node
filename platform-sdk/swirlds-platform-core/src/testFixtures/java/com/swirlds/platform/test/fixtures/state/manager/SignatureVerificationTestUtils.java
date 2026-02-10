@@ -7,6 +7,7 @@ import java.security.PublicKey;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Signature;
 import org.hiero.base.crypto.SignatureType;
+import org.hiero.consensus.crypto.SignatureVerifier;
 
 /**
  * Utility methods for testing signature verification.
@@ -30,7 +31,7 @@ public class SignatureVerificationTestUtils {
     }
 
     /**
-     * A {@link com.swirlds.platform.crypto.SignatureVerifier} to be used when using signatures built by {@link #buildFakeSignature(PublicKey, Hash)}
+     * A {@link SignatureVerifier} to be used when using signatures built by {@link #buildFakeSignature(PublicKey, Hash)}
      */
     public static boolean verifySignature(
             @NonNull final Bytes data, @NonNull final Bytes signature, @NonNull final PublicKey publicKey) {

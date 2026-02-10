@@ -12,13 +12,9 @@ import static org.mockito.Mockito.when;
 
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.io.IOIterator;
-import com.swirlds.common.test.fixtures.Randotron;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.component.framework.wires.output.StandardOutputWire;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import com.swirlds.platform.state.signed.ReservedSignedState;
-import com.swirlds.platform.state.signed.SignedState;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -26,8 +22,13 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
+import org.hiero.consensus.io.IOIterator;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
+import org.hiero.consensus.pces.config.PcesConfig_;
+import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.state.signed.SignedState;
+import org.hiero.consensus.test.fixtures.Randotron;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -105,16 +106,13 @@ class PcesReplayerTests {
     @Test
     @DisplayName("Test standard operation")
     void testStandardOperation() {
-        final TestConfigBuilder configBuilder =
-                new TestConfigBuilder().withValue(PcesConfig_.LIMIT_REPLAY_FREQUENCY, false);
-
-        final PlatformContext platformContext = TestPlatformContextBuilder.create()
-                .withTime(time)
-                .withConfiguration(configBuilder.getOrCreateConfig())
-                .build();
+        final Configuration configuration = new TestConfigBuilder()
+                .withValue(PcesConfig_.LIMIT_REPLAY_FREQUENCY, false)
+                .getOrCreateConfig();
 
         final PcesReplayer replayer = new PcesReplayer(
-                platformContext,
+                configuration,
+                time,
                 eventOutputWire,
                 flushIntake,
                 flushTransactionHandling,
@@ -131,17 +129,14 @@ class PcesReplayerTests {
     @Test
     @DisplayName("Test rate limited operation")
     void testRateLimitedOperation() {
-        final TestConfigBuilder configBuilder = new TestConfigBuilder()
+        final Configuration configuration = new TestConfigBuilder()
                 .withValue(PcesConfig_.LIMIT_REPLAY_FREQUENCY, true)
-                .withValue(PcesConfig_.MAX_EVENT_REPLAY_FREQUENCY, 10);
-
-        final PlatformContext platformContext = TestPlatformContextBuilder.create()
-                .withTime(time)
-                .withConfiguration(configBuilder.getOrCreateConfig())
-                .build();
+                .withValue(PcesConfig_.MAX_EVENT_REPLAY_FREQUENCY, 10)
+                .getOrCreateConfig();
 
         final PcesReplayer replayer = new PcesReplayer(
-                platformContext,
+                configuration,
+                time,
                 eventOutputWire,
                 flushIntake,
                 flushTransactionHandling,

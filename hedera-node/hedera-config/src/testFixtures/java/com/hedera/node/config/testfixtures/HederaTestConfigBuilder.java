@@ -69,27 +69,26 @@ import com.hedera.node.config.types.LongPair;
 import com.hedera.node.config.types.PermissionedAccountsRange;
 import com.hedera.node.config.validation.EmulatesMapValidator;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.config.BasicCommonConfig;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.io.config.FileSystemManagerConfig;
 import com.swirlds.common.io.config.TemporaryFileConfig;
-import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
-import com.swirlds.common.metrics.config.MetricsConfig;
-import com.swirlds.common.metrics.platform.prometheus.PrometheusConfig;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.merkledb.config.MerkleDbConfig;
-import com.swirlds.platform.config.AddressBookConfig;
-import com.swirlds.platform.config.BasicConfig;
 import com.swirlds.platform.config.PathsConfig;
-import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.health.OSHealthCheckConfig;
-import com.swirlds.platform.network.SocketConfig;
 import com.swirlds.platform.system.status.PlatformStatusConfig;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.base.crypto.config.CryptoConfig;
+import org.hiero.consensus.concurrent.config.BasicCommonConfig;
+import org.hiero.consensus.config.BasicConfig;
 import org.hiero.consensus.config.EventConfig;
+import org.hiero.consensus.gossip.config.SocketConfig;
+import org.hiero.consensus.metrics.config.MetricsConfig;
+import org.hiero.consensus.metrics.platform.prometheus.PrometheusConfig;
+import org.hiero.consensus.reconnect.config.ReconnectConfig;
+import org.hiero.consensus.state.config.StateConfig;
 
 /**
  * A builder for creating {@link TestConfigBuilder} instances, or {@link Configuration} instances for testing. The
@@ -128,7 +127,6 @@ public final class HederaTestConfigBuilder {
                 .withConfigDataType(PrometheusConfig.class)
                 .withConfigDataType(PlatformStatusConfig.class)
                 .withConfigDataType(MerkleDbConfig.class)
-                .withConfigDataType(AddressBookConfig.class)
                 .withConfigDataType(OpsDurationConfig.class)
                 .withConfigDataType(QuiescenceConfig.class)
                 /*

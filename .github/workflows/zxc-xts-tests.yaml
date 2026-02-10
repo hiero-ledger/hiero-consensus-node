@@ -3,19 +3,31 @@ name: "ZXC: Executable XTS Tests"
 on:
   workflow_call:
     inputs:
-      commit_sha:
+      ref:
         description: "The commit sha, tag, or branch to check out"
         type: string
       branch_name:
         type: string
         description: "The branch name, for JRS Panel output"
-      enable-extended-test-suite:
+      enable-timing-sensitive-test-suite:
         type: string
-        description: "Run Extended Test Suite"
+        description: "Run Timing Sensitive Test Suite"
         default: "false"
-      enable-abbreviated-panel:
+      enable-hammer-test-suite:
         type: string
-        description: "Run Abbreviated JRS Panel"
+        description: "Run Hammer Test Suite"
+        default: "false"
+      enable-hapi-test-suite:
+        type: string
+        description: "Run HAPI Test Suite"
+        default: "false"
+      enable-otter-test-suite:
+        type: string
+        description: "Run Otter Test Suite"
+        default: "false"
+      enable-chaos-otter-test-suite:
+        type: string
+        description: "Run Chaos Otter Test Suite"
         default: "false"
       enable-hedera-node-jrs-panel:
         type: string
@@ -43,7 +55,7 @@ on:
         default: "latest"
       mirror-node-version:
         type: string
-        description: "The mirror node version to deploy for the mirror node regression panel (if not specified, '0.142.2' will be used)"
+        description: "The mirror node version to deploy for the mirror node regression panel (if not specified, '0.145.2' will be used)"
         default: "latest"
       helm-release-name:
         type: string
@@ -121,29 +133,50 @@ defaults:
     shell: bash
 
 jobs:
-  xts-timing-sensitive-tests:
-    name: XTS Timing Sensitive Tests
-    if: ${{ inputs.enable-extended-test-suite == 'true' }}
-    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
+  commit-info:
+    name: Get Commit Info
+    runs-on: hl-cn-default-lin-sm
+    outputs:
+      sha: ${{ steps.commit-info.outputs.sha }}
+    steps:
+      - name: Prepare Runner
+        id: prepare-runner
+        uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
+        with:
+          checkout: "true"
+          checkout-ref: "${{ inputs.ref }}"
+          checkout-fetch-depth: "1"
+          checkout-token: "${{ secrets.access-token }}"
+
+      - name: Get Commit Info
+        id: commit-info
+        run: |
+          COMMIT_SHA=$(git rev-parse HEAD)
+          echo "sha=${COMMIT_SHA}" | tee "${GITHUB_OUTPUT}"
+
+  build:
+    name: Compile Code
+    uses: ./.github/workflows/zxc-compile-application-code.yaml
+    needs:
+      - commit-info
     with:
-      custom-job-label: "${{ inputs.custom-job-label }} Timing Sensitive"
-      enable-timing-sensitive-tests: true
-      enable-network-log-capture: true
-      ref: ${{ inputs.commit_sha }}
+      java-version: "21.0.6"
+      java-distribution: "temurin"
+      ref: ${{ needs.commit-info.outputs.sha }}
     secrets:
       access-token: ${{ secrets.access-token }}
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
       gradle-cache-password: ${{ secrets.gradle-cache-password }}
 
-  xts-time-consuming-tests:
-    name: XTS Time Consuming Tests
-    if: ${{ inputs.enable-extended-test-suite == 'true' }}
-    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
+  xts-timing-sensitive-tests:
+    name: XTS Timing Sensitive Tests
+    needs:
+      - commit-info
+      - build
+    if: ${{ needs.build.result == 'success' && inputs.enable-timing-sensitive-test-suite == 'true' }}
+    uses: ./.github/workflows/zxc-execute-timing-sensitive-tests.yaml
     with:
-      custom-job-label: "${{ inputs.custom-job-label }} Time Consuming"
-      enable-time-consuming-tests: true
-      enable-network-log-capture: true
-      ref: ${{ inputs.commit_sha }}
+      ref: ${{ needs.commit-info.outputs.sha }}
     secrets:
       access-token: ${{ secrets.access-token }}
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
@@ -151,41 +184,37 @@ jobs:
 
   xts-hammer-tests:
     name: XTS Hammer Tests
-    if: ${{ inputs.enable-extended-test-suite == 'true' }}
-    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
+    needs:
+      - commit-info
+      - build
+    if: ${{ needs.build.result == 'success' && inputs.enable-hammer-test-suite == 'true' }}
+    uses: ./.github/workflows/zxc-execute-hammer-tests.yaml
     with:
-      custom-job-label: "${{ inputs.custom-job-label }} Hammer Tests"
-      enable-hammer-tests: true
-      enable-network-log-capture: true
-      ref: ${{ inputs.commit_sha }}
+      ref: ${{ needs.commit-info.outputs.sha }}
     secrets:
       access-token: ${{ secrets.access-token }}
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
       gradle-cache-password: ${{ secrets.gradle-cache-password }}
 
-  xts-hapi-time-consuming-tests:
-    name: XTS HAPI Tests (Time Consuming)
-    if: ${{ inputs.enable-extended-test-suite == 'true' }}
-    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
+  xts-hapi-tests:
+    name: XTS HAPI Tests
+    needs:
+      - commit-info
+      - build
+    if: ${{ needs.build.result == 'success' && inputs.enable-hapi-test-suite == 'true' }}
+    uses: ./.github/workflows/zxc-execute-hapi-tests.yaml
     with:
-      custom-job-label: "${{ inputs.custom-job-label }} HAPI Time Consuming"
-      enable-hapi-tests-time-consuming: true
-      enable-network-log-capture: true
-      ref: ${{ inputs.commit_sha }}
-    secrets:
-      access-token: ${{ secrets.access-token }}
-      gradle-cache-username: ${{ secrets.gradle-cache-username }}
-      gradle-cache-password: ${{ secrets.gradle-cache-password }}
-
-  xts-hapi-block-node-comms-tests:
-    name: XTS HAPI Tests (Block Node Communication)
-    if: ${{ inputs.enable-extended-test-suite == 'true' }}
-    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
-    with:
-      custom-job-label: "${{ inputs.custom-job-label }} HAPI Block Node Comms"
-      enable-hapi-tests-bn-communication: true
-      enable-network-log-capture: true
-      ref: ${{ inputs.commit_sha }}
+      ref: ${{ needs.commit-info.outputs.sha }}
+      enable-hapi-tests-time-consuming: "true"
+      enable-hapi-tests-misc: "true"
+      enable-hapi-tests-misc-records: "true"
+      enable-hapi-tests-crypto: "true"
+      enable-hapi-tests-simplefees: "true"
+      enable-hapi-tests-token: "true"
+      enable-hapi-tests-smart-contract: "true"
+      enable-hapi-tests-bn-communication: "true"
+      enable-hapi-tests-atomic-batch: "true"
+      enable-network-log-capture: "true"
     secrets:
       access-token: ${{ secrets.access-token }}
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
@@ -193,13 +222,16 @@ jobs:
 
   xts-otter-tests:
     name: XTS Otter Tests
-    if: ${{ inputs.enable-extended-test-suite == 'true' }}
+    needs:
+      - commit-info
+      - build
+    if: ${{ needs.build.result == 'success' && inputs.enable-otter-test-suite == 'true' }}
     uses: ./.github/workflows/zxc-execute-otter-tests.yaml
     with:
-      custom-job-label: "${{ inputs.custom-job-label }} Otter Tests"
       enable-full-otter-tests: true
+      enable-chaos-otter-tests: false # enable chaos otter tests here when they become a required check.
       enable-network-log-capture: true
-      ref: ${{ inputs.commit_sha }}
+      ref: ${{ needs.commit-info.outputs.sha }}
     secrets:
       access-token: ${{ secrets.access-token }}
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
@@ -207,50 +239,30 @@ jobs:
 
   xts-chaos-otter-tests:
     name: XTS Chaos Otter Tests
-    if: ${{ inputs.enable-extended-test-suite == 'true' && contains(inputs.custom-job-label, 'Dry Run') }}
+    needs:
+      - commit-info
+      - build
+    if: ${{ needs.build.result == 'success' && inputs.enable-chaos-otter-test-suite == 'true' }}
     uses: ./.github/workflows/zxc-execute-otter-tests.yaml
     with:
-      custom-job-label: "${{ inputs.custom-job-label }} Chaos Otter Tests"
       enable-chaos-otter-tests: true
       enable-network-log-capture: true
-      ref: ${{ inputs.commit_sha }}
+      ref: ${{ needs.commit-info.outputs.sha }}
     secrets:
       access-token: ${{ secrets.access-token }}
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
       gradle-cache-password: ${{ secrets.gradle-cache-password }}
 
-  abbreviated-panel:
-    name: JRS Panel
-    if: ${{ inputs.enable-abbreviated-panel == 'true' }}
-    uses: ./.github/workflows/zxc-jrs-regression.yaml
-    with:
-      custom-job-name: "${{ inputs.custom-job-label }} Platform SDK"
-      panel-config: "configs/suites/GCP-PRCheck-Abbrev-4N.json"
-      ref: ${{ inputs.commit_sha }}
-      branch-name: ${{ inputs.branch_name }}
-      base-branch-name: ${{ inputs.branch_name }}
-      slack-results-channel: "regression-test"
-      slack-summary-channel: "regression-test"
-      use-branch-for-slack-channel: false
-    secrets:
-      access-token: ${{ secrets.platform-access-token }}
-      gradle-cache-username: ${{ secrets.gradle-cache-username }}
-      gradle-cache-password: ${{ secrets.gradle-cache-password }}
-      jrs-ssh-user-name: ${{ secrets.jrs-ssh-user-name }}
-      jrs-ssh-key-file: ${{ secrets.jrs-ssh-key-file }}
-      gcp-project-number: ${{ secrets.gcp-project-number }}
-      gcp-sa-key-contents: ${{ secrets.gcp-sa-key-contents }}
-      slack-api-token: ${{ secrets.slack-api-token }}
-      grafana-agent-username: ${{ secrets.grafana-agent-username }}
-      grafana-agent-password: ${{ secrets.grafana-agent-password }}
-
   hedera-node-jrs-panel:
     name: Hedera Node JRS Panel
-    if: ${{ inputs.enable-hedera-node-jrs-panel == 'true' }}
+    needs:
+      - commit-info
+      - build
+    if: ${{ needs.build.result == 'success' && inputs.enable-hedera-node-jrs-panel == 'true' }}
     uses: ./.github/workflows/zxc-jrs-regression.yaml
     with:
       custom-job-name: "${{ inputs.custom-job-label }} Abbrev Update Test"
-      ref: ${{ inputs.commit_sha }}
+      ref: ${{ needs.commit-info.outputs.sha }}
       branch-name: ${{ inputs.branch_name }}
       hedera-tests-enabled: true
       use-branch-for-slack-channel: false
@@ -269,10 +281,13 @@ jobs:
 
   sdk-tck-regression-panel:
     name: SDK TCK Regression Panel
-    if: ${{ inputs.enable-sdk-tck-regression-panel == 'true' }}
+    needs:
+      - commit-info
+      - build
+    if: ${{ needs.build.result == 'success' && inputs.enable-sdk-tck-regression-panel == 'true' }}
     uses: ./.github/workflows/zxc-tck-regression.yaml
     with:
-      ref: ${{ inputs.commit_sha }} # pass the xts-candidate tag to the JRS panel for checkout
+      ref: ${{ needs.commit-info.outputs.sha }} # pass the xts-candidate tag to the JRS panel for checkout
       custom-job-name: "${{ inputs.custom-job-label }} SDK TCK Regression"
       solo-version: ${{ inputs.solo-version }}
     secrets:
@@ -282,24 +297,30 @@ jobs:
 
   mirror-node-regression-panel:
     name: Mirror Node Regression Panel
-    if: ${{ inputs.enable-mirror-node-regression-panel == 'true' }}
+    needs:
+      - commit-info
+      - build
+    if: ${{ needs.build.result == 'success' && inputs.enable-mirror-node-regression-panel == 'true' }}
     uses: ./.github/workflows/zxc-mirror-node-regression.yaml
     with:
-      ref: ${{ inputs.commit_sha }} # pass the xts-candidate tag to the MN panel for checkout
+      ref: ${{ needs.commit-info.outputs.sha }} # pass the xts-candidate tag to the MN panel for checkout
       custom-job-name: "${{ inputs.custom-job-label }} Mirror Node Regression"
       solo-version: ${{ inputs.solo-version }}
       helm-release-name: ${{ inputs.helm-release-name }}
-      mirror-node-version: ${{ inputs.mirror-node-version || '0.142.2' }}
+      mirror-node-version: ${{ inputs.mirror-node-version || '0.145.2' }}
     secrets:
       access-token: ${{ secrets.regression-access-token }}
       slack-detailed-report-webhook: ${{ secrets.slack-citr-details-token }}
 
   json-rpc-relay-regression-panel:
     name: JSON-RPC Relay Regression Panel
-    if: ${{ inputs.enable-rpc-relay-regression-panel == 'true' }}
+    needs:
+      - commit-info
+      - build
+    if: ${{ needs.build.result == 'success' && inputs.enable-rpc-relay-regression-panel == 'true' }}
     uses: ./.github/workflows/zxc-json-rpc-relay-regression.yaml
     with:
-      ref: ${{ inputs.commit_sha }} # pass the xts-candidate tag to the RPC Relay panel for checkout
+      ref: ${{ needs.commit-info.outputs.sha }} # pass the xts-candidate tag to the RPC Relay panel for checkout
       custom-job-name: "${{ inputs.custom-job-label }} JSON-RPC Relay Regression"
       solo-version: ${{ inputs.solo-version }}
     secrets:
@@ -308,10 +329,13 @@ jobs:
 
   block-node-regression-panel:
     name: Block Node Regression Panel
-    if: ${{ inputs.enable-block-node-regression-panel == 'true' && inputs.solo-ge-0440 == 'true' }}
+    needs:
+      - commit-info
+      - build
+    if: ${{ needs.build.result == 'success' && inputs.enable-block-node-regression-panel == 'true' && inputs.solo-ge-0440 == 'true' }}
     uses: ./.github/workflows/zxc-block-node-regression.yaml
     with:
-      ref: ${{ inputs.commit_sha }} # pass the xts-candidate tag to the BN panel for checkout
+      ref: ${{ needs.commit-info.outputs.sha }} # pass the xts-candidate tag to the BN panel for checkout
       custom-job-name: "${{ inputs.custom-job-label }} Block Node Regression"
       solo-version: ${{ inputs.solo-version }}
     secrets:
@@ -320,18 +344,17 @@ jobs:
 
   set-failure-mode:
     name: Set Failure Mode
-    runs-on: hiero-citr-linux-medium
+    runs-on: hl-cn-default-lin-sm
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
       failed-tests: ${{ steps.set-failure-mode.outputs.failed-tests }}
     needs:
+      - commit-info
+      - build
       - xts-timing-sensitive-tests
-      - xts-time-consuming-tests
       - xts-hammer-tests
-      - xts-hapi-time-consuming-tests
-      - xts-hapi-block-node-comms-tests
+      - xts-hapi-tests
       - xts-otter-tests
-      - abbreviated-panel
       - hedera-node-jrs-panel
       - sdk-tck-regression-panel
       - mirror-node-regression-panel
@@ -339,36 +362,34 @@ jobs:
       - block-node-regression-panel
     if: ${{ !cancelled() && always() }} # always run unless cancelled
     steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
-        with:
-          egress-policy: audit
+      - name: Initialize GitHub Job
+        uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
 
       - name: Set Failure Mode
         id: set-failure-mode
         run: |
           job_statuses=(
+            ${{ needs.commit-info.result || 'skipped' }}
+            ${{ needs.build.result || 'skipped' }}
             ${{ needs.xts-timing-sensitive-tests.result || 'skipped' }}
-            ${{ needs.xts-time-consuming-tests.result || 'skipped' }}
             ${{ needs.xts-hammer-tests.result || 'skipped' }}
-            ${{ needs.xts-hapi-time-consuming-tests.result || 'skipped' }}
-            ${{ needs.xts-hapi-block-node-comms-tests.result || 'skipped' }}
+            ${{ needs.xts-hapi-tests.result || 'skipped' }}
             ${{ needs.xts-otter-tests.result || 'skipped' }}
           )
           job_failure_modes=(
+            ${{ needs.commit-info.outputs.failure-mode || 'none' }}
+            ${{ needs.build.outputs.failure-mode || 'none' }}
             ${{ needs.xts-timing-sensitive-tests.outputs.failure-mode || 'none' }}
-            ${{ needs.xts-time-consuming-tests.outputs.failure-mode || 'none' }}
             ${{ needs.xts-hammer-tests.outputs.failure-mode || 'none' }}
-            ${{ needs.xts-hapi-time-consuming-tests.outputs.failure-mode || 'none' }}
-            ${{ needs.xts-hapi-block-node-comms-tests.outputs.failure-mode || 'none' }}
+            ${{ needs.xts-hapi-tests.outputs.failure-mode || 'none' }}
             ${{ needs.xts-otter-tests.outputs.failure-mode || 'none' }}
           )
           job_names=(
+            "commit-info"
+            "build"
             "xts-timing-sensitive-tests"
-            "xts-time-consuming-tests"
             "xts-hammer-tests"
-            "xts-hapi-time-consuming-tests"
-            "xts-hapi-block-node-comms-tests"
+            "xts-hapi-tests"
             "xts-otter-tests"
           )
 
@@ -404,7 +425,6 @@ jobs:
           # Add the failed panel job to the failed-tests list
 
           panel_statuses=(
-            ${{ needs.abbreviated-panel.result || 'skipped' }}
             ${{ needs.hedera-node-jrs-panel.result || 'skipped' }}
             ${{ needs.sdk-tck-regression-panel.result || 'skipped' }}
             ${{ needs.mirror-node-regression-panel.result || 'skipped' }}
@@ -412,7 +432,6 @@ jobs:
             ${{ needs.block-node-regression-panel.result || 'skipped' }}
           )
           panel_names=(
-            "abbreviated-panel"
             "hedera-node-jrs-panel"
             "sdk-tck-regression-panel"
             "mirror-node-regression-panel"

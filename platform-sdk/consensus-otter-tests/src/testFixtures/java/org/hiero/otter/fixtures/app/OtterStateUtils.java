@@ -7,11 +7,11 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.state.merkle.VirtualMapStateImpl;
 import com.swirlds.state.spi.CommittableWritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
-import org.hiero.consensus.roster.RosterUtils;
+import org.hiero.consensus.roster.RosterStateUtils;
 import org.hiero.otter.fixtures.app.state.OtterServiceStateSpecification;
 
 /**
@@ -32,14 +32,14 @@ public final class OtterStateUtils {
      * @return state root
      */
     @NonNull
-    public static VirtualMapState createGenesisState(
+    public static VirtualMapStateImpl createGenesisState(
             @NonNull final Configuration configuration,
             @NonNull final Metrics metrics,
             @NonNull final Roster roster,
             @NonNull final SemanticVersion version,
             @NonNull final List<OtterService> services) {
 
-        final VirtualMapState state = new VirtualMapState(configuration, metrics);
+        final VirtualMapStateImpl state = new VirtualMapStateImpl(configuration, metrics);
 
         initOtterAppState(state, services);
 
@@ -48,7 +48,7 @@ public final class OtterStateUtils {
             final OtterServiceStateSpecification specification = service.stateSpecification();
             specification.setDefaultValues(state.getWritableStates(service.name()), version);
         }
-        RosterUtils.setActiveRoster(state, roster, 0L);
+        RosterStateUtils.setActiveRoster(state, roster, 0L);
         commitState(state);
 
         return state;
@@ -59,7 +59,7 @@ public final class OtterStateUtils {
      *
      * @param virtualMapState the virtual map state containing the services to commit
      */
-    public static void commitState(@NonNull final VirtualMapState virtualMapState) {
+    public static void commitState(@NonNull final VirtualMapStateImpl virtualMapState) {
         virtualMapState.getServices().keySet().stream()
                 .map(virtualMapState::getWritableStates)
                 .map(writableStates -> (CommittableWritableStates) writableStates)

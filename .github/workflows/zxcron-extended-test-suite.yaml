@@ -38,16 +38,14 @@ env:
 jobs:
   parameters:
     name: Determine Configurable Parameters
-    runs-on: hiero-citr-linux-medium
+    runs-on: hl-cn-default-lin-sm
     outputs:
       solo-ge-0440: ${{ steps.set-parameters.outputs.solo-ge-0440 }}
       solo-version: ${{ steps.set-parameters.outputs.solo-version }}
       helm-release-name: ${{ steps.set-parameters.outputs.helm-release-name }}
     steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
-        with:
-          egress-policy: audit
+      - name: Initialize GitHub Job
+        uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
 
       - name: Set Parameters
         id: set-parameters
@@ -65,7 +63,7 @@ jobs:
 
   fetch-xts-candidate:
     name: Fetch XTS Candidate Tag
-    runs-on: hiero-citr-linux-medium
+    runs-on: hl-cn-default-lin-sm
     outputs:
       xts-tag-exists: ${{ steps.check-tags-exist.outputs.xts-tag-exists }}
       xts-tag-commit: ${{ steps.check-tags-exist.outputs.xts-tag-commit }}
@@ -76,18 +74,13 @@ jobs:
       xts-info: ${{ steps.check-tags-exist.outputs.xts-info }}
       commit-list: ${{ steps.check-tags-exist.outputs.commit-list }}
     steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+      - name: Initialize GitHub Job
+        uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
         with:
-          egress-policy: audit
-
-      # Checkout the latest from main
-      - name: Checkout Code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          fetch-depth: "0"
-          ref: main
-          token: ${{ secrets.GH_ACCESS_TOKEN }}
+          checkout: "true"
+          checkout-ref: "main"
+          checkout-fetch-depth: "0"
+          checkout-token: "${{ secrets.GH_ACCESS_TOKEN }}"
 
       # Check if the xts-candidate tag exists
       # the command git branch --contains xts-tag-commit | grep --quiet <default branch>
@@ -213,10 +206,20 @@ jobs:
             echo "xts-tag-commit-email=${AUTHOR_EMAIL}" >> "${GITHUB_OUTPUT}"
             echo "xts-info=${XTS_COMMIT_BRANCH} - ${XTS_SHORT_COMMIT}" >> "${GITHUB_OUTPUT}"
 
-            CLEANED_COMMIT_LIST="${COMMIT_LIST//\`/}"
-            ESCAPED_COMMIT_LIST=$(jq -Rs . <<< "${CLEANED_COMMIT_LIST}")
-            ESCAPED_COMMIT_LIST=${ESCAPED_COMMIT_LIST:1:-1}
-            echo "commit-list=${ESCAPED_COMMIT_LIST}" >> "${GITHUB_OUTPUT}"
+            COMMIT_COUNT=$(echo "$COMMIT_LIST" | wc -l)
+            COMMIT_LIST_STR=""
+            if [[ -z "${COMMIT_LIST//[[:space:]]/}" ]]; then
+              # should never get here.
+              echo "::error file=zxcron-extended-test-suite.yaml,line=213::No commits associated with this release; exiting."
+              exit 1
+            elif [[ ${COMMIT_COUNT} -gt 15 ]]; then
+              COMMIT_LIST_STR="Please refer to the workflow summary for the full list of associated commits."
+            else
+              PARSED_COMMIT_LIST="${COMMIT_LIST//\`/}"
+              ESCAPED_COMMIT_LIST=$(jq -Rs . <<< "${PARSED_COMMIT_LIST}")
+              COMMIT_LIST_STR=${ESCAPED_COMMIT_LIST:1:-1}
+            fi
+            echo "commit-list=${COMMIT_LIST_STR}" >> "${GITHUB_OUTPUT}"
 
             # GitHub Step Summary
             echo "### XTS-Candidate commit found" >>  "${GITHUB_STEP_SUMMARY}"
@@ -237,21 +240,34 @@ jobs:
           fi
           echo "::endgroup::" # Set Outputs
 
+  state-validator-uberjar:
+    name: Build & Publish Hedera State Validator Uber JAR
+    needs:
+      - fetch-xts-candidate
+    if: ${{ needs.fetch-xts-candidate.result == 'success' && needs.fetch-xts-candidate.outputs.xts-tag-exists == 'true' }}
+    uses: ./.github/workflows/zxc-build-publish-state-validator.yaml
+    with:
+      ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
+
   xts-execution:
     name: Execute XTS
     needs:
       - fetch-xts-candidate
       - parameters
+      - state-validator-uberjar
     if: ${{ needs.fetch-xts-candidate.result == 'success' && needs.fetch-xts-candidate.outputs.xts-tag-exists == 'true' }}
     uses: ./.github/workflows/zxc-xts-tests.yaml
     with:
-      commit_sha: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
+      ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
       branch_name: ${{ needs.fetch-xts-candidate.outputs.xts-commit-branch }}
       solo-version: ${{ needs.parameters.outputs.solo-version }}
       solo-ge-0440: ${{ needs.parameters.outputs.solo-ge-0440 }}
       helm-release-name: ${{ needs.parameters.outputs.helm-release-name }}
       custom-job-label: "XTS (main):"
-      enable-extended-test-suite: "true"
+      enable-timing-sensitive-test-suite: "true"
+      enable-hammer-test-suite: "true"
+      enable-hapi-test-suite: "true"
+      enable-otter-test-suite: "true"
       enable-hedera-node-jrs-panel: "true"
       enable-sdk-tck-regression-panel: "true"
     secrets:
@@ -275,10 +291,11 @@ jobs:
     needs:
       - fetch-xts-candidate
       - parameters
+      - state-validator-uberjar
     if: ${{ needs.fetch-xts-candidate.result == 'success' && needs.fetch-xts-candidate.outputs.xts-tag-exists == 'true' }}
     uses: ./.github/workflows/zxc-xts-tests.yaml
     with:
-      commit_sha: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
+      ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
       branch_name: ${{ needs.fetch-xts-candidate.outputs.xts-commit-branch }}
       solo-version: ${{ needs.parameters.outputs.solo-version }}
       solo-ge-0440: ${{ needs.parameters.outputs.solo-ge-0440 }}
@@ -288,31 +305,26 @@ jobs:
       enable-mirror-node-regression-panel: "true"
       enable-rpc-relay-regression-panel: "true"
       enable-block-node-regression-panel: "true"
+      enable-chaos-otter-test-suite: "true"
     secrets:
       access-token: ${{ secrets.GH_ACCESS_TOKEN }}
       slack-citr-details-token: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
 
   tag-for-promotion:
     name: Tag as XTS-Passing
-    runs-on: hiero-citr-linux-medium
+    runs-on: hl-cn-default-lin-sm
     needs:
       - fetch-xts-candidate
       - xts-execution
     if: ${{ needs.xts-execution.result == 'success' }}
     steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+      - name: Initialize GitHub Job
+        uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
         with:
-          egress-policy: audit
-
-      - name: Checkout Tagged Code
-        id: checkout_tagged_code
-        if: ${{ needs.fetch-xts-candidate.outputs.xts-tag-exists == 'true' }}
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          fetch-depth: "0"
-          ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
-          token: ${{ secrets.GH_ACCESS_TOKEN }}
+          checkout: "true"
+          checkout-ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
+          checkout-fetch-depth: "0"
+          checkout-token: ${{ secrets.GH_ACCESS_TOKEN }}
 
       - name: Import GPG Key
         id: gpg_importer
@@ -363,7 +375,7 @@ jobs:
 
   report-success:
     name: Report XTS execution success
-    runs-on: hiero-citr-linux-medium
+    runs-on: hl-cn-default-lin-sm
     needs:
       - fetch-xts-candidate
       - xts-execution
@@ -373,10 +385,8 @@ jobs:
       needs.tag-for-promotion.result == 'success') &&
       !cancelled() }}
     steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
-        with:
-          egress-policy: audit
+      - name: Initialize GitHub Job
+        uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
 
       - name: Report Success (slack)
         uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
@@ -489,7 +499,7 @@ jobs:
 
   report-failure:
     name: Report XTS execution failure
-    runs-on: hiero-citr-linux-medium
+    runs-on: hl-cn-default-lin-sm
     needs:
       - fetch-xts-candidate
       - xts-execution
@@ -500,17 +510,13 @@ jobs:
       !cancelled() && always() }}
 
     steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+      - name: Initialize GitHub Job
+        uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
         with:
-          egress-policy: audit
-
-      - name: Checkout Code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          fetch-depth: "0"
-          ref: main
-          token: ${{ secrets.GH_ACCESS_TOKEN }}
+          checkout: "true"
+          checkout-ref: main
+          checkout-fetch-depth: "0"
+          checkout-token: ${{ secrets.GH_ACCESS_TOKEN }}
 
       - name: Collect run logs in a log file
         env:
@@ -745,9 +751,19 @@ jobs:
           EOF
 
       - name: Report failure (slack citr-operations)
+        if: ${{ steps.set-rootly-service.outputs.service != 'CI/CD Workflows' }}
         uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
         with:
           webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
+          webhook-type: incoming-webhook
+          payload-templated: true
+          payload-file-path: slack_payload.json
+
+      - name: Report failure (slack citr-failures)
+        if: ${{ steps.set-rootly-service.outputs.service == 'CI/CD Workflows' }}
+        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+        with:
+          webhook: ${{ secrets.SLACK_CITR_FAILURES_WEBHOOK }}
           webhook-type: incoming-webhook
           payload-templated: true
           payload-file-path: slack_payload.json

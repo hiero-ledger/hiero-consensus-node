@@ -3,13 +3,12 @@ package com.hedera.node.app.history.impl;
 
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.history.impl.ProofControllers.isWrapsExtensible;
-import static com.hedera.node.app.history.schemas.V059HistorySchema.ACTIVE_PROOF_CONSTRUCTION_STATE_ID;
-import static com.hedera.node.app.history.schemas.V059HistorySchema.HISTORY_SIGNATURES_STATE_ID;
-import static com.hedera.node.app.history.schemas.V059HistorySchema.LEDGER_ID_STATE_ID;
-import static com.hedera.node.app.history.schemas.V059HistorySchema.NEXT_PROOF_CONSTRUCTION_STATE_ID;
-import static com.hedera.node.app.history.schemas.V059HistorySchema.PROOF_KEY_SETS_STATE_ID;
-import static com.hedera.node.app.history.schemas.V059HistorySchema.PROOF_VOTES_STATE_ID;
-import static com.hedera.node.app.history.schemas.V069HistorySchema.WRAPS_MESSAGE_HISTORIES_STATE_ID;
+import static com.hedera.node.app.history.schemas.V071HistorySchema.ACTIVE_PROOF_CONSTRUCTION_STATE_ID;
+import static com.hedera.node.app.history.schemas.V071HistorySchema.LEDGER_ID_STATE_ID;
+import static com.hedera.node.app.history.schemas.V071HistorySchema.NEXT_PROOF_CONSTRUCTION_STATE_ID;
+import static com.hedera.node.app.history.schemas.V071HistorySchema.PROOF_KEY_SETS_STATE_ID;
+import static com.hedera.node.app.history.schemas.V071HistorySchema.PROOF_VOTES_STATE_ID;
+import static com.hedera.node.app.history.schemas.V071HistorySchema.WRAPS_MESSAGE_HISTORIES_STATE_ID;
 import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.BOOTSTRAP;
 import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.HANDOFF;
 import static java.util.Objects.requireNonNull;
@@ -20,7 +19,6 @@ import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.hapi.node.state.history.HistoryProofVote;
 import com.hedera.hapi.node.state.history.ProofKeySet;
-import com.hedera.hapi.node.state.history.RecordedHistorySignature;
 import com.hedera.hapi.node.state.history.WrapsMessageHistory;
 import com.hedera.hapi.node.state.history.WrapsSigningState;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
@@ -58,7 +56,6 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
     private final WritableSingletonState<HistoryProofConstruction> nextConstruction;
     private final WritableSingletonState<HistoryProofConstruction> activeConstruction;
     private final WritableKVState<NodeId, ProofKeySet> proofKeySets;
-    private final WritableKVState<ConstructionNodeId, RecordedHistorySignature> signatures;
     private final WritableKVState<ConstructionNodeId, HistoryProofVote> votes;
     private final WritableKVState<ConstructionNodeId, WrapsMessageHistory> wrapsMessageHistories;
 
@@ -68,7 +65,6 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
         this.nextConstruction = states.getSingleton(NEXT_PROOF_CONSTRUCTION_STATE_ID);
         this.activeConstruction = states.getSingleton(ACTIVE_PROOF_CONSTRUCTION_STATE_ID);
         this.proofKeySets = states.get(PROOF_KEY_SETS_STATE_ID);
-        this.signatures = states.get(HISTORY_SIGNATURES_STATE_ID);
         this.votes = states.get(PROOF_VOTES_STATE_ID);
         this.wrapsMessageHistories = states.get(WRAPS_MESSAGE_HISTORIES_STATE_ID);
     }
@@ -86,13 +82,7 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
             throw new IllegalArgumentException("Handoff phase has no construction");
         }
         var construction = getConstructionFor(activeRosters);
-        // Special case at genesis with WRAPS enabled where even though a construction
-        // exists, it was completed with a non-extensible proof, so we need to start a
-        // new construction nonetheless
-        if (construction == null
-                || (tssConfig.wrapsEnabled()
-                        && construction.hasTargetProof()
-                        && !isWrapsExtensible(construction.targetProof()))) {
+        if (construction == null) {
             final var gracePeriod = phase == BOOTSTRAP
                     ? tssConfig.bootstrapProofKeyGracePeriod()
                     : tssConfig.transitionProofKeyGracePeriod();
@@ -315,7 +305,7 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
     }
 
     /**
-     * Purges the votes for the given construction relative to the given roster.
+     * Purges the publications for the given construction relative to the given roster.
      *
      * @param sourceRoster the construction
      */
@@ -323,7 +313,6 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
         sourceRoster.rosterEntries().forEach(entry -> {
             final var key = new ConstructionNodeId(constructionId, entry.nodeId());
             votes.remove(key);
-            signatures.remove(key);
             wrapsMessageHistories.remove(key);
         });
     }

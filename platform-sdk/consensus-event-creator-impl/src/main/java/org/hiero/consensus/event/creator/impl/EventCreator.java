@@ -36,7 +36,10 @@ public interface EventCreator {
     PlatformEvent maybeCreateEvent();
 
     /**
-     * @see org.hiero.consensus.event.creator.EventCreatorModule#quiescenceCommand(QuiescenceCommand)
+     * Set the quiescence state of this event creator. The event creator will always behave according to the most recent
+     * quiescence command that it has been given.
+     *
+     * @param quiescenceCommand the new quiescence command
      */
     void quiescenceCommand(@NonNull QuiescenceCommand quiescenceCommand);
 

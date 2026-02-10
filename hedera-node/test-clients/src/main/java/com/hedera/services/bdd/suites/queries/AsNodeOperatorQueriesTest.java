@@ -212,7 +212,9 @@ public class AsNodeOperatorQueriesTest extends NodeOperatorQueriesBase {
                         .hasAnswerOnlyPrecheck(ResponseCodeEnum.INVALID_SIGNATURE)));
     }
 
-    @LeakyHapiTest(requirement = THROTTLE_OVERRIDES)
+    @LeakyHapiTest(
+            requirement = {THROTTLE_OVERRIDES},
+            throttles = "testSystemFiles/node-operator-throttles.json")
     final Stream<DynamicTest> nodeOperatorCryptoGetInfoThrottled() {
         return hapiTest(flattened(
                 overridingThrottles("testSystemFiles/node-operator-throttles.json"),
@@ -221,7 +223,9 @@ public class AsNodeOperatorQueriesTest extends NodeOperatorQueriesBase {
                 getAccountInfo(NODE_OPERATOR).payingWith(NODE_OPERATOR).hasAnswerOnlyPrecheck(BUSY)));
     }
 
-    @LeakyHapiTest(requirement = THROTTLE_OVERRIDES)
+    @LeakyHapiTest(
+            requirement = {THROTTLE_OVERRIDES},
+            throttles = "testSystemFiles/node-operator-throttles.json")
     @Tag(MATS)
     final Stream<DynamicTest> nodeOperatorCryptoGetInfoNotThrottled() {
         return hapiTest(flattened(

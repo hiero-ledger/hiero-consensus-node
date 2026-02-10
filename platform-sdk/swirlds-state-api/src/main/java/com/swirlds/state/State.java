@@ -2,13 +2,13 @@
 package com.swirlds.state;
 
 import com.swirlds.common.FastCopyable;
+import com.swirlds.state.lifecycle.StateMetadata;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Hashable;
 
@@ -71,7 +71,7 @@ public interface State extends FastCopyable, Hashable {
     /**
      * Returns a calculated hash of the state.
      */
-    @Nullable
+    @NonNull
     default Hash getHash() {
         throw new UnsupportedOperationException();
     }
@@ -93,18 +93,30 @@ public interface State extends FastCopyable, Hashable {
     }
 
     /**
-     * Used to track the status of the Platform.
-     * @return {@code true} if Platform status is not {@code PlatformStatus.ACTIVE}.
-     */
-    default boolean isStartUpMode() {
-        return true;
-    }
-
-    /**
      * Returns a JSON string containing information about the current state.
      * @return A JSON representation of the state information, or an empty string if no information is available.
      */
     default String getInfoJson() {
         return "";
     }
+
+    /**
+     * Commit all singleton states for every registered service.
+     */
+    default void commitSingletons() {}
+
+    /**
+     * Initializes the defined service state.
+     *
+     * @param md The metadata associated with the state.
+     */
+    default void initializeState(@NonNull StateMetadata<?, ?> md) {}
+
+    /**
+     * Removes the node and metadata from the state merkle tree.
+     *
+     * @param serviceName The service name. Cannot be null.
+     * @param stateId The state ID
+     */
+    default void removeServiceState(@NonNull String serviceName, int stateId) {}
 }

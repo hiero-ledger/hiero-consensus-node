@@ -6,12 +6,15 @@ import static java.util.Objects.requireNonNull;
 import com.esaulpaugh.headlong.abi.Address;
 import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.ScheduleID;
 import com.hedera.hapi.node.scheduled.ScheduleDeleteTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.contract.impl.exec.gas.DispatchType;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
+import com.hedera.node.app.service.contract.impl.exec.scope.EitherOrVerificationStrategy;
+import com.hedera.node.app.service.contract.impl.exec.scope.SpecificCryptoVerificationStrategy;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractCallTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hss.DispatchForResponseCodeHssCall;
@@ -66,11 +69,22 @@ public class DeleteScheduleTranslator extends AbstractCallTranslator<HssCallAtte
 
     @Override
     public Call callFrom(@NonNull final HssCallAttempt attempt) {
-        return new DispatchForResponseCodeHssCall(
-                attempt,
-                transactionBodyFor(scheduleIdFor(attempt)),
-                DeleteScheduleTranslator::gasRequirement,
-                attempt.keySetFor());
+        if (isRedirectWithNonContractAdminKey(attempt)) {
+            // Use a custom verification strategy that checks the admin key of the redirected schedule
+            // if the call is via the proxy and the schedule admin key is not a contract key
+            return new DispatchForResponseCodeHssCall(
+                    attempt,
+                    transactionBodyFor(scheduleIdFor(attempt)),
+                    getCustomVerificationStrat(attempt),
+                    DeleteScheduleTranslator::gasRequirement,
+                    attempt.keySetFor());
+        } else {
+            return new DispatchForResponseCodeHssCall(
+                    attempt,
+                    transactionBodyFor(scheduleIdFor(attempt)),
+                    DeleteScheduleTranslator::gasRequirement,
+                    attempt.keySetFor());
+        }
     }
 
     /**
@@ -128,5 +142,29 @@ public class DeleteScheduleTranslator extends AbstractCallTranslator<HssCallAtte
             @NonNull final HederaWorldUpdater.Enhancement enhancement,
             @NonNull final AccountID payerId) {
         return systemContractGasCalculator.gasRequirement(body, DispatchType.SCHEDULE_DELETE, payerId);
+    }
+
+    private static boolean isRedirectWithNonContractAdminKey(@NonNull HssCallAttempt attempt) {
+        return attempt.isSelector(DELETE_SCHEDULE_PROXY)
+                && attempt.isRedirect()
+                && attempt.redirectScheduleTxn() != null
+                && attempt.redirectScheduleTxn().adminKey() != null
+                && !attempt.redirectScheduleTxn().adminKey().hasContractID()
+                && !attempt.redirectScheduleTxn().adminKey().hasDelegatableContractId();
+    }
+
+    /**
+     * Gets a custom verification strategy that uses either the default contract verification strategy or a specific crypto
+     * verification strategy based on the admin key of the redirected schedule transaction.
+     *
+     * @param attempt the HSS call attempt
+     * @return the custom verification strategy
+     */
+    @NonNull
+    private static EitherOrVerificationStrategy getCustomVerificationStrat(@NonNull HssCallAttempt attempt) {
+        return new EitherOrVerificationStrategy(
+                attempt.defaultVerificationStrategy(),
+                new SpecificCryptoVerificationStrategy(
+                        attempt.redirectScheduleTxn().adminKeyOrElse(Key.DEFAULT)));
     }
 }

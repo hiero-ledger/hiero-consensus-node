@@ -7,9 +7,10 @@ import static com.hedera.cryptography.wraps.WRAPSLibraryBridge.SigningProtocolPh
 import static com.hedera.cryptography.wraps.WRAPSLibraryBridge.SigningProtocolPhase.R3;
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.cryptography.rpm.SigningAndVerifyingSchnorrKeys;
 import com.hedera.cryptography.wraps.Proof;
+import com.hedera.cryptography.wraps.SchnorrKeys;
 import com.hedera.cryptography.wraps.WRAPSLibraryBridge;
+import com.hedera.cryptography.wraps.WRAPSVerificationKey;
 import com.hedera.node.app.history.HistoryLibrary;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
@@ -19,22 +20,25 @@ import java.util.SplittableRandom;
  * Default implementation of the {@link HistoryLibrary}.
  */
 public class HistoryLibraryImpl implements HistoryLibrary {
-    private static final byte[] DUMMY_HINTS_KEY = new byte[1280];
     public static final SplittableRandom RANDOM = new SplittableRandom();
     public static final WRAPSLibraryBridge WRAPS = WRAPSLibraryBridge.getInstance();
 
     @Override
-    public SigningAndVerifyingSchnorrKeys newSchnorrKeyPair() {
-        final var seed = new byte[32];
+    public byte[] wrapsVerificationKey() {
+        return WRAPSVerificationKey.getCurrentKey();
+    }
+
+    @Override
+    public SchnorrKeys newSchnorrKeyPair() {
+        final var seed = new byte[WRAPSLibraryBridge.ENTROPY_SIZE];
         RANDOM.nextBytes(seed);
-        final var wrapsKeys = WRAPS.generateSchnorrKeys(seed);
-        return new SigningAndVerifyingSchnorrKeys(wrapsKeys.privateKey(), wrapsKeys.publicKey());
+        return WRAPS.generateSchnorrKeys(seed);
     }
 
     @Override
     public byte[] hashAddressBook(@NonNull final AddressBook addressBook) {
         requireNonNull(addressBook);
-        return WRAPS.hashAddressBook(addressBook.publicKeys(), addressBook.weights());
+        return WRAPS.hashAddressBook(addressBook.publicKeys(), addressBook.weights(), addressBook.nodeIds());
     }
 
     @Override
@@ -42,7 +46,8 @@ public class HistoryLibraryImpl implements HistoryLibrary {
             @NonNull final AddressBook addressBook, @NonNull final byte[] hintsVerificationKey) {
         requireNonNull(addressBook);
         requireNonNull(hintsVerificationKey);
-        return WRAPS.formatRotationMessage(addressBook.publicKeys(), addressBook.weights(), hintsVerificationKey);
+        return WRAPS.formatRotationMessage(
+                addressBook.publicKeys(), addressBook.weights(), addressBook.nodeIds(), hintsVerificationKey);
     }
 
     @Override
@@ -52,41 +57,75 @@ public class HistoryLibraryImpl implements HistoryLibrary {
         requireNonNull(message);
         requireNonNull(privateKey);
         return WRAPS.runSigningProtocolPhase(
-                R1, entropy, message, privateKey, new byte[0][], new byte[0][], new byte[0][], new byte[0][]);
+                R1,
+                entropy,
+                message,
+                privateKey,
+                new byte[0][],
+                null,
+                null,
+                null,
+                new byte[0][],
+                new byte[0][],
+                new byte[0][]);
     }
 
     @Override
     public byte[] runWrapsPhaseR2(
-            @NonNull byte[] entropy,
-            @NonNull byte[] message,
-            @NonNull byte[][] r1Messages,
-            @NonNull byte[] privateKey,
-            @NonNull byte[][] publicKeys) {
+            @NonNull final byte[] entropy,
+            @NonNull final byte[] message,
+            @NonNull final byte[][] r1Messages,
+            @NonNull final byte[] privateKey,
+            @NonNull final AddressBook currentBook,
+            @NonNull final Set<Long> r1NodeIds) {
         requireNonNull(entropy);
         requireNonNull(message);
         requireNonNull(privateKey);
         requireNonNull(r1Messages);
-        requireNonNull(publicKeys);
+        requireNonNull(currentBook);
+        requireNonNull(r1NodeIds);
         return WRAPS.runSigningProtocolPhase(
-                R2, entropy, message, privateKey, publicKeys, r1Messages, new byte[0][], new byte[0][]);
+                R2,
+                entropy,
+                message,
+                privateKey,
+                currentBook.publicKeys(),
+                currentBook.weights(),
+                currentBook.nodeIds(),
+                currentBook.signersMask(r1NodeIds),
+                r1Messages,
+                new byte[0][],
+                new byte[0][]);
     }
 
     @Override
     public byte[] runWrapsPhaseR3(
-            @NonNull byte[] entropy,
-            @NonNull byte[] message,
-            @NonNull byte[][] r1Messages,
-            @NonNull byte[][] r2Messages,
-            @NonNull byte[] privateKey,
-            @NonNull byte[][] publicKeys) {
+            @NonNull final byte[] entropy,
+            @NonNull final byte[] message,
+            @NonNull final byte[][] r1Messages,
+            @NonNull final byte[][] r2Messages,
+            @NonNull final byte[] privateKey,
+            @NonNull final AddressBook currentBook,
+            @NonNull final Set<Long> r1NodeIds) {
         requireNonNull(entropy);
         requireNonNull(message);
         requireNonNull(privateKey);
         requireNonNull(r1Messages);
         requireNonNull(r2Messages);
-        requireNonNull(publicKeys);
+        requireNonNull(currentBook);
+        requireNonNull(r1NodeIds);
         return WRAPS.runSigningProtocolPhase(
-                R3, entropy, message, privateKey, publicKeys, r1Messages, r2Messages, new byte[0][]);
+                R3,
+                entropy,
+                message,
+                privateKey,
+                currentBook.publicKeys(),
+                currentBook.weights(),
+                currentBook.nodeIds(),
+                currentBook.signersMask(r1NodeIds),
+                r1Messages,
+                r2Messages,
+                new byte[0][]);
     }
 
     @Override
@@ -95,32 +134,52 @@ public class HistoryLibraryImpl implements HistoryLibrary {
             @NonNull final byte[][] r1Messages,
             @NonNull final byte[][] r2Messages,
             @NonNull final byte[][] r3Messages,
-            @NonNull final byte[][] publicKeys) {
+            @NonNull final AddressBook currentBook,
+            @NonNull final Set<Long> r1NodeIds) {
         requireNonNull(message);
         requireNonNull(r1Messages);
         requireNonNull(r2Messages);
         requireNonNull(r3Messages);
-        requireNonNull(publicKeys);
+        requireNonNull(currentBook);
+        requireNonNull(r1NodeIds);
         return WRAPS.runSigningProtocolPhase(
-                Aggregate, null, message, null, publicKeys, r1Messages, r2Messages, r3Messages);
+                Aggregate,
+                null,
+                message,
+                null,
+                currentBook.publicKeys(),
+                currentBook.weights(),
+                currentBook.nodeIds(),
+                currentBook.signersMask(r1NodeIds),
+                r1Messages,
+                r2Messages,
+                r3Messages);
     }
 
     @Override
     public boolean verifyAggregateSignature(
-            @NonNull final byte[] message, @NonNull final byte[][] publicKeys, @NonNull final byte[] signature) {
+            @NonNull final byte[] message,
+            @NonNull final long[] nodeIds,
+            @NonNull final byte[][] publicKeys,
+            @NonNull final long[] weights,
+            @NonNull final byte[] signature) {
         requireNonNull(message);
         requireNonNull(publicKeys);
         requireNonNull(signature);
-        return WRAPS.verifySignature(publicKeys, message, signature);
+        requireNonNull(nodeIds);
+        requireNonNull(weights);
+        return WRAPS.verifySignature(publicKeys, weights, nodeIds, message, signature);
     }
 
     @Override
     public Proof constructGenesisWrapsProof(
             @NonNull final byte[] genesisAddressBookHash,
+            @NonNull final byte[] genesisHintsVerificationKey,
             @NonNull final byte[] aggregatedSignature,
             @NonNull final Set<Long> signers,
             @NonNull final AddressBook addressBook) {
         requireNonNull(genesisAddressBookHash);
+        requireNonNull(genesisHintsVerificationKey);
         requireNonNull(aggregatedSignature);
         requireNonNull(signers);
         requireNonNull(addressBook);
@@ -128,12 +187,13 @@ public class HistoryLibraryImpl implements HistoryLibrary {
                 genesisAddressBookHash,
                 addressBook.publicKeys(),
                 addressBook.weights(),
+                addressBook.nodeIds(),
                 addressBook.publicKeys(),
                 addressBook.weights(),
+                addressBook.nodeIds(),
                 null,
-                DUMMY_HINTS_KEY,
-                aggregatedSignature,
-                addressBook.signersMask(signers));
+                genesisHintsVerificationKey,
+                aggregatedSignature);
     }
 
     @Override
@@ -156,17 +216,17 @@ public class HistoryLibraryImpl implements HistoryLibrary {
                 genesisAddressBookHash,
                 sourceAddressBook.publicKeys(),
                 sourceAddressBook.weights(),
+                sourceAddressBook.nodeIds(),
                 targetAddressBook.publicKeys(),
                 targetAddressBook.weights(),
+                targetAddressBook.nodeIds(),
                 sourceProof,
                 targetHintsVerificationKey,
-                aggregatedSignature,
-                sourceAddressBook.signersMask(signers));
+                aggregatedSignature);
     }
 
     @Override
-    public boolean isValidWraps(@NonNull final byte[] compressedProof) {
-        requireNonNull(compressedProof);
-        return WRAPS.verifyCompressedProof(compressedProof);
+    public boolean wrapsProverReady() {
+        return WRAPSLibraryBridge.isProofSupported();
     }
 }

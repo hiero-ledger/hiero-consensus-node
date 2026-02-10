@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.reconnect;
 
-import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
-import static com.swirlds.platform.state.signed.ReservedSignedState.createNullReservation;
+import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
 import static org.hiero.consensus.model.status.PlatformStatus.CHECKING;
+import static org.hiero.consensus.state.signed.ReservedSignedState.createNullReservation;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -19,24 +19,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
-import com.swirlds.common.merkle.synchronization.config.ReconnectConfig_;
-import com.swirlds.common.metrics.noop.NoOpMetrics;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.metrics.ReconnectMetrics;
-import com.swirlds.platform.network.Connection;
-import com.swirlds.platform.network.protocol.PeerProtocol;
-import com.swirlds.platform.network.protocol.Protocol;
-import com.swirlds.platform.network.protocol.ReconnectStateSyncProtocol;
-import com.swirlds.platform.network.protocol.ReservedSignedStateResult;
-import com.swirlds.platform.state.signed.ReservedSignedState;
-import com.swirlds.platform.state.signed.SignedState;
+import com.swirlds.platform.reconnect.api.ReservedSignedStateResult;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
-import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.StateLifecycleManager;
+import com.swirlds.state.merkle.VirtualMapState;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -45,7 +34,16 @@ import java.util.stream.LongStream;
 import java.util.stream.Stream;
 import org.hiero.base.ValueReference;
 import org.hiero.base.concurrent.BlockingResourceProvider;
+import org.hiero.consensus.gossip.impl.network.Connection;
+import org.hiero.consensus.gossip.impl.network.protocol.PeerProtocol;
+import org.hiero.consensus.gossip.impl.network.protocol.Protocol;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.monitoring.FallenBehindMonitor;
+import org.hiero.consensus.reconnect.config.ReconnectConfig;
+import org.hiero.consensus.reconnect.config.ReconnectConfig_;
+import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.state.signed.SignedState;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -149,11 +147,12 @@ class ReconnectStatePeerProtocolTests {
         when(fallenBehindManager.isBehindPeer(any()))
                 .thenAnswer(a -> neighborsForReconnect.contains(a.getArgument(0, NodeId.class)));
 
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().build();
+        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
 
         final Protocol reconnectProtocol = new ReconnectStateSyncProtocol(
-                platformContext,
+                configuration,
+                new NoOpMetrics(),
+                Time.getCurrent(),
                 getStaticThreadManager(),
                 mock(ReconnectStateTeacherThrottle.class),
                 () -> null,
@@ -191,11 +190,12 @@ class ReconnectStatePeerProtocolTests {
         final ReservedSignedState reservedSignedState =
                 signedState == null ? createNullReservation() : signedState.reserve("test");
 
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().build();
+        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
 
         final Protocol reconnectProtocol = new ReconnectStateSyncProtocol(
-                platformContext,
+                configuration,
+                new NoOpMetrics(),
+                Time.getCurrent(),
                 getStaticThreadManager(),
                 teacherThrottle,
                 () -> reservedSignedState,
@@ -222,14 +222,13 @@ class ReconnectStatePeerProtocolTests {
         final ReconnectStateTeacherThrottle reconnectThrottle =
                 new ReconnectStateTeacherThrottle(config.getConfigData(ReconnectConfig.class), Time.getCurrent());
 
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().build();
-
         final NodeId node1 = NodeId.of(1L);
         final NodeId node2 = NodeId.of(2L);
 
         final ReconnectStatePeerProtocol peer1 = new ReconnectStatePeerProtocol(
-                platformContext,
+                config,
+                new NoOpMetrics(),
+                Time.getCurrent(),
                 getStaticThreadManager(),
                 node1,
                 reconnectThrottle,
@@ -238,18 +237,19 @@ class ReconnectStatePeerProtocolTests {
                 reconnectMetrics,
                 fallenBehindManager,
                 () -> ACTIVE,
-                Time.getCurrent(),
                 reservedSignedStateResultPromise,
                 mock(StateLifecycleManager.class));
         final SignedState signedState = spy(new RandomSignedStateGenerator().build());
         when(signedState.isComplete()).thenReturn(true);
-        final MerkleNodeState state = mock(MerkleNodeState.class);
+        final VirtualMapState state = mock(VirtualMapState.class);
         when(signedState.getState()).thenReturn(state);
 
         final ReservedSignedState reservedSignedState = signedState.reserve("test");
 
         final ReconnectStatePeerProtocol peer2 = new ReconnectStatePeerProtocol(
-                platformContext,
+                config,
+                new NoOpMetrics(),
+                Time.getCurrent(),
                 getStaticThreadManager(),
                 node2,
                 reconnectThrottle,
@@ -258,7 +258,6 @@ class ReconnectStatePeerProtocolTests {
                 reconnectMetrics,
                 fallenBehindManager,
                 () -> ACTIVE,
-                Time.getCurrent(),
                 reservedSignedStateResultPromise,
                 mock(StateLifecycleManager.class));
 
@@ -282,11 +281,10 @@ class ReconnectStatePeerProtocolTests {
             BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise =
                     new BlockingResourceProvider<>();
 
-            final PlatformContext platformContext =
-                    TestPlatformContextBuilder.create().build();
-
             final Protocol reconnectProtocol = new ReconnectStateSyncProtocol(
-                    platformContext,
+                    new TestConfigBuilder().getOrCreateConfig(),
+                    new NoOpMetrics(),
+                    Time.getCurrent(),
                     getStaticThreadManager(),
                     mock(ReconnectStateTeacherThrottle.class),
                     () -> null,
@@ -341,11 +339,10 @@ class ReconnectStatePeerProtocolTests {
         when(fallenBehindManager.hasFallenBehind()).thenReturn(true);
         when(fallenBehindManager.isBehindPeer(any())).thenReturn(true);
 
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().build();
-
         final Protocol reconnectProtocol = new ReconnectStateSyncProtocol(
-                platformContext,
+                new TestConfigBuilder().getOrCreateConfig(),
+                new NoOpMetrics(),
+                Time.getCurrent(),
                 getStaticThreadManager(),
                 mock(ReconnectStateTeacherThrottle.class),
                 () -> mock(ReservedSignedState.class),
@@ -384,11 +381,10 @@ class ReconnectStatePeerProtocolTests {
 
         final ReservedSignedState reservedSignedState = signedState.reserve("test");
 
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().build();
-
         final Protocol reconnectProtocol = new ReconnectStateSyncProtocol(
-                platformContext,
+                new TestConfigBuilder().getOrCreateConfig(),
+                new NoOpMetrics(),
+                Time.getCurrent(),
                 getStaticThreadManager(),
                 reconnectThrottle,
                 () -> reservedSignedState,
@@ -420,11 +416,10 @@ class ReconnectStatePeerProtocolTests {
         final FallenBehindMonitor fallenBehindManager = mock(FallenBehindMonitor.class);
         when(fallenBehindManager.hasFallenBehind()).thenReturn(false);
 
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().build();
-
         final Protocol reconnectProtocol = new ReconnectStateSyncProtocol(
-                platformContext,
+                new TestConfigBuilder().getOrCreateConfig(),
+                new NoOpMetrics(),
+                Time.getCurrent(),
                 getStaticThreadManager(),
                 reconnectThrottle,
                 ReservedSignedState::createNullReservation,
@@ -449,11 +444,10 @@ class ReconnectStatePeerProtocolTests {
 
         final ReservedSignedState reservedSignedState = signedState.reserve("test");
 
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().build();
-
         final Protocol reconnectProtocol = new ReconnectStateSyncProtocol(
-                platformContext,
+                new TestConfigBuilder().getOrCreateConfig(),
+                new NoOpMetrics(),
+                Time.getCurrent(),
                 getStaticThreadManager(),
                 teacherThrottle,
                 () -> reservedSignedState,
@@ -474,11 +468,10 @@ class ReconnectStatePeerProtocolTests {
         when(signedState.isComplete()).thenReturn(true);
         signedState.reserve("test");
 
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().build();
-
         final Protocol reconnectProtocol = new ReconnectStateSyncProtocol(
-                platformContext,
+                new TestConfigBuilder().getOrCreateConfig(),
+                new NoOpMetrics(),
+                Time.getCurrent(),
                 getStaticThreadManager(),
                 teacherThrottle,
                 () -> signedState.reserve("test"),
@@ -519,11 +512,10 @@ class ReconnectStatePeerProtocolTests {
 
         when(reservedSignedStateResultPromise.tryBlockProvidePermit()).thenReturn(false);
 
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().build();
-
         final Protocol reconnectProtocol = new ReconnectStateSyncProtocol(
-                platformContext,
+                new TestConfigBuilder().getOrCreateConfig(),
+                new NoOpMetrics(),
+                Time.getCurrent(),
                 getStaticThreadManager(),
                 teacherThrottle,
                 () -> signedState.reserve("test"),

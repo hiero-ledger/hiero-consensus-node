@@ -71,7 +71,6 @@ This code is maintained by the "Platform Data" team.
 - Data Structures
   - VirtualMap
     - MerkleDB
-  - FCQueue
 - Reconnect
 
 ## Process

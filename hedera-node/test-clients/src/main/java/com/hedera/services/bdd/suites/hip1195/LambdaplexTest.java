@@ -6,7 +6,7 @@ import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
 import static com.hedera.node.app.service.contract.impl.state.WritableEvmHookStore.minimalKey;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asLongZeroAddress;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.accountLambdaSStore;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.accountEvmHookStore;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
@@ -541,7 +541,7 @@ public class LambdaplexTest implements InitcodeTransform {
                     feeCentiBps,
                     b64Salt);
             saltPrefixes.put(b64Salt, prefixKey);
-            return accountLambdaSStore(account.name(), HOOK_ID)
+            return accountEvmHookStore(account.name(), HOOK_ID)
                     .putMappingEntryWithKey(Bytes.EMPTY, prefixKey, minimalKey(detailValue));
         });
     }

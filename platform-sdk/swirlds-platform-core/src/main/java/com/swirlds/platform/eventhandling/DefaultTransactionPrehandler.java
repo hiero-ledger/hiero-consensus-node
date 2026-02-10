@@ -7,9 +7,7 @@ import static com.swirlds.metrics.api.Metrics.INTERNAL_CATEGORY;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.metrics.statistics.AverageTimeStat;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
-import com.swirlds.platform.state.signed.ReservedSignedState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.temporal.ChronoUnit;
 import java.util.Objects;
@@ -19,8 +17,10 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.metrics.statistics.AverageTimeStat;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
+import org.hiero.consensus.state.signed.ReservedSignedState;
 
 /**
  * Default implementation of the {@link TransactionPrehandler} interface
@@ -56,7 +56,7 @@ public class DefaultTransactionPrehandler implements TransactionPrehandler {
     public DefaultTransactionPrehandler(
             @NonNull final PlatformContext platformContext,
             @NonNull final Supplier<ReservedSignedState> latestStateSupplier,
-            @NonNull ConsensusStateEventHandler<?> consensusStateEventHandler) {
+            @NonNull ConsensusStateEventHandler consensusStateEventHandler) {
         this.time = platformContext.getTime();
         this.latestStateSupplier = Objects.requireNonNull(latestStateSupplier);
 

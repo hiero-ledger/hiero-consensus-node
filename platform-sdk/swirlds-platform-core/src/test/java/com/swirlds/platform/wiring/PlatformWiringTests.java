@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.wiring;
 
+import static com.swirlds.platform.builder.ConsensusModuleBuilder.createNoOpEventCreatorModule;
+import static com.swirlds.platform.builder.ConsensusModuleBuilder.createNoOpEventIntakeModule;
+import static com.swirlds.platform.builder.ConsensusModuleBuilder.createNoOpHashgraphModule;
+import static com.swirlds.platform.builder.ConsensusModuleBuilder.createNoOpPcesModule;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -8,10 +12,10 @@ import static org.mockito.Mockito.when;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.platform.builder.ApplicationCallbacks;
 import com.swirlds.platform.builder.ExecutionLayer;
@@ -20,19 +24,10 @@ import com.swirlds.platform.builder.PlatformComponentBuilder;
 import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.components.SavedStateController;
-import com.swirlds.platform.components.appcomm.LatestCompleteStateNotifier;
-import com.swirlds.platform.components.consensus.ConsensusEngine;
-import com.swirlds.platform.crypto.KeyGeneratingException;
-import com.swirlds.platform.crypto.KeysAndCertsGenerator;
 import com.swirlds.platform.event.branching.BranchDetector;
 import com.swirlds.platform.event.branching.BranchReporter;
-import com.swirlds.platform.event.deduplication.EventDeduplicator;
-import com.swirlds.platform.event.orphan.OrphanBuffer;
-import com.swirlds.platform.event.preconsensus.InlinePcesWriter;
 import com.swirlds.platform.event.preconsensus.PcesReplayer;
 import com.swirlds.platform.event.stream.ConsensusEventStream;
-import com.swirlds.platform.event.validation.EventSignatureValidator;
-import com.swirlds.platform.event.validation.InternalEventValidator;
 import com.swirlds.platform.eventhandling.DefaultTransactionHandler;
 import com.swirlds.platform.eventhandling.TransactionPrehandler;
 import com.swirlds.platform.state.hasher.StateHasher;
@@ -42,7 +37,6 @@ import com.swirlds.platform.state.iss.IssHandler;
 import com.swirlds.platform.state.nexus.LatestCompleteStateNexus;
 import com.swirlds.platform.state.nexus.SignedStateNexus;
 import com.swirlds.platform.state.signed.SignedStateSentinel;
-import com.swirlds.platform.state.signed.StateGarbageCollector;
 import com.swirlds.platform.state.signed.StateSignatureCollector;
 import com.swirlds.platform.state.signer.StateSigner;
 import com.swirlds.platform.state.snapshot.StateSnapshotManager;
@@ -51,12 +45,18 @@ import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
 import java.security.SecureRandom;
 import java.util.stream.Stream;
-import org.hiero.consensus.crypto.EventHasher;
+import org.hiero.consensus.crypto.KeyGeneratingException;
+import org.hiero.consensus.crypto.KeysAndCertsGenerator;
 import org.hiero.consensus.crypto.SigningSchema;
 import org.hiero.consensus.event.creator.EventCreatorModule;
+import org.hiero.consensus.event.intake.EventIntakeModule;
+import org.hiero.consensus.hashgraph.HashgraphModule;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.roster.RosterHistory;
+import org.hiero.consensus.state.signed.StateGarbageCollector;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -85,12 +85,17 @@ class PlatformWiringTests {
     @MethodSource("testContexts")
     @DisplayName("Assert that all input wires are bound to something")
     void testBindings(final PlatformContext platformContext) {
-        final ApplicationCallbacks applicationCallbacks = new ApplicationCallbacks(x -> {}, x -> {}, x -> {});
-
         final WiringModel model =
                 WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
 
-        final PlatformComponents platformComponents = PlatformComponents.create(platformContext, model);
+        final Configuration configuration = platformContext.getConfiguration();
+        final EventCreatorModule eventCreatorModule = createNoOpEventCreatorModule(model, configuration);
+        final EventIntakeModule eventIntakeModule = createNoOpEventIntakeModule(model, configuration);
+        final PcesModule pcesModule = createNoOpPcesModule(model, configuration);
+        final HashgraphModule hashgraphModule = createNoOpHashgraphModule(model, configuration);
+
+        final PlatformComponents platformComponents = PlatformComponents.create(
+                platformContext, model, eventCreatorModule, eventIntakeModule, pcesModule, hashgraphModule);
         PlatformWiring.wire(
                 platformContext, mock(ExecutionLayer.class), platformComponents, ApplicationCallbacks.EMPTY);
 
@@ -99,18 +104,10 @@ class PlatformWiringTests {
 
         final PlatformCoordinator coordinator = new PlatformCoordinator(platformComponents, ApplicationCallbacks.EMPTY);
         componentBuilder
-                .withEventHasher(mock(EventHasher.class))
-                .withInternalEventValidator(mock(InternalEventValidator.class))
-                .withEventDeduplicator(mock(EventDeduplicator.class))
-                .withEventSignatureValidator(mock(EventSignatureValidator.class))
                 .withStateGarbageCollector(mock(StateGarbageCollector.class))
-                .withOrphanBuffer(mock(OrphanBuffer.class))
-                .withEventCreator(mock(EventCreatorModule.class))
-                .withConsensusEngine(mock(ConsensusEngine.class))
                 .withConsensusEventStream(mock(ConsensusEventStream.class))
                 .withPlatformMonitor(mock(PlatformMonitor.class))
                 .withTransactionPrehandler(mock(TransactionPrehandler.class))
-                .withInlinePcesWriter(mock(InlinePcesWriter.class))
                 .withSignedStateSentinel(mock(SignedStateSentinel.class))
                 .withIssDetector(mock(IssDetector.class))
                 .withIssHandler(mock(IssHandler.class))
@@ -120,8 +117,7 @@ class PlatformWiringTests {
                 .withBranchDetector(mock(BranchDetector.class))
                 .withBranchReporter(mock(BranchReporter.class))
                 .withStateSigner(mock(StateSigner.class))
-                .withTransactionHandler(mock(DefaultTransactionHandler.class))
-                .withLatestCompleteStateNotifier(mock(LatestCompleteStateNotifier.class));
+                .withTransactionHandler(mock(DefaultTransactionHandler.class));
 
         // Gossip is a special case, it's not like other components.
         // Currently we just have a facade between gossip and the wiring framework.
@@ -156,7 +152,6 @@ class PlatformWiringTests {
                 mock(PcesReplayer.class),
                 mock(StateSignatureCollector.class),
                 mock(EventWindowManager.class),
-                mock(InlinePcesWriter.class),
                 mock(SignedStateNexus.class),
                 mock(LatestCompleteStateNexus.class),
                 mock(SavedStateController.class),

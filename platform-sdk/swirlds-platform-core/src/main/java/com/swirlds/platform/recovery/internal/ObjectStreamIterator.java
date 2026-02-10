@@ -1,9 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.recovery.internal;
 
-import com.swirlds.common.io.IOIterator;
-import com.swirlds.common.io.extendable.ExtendableInputStream;
-import com.swirlds.common.io.extendable.extensions.CountingStreamExtension;
 import java.io.BufferedInputStream;
 import java.io.EOFException;
 import java.io.FileInputStream;
@@ -15,6 +12,9 @@ import java.nio.file.Path;
 import java.util.NoSuchElementException;
 import org.hiero.base.io.SelfSerializable;
 import org.hiero.base.io.streams.SerializableDataInputStream;
+import org.hiero.consensus.io.IOIterator;
+import org.hiero.consensus.io.extendable.ExtendableInputStream;
+import org.hiero.consensus.io.extendable.extensions.CountingStreamExtension;
 
 /**
  * Iterates over objects in an object stream.

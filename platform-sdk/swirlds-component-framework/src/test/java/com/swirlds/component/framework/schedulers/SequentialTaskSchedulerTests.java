@@ -12,7 +12,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.test.fixtures.AssertionUtils;
 import com.swirlds.component.framework.TestWiringModelBuilder;
 import com.swirlds.component.framework.counters.BackpressureObjectCounter;
@@ -41,6 +40,7 @@ import org.hiero.base.concurrent.test.fixtures.ConsumerWithCompletionControl;
 import org.hiero.base.concurrent.test.fixtures.FunctionWithExecutionControl;
 import org.hiero.base.concurrent.test.fixtures.Gate;
 import org.hiero.base.concurrent.test.fixtures.RunnableCompletionControl;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -2180,7 +2180,7 @@ class SequentialTaskSchedulerTests implements SequentialTaskSchedulerAliveThread
         producer.waitIsFinished(AWAIT_MAX_DURATION);
         taskHandler.executionControl().await(totalTasks, AWAIT_MAX_DURATION);
         // check there are no unprocessed tasks, according to the framework
-        assertEquals(0L, taskScheduler.getUnprocessedTaskCount());
+        assertUnprocessedTasksValueIs(taskScheduler, 0L);
         // check there are no unprocessed tasks, according to the test counter
         assertEquals(0L, unprocessedTasks.get());
 

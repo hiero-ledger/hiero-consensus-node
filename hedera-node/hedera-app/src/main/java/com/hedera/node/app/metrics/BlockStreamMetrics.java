@@ -3,7 +3,6 @@ package com.hedera.node.app.metrics;
 
 import static java.util.Objects.requireNonNull;
 
-import com.swirlds.common.metrics.RunningAverageMetric;
 import com.swirlds.metrics.api.Counter;
 import com.swirlds.metrics.api.DoubleGauge;
 import com.swirlds.metrics.api.LongGauge;
@@ -15,6 +14,7 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.hiero.block.api.PublishStreamRequest;
 import org.hiero.block.api.PublishStreamResponse;
+import org.hiero.consensus.metrics.RunningAverageMetric;
 
 /**
  * Metrics related to the block stream service, specifically tracking responses received
@@ -58,6 +58,7 @@ public class BlockStreamMetrics {
     private LongGauge connRecv_latestBlockEndOfStreamGauge;
     private LongGauge connRecv_latestBlockSkipBlockGauge;
     private LongGauge connRecv_latestBlockResendBlockGauge;
+    private LongGauge connRecv_latestBlockBehindPublisherGauge;
 
     // connectivity metrics
     private Counter conn_onCompleteCounter;
@@ -496,6 +497,10 @@ public class BlockStreamMetrics {
         final LongGauge.Config latestBlockResendCfg = newLongGauge(GROUP_CONN_RECV, "latestBlockResendBlock")
                 .withDescription("The latest block number received in a ResendBlock response");
         this.connRecv_latestBlockResendBlockGauge = metrics.getOrCreate(latestBlockResendCfg);
+
+        final LongGauge.Config latestBlockBehindCfg = newLongGauge(GROUP_CONN_RECV, "latestBlockBehindPublisher")
+                .withDescription("The latest block number received in a BehindPublisher response");
+        this.connRecv_latestBlockBehindPublisherGauge = metrics.getOrCreate(latestBlockBehindCfg);
     }
 
     /**
@@ -557,6 +562,14 @@ public class BlockStreamMetrics {
      */
     public void recordLatestBlockResendBlock(final long blockNumber) {
         connRecv_latestBlockResendBlockGauge.set(blockNumber);
+    }
+
+    /**
+     * Record the latest block number received in a BehindPublisher response.
+     * @param blockNumber the block number from the response
+     */
+    public void recordLatestBlockBehindPublisher(final long blockNumber) {
+        connRecv_latestBlockBehindPublisherGauge.set(blockNumber);
     }
 
     // Connection SEND metrics -----------------------------------------------------------------------------------------

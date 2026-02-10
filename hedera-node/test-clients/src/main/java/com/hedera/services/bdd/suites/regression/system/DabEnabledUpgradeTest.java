@@ -6,10 +6,10 @@ import static com.hedera.services.bdd.junit.SharedNetworkLauncherSessionListener
 import static com.hedera.services.bdd.junit.TestTags.UPGRADE;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.exceptNodeIds;
-import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.CLASSIC_NODE_NAMES;
-import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.classicFeeCollectorIdFor;
-import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.entryById;
-import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.nodeIdsFrom;
+import static com.hedera.services.bdd.junit.hedera.utils.NetworkUtils.CLASSIC_NODE_NAMES;
+import static com.hedera.services.bdd.junit.hedera.utils.NetworkUtils.classicFeeCollectorIdFor;
+import static com.hedera.services.bdd.junit.hedera.utils.NetworkUtils.entryById;
+import static com.hedera.services.bdd.junit.hedera.utils.NetworkUtils.nodeIdsFrom;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.VALID_CERT;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccountString;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asServiceEndpoint;
@@ -73,8 +73,6 @@ import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.NodeAddressBook;
 import com.hederahashgraph.api.proto.java.SemanticVersion;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.List;
@@ -83,7 +81,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
@@ -198,7 +195,7 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
                                 .build())),
                 upgradeToNextConfigVersion(),
                 assertGetVersionInfoMatches(startVersion::get),
-                burstOfTps(MIXED_OPS_BURST_TPS, Duration.ofSeconds(2)),
+                burstOfTps(MIXED_OPS_BURST_TPS, Duration.ofSeconds(5)),
                 getFileContents(NODE_DETAILS).andValidate(bytes -> {
                     final var node0CertHash = AddressBookPojo.nodeDetailsFrom(bytes).getEntries().stream()
                             .filter(entry -> entry.getNodeId() == 0L)
@@ -394,10 +391,8 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
                                 sourcing(() ->
                                         reconnectNode(byNodeId(nodeId.get()), configVersionOf(currentVersion.get()))),
 
-                                // validate the node is using the initial node account for the records and blocks output
-                                // paths and the content of the node_accoun_id.txt
-                                validatePathsAfterUpdate(
-                                        String.valueOf(nodeId.get()), initialNodeAccount, newNodeAccount));
+                                // validate the node is using the initial node account for the records and blocks paths
+                                validatePathsDoesntExist(String.valueOf(nodeId.get()), newNodeAccount));
                     }));
         }
 
@@ -418,9 +413,12 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
                     // 2. validate the new record path is empty after update.
                     validatePathsDoesntExist(nodeToUpdate, accountId),
 
-                    // 3. generate/update the node_account_id.txt on prepare upgrade
+                    // 3. The output paths should update on startup after the upgrade
                     prepareFakeUpgrade(),
                     upgradeToNextConfigVersion(),
+                    // create record
+                    burstOfTps(MIXED_OPS_BURST_TPS, Duration.ofSeconds(5)),
+
                     // after the upgrade the node should start using the new paths
                     validatePathsExist(nodeToUpdate, accountId),
 
@@ -431,11 +429,13 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
                     sourcing(() ->
                             reconnectNode(byNodeId(Long.parseLong(nodeToUpdate)), configVersionOf(startVersion.get()))),
                     // 6. validate the new record paths are empty even after reconnect
-                    validatePathsAfterUpdate(nodeToUpdate, accountId, newAccountId),
+                    validatePathsDoesntExist(nodeToUpdate, newAccountId),
 
                     // 7. upgrade and validate the new records and blocks paths exist
                     prepareFakeUpgrade(),
                     upgradeToNextConfigVersion(),
+                    // create record
+                    burstOfTps(MIXED_OPS_BURST_TPS, Duration.ofSeconds(5)),
                     validatePathsExist(nodeToUpdate, newAccountId));
         }
     }
@@ -481,34 +481,6 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
         return "build/hapi-test/node%s/data/blockStreams/".formatted(nodeId);
     }
 
-    private static String nodeAccountIdFilePath(String nodeId) {
-        return "build/hapi-test/node%s/data/generated/".formatted(nodeId);
-    }
-
-    private static ContextualActionOp validatePathsAfterUpdate(
-            String nodeId, AtomicReference<AccountID> oldAccountId, AtomicReference<AccountID> updatedAccountId) {
-        return doingContextual((spec) -> {
-            final var nodeAccountIdFilePath =
-                    Paths.get(nodeAccountIdFilePath(nodeId)).resolve("node_account_id.txt");
-            final var newRecordPath =
-                    Paths.get(recordsPath(nodeId) + "record" + asAccountString(updatedAccountId.get()));
-            final var newBlocksPath =
-                    Paths.get(blocksPath(nodeId) + "block-" + asAccountString(updatedAccountId.get()));
-
-            // new record path doesn't exist
-            assertThat(newRecordPath.toFile().exists()).isFalse();
-            // new blocks path doesn't exist
-            assertThat(newBlocksPath.toFile().exists()).isFalse();
-
-            try {
-                // validate the node_account_id.txt is pointing to the initial node account
-                assertThat(Files.readString(nodeAccountIdFilePath)).isEqualTo(asAccountString(oldAccountId.get()));
-            } catch (IOException e) {
-                Assertions.fail("Can not read node account id file", e);
-            }
-        });
-    }
-
     private static ContextualActionOp validatePathsDoesntExist(String nodeId, AtomicReference<AccountID> accountId) {
         return doingContextual((spec) -> {
             final var recordPath = Paths.get(recordsPath(nodeId) + "record" + asAccountString(accountId.get()));
@@ -523,7 +495,6 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
         return doingContextual((spec) -> {
             final var recordPath = Paths.get(recordsPath(nodeId) + "record" + asAccountString(accountId.get()));
             assertThat(recordPath.toFile().exists()).isTrue();
-
             final var blockPath = Paths.get(blocksPath(nodeId) + "block-" + asAccountString(accountId.get()));
             assertThat(blockPath.toFile().exists()).isTrue();
         });

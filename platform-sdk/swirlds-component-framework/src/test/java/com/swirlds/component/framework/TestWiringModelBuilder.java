@@ -2,10 +2,10 @@
 package com.swirlds.component.framework;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 
 /**
  * A simple version of a wiring model for scenarios where the wiring model is not needed.

@@ -8,12 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.merkle.MerkleInternal;
-import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
-import com.swirlds.common.merkle.synchronization.config.ReconnectConfig_;
 import com.swirlds.common.merkle.synchronization.task.QueryResponse;
-import com.swirlds.common.test.fixtures.merkle.dummy.DummyMerkleInternal;
-import com.swirlds.common.test.fixtures.merkle.dummy.DummyMerkleLeaf;
 import com.swirlds.common.test.fixtures.merkle.util.MerkleTestUtils;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.metrics.api.Metrics;
@@ -39,6 +34,8 @@ import org.hiero.base.constructable.ClassConstructorPair;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.crypto.Hash;
+import org.hiero.consensus.reconnect.config.ReconnectConfig;
+import org.hiero.consensus.reconnect.config.ReconnectConfig_;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -99,16 +96,6 @@ public abstract class VirtualMapReconnectTestBase {
         registry.registerConstructables("com.swirlds.common");
         registry.registerConstructables("org.hiero");
         registry.registerConstructable(new ClassConstructorPair(QueryResponse.class, QueryResponse::new));
-        registry.registerConstructable(new ClassConstructorPair(DummyMerkleInternal.class, DummyMerkleInternal::new));
-        registry.registerConstructable(new ClassConstructorPair(DummyMerkleLeaf.class, DummyMerkleLeaf::new));
-        registry.registerConstructable(new ClassConstructorPair(VirtualMap.class, () -> new VirtualMap(CONFIGURATION)));
-    }
-
-    protected MerkleInternal createTreeForMap(VirtualMap map) {
-        final var tree = MerkleTestUtils.buildLessSimpleTree();
-        tree.getChild(1).asInternal().setChild(3, map);
-        tree.reserve();
-        return tree;
     }
 
     protected void reconnect() throws Exception {
@@ -116,16 +103,16 @@ public abstract class VirtualMapReconnectTestBase {
     }
 
     protected void reconnectMultipleTimes(int attempts) {
-        final MerkleInternal teacherTree = createTreeForMap(teacherMap);
         final VirtualMap copy = teacherMap.copy();
-        final MerkleInternal learnerTree = createTreeForMap(learnerMap);
+        teacherMap.reserve();
+        learnerMap.reserve();
 
         withSuppressedErr(() -> {
             try {
                 for (int i = 0; i < attempts; i++) {
                     try {
                         final var node =
-                                MerkleTestUtils.hashAndTestSynchronization(learnerTree, teacherTree, reconnectConfig);
+                                MerkleTestUtils.hashAndTestSynchronization(learnerMap, teacherMap, reconnectConfig);
                         node.release();
                         assertEquals(attempts - 1, i, "We should only succeed on the last try");
                         assertTrue(learnerMap.isHashed(), "Learner map must be hashed");
@@ -139,8 +126,8 @@ public abstract class VirtualMapReconnectTestBase {
                     }
                 }
             } finally {
-                teacherTree.release();
-                learnerTree.release();
+                teacherMap.release();
+                learnerMap.release();
                 copy.release();
             }
         });

@@ -47,8 +47,6 @@ val yahCliJar =
         dependsOn(tasks.compileJava, tasks.classes, tasks.processResources)
     }
 
-tasks.assemble { dependsOn(yahCliJar) }
-
 tasks.register<Copy>("copyYahCli") {
     group = "copy"
     from(yahCliJar)

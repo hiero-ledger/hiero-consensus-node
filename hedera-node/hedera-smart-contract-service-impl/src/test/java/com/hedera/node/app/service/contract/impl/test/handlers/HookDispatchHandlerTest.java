@@ -90,7 +90,7 @@ class HookDispatchHandlerTest extends ContractHandlerTestBase {
         lenient()
                 .when(gasCalculator.transactionIntrinsicGasCost(
                         org.apache.tuweni.bytes.Bytes.wrap(new byte[0]), false, 0L))
-                .thenReturn((long) config.getConfigData(HooksConfig.class).lambdaIntrinsicGasCost());
+                .thenReturn((long) config.getConfigData(HooksConfig.class).evmHookIntrinsicGasCost());
         subject = new HookDispatchHandler(() -> factory, gasCalculator, entityIdFactory, contractServiceComponent);
     }
 

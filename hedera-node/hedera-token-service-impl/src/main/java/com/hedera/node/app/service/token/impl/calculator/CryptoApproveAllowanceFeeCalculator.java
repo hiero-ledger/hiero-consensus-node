@@ -6,10 +6,9 @@ import static org.hiero.hapi.support.fees.Extra.ALLOWANCES;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
+import com.hedera.node.app.spi.fees.SimpleFeeContext;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import org.hiero.hapi.fees.FeeResult;
 import org.hiero.hapi.support.fees.FeeSchedule;
 import org.hiero.hapi.support.fees.ServiceFeeDefinition;
@@ -20,13 +19,13 @@ public class CryptoApproveAllowanceFeeCalculator implements ServiceFeeCalculator
     @Override
     public void accumulateServiceFee(
             @NonNull final TransactionBody txnBody,
-            @Nullable final FeeContext feeContext,
+            @NonNull final SimpleFeeContext simpleFeecontext,
             @NonNull final FeeResult feeResult,
             @NonNull final FeeSchedule feeSchedule) {
         final var op = txnBody.cryptoApproveAllowanceOrThrow();
         final ServiceFeeDefinition serviceDef =
                 lookupServiceFee(feeSchedule, HederaFunctionality.CRYPTO_APPROVE_ALLOWANCE);
-        feeResult.addServiceFee(1, serviceDef.baseFee());
+        feeResult.setServiceBaseFeeTinycents(serviceDef.baseFee());
 
         final int totalAllowances = op.cryptoAllowances().size()
                 + op.tokenAllowances().size()

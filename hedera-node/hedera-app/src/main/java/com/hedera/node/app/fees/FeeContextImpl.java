@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.fees;
 
+import static java.util.Objects.requireNonNull;
+
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.SignatureMap;
 import com.hedera.hapi.node.base.SubType;
@@ -12,7 +15,8 @@ import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
-import com.hedera.node.app.store.ReadableStoreFactory;
+import com.hedera.node.app.spi.fees.SimpleFeeCalculator;
+import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.app.workflows.handle.DispatchHandleContext;
@@ -37,6 +41,7 @@ public class FeeContextImpl implements FeeContext {
     private final Authorizer authorizer;
     private final int numSignatures;
     private final TransactionDispatcher transactionDispatcher;
+    private final HederaFunctionality function;
 
     /**
      * Constructor of {@code FeeContextImpl}
@@ -71,6 +76,7 @@ public class FeeContextImpl implements FeeContext {
         this.authorizer = authorizer;
         this.numSignatures = numSignatures;
         this.transactionDispatcher = transactionDispatcher;
+        this.function = requireNonNull(txInfo.functionality());
     }
 
     @Override
@@ -107,10 +113,21 @@ public class FeeContextImpl implements FeeContext {
         return this::createFeeCalculator;
     }
 
+    @Override
+    public SimpleFeeCalculator getSimpleFeeCalculator() {
+        return feeManager.getSimpleFeeCalculator();
+    }
+
+    @NonNull
+    @Override
+    public ReadableStoreFactory readableStoreFactory() {
+        return storeFactory;
+    }
+
     @NonNull
     @Override
     public <T> T readableStore(@NonNull Class<T> storeInterface) {
-        return storeFactory.getStore(storeInterface);
+        return storeFactory.readableStore(storeInterface);
     }
 
     @Override
@@ -131,6 +148,15 @@ public class FeeContextImpl implements FeeContext {
     }
 
     @Override
+    public int numTxnBytes() {
+        // serialized signed transaction is null for system transaction dispatches
+        return (int)
+                (txInfo.serializedSignedTx() != null
+                        ? txInfo.serializedSignedTx().length()
+                        : 0);
+    }
+
+    @Override
     public Fees dispatchComputeFees(
             @NonNull final TransactionBody childTxBody, @NonNull final AccountID syntheticPayerId) {
         return transactionDispatcher.dispatchComputeFees(new ChildFeeContextImpl(
@@ -144,7 +170,8 @@ public class FeeContextImpl implements FeeContext {
                 consensusTime,
                 null, // This is only used when dispatching synthetic transactions,
                 // so no signatures to verify
-                numSignatures));
+                numSignatures,
+                function));
     }
 
     @Override
@@ -155,5 +182,10 @@ public class FeeContextImpl implements FeeContext {
     @Override
     public long getGasPriceInTinycents() {
         return feeManager.getGasPriceInTinyCents(consensusTime);
+    }
+
+    @Override
+    public HederaFunctionality functionality() {
+        return function;
     }
 }

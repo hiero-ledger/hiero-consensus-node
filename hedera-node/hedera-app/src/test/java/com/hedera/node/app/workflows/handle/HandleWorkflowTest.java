@@ -3,9 +3,9 @@ package com.hedera.node.app.workflows.handle;
 
 import static com.hedera.node.config.types.StreamMode.BOTH;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
-import static com.swirlds.platform.state.service.PlatformStateService.NAME;
 import static java.util.Collections.emptyIterator;
 import static java.util.Collections.emptyList;
+import static org.hiero.consensus.platformstate.PlatformStateService.NAME;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -28,6 +28,7 @@ import com.hedera.hapi.platform.event.EventDescriptor;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.blocks.BlockStreamManager;
+import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
 import com.hedera.node.app.blocks.impl.ImmediateStateChangeListener;
 import com.hedera.node.app.blocks.impl.streaming.BlockBufferService;
 import com.hedera.node.app.fees.ExchangeRateManager;
@@ -38,6 +39,7 @@ import com.hedera.node.app.records.impl.BlockRecordManagerImpl;
 import com.hedera.node.app.service.schedule.ScheduleService;
 import com.hedera.node.app.service.token.impl.handlers.staking.StakeInfoHelper;
 import com.hedera.node.app.service.token.impl.handlers.staking.StakePeriodManager;
+import com.hedera.node.app.services.NodeFeeManager;
 import com.hedera.node.app.services.NodeRewardManager;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
@@ -55,9 +57,8 @@ import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.node.config.types.BlockStreamWriterMode;
 import com.hedera.node.config.types.StreamMode;
-import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
 import com.swirlds.platform.system.InitTrigger;
-import com.swirlds.state.State;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.state.spi.ReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -73,6 +74,7 @@ import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.transaction.ConsensusTransaction;
+import org.hiero.consensus.platformstate.V0540PlatformStateSchema;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -129,6 +131,9 @@ class HandleWorkflowTest {
     private ImmediateStateChangeListener immediateStateChangeListener;
 
     @Mock
+    private BoundaryStateChangeListener boundaryStateChangeListener;
+
+    @Mock
     private OpWorkflowMetrics opWorkflowMetrics;
 
     @Mock
@@ -150,7 +155,7 @@ class HandleWorkflowTest {
     private ExchangeRateManager exchangeRateManager;
 
     @Mock
-    private State state;
+    private VirtualMapState state;
 
     @Mock
     private Round round;
@@ -178,6 +183,9 @@ class HandleWorkflowTest {
 
     @Mock
     private PlatformState platformState;
+
+    @Mock
+    private NodeFeeManager nodeFeeManager;
 
     private HandleWorkflow subject;
 
@@ -501,6 +509,7 @@ class HandleWorkflowTest {
                 stakePeriodManager,
                 migrationStateChanges,
                 parentTxnFactory,
+                boundaryStateChangeListener,
                 immediateStateChangeListener,
                 scheduleService,
                 hintsService,
@@ -512,7 +521,8 @@ class HandleWorkflowTest {
                 nodeRewardManager,
                 blockBufferService,
                 Map.of(),
-                quiescenceController);
+                quiescenceController,
+                nodeFeeManager);
     }
 
     @Test

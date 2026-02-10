@@ -141,7 +141,11 @@ public class ProcessUtils {
         environment.put("grpc.port", Integer.toString(metadata.grpcPort()));
         environment.put("grpc.nodeOperatorPort", Integer.toString(metadata.grpcNodeOperatorPort()));
         environment.put("hedera.config.version", Integer.toString(configVersion));
+        environment.put("RUST_BACKTRACE", "full");
         environment.put("TSS_LIB_NUM_OF_CORES", Integer.toString(1));
+        // Set path to the (unzipped) https://builds.hedera.com/tss/hiero/wraps/v0.2/wraps-v0.2.0.tar.gz,
+        // e.g. "/Users/hincadenza/misc/wraps-v0.2.0", to get the WRAPS library ready to produce proofs
+        environment.put("TSS_LIB_WRAPS_ARTIFACTS_PATH", "");
         environment.put("hedera.shard", String.valueOf(metadata.accountId().shardNum()));
         environment.put("hedera.realm", String.valueOf(metadata.accountId().realmNum()));
         // Include an PR check overrides from build.gradle.kts

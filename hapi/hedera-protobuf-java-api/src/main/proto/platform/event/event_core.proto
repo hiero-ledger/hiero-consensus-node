@@ -34,7 +34,6 @@ package com.hedera.hapi.platform.event;
  */
 
 import "services/basic_types.proto";
-import "platform/event/event_descriptor.proto";
 import "services/timestamp.proto";
 
 option java_package = "com.hedera.hapi.platform.event.legacy";

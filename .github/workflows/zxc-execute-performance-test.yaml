@@ -57,7 +57,7 @@ env:
   GS_ROOT_DIR: gs://performance-engineering-reports/ephemeral/test_runs
   GS_ROOT_HTTPS: https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs
   #Release version from jFrog
-  NLG_VERSION: 0.9.1
+  NLG_VERSION: 0.13.0
 
 defaults:
   run:
@@ -70,7 +70,7 @@ permissions:
 jobs:
   performance-test:
     name: ${{ inputs.custom-job-name || 'Run CITR Performance Test' }}
-    runs-on: hiero-citr-linux-large
+    runs-on: hl-cn-sdpt-lin-lg
 
     outputs:
       output: ${{ steps.benchmark_value.outputs.value }}
@@ -172,6 +172,7 @@ jobs:
         with:
           proxy: hashgraph.teleport.sh:443
           token: gh-citr-performance-svcs-bot
+          certificate-ttl: 24h
 
       - name: Authorize Teleport K8S Access
         uses: teleport-actions/auth-k8s@677da98eaa78a5e649d4c5b4012750af4c28af73 # v2.0.3
@@ -179,7 +180,7 @@ jobs:
           proxy: hashgraph.teleport.sh:443
           token: gh-citr-performance-svcs-bot
           kubernetes-cluster: ${{ steps.set-k8s-cluster.outputs.kubernetes-cluster }}
-          certificate-ttl: 20h
+          certificate-ttl: 24h
 
       - name: Authenticate to Google Cloud
         uses: step-security/google-github-auth@40f6deebd366f16c782d7a0ad0844e3b96a032a6 # v2.1.10
@@ -348,7 +349,7 @@ jobs:
       - name: Extract benchmark score
         id: benchmark_value
         run: |
-          grep -E 'Finished .*Test' "${{ github.workspace }}"/report/client.log | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' >> $GITHUB_OUTPUT
+          grep -E 'Finished .*Test' "${{ github.workspace }}"/report/client.log | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' >> "${GITHUB_OUTPUT}"
           cat "${{ github.workspace }}"/report/client.log | perl -pne '~s/\b([A-Z_]+[\:]\d+)\b/\n$1\n/g' | perl "${{ github.workspace }}"/.github/workflows/support/citr/collectNLG_Errors.pl > "${{ github.workspace }}"/report/client.stats.txt
 
       - name: Authenticate to Google Cloud

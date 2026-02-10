@@ -12,8 +12,6 @@ public abstract class TestComponentTags {
 
     public static final String VMAP = "VMAP";
 
-    public static final String FCQUEUE = "FCQUEUE";
-
     public static final String GOSSIP = "GOSSIP";
 
     public static final String IO = "IO";

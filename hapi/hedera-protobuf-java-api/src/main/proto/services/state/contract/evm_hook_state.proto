@@ -33,7 +33,7 @@ message EvmHookState {
   /**
    * The type of the EVM hook.
    */
-  EvmHookType type = 2;
+  HookType type = 2;
 
   /**
    * The type of the extension point the hook implements.
@@ -47,15 +47,14 @@ message EvmHookState {
 
   /**
    * If set, a key that that can be used to remove or replace the hook; or (if
-   * applicable, as with a lambda EVM hook) perform transactions that customize
-   * the hook.
+   * applicable, as with an EVM hook) perform transactions that customize the hook.
    */
   proto.Key admin_key = 5;
 
   /**
-   * For a lambda, its first storage key. Must be the minimal
-   * bytes representation (no leading zeros). A lambda with
-   * no storage slots and a lambda whose last-written storage
+   * For an EVM hook, its first storage key. Must be the minimal
+   * bytes representation (no leading zeros). An EVM hook with
+   * no storage slots and an EVM hook whose last-written storage
    * slot was at the zero key can be differentiated by checking
    * the `num_storage_slots` field.
    */
@@ -74,30 +73,30 @@ message EvmHookState {
   google.protobuf.Int64Value next_hook_id = 8;
 
   /**
-   * The number of storage slots a lambda is using.
+   * The number of storage slots an EVM hook is using.
    */
   uint32 num_storage_slots = 9;
 }
 
 /**
- * The type of an EVM hook.
+ * The type of a hook.
  */
-enum EvmHookType {
+enum HookType {
   /**
-   * A lambda EVM hook.
+   * A general-purpose EVM hook.
    */
-  LAMBDA = 0;
+  EVM_HOOK = 0;
 }
 
 /**
- * The key of a lambda's storage slot.
+ * The key of an EVM hook's storage slot.
  *
- * For each lambda, its EVM storage is a mapping of 256-bit keys (or "words")
+ * For each EVM hook, its storage is a mapping of 256-bit keys (or "words")
  * to 256-bit values.
  */
-message LambdaSlotKey {
+message EvmHookSlotKey {
   /**
-   * The id of the lambda EVM hook that owns this slot.
+   * The id of the EVM hook that owns this slot.
    */
   proto.HookId hook_id = 1;
 

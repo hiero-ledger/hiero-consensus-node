@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.history.impl;
 
-import static java.util.Objects.requireNonNull;
-
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
+import com.hedera.hapi.node.state.history.HistoryProofVote;
 import com.hedera.hapi.node.state.history.ProofKey;
 import com.hedera.node.app.history.HistoryLibrary;
 import com.hedera.node.app.history.ReadableHistoryStore.WrapsMessagePublication;
@@ -31,7 +30,7 @@ import java.util.concurrent.Executor;
  * </ul>
  * <p>
  * Implementations are allowed to be completely asynchronous internally, and most implementations will likely converge
- * to an outcome by submitting votes via {@link HistorySubmissions#submitProofVote(long, HistoryProof)}. However, a
+ * to an outcome by submitting votes via {@link HistorySubmissions#submitExplicitProofVote(long, HistoryProof)}. However, a
  * simple implementation could also return a completed proof from a synchronous call to {@link #advance}.
  * <p>
  * Since implementations are expected to also be stateful, a {@link ProofController} will have a {@link HistoryProver}
@@ -44,6 +43,7 @@ public interface HistoryProver {
     interface Factory {
         HistoryProver create(
                 long selfId,
+                @NonNull TssConfig tssConfig,
                 @NonNull SchnorrKeyPair schnorrKeyPair,
                 @Nullable HistoryProof sourceProof,
                 @NonNull RosterTransitionWeights weights,
@@ -119,24 +119,28 @@ public interface HistoryProver {
      * @param constructionId the construction ID
      * @param publication the WRAPS message publication
      * @param writableHistoryStore the writable history store
-     * @param tssConfig the TSS configuration
      * @return true if the publication was needed by this prover, false otherwise
      */
     boolean addWrapsSigningMessage(
             long constructionId,
             @NonNull WrapsMessagePublication publication,
-            @NonNull WritableHistoryStore writableHistoryStore,
-            @NonNull TssConfig tssConfig);
+            @NonNull WritableHistoryStore writableHistoryStore);
 
     /**
      * Replays a WRAPS message publication that previously reached consensus.
      * @param constructionId the construction ID
      * @param publication the WRAPS message publication
      */
-    default void replayWrapsSigningMessage(
-            final long constructionId, @NonNull final WrapsMessagePublication publication) {
-        requireNonNull(publication);
-    }
+    void replayWrapsSigningMessage(long constructionId, @NonNull WrapsMessagePublication publication);
+
+    /**
+     * Observes a proof vote.
+     *
+     * @param nodeId the node ID
+     * @param vote the vote
+     * @param proofFinalized whether this vote finalized the proof
+     */
+    void observeProofVote(long nodeId, @NonNull HistoryProofVote vote, boolean proofFinalized);
 
     /**
      * Returns a list of proof keys from the given map.

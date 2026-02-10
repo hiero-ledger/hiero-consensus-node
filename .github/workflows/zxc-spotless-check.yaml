@@ -1,0 +1,95 @@
+# SPDX-License-Identifier: Apache-2.0
+name: "ZXC: Spotless Check"
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: "The branch, tag or SHA to checkout."
+        required: false
+        type: string
+        default: ""
+      java-distribution:
+        description: "Java JDK Distribution:"
+        type: string
+        required: false
+        default: "temurin"
+      java-version:
+        description: "Java JDK Version:"
+        type: string
+        required: false
+        default: "21.0.6"
+      node-version:
+        description: "NodeJS Version:"
+        type: string
+        required: false
+        default: "20"
+    secrets:
+      access-token:
+        description: "The GitHub access token used to checkout the repository, submodules, and make GitHub API calls."
+        required: true
+      gradle-cache-username:
+        description: "The username used to authenticate with the Gradle Build Cache Node."
+        required: true
+      gradle-cache-password:
+        description: "The password used to authenticate with the Gradle Build Cache Node."
+        required: true
+    outputs:
+      failure-mode:
+        description: "Failure Mode"
+        value: ${{ jobs.spotless-check.outputs.failure-mode }}
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  id-token: write
+  actions: read
+  pull-requests: write
+  statuses: write
+  checks: write
+  contents: read
+
+env:
+  GRADLE_CACHE_USERNAME: ${{ secrets.gradle-cache-username }}
+  GRADLE_CACHE_PASSWORD: ${{ secrets.gradle-cache-password }}
+  GRADLE_EXEC: ionice -c 2 -n 2 nice -n 19 ./gradlew
+  CG_EXEC: ionice -c 2 -n 2 nice -n 19
+
+jobs:
+  spotless-check:
+    name: "Spotless Check"
+    runs-on: hl-cn-spotless-check-lin
+    outputs:
+      failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
+    steps:
+      - name: Prepare Runner
+        id: prepare-runner
+        uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
+        with:
+          checkout: "true"
+          checkout-ref: "${{ inputs.ref }}"
+          checkout-fetch-depth: "0"
+          checkout-token: "${{ secrets.access-token }}"
+          setup-java: "true"
+          java-version: "${{ inputs.java-version }}"
+          java-distribution: "${{ inputs.java-distribution }}"
+          setup-gradle: "true"
+          gradle-cache-read-only: "false"
+          setup-node: "true"
+          node-version: "${{ inputs.node-version }}"
+
+      - name: Spotless Check
+        id: spotless-check
+        run: ${GRADLE_EXEC} spotlessCheck
+
+      - name: Set Failure Mode Output
+        id: set-failure-mode
+        if: ${{ always() }}
+        run: |
+          if [[ "${{ steps.spotless-check.outcome }}" == "success" ]] \
+          && [[ "${{ steps.prepare-runner.outcome }}" == "success" ]]; then
+            echo "failure-mode=none" >> "${GITHUB_OUTPUT}"
+          else
+            echo "failure-mode=workflow" >> "${GITHUB_OUTPUT}"
+          fi

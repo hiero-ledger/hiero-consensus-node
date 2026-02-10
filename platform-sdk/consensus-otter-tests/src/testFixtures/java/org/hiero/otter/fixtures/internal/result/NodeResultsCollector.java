@@ -6,9 +6,7 @@ import static java.util.Objects.requireNonNull;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Queue;
 import java.util.Set;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
 import org.apache.logging.log4j.Marker;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
@@ -29,12 +27,12 @@ import org.hiero.otter.fixtures.result.SubscriberAction;
 public class NodeResultsCollector {
 
     private final NodeId nodeId;
-    private final Queue<ConsensusRound> consensusRounds = new ConcurrentLinkedQueue<>();
     private final List<ConsensusRoundSubscriber> consensusRoundSubscribers = new CopyOnWriteArrayList<>();
     private final List<PlatformStatus> platformStatuses = new ArrayList<>();
     private final List<PlatformStatusSubscriber> platformStatusSubscribers = new CopyOnWriteArrayList<>();
     private final List<StructuredLog> logEntries = new ArrayList<>();
     private final List<LogSubscriber> logSubscribers = new CopyOnWriteArrayList<>();
+    private final ConsensusRoundPool roundPool;
 
     // This class may be used in a multi-threaded context, so we use volatile to ensure visibility of state changes
     private volatile boolean destroyed = false;
@@ -43,9 +41,11 @@ public class NodeResultsCollector {
      * Creates a new instance of {@link NodeResultsCollector}.
      *
      * @param nodeId the node ID of the node
+     * @param roundPool the shared pool for deduplicating consensus rounds across nodes
      */
-    public NodeResultsCollector(@NonNull final NodeId nodeId) {
+    public NodeResultsCollector(@NonNull final NodeId nodeId, @NonNull final ConsensusRoundPool roundPool) {
         this.nodeId = requireNonNull(nodeId, "nodeId should not be null");
+        this.roundPool = requireNonNull(roundPool, "roundPool should not be null");
     }
 
     /**
@@ -60,15 +60,18 @@ public class NodeResultsCollector {
 
     /**
      * Adds a consensus round to the list of rounds created during the test.
+     * Rounds are deduplicated through the shared pool before being stored.
      *
-     * @param rounds the consensus rounds to add
+     * @param round the consensus round to add
      */
-    public void addConsensusRounds(@NonNull final List<ConsensusRound> rounds) {
-        requireNonNull(rounds);
+    public void addConsensusRound(@NonNull final ConsensusRound round) {
+        requireNonNull(round);
         if (!destroyed) {
-            consensusRounds.addAll(rounds);
+            // sends each round through the pool to deduplicate across nodes
+            final ConsensusRound internalRound = roundPool.update(round, nodeId);
+
             consensusRoundSubscribers.removeIf(
-                    subscriber -> subscriber.onConsensusRounds(nodeId, rounds) == SubscriberAction.UNSUBSCRIBE);
+                    subscriber -> subscriber.onConsensusRound(nodeId, internalRound) == SubscriberAction.UNSUBSCRIBE);
         }
     }
 
@@ -118,8 +121,7 @@ public class NodeResultsCollector {
      */
     @NonNull
     public List<ConsensusRound> currentConsensusRounds(final int startIndex) {
-        final List<ConsensusRound> copy = List.copyOf(consensusRounds);
-        return copy.subList(startIndex, copy.size());
+        return roundPool.currentConsensusRounds(startIndex, nodeId);
     }
 
     /**
@@ -128,7 +130,7 @@ public class NodeResultsCollector {
      * @return the count of consensus rounds
      */
     public int currentConsensusRoundsCount() {
-        return consensusRounds.size();
+        return roundPool.size(nodeId);
     }
 
     /**

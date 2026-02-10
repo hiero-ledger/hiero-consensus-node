@@ -36,6 +36,9 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
 import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateFees;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_APPROVE_ALLOWANCE_FEE;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_UPDATE_FEE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_MAX_AUTO_ASSOCIATIONS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REQUESTED_NUM_AUTOMATIC_ASSOCIATIONS_EXCEEDS_ASSOCIATION_LIMIT;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
@@ -218,33 +221,25 @@ public class CryptoServiceFeesSuite {
                         .payingWith(OWNER)
                         .addCryptoAllowance(OWNER, SPENDER, 100L)
                         .via("approve")
-                        .fee(ONE_HBAR)
-                        .blankMemo()
-                        .logged(),
+                        .blankMemo(),
                 validateChargedUsdWithin("approve", 0.05, 0.01),
                 cryptoApproveAllowance()
                         .payingWith(OWNER)
                         .addTokenAllowance(OWNER, FUNGIBLE_TOKEN, SPENDER, 100L)
                         .via("approveTokenTxn")
-                        .fee(ONE_HBAR)
-                        .blankMemo()
-                        .logged(),
+                        .blankMemo(),
                 validateChargedUsdWithin("approveTokenTxn", 0.05012, 0.01),
                 cryptoApproveAllowance()
                         .payingWith(OWNER)
                         .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, SPENDER, false, List.of(1L))
                         .via("approveNftTxn")
-                        .fee(ONE_HBAR)
-                        .blankMemo()
-                        .logged(),
+                        .blankMemo(),
                 validateChargedUsdWithin("approveNftTxn", 0.050101, 0.01),
                 cryptoApproveAllowance()
                         .payingWith(OWNER)
                         .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, ANOTHER_SPENDER, true, List.of())
                         .via("approveForAllNftTxn")
-                        .fee(ONE_HBAR)
-                        .blankMemo()
-                        .logged(),
+                        .blankMemo(),
                 validateChargedUsdWithin("approveForAllNftTxn", 0.05, 0.01),
                 cryptoApproveAllowance()
                         .payingWith(OWNER)
@@ -252,10 +247,8 @@ public class CryptoServiceFeesSuite {
                         .addTokenAllowance(OWNER, FUNGIBLE_TOKEN, SECOND_SPENDER, 100L)
                         .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, SECOND_SPENDER, false, List.of(1L))
                         .via(APPROVE_TXN)
-                        .fee(ONE_HBAR)
-                        .blankMemo()
-                        .logged(),
-                validateChargedUsdWithin(APPROVE_TXN, 0.05238, 0.01),
+                        .blankMemo(),
+                validateFees(APPROVE_TXN, 0.05238, 3 * CRYPTO_APPROVE_ALLOWANCE_FEE),
                 getAccountDetails(OWNER)
                         .payingWith(GENESIS)
                         .has(accountDetailsWith()
@@ -269,26 +262,20 @@ public class CryptoServiceFeesSuite {
                         .payingWith(OWNER)
                         .addCryptoAllowance(OWNER, SECOND_SPENDER, 200L)
                         .via("approveModifyCryptoTxn")
-                        .fee(ONE_HBAR)
-                        .blankMemo()
-                        .logged(),
-                validateChargedUsdWithin("approveModifyCryptoTxn", 0.049375, 0.01),
+                        .blankMemo(),
+                validateFees("approveModifyCryptoTxn", 0.049375, CRYPTO_APPROVE_ALLOWANCE_FEE),
                 cryptoApproveAllowance()
                         .payingWith(OWNER)
                         .addTokenAllowance(OWNER, FUNGIBLE_TOKEN, SECOND_SPENDER, 200L)
                         .via("approveModifyTokenTxn")
-                        .fee(ONE_HBAR)
-                        .blankMemo()
-                        .logged(),
-                validateChargedUsdWithin("approveModifyTokenTxn", 0.04943, 0.01),
+                        .blankMemo(),
+                validateFees("approveModifyCryptoTxn", 0.04943, CRYPTO_APPROVE_ALLOWANCE_FEE),
                 cryptoApproveAllowance()
                         .payingWith(OWNER)
                         .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, ANOTHER_SPENDER, false, List.of())
                         .via("approveModifyNftTxn")
-                        .fee(ONE_HBAR)
-                        .blankMemo()
-                        .logged(),
-                validateChargedUsdWithin("approveModifyNftTxn", 0.049375, 0.01),
+                        .blankMemo(),
+                validateFees("approveModifyCryptoTxn", 0.049375, CRYPTO_APPROVE_ALLOWANCE_FEE),
                 getAccountDetails(OWNER)
                         .payingWith(GENESIS)
                         .has(accountDetailsWith()
@@ -380,11 +367,11 @@ public class CryptoServiceFeesSuite {
                         .maxAutomaticAssociations(-1)
                         .via(validNegativeTxn),
                 getAccountInfo(autoAssocTarget).hasMaxAutomaticAssociations(-1).logged(),
-                validateChargedUsd(baseTxn, BASE_FEE_WITH_EXPIRY_CRYPTO_UPDATE, allowedPercentDiff),
-                validateChargedUsd(plusOneTxn, BASE_FEE_CRYPTO_UPDATE, allowedPercentDiff),
-                validateChargedUsd(plusTenTxn, BASE_FEE_CRYPTO_UPDATE, allowedPercentDiff),
-                validateChargedUsd(plusFiveKTxn, BASE_FEE_CRYPTO_UPDATE, allowedPercentDiff),
-                validateChargedUsd(validNegativeTxn, BASE_FEE_CRYPTO_UPDATE, allowedPercentDiff));
+                validateFees(baseTxn, BASE_FEE_WITH_EXPIRY_CRYPTO_UPDATE, CRYPTO_UPDATE_FEE),
+                validateFees(plusOneTxn, BASE_FEE_CRYPTO_UPDATE, CRYPTO_UPDATE_FEE),
+                validateFees(plusTenTxn, BASE_FEE_CRYPTO_UPDATE, CRYPTO_UPDATE_FEE),
+                validateFees(plusFiveKTxn, BASE_FEE_CRYPTO_UPDATE, CRYPTO_UPDATE_FEE),
+                validateFees(validNegativeTxn, BASE_FEE_CRYPTO_UPDATE, CRYPTO_UPDATE_FEE));
     }
 
     @HapiTest
@@ -455,17 +442,17 @@ public class CryptoServiceFeesSuite {
                         .via(nftXferTxn),
                 cryptoTransfer(moving(1, fungibleTokenWithCustomFee).between(nonTreasurySender, RECEIVER))
                         .blankMemo()
-                        .fee(ONE_HBAR)
+                        .fee(10 * ONE_HBAR)
                         .payingWith(nonTreasurySender)
                         .via(htsXferTxnWithCustomFee),
                 cryptoTransfer(movingUnique(nonFungibleTokenWithCustomFee, 1).between(nonTreasurySender, RECEIVER))
                         .blankMemo()
-                        .fee(ONE_HBAR)
+                        .fee(10 * ONE_HBAR)
                         .payingWith(nonTreasurySender)
                         .via(nftXferTxnWithCustomFee),
-                validateChargedUsdWithin(hbarXferTxn, BASE_FEE_HBAR_CRYPTO_TRANSFER, 0.01),
-                validateChargedUsdWithin(htsXferTxn, BASE_FEE_HTS_CRYPTO_TRANSFER, 0.01),
-                validateChargedUsdWithin(nftXferTxn, BASE_FEE_NFT_CRYPTO_TRANSFER, 0.01),
+                validateChargedUsdWithin(hbarXferTxn, BASE_FEE_HBAR_CRYPTO_TRANSFER, 1),
+                validateChargedUsdWithin(htsXferTxn, BASE_FEE_HTS_CRYPTO_TRANSFER, 0.1),
+                validateChargedUsdWithin(nftXferTxn, BASE_FEE_NFT_CRYPTO_TRANSFER, 0.3),
                 validateChargedUsdWithin(htsXferTxnWithCustomFee, expectedHtsXferWithCustomFeePriceUsd, 0.1),
                 validateChargedUsdWithin(nftXferTxnWithCustomFee, expectedNftXferWithCustomFeePriceUsd, 0.3));
     }

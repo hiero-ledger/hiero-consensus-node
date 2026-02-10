@@ -139,6 +139,7 @@ public class TransferWithCustomFixedFees {
                 cryptoTransfer(moving(1, fungibleToken).between(tokenOwner, tokenReceiver))
                         .payingWith(tokenOwner)
                         .fee(ONE_HUNDRED_HBARS)
+                        .signedBy(tokenOwner)
                         .hasKnownStatus(INSUFFICIENT_SENDER_ACCOUNT_BALANCE_FOR_CUSTOM_FEE),
                 getAccountBalance(tokenOwner).hasTokenBalance(fungibleToken, tokenTotal),
                 getAccountBalance(tokenReceiver).hasTokenBalance(fungibleToken, 0),
@@ -1300,7 +1301,7 @@ public class TransferWithCustomFixedFees {
 
     @HapiTest
     final Stream<DynamicTest> transferFungibleWithFixedHbarCustomFeeSenderHasOnlyGasAmount() {
-        final var gasAmount = 1669096L;
+        final var gasAmount = 1769096L;
         return customizedHapiTest(
                 Map.of("memo.useSpecName", "false"),
                 cryptoCreate(hbarCollector).balance(0L),
@@ -1318,6 +1319,7 @@ public class TransferWithCustomFixedFees {
                 cryptoTransfer(moving(1, fungibleToken).between(tokenOwner, tokenReceiver))
                         .fee(ONE_HUNDRED_HBARS)
                         .payingWith(tokenOwner)
+                        .signedBy(tokenOwner)
                         .hasKnownStatus(INSUFFICIENT_SENDER_ACCOUNT_BALANCE_FOR_CUSTOM_FEE));
     }
 
@@ -1356,7 +1358,7 @@ public class TransferWithCustomFixedFees {
 
     @HapiTest
     final Stream<DynamicTest> transferFungibleWithFixedHtsCustomFeeNotEnoughForGasAndFee() {
-        final var gasAmount = 1669096L;
+        final var gasAmount = 1769096L;
         return customizedHapiTest(
                 Map.of("memo.useSpecName", "false"),
                 cryptoCreate(hbarCollector).balance(0L),
@@ -1374,6 +1376,7 @@ public class TransferWithCustomFixedFees {
                 cryptoTransfer(moving(1, fungibleToken).between(tokenOwner, tokenReceiver))
                         .fee(ONE_HUNDRED_HBARS)
                         .payingWith(tokenOwner)
+                        .signedBy(tokenOwner)
                         .hasKnownStatus(INSUFFICIENT_SENDER_ACCOUNT_BALANCE_FOR_CUSTOM_FEE));
     }
 
@@ -1427,6 +1430,7 @@ public class TransferWithCustomFixedFees {
                 cryptoTransfer(moving(1, fungibleToken).between(tokenOwner, tokenReceiver))
                         .fee(ONE_HUNDRED_HBARS)
                         .payingWith(tokenOwner)
+                        .signedBy(tokenOwner)
                         .hasKnownStatus(INSUFFICIENT_SENDER_ACCOUNT_BALANCE_FOR_CUSTOM_FEE));
     }
 

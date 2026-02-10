@@ -79,7 +79,7 @@ env:
   GRAFANA_SYSADM_CHI: https://grafana.lat.ope.eng.hashgraph.io/d/rYdddlPWk/node-exporter-single-node?orgId=1&timezone=utc&var-datasource=P631E2BA859A814B3&var-job=performance-chicago-node-exporter
 
   #Release version from jFrog
-  NLG_VERSION: 0.9.1
+  NLG_VERSION: 0.13.0
 
   #Thresholds for performance
   #benchmarks
@@ -98,7 +98,7 @@ env:
 jobs:
   performance-tests-start:
     name: Start
-    runs-on: hiero-citr-linux-large
+    runs-on: hl-cn-sdpt-lin-lg
     env:
       run_NLG_Test: NftTransferLoadTest
     outputs:
@@ -147,6 +147,7 @@ jobs:
         with:
           proxy: hashgraph.teleport.sh:443
           token: gh-citr-performance-svcs-bot
+          certificate-ttl: 24h
 
       - name: Authorize Teleport K8S Access
         id: auth-k8s
@@ -179,7 +180,7 @@ jobs:
           java-version: 21.0.6
 
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@8379f6a1328ee0e06e2bb424dadb7b159856a326 # v4.4.0
+        uses: gradle/actions/setup-gradle@4d9f0ba0025fe599b4ebab900eb7f3a1d93ef4c2 # v5.0.0
         with:
           gradle-version: wrapper
 
@@ -691,7 +692,7 @@ jobs:
 
   performance-NftTransferLoadTest-watch1:
     name: NFT Transfer Load Test
-    runs-on: hiero-citr-linux-large
+    runs-on: hl-cn-sdpt-lin-lg
     needs:
       - performance-tests-start
     env:
@@ -730,6 +731,7 @@ jobs:
         with:
           proxy: hashgraph.teleport.sh:443
           token: gh-citr-performance-svcs-bot
+          certificate-ttl: 24h
 
       - name: Authorize Teleport K8S Access
         id: auth-k8s
@@ -738,7 +740,7 @@ jobs:
           proxy: hashgraph.teleport.sh:443
           token: gh-citr-performance-svcs-bot
           kubernetes-cluster: ${{ needs.performance-tests-start.outputs.kubernetes-cluster }}
-          certificate-ttl: 20h
+          certificate-ttl: 24h
 
       - name: Authenticate to Google Cloud
         id: google-auth
@@ -871,7 +873,7 @@ jobs:
 
   performance-NftTransferLoadTest-report:
     name: NFT Transfer Load Test Report
-    runs-on: hiero-citr-linux-large
+    runs-on: hl-cn-sdpt-lin-lg
     needs:
       - performance-tests-start
       - performance-NftTransferLoadTest-watch1
@@ -914,6 +916,7 @@ jobs:
         with:
           proxy: hashgraph.teleport.sh:443
           token: gh-citr-performance-svcs-bot
+          certificate-ttl: 24h
 
       - name: Authorize Teleport K8S Access
         uses: teleport-actions/auth-k8s@677da98eaa78a5e649d4c5b4012750af4c28af73 # v2.0.3
@@ -921,7 +924,7 @@ jobs:
           proxy: hashgraph.teleport.sh:443
           token: gh-citr-performance-svcs-bot
           kubernetes-cluster: ${{ needs.performance-tests-start.outputs.kubernetes-cluster }}
-          certificate-ttl: 20h
+          certificate-ttl: 24h
 
       - name: Authenticate to Google Cloud
         uses: step-security/google-github-auth@40f6deebd366f16c782d7a0ad0844e3b96a032a6 # v2.1.10
@@ -1196,7 +1199,7 @@ jobs:
 
   performance-post-test-validation:
     name: Consensus Node State Validator
-    runs-on: hiero-citr-linux-large
+    runs-on: hl-cn-sdpt-lin-lg
     needs:
       - performance-tests-start
       - performance-SmartContractLoadTest
@@ -1233,6 +1236,7 @@ jobs:
         with:
           proxy: hashgraph.teleport.sh:443
           token: gh-citr-performance-svcs-bot
+          certificate-ttl: 24h
 
       - name: Authorize Teleport K8S Access
         uses: teleport-actions/auth-k8s@677da98eaa78a5e649d4c5b4012750af4c28af73 # v2.0.3
@@ -1240,7 +1244,7 @@ jobs:
           proxy: hashgraph.teleport.sh:443
           token: gh-citr-performance-svcs-bot
           kubernetes-cluster: ${{ needs.performance-tests-start.outputs.kubernetes-cluster }}
-          certificate-ttl: 20h
+          certificate-ttl: 24h
 
       - name: Authenticate to Google Cloud
         uses: step-security/google-github-auth@40f6deebd366f16c782d7a0ad0844e3b96a032a6 # v2.1.10
@@ -1273,7 +1277,7 @@ jobs:
         run: |
           set +x
           set +e
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.performance-tests-start.outputs.namespace }}" \
+          kubectl -n "${{ needs.performance-tests-start.outputs.namespace }}" \
             exec -it network-node1-0 -c root-container -- bash -c "cd /opt/hgcapp/services-hedera/HapiApp2.0; sh checkValidatorNode.sh 0" 2>&1 | tee "${{ github.workspace }}"/report/validator_status.log
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.performance-tests-start.outputs.namespace }}" \
             cp network-node1-0:/opt/hgcapp/services-hedera/HapiApp2.0/data/saved/validation.tmp/validator.log "${{ github.workspace }}"/report/validator.log
@@ -1312,7 +1316,7 @@ jobs:
   # Send this output back to the caller workflow
   single-day-performance-test-result:
     name: Calculate Result
-    runs-on: hiero-citr-linux-large
+    runs-on: hl-cn-sdpt-lin-lg
     if: ${{ !cancelled() }}
     needs:
       - performance-NftTransferLoadTest-report
@@ -1350,43 +1354,43 @@ jobs:
               RESULT="success"
           fi
 
-          if [[ "0${{ needs.performance-NftTransferLoadTest-report.outputs.NFTscore }}" -lt "${{ env.MinNFTscore }}" ]]
+          if [[ "10#0${{ needs.performance-NftTransferLoadTest-report.outputs.NFTscore }}" -lt "10#${{ env.MinNFTscore }}" ]]
           then
             echo "Benchmark NFTscore ${{ needs.performance-NftTransferLoadTest-report.outputs.NFTscore }} is below ${{ env.MinNFTscore }}" >> "${GITHUB_STEP_SUMMARY}"
             RESULT="failure"
           fi
 
-          if [[ "0${{ needs.performance-NftTransferLoadTest-report.outputs.MerkleDBscore }}" -lt "${{ env.MinMerkleDBscore }}" ]]
+          if [[ "10#0${{ needs.performance-NftTransferLoadTest-report.outputs.MerkleDBscore }}" -lt "10#${{ env.MinMerkleDBscore }}" ]]
           then
             echo "Benchmark MerkleDBscore ${{ needs.performance-NftTransferLoadTest-report.outputs.MerkleDBscore }} is below ${{ env.MinMerkleDBscore }}" >> "${GITHUB_STEP_SUMMARY}"
             RESULT="failure"
           fi
 
-          if [[ "0${{ needs.performance-HCSLoadTest.outputs.output }}" -lt "${{ env.MinHCSLoadTest }}" ]]
+          if [[ "10#0${{ needs.performance-HCSLoadTest.outputs.output }}" -lt "10#${{ env.MinHCSLoadTest }}" ]]
           then
             echo "Benchmark HCSLoadTest ${{ needs.performance-HCSLoadTest.outputs.output }} is below ${{ env.MinHCSLoadTest }}" >> "${GITHUB_STEP_SUMMARY}"
             RESULT="failure"
           fi
 
-          if [[ "0${{ needs.performance-CryptoTransferLoadTest.outputs.output }}" -lt "${{ env.MinCryptoTransferLoadTest }}" ]]
+          if [[ "10#0${{ needs.performance-CryptoTransferLoadTest.outputs.output }}" -lt "10#${{ env.MinCryptoTransferLoadTest }}" ]]
           then
             echo "Benchmark CryptoTransferLoadTest ${{ needs.performance-CryptoTransferLoadTest.outputs.output }} is below ${{ env.MinCryptoTransferLoadTest }}" >> "${GITHUB_STEP_SUMMARY}"
             RESULT="failure"
           fi
 
-          if [[ "0${{ needs.performance-HeliSwapLoadTest.outputs.output }}" -lt "${{ env.MinHeliSwapLoadTest }}" ]]
+          if [[ "10#0${{ needs.performance-HeliSwapLoadTest.outputs.output }}" -lt "10#${{ env.MinHeliSwapLoadTest }}" ]]
           then
             echo "Benchmark HeliSwapLoadTest ${{ needs.performance-HeliSwapLoadTest.outputs.output }} is below ${{ env.MinHeliSwapLoadTest }}" >> "${GITHUB_STEP_SUMMARY}"
             RESULT="failure"
           fi
 
-          if [[ "0${{ needs.performance-SmartContractLoadTest.outputs.output }}" -lt "${{ env.MinSmartContractLoadTest }}" ]]
+          if [[ "10#0${{ needs.performance-SmartContractLoadTest.outputs.output }}" -lt "10#${{ env.MinSmartContractLoadTest }}" ]]
           then
             echo "Benchmark SmartContractLoadTest ${{ needs.performance-SmartContractLoadTest.outputs.output }} is below ${{ env.MinSmartContractLoadTest }}" >> "${GITHUB_STEP_SUMMARY}"
             RESULT="failure"
           fi
 
-          if [[ "0${{ env.validator_result }}" -ne "${{ env.ValidatorExitCode }}" ]]
+          if [[ "10#0${{ env.validator_result }}" -ne "10#${{ env.ValidatorExitCode }}" ]]
           then
             echo "Validator exit code ${{ env.validator_result }} is not ${{ env.ValidatorExitCode }}" >> "${GITHUB_STEP_SUMMARY}"
             RESULT="failure"
@@ -1399,7 +1403,7 @@ jobs:
 
   delete-namespace:
     name: Delete namespace
-    runs-on: hiero-citr-linux-large
+    runs-on: hl-cn-sdpt-lin-lg
     needs:
       - performance-tests-start
       - single-day-performance-test-result
@@ -1430,6 +1434,7 @@ jobs:
         with:
           proxy: hashgraph.teleport.sh:443
           token: gh-citr-performance-svcs-bot
+          certificate-ttl: 24h
 
       - name: Authorize Teleport K8S Access
         id: auth-k8s
@@ -1447,7 +1452,7 @@ jobs:
 
   performance-report-to-rootly:
     name: Report Failures to Rootly
-    runs-on: hiero-citr-linux-medium
+    runs-on: hl-cn-sdpt-lin-sm
     needs:
       - performance-tests-start
       - performance-NftTransferLoadTest-watch1
@@ -1508,7 +1513,7 @@ jobs:
           echo "${{ steps.summary.outputs.summary }}" >> "${GITHUB_STEP_SUMMARY}"
 
   performance-report-to-slack:
-    runs-on: hiero-citr-linux-medium
+    runs-on: hl-cn-sdpt-lin-sm
     needs:
       - performance-NftTransferLoadTest-report
       - performance-HCSLoadTest

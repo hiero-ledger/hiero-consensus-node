@@ -2,10 +2,10 @@
 package com.swirlds.platform.system.status;
 
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.metrics.statistics.StatConstructor;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.concurrent.atomic.AtomicReference;
+import org.hiero.consensus.metrics.statistics.StatConstructor;
 import org.hiero.consensus.model.status.PlatformStatus;
 
 /**

@@ -92,9 +92,11 @@ class HistoryProofKeyPublicationHandlerTest {
         given(context.creatorInfo()).willReturn(nodeInfo);
         given(context.storeFactory()).willReturn(factory);
         given(context.consensusNow()).willReturn(CONSENSUS_NOW);
+        given(context.configuration()).willReturn(configuration);
+        given(configuration.getConfigData(TssConfig.class)).willReturn(tssConfig);
         given(factory.writableStore(WritableHistoryStore.class)).willReturn(store);
         given(store.setProofKey(NODE_ID, PROOF_KEY, CONSENSUS_NOW)).willReturn(true);
-        given(controllers.getAnyInProgress()).willReturn(Optional.of(controller));
+        given(controllers.getAnyInProgress(tssConfig)).willReturn(Optional.of(controller));
 
         subject.handle(context);
 
@@ -112,6 +114,8 @@ class HistoryProofKeyPublicationHandlerTest {
         given(context.creatorInfo()).willReturn(nodeInfo);
         given(context.storeFactory()).willReturn(factory);
         given(context.consensusNow()).willReturn(CONSENSUS_NOW);
+        given(context.configuration()).willReturn(configuration);
+        given(configuration.getConfigData(TssConfig.class)).willReturn(tssConfig);
         given(factory.writableStore(WritableHistoryStore.class)).willReturn(store);
         given(store.setProofKey(NODE_ID, PROOF_KEY, CONSENSUS_NOW)).willReturn(false);
 
@@ -130,16 +134,15 @@ class HistoryProofKeyPublicationHandlerTest {
         given(context.consensusNow()).willReturn(CONSENSUS_NOW);
         given(context.configuration()).willReturn(configuration);
         given(configuration.getConfigData(TssConfig.class)).willReturn(tssConfig);
-        given(controllers.getAnyInProgress()).willReturn(Optional.of(controller));
-        given(controller.addWrapsMessagePublication(
-                        any(ReadableHistoryStore.WrapsMessagePublication.class), eq(store), eq(tssConfig)))
+        given(controllers.getAnyInProgress(tssConfig)).willReturn(Optional.of(controller));
+        given(controller.addWrapsMessagePublication(any(ReadableHistoryStore.WrapsMessagePublication.class), eq(store)))
                 .willReturn(true);
         given(controller.constructionId()).willReturn(42L);
 
         subject.handle(context);
 
         final var captor = ArgumentCaptor.forClass(ReadableHistoryStore.WrapsMessagePublication.class);
-        verify(controller).addWrapsMessagePublication(captor.capture(), eq(store), eq(tssConfig));
+        verify(controller).addWrapsMessagePublication(captor.capture(), eq(store));
         final var publication = captor.getValue();
         assertEquals(NODE_ID, publication.nodeId());
         assertEquals(WRAPS_MESSAGE, publication.message());
@@ -158,16 +161,14 @@ class HistoryProofKeyPublicationHandlerTest {
         given(context.consensusNow()).willReturn(CONSENSUS_NOW);
         given(context.configuration()).willReturn(configuration);
         given(configuration.getConfigData(TssConfig.class)).willReturn(tssConfig);
-        given(controllers.getAnyInProgress()).willReturn(Optional.of(controller));
-        given(controller.addWrapsMessagePublication(
-                        any(ReadableHistoryStore.WrapsMessagePublication.class), eq(store), eq(tssConfig)))
+        given(controllers.getAnyInProgress(tssConfig)).willReturn(Optional.of(controller));
+        given(controller.addWrapsMessagePublication(any(ReadableHistoryStore.WrapsMessagePublication.class), eq(store)))
                 .willReturn(false);
 
         subject.handle(context);
 
         verify(controller)
-                .addWrapsMessagePublication(
-                        any(ReadableHistoryStore.WrapsMessagePublication.class), eq(store), eq(tssConfig));
+                .addWrapsMessagePublication(any(ReadableHistoryStore.WrapsMessagePublication.class), eq(store));
         verify(store, never()).addWrapsMessage(anyLong(), any());
     }
 

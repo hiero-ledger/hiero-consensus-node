@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.throttling;
 
+import static com.hedera.services.bdd.junit.ContextRequirement.THROTTLE_OVERRIDES;
 import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -22,6 +23,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.THROTTLE_GROUP
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.THROTTLE_GROUP_LCM_OVERFLOW;
 
 import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.spec.utilops.SysFileOverrideOp;
 import java.util.stream.Stream;
@@ -40,7 +42,9 @@ public class ThrottleDefValidationSuite {
         return hapiTest(throttleRestorationOp);
     }
 
-    @HapiTest
+    @LeakyHapiTest(
+            requirement = {THROTTLE_OVERRIDES},
+            throttles = "testSystemFiles/throttles-sans-mint.json")
     @Order(2)
     final Stream<DynamicTest> updateWithMissingTokenMintFails() {
         return hapiTest(overridingThrottles("testSystemFiles/throttles-sans-mint.json"));

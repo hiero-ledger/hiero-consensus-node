@@ -3,68 +3,49 @@ package com.swirlds.platform.util;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
-import static com.swirlds.platform.state.service.PlatformStateUtils.creationSoftwareVersionOf;
 import static com.swirlds.platform.system.SystemExitCode.NODE_ADDRESS_MISMATCH;
 import static com.swirlds.platform.system.SystemExitUtils.exitSystem;
-import static com.swirlds.virtualmap.constructable.ConstructableUtils.registerVirtualMapConstructables;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.creationSoftwareVersionOf;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.util.HapiUtils;
-import com.swirlds.common.utility.CommonUtils;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.api.source.ConfigSource;
 import com.swirlds.config.extensions.export.ConfigExport;
 import com.swirlds.config.extensions.sources.LegacyFileConfigSource;
 import com.swirlds.config.extensions.sources.YamlConfigSource;
-import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
-import com.swirlds.platform.ApplicationDefinition;
 import com.swirlds.platform.JVMPauseDetectorThread;
-import com.swirlds.platform.config.BasicConfig;
 import com.swirlds.platform.config.PathsConfig;
 import com.swirlds.platform.config.internal.ConfigMappings;
 import com.swirlds.platform.config.internal.PlatformConfigUtils;
 import com.swirlds.platform.config.legacy.ConfigurationException;
-import com.swirlds.platform.gui.WindowConfig;
 import com.swirlds.platform.health.OSHealthCheckConfig;
 import com.swirlds.platform.health.OSHealthChecker;
 import com.swirlds.platform.health.clock.OSClockSpeedSourceChecker;
 import com.swirlds.platform.health.entropy.OSEntropyChecker;
 import com.swirlds.platform.health.filesystem.OSFileSystemChecker;
-import com.swirlds.platform.state.signed.SignedState;
-import com.swirlds.platform.swirldapp.AppLoaderException;
-import com.swirlds.platform.swirldapp.SwirldAppLoader;
-import com.swirlds.platform.system.SwirldMain;
-import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.awt.Dimension;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
-import javax.swing.JFrame;
-import javax.swing.UIManager;
-import javax.swing.UnsupportedLookAndFeelException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.base.StackTrace;
-import org.hiero.base.constructable.ClassConstructorPair;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.consensus.config.BasicConfig;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.roster.Address;
+import org.hiero.consensus.state.signed.SignedState;
 
 /**
  * Utility methods that are helpful when starting up a JVM.
@@ -118,12 +99,13 @@ public final class BootstrapUtils {
     /**
      * Perform health all health checks
      *
-     * @param configPath    the path to the config.txt file
+     * @param settingsPath  the path to the settings.txt file
      * @param configuration the configuration
      */
-    public static void performHealthChecks(@NonNull final Path configPath, @NonNull final Configuration configuration) {
+    public static void performHealthChecks(
+            @NonNull final Path settingsPath, @NonNull final Configuration configuration) {
         requireNonNull(configuration);
-        final OSFileSystemChecker osFileSystemChecker = new OSFileSystemChecker(configPath);
+        final OSFileSystemChecker osFileSystemChecker = new OSFileSystemChecker(settingsPath);
 
         OSHealthChecker.performOSHealthChecks(
                 configuration.getConfigData(OSHealthCheckConfig.class),
@@ -134,40 +116,11 @@ public final class BootstrapUtils {
     }
 
     /**
-     * Sets up the browser window
-     */
-    public static void setupBrowserWindow()
-            throws UnsupportedLookAndFeelException, ClassNotFoundException, InstantiationException,
-                    IllegalAccessException {
-        // discover the inset size and set the look and feel
-        UIManager.setLookAndFeel(UIManager.getCrossPlatformLookAndFeelClassName());
-        final JFrame jframe = new JFrame();
-        jframe.setPreferredSize(new Dimension(200, 200));
-        jframe.pack();
-        WindowConfig.setInsets(jframe.getInsets());
-        jframe.dispose();
-    }
-
-    /**
      * Add all classes to the constructable registry.
      */
     public static void setupConstructableRegistry() {
         try {
             ConstructableRegistry.getInstance().registerConstructables("");
-        } catch (final ConstructableRegistryException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    /**
-     * Add all classes to the constructable registry which need the configuration.
-     */
-    public static void setupConstructableRegistryWithConfiguration(final Configuration configuration) {
-        try {
-            ConstructableRegistry.getInstance()
-                    .registerConstructable(new ClassConstructorPair(
-                            MerkleDbDataSourceBuilder.class, () -> new MerkleDbDataSourceBuilder(configuration)));
-            registerVirtualMapConstructables(configuration);
         } catch (final ConstructableRegistryException e) {
             throw new RuntimeException(e);
         }
@@ -242,29 +195,6 @@ public final class BootstrapUtils {
     }
 
     /**
-     * Build the app main.
-     *
-     * @param appDefinition the app definition
-     * @param appLoader     an object capable of loading the app
-     * @return the new app main
-     */
-    public static @NonNull SwirldMain<? extends MerkleNodeState> buildAppMain(
-            @NonNull final ApplicationDefinition appDefinition, @NonNull final SwirldAppLoader appLoader) {
-        requireNonNull(appDefinition);
-        requireNonNull(appLoader);
-        try {
-            return appLoader.instantiateSwirldMain();
-        } catch (final Exception e) {
-            CommonUtils.tellUserConsolePopup(
-                    "ERROR",
-                    "ERROR: There are problems starting class " + appDefinition.getMainClassName() + "\n"
-                            + StackTrace.getStackTrace(e));
-            logger.error(EXCEPTION.getMarker(), "Problems with class {}", appDefinition.getMainClassName(), e);
-            throw new RuntimeException("Problems with class " + appDefinition.getMainClassName(), e);
-        }
-    }
-
-    /**
      * Writes all settings and config values to settingsUsed.txt
      *
      * @param configuration the configuration values to write
@@ -298,10 +228,10 @@ public final class BootstrapUtils {
      * through the system environment.   If no nodes are specified on the commandline or through the system environment,
      * all nodes in the address book are returned to run locally.
      *
-     * @param cliNodesToRun nodes specified to start by the user on the command line
+     * @param cliNodesToRun    nodes specified to start by the user on the command line
      * @param configNodesToRun nodes specified to start by the user in configuration
-     * @param knownNodeIds the set of known node ids
-     * @param validNodeId a predicate that determines if a node id is valid
+     * @param knownNodeIds     the set of known node ids
+     * @param validNodeId      a predicate that determines if a node id is valid
      * @return A non-empty list of nodes to run locally
      * @throws IllegalArgumentException if a node to run is invalid or the list of nodes to run is empty
      */
@@ -343,68 +273,5 @@ public final class BootstrapUtils {
         }
 
         return nodesToRun;
-    }
-
-    /**
-     * Load all {@link SwirldMain} instances for locally run nodes.  Locally run nodes are indicated in two possible
-     * ways.  One is through the set of local nodes to start.  The other is through {@link Address ::isOwnHost} being
-     * true.
-     *
-     * @param appDefinition the application definition
-     * @param nodesToRun    the locally run nodeIds
-     * @return a map from nodeIds to {@link SwirldMain} instances
-     */
-    @NonNull
-    @SuppressWarnings("rawtypes")
-    public static Map<NodeId, SwirldMain> loadSwirldMains(
-            @NonNull final ApplicationDefinition appDefinition, @NonNull final Collection<NodeId> nodesToRun) {
-        requireNonNull(appDefinition, "appDefinition must not be null");
-        requireNonNull(nodesToRun, "nodesToRun must not be null");
-        try {
-            // Create the SwirldAppLoader
-            final SwirldAppLoader appLoader;
-            try {
-                appLoader =
-                        SwirldAppLoader.loadSwirldApp(appDefinition.getMainClassName(), appDefinition.getAppJarPath());
-            } catch (final AppLoaderException e) {
-                CommonUtils.tellUserConsolePopup("ERROR", e.getMessage());
-                throw e;
-            }
-
-            // Register all RuntimeConstructable classes
-            logger.debug(STARTUP.getMarker(), "Scanning the classpath for RuntimeConstructable classes");
-            final long start = System.currentTimeMillis();
-            ConstructableRegistry.getInstance().registerConstructables("", appLoader.getClassLoader());
-            logger.debug(
-                    STARTUP.getMarker(),
-                    "Done with registerConstructables, time taken {}ms",
-                    System.currentTimeMillis() - start);
-
-            // Create the SwirldMain instances
-            final Map<NodeId, SwirldMain> appMains = new HashMap<>();
-            for (final NodeId nodeId : nodesToRun) {
-                appMains.put(nodeId, buildAppMain(appDefinition, appLoader));
-            }
-            return appMains;
-        } catch (final Exception ex) {
-            throw new RuntimeException("Error loading SwirldMains", ex);
-        }
-    }
-
-    /**
-     * Build the app main.
-     *
-     * @param appDefinition the app definition
-     * @return the new app main
-     */
-    public static SwirldMain<? extends MerkleNodeState> getSwirldMain(final ApplicationDefinition appDefinition) {
-        try {
-            final var appLoader =
-                    SwirldAppLoader.loadSwirldApp(appDefinition.getMainClassName(), appDefinition.getAppJarPath());
-            ConstructableRegistry.getInstance().registerConstructables("", appLoader.getClassLoader());
-            return appLoader.instantiateSwirldMain();
-        } catch (final Exception e) {
-            throw new RuntimeException(e);
-        }
     }
 }

@@ -1,7 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.support.translators;
 
+import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_CRS_PUBLICATIONS;
+import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_HINTS_KEY_SETS;
+import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_PREPROCESSING_VOTES;
+import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_PROOF_KEY_SETS;
+import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_PROOF_VOTES;
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_TRANSACTION_RECEIPTS;
+import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_WRAPS_MESSAGE_HISTORIES;
 import static com.hedera.hapi.node.base.HederaFunctionality.ATOMIC_BATCH;
 import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_SIGN;
@@ -61,6 +67,13 @@ import org.junit.jupiter.api.Assertions;
  * {@code N+1} top-level transaction, achieving uniqueness via nonce only.
  */
 public class RoleFreeBlockUnitSplit {
+    private static final Set<Integer> SYSTEM_PURGED_KV_STATES = Set.of(
+            STATE_ID_HINTS_KEY_SETS.protoOrdinal(),
+            STATE_ID_PREPROCESSING_VOTES.protoOrdinal(),
+            STATE_ID_CRS_PUBLICATIONS.protoOrdinal(),
+            STATE_ID_PROOF_KEY_SETS.protoOrdinal(),
+            STATE_ID_PROOF_VOTES.protoOrdinal(),
+            STATE_ID_WRAPS_MESSAGE_HISTORIES.protoOrdinal());
 
     private static final Set<HederaFunctionality> TRIGGERING_OPS = EnumSet.of(SCHEDULE_CREATE, SCHEDULE_SIGN);
 
@@ -76,6 +89,13 @@ public class RoleFreeBlockUnitSplit {
      * Indexes of state changes in the block.
      */
     private final NavigableSet<Integer> stateChangeIndexes = new TreeSet<>();
+    /**
+     * Indexes of event headers in the block.
+     *
+     * <p>Used to avoid mis-identifying a transaction as top-level based on a subsequent {@link StateChanges} item
+     * that actually belongs to a later event (e.g. an expiring schedule state change).</p>
+     */
+    private final NavigableSet<Integer> eventHeaderIndexes = new TreeSet<>();
     /**
      * Map from index in the block to top-level transaction ID.
      */
@@ -117,9 +137,11 @@ public class RoleFreeBlockUnitSplit {
         for (int i = 0; i < n; i++) {
             final var item = items.get(i);
             if (item.hasStateChanges()) {
-                if (hasEmptyOrKvOrNonReceiptQueueChanges(item.stateChangesOrThrow())) {
+                if (hasUserStateChanges(item.stateChangesOrThrow())) {
                     stateChangeIndexes.add(i);
                 }
+            } else if (item.hasEventHeader()) {
+                eventHeaderIndexes.add(i);
             } else if (item.hasSignedTransaction()) {
                 txIndexes.add(i);
             } else if (item.hasTransactionResult()) {
@@ -152,8 +174,15 @@ public class RoleFreeBlockUnitSplit {
                 if (nextStateChangeIndex != null) {
                     final int j = requireNonNull(txIndexes.lower(nextStateChangeIndex));
                     if (i == j) {
-                        final var txId = getParts.apply(i).transactionIdOrThrow();
-                        topLevelIds.put(i, txId);
+                        // Only treat this txn as top-level if there is no event boundary between it and the
+                        // following StateChanges item; otherwise, that StateChanges may belong to a later event.
+                        final boolean hasEventHeaderBetween = !eventHeaderIndexes
+                                .subSet(i, false, nextStateChangeIndex, false)
+                                .isEmpty();
+                        if (!hasEventHeaderBetween) {
+                            final var txId = getParts.apply(i).transactionIdOrThrow();
+                            topLevelIds.put(i, txId);
+                        }
                     }
                 } else {
                     try {
@@ -297,18 +326,19 @@ public class RoleFreeBlockUnitSplit {
 
     private void clear() {
         stateChangeIndexes.clear();
+        eventHeaderIndexes.clear();
         unitAssignments.clear();
         resultIndexes.clear();
         topLevelIds.clear();
         txIndexes.clear();
     }
 
-    private static boolean hasEmptyOrKvOrNonReceiptQueueChanges(@NonNull final StateChanges stateChanges) {
+    private static boolean hasUserStateChanges(@NonNull final StateChanges stateChanges) {
         final var changes = stateChanges.stateChanges();
         return changes.isEmpty()
                 || changes.stream()
                         .anyMatch(change -> change.hasMapUpdate()
-                                || change.hasMapDelete()
+                                || (change.hasMapDelete() && !SYSTEM_PURGED_KV_STATES.contains(change.stateId()))
                                 || (change.hasQueuePush()
                                         && change.stateId() != STATE_ID_TRANSACTION_RECEIPTS.protoOrdinal())
                                 || (change.hasQueuePop()

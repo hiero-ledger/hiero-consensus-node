@@ -4,8 +4,6 @@ package org.hiero.otter.fixtures.container;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.roster.Roster;
-import com.swirlds.platform.gossip.config.GossipConfig_;
-import com.swirlds.platform.gossip.config.NetworkEndpoint;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -16,6 +14,8 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.gossip.config.GossipConfig_;
+import org.hiero.consensus.gossip.config.NetworkEndpoint;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
@@ -27,6 +27,7 @@ import org.hiero.otter.fixtures.container.network.NetworkBehavior;
 import org.hiero.otter.fixtures.internal.AbstractNetwork;
 import org.hiero.otter.fixtures.internal.RegularTimeManager;
 import org.hiero.otter.fixtures.internal.network.ConnectionKey;
+import org.hiero.otter.fixtures.internal.result.ConsensusRoundPool;
 import org.hiero.otter.fixtures.network.Topology.ConnectionState;
 import org.testcontainers.containers.Network;
 import org.testcontainers.images.builder.ImageFromDockerfile;
@@ -45,6 +46,7 @@ public class ContainerNetwork extends AbstractNetwork {
     private final ContainerTransactionGenerator transactionGenerator;
     private final ImageFromDockerfile dockerImage;
     private final Executor executor = Executors.newCachedThreadPool();
+    private final ConsensusRoundPool consensusRoundPool = new ConsensusRoundPool();
 
     private ToxiproxyContainer toxiproxyContainer;
     private NetworkBehavior networkBehavior;
@@ -105,7 +107,14 @@ public class ContainerNetwork extends AbstractNetwork {
     protected ContainerNode doCreateNode(@NonNull final NodeId nodeId, @NonNull final KeysAndCerts keysAndCerts) {
         final Path outputDir = rootOutputDirectory.resolve(NODE_IDENTIFIER_FORMAT.formatted(nodeId.id()));
         final ContainerNode node = new ContainerNode(
-                nodeId, timeManager, keysAndCerts, network, dockerImage, outputDir, networkConfiguration);
+                nodeId,
+                timeManager,
+                keysAndCerts,
+                network,
+                dockerImage,
+                outputDir,
+                networkConfiguration,
+                consensusRoundPool);
         timeManager.addTimeTickReceiver(node);
         return node;
     }
@@ -119,7 +128,14 @@ public class ContainerNetwork extends AbstractNetwork {
             @NonNull final NodeId nodeId, @NonNull final KeysAndCerts keysAndCerts) {
         final Path outputDir = rootOutputDirectory.resolve(NODE_IDENTIFIER_FORMAT.formatted(nodeId.id()));
         final InstrumentedContainerNode node = new InstrumentedContainerNode(
-                nodeId, timeManager, keysAndCerts, network, dockerImage, outputDir, networkConfiguration);
+                nodeId,
+                timeManager,
+                keysAndCerts,
+                network,
+                dockerImage,
+                outputDir,
+                networkConfiguration,
+                consensusRoundPool);
         timeManager.addTimeTickReceiver(node);
         return node;
     }
@@ -164,6 +180,7 @@ public class ContainerNetwork extends AbstractNetwork {
         log.info("Destroying network...");
         transactionGenerator.stop();
         nodes().forEach(node -> ((ContainerNode) node).destroy());
+        consensusRoundPool.destroy();
         if (toxiproxyContainer != null) {
             toxiproxyContainer.stop();
         }

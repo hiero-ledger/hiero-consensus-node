@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.hip551.contracts;
 
 import static com.google.protobuf.ByteString.copyFromUtf8;
+import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
 import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
@@ -88,6 +89,7 @@ import org.junit.jupiter.api.Tag;
  * It includes various scenarios for minting, burning, associating,
  * and dissociating tokens using contract and delegate keys.
  */
+@Tag(ATOMIC_BATCH)
 @HapiTestLifecycle
 class AtomicBatchContractKeysHtsTest {
     private static final String DEFAULT_BATCH_OPERATOR = "defaultBatchOperator";

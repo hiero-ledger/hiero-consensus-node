@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.consensus;
 
+import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
 import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFullPrefixesFor;
@@ -21,6 +22,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.exposeTargetLedgerIdTo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.safeValidateInnerTxnChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateInnerTxnChargedUsd;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
@@ -31,6 +33,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
 import static com.hedera.services.bdd.suites.contract.hapi.ContractCallSuite.PAY_RECEIVABLE_CONTRACT;
 import static com.hedera.services.bdd.suites.crypto.AutoCreateUtils.createHollowAccountFrom;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTopicCreateFullFeeUsd;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.AUTORENEW_DURATION_NOT_IN_RANGE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BAD_ENCODING;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
@@ -51,6 +54,7 @@ import org.junit.jupiter.api.Tag;
 
 // This test cases are direct copies of TopicCreateSuite. The difference here is that
 // we are wrapping the operations in an atomic batch to confirm that everything works as expected.
+@Tag(ATOMIC_BATCH)
 class AtomicTopicCreateSuite {
 
     public static final String TEST_TOPIC = "testTopic";
@@ -259,7 +263,8 @@ class AtomicTopicCreateSuite {
                 getTopicInfo("noAdminKeyExplicitAutoRenewAccount")
                         .hasNoAdminKey()
                         .hasAutoRenewAccount("autoRenewAccount"),
-                validateInnerTxnChargedUsd("createTopic", ATOMIC_BATCH, expectedPriceUsd, 5.0));
+                safeValidateInnerTxnChargedUsd(
+                        "createTopic", ATOMIC_BATCH, expectedPriceUsd, 5.0, expectedTopicCreateFullFeeUsd(1, 1), 5.0));
     }
 
     @HapiTest

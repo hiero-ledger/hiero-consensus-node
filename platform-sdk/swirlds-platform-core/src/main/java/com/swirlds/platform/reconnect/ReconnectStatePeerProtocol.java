@@ -5,37 +5,41 @@ import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 import static com.swirlds.metrics.api.FloatFormats.FORMAT_10_0;
 import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
-import static com.swirlds.platform.state.service.PlatformStateUtils.getInfoString;
-import static com.swirlds.platform.state.service.PlatformStateUtils.roundOf;
+import static java.util.Objects.requireNonNull;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.getInfoString;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.roundOf;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
-import com.swirlds.common.metrics.extensions.CountPerSecond;
-import com.swirlds.common.threading.manager.ThreadManager;
-import com.swirlds.common.utility.throttle.RateLimitedLogger;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.logging.legacy.payload.ReconnectFinishPayload;
 import com.swirlds.logging.legacy.payload.ReconnectStartPayload;
-import com.swirlds.platform.Utilities;
-import com.swirlds.platform.config.StateConfig;
+import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.metrics.ReconnectMetrics;
-import com.swirlds.platform.network.Connection;
-import com.swirlds.platform.network.NetworkProtocolException;
-import com.swirlds.platform.network.protocol.PeerProtocol;
-import com.swirlds.platform.network.protocol.ReservedSignedStateResult;
-import com.swirlds.platform.state.signed.ReservedSignedState;
-import com.swirlds.state.MerkleNodeState;
+import com.swirlds.platform.reconnect.api.ReservedSignedStateResult;
 import com.swirlds.state.StateLifecycleManager;
+import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.time.Duration;
-import java.util.Objects;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.BlockingResourceProvider;
+import org.hiero.consensus.concurrent.manager.ThreadManager;
+import org.hiero.consensus.concurrent.utility.throttle.RateLimitedLogger;
+import org.hiero.consensus.exceptions.ThrowableUtilities;
+import org.hiero.consensus.gossip.impl.network.Connection;
+import org.hiero.consensus.gossip.impl.network.NetworkProtocolException;
+import org.hiero.consensus.gossip.impl.network.protocol.PeerProtocol;
+import org.hiero.consensus.metrics.extensions.CountPerSecond;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.consensus.monitoring.FallenBehindMonitor;
+import org.hiero.consensus.reconnect.config.ReconnectConfig;
+import org.hiero.consensus.state.config.StateConfig;
+import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.state.signed.SignedState;
 
 /**
  * This protocol is responsible for synchronizing an out of date state either local acting as lerner or remote acting as teacher
@@ -78,25 +82,33 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
      */
     private final RateLimitedLogger notActiveLogger;
 
+    private final Configuration configuration;
+    private final Metrics metrics;
     private final Time time;
-    private final PlatformContext platformContext;
     private final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultProvider;
-    private final StateLifecycleManager stateLifecycleManager;
+    private final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager;
 
     /**
-     * @param threadManager              responsible for creating and managing threads
-     * @param peerId                     the ID of the peer we are communicating with
-     * @param teacherThrottle            restricts reconnects as a teacher
-     * @param lastCompleteSignedState    provides the latest completely signed state
-     * @param reconnectSocketTimeout     the socket timeout to use when executing a reconnect
-     * @param reconnectMetrics           tracks reconnect metrics
-     * @param fallenBehindMonitor        an instance of the fallenBehind Monitor which tracks if the node has fallen behind
-     * @param platformStatusSupplier     provides the platform status
-     * @param time                       the time object to use
+     * Creates a new reconnect protocol instance.
+     *
+     * @param configuration the platform configuration
+     * @param metrics the metrics system
+     * @param time the time object to use
+     * @param threadManager responsible for creating and managing threads
+     * @param peerId the ID of the peer we are communicating with
+     * @param teacherThrottle restricts reconnects as a teacher
+     * @param lastCompleteSignedState provides the latest completely signed state
+     * @param reconnectSocketTimeout the socket timeout to use when executing a reconnect
+     * @param reconnectMetrics tracks reconnect metrics
+     * @param fallenBehindMonitor an instance of the fallenBehind Monitor which tracks if the node has fallen behind
+     * @param platformStatusSupplier provides the platform status
      * @param reservedSignedStateResultProvider a mechanism to get a SignedState or block while it is not available
+     * @param stateLifecycleManager the state lifecycle manager
      */
     public ReconnectStatePeerProtocol(
-            @NonNull final PlatformContext platformContext,
+            @NonNull final Configuration configuration,
+            @NonNull final Metrics metrics,
+            @NonNull final Time time,
             @NonNull final ThreadManager threadManager,
             @NonNull final NodeId peerId,
             @NonNull final ReconnectStateTeacherThrottle teacherThrottle,
@@ -105,33 +117,30 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
             @NonNull final ReconnectMetrics reconnectMetrics,
             @NonNull final FallenBehindMonitor fallenBehindMonitor,
             @NonNull final Supplier<PlatformStatus> platformStatusSupplier,
-            @NonNull final Time time,
             @NonNull final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultProvider,
             @NonNull final StateLifecycleManager stateLifecycleManager) {
 
-        this.platformContext = Objects.requireNonNull(platformContext);
-        this.threadManager = Objects.requireNonNull(threadManager);
-        this.peerId = Objects.requireNonNull(peerId);
-        this.teacherThrottle = Objects.requireNonNull(teacherThrottle);
-        this.lastCompleteSignedState = Objects.requireNonNull(lastCompleteSignedState);
-        this.reconnectSocketTimeout = Objects.requireNonNull(reconnectSocketTimeout);
-        this.reconnectMetrics = Objects.requireNonNull(reconnectMetrics);
-        this.fallenBehindMonitor = Objects.requireNonNull(fallenBehindMonitor);
-        this.platformStatusSupplier = Objects.requireNonNull(platformStatusSupplier);
-        this.reservedSignedStateResultProvider = Objects.requireNonNull(reservedSignedStateResultProvider);
-        this.stateLifecycleManager = Objects.requireNonNull(stateLifecycleManager);
-        Objects.requireNonNull(time);
+        this.configuration = requireNonNull(configuration);
+        this.metrics = requireNonNull(metrics);
+        this.time = requireNonNull(time);
+        this.threadManager = requireNonNull(threadManager);
+        this.peerId = requireNonNull(peerId);
+        this.teacherThrottle = requireNonNull(teacherThrottle);
+        this.lastCompleteSignedState = requireNonNull(lastCompleteSignedState);
+        this.reconnectSocketTimeout = requireNonNull(reconnectSocketTimeout);
+        this.reconnectMetrics = requireNonNull(reconnectMetrics);
+        this.fallenBehindMonitor = requireNonNull(fallenBehindMonitor);
+        this.platformStatusSupplier = requireNonNull(platformStatusSupplier);
+        this.reservedSignedStateResultProvider = requireNonNull(reservedSignedStateResultProvider);
+        this.stateLifecycleManager = requireNonNull(stateLifecycleManager);
 
-        final Duration minimumTimeBetweenReconnects = platformContext
-                .getConfiguration()
-                .getConfigData(ReconnectConfig.class)
-                .minimumTimeBetweenReconnects();
+        final Duration minimumTimeBetweenReconnects =
+                configuration.getConfigData(ReconnectConfig.class).minimumTimeBetweenReconnects();
 
         stateNullLogger = new RateLimitedLogger(logger, time, minimumTimeBetweenReconnects);
         stateIncompleteLogger = new RateLimitedLogger(logger, time, minimumTimeBetweenReconnects);
         fallenBehindLogger = new RateLimitedLogger(logger, time, minimumTimeBetweenReconnects);
         notActiveLogger = new RateLimitedLogger(logger, time, minimumTimeBetweenReconnects);
-        this.time = Objects.requireNonNull(time);
 
         this.reconnectRejectionMetrics = new CountPerSecond(
                 reconnectMetrics.getMetrics(),
@@ -302,10 +311,10 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
      */
     private void learner(final Connection connection) {
         try {
-
-            final MerkleNodeState consensusState = stateLifecycleManager.getMutableState();
+            final VirtualMapState consensusState = stateLifecycleManager.getMutableState();
             final ReconnectStateLearner learner = new ReconnectStateLearner(
-                    platformContext,
+                    configuration,
+                    metrics,
                     threadManager,
                     connection,
                     consensusState,
@@ -330,21 +339,19 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
                             connection.getOtherId().id(),
                             reservedSignedState.get().getRound())
                     .toString());
-            final var debugHashDepth = platformContext
-                    .getConfiguration()
-                    .getConfigData(StateConfig.class)
-                    .debugHashDepth();
+            final var debugHashDepth =
+                    configuration.getConfigData(StateConfig.class).debugHashDepth();
             logger.info(
                     RECONNECT.getMarker(),
                     """
                             Information for state received during reconnect:
                             {}""",
-                    () -> getInfoString(reservedSignedState.get().getState(), debugHashDepth));
+                    () -> getInfoString(reservedSignedState.get().getState()));
 
             reservedSignedStateResultProvider.provide(new ReservedSignedStateResult(reservedSignedState, null));
 
         } catch (final RuntimeException e) {
-            if (!Utilities.isOrCausedBySocketException(e)) {
+            if (!ThrowableUtilities.isOrCausedBySocketException(e)) {
                 // We are closing the connection as we don't know the state in which is in
                 // it might contain non-read bytes.
                 if (connection != null) {
@@ -367,18 +374,28 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
      * @param connection the connection to use for the reconnect
      */
     private void teacher(final Connection connection) {
-        try (final ReservedSignedState state = teacherState) {
-            new ReconnectStateTeacher(
-                            platformContext,
-                            time,
-                            threadManager,
-                            connection,
-                            reconnectSocketTimeout,
-                            connection.getSelfId(),
-                            connection.getOtherId(),
-                            state.get().getRound(),
-                            reconnectMetrics)
-                    .execute(state.get());
+        try {
+            final SignedState state = teacherState.get();
+            final ReconnectStateTeacher teacher;
+            try {
+                teacher = new ReconnectStateTeacher(
+                        configuration,
+                        time,
+                        threadManager,
+                        connection,
+                        reconnectSocketTimeout,
+                        connection.getSelfId(),
+                        connection.getOtherId(),
+                        state.getRound(),
+                        state,
+                        reconnectMetrics);
+            } finally {
+                // The teacher now has all the information needed to teach. In particular, teacher view
+                // object initialized by the teacher is a snapshot of all data in the state. It's time to
+                // release the original state
+                teacherState.close();
+            }
+            teacher.execute();
         } finally {
             teacherThrottle.reconnectAttemptFinished();
             teacherState = null;

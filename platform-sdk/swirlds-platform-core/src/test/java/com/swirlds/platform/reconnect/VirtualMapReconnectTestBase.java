@@ -6,22 +6,17 @@ import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATIO
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.fail;
 
-import com.swirlds.common.merkle.MerkleInternal;
-import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
-import com.swirlds.common.merkle.synchronization.config.ReconnectConfig_;
-import com.swirlds.common.test.fixtures.merkle.dummy.DummyMerkleInternal;
-import com.swirlds.common.test.fixtures.merkle.dummy.DummyMerkleLeaf;
 import com.swirlds.common.test.fixtures.merkle.util.MerkleTestUtils;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
-import com.swirlds.virtualmap.internal.merkle.ExternalVirtualMapMetadata;
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import org.hiero.base.constructable.ClassConstructorPair;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.consensus.reconnect.config.ReconnectConfig;
+import org.hiero.consensus.reconnect.config.ReconnectConfig_;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -61,18 +56,6 @@ public abstract class VirtualMapReconnectTestBase {
         final ConstructableRegistry registry = ConstructableRegistry.getInstance();
         registry.registerConstructables("com.swirlds.common");
         registry.registerConstructables("org.hiero");
-        registry.registerConstructable(new ClassConstructorPair(DummyMerkleInternal.class, DummyMerkleInternal::new));
-        registry.registerConstructable(new ClassConstructorPair(DummyMerkleLeaf.class, DummyMerkleLeaf::new));
-        registry.registerConstructable(new ClassConstructorPair(VirtualMap.class, () -> new VirtualMap(CONFIGURATION)));
-        registry.registerConstructable(
-                new ClassConstructorPair(ExternalVirtualMapMetadata.class, ExternalVirtualMapMetadata::new));
-    }
-
-    protected MerkleInternal createTreeForMap(VirtualMap map) {
-        final var tree = MerkleTestUtils.buildLessSimpleTree();
-        tree.getChild(1).asInternal().setChild(3, map);
-        tree.reserve();
-        return tree;
     }
 
     protected void reconnect() throws Exception {
@@ -80,14 +63,14 @@ public abstract class VirtualMapReconnectTestBase {
     }
 
     protected void reconnectMultipleTimes(int attempts) {
-        final MerkleInternal teacherTree = createTreeForMap(teacherMap);
         final VirtualMap copy = teacherMap.copy();
-        final MerkleInternal learnerTree = createTreeForMap(learnerMap);
+        teacherMap.reserve();
+        learnerMap.reserve();
         try {
             for (int i = 0; i < attempts; i++) {
                 try {
                     final var node =
-                            MerkleTestUtils.hashAndTestSynchronization(learnerTree, teacherTree, reconnectConfig);
+                            MerkleTestUtils.hashAndTestSynchronization(learnerMap, teacherMap, reconnectConfig);
                     node.release();
                     assertEquals(attempts - 1, i, "We should only succeed on the last try");
                 } catch (Exception e) {
@@ -97,8 +80,8 @@ public abstract class VirtualMapReconnectTestBase {
                 }
             }
         } finally {
-            teacherTree.release();
-            learnerTree.release();
+            teacherMap.release();
+            learnerMap.release();
             copy.release();
         }
     }

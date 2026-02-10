@@ -22,6 +22,7 @@ public final class BlockStreamUtils {
 
     public static String stateNameOf(final int stateId) {
         return switch (StateIdentifier.fromProtobufOrdinal(stateId)) {
+            case UNRECOGNIZED -> throw new IllegalArgumentException("Unrecognized state identifier " + stateId);
             case UNKNOWN -> throw new IllegalArgumentException("Unknown state identifier");
             case STATE_ID_NODES -> "AddressBookService.NODES";
             case STATE_ID_ACCOUNT_NODE_REL -> "AddressBookService.ACCOUNT_NODE_REL";
@@ -34,7 +35,7 @@ public final class BlockStreamUtils {
             case STATE_ID_BYTECODE -> "ContractService.BYTECODE";
             case STATE_ID_STORAGE -> "ContractService.STORAGE";
             case STATE_ID_EVM_HOOK_STATES -> "ContractService.EVM_HOOK_STATES";
-            case STATE_ID_LAMBDA_STORAGE -> "ContractService.LAMBDA_STORAGE";
+            case STATE_ID_EVM_HOOK_STORAGE -> "ContractService.LAMBDA_STORAGE";
             case STATE_ID_ENTITY_ID -> "EntityIdService.ENTITY_ID";
             case STATE_ID_MIDNIGHT_RATES -> "FeeService.MIDNIGHT_RATES";
             case STATE_ID_FILES -> "FileService.FILES";
@@ -89,6 +90,7 @@ public final class BlockStreamUtils {
             case STATE_ID_CRS_STATE -> "HintsService.CRS_STATE";
             case STATE_ID_CRS_PUBLICATIONS -> "HintsService.CRS_PUBLICATIONS";
             case STATE_ID_NODE_REWARDS -> "TokenService.NODE_REWARDS";
+            case STATE_ID_NODE_PAYMENTS -> "TokenService.NODE_PAYMENTS";
         };
     }
 
@@ -113,6 +115,7 @@ public final class BlockStreamUtils {
             case ENTITY_COUNTS_VALUE -> singletonUpdateChange.entityCountsValueOrThrow();
             case HISTORY_PROOF_CONSTRUCTION_VALUE -> singletonUpdateChange.historyProofConstructionValueOrThrow();
             case CRS_STATE_VALUE -> singletonUpdateChange.crsStateValueOrThrow();
+            case NODE_PAYMENTS_VALUE -> singletonUpdateChange.nodePaymentsValueOrThrow();
         };
     }
 
@@ -150,7 +153,7 @@ public final class BlockStreamUtils {
             case NODE_ID_KEY -> mapChangeKey.nodeIdKeyOrThrow();
             case CONSTRUCTION_NODE_ID_KEY -> mapChangeKey.constructionNodeIdKeyOrThrow();
             case HOOK_ID_KEY -> mapChangeKey.hookIdKeyOrThrow();
-            case LAMBDA_SLOT_KEY -> mapChangeKey.lambdaSlotKeyOrThrow();
+            case EVM_HOOK_SLOT_KEY -> mapChangeKey.evmHookSlotKeyOrThrow();
         };
     }
 

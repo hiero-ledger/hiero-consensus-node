@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.formatting;
 
-import static com.swirlds.common.formatting.StringFormattingUtils.addLine;
-import static com.swirlds.common.formatting.StringFormattingUtils.commaSeparatedNumber;
-import static com.swirlds.common.formatting.StringFormattingUtils.formattedList;
-import static com.swirlds.common.formatting.StringFormattingUtils.parseSanitizedTimestamp;
-import static com.swirlds.common.formatting.StringFormattingUtils.repeatedChar;
-import static com.swirlds.common.formatting.StringFormattingUtils.sanitizeTimestamp;
+import static com.swirlds.base.formatting.StringFormattingUtils.addLine;
+import static com.swirlds.base.formatting.StringFormattingUtils.commaSeparatedNumber;
+import static com.swirlds.base.formatting.StringFormattingUtils.formattedList;
+import static com.swirlds.base.formatting.StringFormattingUtils.parseSanitizedTimestamp;
+import static com.swirlds.base.formatting.StringFormattingUtils.repeatedChar;
+import static com.swirlds.base.formatting.StringFormattingUtils.sanitizeTimestamp;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 

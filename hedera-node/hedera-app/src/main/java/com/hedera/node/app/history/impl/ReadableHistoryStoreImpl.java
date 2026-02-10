@@ -3,20 +3,18 @@ package com.hedera.node.app.history.impl;
 
 import static com.hedera.hapi.util.HapiUtils.asInstant;
 import static com.hedera.node.app.history.ReadableHistoryStore.WrapsMessagePublication.allFromHistory;
-import static com.hedera.node.app.history.schemas.V059HistorySchema.ACTIVE_PROOF_CONSTRUCTION_STATE_ID;
-import static com.hedera.node.app.history.schemas.V059HistorySchema.HISTORY_SIGNATURES_STATE_ID;
-import static com.hedera.node.app.history.schemas.V059HistorySchema.LEDGER_ID_STATE_ID;
-import static com.hedera.node.app.history.schemas.V059HistorySchema.NEXT_PROOF_CONSTRUCTION_STATE_ID;
-import static com.hedera.node.app.history.schemas.V059HistorySchema.PROOF_KEY_SETS_STATE_ID;
-import static com.hedera.node.app.history.schemas.V059HistorySchema.PROOF_VOTES_STATE_ID;
-import static com.hedera.node.app.history.schemas.V069HistorySchema.WRAPS_MESSAGE_HISTORIES_STATE_ID;
+import static com.hedera.node.app.history.schemas.V071HistorySchema.ACTIVE_PROOF_CONSTRUCTION_STATE_ID;
+import static com.hedera.node.app.history.schemas.V071HistorySchema.LEDGER_ID_STATE_ID;
+import static com.hedera.node.app.history.schemas.V071HistorySchema.NEXT_PROOF_CONSTRUCTION_STATE_ID;
+import static com.hedera.node.app.history.schemas.V071HistorySchema.PROOF_KEY_SETS_STATE_ID;
+import static com.hedera.node.app.history.schemas.V071HistorySchema.PROOF_VOTES_STATE_ID;
+import static com.hedera.node.app.history.schemas.V071HistorySchema.WRAPS_MESSAGE_HISTORIES_STATE_ID;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.history.ConstructionNodeId;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.hapi.node.state.history.HistoryProofVote;
 import com.hedera.hapi.node.state.history.ProofKeySet;
-import com.hedera.hapi.node.state.history.RecordedHistorySignature;
 import com.hedera.hapi.node.state.history.WrapsMessageHistory;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.platform.state.NodeId;
@@ -43,7 +41,6 @@ public class ReadableHistoryStoreImpl implements ReadableHistoryStore {
     private final ReadableSingletonState<HistoryProofConstruction> nextConstruction;
     private final ReadableSingletonState<HistoryProofConstruction> activeConstruction;
     private final ReadableKVState<NodeId, ProofKeySet> proofKeySets;
-    private final ReadableKVState<ConstructionNodeId, RecordedHistorySignature> signatures;
     private final ReadableKVState<ConstructionNodeId, HistoryProofVote> votes;
     private final ReadableKVState<ConstructionNodeId, WrapsMessageHistory> wrapsMessageHistories;
 
@@ -53,7 +50,6 @@ public class ReadableHistoryStoreImpl implements ReadableHistoryStore {
         this.nextConstruction = states.getSingleton(NEXT_PROOF_CONSTRUCTION_STATE_ID);
         this.activeConstruction = states.getSingleton(ACTIVE_PROOF_CONSTRUCTION_STATE_ID);
         this.proofKeySets = states.get(PROOF_KEY_SETS_STATE_ID);
-        this.signatures = states.get(HISTORY_SIGNATURES_STATE_ID);
         this.votes = states.get(PROOF_VOTES_STATE_ID);
         this.wrapsMessageHistories = states.get(WRAPS_MESSAGE_HISTORIES_STATE_ID);
     }

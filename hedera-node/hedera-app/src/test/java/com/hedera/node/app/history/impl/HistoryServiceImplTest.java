@@ -5,6 +5,7 @@ import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
 import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.BOOTSTRAP;
 import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.HANDOFF;
 import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.TRANSITION;
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -15,8 +16,8 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
-import com.hedera.hapi.block.stream.ChainOfTrustProof;
 import com.hedera.hapi.node.state.hints.HintsConstruction;
+import com.hedera.hapi.node.state.history.ChainOfTrustProof;
 import com.hedera.hapi.node.state.history.History;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
@@ -28,10 +29,10 @@ import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.metrics.api.Metrics;
 import java.time.Instant;
 import java.util.concurrent.ForkJoinPool;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -42,6 +43,7 @@ class HistoryServiceImplTest {
     private static final Bytes CURRENT_VK = Bytes.wrap("Z");
     private static final Metrics NO_OP_METRICS = new NoOpMetrics();
     private static final Instant CONSENSUS_NOW = Instant.ofEpochSecond(1_234_567L, 890);
+    private static final TssConfig DEFAULT_TSS_CONFIG = DEFAULT_CONFIG.getConfigData(TssConfig.class);
 
     @Mock
     private AppContext appContext;
@@ -54,9 +56,6 @@ class HistoryServiceImplTest {
 
     @Mock
     private ProofController controller;
-
-    @Mock
-    private TssConfig tssConfig;
 
     @Mock
     private ActiveRosters activeRosters;
@@ -118,19 +117,19 @@ class HistoryServiceImplTest {
     void handoffIsNoop() {
         withMockSubject();
         given(activeRosters.phase()).willReturn(HANDOFF);
-        subject.reconcile(activeRosters, Bytes.EMPTY, store, CONSENSUS_NOW, tssConfig, true, null);
+        subject.reconcile(activeRosters, Bytes.EMPTY, store, CONSENSUS_NOW, DEFAULT_TSS_CONFIG, true, null);
     }
 
     @Test
     void noopReconciliationIfBootstrapHasProof() {
         withMockSubject();
         given(activeRosters.phase()).willReturn(BOOTSTRAP);
-        given(store.getOrCreateConstruction(activeRosters, CONSENSUS_NOW, tssConfig))
+        given(store.getOrCreateConstruction(activeRosters, CONSENSUS_NOW, DEFAULT_TSS_CONFIG))
                 .willReturn(HistoryProofConstruction.newBuilder()
                         .targetProof(HistoryProof.DEFAULT)
                         .build());
 
-        subject.reconcile(activeRosters, null, store, CONSENSUS_NOW, tssConfig, true, null);
+        subject.reconcile(activeRosters, null, store, CONSENSUS_NOW, DEFAULT_TSS_CONFIG, true, null);
 
         verifyNoMoreInteractions(component);
     }
@@ -139,7 +138,7 @@ class HistoryServiceImplTest {
     void activeReconciliationIfTransitionHasNoProofYet() {
         withMockSubject();
         given(activeRosters.phase()).willReturn(TRANSITION);
-        given(store.getOrCreateConstruction(activeRosters, CONSENSUS_NOW, tssConfig))
+        given(store.getOrCreateConstruction(activeRosters, CONSENSUS_NOW, DEFAULT_TSS_CONFIG))
                 .willReturn(HistoryProofConstruction.DEFAULT);
         given(store.getActiveConstruction()).willReturn(HistoryProofConstruction.DEFAULT);
         given(component.controllers()).willReturn(controllers);
@@ -148,12 +147,14 @@ class HistoryServiceImplTest {
                         HistoryProofConstruction.DEFAULT,
                         store,
                         HintsConstruction.DEFAULT,
-                        HistoryProofConstruction.DEFAULT))
+                        HistoryProofConstruction.DEFAULT,
+                        DEFAULT_CONFIG.getConfigData(TssConfig.class)))
                 .willReturn(controller);
 
-        subject.reconcile(activeRosters, CURRENT_VK, store, CONSENSUS_NOW, tssConfig, true, HintsConstruction.DEFAULT);
+        subject.reconcile(
+                activeRosters, CURRENT_VK, store, CONSENSUS_NOW, DEFAULT_TSS_CONFIG, true, HintsConstruction.DEFAULT);
 
-        verify(controller).advanceConstruction(CONSENSUS_NOW, CURRENT_VK, store, true, tssConfig);
+        verify(controller).advanceConstruction(CONSENSUS_NOW, CURRENT_VK, store, true, DEFAULT_TSS_CONFIG);
     }
 
     @Test
@@ -161,16 +162,26 @@ class HistoryServiceImplTest {
         withMockSubject();
         given(activeRosters.phase()).willReturn(HANDOFF);
 
-        subject.reconcile(activeRosters, null, store, CONSENSUS_NOW, tssConfig, true, HintsConstruction.DEFAULT);
+        subject.reconcile(
+                activeRosters, null, store, CONSENSUS_NOW, DEFAULT_TSS_CONFIG, true, HintsConstruction.DEFAULT);
 
         verify(store, never()).getConstructionFor(activeRosters);
     }
 
+    @Test
+    void wrapsWrapsKeyForProofVerification() {
+        withMockSubject();
+        final var mockKey = "ABCDEFGH".getBytes(UTF_8);
+        given(component.library()).willReturn(library);
+        given(library.wrapsVerificationKey()).willReturn(mockKey);
+        assertEquals(Bytes.wrap(mockKey), subject.historyProofVerificationKey());
+    }
+
     private void withLiveSubject() {
-        subject = new HistoryServiceImpl(NO_OP_METRICS, ForkJoinPool.commonPool(), appContext, library, DEFAULT_CONFIG);
+        subject = new HistoryServiceImpl(NO_OP_METRICS, ForkJoinPool.commonPool(), appContext, library);
     }
 
     private void withMockSubject() {
-        subject = new HistoryServiceImpl(component, DEFAULT_CONFIG);
+        subject = new HistoryServiceImpl(component);
     }
 }

@@ -450,7 +450,7 @@ tasks:
     cmds:
       - |
         if [[ "{{ .solo_ge_0440 }}"  == "true" ]]; then
-          SOLO_HOME_DIR=${SOLO_HOME_DIR} solo consensus diagnostics all --deployment "${SOLO_DEPLOYMENT}" -q --dev
+          SOLO_HOME_DIR=${SOLO_HOME_DIR} solo deployment diagnostics all --deployment "${SOLO_DEPLOYMENT}" -q --dev
         else
           SOLO_HOME_DIR=${SOLO_HOME_DIR} solo node logs --deployment "${SOLO_DEPLOYMENT}" -q --dev
         fi

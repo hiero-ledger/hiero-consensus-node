@@ -12,10 +12,12 @@ import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.ReadableHistoryStore;
 import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.node.app.spi.info.NodeInfo;
+import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.function.Supplier;
 import javax.inject.Inject;
@@ -30,6 +32,7 @@ public class ProofControllers {
     private final HistoryLibrary historyLibrary;
     private final HistoryService historyService;
     private final HistorySubmissions submissions;
+    private final WrapsMpcStateMachine machine;
     private final Supplier<NodeInfo> selfNodeInfoSupplier;
 
     /**
@@ -46,13 +49,15 @@ public class ProofControllers {
             @NonNull final HistoryLibrary historyLibrary,
             @NonNull final HistorySubmissions submissions,
             @NonNull final Supplier<NodeInfo> selfNodeInfoSupplier,
-            @NonNull final HistoryService historyService) {
+            @NonNull final HistoryService historyService,
+            @NonNull final WrapsMpcStateMachine machine) {
         this.executor = requireNonNull(executor);
         this.keyAccessor = requireNonNull(keyAccessor);
         this.historyLibrary = requireNonNull(historyLibrary);
         this.submissions = requireNonNull(submissions);
         this.selfNodeInfoSupplier = requireNonNull(selfNodeInfoSupplier);
         this.historyService = requireNonNull(historyService);
+        this.machine = requireNonNull(machine);
     }
 
     /**
@@ -63,6 +68,7 @@ public class ProofControllers {
      * @param historyStore the history store
      * @param activeHintsConstruction the active hinTS construction, if any
      * @param activeProofConstruction the active proof construction, if any
+     * @param tssConfig the TSS configuration
      * @return the result of the operation
      */
     public @NonNull ProofController getOrCreateFor(
@@ -70,7 +76,8 @@ public class ProofControllers {
             @NonNull final HistoryProofConstruction construction,
             @NonNull final ReadableHistoryStore historyStore,
             @Nullable final HintsConstruction activeHintsConstruction,
-            @NonNull final HistoryProofConstruction activeProofConstruction) {
+            @NonNull final HistoryProofConstruction activeProofConstruction,
+            @NonNull final TssConfig tssConfig) {
         requireNonNull(activeRosters);
         requireNonNull(construction);
         requireNonNull(historyStore);
@@ -80,7 +87,12 @@ public class ProofControllers {
                 controller.cancelPendingWork();
             }
             controller = newControllerFor(
-                    activeRosters, construction, historyStore, activeHintsConstruction, activeProofConstruction);
+                    activeRosters,
+                    construction,
+                    historyStore,
+                    activeHintsConstruction,
+                    activeProofConstruction,
+                    tssConfig);
         }
         return requireNonNull(controller);
     }
@@ -89,21 +101,22 @@ public class ProofControllers {
      * Returns the in-progress controller for the proof construction with the given ID, if it exists.
      *
      * @param constructionId the ID of the proof construction
+     * @param tssConfig the TSS configuration
      * @return the controller, if it exists
      */
-    public Optional<ProofController> getInProgressById(final long constructionId) {
+    public Optional<ProofController> getInProgressById(final long constructionId, @NonNull final TssConfig tssConfig) {
         return currentConstructionId() == constructionId
-                ? Optional.ofNullable(controller).filter(ProofController::isStillInProgress)
+                ? Optional.ofNullable(controller).filter(pc -> pc.isStillInProgress(tssConfig))
                 : Optional.empty();
     }
 
     /**
      * Returns the in-progress controller for the hinTS construction with the given ID, if it exists.
-     *
+     * @param tssConfig the TSS configuration
      * @return the controller, if it exists
      */
-    public Optional<ProofController> getAnyInProgress() {
-        return Optional.ofNullable(controller).filter(ProofController::isStillInProgress);
+    public Optional<ProofController> getAnyInProgress(@NonNull final TssConfig tssConfig) {
+        return Optional.ofNullable(controller).filter(pc -> pc.isStillInProgress(tssConfig));
     }
 
     /**
@@ -114,6 +127,7 @@ public class ProofControllers {
      * @param historyStore the history store
      * @param activeHintsConstruction the active hinTS construction, if any
      * @param activeProofConstruction the active proof construction
+     * @param tssConfig the TSS configuration
      * @return the controller
      */
     private ProofController newControllerFor(
@@ -121,7 +135,8 @@ public class ProofControllers {
             @NonNull final HistoryProofConstruction construction,
             @NonNull final ReadableHistoryStore historyStore,
             @Nullable final HintsConstruction activeHintsConstruction,
-            @NonNull final HistoryProofConstruction activeProofConstruction) {
+            @NonNull final HistoryProofConstruction activeProofConstruction,
+            @NonNull final TssConfig tssConfig) {
         final var weights = activeRosters.transitionWeights(maybeWeightsFrom(activeHintsConstruction));
         if (!weights.sourceNodesHaveTargetThreshold()) {
             return new InertProofController(construction.constructionId());
@@ -133,6 +148,8 @@ public class ProofControllers {
             final var selfId = selfNodeInfoSupplier.get().nodeId();
             final var schnorrKeyPair = keyAccessor.getOrCreateSchnorrKeyPair(construction.constructionId());
             final var sourceProof = activeProofConstruction.targetProof();
+            final HistoryProver.Factory proverFactory = (s, t, k, p, w, r, x, l, m) -> new WrapsHistoryProver(
+                    s, t.wrapsMessageGracePeriod(), k, p, w, r, CompletableFuture::delayedExecutor, x, l, m, machine);
             return new ProofControllerImpl(
                     selfId,
                     schnorrKeyPair,
@@ -140,13 +157,15 @@ public class ProofControllers {
                     weights,
                     executor,
                     submissions,
+                    machine,
                     keyPublications,
                     wrapsMessagePublications,
                     votes,
                     historyService,
                     historyLibrary,
-                    WrapsHistoryProver::new,
-                    sourceProof);
+                    proverFactory,
+                    sourceProof,
+                    tssConfig);
         }
     }
 

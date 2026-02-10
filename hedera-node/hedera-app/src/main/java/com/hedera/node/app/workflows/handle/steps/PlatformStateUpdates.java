@@ -18,9 +18,6 @@ import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.service.token.impl.ReadableStakingInfoStoreImpl;
 import com.hedera.node.config.data.NetworkAdminConfig;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.platform.config.AddressBookConfig;
-import com.swirlds.platform.state.service.PlatformStateService;
-import com.swirlds.platform.state.service.WritablePlatformStateStore;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.ReadableSingletonState;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -34,6 +31,8 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.platformstate.PlatformStateService;
+import org.hiero.consensus.platformstate.WritablePlatformStateStore;
 import org.hiero.consensus.roster.WritableRosterStore;
 
 /**
@@ -94,10 +93,9 @@ public class PlatformStateUpdates {
                     final var networkAdminConfig = config.getConfigData(NetworkAdminConfig.class);
                     // Even if using the roster lifecycle, we only set the candidate roster at PREPARE_UPGRADE if
                     // TSS machinery is not creating candidate rosters and keying them at stake period boundaries
-                    final var addressBookConfig = config.getConfigData(AddressBookConfig.class);
                     final var entityIdStore =
                             new ReadableEntityIdStoreImpl(state.getReadableStates(EntityIdService.NAME));
-                    if (addressBookConfig.createCandidateRosterOnPrepareUpgrade()) {
+                    if (networkAdminConfig.createCandidateRosterOnPrepareUpgrade()) {
                         final var nodeStore = new ReadableNodeStoreImpl(
                                 state.getReadableStates(AddressBookService.NAME), entityIdStore);
                         final var rosterStore = new WritableRosterStore(state.getWritableStates(RosterService.NAME));

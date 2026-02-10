@@ -198,15 +198,6 @@
         <!-- Beta Mirror -->
         <MarkerFilter marker="BETA_MIRROR_NODE"       onMatch="ACCEPT" onMismatch="NEUTRAL"/>
 
-        <!-- FCMap -->
-        <MarkerFilter marker="FCM_COPY"               onMatch="DENY"   onMismatch="NEUTRAL"/>
-        <MarkerFilter marker="FCM_COPY_FROM"          onMatch="DENY"   onMismatch="NEUTRAL"/>
-        <MarkerFilter marker="FCM_COPY_TO"            onMatch="DENY"   onMismatch="NEUTRAL"/>
-        <MarkerFilter marker="FCM_DEMO"               onMatch="DENY"   onMismatch="NEUTRAL"/>
-        <MarkerFilter marker="FCM_COPY_FROM_DIFF"     onMatch="DENY"   onMismatch="NEUTRAL"/>
-        <MarkerFilter marker="FCM_COPY_TO_DIFF"       onMatch="DENY"   onMismatch="NEUTRAL"/>
-        <MarkerFilter marker="FC_SERIALIZATION"       onMatch="DENY"   onMismatch="NEUTRAL"/>
-
         <!-- Merkle Trees & Hashing -->
         <MarkerFilter marker="MERKLE_FORCE_FLUSH"     onMatch="DENY"   onMismatch="NEUTRAL"/>
         <MarkerFilter marker="MERKLE_HASHING"         onMatch="DENY"   onMismatch="NEUTRAL"/>

@@ -6,10 +6,8 @@ import com.swirlds.common.merkle.synchronization.task.ExpectedLesson;
 /**
  * Used by the learner during reconnect. These methods implement a queue like interface for expected lessons.
  *
- * @param <T>
- * 		the type of the object used to represent a merkle node within this view type
  */
-public interface LearnerExpectedLessonQueue<T> {
+public interface LearnerExpectedLessonQueue {
 
     /**
      * <p>
@@ -34,28 +32,28 @@ public interface LearnerExpectedLessonQueue<T> {
      * A single thread will be reading and writing to/from this queue, so no thread safety is required.
      * </p>
      *
-     * @param parent
-     * 		the parent of the node in question
+     * @param parentPath
+     * 		the parentPath of the node in question
      * @param childIndex
      * 		the position where the node is found
-     * @param original
-     * 		the node originally at the specified position
+     * @param originalPath
+     * 		the node path originally at the specified position
      * @param nodeAlreadyPresent
      * 		true if we already have a node with the teacher's hash
      */
-    void expectLessonFor(T parent, int childIndex, T original, boolean nodeAlreadyPresent);
+    void expectLessonFor(Long parentPath, int childIndex, Long originalPath, boolean nodeAlreadyPresent);
 
     /**
-     * Remove and return an element from the queue maintained by {@link #expectLessonFor(Object, int, Object, boolean)}.
+     * Remove and return an element from the queue maintained by {@link #expectLessonFor(Long, int, Long, boolean)}.
      *
      * @return the next thing in the queue
      */
-    ExpectedLesson<T> getNextExpectedLesson();
+    ExpectedLesson getNextExpectedLesson();
 
     /**
      * Check if the queue with expected lessons has a next element.
      *
-     * @return true if the queue built by {@link #expectLessonFor(Object, int, Object, boolean)} is not empty
+     * @return true if the queue built by {@link #expectLessonFor(Long, int, Long, boolean)} is not empty
      */
     boolean hasNextExpectedLesson();
 }

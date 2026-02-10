@@ -42,14 +42,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
 @Tag(CRYPTO)
 public class CryptoGetInfoRegression {
-    static final Logger log = LogManager.getLogger(CryptoGetInfoRegression.class);
     private static final String TARGET_ACC = "targetAcc";
     private static final int NUM_ASSOCIATIONS = 10;
 
@@ -218,9 +215,10 @@ public class CryptoGetInfoRegression {
                         .hasAnswerOnlyPrecheck(INSUFFICIENT_PAYER_BALANCE));
     }
 
-    @HapiTest
+    @LeakyHapiTest(overrides = "fees.simpleFeesEnabled")
     final Stream<DynamicTest> failsForInsufficientPayment() {
         return hapiTest(
+                overriding("fees.simpleFeesEnabled", "false"),
                 cryptoCreate(CIVILIAN_PAYER),
                 getAccountInfo(GENESIS)
                         .payingWith(CIVILIAN_PAYER)
@@ -253,7 +251,6 @@ public class CryptoGetInfoRegression {
             tokenNames.add("t" + i);
         }
         final var ops = new ArrayList<SpecOperation>();
-        ops.add(overridingThrottles("testSystemFiles/tiny-get-balance-throttle.json"));
         ops.add(overridingAllOf(Map.of("tokens.countingGetBalanceThrottleEnabled", "true")));
         ops.add(cryptoCreate(TARGET_ACC).withMatchingEvmAddress());
         tokenNames.forEach(t -> {
