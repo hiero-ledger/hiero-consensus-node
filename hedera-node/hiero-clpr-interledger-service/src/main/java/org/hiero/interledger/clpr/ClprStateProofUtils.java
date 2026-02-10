@@ -4,12 +4,9 @@ package org.hiero.interledger.clpr;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.StateProof;
-import com.hedera.hapi.node.state.blockstream.MerkleLeaf;
 import com.hedera.hapi.platform.state.StateItem;
 import com.hedera.hapi.platform.state.StateKey;
 import com.hedera.hapi.platform.state.StateValue;
-import com.hedera.node.app.hapi.utils.blocks.MerklePathBuilder;
-import com.hedera.node.app.hapi.utils.blocks.StateProofBuilder;
 import com.hedera.node.app.hapi.utils.blocks.StateProofVerifier;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -139,10 +136,11 @@ public final class ClprStateProofUtils {
                 .build();
         final var stateItem = new StateItem(stateKey, stateValue);
         final var stateItemBytes = StateItem.PROTOBUF.toBytes(stateItem);
-        final var leaf = MerkleLeaf.newBuilder().stateItem(stateItemBytes).build();
-        final var pathBuilder = new MerklePathBuilder();
-        pathBuilder.setLeaf(leaf);
-        return StateProofBuilder.newBuilder().addMerklePath(pathBuilder).build();
+        final var pathBuilder = new com.hedera.node.app.hapi.utils.blocks.MerklePathBuilder();
+        pathBuilder.setStateItemLeaf(stateItemBytes);
+        return com.hedera.node.app.hapi.utils.blocks.StateProofBuilder.newBuilder()
+                .addMerklePath(pathBuilder)
+                .build();
     }
 
     /**
@@ -168,17 +166,15 @@ public final class ClprStateProofUtils {
         }
 
         final var firstPath = paths.get(0);
-        if (!firstPath.hasLeaf()) {
+        if (firstPath.hasBlockItemLeaf() || firstPath.hasTimestampLeaf()) {
             throw new IllegalStateException("First path does not contain a leaf");
         }
-
-        final var leaf = firstPath.leaf();
-        if (!leaf.hasStateItem()) {
-            throw new IllegalArgumentException("Leaf does not contain a state item");
+        if (!firstPath.hasStateItemLeaf()) {
+            throw new IllegalStateException("First path does not contain a state item leaf");
         }
 
         // Deserialize the state item bytes into a ClprMessageQueueMetadata
-        final Bytes stateItemBytes = requireNonNull(leaf.stateItem());
+        final Bytes stateItemBytes = requireNonNull(firstPath.stateItemLeaf());
         try {
             final var stateItem = StateItem.PROTOBUF.parse(stateItemBytes);
             return stateItem.valueOrThrow().clprServiceIMessageQueuesOrThrow();

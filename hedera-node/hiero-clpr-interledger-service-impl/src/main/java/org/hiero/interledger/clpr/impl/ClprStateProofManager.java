@@ -204,14 +204,20 @@ public class ClprStateProofManager {
             return null;
         }
 
-        final var state = snapshot.merkleState();
+        final var state = snapshot.state();
         final var readableStates = state.getReadableStates(ClprService.NAME);
         if (!readableStates.contains(V0700ClprSchema.CLPR_MESSAGE_QUEUE_METADATA_STATE_ID)) {
             throw new IllegalStateException(
                     "CLPR message queue metadata state not found - service may not be properly initialized");
         }
+        if (!(state instanceof VirtualMapState virtualMapState)) {
+            throw new IllegalStateException("Unable to build Merkle proofs from a non-VirtualMap state");
+        }
+
         return buildMerkleStateProof(
-                state, V0700ClprSchema.CLPR_MESSAGE_QUEUE_METADATA_STATE_ID, ClprLedgerId.PROTOBUF.toBytes(ledgerId));
+                virtualMapState,
+                V0700ClprSchema.CLPR_MESSAGE_QUEUE_METADATA_STATE_ID,
+                ClprLedgerId.PROTOBUF.toBytes(ledgerId));
     }
 
     /**

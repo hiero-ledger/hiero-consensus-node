@@ -7,6 +7,7 @@ import static com.hedera.services.bdd.junit.hedera.utils.NetworkUtils.CLASSIC_NO
 import static com.hedera.services.bdd.junit.hedera.utils.NetworkUtils.classicFeeCollectorIdFor;
 import static com.hedera.services.bdd.junit.hedera.utils.NetworkUtils.nodeIdsFrom;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.gossipCaCertificateForNodeId;
+import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.HapiSpec.customizedHapiTest;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeCreate;
@@ -57,7 +58,6 @@ import org.junit.jupiter.api.Tag;
 
 @OrderedInIsolation
 @Tag(TestTags.CLPR)
-@OrderedInIsolation
 @HapiTestLifecycle
 public class ClprSuite implements LifecycleTest {
     private static final Map<String, String> CLPR_OVERRIDES = Map.of("clpr.clprEnabled", "true");
@@ -307,10 +307,8 @@ public class ClprSuite implements LifecycleTest {
         AtomicReference<HederaNode> targetNode = new AtomicReference<>();
         AtomicReference<ClprMessageBundle> fetchResult = new AtomicReference<>();
         Bytes msgData = Bytes.wrap("Hello CLPR".getBytes());
-        Bytes ledgerIdBytes = Bytes.wrap("Mock ledger ID".getBytes());
         ClprMessage msg = ClprMessage.newBuilder().messageData(msgData).build();
         ClprMessageBundle bundleToProcess = ClprMessageBundle.newBuilder()
-                .ledgerId(ClprLedgerId.newBuilder().ledgerId(ledgerIdBytes))
                 .messages(List.of(ClprMessagePayload.newBuilder().message(msg).build()))
                 .build();
         return hapiTest(
