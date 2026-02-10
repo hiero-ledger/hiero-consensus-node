@@ -16,8 +16,6 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_T
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ALIAS_KEY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.PLATFORM_NOT_ACTIVE;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.PLATFORM_TRANSACTION_NOT_CREATED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.RECEIPT_NOT_FOUND;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.UNKNOWN;
@@ -270,28 +268,12 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
             }
 
             actualPrecheck = response.getNodeTransactionPrecheckCode();
-            // Automatically retry on transient platform errors (backlog/not active)
-            // regardless of explicit retryPrechecks configuration
-            final boolean isTransientPlatformError = actualPrecheck == PLATFORM_NOT_ACTIVE
-                    || actualPrecheck == PLATFORM_TRANSACTION_NOT_CREATED
-                    || actualPrecheck == BUSY;
-            // Don't retry if the test explicitly expects this transient error (e.g., testing throttling)
-            final boolean expectsTransientError =
-                    expectedPrecheck.isPresent() && expectedPrecheck.get() == actualPrecheck;
-            // For transient platform errors, use a hard limit of 10 retries to avoid infinite loops
-            // when no explicit retryLimits is set (which defaults to unlimited)
-            final int maxTransientRetries = 10;
-            final boolean withinTransientLimit = retryCount < maxTransientRetries;
-            final boolean shouldRetryTransient =
-                    isTransientPlatformError && withinTransientLimit && !expectsTransientError;
-            final boolean shouldRetryExplicit = retryPrechecks.isPresent()
+            if (retryPrechecks.isPresent()
                     && retryPrechecks.get().contains(actualPrecheck)
-                    && isWithInRetryLimit(retryCount);
-            if (shouldRetryTransient || shouldRetryExplicit) {
+                    && isWithInRetryLimit(retryCount)) {
                 retryCount++;
                 try {
-                    // Use longer sleep for platform errors to allow recovery
-                    sleep(isTransientPlatformError ? 100 : 10);
+                    sleep(10);
                 } catch (InterruptedException e) {
                     log.error("Interrupted while sleeping before retry");
                     throw new RuntimeException(e);

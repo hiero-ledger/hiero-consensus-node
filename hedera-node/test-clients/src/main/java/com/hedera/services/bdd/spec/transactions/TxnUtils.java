@@ -21,7 +21,6 @@ import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.FileUpdate;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.PLATFORM_NOT_ACTIVE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.PLATFORM_TRANSACTION_NOT_CREATED;
 import static com.swirlds.common.stream.LinkedObjectStreamUtilities.getPeriod;
 import static java.lang.System.arraycopy;
@@ -110,9 +109,7 @@ import org.hiero.base.utility.CommonUtils;
 public class TxnUtils {
     private static final Logger log = LogManager.getLogger(TxnUtils.class);
 
-    public static final ResponseCodeEnum[] NOISY_RETRY_PRECHECKS = {
-        BUSY, PLATFORM_TRANSACTION_NOT_CREATED, PLATFORM_NOT_ACTIVE
-    };
+    public static final ResponseCodeEnum[] NOISY_RETRY_PRECHECKS = {BUSY, PLATFORM_TRANSACTION_NOT_CREATED};
 
     public static final int BYTES_4K = 4 * (1 << 10);
 
