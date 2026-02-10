@@ -387,7 +387,9 @@ jobs:
       - promote-build-candidate
       - deploy-ci-trigger
       - report-promotion
-    if: ${{ (needs.determine-build-candidate.result != 'success' ||
+    if:
+      ${{ needs.determine-build-candidate.outputs.promote-build-candidate == 'true' &&
+      (needs.determine-build-candidate.result != 'success' ||
       needs.promote-build-candidate.result != 'success' ||
       needs.deploy-ci-trigger.result != 'success' ||
       needs.report-promotion.result != 'success') && !cancelled() && always() }}

@@ -80,16 +80,7 @@ class SyncFilteringTest {
         for (int index = 0; index < expectedEvents.size(); index++) {
 
             final PlatformEvent event = expectedEvents.get(index);
-
-            final EventDescriptorWrapper selfParent = event.getSelfParent();
-            if (selfParent != null) {
-                final Hash selfParentHash = selfParent.hash();
-                if (!expectedEventHashes.contains(selfParentHash)) {
-                    expectedEvents.add(eventMap.get(selfParentHash));
-                    expectedEventHashes.add(selfParentHash);
-                }
-            }
-            final List<EventDescriptorWrapper> otherParents = event.getOtherParents();
+            final List<EventDescriptorWrapper> otherParents = event.getAllParents();
             if (!otherParents.isEmpty()) {
                 for (final EventDescriptorWrapper otherParent : otherParents) {
                     final Hash otherParentHash = otherParent.hash();
@@ -139,8 +130,8 @@ class SyncFilteringTest {
         // Test filtering multiple times. Each iteration, move time forward. We should see more and more events
         // returned as they age.
         while (time.now().isBefore(endTime)) {
-            final List<PlatformEvent> filteredEvents =
-                    SyncUtils.filterLikelyDuplicates(selfId, nonAncestorSendThreshold, time.now(), events);
+            final List<PlatformEvent> filteredEvents = SyncUtils.filterLikelyDuplicates(
+                    selfId, nonAncestorSendThreshold, Duration.ZERO, Duration.ZERO, time.now(), events);
 
             // Gather a list of events we expect to see.
             final List<PlatformEvent> expectedEvents = new ArrayList<>();
@@ -179,6 +170,10 @@ class SyncFilteringTest {
 
     private static void assertTopologicalOrder(
             final PlatformContext platformContext, final List<PlatformEvent> events) {
+        if (events.isEmpty()) {
+            // empty list is always in order
+            return;
+        }
         final DefaultOrphanBuffer orphanBuffer =
                 new DefaultOrphanBuffer(platformContext.getMetrics(), new NoOpIntakeEventCounter());
         orphanBuffer.setEventWindow(new EventWindow(1, 1, events.getFirst().getBirthRound(), 1));
@@ -188,5 +183,134 @@ class SyncFilteringTest {
             assertEquals(1, nonOrphans.size());
             assertEquals(nonOrphans.getFirst(), event);
         }
+    }
+
+    @Test
+    void filterLikelyDuplicates_respectsDifferentThresholdsByEventClassification() {
+        final Duration selfThreshold = Duration.ofMillis(250);
+        final Duration ancestorThreshold = Duration.ofMillis(750);
+        final Duration nonAncestorThreshold = Duration.ofMillis(1500);
+
+        final Random random = getRandomPrintSeed();
+
+        final Instant baseTime = Instant.now();
+        final FakeTime time = new FakeTime(baseTime, Duration.ZERO);
+
+        final PlatformContext platformContext =
+                TestPlatformContextBuilder.create().build();
+        final StandardEventEmitter eventEmitter = EventEmitterBuilder.newBuilder()
+                .setPlatformContext(platformContext)
+                .setRandomSeed(random.nextLong())
+                .setNumNodes(16)
+                .build();
+
+        final NodeId selfId =
+                RosterUtils.getNodeId(eventEmitter.getGraphGenerator().getRoster(), 0);
+
+        // Create enough events to almost certainly include:
+        // - at least one self event near the end of the list (candidate to send first)
+        // - some non-self ancestors of that event that are also present in the need list
+        // - unrelated non-ancestors
+        final int eventCount = 2500;
+        final Duration timeStep = Duration.ofMillis(1);
+
+        final List<PlatformEvent> events = generateEvents(eventEmitter, time, timeStep, eventCount).stream()
+                .toList();
+
+        Set<Hash> expectedEvents =
+                filterEvents(events, selfThreshold, ancestorThreshold, nonAncestorThreshold, selfId, time);
+
+        final List<PlatformEvent> filtered = SyncUtils.filterLikelyDuplicates(
+                selfId, nonAncestorThreshold, ancestorThreshold, selfThreshold, time.now(), events);
+
+        final Set<Hash> filteredSet =
+                filtered.stream().map(PlatformEvent::getHash).collect(Collectors.toSet());
+
+        assertEquals(expectedEvents, filteredSet);
+    }
+
+    @Test
+    void filterLikelyDuplicates_zeroAncestorTime() {
+
+        final Duration selfThreshold = Duration.ofMillis(250);
+        final Duration ancestorThreshold = Duration.ofMillis(0);
+        final Duration nonAncestorThreshold = Duration.ofMillis(1500);
+
+        final Random random = getRandomPrintSeed();
+
+        final Instant baseTime = Instant.now();
+        final FakeTime time = new FakeTime(baseTime, Duration.ZERO);
+
+        final PlatformContext platformContext =
+                TestPlatformContextBuilder.create().build();
+        final StandardEventEmitter eventEmitter = EventEmitterBuilder.newBuilder()
+                .setPlatformContext(platformContext)
+                .setRandomSeed(random.nextLong())
+                .setNumNodes(16)
+                .build();
+
+        final NodeId selfId =
+                RosterUtils.getNodeId(eventEmitter.getGraphGenerator().getRoster(), 0);
+
+        // Create enough events to almost certainly include:
+        // - at least one self event near the end of the list (candidate to send first)
+        // - some non-self ancestors of that event that are also present in the need list
+        // - unrelated non-ancestors
+        final int eventCount = 2500;
+        final Duration timeStep = Duration.ofMillis(1);
+
+        final List<PlatformEvent> events = generateEvents(eventEmitter, time, timeStep, eventCount).stream()
+                .toList();
+
+        final Set<Hash> expectedEvents =
+                filterEvents(events, selfThreshold, ancestorThreshold, nonAncestorThreshold, selfId, time);
+
+        final List<PlatformEvent> filtered = SyncUtils.filterLikelyDuplicates(
+                selfId, nonAncestorThreshold, ancestorThreshold, selfThreshold, time.now(), events);
+
+        final Set<Hash> filteredSet =
+                filtered.stream().map(PlatformEvent::getHash).collect(Collectors.toSet());
+
+        assertEquals(expectedEvents, filteredSet);
+    }
+
+    private Set<Hash> filterEvents(
+            final List<PlatformEvent> events,
+            final Duration selfThreshold,
+            final Duration ancestorThreshold,
+            final Duration nonAncestorThreshold,
+            final NodeId selfId,
+            final FakeTime time) {
+        final Map<Hash, PlatformEvent> eventMap =
+                events.stream().collect(Collectors.toMap(PlatformEvent::getHash, Function.identity()));
+
+        final Set<Hash> selfEvents = events.stream()
+                .filter(it -> it.getCreatorId().equals(selfId))
+                .map(PlatformEvent::getHash)
+                .collect(Collectors.toSet());
+
+        final List<PlatformEvent> recursiveEvents =
+                events.stream().filter(it -> selfEvents.contains(it.getHash())).collect(Collectors.toList());
+        findAncestorsOfExpectedEvents(recursiveEvents, eventMap);
+        final Set<Hash> parentsOfSelfEventsAndSelfEvents = recursiveEvents.stream()
+                .filter(it -> Duration.between(it.getTimeReceived(), time.now()).compareTo(ancestorThreshold) > 0)
+                .filter(it -> !it.getCreatorId().equals(selfId))
+                .map(PlatformEvent::getHash)
+                .collect(Collectors.toSet());
+
+        // filter out all self events which are not old enough, we included all of them above, so we can find all
+        // ancestors
+        parentsOfSelfEventsAndSelfEvents.addAll(selfEvents.stream()
+                .filter(it -> Duration.between(eventMap.get(it).getTimeReceived(), time.now())
+                                .compareTo(selfThreshold)
+                        > 0)
+                .toList());
+
+        final Set<Hash> allEvents = events.stream()
+                .filter(it -> Duration.between(it.getTimeReceived(), time.now()).compareTo(nonAncestorThreshold) > 0)
+                .map(PlatformEvent::getHash)
+                .collect(Collectors.toSet());
+        allEvents.addAll(parentsOfSelfEventsAndSelfEvents);
+        return allEvents;
     }
 }

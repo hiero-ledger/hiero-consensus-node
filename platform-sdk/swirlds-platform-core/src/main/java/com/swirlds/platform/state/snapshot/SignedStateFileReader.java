@@ -14,8 +14,6 @@ import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.state.service.schemas.V0540RosterBaseSchema;
-import com.swirlds.platform.state.signed.SigSet;
-import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StateDefinition;
@@ -34,6 +32,8 @@ import org.hiero.consensus.crypto.ConsensusCryptoUtils;
 import org.hiero.consensus.platformstate.PlatformStateService;
 import org.hiero.consensus.platformstate.V0540PlatformStateSchema;
 import org.hiero.consensus.roster.RosterStateId;
+import org.hiero.consensus.state.signed.SigSet;
+import org.hiero.consensus.state.signed.SignedState;
 
 /**
  * Utility methods for reading a signed state from disk.

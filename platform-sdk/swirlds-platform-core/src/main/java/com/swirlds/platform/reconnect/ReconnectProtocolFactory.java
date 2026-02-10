@@ -7,7 +7,6 @@ import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.metrics.ReconnectMetrics;
 import com.swirlds.platform.reconnect.api.ProtocolFactory;
 import com.swirlds.platform.reconnect.api.ReservedSignedStateResult;
-import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.state.StateLifecycleManager;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.function.Supplier;
@@ -16,6 +15,7 @@ import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.gossip.impl.network.protocol.Protocol;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.reconnect.config.ReconnectConfig;
+import org.hiero.consensus.state.signed.ReservedSignedState;
 
 /**
  * Factory for creating the {@link ReconnectStateSyncProtocol}.

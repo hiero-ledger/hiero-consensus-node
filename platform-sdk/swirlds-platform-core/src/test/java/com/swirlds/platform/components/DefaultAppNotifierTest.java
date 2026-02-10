@@ -11,8 +11,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 import com.swirlds.common.notification.NotificationEngine;
-import com.swirlds.common.notification.NotificationResult;
-import com.swirlds.platform.components.appcomm.CompleteStateNotificationWithCleanup;
 import com.swirlds.platform.listeners.PlatformStatusChangeListener;
 import com.swirlds.platform.listeners.PlatformStatusChangeNotification;
 import com.swirlds.platform.listeners.ReconnectCompleteListener;
@@ -21,14 +19,11 @@ import com.swirlds.platform.listeners.StateWriteToDiskCompleteListener;
 import com.swirlds.platform.listeners.StateWriteToDiskCompleteNotification;
 import com.swirlds.platform.system.state.notifications.AsyncFatalIssListener;
 import com.swirlds.platform.system.state.notifications.IssListener;
-import com.swirlds.platform.system.state.notifications.NewSignedStateListener;
-import com.swirlds.platform.system.state.notifications.NewSignedStateNotification;
 import com.swirlds.platform.system.state.notifications.StateHashedListener;
 import com.swirlds.platform.system.state.notifications.StateHashedNotification;
 import com.swirlds.state.merkle.VirtualMapState;
 import java.time.Instant;
 import java.util.List;
-import org.hiero.base.concurrent.futures.StandardFuture.CompletionCallback;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.notification.IssNotification;
@@ -95,21 +90,6 @@ public class DefaultAppNotifierTest {
         final PlatformStatusChangeNotification notification = captor.getValue();
         assertNotNull(notification);
         assertEquals(status, notification.getNewStatus());
-    }
-
-    @Test
-    void testLatestCompleteStateNotificationSent() {
-        final VirtualMapState state = mock(VirtualMapState.class);
-        final CompletionCallback<NotificationResult<NewSignedStateNotification>> cleanup =
-                mock(CompletionCallback.class);
-        final NewSignedStateNotification signedStateNotification =
-                new NewSignedStateNotification(state, 100L, Instant.now());
-        final CompleteStateNotificationWithCleanup notificationWithCleanup =
-                new CompleteStateNotificationWithCleanup(signedStateNotification, cleanup);
-
-        assertDoesNotThrow(() -> notifier.sendLatestCompleteStateNotification(notificationWithCleanup));
-        verify(notificationEngine, times(1)).dispatch(NewSignedStateListener.class, signedStateNotification, cleanup);
-        verifyNoMoreInteractions(notificationEngine);
     }
 
     public static List<Arguments> issTypes() {
