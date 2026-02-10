@@ -67,7 +67,7 @@ permissions:
   actions: write
 
 env:
-  NAMESPACE_PREFIX: solo-sdlt-n
+  NAMESPACE_PREFIX: mqpt-sdlt-n
   TIMEOUT_6H_LIMIT: 340
   GS_ROOT_DIR: gs://performance-engineering-reports/ephemeral/test_runs
   GS_ROOT_HTTPS: https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs
@@ -75,7 +75,7 @@ env:
   GRAFANA_SYSADM_CHI: https://grafana.lat.ope.eng.hashgraph.io/d/rYdddlPWk/node-exporter-single-node?orgId=1&timezone=utc&var-datasource=P631E2BA859A814B3&var-job=performance-chicago-node-exporter
 
   #Release version from jFrog
-  NLG_VERSION: 0.8.0
+  NLG_VERSION: 0.13.0
 
   #Thresholds for performance
   #benchmarks
@@ -210,7 +210,7 @@ jobs:
           set +e
           #trim RUN_HCN_VERSION
           echo "RUN_HCN_VERSION=$(echo ${{ inputs.ref }} | awk '{print $1}')" >> "${GITHUB_ENV}"
-          namespaceId="$(echo "${{ inputs.test-asset }}" | perl -ne 'print "$2\n" if /^(AdHocSD|AdHoc|SDPT|SDLT)(\d+)$/')"
+          namespaceId="$(echo "${{ inputs.test-asset }}" | perl -ne 'print "$2\n" if /^(\w+[^\d])(\d+)$/')"
           echo "namespace=${NAMESPACE_PREFIX}${namespaceId}" >> "${GITHUB_ENV}"
           echo "namespace=${NAMESPACE_PREFIX}${namespaceId}" >> "${GITHUB_OUTPUT}"
           echo "namespace=${NAMESPACE_PREFIX}${namespaceId}" >> "${GITHUB_STEP_SUMMARY}"
@@ -790,42 +790,42 @@ jobs:
                 "${crypto_transfer_load_result}" != "" && \
                 "${heli_swap_load_result}" != "" && \
                 "${smart_contract_load_result}" != ""  && \
-                "${reconnect_result}" != ""  && \
-                "${validator_result}" != "" ]]; then
+                "${reconnect_result}" == "0"  && \
+                "${validator_result}" == "0" ]]; then
               RESULT="success"
           fi
 
-          if [[ "0${{ env.nft_transfer_load_result }}" -lt "${{ env.MinNFTscore }}" ]]
+          if [[ "10#${{ env.nft_transfer_load_result }}" -lt "${{ env.MinNFTscore }}" ]]
           then
             echo "Benchmark NFTscore ${{ env.nft_transfer_load_result }} is below ${{ env.MinNFTscore }}" >> "${GITHUB_STEP_SUMMARY}"
             RESULT="failure"
           fi
 
-          if [[ "0${{ env.hcs_load_result }}" -lt "${{ env.MinHCSLoadTest }}" ]]
+          if [[ "10#${{ env.hcs_load_result }}" -lt "${{ env.MinHCSLoadTest }}" ]]
           then
             echo "Benchmark HCSLoadTest ${{ env.hcs_load_result }} is below ${{ env.MinHCSLoadTest }}" >> "${GITHUB_STEP_SUMMARY}"
             RESULT="failure"
           fi
 
-          if [[ "0${{ env.crypto_transfer_load_result }}" -lt "${{ env.MinCryptoTransferLoadTest }}" ]]
+          if [[ "10#${{ env.crypto_transfer_load_result }}" -lt "${{ env.MinCryptoTransferLoadTest }}" ]]
           then
             echo "Benchmark CryptoTransferLoadTest ${{ env.crypto_transfer_load_result }} is below ${{ env.MinCryptoTransferLoadTest }}" >> "${GITHUB_STEP_SUMMARY}"
             RESULT="failure"
           fi
 
-          if [[ "0${{ env.smart_contract_load_result }}" -lt "${{ env.MinSmartContractLoadTest }}" ]]
+          if [[ "10#${{ env.smart_contract_load_result }}" -lt "${{ env.MinSmartContractLoadTest }}" ]]
           then
             echo "Benchmark SmartContractLoadTest ${{ env.smart_contract_load_result }} is below ${{ env.MinSmartContractLoadTest }}" >> "${GITHUB_STEP_SUMMARY}"
             RESULT="failure"
           fi
 
-          if [[ "0${{ env.reconnect_result }}" -ne "${{ env.ReconnectExitCode }}" ]]
+          if [[ "10#${{ env.reconnect_result }}" -ne "${{ env.ReconnectExitCode }}" ]]
           then
             echo "Reconnect exit code ${{ env.reconnect_result }} is not ${{ env.ReconnectExitCode }}" >> "${GITHUB_STEP_SUMMARY}"
             RESULT="failure"
           fi
 
-          if [[ "0${{ env.validator_result }}" -ne "${{ env.ValidatorExitCode }}" ]]
+          if [[ "10#${{ env.validator_result }}" -ne "${{ env.ValidatorExitCode }}" ]]
           then
             echo "Validator exit code ${{ env.validator_result }} is not ${{ env.ValidatorExitCode }}" >> "${GITHUB_STEP_SUMMARY}"
             RESULT="failure"
