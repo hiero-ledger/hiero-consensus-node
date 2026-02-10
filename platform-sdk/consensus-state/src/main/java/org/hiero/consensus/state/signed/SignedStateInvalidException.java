@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.state.signed;
+package org.hiero.consensus.state.signed;
 
 /**
  * This exception is thrown if a signed state is invalid, usually due to lack of sufficient signatures.
