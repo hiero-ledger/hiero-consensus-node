@@ -57,6 +57,7 @@ import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.event.intake.EventIntakeModule;
+import org.hiero.consensus.gossip.GossipModule;
 import org.hiero.consensus.gossip.config.SyncConfig;
 import org.hiero.consensus.gossip.impl.gossip.DefaultIntakeEventCounter;
 import org.hiero.consensus.gossip.impl.gossip.NoOpIntakeEventCounter;
@@ -93,6 +94,7 @@ public final class PlatformBuilder {
     private EventIntakeModule eventIntakeModule;
     private HashgraphModule hashgraphModule;
     private PcesModule pcesModule;
+    private GossipModule gossipModule;
 
     private static final UncaughtExceptionHandler DEFAULT_UNCAUGHT_EXCEPTION_HANDLER =
             (t, e) -> logger.error(EXCEPTION.getMarker(), "Uncaught exception on thread {}: {}", t, e);
@@ -429,6 +431,37 @@ public final class PlatformBuilder {
     }
 
     /**
+     * Provide the consensus event creator to use for this platform.
+     *
+     * @param gossipModule the consensus event creator
+     * @return this
+     */
+    @NonNull
+    public PlatformBuilder withGossipModule(@NonNull final GossipModule gossipModule) {
+        throwIfAlreadyUsed();
+        this.gossipModule = requireNonNull(gossipModule);
+        return this;
+    }
+
+    private void initializeGossipModule() {
+        if (this.gossipModule == null) {
+            this.gossipModule = createGossipModule();
+        }
+
+        gossipModule.initialize(
+                model,
+                platformContext.getConfiguration(),
+                platformContext.getMetrics(),
+                platformContext.getTime(),
+                secureRandomSupplier.get(),
+                keysAndCerts,
+                rosterHistory.getCurrentRoster(),
+                selfId,
+                execution,
+                execution);
+    }
+
+    /**
      * Throw an exception if this builder has been used to build a platform or a platform factory.
      */
     private void throwIfAlreadyUsed() {
@@ -510,6 +543,7 @@ public final class PlatformBuilder {
         initializeEventIntakeModule(intakeEventCounter, pipelineTracker);
         initializePcesModule(pipelineTracker);
         initializeHashgraphModule(pipelineTracker);
+        initializeGossipModule();
 
         final PlatformComponents platformComponents = PlatformComponents.create(
                 platformContext, model, eventCreatorModule, eventIntakeModule, pcesModule, hashgraphModule);

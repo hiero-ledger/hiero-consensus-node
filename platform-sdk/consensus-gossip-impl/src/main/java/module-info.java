@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import org.hiero.consensus.gossip.GossipModule;
-import org.hiero.consensus.gossip.impl.GossipModuleImpl;
+import org.hiero.consensus.gossip.impl.DefaultGossipModule;
 
 // SPDX-License-Identifier: Apache-2.0
 module org.hiero.consensus.gossip.impl {
@@ -45,5 +45,5 @@ module org.hiero.consensus.gossip.impl {
     requires static transitive com.github.spotbugs.annotations;
 
     provides GossipModule with
-            GossipModuleImpl;
+            DefaultGossipModule;
 }

@@ -1,15 +1,23 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.gossip;
 
+import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.hapi.node.state.roster.Roster;
+import com.swirlds.base.time.Time;
 import com.swirlds.component.framework.component.InputWireLabel;
+import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.wires.input.InputWire;
 import com.swirlds.component.framework.wires.input.NoInput;
 import com.swirlds.component.framework.wires.output.OutputWire;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.gossip.SyncProgress;
 import org.hiero.consensus.model.hashgraph.EventWindow;
+import org.hiero.consensus.model.node.KeysAndCerts;
+import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 
 /**
@@ -20,7 +28,19 @@ public interface GossipModule {
     /**
      * Initialize the gossip module.
      */
-    void initialize();
+    void initialize(
+            @NonNull WiringModel model,
+            @NonNull Configuration configuration,
+            @NonNull Metrics metrics,
+            @NonNull Time time,
+            @NonNull ThreadManager threadManager,
+            @NonNull KeysAndCerts keysAndCerts,
+            @NonNull Roster currentRoster,
+            @NonNull NodeId selfId,
+            @NonNull SemanticVersion appVersion,
+            @NonNull IntakeEventCounter intakeEventCounter,
+            @NonNull FallenBehindMonitor fallenBehindMonitor,
+            @NonNull Protocol reconnectProtocol);
 
     /**
      * {@link OutputWire} for events received through gossip.
