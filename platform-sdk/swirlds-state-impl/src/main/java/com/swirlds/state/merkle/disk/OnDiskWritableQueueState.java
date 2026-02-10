@@ -4,7 +4,7 @@ package com.swirlds.state.merkle.disk;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.pbj.runtime.Codec;
-import com.swirlds.state.QueueState;
+import com.swirlds.state.binary.QueueState;
 import com.swirlds.state.spi.WritableQueueStateBase;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -55,11 +55,9 @@ public class OnDiskWritableQueueState<V> extends WritableQueueStateBase<V> {
     protected void removeFromDataSource() {
         final QueueState state = requireNonNull(onDiskQueueHelper.getState());
         if (!OnDiskQueueHelper.isEmpty(state)) {
-            final V removedValue = onDiskQueueHelper.removeFromStore(state.head());
+            onDiskQueueHelper.removeFromStore(state.head());
             // increment head and update state
             onDiskQueueHelper.updateState(state.elementRemoved());
-        } else {
-            // Should it be considered an error?
         }
     }
 
