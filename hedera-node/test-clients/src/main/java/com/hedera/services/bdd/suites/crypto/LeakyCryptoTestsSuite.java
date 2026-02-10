@@ -172,7 +172,7 @@ public class LeakyCryptoTestsSuite {
         final var longLivedAutoAssocUser = "longLivedAutoAssocUser";
         final var payerBalance = 100 * ONE_HUNDRED_HBARS;
         final var updateWithExpiredAccount = "updateWithExpiredAccount";
-        final var baseFee = 0.000214;
+        final var baseFee = 0.000216;
         return customizedHapiTest(
                 Map.of("memo.useSpecName", "false"),
                 overridingTwo(
