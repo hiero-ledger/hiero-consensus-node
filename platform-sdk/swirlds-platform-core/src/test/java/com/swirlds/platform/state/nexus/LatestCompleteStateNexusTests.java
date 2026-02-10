@@ -3,6 +3,8 @@ package com.swirlds.platform.state.nexus;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.common.context.PlatformContext;
@@ -40,6 +42,9 @@ public class LatestCompleteStateNexusTests {
                     state.getReservationCount(),
                     "Updating the platform status to FREEZING should reduce the reservations by 1");
             assertTrue(reservationForNexus.isClosed(), "Reservation held by nexus should be closed");
+            try (final ReservedSignedState nexusState = nexus.getState("check for null")) {
+                assertNull(nexusState, "Nexus should no longer have a state");
+            }
         }
     }
 
@@ -68,6 +73,9 @@ public class LatestCompleteStateNexusTests {
                             state.getReservationCount(),
                             "Updating the platform status to anything other than FREEZING should not reduce the reservations");
                     assertFalse(reservationForNexus.isClosed(), "Reservation held by nexus should remain open");
+                    try (final ReservedSignedState nexusState = nexus.getState("check for null")) {
+                        assertNotNull(nexusState, "Nexus should still have a state");
+                    }
                 }
             }
         }
