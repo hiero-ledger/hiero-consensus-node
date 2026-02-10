@@ -64,6 +64,24 @@ on:
         default: false
         description: "solo-sd*t-n9 (SDPT/SDLT)"
 
+      Chicago_n10:
+        type: boolean
+        required: false
+        default: false
+        description: "mqpt-sd*t-n10 (SDPT/SDLT)"
+
+      Chicago_n11:
+        type: boolean
+        required: false
+        default: false
+        description: "mqpt-sd*t-n11 (SDPT/SDLT)"
+
+      Chicago_n12:
+        type: boolean
+        required: false
+        default: false
+        description: "mqpt-sd*t-n12 (SDPT/SDLT)"
+
 jobs:
   delete-selected-namespaces:
     runs-on: hl-cn-default-lin-sm
@@ -77,6 +95,9 @@ jobs:
       Chicago_n7: ${{ github.event.inputs.Chicago_n7 }}
       Chicago_n8: ${{ github.event.inputs.Chicago_n8 }}
       Chicago_n9: ${{ github.event.inputs.Chicago_n9 }}
+      Chicago_n10: ${{ github.event_inputs.Chicago_n10 }}
+      Chicago_n11: ${{ github.event_inputs.Chicago_n11 }}
+      Chicago_n12: ${{ github.event_inputs.Chicago_n12 }}
 
     steps:
       - name: Harden the runner (Audit all outbound calls)
