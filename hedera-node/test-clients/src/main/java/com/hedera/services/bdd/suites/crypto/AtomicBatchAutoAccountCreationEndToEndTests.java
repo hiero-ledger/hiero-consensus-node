@@ -24,13 +24,14 @@ import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movi
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUnique;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.safeValidateChargedUsdWithin;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.PROCESSING_BYTES_FEE_USD;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.EXISTING_AUTOMATIC_ASSOCIATIONS_EXCEED_GIVEN_LIMIT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
@@ -186,7 +187,13 @@ class AtomicBatchAutoAccountCreationEndToEndTests {
                                 .via("batchTxn")
                                 .hasKnownStatus(SUCCESS);
 
-                        final var batchTxnFeeCheck = validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
+                        final var batchTxnFeeCheck = safeValidateChargedUsdWithin(
+                                "batchTxn",
+                                BASE_FEE_BATCH_TRANSACTION,
+                                1,
+                                // account for extra bytes in the node + network fee
+                                BASE_FEE_BATCH_TRANSACTION + 1214 * PROCESSING_BYTES_FEE_USD * 10,
+                                2);
 
                         // validate the public key accounts creation and transfers
                         final var infoCheckED2559First = getAliasedAccountInfo(VALID_ALIAS_ED25519)
@@ -381,7 +388,13 @@ class AtomicBatchAutoAccountCreationEndToEndTests {
                                 .via("batchTxn")
                                 .hasKnownStatus(SUCCESS);
 
-                        final var batchTxnFeeCheck = validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
+                        final var batchTxnFeeCheck = safeValidateChargedUsdWithin(
+                                "batchTxn",
+                                BASE_FEE_BATCH_TRANSACTION,
+                                1,
+                                // account for extra bytes in the node + network fee
+                                BASE_FEE_BATCH_TRANSACTION + 817 * PROCESSING_BYTES_FEE_USD * 10,
+                                2);
 
                         // validate the hollow accounts creation and transfers
                         final var infoCheckEVMFirst = getAliasedAccountInfo(evmAliasFirst.get())

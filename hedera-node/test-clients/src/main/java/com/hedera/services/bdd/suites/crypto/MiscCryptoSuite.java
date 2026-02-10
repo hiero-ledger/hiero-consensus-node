@@ -27,6 +27,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.getBySolidityIdNotS
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.getClaimNotSupported;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.getExecutionTimeNotSupported;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.reduceFeeFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sendModified;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sendModifiedWithFixedPayer;
@@ -98,13 +99,14 @@ public class MiscCryptoSuite {
                         .hasKnownStatus(INVALID_SIGNATURE));
     }
 
-    @LeakyHapiTest(requirement = FEE_SCHEDULE_OVERRIDES)
+    @LeakyHapiTest(overrides = "fees.simpleFeesEnabled", requirement = FEE_SCHEDULE_OVERRIDES)
     final Stream<DynamicTest> reduceTransferFee() {
         final long REDUCED_NODE_FEE = 2L;
         final long REDUCED_NETWORK_FEE = 3L;
         final long REDUCED_SERVICE_FEE = 3L;
         final long REDUCED_TOTAL_FEE = REDUCED_NODE_FEE + REDUCED_NETWORK_FEE + REDUCED_SERVICE_FEE;
         return hapiTest(
+                overriding("fees.simpleFeesEnabled", "false"),
                 cryptoCreate("sender").balance(ONE_HUNDRED_HBARS),
                 cryptoCreate("receiver").balance(0L),
                 cryptoTransfer(tinyBarsFromTo("sender", "receiver", ONE_HBAR))
@@ -222,7 +224,7 @@ public class MiscCryptoSuite {
                         .addTokenAllowance(owner, token, spender, 100L)
                         .addNftAllowance(owner, nft, spender, true, List.of(1L))
                         .via("approveTxn")
-                        .fee(ONE_HBAR)
+                        .fee(ONE_HBAR * 2)
                         .blankMemo()
                         .logged(),
                 /* NetworkGetExecutionTime requires superuser payer */

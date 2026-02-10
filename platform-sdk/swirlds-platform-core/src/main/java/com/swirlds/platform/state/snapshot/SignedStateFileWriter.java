@@ -19,7 +19,6 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.utility.Mnemonics;
 import com.swirlds.logging.legacy.payload.StateSavedToDiskPayload;
 import com.swirlds.platform.builder.ConsensusModuleBuilder;
-import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
@@ -36,6 +35,8 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.platformstate.PlatformStateUtils;
+import org.hiero.consensus.state.signed.SignedState;
+import org.hiero.consensus.state.snapshot.StateToDiskReason;
 
 /**
  * Utility methods for writing a signed state to disk.
