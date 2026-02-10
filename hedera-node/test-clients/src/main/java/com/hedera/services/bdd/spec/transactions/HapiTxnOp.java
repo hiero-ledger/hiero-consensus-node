@@ -112,7 +112,9 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
     protected Optional<ResponseCodeEnum> expectedPrecheck = Optional.empty();
     protected Optional<EnumSet<ResponseCodeEnum>> permissibleStatuses = Optional.empty();
     protected Optional<EnumSet<ResponseCodeEnum>> permissiblePrechecks = Optional.empty();
-    /** if response code in the set then allow to resubmit transaction */
+    /**
+     * if response code in the set then allow to resubmit transaction
+     */
     protected Optional<EnumSet<ResponseCodeEnum>> retryPrechecks = Optional.empty();
 
     protected List<Condition> conditions = new ArrayList<>();
@@ -146,6 +148,11 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
 
     public T satisfies(@NonNull final BooleanSupplier condition, @NonNull final String errorMessage) {
         return satisfies(new Condition(condition, () -> errorMessage));
+    }
+
+    public T withHighVolume() {
+        return self().withBodyMutation(BodyMutation.withTransform(
+                body -> body.toBuilder().setHighVolume(true).build()));
     }
 
     /**
