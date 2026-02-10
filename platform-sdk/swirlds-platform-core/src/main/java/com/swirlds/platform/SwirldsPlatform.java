@@ -5,7 +5,6 @@ import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.platform.StateInitializer.initializeState;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMetricsProvider;
 import static com.swirlds.platform.state.address.RosterMetrics.registerRosterMetrics;
-import static org.hiero.base.CompareTo.isLessThan;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.ancientThresholdOf;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.consensusSnapshotOf;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.legacyRunningEventHashOf;
@@ -28,13 +27,11 @@ import com.swirlds.platform.components.DefaultEventWindowManager;
 import com.swirlds.platform.components.DefaultSavedStateController;
 import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.components.SavedStateController;
-import com.swirlds.platform.event.preconsensus.PcesReplayer;
 import com.swirlds.platform.metrics.RuntimeMetrics;
 import com.swirlds.platform.reconnect.DefaultSignedStateValidator;
 import com.swirlds.platform.reconnect.ReconnectController;
 import com.swirlds.platform.state.nexus.DefaultLatestCompleteStateNexus;
 import com.swirlds.platform.state.nexus.LatestCompleteStateNexus;
-import com.swirlds.platform.state.nexus.LockFreeStateNexus;
 import com.swirlds.platform.state.nexus.SignedStateNexus;
 import com.swirlds.platform.state.signed.DefaultStateSignatureCollector;
 import com.swirlds.platform.state.signed.SignedStateMetrics;
@@ -51,7 +48,6 @@ import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.time.Duration;
 import java.util.List;
 import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
@@ -69,7 +65,6 @@ import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
-import org.hiero.consensus.pces.config.PcesConfig;
 import org.hiero.consensus.round.EventWindowUtils;
 import org.hiero.consensus.state.config.StateConfig;
 import org.hiero.consensus.state.signed.ReservedSignedState;
@@ -116,7 +111,7 @@ public class SwirldsPlatform implements Platform {
      * NOTE: This is currently set when a state has finished hashing. In the future, this will be set at the moment a
      * new state is created, before it is hashed.
      */
-    private final SignedStateNexus latestImmutableStateNexus = new LockFreeStateNexus();
+    private final SignedStateNexus latestImmutableStateNexus;
 
     /**
      * For passing notifications between the platform and the application.
@@ -177,21 +172,12 @@ public class SwirldsPlatform implements Platform {
                 new DefaultStateSignatureCollector(platformContext, signedStateMetrics);
 
         this.platformComponents = blocks.platformComponents();
-        this.platformCoordinator = new PlatformCoordinator(blocks.platformComponents(), blocks.applicationCallbacks());
+        this.platformCoordinator = blocks.platformCoordinator();
+        this.latestImmutableStateNexus = blocks.latestImmutableStateNexus();
 
         blocks.statusActionSubmitterReference().set(platformCoordinator);
 
         final Configuration configuration = platformContext.getConfiguration();
-        final Duration replayHealthThreshold =
-                configuration.getConfigData(PcesConfig.class).replayHealthThreshold();
-        final PcesReplayer pcesReplayer = new PcesReplayer(
-                configuration,
-                platformContext.getTime(),
-                platformComponents.pcesReplayerWiring().eventOutput(),
-                platformCoordinator::flushIntakePipeline,
-                platformCoordinator::flushTransactionHandler,
-                () -> latestImmutableStateNexus.getState("PCES replay"),
-                () -> isLessThan(blocks.model().getUnhealthyDuration(), replayHealthThreshold));
 
         initializeState(this, initialState, blocks.consensusStateEventHandler());
 
@@ -234,7 +220,6 @@ public class SwirldsPlatform implements Platform {
 
         platformComponents.bind(
                 builder,
-                pcesReplayer,
                 stateSignatureCollector,
                 eventWindowManager,
                 latestImmutableStateNexus,

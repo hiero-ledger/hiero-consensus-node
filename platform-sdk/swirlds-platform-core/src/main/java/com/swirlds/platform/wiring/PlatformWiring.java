@@ -195,17 +195,13 @@ public class PlatformWiring {
         solderEventWindow(components);
 
         components
-                .pcesReplayerWiring()
-                .eventOutput()
+                .pcesModule()
+                .replayedEventsOutputWire()
                 .solderTo(components.eventIntakeModule().unhashedEventsInputWire());
 
         final OutputWire<ConsensusRound> consensusRoundOutputWire =
                 components.hashgraphModule().consensusRoundOutputWire();
 
-        components
-                .pcesReplayerWiring()
-                .doneStreamingPcesOutputWire()
-                .solderTo(components.pcesModule().beginStreamingnewEventsInputWire());
         // with inline PCES, the round bypasses the round durability buffer and goes directly to the round handler
         consensusRoundOutputWire.solderTo(
                 components.transactionHandlerWiring().getInputWire(TransactionHandler::handleConsensusRound));

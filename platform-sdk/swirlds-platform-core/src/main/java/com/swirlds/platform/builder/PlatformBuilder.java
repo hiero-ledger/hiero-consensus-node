@@ -30,8 +30,11 @@ import com.swirlds.platform.metrics.PlatformMetricsConfig;
 import com.swirlds.platform.scratchpad.Scratchpad;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.iss.IssScratchpad;
+import com.swirlds.platform.state.nexus.LockFreeStateNexus;
+import com.swirlds.platform.state.nexus.SignedStateNexus;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.wiring.PlatformComponents;
+import com.swirlds.platform.wiring.PlatformCoordinator;
 import com.swirlds.platform.wiring.PlatformWiring;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
@@ -336,10 +339,6 @@ public final class PlatformBuilder {
     }
 
     private void initializeEventCreatorModule() {
-        if (this.eventCreatorModule == null) {
-            this.eventCreatorModule = createEventCreatorModule();
-        }
-
         eventCreatorModule.initialize(
                 model,
                 platformContext.getConfiguration(),
@@ -367,10 +366,6 @@ public final class PlatformBuilder {
     }
 
     private void initializeHashgraphModule(@Nullable final EventPipelineTracker pipelineTracker) {
-        if (this.hashgraphModule == null) {
-            this.hashgraphModule = createHashgraphModule();
-        }
-
         hashgraphModule.initialize(
                 model,
                 platformContext.getConfiguration(),
@@ -398,10 +393,6 @@ public final class PlatformBuilder {
     private void initializeEventIntakeModule(
             @NonNull final IntakeEventCounter intakeEventCounter,
             @Nullable final EventPipelineTracker pipelineTracker) {
-        if (this.eventIntakeModule == null) {
-            this.eventIntakeModule = createEventIntakeModule();
-        }
-
         eventIntakeModule.initialize(
                 model,
                 platformContext.getConfiguration(),
@@ -413,11 +404,10 @@ public final class PlatformBuilder {
                 pipelineTracker);
     }
 
-    private void initializePcesModule(@Nullable final EventPipelineTracker pipelineTracker) {
-        if (this.pcesModule == null) {
-            this.pcesModule = createPcesModule();
-        }
-
+    private void initializePcesModule(
+            @NonNull final PlatformCoordinator platformCoordinator,
+            @NonNull final Supplier<ReservedSignedState> latestStateSupplier,
+            @Nullable final EventPipelineTracker pipelineTracker) {
         pcesModule.initialize(
                 model,
                 platformContext.getConfiguration(),
@@ -426,6 +416,9 @@ public final class PlatformBuilder {
                 selfId,
                 platformContext.getRecycleBin(),
                 initialState.get().getRound(),
+                platformCoordinator::flushIntakePipeline,
+                platformCoordinator::flushTransactionHandler,
+                latestStateSupplier,
                 pipelineTracker);
     }
 
@@ -507,13 +500,28 @@ public final class PlatformBuilder {
         final EventPipelineTracker pipelineTracker =
                 eventPipelineMetricsEnabled ? new EventPipelineTracker(platformContext.getMetrics()) : null;
 
-        initializeEventCreatorModule();
-        initializeEventIntakeModule(intakeEventCounter, pipelineTracker);
-        initializePcesModule(pipelineTracker);
-        initializeHashgraphModule(pipelineTracker);
+        if (this.eventCreatorModule == null) {
+            this.eventCreatorModule = createEventCreatorModule();
+        }
+        if (this.eventIntakeModule == null) {
+            this.eventIntakeModule = createEventIntakeModule();
+        }
+        this.pcesModule = createPcesModule();
+        if (this.hashgraphModule == null) {
+            this.hashgraphModule = createHashgraphModule();
+        }
 
         final PlatformComponents platformComponents = PlatformComponents.create(
                 platformContext, model, eventCreatorModule, eventIntakeModule, pcesModule, hashgraphModule);
+
+        final PlatformCoordinator platformCoordinator = new PlatformCoordinator(platformComponents, callbacks);
+        final SignedStateNexus latestImmutableStateNexus = new LockFreeStateNexus();
+
+        initializeEventCreatorModule();
+        initializeEventIntakeModule(intakeEventCounter, pipelineTracker);
+        initializePcesModule(
+                platformCoordinator, () -> latestImmutableStateNexus.getState("PCES replay"), pipelineTracker);
+        initializeHashgraphModule(pipelineTracker);
 
         PlatformWiring.wire(platformContext, execution, platformComponents, callbacks);
 
@@ -545,7 +553,9 @@ public final class PlatformBuilder {
                 consensusStateEventHandler,
                 execution,
                 new FallenBehindMonitor(rosterHistory.getCurrentRoster(), configuration, platformContext.getMetrics()),
-                new BlockingResourceProvider<>());
+                new BlockingResourceProvider<>(),
+                platformCoordinator,
+                latestImmutableStateNexus);
 
         return new PlatformComponentBuilder(buildingBlocks);
     }

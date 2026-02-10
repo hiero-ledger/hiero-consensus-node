@@ -26,7 +26,6 @@ import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.components.SavedStateController;
 import com.swirlds.platform.event.branching.BranchDetector;
 import com.swirlds.platform.event.branching.BranchReporter;
-import com.swirlds.platform.event.preconsensus.PcesReplayer;
 import com.swirlds.platform.event.stream.ConsensusEventStream;
 import com.swirlds.platform.eventhandling.DefaultTransactionHandler;
 import com.swirlds.platform.eventhandling.TransactionPrehandler;
@@ -149,7 +148,6 @@ class PlatformWiringTests {
 
         platformComponents.bind(
                 componentBuilder,
-                mock(PcesReplayer.class),
                 mock(StateSignatureCollector.class),
                 mock(EventWindowManager.class),
                 mock(SignedStateNexus.class),
