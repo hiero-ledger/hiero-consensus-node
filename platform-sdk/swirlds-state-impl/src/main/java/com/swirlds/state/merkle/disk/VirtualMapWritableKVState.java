@@ -2,27 +2,28 @@
 package com.swirlds.state.merkle.disk;
 
 import static com.swirlds.state.merkle.StateUtils.getStateKeyForKv;
+import static com.swirlds.state.merkle.StateUtils.getStateValueForKv;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.merkle.StateValue;
 import com.swirlds.state.merkle.StateValue.StateValueCodec;
-import com.swirlds.state.spi.ReadableKVState;
-import com.swirlds.state.spi.ReadableKVStateBase;
+import com.swirlds.state.spi.WritableKVState;
+import com.swirlds.state.spi.WritableKVStateBase;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**
- * An implementation of {@link ReadableKVState} backed by a {@link VirtualMap}, resulting in a state
+ * An implementation of {@link WritableKVState} backed by a {@link VirtualMap}, resulting in a state
  * that is stored on disk.
  *
  * @param <K> The type of key for the state
  * @param <V> The type of value for the state
  */
-public final class OnDiskReadableKVState<K, V> extends ReadableKVStateBase<K, V> {
+public final class VirtualMapWritableKVState<K, V> extends WritableKVStateBase<K, V> {
 
-    /** The backing merkle data structure to use */
+    /** The backing merkle data structure */
     @NonNull
     private final VirtualMap virtualMap;
 
@@ -35,12 +36,12 @@ public final class OnDiskReadableKVState<K, V> extends ReadableKVStateBase<K, V>
     /**
      * Create a new instance
      *
+     * @param label       the service label
      * @param stateId     the state ID
-     * @param label       the state label
      * @param keyCodec    the codec for the key
      * @param virtualMap  the backing merkle data structure to use
      */
-    public OnDiskReadableKVState(
+    public VirtualMapWritableKVState(
             final int stateId,
             @NonNull final String label,
             @NonNull final Codec<K> keyCodec,
@@ -62,18 +63,28 @@ public final class OnDiskReadableKVState<K, V> extends ReadableKVStateBase<K, V>
         return stateValue != null ? stateValue.value() : null;
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
-    @Deprecated
-    public long size() {
-        return virtualMap.size();
+    protected void putIntoDataSource(@NonNull K key, @NonNull V value) {
+        assert keyCodec.toBytes(key) != null;
+
+        final Bytes keyBytes = getStateKeyForKv(stateId, key, keyCodec);
+        final StateValue<V> stateValue = getStateValueForKv(stateId, value);
+
+        virtualMap.put(keyBytes, stateValue, stateValueCodec);
     }
 
+    /** {@inheritDoc} */
     @Override
-    public void warm(@NonNull final K key) {
+    protected void removeFromDataSource(@NonNull K key) {
         final Bytes stateKey = getStateKeyForKv(stateId, key, keyCodec);
-        virtualMap.warm(stateKey);
+        final StateValue<V> stateValue = virtualMap.remove(stateKey, stateValueCodec);
+        final var removedValue = stateValue != null ? stateValue.value() : null;
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public long sizeOfDataSource() {
+        return virtualMap.size();
     }
 }

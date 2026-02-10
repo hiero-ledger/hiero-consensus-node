@@ -18,7 +18,7 @@ import com.hedera.hapi.node.state.roster.RosterState;
 import com.hedera.hapi.node.state.roster.RosterState.Builder;
 import com.hedera.hapi.node.state.roster.RoundRosterPair;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.state.merkle.disk.OnDiskWritableSingletonState;
+import com.swirlds.state.merkle.disk.VirtualMapWritableSingletonState;
 import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
@@ -53,7 +53,7 @@ class WritableRosterStoreTest {
         Mockito.when(writableStates.<ProtoBytes, Roster>get(RosterStateId.ROSTERS_STATE_ID))
                 .thenReturn(rosters);
         Mockito.when(writableStates.<RosterState>getSingleton(RosterStateId.ROSTER_STATE_STATE_ID))
-                .thenReturn(new OnDiskWritableSingletonState<>(
+                .thenReturn(new VirtualMapWritableSingletonState<>(
                         RosterStateId.ROSTER_STATE_STATE_ID,
                         RosterStateId.ROSTER_STATE_STATE_LABEL,
                         RosterState.PROTOBUF,

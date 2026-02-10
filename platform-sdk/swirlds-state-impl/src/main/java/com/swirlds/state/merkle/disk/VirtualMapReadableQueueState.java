@@ -17,10 +17,10 @@ import java.util.Objects;
  *
  * @param <V> The type of elements in the queue.
  */
-public class OnDiskReadableQueueState<V> extends ReadableQueueStateBase<V> {
+public class VirtualMapReadableQueueState<V> extends ReadableQueueStateBase<V> {
 
     @NonNull
-    private final OnDiskQueueHelper<V> onDiskQueueHelper;
+    private final VirtualMapQueueHelper<V> virtualMapQueueHelper;
 
     /**
      * Create a new instance
@@ -29,33 +29,33 @@ public class OnDiskReadableQueueState<V> extends ReadableQueueStateBase<V> {
      * @param label       the service label
      * @param virtualMap  the backing merkle data structure to use
      */
-    public OnDiskReadableQueueState(
+    public VirtualMapReadableQueueState(
             final int stateId,
             @NonNull final String label,
             @NonNull final Codec<V> valueCodec,
             @NonNull final VirtualMap virtualMap) {
         super(stateId, label);
-        this.onDiskQueueHelper = new OnDiskQueueHelper<>(stateId, valueCodec, virtualMap);
+        this.virtualMapQueueHelper = new VirtualMapQueueHelper<>(stateId, valueCodec, virtualMap);
     }
 
     @Nullable
     @Override
     protected V peekOnDataSource() {
-        final QueueState state = onDiskQueueHelper.getState();
+        final QueueState state = virtualMapQueueHelper.getState();
         Objects.requireNonNull(state);
-        return OnDiskQueueHelper.isEmpty(state) ? null : onDiskQueueHelper.getFromStore(state.head());
+        return VirtualMapQueueHelper.isEmpty(state) ? null : virtualMapQueueHelper.getFromStore(state.head());
     }
 
     /** Iterate over all elements */
     @NonNull
     @Override
     protected Iterator<V> iterateOnDataSource() {
-        final QueueState state = onDiskQueueHelper.getState();
+        final QueueState state = virtualMapQueueHelper.getState();
         if (state == null) {
             // Empty iterator
-            return onDiskQueueHelper.iterateOnDataSource(0, 0);
+            return virtualMapQueueHelper.iterateOnDataSource(0, 0);
         } else {
-            return onDiskQueueHelper.iterateOnDataSource(state.head(), state.tail());
+            return virtualMapQueueHelper.iterateOnDataSource(state.head(), state.tail());
         }
     }
 }

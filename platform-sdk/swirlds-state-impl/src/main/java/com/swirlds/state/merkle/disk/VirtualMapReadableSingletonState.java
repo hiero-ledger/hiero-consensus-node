@@ -19,7 +19,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  *
  * @param <V> The type of the value
  */
-public class OnDiskReadableSingletonState<V> extends ReadableSingletonStateBase<V> {
+public class VirtualMapReadableSingletonState<V> extends ReadableSingletonStateBase<V> {
 
     /** The backing merkle data structure to use */
     @NonNull
@@ -35,7 +35,7 @@ public class OnDiskReadableSingletonState<V> extends ReadableSingletonStateBase<
      * @param stateId      the state ID
      * @param virtualMap   the backing merkle data structure to use
      */
-    public OnDiskReadableSingletonState(
+    public VirtualMapReadableSingletonState(
             final int stateId,
             @NonNull final String label,
             @NonNull final Codec<V> valueCodec,

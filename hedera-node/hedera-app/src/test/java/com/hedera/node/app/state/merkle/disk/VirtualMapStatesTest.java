@@ -46,10 +46,10 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StateDefinition;
-import com.swirlds.state.merkle.disk.OnDiskReadableKVState;
-import com.swirlds.state.merkle.disk.OnDiskWritableKVState;
-import com.swirlds.state.merkle.disk.OnDiskWritableQueueState;
-import com.swirlds.state.merkle.disk.OnDiskWritableSingletonState;
+import com.swirlds.state.merkle.disk.VirtualMapReadableKVState;
+import com.swirlds.state.merkle.disk.VirtualMapWritableKVState;
+import com.swirlds.state.merkle.disk.VirtualMapWritableQueueState;
+import com.swirlds.state.merkle.disk.VirtualMapWritableSingletonState;
 import com.swirlds.state.test.fixtures.merkle.MerkleTestBase;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -67,7 +67,7 @@ import org.junit.jupiter.api.Test;
  * more complex map, with full objects to store and retrieve objects from the virtual map, and when
  * serializing for hashing, and for serializing when saving state.
  */
-class OnDiskTest extends MerkleTestBase {
+class VirtualMapStatesTest extends MerkleTestBase {
 
     private Schema schema;
     private StateDefinition<AccountID, Account> def;
@@ -75,10 +75,10 @@ class OnDiskTest extends MerkleTestBase {
     private MerkleDbDataSourceBuilder builder;
 
     @BeforeEach
-    void setUp() throws IOException {
+    void setUp() {
         setupConstructableRegistry();
 
-        def = StateDefinition.onDisk(ACCOUNTS_STATE_ID, ACCOUNTS_KEY, AccountID.PROTOBUF, Account.PROTOBUF, 100);
+        def = StateDefinition.keyValue(ACCOUNTS_STATE_ID, ACCOUNTS_KEY, AccountID.PROTOBUF, Account.PROTOBUF);
 
         //noinspection rawtypes
         schema = new Schema<>(version(1, 0, 0), SEMANTIC_VERSION_COMPARATOR) {
@@ -121,7 +121,7 @@ class OnDiskTest extends MerkleTestBase {
     @Test
     void populateTheMapAndFlushToDiskAndReadBack() throws IOException {
         // Populate the data set and flush it all to disk
-        final var ws = new OnDiskWritableKVState<>(
+        final var ws = new VirtualMapWritableKVState<>(
                 ACCOUNTS_STATE_ID, ACCOUNTS_STATE_LABEL, AccountID.PROTOBUF, Account.PROTOBUF, virtualMap);
         for (int i = 0; i < 10; i++) {
             final var id = AccountID.newBuilder().accountNum(i).build();
@@ -155,7 +155,7 @@ class OnDiskTest extends MerkleTestBase {
 
         // read it back now as our map and validate the data come back fine
         virtualMap = VirtualMap.loadFromDirectory(snapshotDir, CONFIGURATION, () -> builder);
-        final var rs = new OnDiskReadableKVState<>(
+        final var rs = new VirtualMapReadableKVState<>(
                 ACCOUNTS_STATE_ID, ACCOUNTS_STATE_LABEL, AccountID.PROTOBUF, Account.PROTOBUF, virtualMap);
         for (int i = 0; i < 10; i++) {
             final var id = AccountID.newBuilder().accountNum(i).build();
@@ -169,7 +169,7 @@ class OnDiskTest extends MerkleTestBase {
 
     @Test
     void populateFlushToDisk() {
-        final var ws = new OnDiskWritableKVState<>(
+        final var ws = new VirtualMapWritableKVState<>(
                 ACCOUNTS_STATE_ID, ACCOUNTS_STATE_LABEL, AccountID.PROTOBUF, Account.PROTOBUF, virtualMap);
         for (int i = 1; i < 10; i++) {
             final var id = AccountID.newBuilder().accountNum(i).build();
@@ -183,7 +183,7 @@ class OnDiskTest extends MerkleTestBase {
         ws.commit();
         virtualMap = copyHashAndFlush(virtualMap);
 
-        final var rs = new OnDiskReadableKVState<AccountID, Account>(
+        final var rs = new VirtualMapReadableKVState<>(
                 ACCOUNTS_STATE_ID, ACCOUNTS_STATE_LABEL, AccountID.PROTOBUF, Account.PROTOBUF, virtualMap);
         for (int i = 1; i < 10; i++) {
             final var id = AccountID.newBuilder().accountNum(i).build();
@@ -198,7 +198,7 @@ class OnDiskTest extends MerkleTestBase {
     @Test
     void populateAndReadBackSingleton() throws ParseException {
         // set up writable states
-        final var singletonWs = new OnDiskWritableSingletonState<>(
+        final var singletonWs = new VirtualMapWritableSingletonState<>(
                 PLATFORM_STATE_STATE_ID, PLATFORM_STATE_STATE_LABEL, PlatformState.PROTOBUF, virtualMap);
 
         // populate and commit
@@ -246,7 +246,7 @@ class OnDiskTest extends MerkleTestBase {
     @Test
     void populateAndReadBackQueue() throws ParseException {
         // set up writable states
-        final var queueWs = new OnDiskWritableQueueState<>(
+        final var queueWs = new VirtualMapWritableQueueState<>(
                 TRANSACTION_RECEIPTS_STATE_ID,
                 TRANSACTION_RECEIPTS_STATE_LABEL,
                 TransactionReceiptEntries.PROTOBUF,
@@ -287,7 +287,7 @@ class OnDiskTest extends MerkleTestBase {
     @Test
     void populateAndReadBackKv() throws ParseException {
         // set up writable states
-        final var kvWs = new OnDiskWritableKVState<>(
+        final var kvWs = new VirtualMapWritableKVState<>(
                 ACCOUNTS_STATE_ID, ACCOUNTS_STATE_LABEL, AccountID.PROTOBUF, Account.PROTOBUF, virtualMap);
 
         // populate and commit

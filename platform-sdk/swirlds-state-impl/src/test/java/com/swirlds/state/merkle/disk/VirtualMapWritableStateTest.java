@@ -17,7 +17,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
-class OnDiskWritableStateTest extends MerkleTestBase {
+class VirtualMapWritableStateTest extends MerkleTestBase {
 
     @Nested
     @DisplayName("Constructor Tests")
@@ -32,7 +32,7 @@ class OnDiskWritableStateTest extends MerkleTestBase {
         @DisplayName("You must specify the label")
         void nullLabelThrows() {
             //noinspection DataFlowIssue
-            assertThatThrownBy(() -> new OnDiskWritableKVState<>(
+            assertThatThrownBy(() -> new VirtualMapWritableKVState<>(
                             FRUIT_STATE_ID, null, ProtoBytes.PROTOBUF, ProtoBytes.PROTOBUF, fruitVirtualMap))
                     .isInstanceOf(NullPointerException.class);
         }
@@ -41,7 +41,7 @@ class OnDiskWritableStateTest extends MerkleTestBase {
         @DisplayName("You must specify the keyCodec")
         void nullKeyCodecThrows() {
             //noinspection DataFlowIssue
-            assertThatThrownBy(() -> new OnDiskWritableKVState<>(
+            assertThatThrownBy(() -> new VirtualMapWritableKVState<>(
                             FRUIT_STATE_ID, FRUIT_STATE_LABEL, null, ProtoBytes.PROTOBUF, fruitVirtualMap))
                     .isInstanceOf(NullPointerException.class);
         }
@@ -50,7 +50,7 @@ class OnDiskWritableStateTest extends MerkleTestBase {
         @DisplayName("You must specify the valueCodec")
         void nullValueCodecThrows() {
             //noinspection DataFlowIssue
-            assertThatThrownBy(() -> new OnDiskWritableKVState<>(
+            assertThatThrownBy(() -> new VirtualMapWritableKVState<>(
                             FRUIT_STATE_ID, FRUIT_STATE_LABEL, ProtoBytes.PROTOBUF, null, fruitVirtualMap))
                     .isInstanceOf(NullPointerException.class);
         }
@@ -59,7 +59,7 @@ class OnDiskWritableStateTest extends MerkleTestBase {
         @DisplayName("You must specify the virtual map")
         void nullVirtualMapThrows() {
             //noinspection DataFlowIssue
-            assertThatThrownBy(() -> new OnDiskWritableKVState<>(
+            assertThatThrownBy(() -> new VirtualMapWritableKVState<>(
                             FRUIT_STATE_ID, FRUIT_STATE_LABEL, ProtoBytes.PROTOBUF, ProtoBytes.PROTOBUF, null))
                     .isInstanceOf(NullPointerException.class);
         }
@@ -67,7 +67,7 @@ class OnDiskWritableStateTest extends MerkleTestBase {
         @Test
         @DisplayName("The stateId matches that supplied by the metadata")
         void stateId() {
-            final var state = new OnDiskWritableKVState<>(
+            final var state = new VirtualMapWritableKVState<>(
                     FRUIT_STATE_ID, FRUIT_STATE_LABEL, ProtoBytes.PROTOBUF, ProtoBytes.PROTOBUF, fruitVirtualMap);
             assertThat(state.getStateId()).isEqualTo(FRUIT_STATE_ID);
         }
@@ -87,12 +87,12 @@ class OnDiskWritableStateTest extends MerkleTestBase {
     @DisplayName("Query Tests")
     final class QueryTest {
 
-        private OnDiskWritableKVState<ProtoBytes, ProtoBytes> state;
+        private VirtualMapWritableKVState<ProtoBytes, ProtoBytes> state;
 
         @BeforeEach
         void setUp() {
             setupFruitVirtualMap();
-            state = new OnDiskWritableKVState<>(
+            state = new VirtualMapWritableKVState<>(
                     FRUIT_STATE_ID, FRUIT_STATE_LABEL, ProtoBytes.PROTOBUF, ProtoBytes.PROTOBUF, fruitVirtualMap);
             add(FRUIT_STATE_ID, A_KEY, APPLE);
             add(FRUIT_STATE_ID, B_KEY, BANANA);
@@ -122,12 +122,12 @@ class OnDiskWritableStateTest extends MerkleTestBase {
     @DisplayName("Mutation Tests")
     final class MutationTest {
 
-        private OnDiskWritableKVState<ProtoBytes, ProtoBytes> state;
+        private VirtualMapWritableKVState<ProtoBytes, ProtoBytes> state;
 
         @BeforeEach
         void setUp() {
             setupFruitVirtualMap();
-            state = new OnDiskWritableKVState<>(
+            state = new VirtualMapWritableKVState<>(
                     FRUIT_STATE_ID, FRUIT_STATE_LABEL, ProtoBytes.PROTOBUF, ProtoBytes.PROTOBUF, fruitVirtualMap);
             add(FRUIT_STATE_ID, A_KEY, APPLE);
             add(FRUIT_STATE_ID, B_KEY, BANANA);
@@ -244,7 +244,7 @@ class OnDiskWritableStateTest extends MerkleTestBase {
             final VirtualMap oldVirtualMap = fruitVirtualMap;
             fruitVirtualMap = fruitVirtualMap.copy();
             oldVirtualMap.release();
-            state = new OnDiskWritableKVState<>(
+            state = new VirtualMapWritableKVState<>(
                     FRUIT_STATE_ID, FRUIT_STATE_LABEL, ProtoBytes.PROTOBUF, ProtoBytes.PROTOBUF, fruitVirtualMap);
             assertThat(state.get(A_KEY)).isEqualTo(APPLE);
             state.remove(B_KEY);

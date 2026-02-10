@@ -148,7 +148,7 @@ public final class StateUtils {
             for (Map.Entry<Integer, StateMetadata<?, ?>> stateEntry :
                     serviceEntry.getValue().entrySet()) {
                 StateMetadata<?, ?> md = stateEntry.getValue();
-                if (md.stateDefinition().onDisk()) {
+                if (md.stateDefinition().keyValue()) {
                     ReadableKVStateBase<?, ?> readableState =
                             (ReadableKVStateBase) readableStates.get(stateEntry.getKey());
                     readableState.reset();
