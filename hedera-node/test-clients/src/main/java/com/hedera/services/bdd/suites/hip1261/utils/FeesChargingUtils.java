@@ -4,6 +4,7 @@ package com.hedera.services.bdd.suites.hip1261.utils;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.HapiTxnOp.serializedSignedTxFrom;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
@@ -60,12 +61,15 @@ import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleCon
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_UNPAUSE_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_UPDATE_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_UPDATE_INCLUDED_KEYS;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_UPDATE_INCLUDED_NFTS;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_UPDATE_NFT_FEE;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_WIPE_BASE_FEE_USD;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
+import com.hedera.services.bdd.spec.SpecOperation;
 import com.hederahashgraph.api.proto.java.Transaction;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.IntToDoubleFunction;
@@ -984,7 +988,7 @@ public class FeesChargingUtils {
      * service = TOKEN_UPDATE_BASE + KEYS_FEE * max(0, keys - includedKeys)
      * total   = node + network + service
      */
-    public static double expectedTokenUpdateFullFeeUsd(long sigs, long keys) {
+    public static double expectedTokenUpdateFullFeeUsd(long sigs, long keys, long nfts) {
         // ----- node fees -----
         final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
         final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
@@ -995,9 +999,11 @@ public class FeesChargingUtils {
 
         // ----- service fees -----
         final long keyExtrasService = Math.max(0L, keys - TOKEN_UPDATE_INCLUDED_KEYS);
-        final double serviceExtrasFee = keyExtrasService * KEYS_FEE_USD;
+        final long nftExtrasService = Math.max(0L, nfts - TOKEN_UPDATE_INCLUDED_NFTS);
+        final double serviceExtrasFee = keyExtrasService * KEYS_FEE_USD + nftExtrasService * TOKEN_UPDATE_NFT_FEE;
         final double serviceFee = TOKEN_UPDATE_BASE_FEE_USD + serviceExtrasFee;
-
+        System.out.println("service base" + TOKEN_UPDATE_BASE_FEE_USD + " extras " + serviceExtrasFee + " node "
+                + nodeFee + " network " + networkFee);
         return nodeFee + networkFee + serviceFee;
     }
 
@@ -1005,7 +1011,14 @@ public class FeesChargingUtils {
      * Overload for TokenUpdate with no extra keys.
      */
     public static double expectedTokenUpdateFullFeeUsd(long sigs) {
-        return expectedTokenUpdateFullFeeUsd(sigs, 0L);
+        return expectedTokenUpdateFullFeeUsd(sigs, 0L, 0L);
+    }
+
+    /**
+     * Overload for TokenUpdate with no extra keys.
+     */
+    public static double expectedTokenUpdateFullFeeUsd(long sigs, long keys) {
+        return expectedTokenUpdateFullFeeUsd(sigs, keys, 0L);
     }
 
     /**
@@ -1468,5 +1481,24 @@ public class FeesChargingUtils {
         final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
         final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
         return nodeFee * NETWORK_MULTIPLIER;
+    }
+
+    /**
+     * Validates the fee charged for a transaction against a legacy and a simple fee,
+     * depending on the value of the {@code fees.simpleFeesEnabled} property.
+     *
+     * @param txn the name of the transaction
+     * @param legacyFee the expected fee in USD if simple fees are disabled
+     * @param simpleFee the expected fee in USD if simple fees are enabled
+     * @return a {@link SpecOperation} that validates the fee
+     */
+    public static SpecOperation validateFees(final String txn, final double legacyFee, final double simpleFee) {
+        return doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+            if ("true".equals(flag)) {
+                return validateChargedUsdWithin(txn, simpleFee, 0.01);
+            } else {
+                return validateChargedUsdWithin(txn, legacyFee, 0.01);
+            }
+        });
     }
 }
