@@ -335,14 +335,14 @@ class IndirectProofSequenceValidator {
 
             // Convert sibling hashes
             final var blockSiblings = currentBlockPaths.right().siblingHashes().stream()
-                    .map(s -> new SiblingHash(!s.isFirst(), new Hash(s.siblingHash())))
+                    .map(s -> new SiblingHash(s.isFirst(), new Hash(s.siblingHash())))
                     .toList();
             // Copy into the sibling hashes array
             final var firstSiblingIndex = i * UNSIGNED_BLOCK_SIBLING_COUNT;
             for (int j = 0; j < blockSiblings.size(); j++) {
                 final var blockSibling = blockSiblings.get(j);
                 allSiblingHashes[firstSiblingIndex + j] = SiblingNode.newBuilder()
-                        .isLeft(!blockSibling.isRight())
+                        .isLeft(blockSibling.isLeft())
                         .hash(blockSibling.hash().getBytes())
                         .build();
             }
@@ -361,14 +361,14 @@ class IndirectProofSequenceValidator {
         // Convert and add the sibling hashes for the signed block (excluding the signed block's timestamp)
         final var currentBlockPaths = partialPathsByBlock.get(signedBlockNum);
         final var blockSiblings = currentBlockPaths.right().siblingHashes().stream()
-                .map(s -> new SiblingHash(!s.isFirst(), new Hash(s.siblingHash())))
+                .map(s -> new SiblingHash(s.isFirst(), new Hash(s.siblingHash())))
                 .toList();
         // Copy the signed block's siblings into the sibling hashes array
         final var firstSiblingIndex = allSiblingHashes.length - UNSIGNED_BLOCK_SIBLING_COUNT + 1;
         for (int j = 0; j < blockSiblings.size(); j++) {
             final var blockSibling = blockSiblings.get(j);
             allSiblingHashes[firstSiblingIndex + j] = SiblingNode.newBuilder()
-                    .isLeft(!blockSibling.isRight())
+                    .isLeft(blockSibling.isLeft())
                     .hash(blockSibling.hash().getBytes())
                     .build();
         }

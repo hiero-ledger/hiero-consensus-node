@@ -18,7 +18,7 @@ import static com.swirlds.state.merkle.disk.OnDiskQueueHelper.QUEUE_STATE_VALUE_
 import static com.swirlds.virtualmap.internal.Path.INVALID_PATH;
 import static com.swirlds.virtualmap.internal.Path.getParentPath;
 import static com.swirlds.virtualmap.internal.Path.getSiblingPath;
-import static com.swirlds.virtualmap.internal.Path.isRight;
+import static com.swirlds.virtualmap.internal.Path.isLeft;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.base.crypto.Cryptography.NULL_HASH;
 
@@ -763,11 +763,11 @@ public class VirtualMapStateImpl implements VirtualMapState {
         long currentPath = path;
         while (currentPath > 0) {
             final long siblingPath = getSiblingPath(currentPath);
-            final boolean isSiblingRight = isRight(siblingPath);
+            final boolean isSiblingLeft = isLeft(siblingPath);
             final Hash hashForPath = getHashForPath(siblingPath);
             final Hash normalizedHashForPath = hashForPath == null ? NULL_HASH : hashForPath;
 
-            siblingHashes.add(new SiblingHash(isSiblingRight, normalizedHashForPath));
+            siblingHashes.add(new SiblingHash(isSiblingLeft, normalizedHashForPath));
 
             innerParentHashes.add(getHashForPath(currentPath));
 
