@@ -34,7 +34,7 @@ import org.openjdk.jmh.infra.Blackhole;
 @Fork(value = 1)
 @Warmup(iterations = 1, time = 3)
 @Measurement(iterations = 3, time = 10)
-public class ConsensusBenchmark {
+public class ConsensusImplBenchmark {
     private static final long SEED = 0;
     private static final int NUMBER_OF_EVENTS = 100000;
 
