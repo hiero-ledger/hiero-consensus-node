@@ -251,7 +251,7 @@ public class RoleFreeBlockUnitSplit {
         final Iterator<Integer> idxIter = txIndexes.iterator();
         final Iterator<List<BlockItem>> itemsIter = partItems.iterator();
         // Context for the current unit being built
-        int currentUnit = -1;
+        int currentUnit = Integer.MIN_VALUE;
         List<StateChange> stateChanges = null;
         List<BlockTransactionParts> unitParts = null;
         for (int i = 0, m = partItems.size(); i < m; i++) {
@@ -269,7 +269,10 @@ public class RoleFreeBlockUnitSplit {
             final var pending = new PendingBlockTransactionParts();
             for (final var item : nextPartItems) {
                 switch (item.item().kind()) {
-                    case SIGNED_TRANSACTION -> pending.addPartsEnforcingOrder(getParts.apply(idx));
+                    case SIGNED_TRANSACTION ->
+                        // Parse parts from the current item itself; idx may point to a synthetic/result
+                        // index.
+                            pending.addPartsEnforcingOrder(TransactionParts.from(item.signedTransactionOrThrow()));
                     case TRANSACTION_RESULT -> pending.addResultEnforcingOrder(item.transactionResultOrThrow());
                     case TRANSACTION_OUTPUT -> pending.addOutputEnforcingOrder(item.transactionOutputOrThrow());
                     case TRACE_DATA -> pending.addTraceEnforcingOrder(item.traceDataOrThrow());
