@@ -189,7 +189,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
             verify(diskWriter).appendAsync(captor.capture());
             final var input = captor.getValue();
             assertEquals(0, input.blockNumber());
-            final var entry = WrappedRecordFileBlockHashesComputer.compute(input);
+            final var entry = WrappedRecordFileBlockHashesCalculator.compute(input);
 
             // Compute expected consensus_timestamp_hash
             final Bytes expectedConsensusTsHash = BlockImplUtils.hashLeaf(Timestamp.PROTOBUF.toBytes(creationTime));

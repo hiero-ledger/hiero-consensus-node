@@ -22,8 +22,7 @@ Each record block produces a single entry:
   - `output_items_tree_root_hash` (bytes, 48-byte SHA-384)
 
 Entries are appended to a single file named `wrapped-record-hashes.pb` under `wrappedRecordHashesDir`.
-The file contents are an append-only sequence of protobuf-framed occurrences of the `entries` field from an internal
-container message `WrappedRecordFileBlockHashesLog { repeated WrappedRecordFileBlockHashes entries = 1; }`.
+The file contents are an append-only sequence of protobuf-framed occurrences of entries.
 
 ### When the entry is written
 
@@ -48,18 +47,14 @@ This is the **leaf hash** of the consensus timestamp of the **first transaction*
 
 1. Take the first `RecordStreamItem` in the record file contents.
 2. Extract `record.consensusTimestamp`.
-3. Compute the leaf hash:
-
-\[
-\mathrm{consensus\_timestamp\_hash} = \mathrm{hashLeaf}(\mathrm{Timestamp.PROTOBUF.toBytes}(ts))
-\]
+3. Compute the leaf hash.
 
 Where `hashLeaf` uses the block hashing leaf prefixing scheme (SHA-384).
 
 #### `output_items_tree_root_hash`
 
-This is the Merkle root of the **output-items subtree** for the wrapped record-file block. The subtree has **two leaves,
-in order**:
+This is the Merkle root of the **output-items subtree** for the wrapped record-file block.
+Two leaves are added to the subtree, in this order:
 
 1. A `BlockItem` containing a `BlockHeader` for the historical record-file block
 2. A `BlockItem` containing the wrapped `RecordFileItem`
@@ -114,24 +109,3 @@ For each resulting sidecar file:
   - `ACTIONS -> CONTRACT_ACTION`
   - `BYTECODE -> CONTRACT_BYTECODE`
   - `STATE_CHANGES -> CONTRACT_STATE_CHANGE`
-
-### Merkle tree structure summary
-
-For each record block \(N\), the enqueued hashes correspond to:
-
-- **Consensus time leaf**:
-  - leaf hash of the first transaction’s consensus timestamp in the record file contents
-- **Output-items subtree**:
-  - a 2-leaf tree over serialized `BlockItem`s:
-
-```
-root
-├─ leaf: BlockItem(block_header)
-└─ leaf: BlockItem(record_file = RecordFileItem(...))
-```
-
-The queue entry stores:
-
-- `block_number = N`
-- `consensus_timestamp_hash = hashLeaf(firstTxnConsensusTimestampBytes)`
-- `output_items_tree_root_hash = root(leaf(headerItemBytes), leaf(recordFileItemBytes))`

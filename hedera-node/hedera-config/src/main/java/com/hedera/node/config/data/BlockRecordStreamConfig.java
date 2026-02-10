@@ -55,5 +55,5 @@ public record BlockRecordStreamConfig(
         @ConfigProperty(defaultValue = "true") @NetworkProperty
         boolean writeWrappedRecordFileBlockHashesToDisk,
 
-        @ConfigProperty(defaultValue = "/opt/hgcapp/wrappedRecordHashes/") @NodeProperty
+        @ConfigProperty(defaultValue = "/opt/hgcapp/wrappedRecordHashes") @NodeProperty
         String wrappedRecordHashesDir) {}

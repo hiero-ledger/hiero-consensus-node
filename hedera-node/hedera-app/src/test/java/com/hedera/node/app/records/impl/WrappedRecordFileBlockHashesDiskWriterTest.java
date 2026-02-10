@@ -103,8 +103,8 @@ class WrappedRecordFileBlockHashesDiskWriterTest extends AppTestBase {
                     List.of(),
                     1024 * 1024);
 
-            final var e0 = WrappedRecordFileBlockHashesComputer.compute(in0);
-            final var e1 = WrappedRecordFileBlockHashesComputer.compute(in1);
+            final var e0 = WrappedRecordFileBlockHashesCalculator.compute(in0);
+            final var e1 = WrappedRecordFileBlockHashesCalculator.compute(in1);
 
             writer.appendAsync(in0).join();
             // A reconnected/restarted node may attempt to append a block that was already appended earlier;

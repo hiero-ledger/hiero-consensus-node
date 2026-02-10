@@ -31,10 +31,6 @@ import org.apache.logging.log4j.Logger;
 
 /**
  * Appends {@link WrappedRecordFileBlockHashes} entries to a single on-disk file.
- *
- * <p>The file format is an append-only sequence of protobuf-framed occurrences of field {@code entries} from the
- * {@code WrappedRecordFileBlockHashesLog} container message, i.e. repeated occurrences of
- * {@code (tag=1, wire=length-delimited) + length + bytes(WrappedRecordFileBlockHashes)}.
  */
 @Singleton
 public class WrappedRecordFileBlockHashesDiskWriter implements AutoCloseable {
@@ -86,10 +82,8 @@ public class WrappedRecordFileBlockHashesDiskWriter implements AutoCloseable {
             return CompletableFuture.completedFuture(null);
         }
 
-        // Best-effort: if there are no record stream items, we cannot compute a deterministic entry.
-        // This can happen after restart if the in-memory record stream items for the in-progress block were lost.
         if (input.recordStreamItems().isEmpty()) {
-            logger.info(
+            logger.warn(
                     "Skipping wrapped record-file block hashes append for block {} because recordStreamItems is empty; "
                             + "input{startRunningHashLen={}, endRunningHashLen={}, sidecars={}}",
                     input.blockNumber(),
@@ -105,7 +99,7 @@ public class WrappedRecordFileBlockHashesDiskWriter implements AutoCloseable {
                         () -> {
                             final WrappedRecordFileBlockHashes entry;
                             try {
-                                entry = WrappedRecordFileBlockHashesComputer.compute(input);
+                                entry = WrappedRecordFileBlockHashesCalculator.compute(input);
                             } catch (final Exception e) {
                                 logger.error(
                                         "Failed to compute wrapped record-file block hashes for block {}",
@@ -193,7 +187,7 @@ public class WrappedRecordFileBlockHashesDiskWriter implements AutoCloseable {
                 index.add(entry.blockNumber());
             }
         } catch (final Exception e) {
-            logger.error("Failed to scan existing wrapped record hashes file {}", file, e);
+            logger.error("Failed to scan existing wrapped record hashes file {}. Recreating...", file, e);
             // If we cannot parse the existing file, treat it as corrupt and recreate it empty so subsequent appends
             // can proceed. This is best-effort and must not prevent node startup.
             try {

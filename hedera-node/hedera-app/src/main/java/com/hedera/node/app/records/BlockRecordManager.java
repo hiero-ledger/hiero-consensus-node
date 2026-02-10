@@ -146,5 +146,5 @@ public interface BlockRecordManager extends BlockRecordInfo, AutoCloseable {
      *
      * <p>This is primarily intended to be called on orderly shutdown paths like {@code FREEZE_COMPLETE}.
      */
-    void flushWrappedRecordFileBlockHashes();
+    void writeFreezeBlockWrappedRecordFileBlockHashes();
 }

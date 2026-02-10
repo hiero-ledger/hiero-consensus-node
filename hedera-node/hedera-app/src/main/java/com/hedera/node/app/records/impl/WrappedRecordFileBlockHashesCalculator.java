@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.records.impl;
 
+import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.internal.WrappedRecordFileBlockHashes;
@@ -16,17 +17,14 @@ import com.hedera.node.app.blocks.impl.BlockImplUtils;
 import com.hedera.node.app.blocks.impl.IncrementalStreamingHasher;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.List;
-import org.hiero.base.crypto.DigestType;
 
 /**
  * Computes {@link WrappedRecordFileBlockHashes} deterministically from a snapshot of record-block inputs.
  */
-public final class WrappedRecordFileBlockHashesComputer {
-    private WrappedRecordFileBlockHashesComputer() {}
+public final class WrappedRecordFileBlockHashesCalculator {
+    private WrappedRecordFileBlockHashesCalculator() {}
 
     public static WrappedRecordFileBlockHashes compute(@NonNull final WrappedRecordFileBlockHashesComputationInput in) {
         requireNonNull(in);
@@ -67,16 +65,10 @@ public final class WrappedRecordFileBlockHashesComputer {
         final var recordFileBlockItem =
                 BlockItem.newBuilder().recordFile(recordFileItem).build();
 
-        final Bytes outputItemsTreeRootHash;
-        try {
-            final var hasher = new IncrementalStreamingHasher(
-                    MessageDigest.getInstance(DigestType.SHA_384.algorithmName()), List.of(), 0);
-            hasher.addLeaf(BlockItem.PROTOBUF.toBytes(headerItem).toByteArray());
-            hasher.addLeaf(BlockItem.PROTOBUF.toBytes(recordFileBlockItem).toByteArray());
-            outputItemsTreeRootHash = Bytes.wrap(hasher.computeRootHash());
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("Unable to create SHA-384 message digest", e);
-        }
+        final var hasher = new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
+        hasher.addLeaf(BlockItem.PROTOBUF.toBytes(headerItem).toByteArray());
+        hasher.addLeaf(BlockItem.PROTOBUF.toBytes(recordFileBlockItem).toByteArray());
+        final Bytes outputItemsTreeRootHash = Bytes.wrap(hasher.computeRootHash());
 
         return new WrappedRecordFileBlockHashes(in.blockNumber(), consensusTimestampHash, outputItemsTreeRootHash);
     }

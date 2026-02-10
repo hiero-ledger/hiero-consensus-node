@@ -94,6 +94,7 @@ public class BlockStreamMetrics {
     private LongGauge buffer_newestBlockGauge;
 
     // wrapped record hashes (record stream) metrics
+    // (FUTURE) Remove after cutover
     private LongGauge recordHashes_lowestBlockGauge;
     private LongGauge recordHashes_highestBlockGauge;
     private LongGauge recordHashes_hasGapsGauge;
