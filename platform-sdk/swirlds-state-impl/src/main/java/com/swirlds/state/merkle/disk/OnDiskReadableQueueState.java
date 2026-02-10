@@ -2,7 +2,7 @@
 package com.swirlds.state.merkle.disk;
 
 import com.hedera.pbj.runtime.Codec;
-import com.swirlds.state.QueueState;
+import com.swirlds.state.binary.QueueState;
 import com.swirlds.state.spi.ReadableQueueState;
 import com.swirlds.state.spi.ReadableQueueStateBase;
 import com.swirlds.virtualmap.VirtualMap;

@@ -17,9 +17,10 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.safeValidateCharged
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
-import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.PROCESSING_BYTES_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedFeeFromBytesFor;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
 
 import com.hedera.services.bdd.junit.HapiTest;
@@ -143,10 +144,10 @@ public class ConsensusServiceFeesSuite {
                 sleepFor(1000),
                 validateChargedUsd("submitMessage", BASE_FEE_TOPIC_SUBMIT_MESSAGE),
                 safeValidateChargedUsd("submitMessage500", 0.00088, BASE_FEE_TOPIC_SUBMIT_MESSAGE),
-                safeValidateChargedUsd(
+                withOpContext((spec, log) -> safeValidateChargedUsd(
                         "submitMessage1024",
                         0.00098,
-                        BASE_FEE_TOPIC_SUBMIT_MESSAGE + 125 * PROCESSING_BYTES_FEE_USD * 10));
+                        BASE_FEE_TOPIC_SUBMIT_MESSAGE + expectedFeeFromBytesFor(spec, log, "submitMessage1024"))));
     }
 
     @HapiTest
