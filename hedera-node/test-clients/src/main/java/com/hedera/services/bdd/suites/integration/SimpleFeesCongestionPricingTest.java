@@ -45,7 +45,7 @@ public class SimpleFeesCongestionPricingTest {
     private static final Logger log = LogManager.getLogger(SimpleFeesCongestionPricingTest.class);
 
     private static final String CIVILIAN_ACCOUNT = "civilian";
-    private static final String TEST_THROTTLES_RESOURCE = "testSystemFiles/extreme-limits.json";
+    private static final String TEST_THROTTLES_RESOURCE = "testSystemFiles/artificial-limits-congestion.json";
 
     /**
      * Tests that the simple fees calculator applies congestion multipliers correctly
@@ -93,7 +93,8 @@ public class SimpleFeesCongestionPricingTest {
                             uncheckedSubmit(cryptoTransfer(tinyBarsFromTo(CIVILIAN_ACCOUNT, FUNDING, 5L))
                                             .payingWith(CIVILIAN_ACCOUNT))
                                     .payingWith(GENESIS)
-                                    .noLogging()
+                                    .noLogging(),
+                            sleepFor(125)
                         })
                         .flatMap(Arrays::stream)
                         .toArray(HapiSpecOperation[]::new)),
