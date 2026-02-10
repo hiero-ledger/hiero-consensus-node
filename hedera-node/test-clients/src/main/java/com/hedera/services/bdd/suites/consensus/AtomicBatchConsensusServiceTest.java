@@ -132,9 +132,13 @@ class AtomicBatchConsensusServiceTest {
                         .payingWith("batchOperator")
                         .via("batchTxn")
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
-        // account for extra bytes in the node + network fee
-        safeValidateChargedUsdWithin(
-                "batchTxn", BASE_FEE_BATCH_TRANSACTION, 0,BATCH_BASE_FEE + 134 * PROCESSING_BYTES_FEE_USD * 10,3));
+                // account for extra bytes in the node + network fee
+                safeValidateChargedUsdWithin(
+                        "batchTxn",
+                        BASE_FEE_BATCH_TRANSACTION,
+                        0,
+                        BATCH_BASE_FEE + 134 * PROCESSING_BYTES_FEE_USD * 10,
+                        3));
     }
 
     @HapiTest
@@ -170,7 +174,11 @@ class AtomicBatchConsensusServiceTest {
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
                 // account for extra bytes in the node + network fee
                 safeValidateChargedUsdWithin(
-                        "batchTxn", BASE_FEE_BATCH_TRANSACTION, 1,BATCH_BASE_FEE + 131 * PROCESSING_BYTES_FEE_USD * 10,3));
+                        "batchTxn",
+                        BASE_FEE_BATCH_TRANSACTION,
+                        1,
+                        BATCH_BASE_FEE + 131 * PROCESSING_BYTES_FEE_USD * 10,
+                        3));
     }
 
     @HapiTest
@@ -205,7 +213,11 @@ class AtomicBatchConsensusServiceTest {
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
                 // account for extra bytes in the node + network fee
                 safeValidateChargedUsdWithin(
-                        "batchTxn", BASE_FEE_BATCH_TRANSACTION, 0, BATCH_BASE_FEE + 48 * PROCESSING_BYTES_FEE_USD * 10, 6));
+                        "batchTxn",
+                        BASE_FEE_BATCH_TRANSACTION,
+                        0,
+                        BATCH_BASE_FEE + 48 * PROCESSING_BYTES_FEE_USD * 10,
+                        6));
     }
 
     @HapiTest
