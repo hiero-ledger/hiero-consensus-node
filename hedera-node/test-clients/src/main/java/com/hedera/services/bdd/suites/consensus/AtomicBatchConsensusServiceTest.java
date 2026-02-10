@@ -22,6 +22,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.updateTopic;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateBatchChargedCorrectly;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_PAYER_SIGNATURE;
@@ -100,7 +101,6 @@ class AtomicBatchConsensusServiceTest {
 
     @HapiTest
     Stream<DynamicTest> topicSubmitMessageWithSubmitKeyInvalidAndValidSignatureInBatch() {
-        final double BASE_FEE_BATCH_TRANSACTION = 0.001;
 
         // Define a threshold submit key that requires two simple keys signatures
         KeyShape submitKeyShape = threshOf(2, SIMPLE, SIMPLE, listOf(2));
@@ -129,12 +129,11 @@ class AtomicBatchConsensusServiceTest {
                         .payingWith("batchOperator")
                         .via("batchTxn")
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION));
+                validateBatchChargedCorrectly("batchTxn"));
     }
 
     @HapiTest
     Stream<DynamicTest> topicSubmitMessageWithSubmitKeyValidAndInvalidSignatureInBatch() {
-        final double BASE_FEE_BATCH_TRANSACTION = 0.001;
 
         // Define a threshold submit key that requires two simple keys signatures
         KeyShape submitKeyShape = threshOf(2, SIMPLE, SIMPLE, listOf(2));
@@ -163,12 +162,11 @@ class AtomicBatchConsensusServiceTest {
                         .payingWith("batchOperator")
                         .via("batchTxn")
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION));
+                validateBatchChargedCorrectly("batchTxn"));
     }
 
     @HapiTest
     Stream<DynamicTest> topicSubmitMessageWithSubmitKeyAllInvalidSignaturesInBatch() {
-        final double BASE_FEE_BATCH_TRANSACTION = 0.001;
 
         // Define a threshold submit key that requires two simple keys signatures
         KeyShape submitKeyShape = threshOf(2, SIMPLE, SIMPLE, listOf(2));
@@ -196,7 +194,7 @@ class AtomicBatchConsensusServiceTest {
                         .payingWith("batchOperator")
                         .via("batchTxn")
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION));
+                validateBatchChargedCorrectly("batchTxn"));
     }
 
     @HapiTest
@@ -374,7 +372,6 @@ class AtomicBatchConsensusServiceTest {
 
     @HapiTest
     final Stream<DynamicTest> createTopicWithAdminKeyAndAutorenewAccountNotSignedByPayerFailsInBatch() {
-        final double BASE_FEE_BATCH_TRANSACTION = 0.001;
         long PAYER_BALANCE = 1_999_999_999L;
 
         return hapiTest(
