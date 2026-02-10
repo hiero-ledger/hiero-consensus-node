@@ -29,6 +29,7 @@ import com.hedera.services.bdd.junit.support.validators.BlockNoValidator;
 import com.hedera.services.bdd.junit.support.validators.ExpiryRecordsValidator;
 import com.hedera.services.bdd.junit.support.validators.TokenReconciliationValidator;
 import com.hedera.services.bdd.junit.support.validators.TransactionBodyValidator;
+import com.hedera.services.bdd.junit.support.validators.WrappedRecordHashesByRecordFilesValidator;
 import com.hedera.services.bdd.junit.support.validators.block.BlockContentsValidator;
 import com.hedera.services.bdd.junit.support.validators.block.BlockNumberSequenceValidator;
 import com.hedera.services.bdd.junit.support.validators.block.StateChangesValidator;
@@ -66,6 +67,8 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
     private static final Duration STREAM_FILE_WAIT = Duration.ofSeconds(2);
 
     private final List<RecordStreamValidator> recordStreamValidators;
+    private final WrappedRecordHashesByRecordFilesValidator wrappedRecordHashesValidator =
+            new WrappedRecordHashesByRecordFilesValidator();
 
     private static final List<BlockStreamValidator.Factory> BLOCK_STREAM_VALIDATOR_FACTORIES = List.of(
             TransactionRecordParityValidator.FACTORY,
@@ -123,6 +126,18 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                             dataRef.set(data);
                         },
                         () -> Assertions.fail("No record stream data found"));
+
+        // CI-focused cross-node validation of wrapped record hashes for nodes with identical record stream files
+        final var maybeWrappedHashesErrors = wrappedRecordHashesValidator
+                .validationErrorsIn(spec)
+                .peek(t -> log.error("Wrapped record hashes validation error!", t))
+                .map(Throwable::getMessage)
+                .collect(joining(ERROR_PREFIX));
+        if (!maybeWrappedHashesErrors.isBlank()) {
+            throw new AssertionError(
+                    "Wrapped record hashes validation failed:" + ERROR_PREFIX + maybeWrappedHashesErrors);
+        }
+
         // If there are no block streams to validate, we are done
         if (spec.startupProperties().getStreamMode("blockStream.streamMode") == RECORDS) {
             return false;
