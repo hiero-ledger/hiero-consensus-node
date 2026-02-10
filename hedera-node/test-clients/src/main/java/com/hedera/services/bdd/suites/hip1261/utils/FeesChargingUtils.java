@@ -5,6 +5,7 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.HapiTxnOp.serializedSignedTxFrom;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithChild;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
@@ -72,6 +73,7 @@ import com.google.protobuf.InvalidProtocolBufferException;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hedera.services.bdd.spec.SpecOperation;
+import com.hedera.services.bdd.spec.utilops.CustomSpecAssert;
 import com.hederahashgraph.api.proto.java.Transaction;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.IntToDoubleFunction;
@@ -1525,5 +1527,10 @@ public class FeesChargingUtils {
      */
     public static double expectedBatchFullFeeUsd(long extraBytes) {
         return BATCH_BASE_FEE + extraBytes * PROCESSING_BYTES_FEE_USD * 10;
+    }
+
+    public static CustomSpecAssert validateBatchChargedCorrectly(String batchTxn) {
+        return withOpContext((spec, log) ->
+                validateChargedUsd(batchTxn, BATCH_BASE_FEE + expectedFeeFromBytesFor(spec, log, batchTxn)));
     }
 }
