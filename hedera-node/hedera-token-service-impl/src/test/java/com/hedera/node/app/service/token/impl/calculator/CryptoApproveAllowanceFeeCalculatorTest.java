@@ -41,6 +41,7 @@ class CryptoApproveAllowanceFeeCalculatorTest {
     void setUp() {
         final var testSchedule = createTestFeeSchedule();
         feeCalculator = new SimpleFeeCalculatorImpl(testSchedule, Set.of(new CryptoApproveAllowanceFeeCalculator()));
+        lenient().when(feeContext.functionality()).thenReturn(HederaFunctionality.CRYPTO_APPROVE_ALLOWANCE);
     }
 
     @Nested
@@ -159,7 +160,7 @@ class CryptoApproveAllowanceFeeCalculatorTest {
                 .extras(
                         makeExtraDef(Extra.SIGNATURES, 1000000L),
                         makeExtraDef(Extra.ALLOWANCES, 500000000L),
-                        makeExtraDef(Extra.BYTES, 110000L))
+                        makeExtraDef(Extra.STATE_BYTES, 110000L))
                 .services(makeService(
                         "CryptoService",
                         makeServiceFee(

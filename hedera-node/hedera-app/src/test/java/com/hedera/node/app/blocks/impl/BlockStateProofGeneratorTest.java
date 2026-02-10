@@ -15,7 +15,6 @@ import com.hedera.hapi.block.stream.MerkleSiblingHash;
 import com.hedera.hapi.block.stream.StateProof;
 import com.hedera.hapi.block.stream.TssSignedBlockProof;
 import com.hedera.hapi.node.base.Timestamp;
-import com.hedera.hapi.node.state.blockstream.MerkleLeaf;
 import com.hedera.node.app.blocks.BlockItemWriter;
 import com.hedera.node.internal.network.PendingProof;
 import com.hedera.pbj.runtime.ParseException;
@@ -136,7 +135,7 @@ class BlockStateProofGeneratorTest {
         // Merkle paths 1 and 3 are constant for all proofs, so pre-build them
         final var expectedSignedTsBytes = Timestamp.PROTOBUF.toBytes(expectedSignedTs);
         final var expectedMp1 = MerklePath.newBuilder()
-                .leaf(MerkleLeaf.newBuilder().blockConsensusTimestamp(expectedSignedTsBytes))
+                .timestampLeaf(expectedSignedTsBytes)
                 .nextPathIndex(FINAL_MERKLE_PATH_INDEX)
                 .build();
         final var expectedMp3 =

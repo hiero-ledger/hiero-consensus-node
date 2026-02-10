@@ -5,22 +5,20 @@ import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 import static com.swirlds.metrics.api.FloatFormats.FORMAT_10_0;
 import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
-import static com.swirlds.platform.state.service.PlatformStateUtils.getInfoString;
-import static com.swirlds.platform.state.service.PlatformStateUtils.roundOf;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.getInfoString;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.roundOf;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.logging.legacy.payload.ReconnectFinishPayload;
 import com.swirlds.logging.legacy.payload.ReconnectStartPayload;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.metrics.ReconnectMetrics;
 import com.swirlds.platform.reconnect.api.ReservedSignedStateResult;
-import com.swirlds.platform.state.signed.ReservedSignedState;
-import com.swirlds.platform.state.signed.SignedState;
-import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.StateLifecycleManager;
+import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.time.Duration;
@@ -39,6 +37,9 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.reconnect.config.ReconnectConfig;
+import org.hiero.consensus.state.config.StateConfig;
+import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.state.signed.SignedState;
 
 /**
  * This protocol is responsible for synchronizing an out of date state either local acting as lerner or remote acting as teacher
@@ -85,7 +86,7 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
     private final Metrics metrics;
     private final Time time;
     private final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultProvider;
-    private final StateLifecycleManager stateLifecycleManager;
+    private final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager;
 
     /**
      * Creates a new reconnect protocol instance.
@@ -310,7 +311,7 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
      */
     private void learner(final Connection connection) {
         try {
-            final MerkleNodeState consensusState = stateLifecycleManager.getMutableState();
+            final VirtualMapState consensusState = stateLifecycleManager.getMutableState();
             final ReconnectStateLearner learner = new ReconnectStateLearner(
                     configuration,
                     metrics,

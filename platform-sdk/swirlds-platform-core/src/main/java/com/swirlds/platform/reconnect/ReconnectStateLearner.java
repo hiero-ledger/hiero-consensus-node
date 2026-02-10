@@ -16,12 +16,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.logging.legacy.payload.ReconnectDataUsagePayload;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.metrics.ReconnectMetrics;
-import com.swirlds.platform.state.signed.ReservedSignedState;
-import com.swirlds.platform.state.signed.SigSet;
-import com.swirlds.platform.state.signed.SignedState;
-import com.swirlds.platform.state.signed.SignedStateInvalidException;
 import com.swirlds.platform.state.snapshot.SignedStateFileReader;
-import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
@@ -37,6 +32,10 @@ import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.crypto.ConsensusCryptoUtils;
 import org.hiero.consensus.gossip.impl.network.Connection;
 import org.hiero.consensus.reconnect.config.ReconnectConfig;
+import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.state.signed.SigSet;
+import org.hiero.consensus.state.signed.SignedState;
+import org.hiero.consensus.state.signed.SignedStateInvalidException;
 
 /**
  * This class encapsulates logic for receiving the up-to-date state from a peer when the local node's state is out-of-date.
@@ -52,10 +51,10 @@ public class ReconnectStateLearner {
     private static final long END_RECONNECT_MSG = 0x7747b5bd49693b61L;
 
     private final Connection connection;
-    private final MerkleNodeState currentState;
+    private final VirtualMapState currentState;
     private final Duration reconnectSocketTimeout;
     private final ReconnectMetrics statistics;
-    private final StateLifecycleManager stateLifecycleManager;
+    private final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager;
     private final Configuration configuration;
     private final Metrics metrics;
 
@@ -73,7 +72,7 @@ public class ReconnectStateLearner {
      * @param metrics the metrics system
      * @param threadManager responsible for managing thread lifecycles
      * @param connection the connection to use for the reconnect
-     * @param currentState the most recent state from the learner; must be a VirtualMapState
+     * @param currentState the most recent state from the learner; must be a VirtualMapStateImpl
      * @param reconnectSocketTimeout the amount of time that should be used for the socket timeout
      * @param statistics reconnect metrics
      * @param stateLifecycleManager the state lifecycle manager
@@ -83,10 +82,10 @@ public class ReconnectStateLearner {
             @NonNull final Metrics metrics,
             @NonNull final ThreadManager threadManager,
             @NonNull final Connection connection,
-            @NonNull final MerkleNodeState currentState,
+            @NonNull final VirtualMapState currentState,
             @NonNull final Duration reconnectSocketTimeout,
             @NonNull final ReconnectMetrics statistics,
-            @NonNull final StateLifecycleManager stateLifecycleManager) {
+            @NonNull final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager) {
         this.stateLifecycleManager = requireNonNull(stateLifecycleManager);
 
         currentState.throwIfImmutable("Can not perform reconnect with immutable state");
@@ -193,10 +192,6 @@ public class ReconnectStateLearner {
      */
     @NonNull
     private ReservedSignedState reconnect() throws InterruptedException {
-        if (!(currentState instanceof VirtualMapState virtualMapState)) {
-            throw new UnsupportedOperationException("Reconnects are only supported for VirtualMap states");
-        }
-
         statistics.incrementReceiverStartTimes();
 
         final SerializableDataInputStream in = new SerializableDataInputStream(connection.getDis());
@@ -207,7 +202,7 @@ public class ReconnectStateLearner {
 
         final ReconnectConfig reconnectConfig = configuration.getConfigData(ReconnectConfig.class);
 
-        final VirtualMap reconnectRoot = virtualMapState.getRoot().newReconnectRoot();
+        final VirtualMap reconnectRoot = currentState.getRoot().newReconnectRoot();
         final ReconnectMapStats mapStats = new ReconnectMapMetrics(metrics, null, null);
         // The learner view will be closed by LearningSynchronizer
         final LearnerTreeView learnerView = reconnectRoot.buildLearnerView(reconnectConfig, mapStats);
@@ -215,7 +210,7 @@ public class ReconnectStateLearner {
                 threadManager, in, out, reconnectRoot, learnerView, connection::disconnect, reconnectConfig);
         try {
             synchronizer.synchronize();
-            logger.info(RECONNECT.getMarker(), () -> mapStats.format());
+            logger.info(RECONNECT.getMarker(), mapStats::format);
         } catch (final InterruptedException e) {
             logger.warn(RECONNECT.getMarker(), "Synchronization interrupted");
             Thread.currentThread().interrupt();
@@ -226,7 +221,7 @@ public class ReconnectStateLearner {
             throw new MerkleSynchronizationException(e);
         }
 
-        final MerkleNodeState receivedState = stateLifecycleManager.createStateFrom(reconnectRoot);
+        final VirtualMapState receivedState = stateLifecycleManager.createStateFrom(reconnectRoot);
         final SignedState newSignedState = new SignedState(
                 configuration,
                 ConsensusCryptoUtils::verifySignature,

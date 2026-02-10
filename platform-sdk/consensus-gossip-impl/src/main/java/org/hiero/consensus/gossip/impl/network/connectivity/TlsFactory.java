@@ -25,6 +25,9 @@ import javax.net.ssl.SSLServerSocketFactory;
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
 import javax.net.ssl.TrustManagerFactory;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.KeystorePasswordPolicy;
 import org.hiero.base.crypto.config.CryptoConfig;
 import org.hiero.consensus.crypto.ConsensusCryptoUtils;
 import org.hiero.consensus.crypto.CryptoConstants;
@@ -39,6 +42,8 @@ import org.hiero.consensus.model.node.NodeId;
  * used to create and receive TLS connections, based on the given trustStore
  */
 public class TlsFactory implements SocketFactory {
+    private static final Logger logger = LogManager.getLogger(TlsFactory.class);
+
     private SSLServerSocketFactory sslServerSocketFactory;
     private SSLSocketFactory sslSocketFactory;
 
@@ -70,7 +75,12 @@ public class TlsFactory implements SocketFactory {
         this.selfId = Objects.requireNonNull(selfId);
         this.configuration = Objects.requireNonNull(configuration);
         final CryptoConfig configData = configuration.getConfigData(CryptoConfig.class);
-        final char[] password = configData.keystorePassword().toCharArray();
+        final String passphrase = configData.keystorePassword();
+        if (passphrase == null || passphrase.isBlank()) {
+            throw new IllegalArgumentException("crypto.keystorePassword must not be null or blank");
+        }
+        KeystorePasswordPolicy.warnIfNonCompliant(logger, "crypto.keystorePassword", passphrase);
+        final char[] password = passphrase.toCharArray();
 
         /* nondeterministic CSPRNG */
         this.nonDetRandom = ConsensusCryptoUtils.getNonDetRandom();

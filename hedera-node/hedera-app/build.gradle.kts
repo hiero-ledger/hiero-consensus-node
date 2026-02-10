@@ -72,6 +72,7 @@ jmhModuleInfo {
     requires("io.helidon.common")
     requires("io.helidon.webserver")
     requires("org.hiero.consensus.model")
+    requires("org.hiero.consensus.platformstate")
     requires("jmh.core")
     requires("org.hiero.base.crypto")
 }

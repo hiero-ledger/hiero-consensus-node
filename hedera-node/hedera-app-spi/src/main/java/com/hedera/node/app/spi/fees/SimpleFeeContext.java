@@ -2,6 +2,7 @@
 package com.hedera.node.app.spi.fees;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.spi.authorization.Authorizer;
@@ -19,15 +20,35 @@ import edu.umd.cs.findbugs.annotations.Nullable;
  * will throw {@link UnsupportedOperationException}.
  */
 public interface SimpleFeeContext extends FeeContext {
-    int numTxnSignatures(); // number of signatures in the transaction
+    /**
+     * Returns the number of signatures in the transaction.
+     *
+     * @return the number of signatures in the transaction
+     */
+    int numTxnSignatures();
 
-    int numTxnBytes(); // added in a different PR so we can have BYTE extras in the node fees
+    /**
+     * Returns the number of bytes in the transaction.
+     *
+     * @return the number of bytes in the transaction
+     */
+    int numTxnBytes();
 
+    /**
+     * Returns the wrapped {@link FeeContext} or null if none is available while handling a query.
+     *
+     * @return the wrapped fee context, or null if none is available
+     */
     @Nullable
-    FeeContext feeContext(); // may be null
+    FeeContext feeContext();
 
+    /**
+     * Returns the wrapped {@link QueryContext} or null if none is available while handling a transaction.
+     *
+     * @return the wrapped query context, or null if none is available
+     */
     @Nullable
-    QueryContext queryContext(); // may be null
+    QueryContext queryContext();
 
     /**
      * Returns the wrapped {@link FeeContext} or throws if none is available.
@@ -97,5 +118,19 @@ public interface SimpleFeeContext extends FeeContext {
     @Override
     default long getGasPriceInTinycents() {
         return requireFeeContext().getGasPriceInTinycents();
+    }
+
+    /**
+     * Returns the current utilization percentage of the high-volume throttle for the given functionality.
+     * The utilization is expressed in hundredths of one percent (basis points, 0 to 10,000), where 10,000 = 100%.
+     *
+     * <p>This is used for HIP-1313 high-volume pricing curve calculation.
+     *
+     * @param functionality the functionality to get the utilization for
+     * @return the utilization percentage in hundredths of one percent (basis points, 0 to 10,000),
+     * or 0 if no high-volume throttle exists for the functionality or if not available
+     */
+    default int getHighVolumeThrottleUtilization(@NonNull HederaFunctionality functionality) {
+        return 0;
     }
 }

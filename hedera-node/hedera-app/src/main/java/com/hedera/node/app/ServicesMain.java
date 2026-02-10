@@ -54,14 +54,13 @@ import com.swirlds.platform.builder.PlatformBuilder;
 import com.swirlds.platform.config.legacy.ConfigurationException;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
-import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.SwirldMain;
 import com.swirlds.platform.util.BootstrapUtils;
-import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
 import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.state.merkle.VirtualMapStateImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.InstantSource;
 import java.util.List;
@@ -79,6 +78,7 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.ReadableRosterStore;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterStateUtils;
+import org.hiero.consensus.state.signed.ReservedSignedState;
 
 /**
  * Main entry point.
@@ -128,8 +128,8 @@ public class ServicesMain {
      *     and the working directory <i>settings.txt</i>, providing the same
      *     {@link SwirldMain#newStateRoot()} method reference as the genesis state
      *     factory. (<b>IMPORTANT:</b> This step instantiates and invokes
-     *     {@link ConsensusStateEventHandler#onStateInitialized(MerkleNodeState, Platform, InitTrigger, SemanticVersion)}
-     *     on a {@link MerkleNodeState} instance that delegates the call back to our
+     *     {@link ConsensusStateEventHandler#onStateInitialized(State, Platform, InitTrigger, SemanticVersion)}
+     *     on a {@link VirtualMapState} instance that delegates the call back to our
      *     Hedera instance.)</li>
      *     <li>Call {@link Hedera#init(Platform, NodeId)} to complete startup phase
      *     validation and register notification listeners on the platform.</li>
@@ -156,7 +156,7 @@ public class ServicesMain {
      *      method with the {@link ConstructableRegistry} as the factory for the Services state root
      *      class id.</li>
      * </ol>
-     *  Now, note that {@link SwirldMain#newStateRoot()} returns {@link MerkleNodeState}
+     *  Now, note that {@link SwirldMain#newStateRoot()} returns {@link VirtualMapState}
      *  instances that delegate their lifecycle methods to an injected instance of
      *  {@link ConsensusStateEventHandler}---and the implementation of that
      *  injected by {@link SwirldMain#newStateRoot()} delegates these calls back to the Hedera
@@ -211,8 +211,7 @@ public class ServicesMain {
         final var fileSystemManager = FileSystemManager.create(platformConfig);
         final var recycleBin = RecycleBinImpl.create(
                 metrics, platformConfig, getStaticThreadManager(), time, fileSystemManager, selfId);
-        final ConsensusStateEventHandler<MerkleNodeState> consensusStateEventHandler =
-                hedera.newConsensusStateEvenHandler();
+        final ConsensusStateEventHandler consensusStateEventHandler = hedera.newConsensusStateEvenHandler();
         final PlatformContext platformContext =
                 PlatformContext.create(platformConfig, Time.getCurrent(), metrics, fileSystemManager, recycleBin);
         final HashedReservedSignedState reservedState = loadInitialState(
@@ -230,7 +229,7 @@ public class ServicesMain {
                 platformContext,
                 hedera.getStateLifecycleManager());
         final ReservedSignedState initialState = reservedState.state();
-        final MerkleNodeState state = initialState.get().getState();
+        final VirtualMapState state = initialState.get().getState();
         if (!genesisNetwork.get()) {
             hedera.initializeStatesApi(state, RESTART, platformConfig);
         }
@@ -357,7 +356,7 @@ public class ServicesMain {
                 configuration,
                 metrics,
                 time,
-                () -> new VirtualMapState(configuration, metrics));
+                () -> new VirtualMapStateImpl(configuration, metrics));
     }
 
     /**
