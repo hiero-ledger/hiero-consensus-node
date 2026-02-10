@@ -1,0 +1,54 @@
+# SPDX-License-Identifier: Apache-2.0
+name: "ZXF: [MQ] Single Day Tests"
+on:
+  workflow_dispatch:
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  contents: write
+  id-token: write
+  actions: write
+  statuses: write
+
+jobs:
+  run-merge-queue-performance-test:
+    name: Merge Queue Performance Test
+    uses: ./.github/workflows/zxc-single-day-performance-test.yaml
+    with:
+      test-asset: "MQPT10"
+      ref: "${{ github.ref }}"
+      solo-version: "${{ vars.CITR_SOLO_VERSION }}"
+      nlg-accounts: "100000000"
+      nlg-time: "330"
+      add-app-props: ""
+      add-settings: ""
+      crypto-bench-merkle-db-java-args: "-XX:+UseZGC -XX:+ZGenerational -XX:ZAllocationSpikeTolerance=2 -XX:ConcGCThreads=14 -XX:ZMarkStackSpaceLimit=12g -XX:MaxDirectMemorySize=24g -Xmx90g"
+      crypto-bench-merkle-db-test-params: "-p maxKey=500000000 -p numRecords=100000 -p keySize=24 -p recordSize=1024 -p numFiles=6000"
+      delete-namespace: true
+    secrets:
+      slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
+
+  run-merge-queue-longevity-test:
+    name: Merge Queue Longevity Test
+    uses: ./.github/workflows/zxc-single-day-longevity-test.yaml
+    with:
+      test-asset: "MQPT11"
+      ref: "${{ github.ref }}"
+      solo-version: "${{ vars.CITR_SOLO_VERSION }}"
+      nlg-accounts: "100000000"
+      nlg-time: "960"
+      add-app-props: ""
+      add-settings: ""
+      delete-namespace: true
+    secrets:
+      slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
+
+  run-merge-queue-canonical-test:
+    name: Merge Queue Canonical Test
+    uses: ./.github/workflows/zxf-single-day-canonical-test.yaml
+    with:
+        ref: "${{ github.ref }}"
+        build-tag: "${{ github.ref }}"
