@@ -46,6 +46,7 @@ public final class KeystorePasswordPolicy {
                 String.join(", ", issues));
     }
 
+    @NonNull
     private static List<String> issues(@NonNull final String password) {
         final List<String> issues = new ArrayList<>();
 
