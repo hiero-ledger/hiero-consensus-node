@@ -16,8 +16,18 @@ import org.apache.logging.log4j.Logger;
 public final class KeystorePasswordPolicy {
     private KeystorePasswordPolicy() {}
 
+    /** Recommended minimum passphrase length for keystore passwords. */
     private static final int MIN_LENGTH = 12;
 
+    /**
+     * Logs a warning if the provided keystore password does not meet the recommended policy.
+     *
+     * <p>This check is advisory only and does not reject non-compliant passwords.
+     *
+     * @param logger the logger used to emit warning messages
+     * @param configKey the configuration key associated with the password value
+     * @param password the password to evaluate
+     */
     public static void warnIfNonCompliant(
             @NonNull final Logger logger, @NonNull final String configKey, @NonNull final String password) {
         Objects.requireNonNull(logger, "logger must not be null");
