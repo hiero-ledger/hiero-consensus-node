@@ -131,7 +131,7 @@ jobs:
           fi
 
   run-mini-longevity-test:
-    name: Longevity Test
+    name: MQ Longevity Test
     needs:
       - verify-tag
     uses: ./.github/workflows/zxc-mini-longevity-test.yaml
@@ -151,7 +151,7 @@ jobs:
       rootly-api-token: ${{ secrets.ROOTLY_API_TOKEN }}
 
   tag-sdlt-result:
-    name: Tag SDLT Result
+    name: Tag MQLT Result
     runs-on: hl-cn-sdlt-lin-sm
     needs:
       - run-mini-longevity-test
@@ -180,7 +180,7 @@ jobs:
           gpg_private_key: ${{ secrets.SVCS_GPG_KEY_CONTENTS }}
           passphrase: ${{ secrets.SVCS_GPG_KEY_PASSPHRASE }}
 
-      - name: Tag SDLT Result
+      - name: Tag MQLT Result
         run: |
           RESULT="${{ needs.run-mini-longevity-test.outputs.result }}"
           BUILD_NUM="${{ needs.verify-tag.outputs.build-number }}"
@@ -294,7 +294,7 @@ jobs:
                       "type": "header",
                       "text": {
                         "type": "plain_text",
-                        "text": ":tada: SDLT - Mini Longevity Test (${{ github.ref }}) Passed",
+                        "text": ":tada: MQLT - Merge Queue Longevity Test (${{ github.ref }}) Passed",
                         "emoji": true
                       }
                     },
@@ -305,12 +305,12 @@ jobs:
                       "type": "section",
                       "text": {
                         "type": "mrkdwn",
-                        "text": "*SDLT Job Succeeded. Test panel status below*"
+                        "text": "*MQLT Job Succeeded. Test panel status below*"
                       },
                       "fields": [
                         {
                           "type": "plain_text",
-                          "text": "Verify Tag for SDLT"
+                          "text": "Verify Tag for MQLT"
                         },
                         {
                           "type": "plain_text",
@@ -318,7 +318,7 @@ jobs:
                         },
                         {
                           "type": "plain_text",
-                          "text": "Run Mini Longevity Test"
+                          "text": "Run Merge Queue Longevity Test"
                         },
                         {
                           "type": "plain_text",
@@ -326,7 +326,7 @@ jobs:
                         },
                         {
                           "type": "plain_text",
-                          "text": "Tag SDLT Passing"
+                          "text": "Tag MQLT Passing"
                         },
                         {
                           "type": "plain_text",
@@ -384,7 +384,7 @@ jobs:
             }
 
   report-failure:
-    name: Report SDLT execution failure
+    name: Report MQLT execution failure
     runs-on: hl-cn-sdlt-lin-sm
     needs:
       - verify-tag
@@ -451,7 +451,7 @@ jobs:
       - name: Build Rootly Summary
         id: rootly-summary
         run: |
-          summary="The AdHoc SDLT Job Failed"
+          summary="The Addoc MQLT Job Failed"
           echo "summary=${summary}" >> "${GITHUB_OUTPUT}"
           {
             echo 'details<<EOF'
@@ -505,7 +505,7 @@ jobs:
                     "type": "header",
                     "text": {
                       "type": "plain_text",
-                      "text": ":grey_exclamation: SDLT - Mini Longevity Test (${{ github.ref }}) Failed",
+                      "text": ":grey_exclamation: MQLT - Merge Queue Longevity Test (${{ github.ref }}) Failed",
                       "emoji": true
                     }
                   },
@@ -516,7 +516,7 @@ jobs:
                     "type": "section",
                     "text": {
                       "type": "mrkdwn",
-                      "text": "*SDLT Job Resulted in failure. See status below.*"
+                      "text": "*MQLT Job Resulted in failure. See status below.*"
                     },
                     "fields": [
                       {
@@ -529,7 +529,7 @@ jobs:
                       },
                       {
                         "type": "plain_text",
-                        "text": "Run Mini Longevity Test"
+                        "text": "Run MQLT Test"
                       },
                       {
                         "type": "plain_text",
@@ -537,7 +537,7 @@ jobs:
                       },
                       {
                         "type": "plain_text",
-                        "text": "Tag SDLT Passing"
+                        "text": "Tag MQLT Passing"
                       },
                       {
                         "type": "plain_text",

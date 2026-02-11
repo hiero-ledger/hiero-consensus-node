@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "ZXC: [CITR] Merge queue Longevity Test"
+name: "ZXC: [CITR] Merge Queue Longevity Test"
 
 on:
   workflow_call:
@@ -465,7 +465,6 @@ jobs:
 
       - name: Start ScriptedLoadTest test
         run: |
-          #FIXME: to parameterize
           run_NLGDparams="${{ inputs.run_NLGDparams }}" # e.g. -Dbenchmark.maxtps=8000
           run_NLGDebugparams="-Dorg.slf4j.simpleLogger.defaultLogLevel=debug" # e.g. -Dorg.slf4j.simpleLogger.defaultLogLevel=debug
           nlgpod=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}'`
@@ -788,7 +787,6 @@ jobs:
           if [[ "${nft_transfer_load_result}" != "" && \
                 "${hcs_load_result}" != "" && \
                 "${crypto_transfer_load_result}" != "" && \
-                "${heli_swap_load_result}" != "" && \
                 "${smart_contract_load_result}" != ""  && \
                 "${reconnect_result}" == "0"  && \
                 "${validator_result}" == "0" ]]; then
@@ -833,7 +831,7 @@ jobs:
 
           echo "result=${RESULT}" >> "${GITHUB_OUTPUT}"
 
-          echo "### Merge Queue Longevity Test Result" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "### Merge Queue Performance Test Result" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "result=${RESULT}" | tee -a "${GITHUB_STEP_SUMMARY}"
 
   merge-queue-report-to-rootly:
@@ -853,7 +851,7 @@ jobs:
       - name: Build Rootly Summary
         id: summary
         run: |
-          title="The Single Day Performance Test workflow failed (SDPT ${{ inputs.test-asset }} - ${{ inputs.ref }})"
+          title="The Merge Queue Performance Test Report failed (MQPT ${{ inputs.test-asset }} - ${{ inputs.ref }})"
           echo "title=${title}" >> "${GITHUB_OUTPUT}"
           {
             echo 'summary<<EOF'

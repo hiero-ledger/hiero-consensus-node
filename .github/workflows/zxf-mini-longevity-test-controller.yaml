@@ -56,13 +56,13 @@ jobs:
           fi
 
   run-single-day-longevity-test:
-    name: Longevity Test
+    name: MQ Longevity Test
     needs:
       - verify-tag
     uses: ./.github/workflows/zxc-mini-longevity-test.yaml
     if: ${{ needs.verify-tag.result == 'success' }}
     with:
-      test-asset: "SDLT2"
+      test-asset: "Dallas_n10"
       ref: "${{ github.ref }}"
       solo-version: "${{ vars.CITR_SOLO_VERSION }}"
       nlg-accounts: "20000000"
