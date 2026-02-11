@@ -2,19 +2,26 @@
 package org.hiero.base.concurrent;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import edu.umd.cs.findbugs.annotations.NonNull;
+import java.lang.reflect.Field;
 import java.time.Duration;
 import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.ReentrantLock;
 import org.hiero.base.concurrent.locks.locked.LockedResource;
 import org.hiero.base.concurrent.test.fixtures.ConcurrentTesting;
 import org.junit.jupiter.api.Test;
 
 class BlockingResourceProviderTest {
+    private static final Duration TIMEOUT = Duration.ofSeconds(5);
+
     /**
      * Tests the intended functionality of {@link BlockingResourceProvider}
      * <ul>
@@ -66,7 +73,6 @@ class BlockingResourceProviderTest {
     @Test
     void provideConsumeWorksAfterConsumerInterruption() throws InterruptedException {
         final BlockingResourceProvider<String> provider = new BlockingResourceProvider<>();
-        final Duration timeout = Duration.ofSeconds(5);
         // First consumer blocks then gets interrupted
         Thread consumerThread = new Thread(() -> {
             try {
@@ -78,24 +84,101 @@ class BlockingResourceProviderTest {
         });
         consumerThread.start();
         // Wait until the consumer is blocked waiting for a resource
-        final long deadline = System.currentTimeMillis() + timeout.toMillis();
+        final long deadline = System.currentTimeMillis() + TIMEOUT.toMillis();
         while (!provider.isWaitingForResource()) {
             assertTrue(System.currentTimeMillis() < deadline, "Consumer never started waiting");
             Thread.sleep(10);
         }
 
         provider.acquireProvidePermit();
+        provider.provide("");
         consumerThread.interrupt();
 
         consumerThread = new Thread(() -> {
             try (final var value = provider.waitForResource()) {
-                assertEquals("Hola", value.getResource());
+                assertEquals("Hi", value.getResource());
             } catch (final InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
         });
         consumerThread.start();
-        provider.provide("Hola");
+        provider.provide("Hi");
+        consumerThread.join(TIMEOUT);
+    }
+
+    @Test
+    void interruptWithResourceAlreadyDelivered() throws Exception {
+        final BlockingResourceProvider<String> provider = new BlockingResourceProvider<>();
+
+        Thread consumerThread = new Thread(() -> {
+            try {
+                provider.waitForResource();
+            } catch (final InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        });
+        consumerThread.start();
+
+        // Wait for consumer to be in await()
+        final long deadline = System.currentTimeMillis() + TIMEOUT.toMillis();
+        while (!provider.isWaitingForResource()) {
+            assertTrue(System.currentTimeMillis() < deadline, "Consumer never started waiting");
+            Thread.sleep(10);
+        }
+
+        final LockedResource<String> resource = instrumentInterruptionDuringProvideMethod(provider, consumerThread);
+
+        consumerThread.join(TIMEOUT);
+
+        // If the fix works: resource.close() was called in the catch block,
+        // which nulled the resource and unlocked. Verify the provider is usable.
+        assertFalse(consumerThread.isAlive());
+        assertNull(resource.getResource()); // resource was cleaned up
+        assertFalse(provider.isWaitingForResource()); // and the provider is no longer waiting for a resource
+
+        // After that, since the provider still holds the permit, it should be allowed to provide another value
+        consumerThread = new Thread(() -> {
+            try (final var value = provider.waitForResource()) {
+                assertEquals("Hi", value.getResource());
+            } catch (final InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        });
+        consumerThread.start();
+        provider.provide("Hi");
+        consumerThread.join(TIMEOUT);
+    }
+
+    /**
+     * Simulates a {@link BlockingResourceProvider#provide(Object)} invocation
+     * that was interrupted
+     */
+    private static @NonNull LockedResource<String> instrumentInterruptionDuringProvideMethod(
+            final BlockingResourceProvider<String> provider, final Thread consumerThread)
+            throws NoSuchFieldException, IllegalAccessException {
+        // The following lines simulates the following scenario:
+        // a provider has set a (non-null) resource, but the consumer's resourceProvided.await() favors the interrupt
+        // over the signal.
+        // Since that race can't be forced through the public API, using this trick
+        // The provider acquires the permit
+        assertTrue(provider.acquireProvidePermit());
+        // The provider provides the value
+        // Use reflection to get the lock and resource without triggering the condition
+        Field lockField = BlockingResourceProvider.class.getDeclaredField("lock");
+        lockField.setAccessible(true);
+        ReentrantLock lock = (ReentrantLock) lockField.get(provider);
+
+        Field resourceField = BlockingResourceProvider.class.getDeclaredField("resource");
+        resourceField.setAccessible(true);
+        LockedResource<String> resource = (LockedResource<String>) resourceField.get(provider);
+
+        // Acquire the lock (possible because await() released it), set resource, release lock
+        // Do NOT signal resourceProvided — the only wake-up will be the interrupt
+        lock.lock();
+        resource.setResource("delivered");
+        lock.unlock();
+        consumerThread.interrupt();
+        return resource;
     }
 
     private record Resource(int threadId, int sequence) {}
