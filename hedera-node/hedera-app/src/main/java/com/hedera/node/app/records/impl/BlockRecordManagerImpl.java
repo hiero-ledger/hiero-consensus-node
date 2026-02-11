@@ -92,7 +92,6 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
 
     private final AtomicReference<QuiescenceCommand> lastQuiescenceCommand = new AtomicReference<>(DONT_QUIESCE);
     private final StreamMode streamMode;
-    private final boolean writeWrappedRecordFileBlockHashesToDisk;
     private final int maxSideCarSizeInBytes;
     private final WrappedRecordFileBlockHashesDiskWriter wrappedRecordHashesDiskWriter;
 
@@ -146,7 +145,6 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
         final var recordStreamConfig = configProvider.getConfiguration().getConfigData(BlockRecordStreamConfig.class);
         this.blockPeriodInSeconds = recordStreamConfig.logPeriod();
         this.numBlockHashesToKeepBytes = recordStreamConfig.numOfBlockHashesInState() * HASH_SIZE;
-        this.writeWrappedRecordFileBlockHashesToDisk = recordStreamConfig.writeWrappedRecordFileBlockHashesToDisk();
         this.maxSideCarSizeInBytes = recordStreamConfig.sidecarMaxSizeMb() * 1024 * 1024;
 
         final RunningHashes lastRunningHashes;
@@ -214,7 +212,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
 
     @Override
     public void writeFreezeBlockWrappedRecordFileBlockHashes() {
-        if (!writeWrappedRecordFileBlockHashesToDisk) {
+        if (!writeWrappedRecordFileBlockHashesToDisk()) {
             return;
         }
         try {
@@ -249,7 +247,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
                     .build();
             putLastBlockInfo(state);
             streamFileProducer.switchBlocks(-1, 0, consensusTime);
-            if (writeWrappedRecordFileBlockHashesToDisk) {
+            if (writeWrappedRecordFileBlockHashesToDisk()) {
                 beginTrackingNewBlock(streamFileProducer.getRunningHash());
             }
             if (streamMode == RECORDS) {
@@ -282,7 +280,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
             // the last transaction
             final var lastBlockHashBytes = streamFileProducer.getRunningHash();
             final var justFinishedBlockNumber = lastBlockInfo.lastBlockNumber() + 1;
-            if (currentBlockStartRunningHash != null && writeWrappedRecordFileBlockHashesToDisk) {
+            if (currentBlockStartRunningHash != null && writeWrappedRecordFileBlockHashesToDisk()) {
                 final var justFinishedBlockCreationTime = lastBlockInfo.firstConsTimeOfCurrentBlockOrThrow();
                 appendWrappedRecordFileBlockHashesToDisk(
                         justFinishedBlockNumber, justFinishedBlockCreationTime, lastBlockHashBytes);
@@ -308,7 +306,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
             }
 
             switchBlocksAt(consensusTime);
-            if (writeWrappedRecordFileBlockHashesToDisk) {
+            if (writeWrappedRecordFileBlockHashesToDisk()) {
                 beginTrackingNewBlock(lastBlockHashBytes);
             }
             return true;
@@ -379,7 +377,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
             // FUTURE create event recovery class and call it here. Should this be in startUserTransaction()?
             this.eventRecoveryCompleted = true;
         }
-        if (writeWrappedRecordFileBlockHashesToDisk) {
+        if (writeWrappedRecordFileBlockHashesToDisk()) {
             final var items = recordStreamItems.toList();
             for (final var item : items) {
                 currentBlockRecordStreamItems.add(new RecordStreamItem(item.transaction(), item.transactionRecord()));
@@ -659,5 +657,12 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
         ((WritableSingletonStateBase<BlockInfo>) blockInfoState).commit();
         // Cache the updated block info
         this.lastBlockInfo = newBlockInfo;
+    }
+
+    private boolean writeWrappedRecordFileBlockHashesToDisk() {
+        return configProvider
+                .getConfiguration()
+                .getConfigData(BlockRecordStreamConfig.class)
+                .writeWrappedRecordFileBlockHashesToDisk();
     }
 }
