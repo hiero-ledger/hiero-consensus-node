@@ -7,6 +7,7 @@ import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.createTopic;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleCreate;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.allVisibleItems;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
@@ -15,10 +16,10 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingTwo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustIncludeNoFailuresFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONS_CREATE_TOPIC_BASE_FEE_USD;
-import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_CREATE_BASE_FEE_USD;
 import static com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItemsAssertion.ALL_TX_IDS;
 import static com.hedera.services.bdd.suites.HapiSuite.CIVILIAN_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
+import static com.hedera.services.bdd.suites.hip423.ScheduleLongTermSignTest.THIRTY_MINUTES;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
 import static org.hiero.hapi.fees.HighVolumePricingCalculator.MULTIPLIER_SCALE;
@@ -51,7 +52,7 @@ import org.junit.jupiter.api.Tag;
 public class Hip1313EnabledTest {
     private static final double CRYPTO_CREATE_BASE_FEE = 0.05;
     private static final int CRYPTO_CREATE_HV_TPS = 800;
-    public static final NavigableMap<Integer, Long> CRYPTO_CREATE_MULTIPLIER_MAP = new TreeMap<>(Map.ofEntries(
+    public static final NavigableMap<Integer, Long> CRYPTO_TOPIC_CREATE_MULTIPLIER_MAP = new TreeMap<>(Map.ofEntries(
             Map.entry(2, 4000L),
             Map.entry(3, 8000L),
             Map.entry(5, 10000L),
@@ -65,22 +66,21 @@ public class Hip1313EnabledTest {
             Map.entry(500, 150000L),
             Map.entry(1000, 200000L),
             Map.entry(10000, 200000L)));
-    public static final NavigableMap<Integer, Long> TOPIC_CREATE_MULTIPLIER_MAP = new TreeMap<>(Map.ofEntries(
-            Map.entry(2, 4000L),
-            Map.entry(3, 8000L),
-            Map.entry(5, 10000L),
-            Map.entry(7, 15000L),
-            Map.entry(10, 20000L),
-            Map.entry(15, 30000L),
-            Map.entry(20, 40000L),
-            Map.entry(50, 60000L),
-            Map.entry(100, 80000L),
-            Map.entry(200, 100000L),
-            Map.entry(500, 150000L),
-            Map.entry(1000, 200000L),
-            Map.entry(10000, 200000L)));
+    public static final NavigableMap<Integer, Long> SCHEDULE_CREATE_MULTIPLIER_MAP = new TreeMap<>(Map.ofEntries(
+            Map.entry(100, 4000L),
+            Map.entry(150, 8000L),
+            Map.entry(250, 10000L),
+            Map.entry(350, 15000L),
+            Map.entry(500, 20000L),
+            Map.entry(750, 30000L),
+            Map.entry(1000, 40000L),
+            Map.entry(2500, 60000L),
+            Map.entry(5000, 80000L),
+            Map.entry(10000, 100000L)));
 
-    private static final double CREATE_TOPIC_BASE_FEE = 0.05;
+    private static final double SCHEDULE_CREATE_BASE_FEE = 0.02;
+    private static final int SCHEDULE_CREATE_HV_TPS = 1300;
+    private static final int TOPIC_CREATE_HV_TPS = 800;
 
 
     @BeforeAll
@@ -156,9 +156,9 @@ public class Hip1313EnabledTest {
     }
 
     @GenesisHapiTest
-    final Stream<DynamicTest> mixedHighVolumeTxnsWorkAsExpectedForCryptoCreateAndTopicCreate() {
+    final Stream<DynamicTest> mixedHighVolumeTxnsWorkAsExpectedForTopicCreateAndScheduleCreate() {
         final AtomicReference<List<RecordStreamEntry>> highVolumeTxns = new AtomicReference<>();
-        final int numBursts = 300;
+        final int numBursts = 200;
         return hapiTest(
                 overridingThrottles("testSystemFiles/hip1313-multi-op-pricing-throttles.json"),
                 recordStreamMustIncludeNoFailuresFrom(allVisibleItems(feeMultiplierValidator(highVolumeTxns))),
@@ -169,12 +169,14 @@ public class Hip1313EnabledTest {
                     for (int i = 0; i < numBursts; i++) {
                         allRunFor(
                                 spec,
-                                cryptoCreate("mixedHvCreate" + i)
+                                createTopic("mixedHvTopic" + i)
                                         .payingWith(CIVILIAN_PAYER)
                                         .deferStatusResolution()
                                         .withHighVolume(),
-                                createTopic("mixedHvTopic" + i)
+                                scheduleCreate("mixedHvSchedule" + i, cryptoCreate("mixedHvScheduledAccount" + i))
                                         .payingWith(CIVILIAN_PAYER)
+                                        .waitForExpiry()
+                                        .expiringIn(THIRTY_MINUTES)
                                         .deferStatusResolution()
                                         .withHighVolume());
                     }
@@ -184,37 +186,24 @@ public class Hip1313EnabledTest {
                 withOpContext((spec, opLog) -> {
                     final var entries = highVolumeTxns.get().stream()
                             .filter(e -> e.body().getHighVolume())
-                            .filter(e -> e.body().hasCryptoCreateAccount() || e.body().hasConsensusCreateTopic())
+                            .filter(e -> e.body().hasConsensusCreateTopic() || e.body().hasScheduleCreate())
                             .toList();
-                    final var cryptoThrottle = DeterministicThrottle.withTpsAndBurstPeriodMs(CRYPTO_CREATE_HV_TPS, 1000);
-                    final var topicThrottle = DeterministicThrottle.withTpsAndBurstPeriodMs(CRYPTO_CREATE_HV_TPS, 1000);
-                    int cryptoCreates = 0;
+                    final var topicThrottle = DeterministicThrottle.withTpsAndBurstPeriodMs(TOPIC_CREATE_HV_TPS, 1000);
+                    final var scheduleThrottle =
+                            DeterministicThrottle.withTpsAndBurstPeriodMs(SCHEDULE_CREATE_HV_TPS, 1000);
                     int topicCreates = 0;
+                    int scheduleCreates = 0;
                     for (final var entry : entries) {
                         final var fee = entry.txnRecord().getTransactionFee();
-                        if (entry.body().hasCryptoCreateAccount()) {
-                            final var utilizationBasisPointsBefore =
-                                    (int) Math.round(cryptoThrottle.instantaneousPercentUsed() * 100);
-                            cryptoThrottle.allow(1, entry.consensusTime());
-                            final var observedMultiplier =
-                                    spec.ratesProvider().toUsdWithActiveRates(fee) / CRYPTO_CREATE_BASE_FEE_USD;
-                            final var expectedMultiplier = getInterpolatedMultiplier(utilizationBasisPointsBefore) / 1000.0;
-                            assertTrue(observedMultiplier >= 4, "Observed crypto create multiplier should be >= 4");
-                            assertEquals(
-                                    expectedMultiplier,
-                                    observedMultiplier,
-                                    0.001,
-                                    "Given BPS of " + utilizationBasisPointsBefore
-                                            + " observed crypto create multiplier " + observedMultiplier
-                                            + " does not match expected multiplier " + expectedMultiplier);
-                            cryptoCreates++;
-                        } else if (entry.body().hasConsensusCreateTopic()) {
+                        if (entry.body().hasConsensusCreateTopic()) {
                             final var utilizationBasisPointsBefore =
                                     (int) Math.round(topicThrottle.instantaneousPercentUsed() * 100);
                             topicThrottle.allow(1, entry.consensusTime());
                             final var observedMultiplier =
                                     spec.ratesProvider().toUsdWithActiveRates(fee) / CONS_CREATE_TOPIC_BASE_FEE_USD;
-                            final var expectedMultiplier = getInterpolatedMultiplier(utilizationBasisPointsBefore) / 1000.0;
+                            final var expectedMultiplier = getInterpolatedMultiplier(
+                                    CRYPTO_TOPIC_CREATE_MULTIPLIER_MAP, utilizationBasisPointsBefore)
+                                    / 1000.0;
                             assertTrue(observedMultiplier >= 4, "Observed topic create multiplier should be >= 4");
                             assertEquals(
                                     expectedMultiplier,
@@ -224,16 +213,38 @@ public class Hip1313EnabledTest {
                                             + " observed topic create multiplier " + observedMultiplier
                                             + " does not match expected multiplier " + expectedMultiplier);
                             topicCreates++;
+                        } else if (entry.body().hasScheduleCreate()) {
+                            final var utilizationBasisPointsBefore =
+                                    (int) Math.round(scheduleThrottle.instantaneousPercentUsed() * 100);
+                            scheduleThrottle.allow(1, entry.consensusTime());
+                            final var observedMultiplier =
+                                    spec.ratesProvider().toUsdWithActiveRates(fee) / SCHEDULE_CREATE_BASE_FEE;
+                            final var expectedMultiplier = getInterpolatedMultiplier(
+                                            SCHEDULE_CREATE_MULTIPLIER_MAP, utilizationBasisPointsBefore)
+                                    / 1000.0;
+                            assertTrue(observedMultiplier >= 4, "Observed schedule create multiplier should be >= 4");
+                            assertEquals(
+                                    expectedMultiplier,
+                                    observedMultiplier,
+                                    0.001,
+                                    "Given BPS of " + utilizationBasisPointsBefore
+                                            + " observed schedule create multiplier " + observedMultiplier
+                                            + " does not match expected multiplier " + expectedMultiplier);
+                            scheduleCreates++;
                         }
                     }
                     assertEquals(numBursts * 2, entries.size());
-                    assertEquals(numBursts, cryptoCreates);
                     assertEquals(numBursts, topicCreates);
+                    assertEquals(numBursts, scheduleCreates);
                 }));
     }
 
     public static long getInterpolatedMultiplier(final int utilizationBasisPoints) {
-        final NavigableMap<Integer, Long> map = CRYPTO_CREATE_MULTIPLIER_MAP;
+        return getInterpolatedMultiplier(CRYPTO_TOPIC_CREATE_MULTIPLIER_MAP, utilizationBasisPoints);
+    }
+
+    public static long getInterpolatedMultiplier(
+            @NonNull final NavigableMap<Integer, Long> map, final int utilizationBasisPoints) {
         final int clampedUtilization = Math.max(0, Math.min(utilizationBasisPoints, UTILIZATION_SCALE));
         final long maxMultiplier = Math.max(map.lastEntry().getValue(), MULTIPLIER_SCALE);
 
