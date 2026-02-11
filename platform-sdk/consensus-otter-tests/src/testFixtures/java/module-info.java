@@ -32,6 +32,7 @@ module org.hiero.otter.fixtures {
     requires com.swirlds.config.extensions;
     requires com.swirlds.merkledb;
     requires com.swirlds.virtualmap;
+    requires org.hiero.base.concurrent;
     requires org.hiero.base.utility;
     requires org.hiero.consensus.concurrent;
     requires org.hiero.consensus.hashgraph.impl.test.fixtures;
@@ -41,6 +42,7 @@ module org.hiero.otter.fixtures {
     requires org.hiero.consensus.pces;
     requires org.hiero.consensus.platformstate;
     requires org.hiero.consensus.roster;
+    requires org.hiero.consensus.state;
     requires com.fasterxml.jackson.annotation;
     requires com.fasterxml.jackson.core;
     requires com.fasterxml.jackson.databind;

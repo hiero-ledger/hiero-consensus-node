@@ -67,6 +67,8 @@ import static com.hedera.services.bdd.suites.contract.leaky.LeakyContractTestsSu
 import static com.hedera.services.bdd.suites.contract.leaky.LeakyContractTestsSuite.TRANSFER_SIGNATURE;
 import static com.hedera.services.bdd.suites.contract.leaky.LeakyContractTestsSuite.TRANSFER_SIG_NAME;
 import static com.hedera.services.bdd.suites.crypto.CryptoCreateSuite.ACCOUNT;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateFees;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_APPROVE_ALLOWANCE_FEE;
 import static com.hedera.services.bdd.suites.token.TokenAssociationSpecs.MULTI_KEY;
 import static com.hedera.services.bdd.suites.token.TokenTransactSpecs.TRANSFER_TXN;
 import static com.hedera.services.bdd.suites.utils.contracts.precompile.HTSPrecompileResult.htsPrecompileResult;
@@ -766,7 +768,7 @@ public class CryptoApproveAllowanceSuite {
                         .blankMemo()
                         .logged(),
                 getTxnRecord(APPROVE_TXN),
-                validateChargedUsdWithin(APPROVE_TXN, 0.05238, 0.01),
+                validateFees(APPROVE_TXN, 0.05238, 3 * CRYPTO_APPROVE_ALLOWANCE_FEE),
                 getAccountDetails(PAYER)
                         .payingWith(GENESIS)
                         .has(accountDetailsWith()
@@ -1225,26 +1227,23 @@ public class CryptoApproveAllowanceSuite {
                         .payingWith(SPENDER)
                         .addCryptoAllowance(SPENDER, ANOTHER_SPENDER, 100L)
                         .via(BASE_APPROVE_TXN)
-                        .blankMemo()
-                        .logged(),
-                validateChargedUsdWithin(BASE_APPROVE_TXN, 0.05, 0.01),
+                        .blankMemo(),
+                validateFees(BASE_APPROVE_TXN, 0.05, CRYPTO_APPROVE_ALLOWANCE_FEE),
                 cryptoApproveAllowance()
                         .payingWith(SPENDER)
                         .addCryptoAllowance(SPENDER, ANOTHER_SPENDER, 100L)
                         .addCryptoAllowance(SPENDER, SECOND_SPENDER, 100L)
                         .via(BASE_APPROVE_TXN)
-                        .blankMemo()
-                        .logged(),
-                validateChargedUsdWithin(BASE_APPROVE_TXN, 0.0505, 0.1),
+                        .blankMemo(),
+                validateFees(BASE_APPROVE_TXN, 0.0505, 2 * CRYPTO_APPROVE_ALLOWANCE_FEE),
                 cryptoApproveAllowance()
                         .payingWith(SPENDER)
                         .addCryptoAllowance(SPENDER, ANOTHER_SPENDER, 100L)
                         .addCryptoAllowance(SPENDER, SECOND_SPENDER, 100L)
                         .addCryptoAllowance(SPENDER, THIRD_SPENDER, 100L)
                         .via(BASE_APPROVE_TXN)
-                        .blankMemo()
-                        .logged(),
-                validateChargedUsdWithin(BASE_APPROVE_TXN, 0.0509, 0.1));
+                        .blankMemo(),
+                validateFees(BASE_APPROVE_TXN, 0.0509, 3 * CRYPTO_APPROVE_ALLOWANCE_FEE));
     }
 
     @HapiTest
@@ -1284,8 +1283,8 @@ public class CryptoApproveAllowanceSuite {
                         .payingWith(OWNER)
                         .addCryptoAllowance(OWNER, SPENDER, 100L)
                         .via(BASE_APPROVE_TXN)
-                        .blankMemo()
-                        .logged(),
+                        .blankMemo(),
+                validateFees(BASE_APPROVE_TXN, 0.05, CRYPTO_APPROVE_ALLOWANCE_FEE),
                 validateChargedUsdWithin(BASE_APPROVE_TXN, 0.05, 0.01),
                 cryptoApproveAllowance()
                         .payingWith(OWNER)
@@ -1294,7 +1293,7 @@ public class CryptoApproveAllowanceSuite {
                         .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, SPENDER, false, List.of(1L))
                         .via(APPROVE_TXN)
                         .blankMemo(),
-                validateChargedUsdWithin(APPROVE_TXN, 0.05238, 0.01),
+                validateFees(APPROVE_TXN, 0.05238, 3 * CRYPTO_APPROVE_ALLOWANCE_FEE),
                 getAccountDetails(OWNER)
                         .payingWith(GENESIS)
                         .has(accountDetailsWith()

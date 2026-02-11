@@ -5,6 +5,7 @@ import static com.hedera.hapi.util.HapiUtils.functionOf;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.transaction.ExchangeRate;
@@ -43,6 +44,7 @@ public class ChildFeeContextImpl implements FeeContext {
     private final AppKeyVerifier verifier;
 
     private final int signatureMapSize;
+    private HederaFunctionality functionality;
 
     public ChildFeeContextImpl(
             @NonNull final FeeManager feeManager,
@@ -54,7 +56,8 @@ public class ChildFeeContextImpl implements FeeContext {
             @NonNull final ReadableStoreFactory storeFactory,
             @NonNull final Instant consensusNow,
             @Nullable final AppKeyVerifier verifier,
-            final int signatureMapSize) {
+            final int signatureMapSize,
+            @NonNull final HederaFunctionality functionality) {
         this.feeManager = requireNonNull(feeManager);
         this.context = requireNonNull(context);
         this.body = requireNonNull(body);
@@ -65,6 +68,7 @@ public class ChildFeeContextImpl implements FeeContext {
         this.consensusNow = requireNonNull(consensusNow);
         this.verifier = verifier;
         this.signatureMapSize = signatureMapSize;
+        this.functionality = requireNonNull(functionality);
     }
 
     @Override
@@ -165,5 +169,10 @@ public class ChildFeeContextImpl implements FeeContext {
     @Override
     public long getGasPriceInTinycents() {
         return feeManager.getGasPriceInTinyCents(consensusNow);
+    }
+
+    @Override
+    public HederaFunctionality functionality() {
+        return functionality;
     }
 }

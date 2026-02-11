@@ -13,7 +13,6 @@ import com.hedera.node.app.hapi.utils.blocks.BlockStreamUtils;
 import com.hedera.statevalidation.util.PlatformContextHelper;
 import com.hedera.statevalidation.util.StateUtils;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.snapshot.SignedStateFileWriter;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.StateLifecycleManagerImpl;
@@ -29,6 +28,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 import org.hiero.consensus.crypto.ConsensusCryptoUtils;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.state.signed.SignedState;
 
 /**
  * This workflow applies a set of blocks to a given state and creates a new snapshot once the state

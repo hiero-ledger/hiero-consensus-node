@@ -6,6 +6,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.LinkedList;
 import java.util.List;
 import org.hiero.consensus.crypto.PbjStreamHasher;
+import org.hiero.consensus.event.EventGraphSource;
 import org.hiero.consensus.event.NoOpIntakeEventCounter;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;

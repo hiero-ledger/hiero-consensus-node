@@ -26,7 +26,6 @@ import com.swirlds.platform.health.OSHealthChecker;
 import com.swirlds.platform.health.clock.OSClockSpeedSourceChecker;
 import com.swirlds.platform.health.entropy.OSEntropyChecker;
 import com.swirlds.platform.health.filesystem.OSFileSystemChecker;
-import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -46,6 +45,7 @@ import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.consensus.config.BasicConfig;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.state.signed.SignedState;
 
 /**
  * Utility methods that are helpful when starting up a JVM.

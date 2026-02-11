@@ -2134,6 +2134,31 @@ public class UtilVerbs {
         });
     }
 
+    public static SpecOperation safeValidateChargedUsd(String txnName, double oldPrice, double newPrice) {
+        return doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+            if ("true".equalsIgnoreCase(flag)) {
+                return validateChargedUsd(txnName, newPrice);
+            } else {
+                return validateChargedUsd(txnName, oldPrice);
+            }
+        });
+    }
+
+    public static SpecOperation safeValidateChargedUsdWithin(
+            String txnName,
+            double oldPrice,
+            double oldAllowedPercentDiff,
+            double newPrice,
+            double newAllowedPercentDiff) {
+        return doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+            if ("true".equalsIgnoreCase(flag)) {
+                return validateChargedUsdWithin(txnName, newPrice, newAllowedPercentDiff);
+            } else {
+                return validateChargedUsdWithin(txnName, oldPrice, oldAllowedPercentDiff);
+            }
+        });
+    }
+
     @FunctionalInterface
     public interface OpsProvider {
         List<SpecOperation> provide();
@@ -2214,6 +2239,39 @@ public class UtilVerbs {
                     String.format(
                             "%s fee (%s) more than %.2f percent different than expected!",
                             sdec(actualUsdCharged, 4), txn, effectivePercentDiff));
+        });
+    }
+
+    public static CustomSpecAssert safeValidateInnerTxnChargedUsd(
+            String txn,
+            String parent,
+            double oldPrice,
+            double oldAllowedPercentDiff,
+            double newPrice,
+            double newAllowedPercentDiff) {
+        return assertionsHold((spec, assertLog) -> {
+            final var flag = spec.targetNetworkOrThrow().startupProperties().get("fees.simpleFeesEnabled");
+            if ("true".equalsIgnoreCase(flag)) {
+                final var effectivePercentDiff = Math.max(newAllowedPercentDiff, 1.0);
+                final var actualUsdCharged = getChargedUsedForInnerTxn(spec, parent, txn);
+                assertEquals(
+                        newPrice,
+                        actualUsdCharged,
+                        (effectivePercentDiff / 100.0) * newPrice,
+                        String.format(
+                                "%s fee (%s) more than %.2f percent different than expected!",
+                                sdec(actualUsdCharged, 4), txn, effectivePercentDiff));
+            } else {
+                final var effectivePercentDiff = Math.max(oldAllowedPercentDiff, 1.0);
+                final var actualUsdCharged = getChargedUsedForInnerTxn(spec, parent, txn);
+                assertEquals(
+                        oldPrice,
+                        actualUsdCharged,
+                        (effectivePercentDiff / 100.0) * oldPrice,
+                        String.format(
+                                "%s fee (%s) more than %.2f percent different than expected!",
+                                sdec(actualUsdCharged, 4), txn, effectivePercentDiff));
+            }
         });
     }
 

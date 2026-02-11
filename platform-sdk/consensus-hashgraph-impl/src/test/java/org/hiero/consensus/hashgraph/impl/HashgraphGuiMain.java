@@ -3,18 +3,9 @@ package org.hiero.consensus.hashgraph.impl;
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
-import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.Arrays;
-import java.util.LinkedList;
-import java.util.List;
-import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.GraphGenerator;
-import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.StandardGraphGenerator;
-import org.hiero.consensus.hashgraph.impl.test.fixtures.event.source.BranchingEventSource;
-import org.hiero.consensus.hashgraph.impl.test.fixtures.event.source.EventSource;
-import org.hiero.consensus.hashgraph.impl.test.fixtures.event.source.StandardEventSource;
-import org.hiero.consensus.hashgraph.impl.test.fixtures.gui.runner.GeneratorEventProvider;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.GeneratorEventGraphSource;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.GeneratorEventGraphSourceBuilder;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.gui.runner.TestGuiSource;
-import org.hiero.consensus.test.fixtures.Randotron;
 
 /**
  * Main class for running the hashgraph GUI.
@@ -29,42 +20,19 @@ public class HashgraphGuiMain {
      *             events will be shown
      */
     public static void main(final String[] args) {
-        final Randotron randotron = Randotron.create(1);
-        final int numNodes = 4;
-        final int initialEvents = 50;
+        final int initialEvents = 20;
 
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
 
-        final GraphGenerator graphGenerator = new StandardGraphGenerator(
-                platformContext,
-                randotron.nextInt(),
-                2,
-                generateSources(numNodes, Arrays.stream(args).anyMatch("branch"::equals)));
-        graphGenerator.reset();
+        final GeneratorEventGraphSource generator = GeneratorEventGraphSourceBuilder.builder()
+                .numNodes(4)
+                .maxOtherParents(2)
+                .seed(0)
+                .build();
 
-        final TestGuiSource guiSource = new TestGuiSource(
-                platformContext, graphGenerator.getRoster(), new GeneratorEventProvider(graphGenerator));
+        final TestGuiSource guiSource = new TestGuiSource(platformContext, generator.getRoster(), generator);
         guiSource.generateEvents(initialEvents);
         guiSource.runGui();
-    }
-
-    /**
-     * Method that generates event source  for each node. It can also accept a boolean flag that
-     * indicates if we should have a branching event source or not.
-     *
-     * @param numNetworkNodes the number of nodes in the network
-     * @param shouldBranch true if we should have a branching event source, false otherwise
-     */
-    private static @NonNull List<EventSource> generateSources(final int numNetworkNodes, final boolean shouldBranch) {
-        final List<EventSource> list = new LinkedList<>();
-        for (long i = 0; i < numNetworkNodes; i++) {
-            if (i == 1 && shouldBranch) {
-                list.add(new BranchingEventSource().setBranchProbability(0.8).setMaximumBranchCount(5));
-                continue;
-            }
-            list.add(new StandardEventSource(true));
-        }
-        return list;
     }
 }

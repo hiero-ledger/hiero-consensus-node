@@ -14,7 +14,7 @@ import static com.swirlds.state.merkle.StateUtils.getStateKeyForSingleton;
 import static com.swirlds.state.merkle.StateUtils.unwrap;
 import static com.swirlds.state.merkle.StateUtils.wrapValue;
 import static com.swirlds.state.merkle.StateValue.extractStateIdFromStateValueOneOf;
-import static com.swirlds.state.merkle.disk.OnDiskQueueHelper.QUEUE_STATE_VALUE_CODEC;
+import static com.swirlds.state.merkle.vm.VirtualMapQueueHelper.QUEUE_STATE_VALUE_CODEC;
 import static com.swirlds.virtualmap.internal.Path.INVALID_PATH;
 import static com.swirlds.virtualmap.internal.Path.getParentPath;
 import static com.swirlds.virtualmap.internal.Path.getSiblingPath;
@@ -32,20 +32,20 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.state.MerkleProof;
-import com.swirlds.state.QueueState;
-import com.swirlds.state.QueueState.QueueStateCodec;
-import com.swirlds.state.SiblingHash;
 import com.swirlds.state.State;
 import com.swirlds.state.StateChangeListener;
+import com.swirlds.state.binary.MerkleProof;
+import com.swirlds.state.binary.QueueState;
+import com.swirlds.state.binary.QueueState.QueueStateCodec;
+import com.swirlds.state.binary.SiblingHash;
 import com.swirlds.state.lifecycle.StateDefinition;
 import com.swirlds.state.lifecycle.StateMetadata;
-import com.swirlds.state.merkle.disk.OnDiskReadableKVState;
-import com.swirlds.state.merkle.disk.OnDiskReadableQueueState;
-import com.swirlds.state.merkle.disk.OnDiskReadableSingletonState;
-import com.swirlds.state.merkle.disk.OnDiskWritableKVState;
-import com.swirlds.state.merkle.disk.OnDiskWritableQueueState;
-import com.swirlds.state.merkle.disk.OnDiskWritableSingletonState;
+import com.swirlds.state.merkle.vm.VirtualMapReadableKVState;
+import com.swirlds.state.merkle.vm.VirtualMapReadableQueueState;
+import com.swirlds.state.merkle.vm.VirtualMapReadableSingletonState;
+import com.swirlds.state.merkle.vm.VirtualMapWritableKVState;
+import com.swirlds.state.merkle.vm.VirtualMapWritableQueueState;
+import com.swirlds.state.merkle.vm.VirtualMapWritableSingletonState;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.EmptyReadableStates;
 import com.swirlds.state.spi.KVChangeListener;
@@ -378,7 +378,7 @@ public class VirtualMapStateImpl implements VirtualMapState {
             }
 
             final var md = stateMetadata.get(stateId);
-            if (md == null || !md.stateDefinition().onDisk()) {
+            if (md == null || !md.stateDefinition().keyValue()) {
                 throw new IllegalArgumentException("Unknown k/v state ID '" + stateId + ";");
             }
 
@@ -481,7 +481,7 @@ public class VirtualMapStateImpl implements VirtualMapState {
         @Override
         @NonNull
         protected ReadableKVState<?, ?> createReadableKVState(@NonNull final StateMetadata md) {
-            return new OnDiskReadableKVState<>(
+            return new VirtualMapReadableKVState<>(
                     extractStateId(md),
                     computeLabel(md.serviceName(), extractStateKey(md)),
                     extractKeyCodec(md),
@@ -492,7 +492,7 @@ public class VirtualMapStateImpl implements VirtualMapState {
         @Override
         @NonNull
         protected ReadableSingletonState<?> createReadableSingletonState(@NonNull final StateMetadata md) {
-            return new OnDiskReadableSingletonState<>(
+            return new VirtualMapReadableSingletonState<>(
                     extractStateId(md),
                     computeLabel(md.serviceName(), extractStateKey(md)),
                     extractValueCodec(md),
@@ -502,7 +502,7 @@ public class VirtualMapStateImpl implements VirtualMapState {
         @NonNull
         @Override
         protected ReadableQueueState createReadableQueueState(@NonNull StateMetadata md) {
-            return new OnDiskReadableQueueState(
+            return new VirtualMapReadableQueueState(
                     extractStateId(md),
                     computeLabel(md.serviceName(), extractStateKey(md)),
                     extractValueCodec(md),
@@ -567,7 +567,7 @@ public class VirtualMapStateImpl implements VirtualMapState {
         @Override
         @NonNull
         protected WritableKVState<?, ?> createReadableKVState(@NonNull final StateMetadata md) {
-            final var state = new OnDiskWritableKVState<>(
+            final var state = new VirtualMapWritableKVState<>(
                     extractStateId(md),
                     computeLabel(md.serviceName(), extractStateKey(md)),
                     extractKeyCodec(md),
@@ -584,7 +584,7 @@ public class VirtualMapStateImpl implements VirtualMapState {
         @Override
         @NonNull
         protected WritableSingletonState<?> createReadableSingletonState(@NonNull final StateMetadata md) {
-            final var state = new OnDiskWritableSingletonState<>(
+            final var state = new VirtualMapWritableSingletonState<>(
                     extractStateId(md),
                     computeLabel(md.serviceName(), extractStateKey(md)),
                     extractValueCodec(md),
@@ -600,7 +600,7 @@ public class VirtualMapStateImpl implements VirtualMapState {
         @NonNull
         @Override
         protected WritableQueueState<?> createReadableQueueState(@NonNull final StateMetadata md) {
-            final var state = new OnDiskWritableQueueState<>(
+            final var state = new VirtualMapWritableQueueState<>(
                     extractStateId(md),
                     computeLabel(md.serviceName(), extractStateKey(md)),
                     extractValueCodec(md),

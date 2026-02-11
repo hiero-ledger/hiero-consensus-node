@@ -7,10 +7,10 @@ import static com.swirlds.state.StateChangeListener.StateType.SINGLETON;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.state.MerkleProof;
-import com.swirlds.state.QueueState;
 import com.swirlds.state.State;
 import com.swirlds.state.StateChangeListener;
+import com.swirlds.state.binary.MerkleProof;
+import com.swirlds.state.binary.QueueState;
 import com.swirlds.state.lifecycle.StateMetadata;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.EmptyReadableStates;

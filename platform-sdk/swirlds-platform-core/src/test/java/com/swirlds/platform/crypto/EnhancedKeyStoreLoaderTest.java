@@ -176,6 +176,7 @@ class EnhancedKeyStoreLoaderTest {
         BootstrapUtils.setupConfigBuilder(builder, testDataDirectory.resolve("settings.txt"));
 
         builder.withValue("paths.keysDirPath", keyDirectory.toAbsolutePath().toString());
+        builder.withValue("crypto.keystorePassword", "password");
 
         return builder.build();
     }
