@@ -64,6 +64,7 @@ class CryptoTransferFeeCalculatorTest {
     @BeforeEach
     void setUp() {
         feeCalculator = new SimpleFeeCalculatorImpl(createTestFeeSchedule(), Set.of(new CryptoTransferFeeCalculator()));
+        when(feeContext.functionality()).thenReturn(HederaFunctionality.CRYPTO_TRANSFER);
     }
 
     @Nested
@@ -386,7 +387,7 @@ class CryptoTransferFeeCalculatorTest {
                 .extras(
                         makeExtraDef(Extra.SIGNATURES, 1000000L),
                         makeExtraDef(Extra.KEYS, 100000000L),
-                        makeExtraDef(Extra.BYTES, 110L),
+                        makeExtraDef(Extra.STATE_BYTES, 110L),
                         makeExtraDef(Extra.ACCOUNTS, 0L),
                         makeExtraDef(Extra.FUNGIBLE_TOKENS, FUNGIBLE_TOKEN_EXTRA_FEE),
                         makeExtraDef(Extra.NON_FUNGIBLE_TOKENS, 1000000L),

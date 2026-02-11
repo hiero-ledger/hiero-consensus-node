@@ -6,16 +6,19 @@ import static com.hedera.services.bdd.spec.transactions.HapiTxnOp.serializedSign
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertionsHold;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.getChargedUsedForInnerTxn;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithChild;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.crypto.CryptoTransferSuite.sdec;
-import static com.hedera.services.bdd.suites.fees.FileServiceSimpleFeesTest.SINGLE_BYTE_FEE;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.ACCOUNTS_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.AIRDROP_CANCEL_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.AIRDROP_CLAIM_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.ATOMIC_BATCH_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.BYTES_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.BATCH_BASE_FEE;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONS_CREATE_TOPIC_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONS_CREATE_TOPIC_INCLUDED_KEYS;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONS_CREATE_TOPIC_WITH_CUSTOM_FEE_USD;
@@ -23,6 +26,7 @@ import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleCon
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONS_SUBMIT_MESSAGE_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONS_SUBMIT_MESSAGE_INCLUDED_BYTES;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONS_SUBMIT_MESSAGE_INCLUDED_BYTES;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONS_UPDATE_TOPIC_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONS_UPDATE_TOPIC_INCLUDED_KEYS;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_APPROVE_ALLOWANCE_BASE_FEE_USD;
@@ -59,7 +63,10 @@ import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleCon
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NODE_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NODE_INCLUDED_SIGNATURES;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NON_FUNGIBLE_TOKENS_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.PROCESSING_BYTES_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SIGNATURE_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.STATE_BYTES_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SUBMIT_MESSAGE_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_ASSOCIATE_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_ASSOCIATE_EXTRA_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_ASSOCIATE_INCLUDED_TOKENS;
@@ -86,6 +93,7 @@ import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleCon
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_UPDATE_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_UPDATE_INCLUDED_KEYS;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_UPDATE_INCLUDED_NFT_COUNT;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_UPDATE_INCLUDED_NFTS;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_UPDATE_NFT_FEE;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_WIPE_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.UTIL_PRNG_BASE_FEE_USD;
@@ -94,6 +102,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
+import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.utilops.CustomSpecAssert;
 import com.hederahashgraph.api.proto.java.Transaction;
 
@@ -386,7 +395,7 @@ public class FeesChargingUtils {
 
     public static double nodeFeeFromBytesUsd(final int txnSize) {
         final var nodeBytesOverage = Math.max(0, txnSize - NODE_INCLUDED_BYTES);
-        return nodeBytesOverage * SINGLE_BYTE_FEE;
+        return nodeBytesOverage * PROCESSING_BYTES_FEE_USD;
     }
 
     /**
@@ -1142,14 +1151,33 @@ public class FeesChargingUtils {
         });
     }
 
+    /**
+     * Calculates the <em>bytes-dependent portion</em> of the node fee for a transaction.
+     *
+     * <p>This method retrieves the transaction bytes from the spec registry using the provided
+     * {@code txnName}, then computes only the byte-size component of the node fee as follows:</p>
+     * <ul>
+     *   <li>Node bytes overage = {@code max(0, txnSize - NODE_INCLUDED_BYTES)}</li>
+     *   <li>Bytes fee = {@code nodeBytesOverage × PROCESSING_BYTES_FEE_USD × (1 + NETWORK_MULTIPLIER)}</li>
+     * </ul>
+     *
+     * <p><strong>Note:</strong> This returns <em>only</em> the bytes-overage fee portion.
+     * The complete node fee includes additional fixed components not calculated here.
+     * The first {@code NODE_INCLUDED_BYTES} bytes incur no byte-based fee. Logs transaction
+     * details including size, overage bytes, and this bytes-dependent fee.</p>
+     *
+     * @param spec the HapiSpec containing the transaction registry
+     * @param opLog the logger for operation logging
+     * @param txnName the transaction name key in the registry
+     * @return the bytes-dependent portion of the node fee in USD
+     *         (0.0 if transaction fits within included bytes)
+     */
     public static double expectedFeeFromBytesFor(HapiSpec spec, Logger opLog, String txnName) {
-        // Get the transaction bytes from the registry
         final var txnBytes = spec.registry().getBytes(txnName);
         final var txnSize = txnBytes.length;
 
-        // Node fee BYTES extra: (txnBytes - 1024) * BYTES_FEE_USD * networkMultiplier
-        final var nodeBytesOverage = Math.max(0, txnSize - 1024);
-        double expectedFee = nodeBytesOverage * BYTES_FEE_USD * (1 + NETWORK_MULTIPLIER);
+        final var nodeBytesOverage = Math.max(0, txnSize - NODE_INCLUDED_BYTES);
+        double expectedFee = nodeBytesOverage * PROCESSING_BYTES_FEE_USD * (1 + NETWORK_MULTIPLIER);
 
         opLog.info(
                 "Transaction size: {} bytes, node bytes overage: {}, expected fee: {}",
@@ -2149,4 +2177,49 @@ public static double expectedTokenUnpauseFullFeeUsd(final Map<FeeParam, Object> 
                 intValue(extras, FeeParam.TXN_SIZE, 0));
     }
 
+     * Dual-mode fee validation that branches on {@code fees.simpleFeesEnabled} at runtime.
+     * When simple fees are enabled, validates against {@code simpleFee};
+     * otherwise validates against {@code legacyFee}.
+     */
+    public static SpecOperation validateFees(final String txn, final double legacyFee, final double simpleFee) {
+        return doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+            if ("true".equals(flag)) {
+                return validateChargedUsdWithin(txn, simpleFee, 0.01);
+            } else {
+                return validateChargedUsdWithin(txn, legacyFee, 0.01);
+            }
+        });
+    }
+
+    /**
+     * Dual-mode fee validation with child records that branches on {@code fees.simpleFeesEnabled} at runtime.
+     * When simple fees are enabled, validates against {@code simpleFee};
+     * otherwise validates against {@code legacyFee}.
+     * Uses {@code validateChargedUsdWithChild} which includes child dispatch fees.
+     */
+    public static SpecOperation validateFeesWithChild(
+            final String txn, final double legacyFee, final double simpleFee, final double tolerance) {
+        return doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+            if ("true".equals(flag)) {
+                return validateChargedUsdWithChild(txn, simpleFee, tolerance);
+            } else {
+                return validateChargedUsdWithChild(txn, legacyFee, tolerance);
+            }
+        });
+    }
+
+    /** SimpleFees formula for Atomic Batch:
+     * node = NODE_BASE + bytes over 1024
+     * network = node * NETWORK_MULTIPLIER
+     * service = BATCH_BASE_FEE
+     * total   = node + network + service
+     */
+    public static double expectedBatchFullFeeUsd(long extraBytes) {
+        return BATCH_BASE_FEE + extraBytes * PROCESSING_BYTES_FEE_USD * 10;
+    }
+
+    public static CustomSpecAssert validateBatchChargedCorrectly(String batchTxn) {
+        return withOpContext((spec, log) ->
+                validateChargedUsd(batchTxn, BATCH_BASE_FEE + expectedFeeFromBytesFor(spec, log, batchTxn)));
+    }
 }

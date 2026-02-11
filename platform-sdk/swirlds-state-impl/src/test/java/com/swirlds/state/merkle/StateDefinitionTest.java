@@ -20,45 +20,31 @@ class StateDefinitionTest {
     void stateKeyRequired() {
         assertThrows(
                 NullPointerException.class,
-                () -> new StateDefinition<>(1, null, mockCodec, mockCodec, 123, true, false, false));
+                () -> new StateDefinition<>(1, null, mockCodec, mockCodec, true, false, false));
     }
 
     @Test
     void valueCodecRequired() {
         assertThrows(
-                NullPointerException.class,
-                () -> new StateDefinition<>(1, "KEY", mockCodec, null, 123, true, false, false));
+                NullPointerException.class, () -> new StateDefinition<>(1, "KEY", mockCodec, null, true, false, false));
     }
 
     @Test
-    void singletonsCannotBeOnDisk() {
+    void singletonsCannotBeKeyValue() {
         assertThrows(
                 IllegalArgumentException.class,
-                () -> new StateDefinition<>(1, "KEY", mockCodec, mockCodec, 123, true, true, false));
-    }
-
-    @Test
-    void onDiskMustHintPositiveNumKeys() {
-        assertThrows(
-                IllegalArgumentException.class,
-                () -> new StateDefinition<>(1, "KEY", mockCodec, mockCodec, 0, true, false, false));
+                () -> new StateDefinition<>(1, "KEY", mockCodec, mockCodec, true, true, false));
     }
 
     @Test
     void nonSingletonRequiresKeyCodec() {
         assertThrows(
-                NullPointerException.class,
-                () -> new StateDefinition<>(1, "KEY", null, mockCodec, 1, true, false, false));
+                NullPointerException.class, () -> new StateDefinition<>(1, "KEY", null, mockCodec, true, false, false));
     }
 
     @Test
-    void inMemoryFactoryWorks() {
-        assertDoesNotThrow(() -> StateDefinition.inMemory(1, "KEY", mockCodec, mockCodec));
-    }
-
-    @Test
-    void onDiskFactoryWorks() {
-        assertDoesNotThrow(() -> StateDefinition.onDisk(1, "KEY", mockCodec, mockCodec, 123));
+    void keyValueFactoryWorks() {
+        assertDoesNotThrow(() -> StateDefinition.keyValue(1, "KEY", mockCodec, mockCodec));
     }
 
     @Test
@@ -68,6 +54,6 @@ class StateDefinitionTest {
 
     @Test
     void constructorWorks() {
-        assertDoesNotThrow(() -> new StateDefinition<>(1, "KEY", mockCodec, mockCodec, 123, true, false, false));
+        assertDoesNotThrow(() -> new StateDefinition<>(1, "KEY", mockCodec, mockCodec, true, false, false));
     }
 }

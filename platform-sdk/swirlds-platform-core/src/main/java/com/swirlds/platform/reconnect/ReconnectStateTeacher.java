@@ -14,10 +14,7 @@ import com.swirlds.common.merkle.synchronization.views.TeacherTreeView;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.logging.legacy.payload.ReconnectFinishPayload;
 import com.swirlds.logging.legacy.payload.ReconnectStartPayload;
-import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.metrics.ReconnectMetrics;
-import com.swirlds.platform.state.signed.SigSet;
-import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.state.merkle.VirtualMapState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -34,6 +31,9 @@ import org.hiero.consensus.gossip.impl.network.Connection;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.reconnect.config.ReconnectConfig;
 import org.hiero.consensus.roster.RosterUtils;
+import org.hiero.consensus.state.config.StateConfig;
+import org.hiero.consensus.state.signed.SigSet;
+import org.hiero.consensus.state.signed.SignedState;
 
 /**
  * This class encapsulates logic for transmitting the up-to-date state to a peer that has an out-of-date state.
@@ -76,7 +76,7 @@ public class ReconnectStateTeacher {
      * @param selfId this node's ID
      * @param otherId the learner's ID
      * @param lastRoundReceived the round of the state
-     * @param signedState the state used for teaching; must be a signed VirtualMapState
+     * @param signedState the state used for teaching; must be a signed VirtualMapStateImpl
      * @param statistics reconnect metrics
      */
     public ReconnectStateTeacher(
@@ -105,10 +105,8 @@ public class ReconnectStateTeacher {
         signatures = signedState.getSigSet();
         signingWeight = signedState.getSigningWeight();
         roster = signedState.getRoster();
-        hash = signedState.getState().getHash();
-        if (!(signedState.getState() instanceof VirtualMapState virtualMapState)) {
-            throw new UnsupportedOperationException("Reconnects are only supported for VirtualMap states");
-        }
+        final VirtualMapState virtualMapState = signedState.getState();
+        hash = virtualMapState.getHash();
         final ReconnectConfig reconnectConfig = configuration.getConfigData(ReconnectConfig.class);
         // The teacher view will be closed by TeacherSynchronizer in reconnect() below
         teacherView = virtualMapState.getRoot().buildTeacherView(reconnectConfig);

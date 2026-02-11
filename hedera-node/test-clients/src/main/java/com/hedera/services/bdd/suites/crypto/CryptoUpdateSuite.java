@@ -33,7 +33,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingTwo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.submitModified;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.mod.ModificationUtils.withSuccessivelyVariedBodyIds;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
@@ -42,6 +41,8 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
 import static com.hedera.services.bdd.suites.HapiSuite.ZERO_BYTE_MEMO;
 import static com.hedera.services.bdd.suites.contract.hapi.ContractUpdateSuite.ADMIN_KEY;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateFees;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_UPDATE_FEE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_DELETED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.EXISTING_AUTOMATIC_ASSOCIATIONS_EXCEED_GIVEN_LIMIT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ADMIN_KEY;
@@ -204,7 +205,6 @@ public class CryptoUpdateSuite {
         final var plusFiveKAndOneTxn = "plusFiveKAndOneTxn";
         final var invalidNegativeTxn = "invalidNegativeTxn";
         final var validNegativeTxn = "validNegativeTxn";
-        final var allowedPercentDiff = 1.5;
 
         AtomicLong expiration = new AtomicLong();
         return hapiTest(
@@ -273,14 +273,12 @@ public class CryptoUpdateSuite {
                         .blankMemo()
                         .maxAutomaticAssociations(-1)
                         .via(validNegativeTxn),
-                getAccountInfo("autoAssocTarget")
-                        .hasMaxAutomaticAssociations(-1)
-                        .logged(),
-                validateChargedUsd(baseTxn, baseFeeWithExpiry, allowedPercentDiff),
-                validateChargedUsd(plusOneTxn, baseFee, allowedPercentDiff),
-                validateChargedUsd(plusTenTxn, baseFee, allowedPercentDiff),
-                validateChargedUsd(plusFiveKTxn, baseFee, allowedPercentDiff),
-                validateChargedUsd(validNegativeTxn, baseFee, allowedPercentDiff));
+                getAccountInfo("autoAssocTarget").hasMaxAutomaticAssociations(-1),
+                validateFees(baseTxn, baseFeeWithExpiry, CRYPTO_UPDATE_FEE),
+                validateFees(plusOneTxn, baseFee, CRYPTO_UPDATE_FEE),
+                validateFees(plusTenTxn, baseFee, CRYPTO_UPDATE_FEE),
+                validateFees(plusFiveKTxn, baseFee, CRYPTO_UPDATE_FEE),
+                validateFees(validNegativeTxn, baseFee, CRYPTO_UPDATE_FEE));
     }
 
     @HapiTest

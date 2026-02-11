@@ -176,7 +176,6 @@ public class TopicCreateSuite {
     // TOPIC_RENEW_5
     @HapiTest
     final Stream<DynamicTest> autoRenewAccountIdDoesNotNeedAdminKeyAutoRenewIsAlsoPayer_ECDSA() {
-        final var expectedPriceUsd = 0.0103;
         return hapiTest(
                 newKeyNamed("autoRenewAccountKey").shape(KeyShape.SECP256K1),
                 cryptoCreate("autoRenewAccount").key("autoRenewAccountKey").balance(ONE_HBAR),
@@ -204,7 +203,6 @@ public class TopicCreateSuite {
     // TOPIC_RENEW_6 - Public topic
     @HapiTest
     final Stream<DynamicTest> autoRenewAccountIdDoesNotNeedAdminKeyAutoRenewIsAlsoPayer() {
-        final var expectedPriceUsd = 0.0103;
         return hapiTest(
                 cryptoCreate("autoRenewAccount").balance(ONE_HBAR),
                 createTopic("noAdminKeyExplicitAutoRenewAccount")
@@ -231,7 +229,6 @@ public class TopicCreateSuite {
     // TOPIC_RENEW_6 - Private topic
     @HapiTest
     final Stream<DynamicTest> autoRenewAccountIdDoesNotNeedAdminKeyAutoRenewIsAlsoPayerPrivateTopic() {
-        final var expectedPriceUsd = 0.0105;
         return hapiTest(
                 newKeyNamed("submitKey"),
                 cryptoCreate("autoRenewAccount").balance(ONE_HBAR),

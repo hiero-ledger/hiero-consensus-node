@@ -5,7 +5,6 @@ import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_FILES
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_LEDGER_ID;
 import static com.hedera.hapi.node.base.HederaFunctionality.HINTS_PARTIAL_SIGNATURE;
 import static com.hedera.hapi.node.base.HederaFunctionality.LEDGER_ID_PUBLICATION;
-import static com.hedera.hapi.node.state.history.WrapsPhase.R1;
 import static com.hedera.hapi.util.HapiUtils.asInstant;
 import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
 import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
@@ -67,11 +66,10 @@ import com.hedera.services.bdd.junit.support.translators.inputs.TransactionParts
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.utility.Mnemonics;
-import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.lifecycle.Service;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.WritableSingletonState;
-import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -80,7 +78,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -101,7 +98,7 @@ import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.junit.jupiter.api.Assertions;
 
 /**
- * A validator that asserts the state changes in the block stream, when applied directly to a {@link MerkleNodeState}
+ * A validator that asserts the state changes in the block stream, when applied directly to a {@link VirtualMapState}
  * initialized with the genesis {@link Service} schemas, result in the given root hash.
  */
 public class StateChangesValidator implements BlockStreamValidator {
@@ -130,7 +127,7 @@ public class StateChangesValidator implements BlockStreamValidator {
 
     private Instant lastStateChangesTime;
     private StateChanges lastStateChanges;
-    private MerkleNodeState<VirtualMap> state;
+    private VirtualMapState state;
 
     @Nullable
     private Bytes ledgerIdFromState;
@@ -294,7 +291,7 @@ public class StateChangesValidator implements BlockStreamValidator {
         final var hedera = ServicesMain.newHedera(platformConfig, metrics, Time.getCurrent());
         this.state = hedera.newStateRoot();
         final var emptyState = state;
-        final var emptyStateHash = emptyState.getRoot().getHash();
+        final var emptyStateHash = emptyState.getHash();
         state = state.copy();
         hedera.initializeStatesApi(state, GENESIS, platformConfig);
         final var stateToBeCopied = state;
@@ -400,20 +397,19 @@ public class StateChangesValidator implements BlockStreamValidator {
                         }
                     } else if (parts.function() == LEDGER_ID_PUBLICATION) {
                         ledgerIdPublication = parts.body().ledgerIdPublicationOrThrow();
-                        final SortedMap<Long, Bytes> nodeIdsToKeys = new TreeMap<>();
-                        for (final var contribution : ledgerIdPublication.nodeContributions()) {
-                            nodeIdsToKeys.put(contribution.nodeId(), contribution.historyProofKey());
+                        final int k = ledgerIdPublication.nodeContributions().size();
+                        final long[] nodeIds = new long[k];
+                        final long[] weights = new long[k];
+                        final byte[][] publicKeys = new byte[k][];
+                        for (int j = 0; j < k; j++) {
+                            final var contribution =
+                                    ledgerIdPublication.nodeContributions().get(j);
+                            nodeIds[j] = contribution.nodeId();
+                            weights[j] = contribution.weight();
+                            publicKeys[j] = contribution.historyProofKey().toByteArray();
                         }
-                        final var r1Keys = new ArrayList<Bytes>();
-                        nodeIdsToKeys.keySet().forEach(nodeId -> {
-                            final var messages = wrapsMessages.get(nodeId);
-                            if (messages != null && messages.stream().anyMatch(details -> details.phase() == R1)) {
-                                r1Keys.add(nodeIdsToKeys.get(nodeId));
-                            }
-                        });
-                        // Eager-set the relevant public keys for later verification
-                        TSS.setSchnorrPublicKeys(
-                                r1Keys.stream().map(Bytes::toByteArray).toArray(byte[][]::new));
+                        // Set the relevant public keys for later verification
+                        TSS.setAddressBook(publicKeys, weights, nodeIds);
                     }
                 }
             }

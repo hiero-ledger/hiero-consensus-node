@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.state;
 
-import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
 import static com.swirlds.platform.test.fixtures.state.manager.SignatureVerificationTestUtils.buildFakeSignature;
 import static com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils.createTestState;
 import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomHash;
@@ -21,10 +20,8 @@ import com.swirlds.common.Reservable;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
-import com.swirlds.platform.config.StateConfig;
-import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.test.fixtures.state.manager.SignatureVerificationTestUtils;
-import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.lang.reflect.Field;
@@ -51,6 +48,9 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterStateUtils;
 import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
+import org.hiero.consensus.state.config.StateConfig;
+import org.hiero.consensus.state.signed.SignedState;
+import org.hiero.consensus.state.signed.StateGarbageCollector;
 import org.hiero.consensus.test.fixtures.WeightGenerators;
 
 /**
@@ -69,7 +69,7 @@ public class RandomSignedStateGenerator {
 
     final Random random;
 
-    private MerkleNodeState state;
+    private VirtualMapState state;
     private Long round;
     private Hash legacyRunningEventHash;
     private Roster roster;
@@ -129,7 +129,7 @@ public class RandomSignedStateGenerator {
             softwareVersionInstance = softwareVersion;
         }
 
-        final MerkleNodeState<VirtualMap> stateInstance;
+        final VirtualMapState stateInstance;
         final long roundInstance;
         if (round == null) {
             roundInstance = Math.abs(random.nextLong());
@@ -198,7 +198,7 @@ public class RandomSignedStateGenerator {
             v.setConsensusTimestamp(consensusTimestampInstance);
         });
 
-        TestingAppStateInitializer.initRosterState(stateInstance, CONFIGURATION);
+        TestingAppStateInitializer.initRosterState(stateInstance);
         RosterStateUtils.setActiveRoster(stateInstance, rosterInstance, roundInstance);
 
         if (signatureVerifier == null) {
@@ -272,7 +272,7 @@ public class RandomSignedStateGenerator {
 
     /**
      * Set if this state should be deleted on a background thread.
-     * ({@link com.swirlds.platform.state.signed.StateGarbageCollector} must be wired up in order for this to happen)
+     * ({@link StateGarbageCollector} must be wired up in order for this to happen)
      *
      * @param deleteOnBackgroundThread if true, delete on a background thread
      * @return this object
@@ -288,7 +288,7 @@ public class RandomSignedStateGenerator {
      *
      * @return this object
      */
-    public RandomSignedStateGenerator setState(final MerkleNodeState state) {
+    public RandomSignedStateGenerator setState(final VirtualMapState state) {
         this.state = state;
         return this;
     }

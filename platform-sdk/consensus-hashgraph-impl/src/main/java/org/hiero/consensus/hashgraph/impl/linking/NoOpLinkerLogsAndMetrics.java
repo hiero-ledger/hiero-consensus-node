@@ -43,4 +43,10 @@ public class NoOpLinkerLogsAndMetrics implements LinkerLogsAndMetrics {
             @NonNull final EventImpl candidateParent,
             @NonNull final Instant parentTimeCreated,
             @NonNull final Instant childTimeCreated) {}
+
+    @Override
+    public void eventLinked() {}
+
+    @Override
+    public void eventUnlinked() {}
 }

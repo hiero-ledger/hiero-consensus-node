@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.builder;
 
+import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.node.state.roster.RoundRosterPair;
@@ -10,25 +12,38 @@ import com.swirlds.common.io.utility.SimpleRecycleBin;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
+import com.swirlds.state.StateLifecycleManager;
+import com.swirlds.state.merkle.StateLifecycleManagerImpl;
+import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.state.merkle.VirtualMapStateImpl;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.security.GeneralSecurityException;
 import java.security.SecureRandom;
 import java.util.List;
 import java.util.Map;
 import java.util.ServiceLoader;
+import java.util.function.Supplier;
+import org.hiero.base.concurrent.BlockingResourceProvider;
+import org.hiero.consensus.crypto.KeyGeneratingException;
 import org.hiero.consensus.crypto.KeysAndCertsGenerator;
 import org.hiero.consensus.crypto.SigningSchema;
 import org.hiero.consensus.event.IntakeEventCounter;
+import org.hiero.consensus.event.NoOpIntakeEventCounter;
 import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.event.intake.EventIntakeModule;
-import org.hiero.consensus.gossip.impl.gossip.NoOpIntakeEventCounter;
+import org.hiero.consensus.gossip.GossipModule;
+import org.hiero.consensus.gossip.ReservedSignedStateResult;
 import org.hiero.consensus.hashgraph.HashgraphModule;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.roster.RosterHistory;
+import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.transaction.TransactionLimits;
 
 /**
@@ -190,5 +205,67 @@ public class ConsensusModuleBuilder {
         hashgraphModule.initialize(
                 model, configuration, metrics, time, roster, selfId, instant -> false, eventPipelineTracker);
         return hashgraphModule;
+    }
+
+    /**
+     * Create an instance of the {@link GossipModule} using {@link ServiceLoader}.
+     *
+     * @return an instance of {@code GossipModule}
+     * @throws IllegalStateException if no implementation is found
+     */
+    public static GossipModule createGossipModule() {
+        return ServiceLoader.load(GossipModule.class)
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("No GossipModule implementation found!"));
+    }
+
+    /**
+     * Create and initialize a no-op instance of the {@link GossipModule}.
+     *
+     * @param model the wiring model
+     * @param configuration the configuration
+     * @return an initialized no-op instance of {@code GossipModule}
+     */
+    @NonNull
+    public static GossipModule createNoOpGossipModule(
+            @NonNull final WiringModel model, @NonNull final Configuration configuration) {
+        final Metrics metrics = new NoOpMetrics();
+        final Time time = Time.getCurrent();
+        final NodeId selfId = NodeId.FIRST_NODE_ID;
+        final KeysAndCerts keysAndCerts;
+        final Bytes certificate;
+        try {
+            keysAndCerts = KeysAndCertsGenerator.generate(selfId);
+            certificate = Bytes.wrap(keysAndCerts.sigCert().getEncoded());
+        } catch (final GeneralSecurityException | KeyGeneratingException e) {
+            // These exceptions should not occur since we are using default values
+            throw new RuntimeException(e);
+        }
+        final RosterEntry rosterEntry = new RosterEntry(selfId.id(), 0L, certificate, List.of(ServiceEndpoint.DEFAULT));
+        final Roster roster = new Roster(List.of(rosterEntry));
+        final SemanticVersion appVersion = SemanticVersion.DEFAULT;
+        final IntakeEventCounter intakeEventCounter = new NoOpIntakeEventCounter();
+        final Supplier<ReservedSignedState> latestCompleteStateSupplier = ReservedSignedState::createNullReservation;
+        final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise =
+                new BlockingResourceProvider<>();
+        final FallenBehindMonitor fallenBehindMonitor = new FallenBehindMonitor(roster, configuration, metrics);
+        final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =
+                new StateLifecycleManagerImpl(metrics, time, vm -> new VirtualMapStateImpl(vm, metrics), configuration);
+        final GossipModule gossipModule = createGossipModule();
+        gossipModule.initialize(
+                model,
+                configuration,
+                metrics,
+                time,
+                keysAndCerts,
+                roster,
+                selfId,
+                appVersion,
+                intakeEventCounter,
+                latestCompleteStateSupplier,
+                reservedSignedStateResultPromise,
+                fallenBehindMonitor,
+                stateLifecycleManager);
+        return gossipModule;
     }
 }

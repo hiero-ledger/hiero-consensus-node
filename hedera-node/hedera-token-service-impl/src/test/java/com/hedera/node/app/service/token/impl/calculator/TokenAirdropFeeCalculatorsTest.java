@@ -61,6 +61,7 @@ class TokenAirdropFeeCalculatorsTest {
                         new TokenAirdropFeeCalculator(),
                         new TokenClaimAirdropFeeCalculator(),
                         new TokenCancelAirdropFeeCalculator()));
+        when(feeContext.functionality()).thenReturn(HederaFunctionality.TOKEN_AIRDROP);
     }
 
     @Test

@@ -7,13 +7,13 @@ import static org.hiero.consensus.platformstate.PlatformStateUtils.getInfoString
 import static org.hiero.consensus.platformstate.PlatformStateUtils.roundOf;
 
 import com.hedera.hapi.node.state.roster.Roster;
-import com.swirlds.platform.state.signed.SignedState;
-import com.swirlds.platform.state.signed.SignedStateInvalidException;
 import com.swirlds.platform.state.signed.SignedStateValidationData;
 import com.swirlds.platform.state.signed.SignedStateValidator;
 import com.swirlds.state.State;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.state.signed.SignedState;
+import org.hiero.consensus.state.signed.SignedStateInvalidException;
 
 /**
  * Validates a signed state by summing the amount of weight held by the valid signatures on the state.

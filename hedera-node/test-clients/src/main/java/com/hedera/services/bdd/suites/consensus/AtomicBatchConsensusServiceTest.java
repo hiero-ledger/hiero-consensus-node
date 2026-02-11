@@ -127,7 +127,6 @@ class AtomicBatchConsensusServiceTest {
 
     @HapiTest
     Stream<DynamicTest> topicSubmitMessageWithSubmitKeyInvalidAndValidSignatureInBatch() {
-        final double BASE_FEE_BATCH_TRANSACTION = 0.001;
 
         // Define a threshold submit key that requires two simple keys signatures
         KeyShape submitKeyShape = threshOf(2, SIMPLE, SIMPLE, listOf(2));
@@ -171,7 +170,6 @@ class AtomicBatchConsensusServiceTest {
 
     @HapiTest
     Stream<DynamicTest> topicSubmitMessageWithSubmitKeyValidAndInvalidSignatureInBatch() {
-        final double BASE_FEE_BATCH_TRANSACTION = 0.001;
 
         // Define a threshold submit key that requires two simple keys signatures
         KeyShape submitKeyShape = threshOf(2, SIMPLE, SIMPLE, listOf(2));
@@ -215,7 +213,6 @@ class AtomicBatchConsensusServiceTest {
 
     @HapiTest
     Stream<DynamicTest> topicSubmitMessageWithSubmitKeyAllInvalidSignaturesInBatch() {
-        final double BASE_FEE_BATCH_TRANSACTION = 0.001;
 
         // Define a threshold submit key that requires two simple keys signatures
         KeyShape submitKeyShape = threshOf(2, SIMPLE, SIMPLE, listOf(2));
@@ -501,7 +498,6 @@ class AtomicBatchConsensusServiceTest {
 
     @HapiTest
     final Stream<DynamicTest> createTopicWithAdminKeyAndAutorenewAccountNotSignedByPayerFailsInBatch() {
-        final double BASE_FEE_BATCH_TRANSACTION = 0.001;
         long PAYER_BALANCE = 1_999_999_999L;
 
         return hapiTest(
