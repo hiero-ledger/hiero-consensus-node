@@ -581,7 +581,10 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
     void preHandleWorksWhenAdminKeyValid() throws PreCheckException {
         mockAccountLookup(anotherKey, payerId, accountStore);
         txn = new NodeCreateBuilder().withAdminKey(key).build(payerId);
-        final var context = new FakePreHandleContext(accountStore, txn);
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("nodes.enableDAB", true)
+                .getOrCreateConfig();
+        final var context = new FakePreHandleContext(accountStore, txn, config);
         subject.preHandle(context);
         assertThat(txn).isEqualTo(context.body());
         assertThat(context.payerKey()).isEqualTo(anotherKey);
@@ -592,7 +595,10 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
     void preHandleFailedWhenAdminKeyInValid() throws PreCheckException {
         mockAccountLookup(anotherKey, payerId, accountStore);
         txn = new NodeCreateBuilder().withAdminKey(invalidKey).build(payerId);
-        final var context = new FakePreHandleContext(accountStore, txn);
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("nodes.enableDAB", true)
+                .getOrCreateConfig();
+        final var context = new FakePreHandleContext(accountStore, txn, config);
         assertThrowsPreCheck(() -> subject.preHandle(context), INVALID_ADMIN_KEY);
         assertThat(context.payerKey()).isEqualTo(anotherKey);
         assertThat(context.requiredNonPayerKeys()).isEmpty();
