@@ -581,10 +581,7 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
     void preHandleWorksWhenAdminKeyValid() throws PreCheckException {
         mockAccountLookup(anotherKey, payerId, accountStore);
         txn = new NodeCreateBuilder().withAdminKey(key).build(payerId);
-        final var config = HederaTestConfigBuilder.create()
-                .withValue("nodes.enableDAB", true)
-                .getOrCreateConfig();
-        final var context = new FakePreHandleContext(accountStore, txn, config);
+        final var context = new FakePreHandleContext(accountStore, txn);
         subject.preHandle(context);
         assertThat(txn).isEqualTo(context.body());
         assertThat(context.payerKey()).isEqualTo(anotherKey);
@@ -595,10 +592,7 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
     void preHandleFailedWhenAdminKeyInValid() throws PreCheckException {
         mockAccountLookup(anotherKey, payerId, accountStore);
         txn = new NodeCreateBuilder().withAdminKey(invalidKey).build(payerId);
-        final var config = HederaTestConfigBuilder.create()
-                .withValue("nodes.enableDAB", true)
-                .getOrCreateConfig();
-        final var context = new FakePreHandleContext(accountStore, txn, config);
+        final var context = new FakePreHandleContext(accountStore, txn);
         assertThrowsPreCheck(() -> subject.preHandle(context), INVALID_ADMIN_KEY);
         assertThat(context.payerKey()).isEqualTo(anotherKey);
         assertThat(context.requiredNonPayerKeys()).isEmpty();
@@ -612,6 +606,12 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
         final var feeCalc = mock(FeeCalculator.class);
         given(feeCtx.feeCalculatorFactory()).willReturn(feeCalcFact);
         given(feeCalcFact.feeCalculator(any())).willReturn(feeCalc);
+
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("nodes.enableDAB", true)
+                .getOrCreateConfig();
+        given(feeCtx.configuration()).willReturn(config);
+
         given(feeCalc.addVerificationsPerTransaction(anyLong())).willReturn(feeCalc);
         given(feeCalc.calculate()).willReturn(new Fees(1, 0, 0));
 

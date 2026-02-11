@@ -23,6 +23,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.SYSTEM_ADMIN;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NODE_DELETE_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip869.NodeCreateTest.generateX509Certificates;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_NODE_ID;
@@ -88,7 +89,7 @@ public class NodeDeleteTest {
                         .via("failedDeletion"),
                 getTxnRecord("failedDeletion").logged(),
                 // The fee is charged here because the payer is not privileged
-                safeValidateChargedUsdWithin("failedDeletion", 0.001, 1.0, 0.001, 1.0),
+                safeValidateChargedUsdWithin("failedDeletion", 0.001, 1.0, NODE_DELETE_BASE_FEE_USD, 1.0),
 
                 // Submit with several signatures and the price should increase
                 nodeDelete("node100")
@@ -98,7 +99,7 @@ public class NodeDeleteTest {
                         .sigMapPrefixes(uniqueWithFullPrefixesFor("payer", "randomAccount", "testKey"))
                         .hasKnownStatus(INVALID_SIGNATURE)
                         .via("multipleSigsDeletion"),
-                safeValidateChargedUsdWithin("multipleSigsDeletion", 0.0011276316, 1.0, 0.001, 1.0),
+                safeValidateChargedUsdWithin("multipleSigsDeletion", 0.0011276316, 1.0, NODE_DELETE_BASE_FEE_USD, 1.0),
                 nodeDelete("node100").via("deleteNode"),
                 getTxnRecord("deleteNode").logged(),
                 // The fee is not charged here because the payer is privileged

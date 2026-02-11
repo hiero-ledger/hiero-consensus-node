@@ -549,6 +549,11 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
         final var feeCalc = mock(FeeCalculator.class);
         given(feeCtx.feeCalculatorFactory()).willReturn(feeCalcFact);
         given(feeCalcFact.feeCalculator(any())).willReturn(feeCalc);
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("nodes.enableDAB", true)
+                .getOrCreateConfig();
+        given(feeCtx.configuration()).willReturn(config);
+
         given(feeCalc.addVerificationsPerTransaction(anyLong())).willReturn(feeCalc);
         given(feeCalc.calculate()).willReturn(new Fees(1, 0, 0));
 
@@ -723,6 +728,10 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
         FeeCalculator feeCalc = mock(FeeCalculator.class);
         given(feeCtx.feeCalculatorFactory()).willReturn(feeCalcFact);
         given(feeCalcFact.feeCalculator(any())).willReturn(feeCalc);
+        given(feeCtx.configuration())
+                .willReturn(HederaTestConfigBuilder.create()
+                        .withValue("nodes.enableDAB", true)
+                        .getOrCreateConfig());
         given(feeCtx.numTxnSignatures()).willReturn(3);
         given(feeCalc.addVerificationsPerTransaction(2L)).willReturn(feeCalc);
         given(feeCalc.calculate()).willReturn(new Fees(3, 0, 0));
