@@ -1,0 +1,66 @@
+{
+  "buckets": [
+    {
+      "name": "CreationLimits",
+      "burstPeriod": 15,
+      "throttleGroups": [
+        {
+          "opsPerSec": 100,
+          "operations": [ "CryptoCreate" ]
+        }
+      ]
+    },
+    {
+      "name": "HVConsensusCreateTopicThrottles",
+      "burstPeriod": 1,
+      "highVolume": true,
+      "throttleGroups": [
+        {
+          "opsPerSec": 800,
+          "operations": [ "ConsensusCreateTopic" ]
+        }
+      ]
+    },
+    {
+      "name": "HVScheduleCreateThrottles",
+      "burstPeriod": 1,
+      "highVolume": true,
+      "throttleGroups": [
+        {
+          "opsPerSec": 1300,
+          "operations": [ "ScheduleCreate" ]
+        }
+      ]
+    },
+    {
+      "name": "HVTotalThrottles",
+      "burstPeriod": 1,
+      "highVolume": true,
+      "throttleGroups": [
+        {
+          "opsPerSec": 2000,
+          "operations": [
+            "ConsensusCreateTopic",
+            "ScheduleCreate"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "MiscQueryLimits",
+      "burstPeriod": 1,
+      "throttleGroups": [
+        {
+          "opsPerSec": 100000,
+          "operations": [
+            "TransactionGetReceipt",
+            "TransactionGetRecord",
+            "FileGetInfo",
+            "FileGetContents",
+            "TokenGetInfo"
+          ]
+        }
+      ]
+    }
+  ]
+}

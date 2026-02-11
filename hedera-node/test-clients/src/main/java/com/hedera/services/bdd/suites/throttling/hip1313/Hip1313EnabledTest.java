@@ -19,7 +19,6 @@ import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleCon
 import static com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItemsAssertion.ALL_TX_IDS;
 import static com.hedera.services.bdd.suites.HapiSuite.CIVILIAN_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
-import static com.hedera.services.bdd.suites.hip423.ScheduleLongTermSignTest.THIRTY_MINUTES;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
 import static org.hiero.hapi.fees.HighVolumePricingCalculator.MULTIPLIER_SCALE;
@@ -175,10 +174,10 @@ public class Hip1313EnabledTest {
                                         .withHighVolume(),
                                 scheduleCreate("mixedHvSchedule" + i, cryptoCreate("mixedHvScheduledAccount" + i))
                                         .payingWith(CIVILIAN_PAYER)
-                                        .waitForExpiry()
-                                        .expiringIn(THIRTY_MINUTES)
+                                        .expiringIn(7_200L + (i * 1_000L))
                                         .deferStatusResolution()
-                                        .withHighVolume());
+                                        .withHighVolume()
+                        );
                     }
                 }),
                 doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted),
