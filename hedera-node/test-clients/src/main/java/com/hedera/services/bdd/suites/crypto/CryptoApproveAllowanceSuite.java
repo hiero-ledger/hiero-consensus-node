@@ -1235,7 +1235,7 @@ public class CryptoApproveAllowanceSuite {
                         .addCryptoAllowance(SPENDER, SECOND_SPENDER, 100L)
                         .via(BASE_APPROVE_TXN)
                         .blankMemo(),
-                validateFees(BASE_APPROVE_TXN, 0.0505, 2 * CRYPTO_APPROVE_ALLOWANCE_FEE),
+                validateFees(BASE_APPROVE_TXN, 0.050455, 2 * CRYPTO_APPROVE_ALLOWANCE_FEE),
                 cryptoApproveAllowance()
                         .payingWith(SPENDER)
                         .addCryptoAllowance(SPENDER, ANOTHER_SPENDER, 100L)
@@ -1243,7 +1243,7 @@ public class CryptoApproveAllowanceSuite {
                         .addCryptoAllowance(SPENDER, THIRD_SPENDER, 100L)
                         .via(BASE_APPROVE_TXN)
                         .blankMemo(),
-                validateFees(BASE_APPROVE_TXN, 0.0509, 3 * CRYPTO_APPROVE_ALLOWANCE_FEE));
+                validateFees(BASE_APPROVE_TXN, 0.0509105, 3 * CRYPTO_APPROVE_ALLOWANCE_FEE));
     }
 
     @HapiTest

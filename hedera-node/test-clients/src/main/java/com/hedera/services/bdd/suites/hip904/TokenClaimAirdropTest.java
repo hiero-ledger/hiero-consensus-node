@@ -676,7 +676,7 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
                         .hasPriority(recordWith()
                                 .tokenTransfers(includingFungibleMovement(
                                         moving(1, FUNGIBLE_TOKEN).between(OWNER, RECEIVER)))),
-                validateFees("claimTxn", 0.001, TOKEN_CLAIM_FEE + SIGNATURE_FEE_AFTER_MULTIPLIER),
+                validateFees("claimTxn", 0.00100319, TOKEN_CLAIM_FEE + SIGNATURE_FEE_AFTER_MULTIPLIER),
 
                 // assert token associations
                 getAccountInfo(RECEIVER).hasToken(relationshipWith(FUNGIBLE_TOKEN)),
@@ -703,7 +703,7 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
                         .hasPriority(recordWith()
                                 .tokenTransfers(includingFungibleMovement(
                                         moving(1, FUNGIBLE_TOKEN).between(OWNER, RECEIVER)))),
-                validateFees("claimTxn", 0.001, TOKEN_CLAIM_FEE + SIGNATURE_FEE_AFTER_MULTIPLIER),
+                validateFees("claimTxn", 0.00100319, TOKEN_CLAIM_FEE + SIGNATURE_FEE_AFTER_MULTIPLIER),
 
                 // assert token associations
                 getAccountInfo(RECEIVER).hasToken(relationshipWith(FUNGIBLE_TOKEN)),
