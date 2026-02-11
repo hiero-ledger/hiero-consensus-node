@@ -26,19 +26,16 @@ import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleCon
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_CREATE_INCLUDED_KEYS;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_TRANSFER_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_TRANSFER_INCLUDED_ACCOUNTS;
-import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_TRANSFER_INCLUDED_FUNGIBLE_TOKENS;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_TRANSFER_INCLUDED_GAS;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_TRANSFER_INCLUDED_HOOK_EXECUTION;
-import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_TRANSFER_INCLUDED_NON_FUNGIBLE_TOKENS;
-import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.FUNGIBLE_TOKENS_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.GAS_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.HOOK_EXECUTION_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.HOOK_UPDATES_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.INCLUDED_TOKEN_TYPES;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.KEYS_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NETWORK_MULTIPLIER;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NODE_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NODE_INCLUDED_SIGNATURES;
-import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NON_FUNGIBLE_TOKENS_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.PROCESSING_BYTES_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SIGNATURE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.STATE_BYTES_FEE_USD;
@@ -61,6 +58,7 @@ import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleCon
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_REVOKE_KYC_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_TRANSFER_BASE_CUSTOM_FEES_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_TRANSFER_BASE_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_TYPES_FEE;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_UNFREEZE_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_UNPAUSE_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_UPDATE_BASE_FEE_USD;
@@ -295,8 +293,7 @@ public class FeesChargingUtils {
             long sigs,
             long uniqueHooksExecuted,
             long uniqueAccounts,
-            long uniqueFungibleTokens,
-            long uniqueNonFungibleTokens,
+            long tokenTypes,
             long gasAmount,
             boolean includesHbarBaseFee,
             boolean includesTokenTransferBase,
@@ -324,316 +321,121 @@ public class FeesChargingUtils {
         final double hooksExtrasFee =
                 extra(uniqueHooksExecuted, CRYPTO_TRANSFER_INCLUDED_HOOK_EXECUTION, HOOK_EXECUTION_FEE_USD);
         final double accountsExtrasFee = extra(uniqueAccounts, CRYPTO_TRANSFER_INCLUDED_ACCOUNTS, ACCOUNTS_FEE_USD);
-        final double uniqueFungibleTokensExtrasFee =
-                extra(uniqueFungibleTokens, CRYPTO_TRANSFER_INCLUDED_FUNGIBLE_TOKENS, FUNGIBLE_TOKENS_FEE_USD);
-        final double uniqueNonFungibleTokensExtrasFee = extra(
-                uniqueNonFungibleTokens, CRYPTO_TRANSFER_INCLUDED_NON_FUNGIBLE_TOKENS, NON_FUNGIBLE_TOKENS_FEE_USD);
+        final double tokenTypesFee = extra(tokenTypes, INCLUDED_TOKEN_TYPES, TOKEN_TYPES_FEE);
         final double gasExtrasFee = extra(gasAmount, CRYPTO_TRANSFER_INCLUDED_GAS, GAS_FEE_USD);
 
-        final double serviceFee = serviceBaseFee
-                + hooksExtrasFee
-                + accountsExtrasFee
-                + uniqueFungibleTokensExtrasFee
-                + uniqueNonFungibleTokensExtrasFee
-                + gasExtrasFee;
+        final double serviceFee = serviceBaseFee + hooksExtrasFee + accountsExtrasFee + tokenTypesFee + gasExtrasFee;
 
         return nodeFee + networkFee + serviceFee;
     }
 
     public static double expectedCryptoTransferHbarFullFeeUsd(
-            long sigs,
-            long uniqueHooksExecuted,
-            long uniqueAccounts,
-            long uniqueFungibleTokens,
-            long uniqueNonFungibleTokens,
-            long gasAmount) {
+            long sigs, long uniqueHooksExecuted, long uniqueAccounts, long tokenTypes, long gasAmount) {
 
         return expectedCryptoTransferFullFeeUsd(
-                sigs,
-                uniqueHooksExecuted,
-                uniqueAccounts,
-                uniqueFungibleTokens,
-                uniqueNonFungibleTokens,
-                gasAmount,
-                true,
-                false,
-                false);
+                sigs, uniqueHooksExecuted, uniqueAccounts, tokenTypes, gasAmount, true, false, false);
     }
 
     public static double expectedCryptoTransferHbarFullFeeUsd(
-            long sigs,
-            long uniqueHooksExecuted,
-            long uniqueAccounts,
-            long uniqueFungibleTokens,
-            long uniqueNonFungibleTokens,
-            long gasAmount,
-            int txnSize) {
+            long sigs, long uniqueHooksExecuted, long uniqueAccounts, long tokenTypes, long gasAmount, int txnSize) {
         return addNodeAndNetworkBytes(
-                expectedCryptoTransferHbarFullFeeUsd(
-                        sigs,
-                        uniqueHooksExecuted,
-                        uniqueAccounts,
-                        uniqueFungibleTokens,
-                        uniqueNonFungibleTokens,
-                        gasAmount),
+                expectedCryptoTransferHbarFullFeeUsd(sigs, uniqueHooksExecuted, uniqueAccounts, tokenTypes, gasAmount),
                 txnSize);
     }
 
     public static double expectedCryptoTransferFTFullFeeUsd(
-            long sigs,
-            long uniqueHooksExecuted,
-            long uniqueAccounts,
-            long uniqueFungibleTokens,
-            long uniqueNonFungibleTokens,
-            long gasAmount) {
+            long sigs, long uniqueHooksExecuted, long uniqueAccounts, long tokenTypes, long gasAmount) {
 
         return expectedCryptoTransferFullFeeUsd(
-                sigs,
-                uniqueHooksExecuted,
-                uniqueAccounts,
-                uniqueFungibleTokens,
-                uniqueNonFungibleTokens,
-                gasAmount,
-                false,
-                true,
-                false);
+                sigs, uniqueHooksExecuted, uniqueAccounts, tokenTypes, gasAmount, false, true, false);
     }
 
     public static double expectedCryptoTransferFTFullFeeUsd(
-            long sigs,
-            long uniqueHooksExecuted,
-            long uniqueAccounts,
-            long uniqueFungibleTokens,
-            long uniqueNonFungibleTokens,
-            long gasAmount,
-            int txnSize) {
+            long sigs, long uniqueHooksExecuted, long uniqueAccounts, long tokenTypes, long gasAmount, int txnSize) {
         return addNodeAndNetworkBytes(
-                expectedCryptoTransferFTFullFeeUsd(
-                        sigs,
-                        uniqueHooksExecuted,
-                        uniqueAccounts,
-                        uniqueFungibleTokens,
-                        uniqueNonFungibleTokens,
-                        gasAmount),
+                expectedCryptoTransferFTFullFeeUsd(sigs, uniqueHooksExecuted, uniqueAccounts, tokenTypes, gasAmount),
                 txnSize);
     }
 
     public static double expectedCryptoTransferNFTFullFeeUsd(
-            long sigs,
-            long uniqueHooksExecuted,
-            long uniqueAccounts,
-            long uniqueFungibleTokens,
-            long uniqueNonFungibleTokens,
-            long gasAmount) {
+            long sigs, long uniqueHooksExecuted, long uniqueAccounts, long tokenTypes, long gasAmount) {
 
         return expectedCryptoTransferFullFeeUsd(
-                sigs,
-                uniqueHooksExecuted,
-                uniqueAccounts,
-                uniqueFungibleTokens,
-                uniqueNonFungibleTokens,
-                gasAmount,
-                false,
-                true,
-                false);
+                sigs, uniqueHooksExecuted, uniqueAccounts, tokenTypes, gasAmount, false, true, false);
     }
 
     public static double expectedCryptoTransferNFTFullFeeUsd(
-            long sigs,
-            long uniqueHooksExecuted,
-            long uniqueAccounts,
-            long uniqueFungibleTokens,
-            long uniqueNonFungibleTokens,
-            long gasAmount,
-            int txnSize) {
+            long sigs, long uniqueHooksExecuted, long uniqueAccounts, long tokenTypes, long gasAmount, int txnSize) {
         return addNodeAndNetworkBytes(
-                expectedCryptoTransferNFTFullFeeUsd(
-                        sigs,
-                        uniqueHooksExecuted,
-                        uniqueAccounts,
-                        uniqueFungibleTokens,
-                        uniqueNonFungibleTokens,
-                        gasAmount),
+                expectedCryptoTransferNFTFullFeeUsd(sigs, uniqueHooksExecuted, uniqueAccounts, tokenTypes, gasAmount),
                 txnSize);
     }
 
     public static double expectedCryptoTransferFTAndNFTFullFeeUsd(
-            long sigs,
-            long uniqueHooksExecuted,
-            long uniqueAccounts,
-            long uniqueFungibleTokens,
-            long uniqueNonFungibleTokens,
-            long gasAmount) {
+            long sigs, long uniqueHooksExecuted, long uniqueAccounts, long tokenTypes, long gasAmount) {
 
         return expectedCryptoTransferFullFeeUsd(
-                sigs,
-                uniqueHooksExecuted,
-                uniqueAccounts,
-                uniqueFungibleTokens,
-                uniqueNonFungibleTokens,
-                gasAmount,
-                false,
-                true,
-                false);
+                sigs, uniqueHooksExecuted, uniqueAccounts, tokenTypes, gasAmount, false, true, false);
     }
 
     public static double expectedCryptoTransferFTAndNFTFullFeeUsd(
-            long sigs,
-            long uniqueHooksExecuted,
-            long uniqueAccounts,
-            long uniqueFungibleTokens,
-            long uniqueNonFungibleTokens,
-            long gasAmount,
-            int txnSize) {
+            long sigs, long uniqueHooksExecuted, long uniqueAccounts, long tokenTypes, long gasAmount, int txnSize) {
         return addNodeAndNetworkBytes(
                 expectedCryptoTransferFTAndNFTFullFeeUsd(
-                        sigs,
-                        uniqueHooksExecuted,
-                        uniqueAccounts,
-                        uniqueFungibleTokens,
-                        uniqueNonFungibleTokens,
-                        gasAmount),
+                        sigs, uniqueHooksExecuted, uniqueAccounts, tokenTypes, gasAmount),
                 txnSize);
     }
 
     public static double expectedCryptoTransferHBARAndFTFullFeeUsd(
-            long sigs,
-            long uniqueHooksExecuted,
-            long uniqueAccounts,
-            long uniqueFungibleTokens,
-            long uniqueNonFungibleTokens,
-            long gasAmount) {
+            long sigs, long uniqueHooksExecuted, long uniqueAccounts, long tokenTypes, long gasAmount) {
 
         return expectedCryptoTransferFullFeeUsd(
-                sigs,
-                uniqueHooksExecuted,
-                uniqueAccounts,
-                uniqueFungibleTokens,
-                uniqueNonFungibleTokens,
-                gasAmount,
-                true,
-                true,
-                false);
+                sigs, uniqueHooksExecuted, uniqueAccounts, tokenTypes, gasAmount, true, true, false);
     }
 
     public static double expectedCryptoTransferHBARAndFTFullFeeUsd(
-            long sigs,
-            long uniqueHooksExecuted,
-            long uniqueAccounts,
-            long uniqueFungibleTokens,
-            long uniqueNonFungibleTokens,
-            long gasAmount,
-            int txnSize) {
+            long sigs, long uniqueHooksExecuted, long uniqueAccounts, long tokenTypes, long gasAmount, int txnSize) {
         return addNodeAndNetworkBytes(
                 expectedCryptoTransferHBARAndFTFullFeeUsd(
-                        sigs,
-                        uniqueHooksExecuted,
-                        uniqueAccounts,
-                        uniqueFungibleTokens,
-                        uniqueNonFungibleTokens,
-                        gasAmount),
+                        sigs, uniqueHooksExecuted, uniqueAccounts, tokenTypes, gasAmount),
                 txnSize);
     }
 
     public static double expectedCryptoTransferHBARAndNFTFullFeeUsd(
-            long sigs,
-            long uniqueHooksExecuted,
-            long uniqueAccounts,
-            long uniqueFungibleTokens,
-            long uniqueNonFungibleTokens,
-            long gasAmount) {
+            long sigs, long uniqueHooksExecuted, long uniqueAccounts, long tokenTypes, long gasAmount) {
 
         return expectedCryptoTransferFullFeeUsd(
-                sigs,
-                uniqueHooksExecuted,
-                uniqueAccounts,
-                uniqueFungibleTokens,
-                uniqueNonFungibleTokens,
-                gasAmount,
-                true,
-                true,
-                false);
+                sigs, uniqueHooksExecuted, uniqueAccounts, tokenTypes, gasAmount, true, true, false);
     }
 
     public static double expectedCryptoTransferHBARAndNFTFullFeeUsd(
-            long sigs,
-            long uniqueHooksExecuted,
-            long uniqueAccounts,
-            long uniqueFungibleTokens,
-            long uniqueNonFungibleTokens,
-            long gasAmount,
-            int txnSize) {
+            long sigs, long uniqueHooksExecuted, long uniqueAccounts, long tokenTypes, long gasAmount, int txnSize) {
         return addNodeAndNetworkBytes(
                 expectedCryptoTransferHBARAndNFTFullFeeUsd(
-                        sigs,
-                        uniqueHooksExecuted,
-                        uniqueAccounts,
-                        uniqueFungibleTokens,
-                        uniqueNonFungibleTokens,
-                        gasAmount),
+                        sigs, uniqueHooksExecuted, uniqueAccounts, tokenTypes, gasAmount),
                 txnSize);
     }
 
     public static double expectedCryptoTransferHBARAndFTAndNFTFullFeeUsd(
-            long sigs,
-            long uniqueHooksExecuted,
-            long uniqueAccounts,
-            long uniqueFungibleTokens,
-            long uniqueNonFungibleTokens,
-            long gasAmount) {
+            long sigs, long uniqueHooksExecuted, long uniqueAccounts, long tokenTypes, long gasAmount) {
 
         return expectedCryptoTransferFullFeeUsd(
-                sigs,
-                uniqueHooksExecuted,
-                uniqueAccounts,
-                uniqueFungibleTokens,
-                uniqueNonFungibleTokens,
-                gasAmount,
-                true,
-                true,
-                false);
+                sigs, uniqueHooksExecuted, uniqueAccounts, tokenTypes, gasAmount, true, true, false);
     }
 
     public static double expectedCryptoTransferTokenWithCustomFullFeeUsd(
-            long sigs,
-            long uniqueHooksExecuted,
-            long uniqueAccounts,
-            long uniqueFungibleTokens,
-            long uniqueNonFungibleTokens,
-            long gasAmount) {
+            long sigs, long uniqueHooksExecuted, long uniqueAccounts, long tokenTypes, long gasAmount) {
 
         return expectedCryptoTransferFullFeeUsd(
-                sigs,
-                uniqueHooksExecuted,
-                uniqueAccounts,
-                uniqueFungibleTokens,
-                uniqueNonFungibleTokens,
-                gasAmount,
-                false,
-                false,
-                true);
+                sigs, uniqueHooksExecuted, uniqueAccounts, tokenTypes, gasAmount, false, false, true);
     }
 
     // Overload with txn size
     public static double expectedCryptoTransferTokenWithCustomFullFeeUsd(
-            long sigs,
-            long uniqueHooksExecuted,
-            long uniqueAccounts,
-            long uniqueFungibleTokens,
-            long uniqueNonFungibleTokens,
-            long gasAmount,
-            int txnSize) {
+            long sigs, long uniqueHooksExecuted, long uniqueAccounts, long tokenTypes, long gasAmount, int txnSize) {
 
         final double fullWithoutBytes = expectedCryptoTransferFullFeeUsd(
-                sigs,
-                uniqueHooksExecuted,
-                uniqueAccounts,
-                uniqueFungibleTokens,
-                uniqueNonFungibleTokens,
-                gasAmount,
-                false,
-                false,
-                true);
+                sigs, uniqueHooksExecuted, uniqueAccounts, tokenTypes, gasAmount, false, false, true);
 
         final double nodeAndNetworkWithoutBytes = expectedNodeAndNetworkFeeUsd(sigs, 0);
 
@@ -645,21 +447,10 @@ public class FeesChargingUtils {
     }
 
     public static double expectedCryptoTransferHBARAndFTAndNFTFullFeeUsd(
-            long sigs,
-            long uniqueHooksExecuted,
-            long uniqueAccounts,
-            long uniqueFungibleTokens,
-            long uniqueNonFungibleTokens,
-            long gasAmount,
-            int txnSize) {
+            long sigs, long uniqueHooksExecuted, long uniqueAccounts, long tokenTypes, long gasAmount, int txnSize) {
         return addNodeAndNetworkBytes(
                 expectedCryptoTransferHBARAndFTAndNFTFullFeeUsd(
-                        sigs,
-                        uniqueHooksExecuted,
-                        uniqueAccounts,
-                        uniqueFungibleTokens,
-                        uniqueNonFungibleTokens,
-                        gasAmount),
+                        sigs, uniqueHooksExecuted, uniqueAccounts, tokenTypes, gasAmount),
                 txnSize);
     }
 
