@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.base.concurrent;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import java.time.Duration;
 import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -8,7 +12,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicReference;
 import org.hiero.base.concurrent.locks.locked.LockedResource;
 import org.hiero.base.concurrent.test.fixtures.ConcurrentTesting;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 class BlockingResourceProviderTest {
@@ -52,8 +55,47 @@ class BlockingResourceProviderTest {
 
         concurrentTesting.runForSeconds(5);
 
-        Assertions.assertEquals(
+        assertEquals(
                 numThreads * numResources, consumed.size(), "each resource was supposed to be consumed exactly once");
+    }
+
+    /**
+     * After a consumer is interrupted in {@code waitForResource()}, the provider should still be in a usable
+     * state: a full provide/consume cycle must succeed.
+     */
+    @Test
+    void provideConsumeWorksAfterConsumerInterruption() throws InterruptedException {
+        final BlockingResourceProvider<String> provider = new BlockingResourceProvider<>();
+        final Duration timeout = Duration.ofSeconds(5);
+        // First consumer blocks then gets interrupted
+        Thread consumerThread = new Thread(() -> {
+            try {
+                // do not close the resource on purpose
+                provider.waitForResource();
+            } catch (final InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        });
+        consumerThread.start();
+        // Wait until the consumer is blocked waiting for a resource
+        final long deadline = System.currentTimeMillis() + timeout.toMillis();
+        while (!provider.isWaitingForResource()) {
+            assertTrue(System.currentTimeMillis() < deadline, "Consumer never started waiting");
+            Thread.sleep(10);
+        }
+
+        provider.acquireProvidePermit();
+        consumerThread.interrupt();
+
+        consumerThread = new Thread(() -> {
+            try (final var value = provider.waitForResource()) {
+                assertEquals("Hola", value.getResource());
+            } catch (final InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        });
+        consumerThread.start();
+        provider.provide("Hola");
     }
 
     private record Resource(int threadId, int sequence) {}

@@ -51,6 +51,7 @@ import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 import org.hiero.base.concurrent.BlockingResourceProvider;
 import org.hiero.base.concurrent.ThrowingRunnable;
 import org.hiero.base.concurrent.test.fixtures.RunnableCompletionControl;
@@ -68,7 +69,6 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.stubbing.Answer;
@@ -77,7 +77,6 @@ import org.mockito.stubbing.Answer;
  * Comprehensive unit-integration test for {@link ReconnectController}.
  * Tests focus on retry logic, promise lifecycle, state transitions, and error handling.
  */
-@Disabled
 class ReconnectControllerTest {
 
     private static final long WEIGHT_PER_NODE = 100L;
@@ -307,39 +306,40 @@ class ReconnectControllerTest {
         }
 
         /**
-         * Wait for reconnect processing to request a state (uses default timeout).
+         * Waits for reconnect processing to request a state.
          *
          * @return this scenario for method chaining
          * @throws AssertionError if timeout expires before state is requested
          */
         ReconnectScenario waitForReconnectToRequestState() {
-            return waitForReconnectToRequestState(DEFAULT_WAIT_TIMEOUT);
+            return waitForCondition(
+                    () -> !stateProvider.isWaitingForResource(),
+                    "Reconnect did not request state within " + DEFAULT_WAIT_TIMEOUT);
         }
 
         /**
-         * Wait for reconnect processing to request a state with custom timeout.
+         * Waits for reconnect processing to receive a state.
          *
-         * @param timeout maximum time to wait
          * @return this scenario for method chaining
          * @throws AssertionError if timeout expires before state is requested
          */
-        ReconnectScenario waitForReconnectToRequestState(final Duration timeout) {
-            return waitForReconnectToRequestState(timeout, "Reconnect did not request state within " + timeout);
+        ReconnectScenario waitForReconnectToReceiveState() {
+            return waitForCondition(
+                    () -> stateProvider.isWaitingForResource(),
+                    "Reconnect was not provided with a state within " + DEFAULT_WAIT_TIMEOUT);
         }
 
         /**
-         * Wait for reconnect processing to request a state with custom timeout and message.
+         * Waits for a condition to become true.
          *
-         * @param timeout maximum time to wait
-         * @param timeoutMessage custom message to display on timeout
          * @return this scenario for method chaining
-         * @throws AssertionError if timeout expires before state is requested
+         * @throws AssertionError if timeout expires before the condition is met
          */
-        ReconnectScenario waitForReconnectToRequestState(final Duration timeout, final String timeoutMessage) {
+        ReconnectScenario waitForCondition(final Supplier<Boolean> condition, final String timeoutMessage) {
             final long startTime = System.currentTimeMillis();
-            final long timeoutMillis = timeout.toMillis();
+            final long timeoutMillis = ReconnectScenario.DEFAULT_WAIT_TIMEOUT.toMillis();
 
-            while (!stateProvider.isWaitingForResource()) {
+            while (condition.get()) {
                 final long elapsed = System.currentTimeMillis() - startTime;
                 if (elapsed >= timeoutMillis) {
                     fail(String.format(
@@ -404,27 +404,17 @@ class ReconnectControllerTest {
             return this;
         }
 
-        /**
-         * Wait for a specified duration.
-         *
-         * @param duration how long to wait
-         * @return this scenario for method chaining
-         */
-        ReconnectScenario wait(final Duration duration) {
-            sleep(duration.toMillis());
-            return this;
-        }
-
         /** Check if controller thread is alive */
         boolean isControllerAlive() {
             return controllerThread.isAlive();
         }
 
         public ReconnectScenario parallelRun(final Runnable... runnable) {
-            parallelTasks.addAll(Arrays.stream(runnable)
+            final List<RunnableCompletionControl> list = Arrays.stream(runnable)
                     .map(RunnableCompletionControl::unblocked)
-                    .toList());
-            parallelTasks.parallelStream().forEach(RunnableCompletionControl::start);
+                    .toList();
+            list.forEach(RunnableCompletionControl::start);
+            parallelTasks.addAll(list);
             return this;
         }
     }
@@ -448,6 +438,7 @@ class ReconnectControllerTest {
                 .reportFallenBehind(NodeId.of(1), NodeId.of(2))
                 .waitForReconnectToRequestState()
                 .parallelRun(peer, peer, peer, peer)
+                .waitForReconnectToReceiveState()
                 .stop(LONG_TIMEOUT, "Controller did not finished when expected");
 
         assertEquals(1, counter.get());
@@ -462,6 +453,7 @@ class ReconnectControllerTest {
                 .reportFallenBehind(NodeId.of(1), NodeId.of(2))
                 .waitForReconnectToRequestState()
                 .provideState()
+                .waitForReconnectToReceiveState()
                 .stop(LONG_TIMEOUT, "Controller did not finished when expected");
 
         // Verify the expected interactions
@@ -527,6 +519,7 @@ class ReconnectControllerTest {
                         fail();
                     }
                 })
+                .waitForReconnectToReceiveState()
                 .stop(LONG_TIMEOUT, "Controller did not finished when expected");
 
         assertEquals(2, validationAttempts.get(), "Should have attempted validation twice");
@@ -543,6 +536,7 @@ class ReconnectControllerTest {
                 .provideException(new RuntimeException("simulated exception"))
                 .waitForReconnectToRequestState()
                 .provideState(testSignedState.reserve("second"))
+                .waitForReconnectToReceiveState()
                 .stop(LONG_TIMEOUT, "Controller did not finished when expected");
     }
 
@@ -554,6 +548,7 @@ class ReconnectControllerTest {
                 .reportFallenBehind(NodeId.of(1), NodeId.of(2))
                 .waitForReconnectToRequestState()
                 .provideState()
+                .waitForReconnectToReceiveState()
                 .stop(LONG_TIMEOUT, "Controller did not finished when expected");
 
         // Verify monitor was reset after successful reconnect
@@ -595,7 +590,7 @@ class ReconnectControllerTest {
                 .reportFallenBehind(NodeId.of(1), NodeId.of(2))
                 .waitForReconnectToRequestState()
                 .provideState()
-                .wait(200)
+                .waitForReconnectToReceiveState()
                 .stop(LONG_TIMEOUT, "Controller did not finished when expected");
 
         // Verify operations occurred in correct order
@@ -631,6 +626,7 @@ class ReconnectControllerTest {
                 .reportFallenBehind(NodeId.of(1), NodeId.of(2))
                 .waitForReconnectToRequestState()
                 .provideState()
+                .waitForReconnectToReceiveState()
                 .syncRun(() -> {
                     controller.stopReconnectLoop();
                     scenario.interruptControllerThread();
@@ -674,6 +670,7 @@ class ReconnectControllerTest {
                         Assertions.fail();
                     }
                 })
+                .waitForReconnectToReceiveState()
                 .waitForFinish(LONG_TIMEOUT);
 
         // Verify the correct exit code was captured

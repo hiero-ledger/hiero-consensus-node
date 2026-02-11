@@ -9,40 +9,53 @@ import org.hiero.base.concurrent.locks.internal.AcquiredResource;
 import org.hiero.base.concurrent.locks.locked.LockedResource;
 
 /**
- * A class that ensures thread safety where multiple providers compete to provide a resource to a single consumer
- * <ul>
- *     <li>The intended use case is multiple providers and a single consumer</li>
- *     <li>All providers should call {@link #acquireProvidePermit()} before providing the resource</li>
- *     <li>The permit will be unavailable until the consumer is blocked waiting for the resource</li>
- *     <li>Once the consumer is waiting, one provider will acquire the permit and can call {@link #provide(Object)}</li>
- *     <li>If the provider cannot provide the resource, it can release the permit for another provider to acquire</li>
- *     <li>Once the provider provides the resource, it will be blocked until the consumer is finished and releases
- *     it</li>
- *     <li>All other providers will not be able to acquire the permit until the process is finished and the consumer
- *     starts waiting again</li>
- * </ul>
+ * Allows a blocking ceremony between multiple provider threads and a single consumer thread.
  *
- * NOTE: Using this class in any way other than the way described can lead to unintended behaviour
+ * <p>This class implements the interactions of a continuous cycle of deliver-consume steps. In each cycle the consumer blocks
+ * waiting for a resource, providers attempt to acquire a single permit, and the provider that acquires
+ * it delivers a resource. The provider then blocks until the consumer is done with it. Once the consumer
+ * closes the resource, both sides are released and the next cycle can begin.
  *
- * @param <T>
- * 		the type of resource provided
+ * <h2>Provider usage</h2>
+ * <ol>
+ *     <li>{@link #acquireProvidePermit()} — returns {@code true} if this provider acquired the permit</li>
+ *     <li>If the provider decides it cannot deliver, call {@link #releaseProvidePermit()} to release the
+ *         permit so others can attempt to acquire it</li>
+ *     <li>Otherwise call {@link #provide(Object)} — this blocks until the consumer finishes with the resource</li>
+ * </ol>
+ *
+ * <h2>Consumer usage</h2>
+ * <ol>
+ *     <li>{@link #waitForResource()} — blocks until a provider delivers; returns a {@link LockedResource}</li>
+ *     <li>Use the resource</li>
+ *     <li>Close the {@link LockedResource} — this unblocks the provider and allows the next cycle to begin</li>
+ * </ol>
+ *
+ * <h2>Interruption</h2>
+ * <p>If the consumer is interrupted while waiting, any provider that already delivered a resource is
+ * unblocked so it can complete gracefully. The consumer re-throws {@link InterruptedException} discarding any provided resource.
+ *
+ * @implNote Part of the necessary lifecycle for multiple instances of this class to work correctly is located outside this class.
+ *   Once a resource is obtained it is very important that the client code diligently closes it in all cases (even errors) after using it,
+ *   not doing so can leave to situations where providers could block indefinitely.
+ * @param <T> the type of resource provided
  */
 public class BlockingResourceProvider<T> {
-    /** tracks if the permit to provide is available or not */
+    /** ensures only one provider acquires the permit per cycle */
     private final Semaphore providePermit = new Semaphore(1);
-    /** lock used to synchronize the threads that provide and consume the resource */
+    /** guards the resource handoff between provider and consumer */
     private final ReentrantLock lock = new ReentrantLock();
-    /** the condition that synchs the point when the resource is provided */
+    /** signaled by the provider when a resource has been delivered */
     private final Condition resourceProvided = lock.newCondition();
-    /** the condition that synchs the point when the resource is released by the consumer */
+    /** signaled by the consumer when it is done with the resource */
     private final Condition resourceReleased = lock.newCondition();
-    /** is the consumer waiting for the resource */
+    /** {@code true} while the consumer is blocked in {@link #waitForResource()} */
     private final AtomicBoolean waitingForResource = new AtomicBoolean(false);
 
     /**
-     * Try to acquire the provide permit
+     * Attempts to acquire the permit for this cycle. Only succeeds when the consumer is waiting for a resource.
      *
-     * @return true if the permit has been acquired
+     * @return {@code true} if this provider acquired the permit
      */
     public boolean acquireProvidePermit() {
         if (!waitingForResource.get()) {
@@ -52,51 +65,58 @@ public class BlockingResourceProvider<T> {
     }
 
     /**
-     * Try to acquire the provide permit bypassing the check to see if the consumer is waiting for the resource, this
-     * will block the providers until {@link #releaseProvidePermit()} is called
+     * Attempts to acquire the permit regardless of whether the consumer is waiting. This effectively blocks all
+     * other providers until {@link #releaseProvidePermit()} is called.
      *
-     * @return true if the permit has been acquired
+     * @return {@code true} if this provider acquired the permit
      */
     public boolean tryBlockProvidePermit() {
         return providePermit.tryAcquire();
     }
 
     /**
-     * Release a previously acquired provide permit
+     * Releases a previously acquired permit, allowing other providers to attempt to acquire it.
      */
     public void releaseProvidePermit() {
         providePermit.release();
     }
 
     /**
-     * Provide the resource to the consumer. This method should only be called once the provide permit has been
-     * acquired. This method will block until the consumer releases the resource.
+     * Delivers a resource to the consumer. Must only be called after acquiring the permit via
+     * {@link #acquireProvidePermit()}. Blocks until the consumer closes the {@link LockedResource},
+     * completing the cycle.
      *
-     * @param resource
-     * 		the resource to provide
-     * @throws InterruptedException
-     * 		if the thread is interrupted while providing the resource
+     * @apiNote If a consumer waiting for this resource gets
+     *   interrupted before signaling resourceReleased to the thread calling this method, it will get blocked indefinitely.
+     * @param resource the resource to deliver
+     * @throws InterruptedException if the provider thread is interrupted while waiting
      */
     public void provide(final T resource) throws InterruptedException {
         lock.lock();
         try {
             this.resource.setResource(resource);
+            // Signal the consumer that there is a resource available
             resourceProvided.signalAll();
             while (this.resource.getResource() != null) {
+                // waiting for the resource to be used and closed by the consumer
+                // It is responsibility of the consumer to signal even if it was interrupted
+                // otherwise this provider will block indefinitely
                 resourceReleased.await();
             }
         } finally {
             lock.unlock();
+            // releases the permit to allow other providers
             providePermit.release();
         }
     }
 
     /**
-     * Blocks until a resource is provided
+     * Blocks the consumer until a provider delivers a resource. The returned {@link LockedResource} must be
+     * closed when the consumer is done — this unblocks the provider and ends the cycle.
      *
-     * @return an {@link AutoCloseable} that releases the resource when closed
-     * @throws InterruptedException
-     * 		if interrupted while waiting for the resource
+     * @return a {@link LockedResource} holding the delivered resource; must be closed to complete the cycle
+     * @throws InterruptedException if the consumer thread is interrupted while waiting.
+     *   If a provider was able to deliver a resource just before getting interrupted, that resource will be lost.
      */
     public LockedResource<T> waitForResource() throws InterruptedException {
         lock.lock();
@@ -106,12 +126,18 @@ public class BlockingResourceProvider<T> {
                 resourceProvided.await();
             }
             return resource;
+        } catch (final InterruptedException e) {
+            // Makes sure that, in case the consumer was interrupted we close the resource to allow
+            // the provider to gracefully continue its operations
+            // The provided resource will no longer be available
+            resource.close();
+            throw e;
         } finally {
             waitingForResource.set(false);
         }
     }
     /**
-     * If there is a client expecting a resource
+     * Returns {@code true} if the consumer is currently blocked in {@link #waitForResource()}.
      */
     public boolean isWaitingForResource() {
         return waitingForResource.get();
@@ -122,6 +148,6 @@ public class BlockingResourceProvider<T> {
         resourceReleased.signalAll();
         lock.unlock();
     }
-    /** an {@link AutoCloseable} that will provide the resource and signal the provider when closed */
+    /** the shared resource slot; closing it triggers {@link #consumerDone()} to end the cycle */
     private final LockedResource<T> resource = new AcquiredResource<>(this::consumerDone, null);
 }
