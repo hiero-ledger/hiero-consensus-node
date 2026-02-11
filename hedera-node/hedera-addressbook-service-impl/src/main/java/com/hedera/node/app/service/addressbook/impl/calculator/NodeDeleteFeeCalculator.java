@@ -1,15 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.addressbook.impl.calculator;
 
-import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
-import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
+import static com.hedera.node.app.service.addressbook.AddressBookHelper.checkDABEnabled;
 import static org.hiero.hapi.fees.FeeScheduleUtils.lookupServiceFee;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.hedera.node.app.spi.fees.SimpleFeeContext;
-import com.hedera.node.config.data.NodesConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.hapi.fees.FeeResult;
 import org.hiero.hapi.support.fees.FeeSchedule;
@@ -23,9 +21,7 @@ public class NodeDeleteFeeCalculator implements ServiceFeeCalculator {
             @NonNull final FeeResult feeResult,
             @NonNull final FeeSchedule feeSchedule) {
         if (simpleFeeContext.feeContext() != null) {
-            final var nodesConfig =
-                    simpleFeeContext.feeContext().configuration().getConfigData(NodesConfig.class);
-            validateTrue(nodesConfig.enableDAB(), NOT_SUPPORTED);
+            checkDABEnabled(simpleFeeContext.feeContext());
         }
         final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, HederaFunctionality.NODE_DELETE);
         feeResult.setServiceBaseFeeTinycents(serviceDef.baseFee());
