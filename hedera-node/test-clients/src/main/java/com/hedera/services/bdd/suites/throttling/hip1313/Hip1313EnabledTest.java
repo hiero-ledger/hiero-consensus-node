@@ -32,15 +32,19 @@ import com.hedera.services.bdd.junit.GenesisHapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
+import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItemsValidator;
 import edu.umd.cs.findbugs.annotations.NonNull;
+
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Predicate;
 import java.util.stream.Stream;
+
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
@@ -117,39 +121,22 @@ public class Hip1313EnabledTest {
                 doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted),
                 cryptoCreate(CIVILIAN_PAYER).balance(ONE_MILLION_HBARS),
                 overridingTwo("fees.simpleFeesEnabled", "true", "networkAdmin.highVolumeThrottlesEnabled", "true"),
-                withOpContext((spec, opLog) -> {
-                    for (int i = 0; i < 200; i++) {
-                        allRunFor(
-                                spec,
-                                cryptoCreate("hvTotalCreate" + i)
-                                        .payingWith(CIVILIAN_PAYER)
-                                        .deferStatusResolution()
-                                        .withHighVolume());
-                    }
-                }),
+                withOpContext((spec, opLog) -> submitHighVolumeCryptoCreates(spec, 200)),
+                // ensure one record is closed
                 doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted),
                 doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted),
                 withOpContext((spec, opLog) -> {
-                    final var entries = highVolumeTxns.get().stream()
-                            .filter(e -> e.body().getHighVolume())
-                            .toList();
+                    final var entries = filteredHighVolumeEntries(highVolumeTxns, e -> true);
                     final var throttle = DeterministicThrottle.withTpsAndBurstPeriodMs(CRYPTO_CREATE_HV_TPS, 1000);
                     for (final var entry : entries) {
-                        final var utilizationBasisPointsBefore =
-                                (int) Math.round(throttle.instantaneousPercentUsed() * 100);
+                        final var utilizationBasisPointsBefore = utilizationBasisPointsBefore(throttle);
                         throttle.allow(1, entry.consensusTime());
                         final var fee = entry.txnRecord().getTransactionFee();
-                        final var observedMultiplier =
-                                spec.ratesProvider().toUsdWithActiveRates(fee) / CRYPTO_CREATE_BASE_FEE;
+                        final var observedMultiplier = observedMultiplier(spec, fee, CRYPTO_CREATE_BASE_FEE);
                         final var expectedMultiplier = getInterpolatedMultiplier(utilizationBasisPointsBefore) / 1000.0;
-                        assertTrue(observedMultiplier >= 4, "Observed multiplier should be >= 4");
-                        assertEquals(
-                                expectedMultiplier,
-                                observedMultiplier,
-                                MULTIPLIER_TOLERANCE,
-                                "Given BPS of " + utilizationBasisPointsBefore
-                                        + " Observed multiplier " + observedMultiplier
-                                        + " does not match expected multiplier " + expectedMultiplier);
+                        assertMultiplierAtLeastFour(observedMultiplier, "crypto create");
+                        assertMultiplierMatchesExpectation(
+                                expectedMultiplier, observedMultiplier, utilizationBasisPointsBefore, "crypto create");
                     }
                     assertEquals(200, entries.size());
                 }));
@@ -165,29 +152,13 @@ public class Hip1313EnabledTest {
                 doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted),
                 cryptoCreate(CIVILIAN_PAYER).balance(ONE_MILLION_HBARS),
                 overridingTwo("fees.simpleFeesEnabled", "true", "networkAdmin.highVolumeThrottlesEnabled", "true"),
-                withOpContext((spec, opLog) -> {
-                    for (int i = 0; i < numBursts; i++) {
-                        allRunFor(
-                                spec,
-                                createTopic("mixedHvTopic" + i)
-                                        .payingWith(CIVILIAN_PAYER)
-                                        .deferStatusResolution()
-                                        .withHighVolume(),
-                                scheduleCreate("mixedHvSchedule" + i, cryptoCreate("mixedHvScheduledAccount" + i))
-                                        .payingWith(CIVILIAN_PAYER)
-                                        .expiringIn(7_200L + (i * 1_000L))
-                                        .deferStatusResolution()
-                                        .withHighVolume()
-                        );
-                    }
-                }),
+                withOpContext((spec, opLog) -> submitMixedHighVolumeTopicAndScheduleCreates(spec, numBursts)),
                 doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted),
                 doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted),
                 withOpContext((spec, opLog) -> {
-                    final var entries = highVolumeTxns.get().stream()
-                            .filter(e -> e.body().getHighVolume())
-                            .filter(e -> e.body().hasConsensusCreateTopic() || e.body().hasScheduleCreate())
-                            .toList();
+                    final var entries = filteredHighVolumeEntries(
+                            highVolumeTxns,
+                            e -> e.body().hasConsensusCreateTopic() || e.body().hasScheduleCreate());
                     final var topicThrottle = DeterministicThrottle.withTpsAndBurstPeriodMs(TOPIC_CREATE_HV_TPS, 1000);
                     final var scheduleThrottle = DeterministicThrottle.withTpsAndBurstPeriodMs(SCHEDULE_CREATE_HV_TPS, 1000);
                     int topicCreates = 0;
@@ -195,32 +166,31 @@ public class Hip1313EnabledTest {
                     for (final var entry : entries) {
                         final var fee = entry.txnRecord().getTransactionFee();
                         if (entry.body().hasConsensusCreateTopic()) {
-                            final var utilizationBasisPointsBefore = (int) Math.round(topicThrottle.instantaneousPercentUsed() * 100);
+                            final var utilizationBasisPointsBefore = utilizationBasisPointsBefore(topicThrottle);
                             topicThrottle.allow(1, entry.consensusTime());
-                            final var observedMultiplier = spec.ratesProvider().toUsdWithActiveRates(fee) / TOPIC_CREATE_BASE_FEE;
-                            final var expectedMultiplier = getInterpolatedMultiplier(CRYPTO_TOPIC_CREATE_MULTIPLIER_MAP, utilizationBasisPointsBefore) / 1000.0;
-                            assertTrue(observedMultiplier >= 4, "Observed topic create multiplier should be >= 4. But was "+ observedMultiplier);
-                            assertEquals(
+                            final var observedMultiplier = observedMultiplier(spec, fee, TOPIC_CREATE_BASE_FEE);
+                            final var expectedMultiplier = getInterpolatedMultiplier(
+                                    CRYPTO_TOPIC_CREATE_MULTIPLIER_MAP, utilizationBasisPointsBefore)
+                                    / 1000.0;
+                            assertMultiplierAtLeastFour(observedMultiplier, "topic create");
+                            assertMultiplierMatchesExpectation(
                                     expectedMultiplier,
                                     observedMultiplier,
-                                    MULTIPLIER_TOLERANCE,
-                                    "Given BPS of " + utilizationBasisPointsBefore
-                                            + " observed topic create multiplier " + observedMultiplier
-                                            + " does not match expected multiplier " + expectedMultiplier);
+                                    utilizationBasisPointsBefore,
+                                    "topic create");
                             topicCreates++;
                         } else if (entry.body().hasScheduleCreate()) {
-                            final var utilizationBasisPointsBefore = (int) Math.round(scheduleThrottle.instantaneousPercentUsed() * 100);
+                            final var utilizationBasisPointsBefore = utilizationBasisPointsBefore(scheduleThrottle);
                             scheduleThrottle.allow(1, entry.consensusTime());
-                            final var observedMultiplier = spec.ratesProvider().toUsdWithActiveRates(fee) / SCHEDULE_CREATE_BASE_FEE;
-                            final var expectedMultiplier = getInterpolatedMultiplier(SCHEDULE_CREATE_MULTIPLIER_MAP, utilizationBasisPointsBefore) / 1000.0;
-//                            assertTrue(observedMultiplier >= 4, "Observed schedule create multiplier should be >= 4. But was "+ observedMultiplier);
-                            assertEquals(
+                            final var observedMultiplier = observedMultiplier(spec, fee, SCHEDULE_CREATE_BASE_FEE);
+                            final var expectedMultiplier =
+                                    getInterpolatedMultiplier(SCHEDULE_CREATE_MULTIPLIER_MAP, utilizationBasisPointsBefore)
+                                            / 1000.0;
+                            assertMultiplierMatchesExpectation(
                                     expectedMultiplier,
                                     observedMultiplier,
-                                    MULTIPLIER_TOLERANCE,
-                                    "Given BPS of " + utilizationBasisPointsBefore
-                                            + " observed schedule create multiplier " + observedMultiplier
-                                            + " does not match expected multiplier " + expectedMultiplier);
+                                    utilizationBasisPointsBefore,
+                                    "schedule create");
                             scheduleCreates++;
                         }
                     }
@@ -276,6 +246,69 @@ public class Hip1313EnabledTest {
 
     private static long normalizeMultiplier(final long multiplier) {
         return Math.max(multiplier, MULTIPLIER_SCALE);
+    }
+
+    private static void submitHighVolumeCryptoCreates(@NonNull final HapiSpec spec, final int numCreates) {
+        for (int i = 0; i < numCreates; i++) {
+            allRunFor(
+                    spec,
+                    cryptoCreate("hvTotalCreate" + i)
+                            .payingWith(CIVILIAN_PAYER)
+                            .deferStatusResolution()
+                            .withHighVolume());
+        }
+    }
+
+    private static void submitMixedHighVolumeTopicAndScheduleCreates(
+            @NonNull final HapiSpec spec, final int numBursts) {
+        for (int i = 0; i < numBursts; i++) {
+            allRunFor(
+                    spec,
+                    createTopic("mixedHvTopic" + i)
+                            .payingWith(CIVILIAN_PAYER)
+                            .deferStatusResolution()
+                            .withHighVolume(),
+                    scheduleCreate("mixedHvSchedule" + i, cryptoCreate("mixedHvScheduledAccount" + i))
+                            .payingWith(CIVILIAN_PAYER)
+                            .expiringIn(7_200L + (i * 1_000L))
+                            .deferStatusResolution()
+                            .withHighVolume());
+        }
+    }
+
+    private static List<RecordStreamEntry> filteredHighVolumeEntries(
+            @NonNull final AtomicReference<List<RecordStreamEntry>> highVolumeTxns,
+            @NonNull final Predicate<RecordStreamEntry> additionalFilter) {
+        return highVolumeTxns.get().stream()
+                .filter(e -> e.body().getHighVolume())
+                .filter(additionalFilter)
+                .toList();
+    }
+
+    private static int utilizationBasisPointsBefore(@NonNull final DeterministicThrottle throttle) {
+        return (int) Math.round(throttle.instantaneousPercentUsed() * 100);
+    }
+
+    private static double observedMultiplier(
+            @NonNull final HapiSpec spec, final long feeInTinybars, final double baseFeeUsd) {
+        return spec.ratesProvider().toUsdWithActiveRates(feeInTinybars) / baseFeeUsd;
+    }
+
+    private static void assertMultiplierAtLeastFour(final double observedMultiplier, @NonNull final String operation) {
+        assertTrue(observedMultiplier >= 4, "Observed " + operation + " multiplier should be >= 4, but was " + observedMultiplier);
+    }
+
+    private static void assertMultiplierMatchesExpectation(
+            final double expectedMultiplier,
+            final double observedMultiplier,
+            final int utilizationBasisPointsBefore,
+            @NonNull final String operation) {
+        assertEquals(
+                expectedMultiplier,
+                observedMultiplier,
+                MULTIPLIER_TOLERANCE,
+                "Given BPS of " + utilizationBasisPointsBefore + " observed " + operation + " multiplier "
+                        + observedMultiplier + " does not match expected multiplier " + expectedMultiplier);
     }
 
     private static VisibleItemsValidator feeMultiplierValidator(
