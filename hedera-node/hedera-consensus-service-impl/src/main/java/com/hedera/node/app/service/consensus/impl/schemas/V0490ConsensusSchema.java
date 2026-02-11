@@ -47,7 +47,6 @@ public class V0490ConsensusSchema extends Schema<SemanticVersion> {
     @NonNull
     @Override
     public Set<StateDefinition> statesToCreate() {
-        return Set.of(
-                StateDefinition.onDisk(TOPICS_STATE_ID, TOPICS_KEY, TopicID.PROTOBUF, Topic.PROTOBUF, MAX_TOPICS));
+        return Set.of(StateDefinition.keyValue(TOPICS_STATE_ID, TOPICS_KEY, TopicID.PROTOBUF, Topic.PROTOBUF));
     }
 }

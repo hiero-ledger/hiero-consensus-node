@@ -153,8 +153,8 @@ public class VirtualMapStateImplTest extends MerkleTestBase {
             setupFruitVirtualMap();
             final var fruitVirtualMetadata2 = new StateMetadata<>(
                     StateTestBase.FIRST_SERVICE,
-                    StateDefinition.onDisk(
-                            FRUIT_STATE_ID, FRUIT_STATE_KEY, ProtoBytes.PROTOBUF, ProtoBytes.PROTOBUF, 999));
+                    StateDefinition.keyValue(
+                            FRUIT_STATE_ID, FRUIT_STATE_KEY, ProtoBytes.PROTOBUF, ProtoBytes.PROTOBUF));
 
             virtualMapState.initializeState(fruitMetadata);
             virtualMapState.initializeState(fruitVirtualMetadata2);
@@ -825,7 +825,7 @@ public class VirtualMapStateImplTest extends MerkleTestBase {
         }
 
         @Test
-        @DisplayName("getKvPath returns path for existing kv key")
+        @DisplayName("getKvPath returns path for existing keyValue key")
         void kvPath_found() {
             final var kvKey = StateUtils.getStateKeyForKv(FRUIT_STATE_ID, A_KEY, ProtoBytes.PROTOBUF);
             final long expected = (virtualMapState.getRoot()).getRecords().findPath(kvKey);
@@ -925,7 +925,7 @@ public class VirtualMapStateImplTest extends MerkleTestBase {
         }
 
         @Test
-        @DisplayName("getMerkleProof returns correct proof for kv")
+        @DisplayName("getMerkleProof returns correct proof for keyValue")
         void getMerkleProof_kv() throws ParseException {
             // Ensure the tree is hashed
             virtualMapState.getHash();
