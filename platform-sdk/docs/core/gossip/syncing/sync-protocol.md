@@ -45,7 +45,7 @@ in parallel with this
 //////////////// PHASE 3 ////////////////
 
 // add to knownSet all the ancestors of each known event
-todoStack = stack containing all elements in knownSet (in an arbitrary order)  
+todoStack = stack containing all elements in knownSet (in an arbitrary order)
 while todoStack is not empty
     pop x from todoStack
     push each parent of x onto todoStack (in an arbitrary order)
@@ -55,7 +55,7 @@ while todoStack is not empty
 // tips might have changed since the beginning of the sync, get the latest
 tipList = get latest tips
 // set sendList to all ancestors of tips that are not known
-todoStack = stack containing all elements in tipList (in an arbitrary order)  
+todoStack = stack containing all elements in tipList (in an arbitrary order)
 while todoStack is not empty
     pop x from todoStack
     push each parent of x onto todoStack (in an arbitrary order)
@@ -66,9 +66,9 @@ while todoStack is not empty
 sort sendList ascending by generation   // this will be in topological order
 do this
     send sendList
-in parallel with this    
+in parallel with this
     receive otherSendList
-    
+
 add all of otherSendList to the queue of events to verify and add to the hashgraph
 ```
 
@@ -147,7 +147,7 @@ in parallel with this
         receive boolean b
         if b
             add y to knownSet
-            
+
 ```
 
 <img src="sync-protocol-fig5.png" width="75%" />
@@ -157,13 +157,13 @@ in parallel with this
 //////////////// PHASE 3 ////////////////
 
 // add to knownSet all the ancestors of each known event
-todoStack = stack containing all elements in knownSet (in an arbitrary order)  
+todoStack = stack containing all elements in knownSet (in an arbitrary order)
 while todoStack is not empty
     pop x from todoStack
     push each parent of x onto todoStack (in an arbitrary order)
     if (x.generation >= otherMinGenNonAncient) AND (x not in knownSet)
         add x to knownSet
-        
+
 ```
 
 <img src="sync-protocol-fig6.png" width="75%" />
@@ -173,7 +173,7 @@ while todoStack is not empty
 // tips might have changed since the beginning of the sync, get the latest
 tipList = get latest tips
 // set sendList to all ancestors of tips that are not known
-todoStack = stack containing all elements in tipList (in an arbitrary order)  
+todoStack = stack containing all elements in tipList (in an arbitrary order)
 while todoStack is not empty
     pop x from todoStack
     push each parent of x onto todoStack (in an arbitrary order)
@@ -190,9 +190,9 @@ while todoStack is not empty
 sort sendList ascending by generation   // this will be in topological order
 do this
     send sendList
-in parallel with this    
+in parallel with this
     receive otherSendList
-    
+
 add all of otherSendList to the queue of events to verify and add to the hashgraph
 
 ```
@@ -221,3 +221,38 @@ Suppose we have an event 3 who has a self parent 2 who has a self parent 1. Once
 created, but not gossiped out, because the creator is under load. Once it starts syncing again, 2 is ancient for the
 other nodes, so they never receive it. They don't need to, because its a stale event. Now we receive 3 and it becomes a
 tip, but 1 is still also a tip, because it has no descendants that we know of. So we end up with more tips then nodes.
+
+### Filtering likely duplicate events
+
+Given that all the synchronizations are happening in parallel, it is possible that the same event is sent multiple
+times from different nodes. This leads to very high event duplication. Redundant events are filtered out by the
+receiver, but it still wastes bandwidth and processing power.
+
+To avoid that, a special mechanism was developed to delay sending some events until they are old enough. A basic form of
+it is to immediately send all self-events and all their parents, while delaying "other" events (ones created by other
+nodes and not yet used by self-events) for a long time (a few seconds) - hoping they will get synchronized by their
+creators. This reduces duplicate ration considerably, but not as much as one would like - given quite aggressive usage
+of other node events and parents for self-events, there is a good chance that in a short time, most of the graph will be
+covered by parents of self-event. Still, it is better than no filtering at all, at minimal cost (as ignored events will
+be synchronized by other nodes).
+
+When primitive broadcast is enabled, the situation changes. Broadcast preemptively sends all self-events out, and there
+is almost never a need to synchronize them (in fact, they have to be synced only in event of network disconnection or
+running reconnect from the other node). It makes perfect sense to delay self-events for a long time in sync protocol.
+At the same time, their parents might not be available to the peer yet (as we cannot trust their creator to broadcast
+them in a timely manner), which makes them useless for processing, as they will get stuck in the orphan buffer.
+
+To avoid that, when broadcast is enabled, 3 levels of delays are implemented - self events, parents of self-events, and
+"other" events, which are not involved in the graph of possible self-events. Timings are chosen to work with the
+broadcast paradigm - parents of self-events are delayed for the shortest time, self-events and other events are delayed
+for a longer time. Exact timings depend on the network configuration, but the example for WAN might be as follows:
+
+- self-events have to be at least 1 second old before being considered for sync
+- parents of self-events have to be at least 250ms old
+- other events have to be at least 3 seconds old
+
+This allows well-functioning broadcast to completely replace sync protocol in actual event synchronization
+(assuming pings between nodes below 250ms), with a modest duplication rate for sending required ancestors more
+aggressively to cover for possible slow third party nodes and fallback to sync in case of big disconnections.
+Given that the broadcast is disabled before the first sync is fully completed, freshly connected nodes will be sent
+everything, not delaying their recovery after a disconnect or rereconnection.
