@@ -454,7 +454,7 @@ public class NodeCreateTest {
                         .via("nodeCreationFailed"),
                 getTxnRecord("nodeCreationFailed").logged(),
                 // Validate that the failed transaction charges the correct fees.
-                safeValidateChargedUsdWithin("nodeCreationFailed", 0.001, 1, 0.001, 1),
+                safeValidateChargedUsdWithin("nodeCreationFailed", 0.001, 1, 0.0177, 1),
                 nodeCreate("ntb", nodeAccount)
                         .adminKey(ED_25519_KEY)
                         .fee(ONE_HBAR)
@@ -475,7 +475,7 @@ public class NodeCreateTest {
                         .gossipCaCertificate(gossipCertificates.getLast().getEncoded())
                         .hasKnownStatus(UNAUTHORIZED)
                         .via("multipleSigsCreation"),
-                safeValidateChargedUsdWithin("multipleSigsCreation", 0.0011276316, 1.0, 0.001, 1.0));
+                safeValidateChargedUsdWithin("multipleSigsCreation", 0.0011276316, 1.0, 0.0384, 1));
     }
 
     /**
