@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
-import com.swirlds.platform.reconnect.api.ProtocolFactory;
 import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.event.intake.EventIntakeModule;
+import org.hiero.consensus.gossip.GossipModule;
+import org.hiero.consensus.gossip.impl.reconnect.ProtocolFactory;
 import org.hiero.consensus.hashgraph.HashgraphModule;
 import org.hiero.consensus.pces.PcesModule;
 
@@ -12,8 +13,8 @@ module com.swirlds.platform.core {
     uses EventCreatorModule;
     uses EventIntakeModule;
     uses HashgraphModule;
-    uses ProtocolFactory;
     uses PcesModule;
+    uses GossipModule;
 
     /* Public Package Exports. This list should remain alphabetized. */
     exports com.swirlds.platform;
@@ -66,7 +67,6 @@ module com.swirlds.platform.core {
             org.hiero.otter.test;
     exports com.swirlds.platform.recovery.internal to
             org.hiero.consensus.pcli;
-    exports com.swirlds.platform.reconnect.api;
 
     requires transitive com.hedera.node.hapi;
     requires transitive com.hedera.pbj.runtime;
@@ -85,6 +85,7 @@ module com.swirlds.platform.core {
     requires transitive org.hiero.consensus.event.creator;
     requires transitive org.hiero.consensus.event.intake;
     requires transitive org.hiero.consensus.gossip.impl;
+    requires transitive org.hiero.consensus.gossip;
     requires transitive org.hiero.consensus.hashgraph;
     requires transitive org.hiero.consensus.metrics;
     requires transitive org.hiero.consensus.model;
@@ -96,7 +97,6 @@ module com.swirlds.platform.core {
     requires com.swirlds.config.extensions;
     requires com.swirlds.logging;
     requires com.swirlds.merkledb;
-    requires org.hiero.consensus.gossip;
     requires org.hiero.consensus.pces.impl;
     requires org.hiero.consensus.platformstate;
     requires com.github.spotbugs.annotations;
@@ -110,6 +110,6 @@ module com.swirlds.platform.core {
 
     provides com.swirlds.config.api.ConfigurationExtension with
             com.swirlds.platform.config.PlatformConfigurationExtension;
-    provides com.swirlds.platform.reconnect.api.ProtocolFactory with
+    provides ProtocolFactory with
             com.swirlds.platform.reconnect.ReconnectProtocolFactory;
 }

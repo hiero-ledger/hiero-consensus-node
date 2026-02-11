@@ -2242,6 +2242,39 @@ public class UtilVerbs {
         });
     }
 
+    public static CustomSpecAssert safeValidateInnerTxnChargedUsd(
+            String txn,
+            String parent,
+            double oldPrice,
+            double oldAllowedPercentDiff,
+            double newPrice,
+            double newAllowedPercentDiff) {
+        return assertionsHold((spec, assertLog) -> {
+            final var flag = spec.targetNetworkOrThrow().startupProperties().get("fees.simpleFeesEnabled");
+            if ("true".equalsIgnoreCase(flag)) {
+                final var effectivePercentDiff = Math.max(newAllowedPercentDiff, 1.0);
+                final var actualUsdCharged = getChargedUsedForInnerTxn(spec, parent, txn);
+                assertEquals(
+                        newPrice,
+                        actualUsdCharged,
+                        (effectivePercentDiff / 100.0) * newPrice,
+                        String.format(
+                                "%s fee (%s) more than %.2f percent different than expected!",
+                                sdec(actualUsdCharged, 4), txn, effectivePercentDiff));
+            } else {
+                final var effectivePercentDiff = Math.max(oldAllowedPercentDiff, 1.0);
+                final var actualUsdCharged = getChargedUsedForInnerTxn(spec, parent, txn);
+                assertEquals(
+                        oldPrice,
+                        actualUsdCharged,
+                        (effectivePercentDiff / 100.0) * oldPrice,
+                        String.format(
+                                "%s fee (%s) more than %.2f percent different than expected!",
+                                sdec(actualUsdCharged, 4), txn, effectivePercentDiff));
+            }
+        });
+    }
+
     /**
      * Validates that fee charged for a transaction is within the allowedPercentDiff of expected fee (taken
      * from pricing calculator) without the charge for gas.
