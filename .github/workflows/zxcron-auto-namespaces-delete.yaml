@@ -68,19 +68,19 @@ on:
         type: boolean
         required: false
         default: false
-        description: "solo-mqpt-n10 (SDPT/SDLT)"
+        description: "solo-mqpt-n10 (Merge Queues PT/LT)"
 
       Dallas_n11:
         type: boolean
         required: false
         default: false
-        description: "solo-mqpt-n11 (SDPT/SDLT)"
+        description: "solo-mqpt-n11 (Merge Queues PT/LT)"
 
       Dallas_n12:
         type: boolean
         required: false
         default: false
-        description: "solo-mqpt-n12 (SDPT/SDLT)"
+        description: "solo-mqpt-n12 (Merge Queues PT/LT)"
 
 jobs:
   delete-selected-namespaces:
