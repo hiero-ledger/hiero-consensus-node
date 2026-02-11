@@ -74,8 +74,12 @@ import org.hiero.consensus.roster.ReadableRosterStore;
 import org.hiero.consensus.roster.ReadableRosterStoreImpl;
 import org.hiero.interledger.clpr.ClprService;
 import org.hiero.interledger.clpr.ReadableClprLedgerConfigurationStore;
+import org.hiero.interledger.clpr.ReadableClprMessageQueueMetadataStore;
+import org.hiero.interledger.clpr.ReadableClprMessageStore;
 import org.hiero.interledger.clpr.ReadableClprMetadataStore;
 import org.hiero.interledger.clpr.impl.ReadableClprLedgerConfigurationStoreImpl;
+import org.hiero.interledger.clpr.impl.ReadableClprMessageQueueMetadataStoreImpl;
+import org.hiero.interledger.clpr.impl.ReadableClprMessageStoreImpl;
 import org.hiero.interledger.clpr.impl.ReadableClprMetadataStoreImpl;
 
 /**
@@ -177,6 +181,14 @@ public class ReadableStoreFactoryImpl implements ReadableStoreFactory {
                 ReadableClprMetadataStore.class,
                 new StoreEntry(
                         ClprService.NAME, (states, entityCounters) -> new ReadableClprMetadataStoreImpl(states)));
+        newMap.put(
+                ReadableClprMessageQueueMetadataStore.class,
+                new StoreEntry(
+                        ClprService.NAME,
+                        (states, entityCounters) -> new ReadableClprMessageQueueMetadataStoreImpl(states)));
+        newMap.put(
+                ReadableClprMessageStore.class,
+                new StoreEntry(ClprService.NAME, (states, entityCounters) -> new ReadableClprMessageStoreImpl(states)));
         return Collections.unmodifiableMap(newMap);
     }
 
