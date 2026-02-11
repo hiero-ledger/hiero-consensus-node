@@ -259,7 +259,7 @@ class DependencyMigrationTest extends MerkleTestBase {
                 @Override
                 public Set<StateDefinition> statesToCreate() {
                     return Set.of(
-                            StateDefinition.inMemory(STATE_ID, STATE_KEY, EntityNumber.PROTOBUF, ProtoString.PROTOBUF));
+                            StateDefinition.keyValue(STATE_ID, STATE_KEY, EntityNumber.PROTOBUF, ProtoString.PROTOBUF));
                 }
 
                 public void migrate(@NonNull final MigrationContext ctx) {
