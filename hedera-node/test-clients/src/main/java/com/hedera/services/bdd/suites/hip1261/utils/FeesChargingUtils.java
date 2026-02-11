@@ -44,7 +44,6 @@ import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleCon
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.PROCESSING_BYTES_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SIGNATURE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.STATE_BYTES_FEE_USD;
-import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SUBMIT_MESSAGE_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_ASSOCIATE_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_ASSOCIATE_EXTRA_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_ASSOCIATE_INCLUDED_TOKENS;
@@ -1012,8 +1011,8 @@ public class FeesChargingUtils {
         final double networkFee = nodeFee * NETWORK_MULTIPLIER;
 
         // ----- service fees -----
-        final long byteExtrasService = Math.max(0L, bytes - CONS_SUBMIT_MESSAGE_INCLUDED_BYTES);
-        final double serviceExtrasFee = byteExtrasService * STATE_BYTES_FEE_USD;
+        final long byteExtrasService = Math.max(0L, messageBytes - CONS_SUBMIT_MESSAGE_INCLUDED_BYTES);
+        final double serviceBytesExtrasFee = byteExtrasService * STATE_BYTES_FEE_USD;
 
         double serviceBaseFee = CONS_SUBMIT_MESSAGE_BASE_FEE_USD;
         if (includesCustomFee) {
