@@ -26,10 +26,6 @@ jmhModuleInfo {
     requires("com.swirlds.platform.core")
     requires("com.swirlds.platform.core.test.fixtures")
     requires("com.hedera.node.hapi")
-    requires("com.swirlds.metrics.api")
-    requires("org.hiero.consensus.metrics")
-    requires("org.hiero.consensus.hashgraph.impl")
-    requires("org.hiero.consensus.hashgraph.impl.test.fixtures")
     requires("org.hiero.consensus.model.test.fixtures")
     requires("org.hiero.consensus.pces")
     requires("org.hiero.consensus.pces.impl")
@@ -64,9 +60,11 @@ testModuleInfo {
 }
 
 timingSensitiveModuleInfo {
+    requires("com.swirlds.metrics.api")
     requires("com.swirlds.platform.core")
     requires("com.swirlds.platform.core.test.fixtures")
     requires("com.swirlds.state.impl")
     requires("org.hiero.base.utility.test.fixtures")
+    requires("org.hiero.consensus.metrics")
     requires("org.junit.jupiter.api")
 }
