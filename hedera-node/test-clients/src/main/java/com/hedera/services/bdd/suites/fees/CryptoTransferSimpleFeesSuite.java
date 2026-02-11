@@ -53,14 +53,10 @@ public class CryptoTransferSimpleFeesSuite {
 
     // Extras
     private static final double ADDITIONAL_ACCOUNT_FEE = 0.0001;
-    private static final double ADDITIONAL_TOKEN_FEE = 0.0001;
+    private static final double TOKEN_TYPES_EXTRA_FEE = 0.0001;
     private static final double ADDITIONAL_NFT_SERIAL_FEE = 0.0001;
-
     private static final double HOOK_INVOCATION_USD = 0.005;
-    private static final long HOOK_GAS_LIMIT = 25000;
-    private static final double HBAR_TRANSFER_BASE_USD = 0.0001;
     private static final double NFT_TRANSFER_BASE_USD = 0.001;
-    private static final double NFT_TRANSFER_WITH_CUSTOM_BASE_USD = 0.002;
 
     // Entity names
     private static final String PAYER = "payer";
@@ -72,7 +68,6 @@ public class CryptoTransferSimpleFeesSuite {
     private static final String FUNGIBLE_TOKEN_2 = "fungibleToken2";
     private static final String FUNGIBLE_TOKEN_WITH_FEES = "fungibleTokenWithFees";
     private static final String NFT_TOKEN = "nftToken";
-    private static final String NFT_TOKEN_2 = "nftToken2";
     private static final String NFT_TOKEN_WITH_FEES = "nftTokenWithFees";
     private static final String HOOK_CONTRACT = "TruePreHook";
 
@@ -195,8 +190,8 @@ public class CryptoTransferSimpleFeesSuite {
                         .signedBy(PAYER)
                         .fee(ONE_HBAR)
                         .via("mixedFtNftTxn"),
-                // Single charge, NOT $0.002 (double)!
-                validateChargedUsd("mixedFtNftTxn", TOKEN_TRANSFER_FEE));
+                // Charge for base token transfer and extra token type!
+                validateChargedUsd("mixedFtNftTxn", TOKEN_TRANSFER_FEE + TOKEN_TYPES_EXTRA_FEE));
     }
 
     @HapiTest
@@ -230,8 +225,8 @@ public class CryptoTransferSimpleFeesSuite {
                         .signedBy(PAYER)
                         .fee(10 * ONE_HBAR)
                         .via("mixedCustomTxn"),
-                // Single custom fee tier charge
-                validateChargedUsd("mixedCustomTxn", TOKEN_TRANSFER_CUSTOM_FEE));
+                // Charge for token transfer with custom fee and extra token type
+                validateChargedUsd("mixedCustomTxn", TOKEN_TRANSFER_CUSTOM_FEE + TOKEN_TYPES_EXTRA_FEE));
     }
 
     // ==================== EXTRAS TESTS ====================
@@ -282,7 +277,7 @@ public class CryptoTransferSimpleFeesSuite {
                         .signedBy(PAYER)
                         .fee(ONE_HBAR)
                         .via("multiTokenTxn"),
-                validateChargedUsd("multiTokenTxn", TOKEN_TRANSFER_FEE + ADDITIONAL_TOKEN_FEE));
+                validateChargedUsd("multiTokenTxn", TOKEN_TRANSFER_FEE + TOKEN_TYPES_EXTRA_FEE));
     }
 
     @HapiTest
@@ -337,7 +332,7 @@ public class CryptoTransferSimpleFeesSuite {
                         .fee(10 * ONE_HBAR)
                         .via("mixedStandardCustomTxn"),
                 // Custom fee tier + 1 extra token
-                validateChargedUsd("mixedStandardCustomTxn", TOKEN_TRANSFER_CUSTOM_FEE + ADDITIONAL_TOKEN_FEE));
+                validateChargedUsd("mixedStandardCustomTxn", TOKEN_TRANSFER_CUSTOM_FEE + TOKEN_TYPES_EXTRA_FEE));
     }
 
     // ==================== COMPLEX SCENARIO ====================
@@ -404,11 +399,9 @@ public class CryptoTransferSimpleFeesSuite {
                         .fee(10 * ONE_HBAR)
                         .via("complexTxn"),
                 // Custom fee tier (since custom fees present)
-                // + 2 extra fungible tokens (3 total - 1 included)
-                // + 2 extra NFT serials (3 total - 1 included)
-                validateChargedUsd(
-                        "complexTxn",
-                        TOKEN_TRANSFER_CUSTOM_FEE + 2 * ADDITIONAL_TOKEN_FEE + 2 * ADDITIONAL_NFT_SERIAL_FEE));
+                // + 3 fungible tokens
+                // + 3 NFT serials (6 total - 1 included)
+                validateChargedUsd("complexTxn", TOKEN_TRANSFER_CUSTOM_FEE + 5 * TOKEN_TYPES_EXTRA_FEE));
     }
 
     // ==================== HOOK TESTS ====================
