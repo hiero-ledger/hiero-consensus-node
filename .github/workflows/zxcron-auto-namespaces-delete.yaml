@@ -141,6 +141,7 @@ jobs:
           for namespace in `sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt get namespaces | awk '{print $1}' | grep -E 'solo[\-].*[\-]n[1-9]'`
           do
             n="$(echo "${namespace}" | perl -ne 'print "$1\n" if /^solo\-.*d?.*t\-n(\d+)$/')"
+            echo "Found {$namespace} with n=${n}"
             env | grep ${clusterZone}_n${n}
             isChecked=$(env | grep ${clusterZone}_n${n} | awk -F= '{print $NF}')
             if [[ "${isChecked}" = "true" ]]
@@ -168,6 +169,7 @@ jobs:
           for namespace in `sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt get namespaces | awk '{print $1}' | grep -E 'solo[\-].*[\-]n[1-9]'`
           do
             n="$(echo "${namespace}" | perl -ne 'print "$1\n" if /^solo\-.*d?.*t\-n(\d+)$/')"
+            echo "Found {$namespace} with n=${n}"
             env | grep ${clusterZone}_n${n}
             isChecked=$(env | grep ${clusterZone}_n${n} | awk -F= '{print $NF}')
             if [[ "${isChecked}" = "true" ]]
