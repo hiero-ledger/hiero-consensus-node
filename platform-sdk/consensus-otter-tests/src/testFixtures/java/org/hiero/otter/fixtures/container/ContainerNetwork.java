@@ -24,6 +24,7 @@ import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.TransactionGenerator;
 import org.hiero.otter.fixtures.container.network.NetworkBehavior;
+import org.hiero.otter.fixtures.container.network.ProxyNetworkBehavior;
 import org.hiero.otter.fixtures.internal.AbstractNetwork;
 import org.hiero.otter.fixtures.internal.RegularTimeManager;
 import org.hiero.otter.fixtures.internal.network.ConnectionKey;
@@ -54,10 +55,10 @@ public class ContainerNetwork extends AbstractNetwork {
     /**
      * Constructor for {@link ContainerNetwork}.
      *
-     * @param timeManager the time manager to use
+     * @param timeManager          the time manager to use
      * @param transactionGenerator the transaction generator to use
-     * @param rootOutputDirectory the root output directory for the network
-     * @param useRandomNodeIds {@code true} if the node IDs should be selected randomly; {@code false} otherwise
+     * @param rootOutputDirectory  the root output directory for the network
+     * @param useRandomNodeIds     {@code true} if the node IDs should be selected randomly; {@code false} otherwise
      */
     public ContainerNetwork(
             @NonNull final RegularTimeManager timeManager,
@@ -145,23 +146,27 @@ public class ContainerNetwork extends AbstractNetwork {
      */
     @Override
     protected void preStartHook(@NonNull final Roster roster) {
-        // set up the toxiproxy container and network behavior
-        toxiproxyContainer = new ToxiproxyContainer(network);
-        toxiproxyContainer.start();
-        final String toxiproxyHost = toxiproxyContainer.getHost();
-        final int toxiproxyPort = toxiproxyContainer.getMappedPort(ToxiproxyContainer.CONTROL_PORT);
-        final String toxiproxyIpAddress = toxiproxyContainer.getNetworkIpAddress();
-        networkBehavior = new NetworkBehavior(toxiproxyHost, toxiproxyPort, roster, toxiproxyIpAddress);
+        if (proxyDisabled) {
+            networkBehavior = new NoOpNetworkBehavior();
+        } else {
+            // set up the toxiproxy container and network behavior
+            toxiproxyContainer = new ToxiproxyContainer(network);
+            toxiproxyContainer.start();
+            final String toxiproxyHost = toxiproxyContainer.getHost();
+            final int toxiproxyPort = toxiproxyContainer.getMappedPort(ToxiproxyContainer.CONTROL_PORT);
+            final String toxiproxyIpAddress = toxiproxyContainer.getNetworkIpAddress();
+            networkBehavior = new ProxyNetworkBehavior(toxiproxyHost, toxiproxyPort, roster, toxiproxyIpAddress);
 
-        // override the endpoint for each node with the corresponding proxy endpoint
-        for (final Node sender : nodes()) {
-            final List<NetworkEndpoint> endpointOverrides = nodes().stream()
-                    .filter(receiver -> !receiver.equals(sender))
-                    .map(receiver -> networkBehavior.getProxyEndpoint(sender, receiver))
-                    .toList();
-            ((ContainerNode) sender)
-                    .configuration()
-                    .setNetworkEndpoints(GossipConfig_.ENDPOINT_OVERRIDES, endpointOverrides);
+            // override the endpoint for each node with the corresponding proxy endpoint
+            for (final Node sender : nodes()) {
+                final List<NetworkEndpoint> endpointOverrides = nodes().stream()
+                        .filter(receiver -> !receiver.equals(sender))
+                        .map(receiver -> networkBehavior.getProxyEndpoint(sender, receiver))
+                        .toList();
+                ((ContainerNode) sender)
+                        .configuration()
+                        .setNetworkEndpoints(GossipConfig_.ENDPOINT_OVERRIDES, endpointOverrides);
+            }
         }
     }
 
