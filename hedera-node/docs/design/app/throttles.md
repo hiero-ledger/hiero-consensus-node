@@ -193,4 +193,5 @@ This table maps common throttle-related statuses to the exact decision point whe
 | `THROTTLED_AT_CONSENSUS`  | Handle/consensus        | Backend check failed for non-gas reason                                             | `DispatchUsageManager.java`        |
 | `CONSENSUS_GAS_EXHAUSTED` | Contract execution path | Ops-duration throttle had zero available capacity before EVM execution              | `ContextTransactionProcessor.java` |
 
+**SEE ALSO: [High-Volume Pricing (HIP-1313)](high-volume-pricing.md)**  
 **NEXT: [Workflows](workflows.md)**
