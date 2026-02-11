@@ -104,7 +104,7 @@ import org.junit.jupiter.api.Tag;
 @TargetEmbeddedMode(CONCURRENT)
 public class Hip1195BasicTests {
     private static final String BATCH_OPERATOR = "batchOperator";
-    private static final double HOOK_INVOCATION_USD = 1;
+    private static final double HOOK_INVOCATION_USD = 0.005;
     private static final long HOOK_GAS_LIMIT = 25000;
     private static final double HBAR_TRANSFER_BASE_USD = 0.0001;
     private static final double NFT_TRANSFER_BASE_USD = 0.001;
@@ -709,13 +709,9 @@ public class Hip1195BasicTests {
         return hapiTest(
                 newKeyNamed("supplyKey"),
                 newKeyNamed("receiverKey"),
-                cryptoCreate("treasury")
-                        .withHooks(accountAllowanceHook(241L, FALSE_TRUE_ALLOWANCE_HOOK.name()))
-                        .balance(ONE_HUNDRED_HBARS),
+                cryptoCreate("treasury").withHooks(accountAllowanceHook(241L, FALSE_TRUE_ALLOWANCE_HOOK.name())),
                 cryptoCreate("feeCollector"),
-                cryptoCreate("sender")
-                        .withHooks(accountAllowanceHook(242L, TRUE_ALLOWANCE_HOOK.name()))
-                        .balance(ONE_HUNDRED_HBARS),
+                cryptoCreate("sender").withHooks(accountAllowanceHook(242L, TRUE_ALLOWANCE_HOOK.name())),
                 cryptoCreate("receiver")
                         .receiverSigRequired(true)
                         .key("receiverKey")
@@ -743,13 +739,17 @@ public class Hip1195BasicTests {
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK)
                         .via("nftTransferFails"),
                 sourcingContextual(spec -> {
-                    // There are 6 hooks - 2 pre and 2 pre-post.
+                    // There are 4 hooks - 2 pre and 2 pre-post.
                     // 2 pre hooks succeed and third pre hook call fails
                     // so we should refund the gas and hook invocation cost of other treasury post hook = 2 *
                     // HOOK_GAS_LIMIT
                     //  and also the receiver pre-post hook = 2 (2 * HOOK_GAS_LIMIT)
+                    final long tinybarGasCost =
+                            (7 * HOOK_GAS_LIMIT) * spec.ratesProvider().currentTinybarGasPrice();
+                    final double usdGasCost = spec.ratesProvider().toUsdWithActiveRates(tinybarGasCost);
                     return validateChargedUsd(
-                            "nftTransferFails", NFT_TRANSFER_WITH_CUSTOM_BASE_USD + (6 * HOOK_INVOCATION_USD));
+                            "nftTransferFails",
+                            NFT_TRANSFER_WITH_CUSTOM_BASE_USD + (3 * HOOK_INVOCATION_USD) + usdGasCost);
                 }));
     }
 
@@ -1069,8 +1069,8 @@ public class Hip1195BasicTests {
                         .gas(5_000_000L)
                         .via("contractWithHookCreation")
                         .payingWith("payer"),
-                // One hook price 1 USD and contractCreate price 0.74 USD
-                validateChargedUsd("contractWithHookCreation", 1.74),
+                // One hook price 1 USD and contractCreate price 1 USD and 0.02 for keys and 0.001 for signature
+                validateChargedUsd("contractWithHookCreation", 2.021),
                 contractCreate("CreateTrivial")
                         .withHooks(
                                 accountAllowanceHook(400L, TRUE_ALLOWANCE_HOOK.name()),
@@ -1080,8 +1080,8 @@ public class Hip1195BasicTests {
                         .gas(5_000_000L)
                         .via("contractsWithHookCreation")
                         .payingWith("payer"),
-                // One hook price 1 USD and contractCreate price 0.74 USD
-                validateChargedUsd("contractsWithHookCreation", 4.74),
+                // One hook price 1 USD and contractCreate price 1 USD and 0.02 for keys and 0.001 for signature
+                validateChargedUsd("contractsWithHookCreation", 5.021),
                 contractUpdate("CreateTrivial")
                         .removingHook(400L)
                         .withHooks(
@@ -1091,8 +1091,8 @@ public class Hip1195BasicTests {
                         .blankMemo()
                         .via("hookUpdates")
                         .payingWith("payer"),
-                // hook creations and deletions are 1 USD each, and contractUpdate is 0.026 USD
-                validateChargedUsd("hookUpdates", 4.026));
+                // hook creations and deletions are 1 USD each, and contractUpdate is 0.026 USD and 0.001 for sig
+                validateChargedUsd("hookUpdates", 4.027));
     }
 
     @HapiTest
@@ -1112,6 +1112,7 @@ public class Hip1195BasicTests {
                 cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
                         .withPreHookFor(OWNER, 124L, HOOK_GAS_LIMIT, "")
                         .payingWith(OWNER)
+                        .signedBy(OWNER)
                         .via("feeTxn"),
                 sourcingContextual(spec -> {
                     final long tinybarGasCost =
@@ -1123,6 +1124,7 @@ public class Hip1195BasicTests {
                         .withPreHookFor(OWNER, 123L, HOOK_GAS_LIMIT, "")
                         .withPrePostHookFor(PAYER, 123L, HOOK_GAS_LIMIT, "")
                         .payingWith(OWNER)
+                        .signedBy(OWNER)
                         .via("feeTxn2"),
                 sourcingContextual(spec -> {
                     // Pre-post hook is called twice, so gas usage is double the given limit
@@ -1152,12 +1154,17 @@ public class Hip1195BasicTests {
                         .withPrePostHookFor(OWNER, 123L, HOOK_GAS_LIMIT, "")
                         .withPrePostHookFor(PAYER, 123L, HOOK_GAS_LIMIT, "")
                         .payingWith(OWNER)
+                        .signedBy(OWNER)
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK)
                         .via("feeTxn"),
                 sourcingContextual(spec -> {
                     // There are two pre-post hooks, pre parts are run before and post are run after.
-                    // second pre hook fails, so we should refund the hook invocation cost of two calls
-                    return validateChargedUsd("feeTxn", HBAR_TRANSFER_BASE_USD + (4 * HOOK_INVOCATION_USD));
+                    // second pre hook fails, so we should refund the gas and hook invocation cost of two calls
+                    final long tinybarGasCost =
+                            (2 * HOOK_GAS_LIMIT) * spec.ratesProvider().currentTinybarGasPrice();
+                    final double usdGasCost = spec.ratesProvider().toUsdWithActiveRates(tinybarGasCost);
+                    return validateChargedUsd(
+                            "feeTxn", HBAR_TRANSFER_BASE_USD + (2 * HOOK_INVOCATION_USD) + usdGasCost);
                 }));
     }
 

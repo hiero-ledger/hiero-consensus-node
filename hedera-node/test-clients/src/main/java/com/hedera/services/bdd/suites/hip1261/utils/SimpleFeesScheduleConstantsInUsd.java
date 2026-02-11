@@ -37,9 +37,14 @@ public class SimpleFeesScheduleConstantsInUsd {
     public static final double ALLOWANCES_FEE_USD = 0.05;
 
     public static final double TOKEN_CREATE_WITH_CUSTOM_FEES_FEE_USD = 1.0;
+    public static final double TOKEN_CREATE_BASE_FEE = 1.0;
+    public static final double TOKEN_CREATE_WITH_CUSTOM_FEES_FEE = 2.0;
     public static final double TOKEN_MINT_FT_BASE_FEE = 0.001;
     public static final double TOKEN_MINT_NFT_FEE_USD = 0.02;
+    public static final double TOKEN_UPDATE_BASE_FEE = 0.001;
     public static final double TOKEN_UPDATE_NFT_FEE = 0.001;
+    public static final double TOKEN_TRANSFER_FULL_FEE = 0.001;
+    public static final double TOKEN_ASSOCIATE_FEE = 0.05;
 
     public static final double AIRDROPS_FEE_USD = 0.05;
     public static final double TOKEN_CLAIM_FEE = 0.001;
@@ -97,25 +102,11 @@ public class SimpleFeesScheduleConstantsInUsd {
     public static final double CONS_GET_TOPIC_INFO_BASE_FEE_USD = 0.0;
 
     /* ---------- File service ---------- */
-
-    public static final double FILE_CREATE_BASE_FEE_USD = 0.000000005;
-    public static final long FILE_CREATE_INCLUDED_KEYS = 1L;
-    public static final long FILE_CREATE_INCLUDED_BYTES = 1000L;
-
-    public static final double FILE_UPDATE_BASE_FEE_USD = 0.000000005;
-    public static final long FILE_UPDATE_INCLUDED_KEYS = 1L;
-    public static final long FILE_UPDATE_INCLUDED_BYTES = 1000L;
-
-    public static final double FILE_APPEND_BASE_FEE_USD = 0.000000005;
-    public static final long FILE_APPEND_INCLUDED_KEYS = 1L;
-    public static final long FILE_APPEND_INCLUDED_BYTES = 1000L;
-
-    public static final double FILE_DELETE_BASE_FEE_USD = 0.0000000007;
-    public static final long FILE_DELETE_INCLUDED_KEYS = 1L;
-
+    public static final double FILE_CREATE_FEE_USD = 0.05;
+    public static final double FILE_UPDATE_FEE_USD = 0.05;
+    public static final double FILE_DELETE_FEE_USD = 0.007;
+    public static final double FILE_APPEND_FEE_USD = 0.05;
     public static final double FILE_GET_CONTENTS_BASE_FEE_USD = 0.000000001;
-    public static final long FILE_GET_CONTENTS_INCLUDED_KEYS = 1L;
-    public static final long FILE_GET_CONTENTS_INCLUDED_BYTES = 1000L;
 
     /* ---------- Token service ---------- */
     public static final long TOKEN_CREATE_WITH_CUSTOM_FEE_USD = 1L;
@@ -160,9 +151,7 @@ public class SimpleFeesScheduleConstantsInUsd {
 
     public static final double SCHEDULE_CREATE_BASE_FEE_USD = 0.0099;
     public static final long SCHEDULE_CREATE_INCLUDED_KEYS = 1L;
-
-    public static final double SCHEDULE_SIGN_BASE_FEE_USD = 0.0009;
-
+    public static final double SCHEDULE_SIGN_FEE = 0.001;
     public static final double SCHEDULE_DELETE_BASE_FEE_USD = 0.0009;
 
     /* ---------- Atomic Batch service ------------ */

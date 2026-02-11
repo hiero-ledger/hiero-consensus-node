@@ -287,15 +287,20 @@ public class Hip1195EnabledTest {
                                 accountAllowanceHook(123L, TRUE_ALLOWANCE_HOOK.name()),
                                 accountAllowanceHook(124L, TRUE_ALLOWANCE_HOOK.name()),
                                 accountAllowanceHook(125L, TRUE_PRE_POST_ALLOWANCE_HOOK.name()),
-                                accountAllowanceHook(126L, TRUE_PRE_POST_ALLOWANCE_HOOK.name())),
+                                accountAllowanceHook(126L, TRUE_PRE_POST_ALLOWANCE_HOOK.name()))
+                        .signedBy(DEFAULT_PAYER),
                 cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
                         .withPreHookFor(OWNER, 124L, 15000000000000L, "")
                         .payingWith(PAYER)
+                        .signedBy(PAYER)
+                        .fee(15000 * ONE_HBAR)
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK)
                         .via("payerTxnGasLimitExceeded"),
                 cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
                         .withPreHookFor(OWNER, 124L, 15000000000000L, "")
+                        .fee(15000 * ONE_HBAR)
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK)
+                        .signedBy(DEFAULT_PAYER)
                         .via("defaultPayerMaxGasLimitExceededTxn"),
                 getTxnRecord("payerTxnGasLimitExceeded")
                         .andAllChildRecords()
