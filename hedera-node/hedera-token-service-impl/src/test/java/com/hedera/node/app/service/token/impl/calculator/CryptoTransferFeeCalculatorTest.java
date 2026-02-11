@@ -208,6 +208,48 @@ class CryptoTransferFeeCalculatorTest {
     }
 
     @Nested
+    @DisplayName("Invalid Token Tests")
+    class InvalidTokenTests {
+
+        @Test
+        @DisplayName("Non-existent token is skipped during fee calculation (no exception)")
+        void nonExistentTokenSkippedDuringFeeCalculation() {
+            setupMocksWithTokenStore();
+            // Don't mock token 2001L - it will return null from tokenStore.get()
+            final var body = buildFungibleTokenTransfer(2001L, 1001L, 1002L, 50L);
+
+            // Should not throw INVALID_TOKEN_ID - validation happens at handle time
+            final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(feeContext, null));
+
+            // Treated as no valid tokens, so no service fee (like HBAR-only)
+            assertThat(result.getServiceTotalTinycents()).isEqualTo(0L);
+        }
+
+        @Test
+        @DisplayName("Mix of valid and non-existent tokens only counts valid ones")
+        void mixOfValidAndNonExistentTokens() {
+            setupMocksWithTokenStore();
+            mockFungibleToken(2001L, false); // Valid token
+            // Don't mock token 2002L - it will return null
+
+            final var validTransfer = buildTokenTransferList(2001L, 1001L, 1002L, 50L);
+            final var invalidTransfer = buildTokenTransferList(2002L, 1003L, 1004L, 100L);
+
+            final var body = TransactionBody.newBuilder()
+                    .cryptoTransfer(CryptoTransferTransactionBody.newBuilder()
+                            .tokenTransfers(validTransfer, invalidTransfer)
+                            .build())
+                    .build();
+
+            // Should not throw - invalid token is skipped
+            final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(feeContext, null));
+
+            // Only the valid token should be counted
+            assertThat(result.getServiceTotalTinycents()).isEqualTo(TOKEN_TRANSFER_FEE);
+        }
+    }
+
+    @Nested
     @DisplayName("Extras Tests")
     class ExtrasTests {
 

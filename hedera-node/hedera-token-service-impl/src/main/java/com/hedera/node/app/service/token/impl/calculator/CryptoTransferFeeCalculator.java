@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.calculator;
 
-import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hedera.node.app.service.token.impl.handlers.CryptoTransferHandler.getHookInfo;
-import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static org.hiero.hapi.fees.FeeScheduleUtils.lookupServiceFee;
 import static org.hiero.hapi.support.fees.Extra.ACCOUNTS;
 import static org.hiero.hapi.support.fees.Extra.FUNGIBLE_TOKENS;
@@ -156,7 +154,11 @@ public class CryptoTransferFeeCalculator implements ServiceFeeCalculator {
         for (final var ttl : op.tokenTransfers()) {
             final var tokenId = ttl.tokenOrThrow();
             final var token = tokenStore.get(tokenId);
-            validateTrue(token != null, INVALID_TOKEN_ID);
+            // Skip if token doesn't exist - validation will happen at handle time
+            // and properly return CONTRACT_REVERT_EXECUTED for contract calls
+            if (token == null) {
+                continue;
+            }
             final boolean hasCustomFees = !token.customFees().isEmpty();
             final boolean isFungible = token.tokenType() == TokenType.FUNGIBLE_COMMON;
             if (isFungible) {
