@@ -63,13 +63,13 @@ public class PlatformWiring {
         Objects.requireNonNull(components);
 
         components
-                .gossipWiring()
-                .getEventOutput()
+                .gossipModule()
+                .receivedEventOutputWire()
                 .solderTo(components.eventIntakeModule().unhashedEventsInputWire());
 
         components
-                .gossipWiring()
-                .getSyncProgressOutput()
+                .gossipModule()
+                .syncProgressOutputWire()
                 .solderTo(components.eventCreatorModule().syncProgressInputWire());
 
         // Note: This is an intermediate step while migrating components to the new event intake module.
@@ -90,7 +90,7 @@ public class PlatformWiring {
         // Make sure events are persisted before being gossipped. This prevents accidental branching in the case
         // where an event is created, gossipped, and then the node crashes before the event is persisted.
         // After restart, a node will not be aware of this event, so it can create a branch
-        writtenEventOutputWire.solderTo(components.gossipWiring().getEventInput(), INJECT);
+        writtenEventOutputWire.solderTo(components.gossipModule().eventToGossipInputWire(), INJECT);
 
         // Avoid using events as parents before they are persisted
         writtenEventOutputWire.solderTo(components.eventCreatorModule().orderedEventInputWire());
@@ -103,7 +103,7 @@ public class PlatformWiring {
         components
                 .model()
                 .getHealthMonitorWire()
-                .solderTo(components.gossipWiring().getSystemHealthInput());
+                .solderTo(components.gossipModule().healthStatusInputWire());
         components
                 .model()
                 .getHealthMonitorWire()
@@ -347,7 +347,7 @@ public class PlatformWiring {
         components
                 .platformMonitorWiring()
                 .getOutputWire()
-                .solderTo(components.gossipWiring().getPlatformStatusInput(), INJECT);
+                .solderTo(components.gossipModule().platformStatusInputWire(), INJECT);
 
         solderNotifier(components);
 
@@ -370,7 +370,7 @@ public class PlatformWiring {
                 components.eventWindowManagerWiring().getOutputWire();
 
         eventWindowOutputWire.solderTo(components.eventIntakeModule().eventWindowInputWire(), INJECT);
-        eventWindowOutputWire.solderTo(components.gossipWiring().getEventWindowInput(), INJECT);
+        eventWindowOutputWire.solderTo(components.gossipModule().eventWindowInputWire(), INJECT);
         eventWindowOutputWire.solderTo(components.pcesModule().eventWindowInputWire(), INJECT);
         eventWindowOutputWire.solderTo(components.eventCreatorModule().eventWindowInputWire(), INJECT);
         eventWindowOutputWire.solderTo(
