@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.junit.hedera.utils;
 
 import static com.hedera.node.app.info.DiskStartupNetworks.GENESIS_NETWORK_JSON;
+import static com.swirlds.platform.crypto.CryptoStatic.generateKeysAndCerts;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -10,7 +11,6 @@ import com.hedera.node.config.converter.SemanticVersionConverter;
 import com.hedera.node.internal.network.Network;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.spec.props.JutilPropertySource;
-import com.swirlds.platform.crypto.CryptoStatic;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.File;
@@ -48,7 +48,7 @@ public class WorkingDirUtils {
         final var selfId = NodeId.of(1);
         final Map<NodeId, KeysAndCerts> sigAndCerts;
         try {
-            sigAndCerts = CryptoStatic.generateKeysAndCerts(List.of(selfId));
+            sigAndCerts = generateKeysAndCerts(List.of(selfId));
         } catch (ExecutionException | InterruptedException | KeyStoreException e) {
             throw new RuntimeException(e);
         }
@@ -114,6 +114,8 @@ public class WorkingDirUtils {
         // Initialize the data folders
         WORKING_DIR_DATA_FOLDERS.forEach(folder ->
                 createDirectoriesUnchecked(workingDir.resolve(DATA_DIR).resolve(folder)));
+        // Generate the node's keys and certs
+        generateKeyAndCert(nodeId);
         // Initialize the current upgrade folder
         createDirectoriesUnchecked(
                 workingDir.resolve(DATA_DIR).resolve(UPGRADE_DIR).resolve(CURRENT_DIR));
@@ -125,6 +127,14 @@ public class WorkingDirUtils {
         copyBootstrapAssets(bootstrapAssetsLoc(), workingDir);
         // Update the log4j2.xml file with the correct output directory
         updateLog4j2XmlOutputDir(workingDir, nodeId);
+    }
+
+    private static void generateKeyAndCert(final long nodeId) {
+        try {
+            generateKeysAndCerts(List.of(NodeId.of(nodeId)));
+        } catch (final ExecutionException | InterruptedException | KeyStoreException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     /**
