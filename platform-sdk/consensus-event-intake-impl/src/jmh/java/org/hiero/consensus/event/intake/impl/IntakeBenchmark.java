@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.TimeUnit;
+import org.hiero.base.concurrent.ExecutorFactory;
 import org.hiero.consensus.event.NoOpIntakeEventCounter;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.GeneratorEventGraphSource;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.GeneratorEventGraphSourceBuilder;
@@ -27,6 +28,7 @@ import org.openjdk.jmh.annotations.Fork;
 import org.openjdk.jmh.annotations.Level;
 import org.openjdk.jmh.annotations.Measurement;
 import org.openjdk.jmh.annotations.Mode;
+import org.openjdk.jmh.annotations.OperationsPerInvocation;
 import org.openjdk.jmh.annotations.OutputTimeUnit;
 import org.openjdk.jmh.annotations.Param;
 import org.openjdk.jmh.annotations.Scope;
@@ -45,13 +47,11 @@ import org.openjdk.jmh.annotations.Warmup;
 @Warmup(iterations = 1, time = 5)
 @Measurement(iterations = 3, time = 10)
 public class IntakeBenchmark {
+    /** The number of events to generate and process per benchmark invocation. */
+    private static final int NUMBER_OF_EVENTS = 10_000;
     /** The number of nodes in the simulated network. */
     @Param({"4"})
     public int numNodes;
-
-    /** The number of events to generate and process per benchmark invocation. */
-    @Param({"10000"})
-    public int numEvents;
 
     /** The random seed used for deterministic event generation. */
     @Param({"0"})
@@ -75,15 +75,8 @@ public class IntakeBenchmark {
     @Setup(Level.Trial)
     public void beforeBenchmark() {
         platformContext = TestPlatformContextBuilder.create().build();
-        final GeneratorEventGraphSource generator = GeneratorEventGraphSourceBuilder.builder()
-                .numNodes(numNodes)
-                .maxOtherParents(1)
-                .seed(seed)
-                .realSignatures(true)
-                .build();
-        roster = generator.getRoster();
-        events = generator.nextEvents(numEvents);
-        threadPool = platformContext.getExecutorFactory().createForkJoinPool(numberOfThreads);
+        threadPool = ExecutorFactory.create("JMH", IntakeBenchmark::uncaughtException)
+                .createForkJoinPool(numberOfThreads);
     }
 
     /**
@@ -101,8 +94,14 @@ public class IntakeBenchmark {
      */
     @Setup(Level.Invocation)
     public void beforeInvocation() {
-        // remove the hashes to force recalculation
-        events.forEach(e -> e.setHash(null));
+        final GeneratorEventGraphSource generator = GeneratorEventGraphSourceBuilder.builder()
+                .numNodes(numNodes)
+                .maxOtherParents(1)
+                .seed(seed)
+                .realSignatures(true)
+                .build();
+        roster = generator.getRoster();
+        events = generator.nextEvents(NUMBER_OF_EVENTS);
 
         model = WiringModelBuilder.create(platformContext.getMetrics(), platformContext.getTime())
                 .enableJvmAnchor()
@@ -122,7 +121,7 @@ public class IntakeBenchmark {
                 new NoOpIntakeEventCounter(),
                 new TransactionLimits(1000, 1000),
                 new EventPipelineTracker(platformContext.getMetrics()));
-        counter = new EventCounter(numEvents);
+        counter = new EventCounter(NUMBER_OF_EVENTS);
         intake.validatedEventsOutputWire().solderForMonitoring(counter);
         // builds the input wire
         intake.unhashedEventsInputWire();
@@ -140,16 +139,20 @@ public class IntakeBenchmark {
     /*
     Results on a M1 Max MacBook Pro:
 
-    Benchmark               (numEvents)  (numNodes)  (numberOfThreads)  (seed)  Mode  Cnt    Score    Error  Units
-    IntakeBenchmark.intake        10000           4                 10       0  avgt    3  107.606 ± 11.758  ms/op
     */
     @Benchmark
-    @BenchmarkMode(Mode.AverageTime)
-    @OutputTimeUnit(TimeUnit.MILLISECONDS)
+    @BenchmarkMode(Mode.Throughput)
+    @OutputTimeUnit(TimeUnit.SECONDS)
+    @OperationsPerInvocation(NUMBER_OF_EVENTS)
     public void intake() {
         for (final PlatformEvent event : events) {
             intake.unhashedEventsInputWire().put(event);
         }
         counter.waitForAllEvents(5);
+    }
+
+    private static void uncaughtException(final Thread t, final Throwable e) {
+        System.out.printf("Uncaught exception in thread %s: %s%n", t.getName(), e.getMessage());
+        e.printStackTrace();
     }
 }
