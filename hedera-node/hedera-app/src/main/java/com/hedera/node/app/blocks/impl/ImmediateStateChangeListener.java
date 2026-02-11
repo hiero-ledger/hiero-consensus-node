@@ -92,7 +92,7 @@ public class ImmediateStateChangeListener implements StateChangeListener {
     private Predicate<Object> logicallyIdenticalMapping;
 
     /**
-     * Resets kv state changes.
+     * Resets keyValue state changes.
      */
     public void resetKvStateChanges(@Nullable final Predicate<Object> logicallyIdenticalMapping) {
         this.logicallyIdenticalMapping = logicallyIdenticalMapping;
@@ -161,8 +161,8 @@ public class ImmediateStateChangeListener implements StateChangeListener {
     }
 
     /**
-     * Returns the list of kv state changes.
-     * @return the list of kv state changes
+     * Returns the list of keyValue state changes.
+     * @return the list of keyValue state changes
      */
     public List<StateChange> getKvStateChanges() {
         return kvStateChanges;

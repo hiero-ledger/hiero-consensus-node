@@ -889,9 +889,7 @@ public class CreatePrecompileSuite {
                 withOpContext((spec, opLog) ->
                         allRunFor(spec, contractCreate(TOKEN_CREATE_CONTRACT).gas(CONTRACT_CREATE_GAS_TO_OFFER))),
                 withOpContext((spec, ignore) -> {
-                    final var balanceSnapshot = spec.isUsingEthCalls()
-                            ? balanceSnapshot(ACCOUNT_BALANCE, DEFAULT_CONTRACT_SENDER)
-                            : balanceSnapshot(ACCOUNT_BALANCE, ACCOUNT);
+                    final var balanceSnapshot = balanceSnapshot(ACCOUNT_BALANCE, ACCOUNT);
                     final long sentAmount = ONE_HBAR / 100;
                     final var hapiContractCall = contractCall(
                                     TOKEN_CREATE_CONTRACT,
@@ -924,12 +922,9 @@ public class CreatePrecompileSuite {
                                             .status(INSUFFICIENT_TX_FEE)
                                             .contractCallResult(ContractFnResultAsserts.resultWith()
                                                     .error(INSUFFICIENT_TX_FEE.name()))));
-                    final var delta = spec.isUsingEthCalls()
-                            ? GAS_TO_OFFER * HapiEthereumCall.DEFAULT_GAS_PRICE_TINYBARS
-                            : txnRecord.getResponseRecord().getTransactionFee();
-                    final var effectivePayer = spec.isUsingEthCalls() ? DEFAULT_CONTRACT_SENDER : ACCOUNT;
-                    var changeFromSnapshot = getAccountBalance(effectivePayer)
-                            .hasTinyBars(changeFromSnapshot(ACCOUNT_BALANCE, -(delta)));
+                    final long expectedDelta = txnRecord.getResponseRecord().getTransactionFee();
+                    var changeFromSnapshot =
+                            getAccountBalance(ACCOUNT).hasTinyBars(changeFromSnapshot(ACCOUNT_BALANCE, -expectedDelta));
                     allRunFor(spec, changeFromSnapshot);
                 }),
                 getTxnRecord(FIRST_CREATE_TXN).andAllChildRecords(),
