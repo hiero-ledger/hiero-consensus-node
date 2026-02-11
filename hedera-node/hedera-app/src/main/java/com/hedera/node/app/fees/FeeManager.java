@@ -91,13 +91,21 @@ public final class FeeManager {
             .servicedata(DEFAULT_FEE_COMPONENTS)
             .build();
 
-    /** The current fee schedule, cached for speed. */
+    /**
+     * The current fee schedule, cached for speed.
+     */
     private Map<Entry, FeeData> currentFeeDataMap = Collections.emptyMap();
-    /** The next fee schedule, cached for speed. */
+    /**
+     * The next fee schedule, cached for speed.
+     */
     private Map<Entry, FeeData> nextFeeDataMap = Collections.emptyMap();
-    /** The expiration time of the "current" fee schedule, in consensus seconds since the epoch, cached for speed. */
+    /**
+     * The expiration time of the "current" fee schedule, in consensus seconds since the epoch, cached for speed.
+     */
     private long currentScheduleExpirationSeconds;
-    /** The exchange rate manager to use for the current rate */
+    /**
+     * The exchange rate manager to use for the current rate
+     */
     private final ExchangeRateManager exchangeRateManager;
 
     private final CongestionMultipliers congestionMultipliers;
@@ -252,15 +260,21 @@ public final class FeeManager {
         return congestionMultipliers.maxCurrentMultiplier(body, functionality, storeFactory);
     }
 
+    /**
+     * Returns the high volume multiplier for the given transaction and current instantaneous utilization.
+     *
+     * @param transactionBody the transaction body
+     * @param functionality the functionality of the transaction
+     * @param utilizationBasisPoints the current utilization percentage in hundredths of one percent (0 to 10,000)
+     * @return the high volume multiplier
+     */
     public long highVolumeMultiplierFor(
             @NonNull final TransactionBody transactionBody,
             @NonNull final HederaFunctionality functionality,
             final int utilizationBasisPoints) {
         if (!transactionBody.highVolume()
-                || !HighVolumePricingCalculator.HIGH_VOLUME_FUNCTIONS.contains(functionality)) {
-            return HighVolumePricingCalculator.MULTIPLIER_SCALE;
-        }
-        if (simpleFeesSchedule == null) {
+                || !HighVolumePricingCalculator.HIGH_VOLUME_FUNCTIONS.contains(functionality)
+                || simpleFeesSchedule == null) {
             return HighVolumePricingCalculator.MULTIPLIER_SCALE;
         }
         final ServiceFeeDefinition serviceFeeDefinition = lookupServiceFee(simpleFeesSchedule, functionality);
@@ -308,8 +322,10 @@ public final class FeeManager {
         }
         return result;
     }
+
     /**
      * Returns the gas price in tiny cents.
+     *
      * @param consensusTime the consensus time
      * @return the gas price in tiny cents
      */
@@ -321,7 +337,8 @@ public final class FeeManager {
                 / FEE_DIVISOR_FACTOR;
     }
 
-    /** Gets the current exchange rate manager.
+    /**
+     * Gets the current exchange rate manager.
      */
     @NonNull
     public ExchangeRateManager getExchangeRateManager() {
@@ -330,6 +347,7 @@ public final class FeeManager {
 
     /**
      * Used during {@link #update(Bytes)} to populate the fee data map based on the configuration.
+     *
      * @param feeDataMap The map to populate.
      * @param feeSchedule The fee schedule to use.
      */
