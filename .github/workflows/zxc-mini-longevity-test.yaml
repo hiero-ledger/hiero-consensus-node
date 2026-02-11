@@ -950,16 +950,15 @@ jobs:
 
           cat <<EOF > slack_payload.json
           {
-            "color": "${COLOR}",
             "attachments": [
               {
-                "color": "#777777",
+                "color": "${COLOR}",
                 "blocks": [
                   {
                     "type": "header",
                     "text": {
                       "type": "plain_text",
-                      "text": "NLG Performance Test Report (SDPT) - ${{ needs.clean-branch-name.outputs.clean_ref }}",
+                      "text": "Merge Queue Performance Test Report (MQPT) - ${{ needs.clean-branch-name.outputs.clean_ref }}",
                       "emoji": true
                     }
                   },
