@@ -52,4 +52,9 @@ public class TestTags {
      * Tags a test that can be run alone, without any other tests.
      */
     public static final String ADHOC = "ADHOC";
+    /**
+     * Tags a test that must run serially (not concurrently) in subprocess mode,
+     * typically because it is state-changing or requires isolation from other tests.
+     */
+    public static final String SERIAL = "SERIAL";
 }
