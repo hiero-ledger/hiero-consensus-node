@@ -20,7 +20,6 @@ import org.hiero.consensus.crypto.PbjStreamHasher;
 import org.hiero.consensus.event.EventGraphSource;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.signing.GeneratorEventSigner;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
-import org.hiero.consensus.model.event.NonDeterministicGeneration;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.event.UnsignedEvent;
 import org.hiero.consensus.model.node.NodeId;
