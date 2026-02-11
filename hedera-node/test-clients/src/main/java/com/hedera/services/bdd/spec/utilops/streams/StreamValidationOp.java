@@ -127,17 +127,6 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                         },
                         () -> Assertions.fail("No record stream data found"));
 
-        // CI-focused cross-node validation of wrapped record hashes for nodes with identical record stream files
-        final var maybeWrappedHashesErrors = wrappedRecordHashesValidator
-                .validationErrorsIn(spec)
-                .peek(t -> log.error("Wrapped record hashes validation error!", t))
-                .map(Throwable::getMessage)
-                .collect(joining(ERROR_PREFIX));
-        if (!maybeWrappedHashesErrors.isBlank()) {
-            throw new AssertionError(
-                    "Wrapped record hashes validation failed:" + ERROR_PREFIX + maybeWrappedHashesErrors);
-        }
-
         // If there are no block streams to validate, we are done
         if (spec.startupProperties().getStreamMode("blockStream.streamMode") == RECORDS) {
             return false;
@@ -186,6 +175,17 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                         },
                         () -> Assertions.fail("No block streams found"));
         validateProofs(spec);
+
+        // CI-focused cross-node validation of wrapped record hashes for nodes with identical record stream files
+        final var maybeWrappedHashesErrors = wrappedRecordHashesValidator
+                .validationErrorsIn(spec)
+                .peek(t -> log.error("Wrapped record hashes validation error!", t))
+                .map(Throwable::getMessage)
+                .collect(joining(ERROR_PREFIX));
+        if (!maybeWrappedHashesErrors.isBlank()) {
+            throw new AssertionError(
+                    "Wrapped record hashes validation failed:" + ERROR_PREFIX + maybeWrappedHashesErrors);
+        }
 
         return false;
     }
