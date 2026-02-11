@@ -118,7 +118,7 @@ public class GeneratorEventGraphSourceBuilder {
      * @param populateNgen {@code true} to populate ngen values, {@code false} otherwise
      * @return this builder
      */
-    public GeneratorEventGraphSourceBuilder setPopulateNgen(final boolean populateNgen) {
+    public GeneratorEventGraphSourceBuilder populateNgen(final boolean populateNgen) {
         this.populateNgen = populateNgen;
         return this;
     }

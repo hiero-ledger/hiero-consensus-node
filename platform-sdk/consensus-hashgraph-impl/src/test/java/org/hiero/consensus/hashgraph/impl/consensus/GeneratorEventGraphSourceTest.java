@@ -345,7 +345,7 @@ class GeneratorEventGraphSourceTest {
         final GeneratorEventGraphSource generator = GeneratorEventGraphSourceBuilder.builder()
                 .numNodes(4)
                 .seed(0L)
-                .setPopulateNgen(true)
+                .populateNgen(true)
                 .build();
 
         final List<PlatformEvent> events = generator.nextEvents(200);

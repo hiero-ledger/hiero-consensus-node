@@ -145,13 +145,20 @@ public class GeneratorEventGraphSource implements EventGraphSource {
         hasher.hashUnsignedEvent(unsignedEvent);
 
         final PlatformEvent platformEvent = new PlatformEvent(unsignedEvent, eventSigner.signEvent(unsignedEvent));
-        platformEvent.signalPrehandleCompletion();
         consensus.updateConsensus(platformEvent);
-        latestEventPerNode[eventCreator] = platformEvent.getDescriptor().eventDescriptor();
-        if (!populateNgen) {
-            platformEvent.setNGen(NonDeterministicGeneration.GENERATION_UNDEFINED);
+
+        // The event given to consensus will be modified by it with consensus information as some point. We do not want
+        // to modify the events that are returned to the caller, so the caller gets a separate copy of the event.
+        final PlatformEvent copy = platformEvent.copyGossipedData();
+        copy.signalPrehandleCompletion();
+
+        latestEventPerNode[eventCreator] = copy.getDescriptor().eventDescriptor();
+        if (populateNgen) {
+            // the event sent to consensus will have its nGen value populated, we should copy this value if the caller
+            // wants ngen values to be populated on the returned events
+            copy.setNGen(platformEvent.getNGen());
         }
-        return platformEvent;
+        return copy;
     }
 
     @Override

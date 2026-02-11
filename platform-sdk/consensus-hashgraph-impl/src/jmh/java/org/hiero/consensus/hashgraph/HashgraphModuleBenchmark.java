@@ -81,7 +81,7 @@ public class HashgraphModuleBenchmark {
                 .maxOtherParents(numOP)
                 .realSignatures(false)
                 .numNodes(numNodes)
-                .setPopulateNgen(true)
+                .populateNgen(true)
                 .configuration(config)
                 .build();
         events = generator.nextEvents(NUMBER_OF_EVENTS);
