@@ -8,6 +8,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithChild;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateInnerTxnChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.crypto.CryptoTransferSuite.sdec;
@@ -1517,6 +1518,16 @@ public class FeesChargingUtils {
                 return validateChargedUsdWithin(txn, simpleFee, 0.01);
             } else {
                 return validateChargedUsdWithin(txn, legacyFee, 0.01);
+            }
+        });
+    }
+
+    public static SpecOperation validateInnerTxnFees(String txn, String parent, double legacyFee, double simpleFee) {
+        return doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+            if ("true".equals(flag)) {
+                return validateInnerTxnChargedUsd(txn, parent, simpleFee);
+            } else {
+                return validateInnerTxnChargedUsd(txn, parent, legacyFee);
             }
         });
     }
