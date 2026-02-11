@@ -115,7 +115,7 @@ class TlsFactoryTest extends ConnectivityTestBase {
     }
 
     @AfterEach
-    void tearDown() throws Exception {
+    void tearDown() throws IOException, InterruptedException {
         closeSeverConnection.set(true);
         if (serverSocket != null && !serverSocket.isClosed()) {
             serverSocket.close();
@@ -160,7 +160,10 @@ class TlsFactoryTest extends ConnectivityTestBase {
                 () -> new TlsFactory(
                         mock(Certificate.class), mock(PrivateKey.class), List.of(), NodeId.of(0), configuration));
 
-        assertEquals("crypto.keystorePassword must not be null or blank", exception.getMessage());
+        assertEquals(
+                "crypto.keystorePassword must not be null or blank",
+                exception.getMessage(),
+                "TlsFactory should fail fast when crypto.keystorePassword is null");
     }
 
     @Test
@@ -173,7 +176,10 @@ class TlsFactoryTest extends ConnectivityTestBase {
                 () -> new TlsFactory(
                         mock(Certificate.class), mock(PrivateKey.class), List.of(), NodeId.of(0), configuration));
 
-        assertEquals("crypto.keystorePassword must not be null or blank", exception.getMessage());
+        assertEquals(
+                "crypto.keystorePassword must not be null or blank",
+                exception.getMessage(),
+                "TlsFactory should fail fast when crypto.keystorePassword is blank");
     }
 
     /**
