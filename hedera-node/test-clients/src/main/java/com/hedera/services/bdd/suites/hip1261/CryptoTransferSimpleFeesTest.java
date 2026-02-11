@@ -1659,7 +1659,7 @@ public class CryptoTransferSimpleFeesTest {
                 @HapiTest
                 @DisplayName(
                         "Crypto Transfer - Auto Create Accounts with FT movings in one Transfer - with extra FTs charging")
-                final Stream<DynamicTest> cryptoTransferFTAutoAccountCreationsForReceiverWithExtraTokenssCharging() {
+                final Stream<DynamicTest> cryptoTransferFTAutoAccountCreationsForReceiverWithExtraTokensCharging() {
 
                     final AtomicReference<ByteString> evmAlias = new AtomicReference<>();
 
@@ -1683,12 +1683,12 @@ public class CryptoTransferSimpleFeesTest {
 
                                 final var checkOpChargedUsd = validateChargedUsdWithinWithTxnSize(
                                         "tokenTransferTxn",
-                                        txnSize -> (expectedCryptoTransferHBARAndFTAndNFTFullFeeUsd(Map.of(
+                                        txnSize -> (expectedCryptoTransferFTFullFeeUsd(Map.of(
                                                         SIGNATURES, 1,
-                                                        ACCOUNTS, 4,
-                                                        FUNGIBLE_TOKENS, 3,
+                                                        ACCOUNTS, 3,
+                                                        FUNGIBLE_TOKENS, 2,
                                                         TXN_SIZE, txnSize))
-                                                + TOKEN_ASSOCIATE_EXTRA_FEE_USD * 3),
+                                                + TOKEN_ASSOCIATE_EXTRA_FEE_USD * 2),
                                         0.001);
 
                                 final var checkOpInfoValidAliasED25519 = getAliasedAccountInfo(VALID_ALIAS_ED25519)
