@@ -10,7 +10,6 @@ import com.hedera.hapi.node.base.FeeData;
  * @param basePrices the base resource prices
  * @param congestionMultiplier the active congestion multiplier
  */
-// SHOULD this change?
 public record FunctionalityResourcePrices(FeeData basePrices, long congestionMultiplier) {
     /**
      * The all-zero prices of resources that have been pre-paid via a query header CryptoTransfer.
