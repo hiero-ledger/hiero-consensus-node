@@ -20,10 +20,13 @@ import org.hiero.consensus.crypto.SigningImplementation;
 import org.hiero.consensus.event.NoOpIntakeEventCounter;
 import org.hiero.consensus.event.creator.config.EventCreationConfig;
 import org.hiero.consensus.event.creator.config.EventCreationConfig_;
+import org.hiero.consensus.event.creator.impl.DefaultEventCreationManager;
+import org.hiero.consensus.event.creator.impl.EventCreator;
 import org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreator;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.orphan.DefaultOrphanBuffer;
 import org.hiero.consensus.orphan.OrphanBuffer;
 import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
@@ -43,13 +46,14 @@ import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
 
 /**
- * A JMH benchmark that measures the latency of a single {@link TipsetEventCreator#maybeCreateEvent()} call.
+ * A JMH benchmark that measures the latency of event creation through the complete
+ * event creator module.
  */
 @State(Scope.Thread)
 @Fork(value = 1)
 @Warmup(iterations = 3, time = 5)
 @Measurement(iterations = 5, time = 10)
-public class EventCreatorLatencyBenchmark {
+public class EventCreatorModuleLatencyBenchmark {
 
     /** The number of nodes in the simulated network. */
     @Param({"4", "40"})
@@ -63,11 +67,11 @@ public class EventCreatorLatencyBenchmark {
     @Param()
     public SigningImplementation signingType;
 
-    /** The event creator under test (node 0). */
-    private TipsetEventCreator selfCreator;
+    /** The event creation manager under test (node 0). */
+    private DefaultEventCreationManager selfManager;
 
-    /** All event creators in the simulated network, indexed by roster order. */
-    private List<TipsetEventCreator> allCreators;
+    /** All event creation managers in the simulated network, indexed by roster order. */
+    private List<DefaultEventCreationManager> allManagers;
 
     /** The roster defining the network topology. */
     private Roster roster;
@@ -84,7 +88,7 @@ public class EventCreatorLatencyBenchmark {
     /** Number of events between event window advances. */
     private long eventWindowUpdateInterval;
 
-    /** Rotating index into peer creators (1..numNodes-1) for round-robin parent generation. */
+    /** Rotating index into peer managers (1..numNodes-1) for round-robin parent generation. */
     private int nextPeerIndex;
 
     /** Holds the self event from the previous benchmark invocation, distributed in the next setup. */
@@ -104,8 +108,9 @@ public class EventCreatorLatencyBenchmark {
     }
 
     /**
-     * Creates fresh {@link TipsetEventCreator} instances for each node and bootstraps the network with genesis events.
-     * This runs once per measurement iteration, giving a clean slate for each set of samples.
+     * Creates fresh {@link DefaultEventCreationManager} instances for each node and bootstraps
+     * the network with genesis events. This runs once per measurement iteration, giving a clean
+     * slate for each set of samples.
      */
     @Setup(Level.Iteration)
     public void setupIteration() {
@@ -114,6 +119,8 @@ public class EventCreatorLatencyBenchmark {
         nextPeerIndex = 1;
         pendingSelfEvent = null;
 
+        // Use production defaults except maxCreationRate which is disabled for latency measurement.
+        // All other rules (PlatformStatusRule, PlatformHealthRule, SyncLagRule, QuiescenceRule) remain active.
         final Configuration configuration = new TestConfigBuilder()
                 .withConfigDataType(EventCreationConfig.class)
                 .withValue(EventCreationConfig_.MAX_CREATION_RATE, 0)
@@ -124,24 +131,31 @@ public class EventCreatorLatencyBenchmark {
         final Metrics metrics = platformContext.getMetrics();
         final Time time = platformContext.getTime();
 
-        allCreators = new ArrayList<>(numNodes);
+        allManagers = new ArrayList<>(numNodes);
         for (final RosterEntry entry : roster.rosterEntries()) {
             final NodeId nodeId = NodeId.of(entry.nodeId());
             final SecureRandom nodeRandom = new SecureRandom();
             nodeRandom.setSeed(nodeId.id());
             final KeyPair keyPair = SigningFactory.generateKeyPair(signingType.getSigningSchema(), nodeRandom);
             final BytesSigner signer = SigningFactory.createSigner(signingType, keyPair);
-            final TipsetEventCreator creator =
+            final EventCreator eventCreator =
                     new TipsetEventCreator(configuration, metrics, time, nodeRandom, signer, roster, nodeId, List::of);
-            creator.setEventWindow(eventWindow);
-            allCreators.add(creator);
+
+            final DefaultEventCreationManager manager = new DefaultEventCreationManager(
+                    configuration, metrics, time, () -> false, eventCreator, roster, nodeId);
+
+            // Set platform status to ACTIVE, as in production steady state
+            manager.updatePlatformStatus(PlatformStatus.ACTIVE);
+            manager.setEventWindow(eventWindow);
+
+            allManagers.add(manager);
         }
-        selfCreator = allCreators.get(0);
+        selfManager = allManagers.getFirst();
         orphanBuffer = new DefaultOrphanBuffer(metrics, new NoOpIntakeEventCounter());
 
         // Bootstrap: each node creates a genesis event and distributes it to all others
-        for (final TipsetEventCreator creator : allCreators) {
-            final PlatformEvent genesis = creator.maybeCreateEvent();
+        for (final DefaultEventCreationManager manager : allManagers) {
+            final PlatformEvent genesis = manager.maybeCreateEvent();
             if (genesis != null) {
                 processAndDistribute(genesis);
             }
@@ -166,7 +180,7 @@ public class EventCreatorLatencyBenchmark {
         // Have one peer create an event and distribute it, providing fresh parents for self.
         // Try each peer in round-robin order until one succeeds.
         for (int attempt = 0; attempt < numNodes - 1; attempt++) {
-            final TipsetEventCreator peer = allCreators.get(nextPeerIndex);
+            final DefaultEventCreationManager peer = allManagers.get(nextPeerIndex);
             advancePeerIndex();
 
             final PlatformEvent peerEvent = peer.maybeCreateEvent();
@@ -183,77 +197,77 @@ public class EventCreatorLatencyBenchmark {
                     eventWindow.newEventBirthRound() + 1,
                     Math.max(1, eventWindow.latestConsensusRound() - 25),
                     Math.max(1, eventWindow.latestConsensusRound() - 25));
-            for (final TipsetEventCreator creator : allCreators) {
-                creator.setEventWindow(eventWindow);
+            for (final DefaultEventCreationManager manager : allManagers) {
+                manager.setEventWindow(eventWindow);
             }
         }
     }
 
     /**
-     * Measures the latency of a single {@link TipsetEventCreator#maybeCreateEvent()} call.
+     * Measures the latency of a single {@link DefaultEventCreationManager#maybeCreateEvent()} call.
      * <p>
-     * This includes the tipset parent selection algorithm, event assembly, hashing ({@code PbjStreamHasher}),
-     * and cryptographic signing. It does <b>not</b> include event distribution or orphan buffer processing,
-     * which are handled in the per-invocation setup/teardown.
+     * This exercises the complete event creator module code path: rule evaluation
+     * ({@code AggregateEventCreationRules}), phase tracking ({@code PhaseTimer}), future event buffering
+     * ({@code FutureEventBuffer}), tipset parent selection, event assembly, hashing, and signing.
      *
      * @return the created event (returned to prevent dead-code elimination)
      */
     /*
     Results on a M3 Max MacBook Pro:
 
-    Benchmark                                         (numNodes)  (seed)   (signingType)    Mode     Cnt       Score   Error  Units
-    EventCreatorLatencyBenchmark.createEvent                    4       0          RSA_BC  sample   12018    2077.224 ± 5.473  us/op
-    EventCreatorLatencyBenchmark.createEvent:p0.50              4       0          RSA_BC  sample            2019.328          us/op
-    EventCreatorLatencyBenchmark.createEvent:p0.99              4       0          RSA_BC  sample            2514.944          us/op
-    EventCreatorLatencyBenchmark.createEvent:p0.999             4       0          RSA_BC  sample            3682.226          us/op
-    EventCreatorLatencyBenchmark.createEvent                    4       0         RSA_JDK  sample   12806    1948.240 ± 3.484  us/op
-    EventCreatorLatencyBenchmark.createEvent:p0.50              4       0         RSA_JDK  sample            1927.168          us/op
-    EventCreatorLatencyBenchmark.createEvent:p0.99              4       0         RSA_JDK  sample            2158.592          us/op
-    EventCreatorLatencyBenchmark.createEvent:p0.999             4       0         RSA_JDK  sample            3608.076          us/op
-    EventCreatorLatencyBenchmark.createEvent                    4       0  ED25519_SODIUM  sample  769052      13.942 ± 0.762  us/op
-    EventCreatorLatencyBenchmark.createEvent:p0.50              4       0  ED25519_SODIUM  sample              12.992          us/op
-    EventCreatorLatencyBenchmark.createEvent:p0.99              4       0  ED25519_SODIUM  sample              17.888          us/op
-    EventCreatorLatencyBenchmark.createEvent:p0.999             4       0  ED25519_SODIUM  sample              46.016          us/op
-    EventCreatorLatencyBenchmark.createEvent                    4       0     ED25519_SUN  sample   66261     374.331 ± 0.817  us/op
-    EventCreatorLatencyBenchmark.createEvent:p0.50              4       0     ED25519_SUN  sample             369.664          us/op
-    EventCreatorLatencyBenchmark.createEvent:p0.99              4       0     ED25519_SUN  sample             417.987          us/op
-    EventCreatorLatencyBenchmark.createEvent:p0.999             4       0     ED25519_SUN  sample             462.068          us/op
-    EventCreatorLatencyBenchmark.createEvent                   40       0          RSA_BC  sample   12098    2020.314 ± 3.760  us/op
-    EventCreatorLatencyBenchmark.createEvent:p0.50             40       0          RSA_BC  sample            2000.896          us/op
-    EventCreatorLatencyBenchmark.createEvent:p0.99             40       0          RSA_BC  sample            2232.320          us/op
-    EventCreatorLatencyBenchmark.createEvent:p0.999            40       0          RSA_BC  sample            4747.305          us/op
-    EventCreatorLatencyBenchmark.createEvent                   40       0         RSA_JDK  sample   12596    1941.938 ± 3.514  us/op
-    EventCreatorLatencyBenchmark.createEvent:p0.50             40       0         RSA_JDK  sample            1925.120          us/op
-    EventCreatorLatencyBenchmark.createEvent:p0.99             40       0         RSA_JDK  sample            2154.496          us/op
-    EventCreatorLatencyBenchmark.createEvent:p0.999            40       0         RSA_JDK  sample            4667.974          us/op
-    EventCreatorLatencyBenchmark.createEvent                   40       0  ED25519_SODIUM  sample  526655      14.373 ± 0.007  us/op
-    EventCreatorLatencyBenchmark.createEvent:p0.50             40       0  ED25519_SODIUM  sample              14.000          us/op
-    EventCreatorLatencyBenchmark.createEvent:p0.99             40       0  ED25519_SODIUM  sample              18.528          us/op
-    EventCreatorLatencyBenchmark.createEvent:p0.999            40       0  ED25519_SODIUM  sample              27.392          us/op
-    EventCreatorLatencyBenchmark.createEvent                   40       0     ED25519_SUN  sample   60165     375.903 ± 1.119  us/op
-    EventCreatorLatencyBenchmark.createEvent:p0.50             40       0     ED25519_SUN  sample             370.688          us/op
-    EventCreatorLatencyBenchmark.createEvent:p0.99             40       0     ED25519_SUN  sample             424.110          us/op
-    EventCreatorLatencyBenchmark.createEvent:p0.999            40       0     ED25519_SUN  sample             477.611          us/op
+    Benchmark                                               (numNodes)  (seed)   (signingType)    Mode     Cnt       Score    Error  Units
+    EventCreatorModuleLatencyBenchmark.createEvent                   4       0          RSA_BC  sample   12378    2019.293 ±  3.772  us/op
+    EventCreatorModuleLatencyBenchmark.createEvent:p0.50             4       0          RSA_BC  sample            1996.800           us/op
+    EventCreatorModuleLatencyBenchmark.createEvent:p0.99             4       0          RSA_BC  sample            2233.180           us/op
+    EventCreatorModuleLatencyBenchmark.createEvent:p0.999            4       0          RSA_BC  sample            3867.054           us/op
+    EventCreatorModuleLatencyBenchmark.createEvent                   4       0         RSA_JDK  sample   12877    1938.601 ±  2.891  us/op
+    EventCreatorModuleLatencyBenchmark.createEvent:p0.50             4       0         RSA_JDK  sample            1921.024           us/op
+    EventCreatorModuleLatencyBenchmark.createEvent:p0.99             4       0         RSA_JDK  sample            2146.304           us/op
+    EventCreatorModuleLatencyBenchmark.createEvent:p0.999            4       0         RSA_JDK  sample            3760.628           us/op
+    EventCreatorModuleLatencyBenchmark.createEvent                   4       0  ED25519_SODIUM  sample  778071      14.055 ±  0.834  us/op
+    EventCreatorModuleLatencyBenchmark.createEvent:p0.50             4       0  ED25519_SODIUM  sample              13.040           us/op
+    EventCreatorModuleLatencyBenchmark.createEvent:p0.99             4       0  ED25519_SODIUM  sample              17.280           us/op
+    EventCreatorModuleLatencyBenchmark.createEvent:p0.999            4       0  ED25519_SODIUM  sample              32.896           us/op
+    EventCreatorModuleLatencyBenchmark.createEvent                   4       0     ED25519_SUN  sample   66379     374.103 ±  0.998  us/op
+    EventCreatorModuleLatencyBenchmark.createEvent:p0.50             4       0     ED25519_SUN  sample             369.664           us/op
+    EventCreatorModuleLatencyBenchmark.createEvent:p0.99             4       0     ED25519_SUN  sample             417.280           us/op
+    EventCreatorModuleLatencyBenchmark.createEvent:p0.999            4       0     ED25519_SUN  sample             456.120           us/op
+    EventCreatorModuleLatencyBenchmark.createEvent                  40       0          RSA_BC  sample   12107    2025.422 ± 15.270  us/op
+    EventCreatorModuleLatencyBenchmark.createEvent:p0.50            40       0          RSA_BC  sample            1994.752           us/op
+    EventCreatorModuleLatencyBenchmark.createEvent:p0.99            40       0          RSA_BC  sample            2240.512           us/op
+    EventCreatorModuleLatencyBenchmark.createEvent:p0.999           40       0          RSA_BC  sample            5191.074           us/op
+    EventCreatorModuleLatencyBenchmark.createEvent                  40       0         RSA_JDK  sample   12604    1938.701 ±  3.642  us/op
+    EventCreatorModuleLatencyBenchmark.createEvent:p0.50            40       0         RSA_JDK  sample            1923.072           us/op
+    EventCreatorModuleLatencyBenchmark.createEvent:p0.99            40       0         RSA_JDK  sample            2134.016           us/op
+    EventCreatorModuleLatencyBenchmark.createEvent:p0.999           40       0         RSA_JDK  sample            5028.168           us/op
+    EventCreatorModuleLatencyBenchmark.createEvent                  40       0  ED25519_SODIUM  sample  466444      15.185 ±  1.021  us/op
+    EventCreatorModuleLatencyBenchmark.createEvent:p0.50            40       0  ED25519_SODIUM  sample              14.368           us/op
+    EventCreatorModuleLatencyBenchmark.createEvent:p0.99            40       0  ED25519_SODIUM  sample              19.360           us/op
+    EventCreatorModuleLatencyBenchmark.createEvent:p0.999           40       0  ED25519_SODIUM  sample              34.496           us/op
+    EventCreatorModuleLatencyBenchmark.createEvent                  40       0     ED25519_SUN  sample   57766     391.637 ±  2.879  us/op
+    EventCreatorModuleLatencyBenchmark.createEvent:p0.50            40       0     ED25519_SUN  sample             371.712           us/op
+    EventCreatorModuleLatencyBenchmark.createEvent:p0.99            40       0     ED25519_SUN  sample             547.840           us/op
+    EventCreatorModuleLatencyBenchmark.createEvent:p0.999           40       0     ED25519_SUN  sample            4366.336           us/op
     */
     @Benchmark
     @BenchmarkMode(Mode.SampleTime)
     @OutputTimeUnit(TimeUnit.MICROSECONDS)
     public PlatformEvent createEvent() {
-        final PlatformEvent event = selfCreator.maybeCreateEvent();
+        final PlatformEvent event = selfManager.maybeCreateEvent();
         if (event == null) {
-            throw new IllegalStateException("Self creator should always be able to create an event");
+            throw new IllegalStateException("Self manager should always be able to create an event");
         }
         pendingSelfEvent = event;
         return event;
     }
 
     /**
-     * Processes an event through the orphan buffer (to assign nGen) and distributes it to all creators.
+     * Processes an event through the orphan buffer (to assign nGen) and distributes it to all managers.
      */
     private void processAndDistribute(final PlatformEvent event) {
         orphanBuffer.handleEvent(event);
-        for (final TipsetEventCreator creator : allCreators) {
-            creator.registerEvent(event);
+        for (final DefaultEventCreationManager manager : allManagers) {
+            manager.registerEvent(event);
         }
         eventsCreated++;
     }
