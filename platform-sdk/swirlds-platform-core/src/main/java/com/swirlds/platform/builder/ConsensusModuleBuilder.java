@@ -2,6 +2,7 @@
 package com.swirlds.platform.builder;
 
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.node.state.roster.RoundRosterPair;
@@ -17,12 +18,14 @@ import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.merkle.VirtualMapStateImpl;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.security.GeneralSecurityException;
 import java.security.SecureRandom;
 import java.util.List;
 import java.util.Map;
 import java.util.ServiceLoader;
 import java.util.function.Supplier;
 import org.hiero.base.concurrent.BlockingResourceProvider;
+import org.hiero.consensus.crypto.KeyGeneratingException;
 import org.hiero.consensus.crypto.KeysAndCertsGenerator;
 import org.hiero.consensus.crypto.SigningSchema;
 import org.hiero.consensus.event.IntakeEventCounter;
@@ -227,9 +230,17 @@ public class ConsensusModuleBuilder {
             @NonNull final WiringModel model, @NonNull final Configuration configuration) {
         final Metrics metrics = new NoOpMetrics();
         final Time time = Time.getCurrent();
-        final KeysAndCerts keysAndCerts = new KeysAndCerts(null, null, null, null);
         final NodeId selfId = NodeId.FIRST_NODE_ID;
-        final RosterEntry rosterEntry = new RosterEntry(selfId.id(), 0L, Bytes.EMPTY, List.of());
+        final KeysAndCerts keysAndCerts;
+        final Bytes certificate;
+        try {
+            keysAndCerts = KeysAndCertsGenerator.generate(selfId);
+            certificate = Bytes.wrap(keysAndCerts.sigCert().getEncoded());
+        } catch (final GeneralSecurityException | KeyGeneratingException e) {
+            // These exceptions should not occur since we are using default values
+            throw new RuntimeException(e);
+        }
+        final RosterEntry rosterEntry = new RosterEntry(selfId.id(), 0L, certificate, List.of(ServiceEndpoint.DEFAULT));
         final Roster roster = new Roster(List.of(rosterEntry));
         final SemanticVersion appVersion = SemanticVersion.DEFAULT;
         final IntakeEventCounter intakeEventCounter = new NoOpIntakeEventCounter();
