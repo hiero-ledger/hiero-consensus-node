@@ -75,30 +75,6 @@ Embedded tests use the standalone `LogValidationTest` and `StreamValidationTest`
 
 Embedded validation is lighter because there's no persistent Merkle tree to validate against.
 
-## Retry Logic for Transient Errors
-
-### Retryable statuses
-
-|                Status                |           Description            |     Why Safe to Retry     |
-|--------------------------------------|----------------------------------|---------------------------|
-| `PLATFORM_NOT_ACTIVE`                | Platform initializing/recovering | Transient startup state   |
-| `PLATFORM_TRANSACTION_NOT_CREATED`   | Transaction backlog              | Temporary backpressure    |
-| `BUSY`                               | Server overloaded                | Temporary load condition  |
-| `INSUFFICIENT_TX_FEE` (queries only) | Fee estimation mismatch          | Resolves with updated fee |
-
-### Parameters
-
-- **Max retries:** 10 (hard limit)
-- **Sleep between retries:** 100ms
-- **Applies to:** `HapiTxnOp` (transactions) and `HapiQueryOp` (queries)
-
-### Safety guarantees
-
-- No state mutation occurs when these errors are returned
-- Transactions/queries can be safely resubmitted
-- The 100ms delay allows platform recovery
-- **Does not retry when test expects the error** - If a test uses `.hasPrecheck(BUSY)` to explicitly test throttling behavior, the retry is skipped to preserve test intent
-
 ## Serial Tests
 
 - Classes annotated with `@OrderedInIsolation` or methods with `@LeakyHapiTest` are tagged `SERIAL`
