@@ -7,6 +7,7 @@ import static org.hiero.hapi.fees.FeeScheduleUtils.makeExtraDef;
 import static org.hiero.hapi.fees.FeeScheduleUtils.makeExtraIncluded;
 import static org.hiero.hapi.fees.FeeScheduleUtils.makeService;
 import static org.hiero.hapi.fees.FeeScheduleUtils.makeServiceFee;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
@@ -14,6 +15,7 @@ import com.hedera.hapi.node.addressbook.NodeCreateTransactionBody;
 import com.hedera.hapi.node.addressbook.NodeDeleteTransactionBody;
 import com.hedera.hapi.node.addressbook.NodeUpdateTransactionBody;
 import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.util.UnknownHederaFunctionality;
 import com.hedera.node.app.fees.SimpleFeeCalculatorImpl;
@@ -23,11 +25,13 @@ import com.hedera.node.app.service.addressbook.impl.calculator.NodeDeleteFeeCalc
 import com.hedera.node.app.service.addressbook.impl.calculator.NodeUpdateFeeCalculator;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
+import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Stream;
+import org.hiero.hapi.fees.FeeResult;
 import org.hiero.hapi.support.fees.Extra;
 import org.hiero.hapi.support.fees.FeeSchedule;
 import org.hiero.hapi.support.fees.NetworkFee;
@@ -117,6 +121,33 @@ class AddressBookFeeCalculatorsTest {
         assertThat(result.getNodeTotalTinycents()).isEqualTo(testCase.expectedNodeFee);
         assertThat(result.getServiceTotalTinycents()).isEqualTo(testCase.expectedServiceFee);
         assertThat(result.getNetworkTotalTinycents()).isEqualTo(testCase.expectedNetworkFee);
+    }
+
+    @ParameterizedTest(name = "{index}: {0}")
+    @MethodSource("provideTestCases")
+    @DisplayName("Fee calculation throws NOT_SUPPORTED when DAB is disabled")
+    void testFeeCalculatorsThrowWhenDABDisabled(TestCase testCase) throws UnknownHederaFunctionality {
+        lenient().when(feeContext.numTxnSignatures()).thenReturn(testCase.numSignatures);
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("nodes.enableDAB", false)
+                .getOrCreateConfig();
+        lenient().when(feeContext.configuration()).thenReturn(config);
+        lenient().when(feeContext.functionality()).thenReturn(functionOf(testCase.body()));
+        final var simpleFeeContext = new SimpleFeeContextImpl(feeContext, null);
+        final var ex = assertThrows(
+                HandleException.class, () -> feeCalculator.calculateTxFee(testCase.body, simpleFeeContext));
+        assertThat(ex.getStatus()).isEqualTo(ResponseCodeEnum.NOT_SUPPORTED);
+    }
+
+    @ParameterizedTest(name = "{index}: {0}")
+    @MethodSource("provideTestCases")
+    @DisplayName("Fee calculation works when feeContext is null (skips DAB check)")
+    void testFeeCalculatorsWithNullFeeContext(TestCase testCase) {
+        final var simpleFeeContext = new SimpleFeeContextImpl(null, null);
+        final var feeResult = new FeeResult();
+        final var testSchedule = createTestFeeSchedule();
+        testCase.calculator().accumulateServiceFee(testCase.body(), simpleFeeContext, feeResult, testSchedule);
+        assertThat(feeResult.getServiceBaseFeeTinycents()).isGreaterThan(0);
     }
 
     private static FeeSchedule createTestFeeSchedule() {
