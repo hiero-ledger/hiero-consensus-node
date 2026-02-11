@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.fees;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
@@ -203,5 +204,12 @@ class ChildFeeContextImplTest {
     @Test
     void delegatesAuthorizer() {
         assertSame(authorizer, subject.authorizer());
+    }
+
+    @Test
+    void delegatesHighVolumeThrottleUtilization() {
+        given(context.getHighVolumeThrottleUtilization(HederaFunctionality.CRYPTO_CREATE)).willReturn(4_321);
+
+        assertEquals(4_321, subject.getHighVolumeThrottleUtilization(HederaFunctionality.CRYPTO_CREATE));
     }
 }
