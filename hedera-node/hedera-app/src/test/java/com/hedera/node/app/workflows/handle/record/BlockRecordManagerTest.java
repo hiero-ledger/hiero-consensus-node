@@ -17,8 +17,11 @@ import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.RUNNING
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.RUNNING_HASHES_STATE_LABEL;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hiero.consensus.platformstate.V0540PlatformStateSchema.UNINITIALIZED_PLATFORM_STATE;
+import static org.mockito.ArgumentMatchers.notNull;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
 import com.google.common.jimfs.Configuration;
 import com.google.common.jimfs.Jimfs;
@@ -128,6 +131,7 @@ final class BlockRecordManagerTest extends AppTestBase {
                 .withConfigValue("hedera.recordStream.recordFileVersion", 6)
                 .withConfigValue("hedera.recordStream.signatureFileVersion", 6)
                 .withConfigValue("hedera.recordStream.sidecarMaxSizeMb", 256)
+                .withConfigValue("hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk", true)
                 .withConfigValue("blockStream.streamMode", "BOTH")
                 .withService(new BlockRecordService())
                 .withService(new PlatformStateService())
@@ -196,6 +200,7 @@ final class BlockRecordManagerTest extends AppTestBase {
                 ? new StreamFileProducerConcurrent(
                         blockRecordFormat, blockRecordWriterFactory, ForkJoinPool.commonPool(), app.hapiVersion())
                 : new StreamFileProducerSingleThreaded(blockRecordFormat, blockRecordWriterFactory, app.hapiVersion());
+        final var wrappedRecordHashesDiskWriter = mock(WrappedRecordFileBlockHashesDiskWriter.class);
         Bytes finalRunningHash;
         try (final var blockRecordManager = new BlockRecordManagerImpl(
                 app.configProvider(),
@@ -204,7 +209,7 @@ final class BlockRecordManagerTest extends AppTestBase {
                 quiescenceController,
                 quiescedHeartbeat,
                 platform,
-                mock(WrappedRecordFileBlockHashesDiskWriter.class),
+                wrappedRecordHashesDiskWriter,
                 InitTrigger.RESTART)) {
             if (!startMode.equals("GENESIS")) {
                 blockRecordManager.switchBlocksAt(FORCED_BLOCK_SWITCH_TIME);
@@ -248,6 +253,7 @@ final class BlockRecordManagerTest extends AppTestBase {
             // try with resources will close the blockRecordManager and result in waiting for background threads to
             // finish and close any open files. No collect block record manager info to be validated
         }
+        verify(wrappedRecordHashesDiskWriter, atLeastOnce()).appendAsync(notNull());
         // check running hash
         assertThat(ENDING_RUNNING_HASH.toHex()).isEqualTo(finalRunningHash.toHex());
         // check record files
@@ -291,6 +297,7 @@ final class BlockRecordManagerTest extends AppTestBase {
         final var merkleState = app.workingStateAccessor().getState();
         final var producer =
                 new StreamFileProducerSingleThreaded(blockRecordFormat, blockRecordWriterFactory, app.hapiVersion());
+        final var wrappedRecordHashesDiskWriter = mock(WrappedRecordFileBlockHashesDiskWriter.class);
         Bytes finalRunningHash;
         try (final var blockRecordManager = new BlockRecordManagerImpl(
                 app.configProvider(),
@@ -299,7 +306,7 @@ final class BlockRecordManagerTest extends AppTestBase {
                 quiescenceController,
                 quiescedHeartbeat,
                 platform,
-                mock(WrappedRecordFileBlockHashesDiskWriter.class),
+                wrappedRecordHashesDiskWriter,
                 InitTrigger.RESTART)) {
             blockRecordManager.switchBlocksAt(FORCED_BLOCK_SWITCH_TIME);
             // write a blocks & record files
@@ -386,6 +393,7 @@ final class BlockRecordManagerTest extends AppTestBase {
             // try with resources will close the blockRecordManager and result in waiting for background threads to
             // finish and close any open files. No collect block record manager info to be validated
         }
+        verify(wrappedRecordHashesDiskWriter, atLeastOnce()).appendAsync(notNull());
         // check running hash
         assertThat(ENDING_RUNNING_HASH.toHex()).isEqualTo(finalRunningHash.toHex());
         // check record files

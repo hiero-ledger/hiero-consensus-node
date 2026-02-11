@@ -43,7 +43,7 @@ public class WrappedRecordHashesByRecordFilesValidator {
     /**
      * Returns any validation errors as a stream of {@link Throwable}s.
      *
-     * <p>No-op unless the spec is running against a subprocess network.
+     * <p>No-op unless the spec is running against a subprocess network with multiple nodes.
      */
     public Stream<Throwable> validationErrorsIn(@NonNull final HapiSpec spec) {
         requireNonNull(spec);
@@ -62,6 +62,7 @@ public class WrappedRecordHashesByRecordFilesValidator {
                 final var sig = recordFilesSignature(node);
                 // If a node has produced no record files, we ignore it for this validator.
                 if (sig.relativeRecordFiles().isEmpty()) {
+                    log.info("Ignoring node {} due to absence of any record file sigs", node);
                     continue;
                 }
                 nodesByRecordFiles
@@ -207,12 +208,11 @@ public class WrappedRecordHashesByRecordFilesValidator {
 
     private static Optional<Path> findWrappedHashesFile(@NonNull final HederaNode node) {
         requireNonNull(node);
-        final var workingDir = node.getExternalPath(ExternalPath.WORKING_DIR);
-        final var dataDir = workingDir.resolve("data");
-        final var expectedDefault = dataDir.resolve("wrappedRecordHashes").resolve(WRAPPED_RECORD_HASHES_FILE_NAME);
-        if (Files.exists(expectedDefault)) {
-            return Optional.of(expectedDefault);
+        final var expected = node.getExternalPath(ExternalPath.WRAPPED_RECORD_HASHES_FILE);
+        if (Files.exists(expected)) {
+            return Optional.of(expected);
         }
+        final var dataDir = node.getExternalPath(ExternalPath.WORKING_DIR).resolve("data");
         if (!Files.exists(dataDir)) {
             return Optional.empty();
         }
