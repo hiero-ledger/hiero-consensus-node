@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.container;
 
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Map;
 import org.hiero.consensus.gossip.config.NetworkEndpoint;
@@ -8,7 +9,6 @@ import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.container.network.NetworkBehavior;
 import org.hiero.otter.fixtures.internal.network.ConnectionKey;
 import org.hiero.otter.fixtures.network.Topology.ConnectionState;
-import org.jspecify.annotations.NonNull;
 
 public class NoOpNetworkBehavior implements NetworkBehavior {
 
