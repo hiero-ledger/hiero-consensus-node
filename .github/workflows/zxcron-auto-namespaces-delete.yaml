@@ -68,19 +68,19 @@ on:
         type: boolean
         required: false
         default: false
-        description: "mqpt-sd*t-n10 (SDPT/SDLT)"
+        description: "solo-mqpt-n10 (SDPT/SDLT)"
 
       Dallas_n11:
         type: boolean
         required: false
         default: false
-        description: "mqpt-sd*t-n11 (SDPT/SDLT)"
+        description: "solo-mqpt-n11 (SDPT/SDLT)"
 
       Dallas_n12:
         type: boolean
         required: false
         default: false
-        description: "mqpt-sd*t-n12 (SDPT/SDLT)"
+        description: "solo-mqpt-n12 (SDPT/SDLT)"
 
 jobs:
   delete-selected-namespaces:
@@ -140,7 +140,7 @@ jobs:
           clusterZone="Dallas"
           for namespace in `sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt get namespaces | awk '{print $1}' | grep -E 'solo[\-].*[\-]n[1-9]'`
           do
-            n="$(echo "${namespace}" | perl -ne 'print "$1\n" if /^solo\-.*d.*t\-n(\d+)$/')"
+            n="$(echo "${namespace}" | perl -ne 'print "$1\n" if /^solo\-.*d?.*t\-n(\d+)$/')"
             env | grep ${clusterZone}_n${n}
             isChecked=$(env | grep ${clusterZone}_n${n} | awk -F= '{print $NF}')
             if [[ "${isChecked}" = "true" ]]
@@ -167,7 +167,7 @@ jobs:
           clusterZone="Chicago"
           for namespace in `sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt get namespaces | awk '{print $1}' | grep -E 'solo[\-].*[\-]n[1-9]'`
           do
-            n="$(echo "${namespace}" | perl -ne 'print "$1\n" if /^solo\-.*d.*t\-n(\d+)$/')"
+            n="$(echo "${namespace}" | perl -ne 'print "$1\n" if /^solo\-.*d?.*t\-n(\d+)$/')"
             env | grep ${clusterZone}_n${n}
             isChecked=$(env | grep ${clusterZone}_n${n} | awk -F= '{print $NF}')
             if [[ "${isChecked}" = "true" ]]
