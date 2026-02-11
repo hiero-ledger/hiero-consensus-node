@@ -4,6 +4,7 @@ package org.hiero.consensus.gossip.config;
 import com.swirlds.config.api.ConfigData;
 import com.swirlds.config.api.ConfigProperty;
 import com.swirlds.config.api.Configuration;
+import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 
@@ -22,7 +23,10 @@ import java.util.Optional;
  *                          particularly useful in cases where the actual network configuration
  *                          differs from the information specified in the roster, such as
  *                          behind NATs or when using virtualized networks.
- * @param threadPrioritySync priority for threads that sync (in SyncCaller, SyncListener, SyncServer)
+ * @param connectionServerThreadPriority priority for threads that listen for incoming gossip connections.
+ * @param hangingThreadDuration        the length of time a gossip thread is allowed to wait when it is asked to
+ *                                      shutdown. If a gossip thread takes longer than this period to shut down, then an
+ *                                      error message is written to the log.
  */
 @ConfigData("gossip")
 public record GossipConfig(
@@ -32,7 +36,8 @@ public record GossipConfig(
         @ConfigProperty(defaultValue = Configuration.EMPTY_LIST)
         List<NetworkEndpoint> endpointOverrides,
 
-        @ConfigProperty(defaultValue = "5") int threadPrioritySync) {
+        @ConfigProperty(defaultValue = "5") int connectionServerThreadPriority,
+        @ConfigProperty(defaultValue = "60s") Duration hangingThreadDuration) {
 
     /**
      * Returns the interface binding for the given node ID.

@@ -121,7 +121,7 @@ public class PeerCommunication implements ConnectionTracker {
         final GossipConfig gossipConfig = configuration.getConfigData(GossipConfig.class);
 
         this.connectionServerThread = new StoppableThreadConfiguration<>(threadManager)
-                .setPriority(gossipConfig.threadPrioritySync())
+                .setPriority(gossipConfig.connectionServerThreadPriority())
                 .setNodeId(selfId)
                 .setComponent(PLATFORM_THREAD_POOL_NAME)
                 .setThreadName("connectionServer")
@@ -251,8 +251,9 @@ public class PeerCommunication implements ConnectionTracker {
 
     private List<DedicatedStoppableThread<NodeId>> buildProtocolThreads(Collection<NodeId> peers) {
 
+        final GossipConfig gossipConfig = configuration.getConfigData(GossipConfig.class);
         final SyncConfig syncConfig = configuration.getConfigData(SyncConfig.class);
-        final Duration hangingThreadDuration = syncConfig.hangingThreadDuration();
+        final Duration hangingThreadDuration = gossipConfig.hangingThreadDuration();
         final ArrayList<DedicatedStoppableThread<NodeId>> syncProtocolThreads =
                 new ArrayList<DedicatedStoppableThread<NodeId>>();
         for (final NodeId otherId : peers) {
