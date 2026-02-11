@@ -29,6 +29,7 @@ testModuleInfo {
 
 jmhModuleInfo {
     requires("jmh.core")
+    requires("org.hiero.base.concurrent")
     requires("org.hiero.consensus.hashgraph.impl.test.fixtures")
     requires("com.swirlds.common.test.fixtures")
     requires("com.swirlds.config.extensions.test.fixtures")
