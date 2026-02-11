@@ -67,10 +67,12 @@ public class DefaultLatestCompleteStateNexus implements LatestCompleteStateNexus
      * {@inheritDoc}
      */
     @Override
-    public synchronized void updatePlatformStatus(@NonNull final PlatformStatus platformStatus) {
+    public void updatePlatformStatus(@NonNull final PlatformStatus platformStatus) {
         if (PlatformStatus.FREEZING.equals(platformStatus)) {
-            currentState.close();
-            currentState = null;
+            synchronized (this) {
+                currentState.close();
+                currentState = null;
+            }
         }
     }
 
