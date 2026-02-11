@@ -36,7 +36,6 @@ import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItemsValidator;
 import edu.umd.cs.findbugs.annotations.NonNull;
-
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
@@ -44,7 +43,6 @@ import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
-
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
@@ -85,7 +83,6 @@ public class Hip1313EnabledTest {
     private static final int TOPIC_CREATE_HV_TPS = 800;
     private static final double TOPIC_CREATE_BASE_FEE = 0.01;
     private static final double MULTIPLIER_TOLERANCE = 0.05;
-
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
@@ -160,7 +157,8 @@ public class Hip1313EnabledTest {
                             highVolumeTxns,
                             e -> e.body().hasConsensusCreateTopic() || e.body().hasScheduleCreate());
                     final var topicThrottle = DeterministicThrottle.withTpsAndBurstPeriodMs(TOPIC_CREATE_HV_TPS, 1000);
-                    final var scheduleThrottle = DeterministicThrottle.withTpsAndBurstPeriodMs(SCHEDULE_CREATE_HV_TPS, 1000);
+                    final var scheduleThrottle =
+                            DeterministicThrottle.withTpsAndBurstPeriodMs(SCHEDULE_CREATE_HV_TPS, 1000);
                     int topicCreates = 0;
                     int scheduleCreates = 0;
                     for (final var entry : entries) {
@@ -170,7 +168,7 @@ public class Hip1313EnabledTest {
                             topicThrottle.allow(1, entry.consensusTime());
                             final var observedMultiplier = observedMultiplier(spec, fee, TOPIC_CREATE_BASE_FEE);
                             final var expectedMultiplier = getInterpolatedMultiplier(
-                                    CRYPTO_TOPIC_CREATE_MULTIPLIER_MAP, utilizationBasisPointsBefore)
+                                            CRYPTO_TOPIC_CREATE_MULTIPLIER_MAP, utilizationBasisPointsBefore)
                                     / 1000.0;
                             assertMultiplierAtLeastFour(observedMultiplier, "topic create");
                             assertMultiplierMatchesExpectation(
@@ -183,9 +181,9 @@ public class Hip1313EnabledTest {
                             final var utilizationBasisPointsBefore = utilizationBasisPointsBefore(scheduleThrottle);
                             scheduleThrottle.allow(1, entry.consensusTime());
                             final var observedMultiplier = observedMultiplier(spec, fee, SCHEDULE_CREATE_BASE_FEE);
-                            final var expectedMultiplier =
-                                    getInterpolatedMultiplier(SCHEDULE_CREATE_MULTIPLIER_MAP, utilizationBasisPointsBefore)
-                                            / 1000.0;
+                            final var expectedMultiplier = getInterpolatedMultiplier(
+                                            SCHEDULE_CREATE_MULTIPLIER_MAP, utilizationBasisPointsBefore)
+                                    / 1000.0;
                             assertMultiplierMatchesExpectation(
                                     expectedMultiplier,
                                     observedMultiplier,
@@ -295,7 +293,9 @@ public class Hip1313EnabledTest {
     }
 
     private static void assertMultiplierAtLeastFour(final double observedMultiplier, @NonNull final String operation) {
-        assertTrue(observedMultiplier >= 4, "Observed " + operation + " multiplier should be >= 4, but was " + observedMultiplier);
+        assertTrue(
+                observedMultiplier >= 4,
+                "Observed " + operation + " multiplier should be >= 4, but was " + observedMultiplier);
     }
 
     private static void assertMultiplierMatchesExpectation(
