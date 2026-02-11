@@ -115,14 +115,6 @@ So the first points in JSON must be:
 
 Not raw `5` or `7.5` basis points.
 
-## Spreadsheet Base Curve and Operation Values
-
-Source workbook:
-
-- `/Users/neeharikasompalli/Downloads/Congestion Pricing Curve and Per-API prices.xlsx`
-
-Canonical source for operation-specific values in this doc: `Sheet1` blocks for HIP-1313 operations.
-
 ### Base Curve (Normalized)
 
 This is the approved normalized curve (from spreadsheet), and it is the source used to derive per-operation curves:
