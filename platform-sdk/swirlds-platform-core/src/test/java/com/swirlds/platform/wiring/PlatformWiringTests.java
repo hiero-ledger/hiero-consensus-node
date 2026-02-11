@@ -3,6 +3,7 @@ package com.swirlds.platform.wiring;
 
 import static com.swirlds.platform.builder.ConsensusModuleBuilder.createNoOpEventCreatorModule;
 import static com.swirlds.platform.builder.ConsensusModuleBuilder.createNoOpEventIntakeModule;
+import static com.swirlds.platform.builder.ConsensusModuleBuilder.createNoOpGossipModule;
 import static com.swirlds.platform.builder.ConsensusModuleBuilder.createNoOpHashgraphModule;
 import static com.swirlds.platform.builder.ConsensusModuleBuilder.createNoOpPcesModule;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -50,6 +51,7 @@ import org.hiero.consensus.crypto.KeysAndCertsGenerator;
 import org.hiero.consensus.crypto.SigningSchema;
 import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.event.intake.EventIntakeModule;
+import org.hiero.consensus.gossip.GossipModule;
 import org.hiero.consensus.hashgraph.HashgraphModule;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.node.KeysAndCerts;
@@ -93,9 +95,16 @@ class PlatformWiringTests {
         final EventIntakeModule eventIntakeModule = createNoOpEventIntakeModule(model, configuration);
         final PcesModule pcesModule = createNoOpPcesModule(model, configuration);
         final HashgraphModule hashgraphModule = createNoOpHashgraphModule(model, configuration);
+        final GossipModule gossipModule = createNoOpGossipModule(model, configuration);
 
         final PlatformComponents platformComponents = PlatformComponents.create(
-                platformContext, model, eventCreatorModule, eventIntakeModule, pcesModule, hashgraphModule);
+                platformContext,
+                model,
+                eventCreatorModule,
+                eventIntakeModule,
+                pcesModule,
+                hashgraphModule,
+                gossipModule);
         PlatformWiring.wire(
                 platformContext, mock(ExecutionLayer.class), platformComponents, ApplicationCallbacks.EMPTY);
 
@@ -118,34 +127,6 @@ class PlatformWiringTests {
                 .withBranchReporter(mock(BranchReporter.class))
                 .withStateSigner(mock(StateSigner.class))
                 .withTransactionHandler(mock(DefaultTransactionHandler.class));
-
-        // Gossip is a special case, it's not like other components.
-        // Currently we just have a facade between gossip and the wiring framework.
-        // In the future when gossip is refactored to operate within the wiring
-        // framework like other components, such things will not be needed.
-        componentBuilder.withGossip(
-                (wiringModel,
-                        eventInput,
-                        eventWindowInput,
-                        eventOutput,
-                        startInput,
-                        stopInput,
-                        clearInput,
-                        resumeInput,
-                        pauseInput,
-                        systemHealthInput,
-                        platformStatusInput,
-                        syncLagOutput) -> {
-                    eventInput.bindConsumer(event -> {});
-                    eventWindowInput.bindConsumer(eventWindow -> {});
-                    startInput.bindConsumer(noInput -> {});
-                    stopInput.bindConsumer(noInput -> {});
-                    clearInput.bindConsumer(noInput -> {});
-                    resumeInput.bindConsumer(noInput -> {});
-                    pauseInput.bindConsumer(noInput -> {});
-                    systemHealthInput.bindConsumer(duration -> {});
-                    platformStatusInput.bindConsumer(platformStatus -> {});
-                });
 
         platformComponents.bind(
                 componentBuilder,
