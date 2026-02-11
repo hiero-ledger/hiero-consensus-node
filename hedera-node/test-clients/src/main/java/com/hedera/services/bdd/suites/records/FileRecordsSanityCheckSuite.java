@@ -84,7 +84,7 @@ public class FileRecordsSanityCheckSuite {
                         .via("txn")
                         .fee(95_000_000L),
                 getFileInfo("test").payingWith(EXCHANGE_RATE_CONTROL).via("fileInfoTxn"),
-                safeValidateChargedUsd("fileInfoTxn",0.0001014,0.0001),
+                safeValidateChargedUsd("fileInfoTxn", 0.0001014, 0.0001),
                 validateTransferListForBalances(
                         "txn", List.of(FUNDING, NODE, STAKING_REWARD, NODE_REWARD, DEFAULT_PAYER, FEE_COLLECTOR)),
                 withOpContext((spec, opLog) -> validateRecordTransactionFees(spec, "txn"))));
