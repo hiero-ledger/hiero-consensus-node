@@ -165,27 +165,42 @@ public final class CryptoStatic {
         Objects.requireNonNull(localNode, LOCAL_NODES_MUST_NOT_BE_NULL);
 
         final PathsConfig pathsConfig = configuration.getConfigData(PathsConfig.class);
+        final BasicConfig basicConfig = configuration.getConfigData(BasicConfig.class);
 
         final Map<NodeId, KeysAndCerts> keysAndCerts;
         try {
-            try (final Stream<Path> list = Files.list(pathsConfig.getKeysDirPath())) {
-                CommonUtils.tellUserConsole("Reading crypto keys from the files here:   "
-                        + Arrays.toString(list.map(p -> p.getFileName().toString())
-                                .filter(fileName -> fileName.endsWith("pfx") || fileName.endsWith("pem"))
-                                .toArray()));
+            if (basicConfig.loadKeysFromPfxFiles()) {
+                try (final Stream<Path> list = Files.list(pathsConfig.getKeysDirPath())) {
+                    CommonUtils.tellUserConsole("Reading crypto keys from the files here:   "
+                            + Arrays.toString(list.map(p -> p.getFileName().toString())
+                                    .filter(fileName -> fileName.endsWith("pfx") || fileName.endsWith("pem"))
+                                    .toArray()));
+                }
+
+                logger.debug(STARTUP.getMarker(), "About to start loading keys");
+                logger.debug(STARTUP.getMarker(), "Reading keys using the enhanced key loader");
+                keysAndCerts = EnhancedKeyStoreLoader.using(configuration, Set.of(localNode), rosterEntries)
+                        .migrate()
+                        .scan()
+                        .generate()
+                        .verify()
+                        .keysAndCerts();
+
+                logger.debug(STARTUP.getMarker(), "Done loading keys");
+            } else {
+                // if there are no keys on the disk, then create our own keys
+                CommonUtils.tellUserConsole("Keys will be generated in: " + pathsConfig.getKeysDirPath()
+                        + ", which is incompatible with DAB.");
+                logger.warn(
+                        STARTUP.getMarker(),
+                        "There are no keys on disk, Adhoc keys will be generated, but this is incompatible with DAB.");
+                logger.debug(STARTUP.getMarker(), "Started generating keys");
+                keysAndCerts = generateKeysAndCerts(Set.of(localNode));
+                logger.debug(STARTUP.getMarker(), "Done generating keys");
             }
-
-            logger.debug(STARTUP.getMarker(), "About to start loading keys");
-            logger.debug(STARTUP.getMarker(), "Reading keys using the enhanced key loader");
-            keysAndCerts = EnhancedKeyStoreLoader.using(configuration, Set.of(localNode), rosterEntries)
-                    .migrate()
-                    .scan()
-                    .generate()
-                    .verify()
-                    .keysAndCerts();
-
-            logger.debug(STARTUP.getMarker(), "Done loading keys");
-        } catch (final KeyStoreException
+        } catch (final InterruptedException
+                | ExecutionException
+                | KeyStoreException
                 | KeyLoadingException
                 | NoSuchAlgorithmException
                 | IOException
@@ -202,7 +217,7 @@ public final class CryptoStatic {
             throw new CryptographyException(e); // will never reach this line due to exit above
         }
 
-        final String msg = "Certificate loaded: {}";
+        final String msg = basicConfig.loadKeysFromPfxFiles() ? "Certificate loaded: {}" : "Certificate generated: {}";
 
         keysAndCerts.forEach((nodeId, keysAndCertsForNode) -> {
             if (keysAndCertsForNode == null) {
