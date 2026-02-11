@@ -23,6 +23,7 @@ import com.hedera.node.app.service.addressbook.impl.calculator.NodeDeleteFeeCalc
 import com.hedera.node.app.service.addressbook.impl.calculator.NodeUpdateFeeCalculator;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
+import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Set;
@@ -106,6 +107,10 @@ class AddressBookFeeCalculatorsTest {
     @DisplayName("Fee calculation for all Node*FeeCalculators")
     void testFeeCalculators(TestCase testCase) throws UnknownHederaFunctionality {
         lenient().when(feeContext.numTxnSignatures()).thenReturn(testCase.numSignatures);
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("nodes.enableDAB", true)
+                .getOrCreateConfig();
+        lenient().when(feeContext.configuration()).thenReturn(config);
         when(feeContext.functionality()).thenReturn(functionOf(testCase.body()));
         final var result = feeCalculator.calculateTxFee(testCase.body, new SimpleFeeContextImpl(feeContext, null));
         assertThat(result).isNotNull();
