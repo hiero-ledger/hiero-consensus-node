@@ -153,7 +153,7 @@ public class ClprGetLedgerConfigurationHandlerTest extends ClprHandlerTestBase {
         // Extract configuration from state proof
         final var proof = clprResponse.ledgerConfigurationProof();
         assertNotNull(proof, "State proof should not be null");
-        final var actualConfig = org.hiero.interledger.clpr.ClprStateProofUtils.extractConfiguration(proof);
+        final var actualConfig = org.hiero.interledger.clpr.ClprStateProofUtils. extractConfiguration(proof);
         assertEquals(expectedLedgerConfig, actualConfig);
     }
 

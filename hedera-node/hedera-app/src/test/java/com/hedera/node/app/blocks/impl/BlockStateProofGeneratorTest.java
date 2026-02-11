@@ -44,10 +44,13 @@ class BlockStateProofGeneratorTest {
                         pp.block(),
                         null,
                         pp.blockHash(),
+						pp.blockTimestamp(),
                         pp.previousBlockHash(),
+						pp.prevBlocksRootHash(),
+						pp.startOfBlockStateRootHash(),
+						pp.consensusHeaderRootHash(),
                         BlockProof.newBuilder().block(pp.block()),
                         new NoOpTestWriter(),
-                        pp.blockTimestamp(),
                         pp.siblingHashesFromPrevBlockRoot().toArray(new MerkleSiblingHash[0])))
                 .toList();
         verifyLoadedBlocks(pendingBlockInputs);
@@ -110,7 +113,7 @@ class BlockStateProofGeneratorTest {
         for (int i = 0; i < numProofs; i++) {
             final var currentPendingBlock = pendingBlocks.get(i);
             final var expectedPrevHash = EXPECTED_PREVIOUS_BLOCK_HASHES.get((long) i);
-            Assertions.assertThat(currentPendingBlock.previousBlockHash()).isEqualTo(expectedPrevHash);
+            Assertions.assertThat(currentPendingBlock.prevBlockHash()).isEqualTo(expectedPrevHash);
             final var expectedHash = EXPECTED_BLOCK_HASHES.get((long) i);
             Assertions.assertThat(currentPendingBlock.blockHash()).isEqualTo(expectedHash);
         }

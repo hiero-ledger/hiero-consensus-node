@@ -17,7 +17,10 @@ import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -77,6 +80,8 @@ public class StateLifecycleManagerImpl implements StateLifecycleManager<VirtualM
 
     @NonNull
     private final Configuration configuration;
+
+    private final List<Consumer<State>> stateObservers = new ArrayList<>();
 
     /**
      * Constructor.
@@ -194,6 +199,9 @@ public class StateLifecycleManagerImpl implements StateLifecycleManager<VirtualM
         }
         stateToCopy.getRoot().reserve();
         latestImmutableStateRef.set(stateToCopy);
+		for (final var observer : stateObservers) {
+			observer.accept(stateToCopy);
+		}
         final VirtualMapState previousMutableState = stateRef.get();
         if (previousMutableState != null) {
             assert !previousMutableState.isDestroyed();
@@ -250,5 +258,10 @@ public class StateLifecycleManagerImpl implements StateLifecycleManager<VirtualM
         virtualMap.release();
 
         return stateSupplier.apply(mutableCopy);
+    }
+
+    @Override
+    public void addObserver(final Consumer<State> observer) {
+        stateObservers.add(observer);
     }
 }

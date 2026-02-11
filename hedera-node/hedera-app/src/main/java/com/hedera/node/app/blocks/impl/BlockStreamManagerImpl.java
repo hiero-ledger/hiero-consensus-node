@@ -56,6 +56,7 @@ import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
+import com.hedera.node.config.data.ClprConfig;
 import com.hedera.node.config.data.NetworkAdminConfig;
 import com.hedera.node.config.data.QuiescenceConfig;
 import com.hedera.node.config.data.StakingConfig;
@@ -432,10 +433,13 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                             block.number(),
                             block.contentsPath(),
                             block.blockHash(),
+                            block.pendingProof().blockTimestamp(),
                             block.pendingProof().previousBlockHash(),
+                            block.pendingProof().prevBlocksRootHash(),
+                            block.pendingProof().startOfBlockStateRootHash(),
+                            block.pendingProof().consensusHeaderRootHash(),
                             block.proofBuilder(),
                             pendingWriter,
-                            block.pendingProof().blockTimestamp(),
                             block.siblingHashesIfUseful()));
                     log.info("Recovered pending block #{}", block.number());
                 } catch (Exception e) {
@@ -527,6 +531,9 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             // Branch 8 final hash:
             final var traceDataHash = Bytes.wrap(traceDataHasher.computeRootHash());
 
+			log.fatal("demo: block num: {}", blockNumber);
+//			log.fatal("demo: block start state hash: {}", blockStartStateHash);
+			log.fatal("demo: block timestamp: {}", blockTimestamp);
             // Put this block hash context in state via the block stream info
             final var writableState = state.getWritableStates(BlockStreamService.NAME);
             final var blockStreamInfoState = writableState.<BlockStreamInfo>getSingleton(BLOCK_STREAM_INFO_STATE_ID);
@@ -571,6 +578,14 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     newBlockStreamInfo.blockTime());
             final var finalBlockRootHash = rootAndSiblingHashes.blockRootHash();
 
+			log.fatal("demo (b={}): blockStartStateHash={}", blockNumber, blockStartStateHash);
+//			log.fatal("demo (b={}): prevBlockRootsHash={}", blockNumber, prevBlockRootsHash);
+			log.fatal("demo (b={}): sibling hashes:", blockNumber);
+			for (var h : rootAndSiblingHashes.siblingHashes()) {
+				log.fatal("    isFirst={}, siblingHash={}", h.isFirst(), h.siblingHash());
+			}
+			log.fatal("demo (b={}): finalBlockRootHash={}", blockNumber, finalBlockRootHash);
+
             // Create BlockFooter with the three essential hashes:
             final var blockFooter = com.hedera.hapi.block.stream.output.BlockFooter.newBuilder()
                     // 1. previousBlockRootHash - Root hash of the previous block (N-1)
@@ -593,10 +608,13 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     blockNumber,
                     null,
                     finalBlockRootHash,
+					blockTimestamp,
                     lastBlockHash,
+                    prevBlockRootsHash,
+                    blockStartStateHash,
+                    consensusHeaderHash,
                     blockProofBuilder,
                     writer,
-                    blockTimestamp,
                     rootAndSiblingHashes.siblingHashes()));
 
             // Update in-memory state to prepare for the next block
@@ -621,8 +639,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                                 blockNumber,
                                 finalBlockRootHash);
                     } else {
-                        finishProofWithSignature(
-                                finalBlockRootHash, signature, attempt.verificationKey(), attempt.chainOfTrustProof());
+						// We're signing the block with the state hash at the START of this block currently being closed, not the end, so use the start hash
+                        finishProofWithSignature(blockStartStateHash, finalBlockRootHash, signature, attempt.verificationKey(), attempt.chainOfTrustProof());
                     }
                     if (quiescenceEnabled) {
                         final var lastCommand = lastQuiescenceCommand.get();
@@ -732,6 +750,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
      * @param chainOfTrustProof if history proofs are enabled, the chain of trust proof to use in the block proof
      */
     private synchronized void finishProofWithSignature(
+			@NonNull final Bytes startOfBlockStateHash,
             @NonNull final Bytes blockHash,
             @NonNull final Bytes blockSignature,
             @SuppressWarnings("unused") @Nullable final Bytes verificationKey,
@@ -825,6 +844,19 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             if (quiescenceEnabled && currentPendingBlock.contentsPath() == null) {
                 quiescenceController.blockFullySigned(currentPendingBlock.number());
             }
+			// Update the block stream state accessor with the latest signed block data for future state proof queries
+			if (configProvider
+					.getConfiguration()
+					.getConfigData(ClprConfig.class)
+					.clprEnabled()) {
+				final var path = PartialPathBuilder.startingStateToBlockRoot(
+						currentPendingBlock.prevBlockHash(),
+						currentPendingBlock.prevBlocksRootHash(),
+						currentPendingBlock.startingStateHash(),
+						currentPendingBlock.consensusHeaderRootHash(),
+						currentPendingBlock.siblingHashes());
+				blockProvenStateAccessor.registerBlockMetadata(startOfBlockStateHash, blockHash, blockSignature, blockTimestamp, path);
+			}
             if (currentPendingBlock.contentsPath() != null) {
                 cleanUpPendingBlock(currentPendingBlock.contentsPath());
             }
@@ -966,18 +998,18 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         protected boolean onExecute() {
             final var kind = item.item().kind();
             switch (kind) {
-                case ROUND_HEADER, EVENT_HEADER -> consensusHeaderHasher.addLeaf(serialized);
-                case SIGNED_TRANSACTION -> inputTreeHasher.addLeaf(serialized);
+                case ROUND_HEADER, EVENT_HEADER -> consensusHeaderHasher.addBlockItemLeaf(serialized);
+                case SIGNED_TRANSACTION -> inputTreeHasher.addBlockItemLeaf(serialized);
                 case TRANSACTION_RESULT -> {
-                    outputTreeHasher.addLeaf(serialized);
+                    outputTreeHasher.addBlockItemLeaf(serialized);
 
                     // Also update running hashes
-                    final var hashedLeaf = BlockImplUtils.hashLeaf(serialized);
-                    runningHashManager.nextResultHash(ByteBuffer.wrap(hashedLeaf));
+                    final var hashedLeaf = BlockImplUtils.hashBlockItemLeaf(serialized);
+					runningHashManager.nextResultHash(ByteBuffer.wrap(hashedLeaf.toByteArray()));
                 }
-                case TRANSACTION_OUTPUT, BLOCK_HEADER -> outputTreeHasher.addLeaf(serialized);
-                case STATE_CHANGES -> stateChangesHasher.addLeaf(serialized);
-                case TRACE_DATA -> traceDataHasher.addLeaf(serialized);
+                case TRANSACTION_OUTPUT, BLOCK_HEADER -> outputTreeHasher.addBlockItemLeaf(serialized);
+                case STATE_CHANGES -> stateChangesHasher.addBlockItemLeaf(serialized);
+                case TRACE_DATA -> traceDataHasher.addBlockItemLeaf(serialized);
                 case BLOCK_FOOTER, BLOCK_PROOF -> {
                     // BlockFooter and BlockProof are not included in any merkle tree
                     // They are metadata about the block, not part of the hashed content
@@ -1201,6 +1233,15 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             @NonNull final Bytes traceDataHash,
             @NonNull final Timestamp firstConsensusTimeOfCurrentBlock) {
         requireNonNull(prevBlockHash);
+		log.fatal("demo: prev block hash (branch 1): {}", prevBlockHash);
+		log.fatal("demo: prev block roots hash (branch 2): {}", prevBlockRootsHash);
+		log.fatal("demo: starting state hash (branch 3): {}", startingStateHash);
+		log.fatal("demo: consensus header hash (branch 4): {}", consensusHeaderHash);
+		log.fatal("demo: inputs hash (branch 5): {}", inputsHash);
+		log.fatal("demo: outputs hash (branch 6): {}", outputsHash);
+		log.fatal("demo: state changes hash (branch 7): {}", stateChangesHash);
+		log.fatal("demo: trace data hash (branch 8): {}", traceDataHash);
+		log.fatal("demo: block timestamp (leaf): {}", firstConsensusTimeOfCurrentBlock);
 
         // Compute depth five hashes
         final var depth5Node1 = BlockImplUtils.hashInternalNode(prevBlockHash, prevBlockRootsHash);
@@ -1218,7 +1259,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
         // Compute depth two hashes (timestamp + last right sibling)
         final var tsBytes = Timestamp.PROTOBUF.toBytes(firstConsensusTimeOfCurrentBlock);
-        final var depth2Node1 = hashLeaf(tsBytes);
+        final var depth2Node1 = BlockImplUtils.hashTimestampLeaf(tsBytes);
         // (Depth 2, Node 2) represents the subroot of the tree where the actual data combine with the future reserved
         // roots 9-16, so we treat its child as the only child (even though other future roots may exist later).
         final var depth2Node2 = BlockImplUtils.hashInternalNodeSingleChild(depth3Node1);

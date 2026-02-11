@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.interledger.clpr.impl.handlers;
 
+import static com.hedera.node.app.hapi.utils.CommonUtils.sha384HashOf;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.block.stream.StateProof;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.spi.info.NetworkInfo;
@@ -170,6 +172,9 @@ public class ClprSetLedgerConfigurationHandler implements TransactionHandler {
         final var configTxn = txn.clprSetLedgerConfigurationOrThrow();
 
         // Extract the configuration from the state proof (already validated in pureChecks)
+
+		var hashed = sha384HashOf(StateProof.PROTOBUF.toBytes(configTxn.ledgerConfigurationProofOrThrow()).toByteArray());
+		log.fatal("demo: New ledger configuration received (hash={}); extracting", Bytes.wrap(hashed));
         final ClprLedgerConfiguration newConfig;
         try {
             newConfig = ClprStateProofUtils.extractConfiguration(configTxn.ledgerConfigurationProofOrThrow());
@@ -177,6 +182,7 @@ public class ClprSetLedgerConfigurationHandler implements TransactionHandler {
             // This should not happen as the state proof was already validated in pureChecks
             throw new HandleException(ResponseCodeEnum.CLPR_INVALID_STATE_PROOF);
         }
+		log.fatal("demo: Ledger configuration verified and extracted successfully: {}", newConfig);
 
         // Persist local metadata alongside the configuration update. LedgerId is set once (if unset) to the
         // active roster hash; roster hash must always advance on each local configuration update.

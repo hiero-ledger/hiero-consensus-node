@@ -9,6 +9,7 @@ import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.HASH_SIZE;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 
 /**
  * Utility methods for block implementation.
@@ -75,17 +76,75 @@ public class BlockImplUtils {
         return sha384HashOf(LEAF_PREFIX, leafData);
     }
 
-    public static Bytes hashLeaf(@NonNull final Bytes leafData) {
+	public static Bytes hashBlockItemLeaf(@NonNull final Bytes leafData) {
+		return hashBlockItemLeaf(leafData.toByteArray());
+	}
+
+	public static Bytes hashBlockItemLeaf(@NonNull final byte[] leafData) {
+		MessageDigest digest = null;
+		try {
+			digest = MessageDigest.getInstance("SHA-384");
+		} catch (NoSuchAlgorithmException e) {
+			throw new RuntimeException(e);
+		}
+
+		return doLegacyLeafHash(digest, (byte) 0x12, leafData);
+	}
+
+	public static Bytes hashTimestampLeaf(@NonNull final Bytes leafData) {
+		MessageDigest digest = null;
+		try {
+			digest = MessageDigest.getInstance("SHA-384");
+		} catch (NoSuchAlgorithmException e) {
+			throw new RuntimeException(e);
+		}
+
+		return doLegacyLeafHash(digest, (byte) 0x0A, leafData.toByteArray());
+
+//		digest.update(LEAF_PREFIX_BYTES.toByteArray());
+//		digest.update((byte) 0x0A);     // field 3 << 3 | 2
+//		long leafLength = leafData.length();
+//		if (leafLength < 0 || leafLength > Integer.MAX_VALUE) {
+//			throw new IllegalArgumentException("leafBytes length out of range: " + leafLength);
+//		}
+//		updateVarint(digest, (int) leafLength);
+//		digest.update(leafData.toByteArray());
+//
+//		return Bytes.wrap(digest.digest());
+	}
+
+	private static Bytes doLegacyLeafHash(@NonNull final MessageDigest digest, final byte legacyPrefix, @NonNull final byte[] leafData) {
+		digest.update(LEAF_PREFIX_BYTES.toByteArray());
+		digest.update(legacyPrefix);
+		long leafLength = leafData.length;
+		if (leafLength < 0 || leafLength > Integer.MAX_VALUE) {
+			throw new IllegalArgumentException("leafBytes length out of range: " + leafLength);
+		}
+		updateVarint(digest, (int) leafLength);
+		digest.update(leafData);
+
+		return Bytes.wrap(digest.digest());
+	}
+
+    static Bytes hashLeaf(@NonNull final Bytes leafData) {
         return sha384HashOfAll(LEAF_PREFIX_BYTES, leafData);
     }
 
-    public static Bytes hashLeaf(@NonNull final MessageDigest digest, @NonNull final Bytes leafData) {
+    static Bytes hashLeaf(@NonNull final MessageDigest digest, @NonNull final Bytes leafData) {
         return hashOfAll(digest, LEAF_PREFIX_BYTES, leafData);
     }
 
-    public static byte[] hashLeaf(@NonNull final MessageDigest digest, @NonNull final byte[] leafData) {
+    static byte[] hashLeaf(@NonNull final MessageDigest digest, @NonNull final byte[] leafData) {
         return hashOfAll(digest, LEAF_PREFIX, leafData);
     }
+
+	private static void updateVarint(final MessageDigest digest, int value) {
+		while ((value & ~0x7F) != 0) {
+			digest.update((byte) ((value & 0x7F) | 0x80));
+			value >>>= 7;
+		}
+		digest.update((byte) value);
+	}
 
     public static Bytes hashInternalNodeSingleChild(@NonNull final Bytes hash) {
         return sha384HashOfAll(SINGLE_CHILD_INTERNAL_NODE_PREFIX, hash.toByteArray());

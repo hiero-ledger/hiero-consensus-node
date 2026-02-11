@@ -1,9 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.interledger.clpr.impl;
 
+import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
+
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.block.stream.MerklePath;
+import com.hedera.hapi.block.stream.SiblingNode;
 import com.hedera.hapi.block.stream.StateProof;
+import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.node.app.hapi.utils.blocks.HashUtils;
+import com.hedera.node.app.hapi.utils.blocks.MerklePathBuilder;
 import com.hedera.node.app.hapi.utils.blocks.StateProofBuilder;
 import com.hedera.node.app.hapi.utils.blocks.StateProofVerifier;
 import com.hedera.node.app.spi.state.BlockProvenSnapshot;
@@ -13,16 +20,23 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.merkle.StateKeyUtils;
 import com.swirlds.state.merkle.StateUtils;
 import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.state.MerkleProof;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.virtualmap.VirtualMapIterator;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.hiero.hapi.interledger.clpr.ClprSetLedgerConfigurationTransactionBody;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerId;
@@ -44,7 +58,8 @@ import org.hiero.interledger.clpr.impl.schemas.V0700ClprSchema;
 @Singleton
 public class ClprStateProofManager {
 
-    private final BlockProvenSnapshotProvider snapshotProvider;
+	private static final Logger log = LogManager.getLogger(ClprStateProofManager.class);
+	private final BlockProvenSnapshotProvider snapshotProvider;
     private final com.hedera.node.config.data.ClprConfig clprConfig;
 
     @Inject
@@ -184,13 +199,35 @@ public class ClprStateProofManager {
             throw new IllegalStateException(
                     "CLPR ledger configurations state not found - service may not be properly initialized");
         }
-        if (!(state instanceof VirtualMapState virtualMapState)) {
-            throw new IllegalStateException("Unable to build Merkle proofs from a non-VirtualMap state");
-        }
+
+		if (!(state instanceof VirtualMapState virtualMapState)) {
+			throw new IllegalStateException("Unable to build Merkle proofs from a non-VirtualMap state");
+		}
+
+		final var tssSigBytes = snapshot.tssSignature();
+		if (tssSigBytes == null || Objects.equals(tssSigBytes, Bytes.EMPTY)) {
+			throw new IllegalStateException("TSS signature is missing or invalid");
+		}
+
+		final var blockTimestamp = snapshot.blockTimestamp();
+		if (blockTimestamp == null || Objects.equals(blockTimestamp, Timestamp.DEFAULT)) {
+			throw new IllegalStateException("Block timestamp is missing or invalid");
+		}
+
+		final var path = snapshot.path();
+		if (path == null || Objects.equals(path, MerklePath.DEFAULT) || !path.hasHash()) {
+			throw new IllegalStateException("Merkle path is missing or invalid");
+		}
+
+//		log.fatal("matt: building merkle state proof: ledgerId={}, tssSigBytes={}, blockTimestamp={}, path={}",
+//				resolvedLedgerId, tssSigBytes, blockTimestamp, path);
         return buildMerkleStateProof(
                 virtualMapState,
                 V0700ClprSchema.CLPR_LEDGER_CONFIGURATIONS_STATE_ID,
-                ClprLedgerId.PROTOBUF.toBytes(resolvedLedgerId));
+                ClprLedgerId.PROTOBUF.toBytes(resolvedLedgerId),
+				tssSigBytes,
+				blockTimestamp,
+				path);
     }
 
     /**
@@ -225,11 +262,16 @@ public class ClprStateProofManager {
     }
 
     /**
-     * Builds a proper Merkle state proof from the actual state tree.
+     * Builds a proper Merkle state proof from the actual state tree to the containing block's root.
      */
     @Nullable
     private StateProof buildMerkleStateProof(
-            @NonNull final VirtualMapState merkleState, final int STATE_ID, @NonNull final Bytes STATE_KEY) {
+            @NonNull final VirtualMapState merkleState,
+            final int STATE_ID,
+            @NonNull final Bytes STATE_KEY,
+            @NonNull final Bytes tssSignature,
+            @NonNull final Timestamp blockTimestamp,
+            @NonNull final MerklePath stateSubrootToBlockRightChildRoot) {
         // Ensure state is hashed before getting Merkle proof
         if (!merkleState.isHashed()) {
             merkleState.computeHash();
@@ -246,18 +288,68 @@ public class ClprStateProofManager {
         if (merkleProof == null) {
             return null;
         }
+//		log.fatal("matt: procured merkle proof: {}", toString(merkleProof));
 
-        // Build state proof with the Merkle proof and state root hash as signature (dev mode)
-        final var stateRootHash = merkleState.getHash();
-        if (stateRootHash == null) {
-            throw new IllegalStateException("State root hash is null.");
-        }
+		// Begin constructing the full block proof
+		final var blockRootProof = StateProofBuilder.newBuilder().addProof(merkleProof);
 
-        return StateProofBuilder.newBuilder()
-                .addProof(merkleProof)
-                .withTssSignature(Bytes.wrap(stateRootHash.copyToByteArray()))
-                .build();
+		// Represent the block timestamp as a (left) sibling node
+		final var tsBytes = Timestamp.PROTOBUF.toBytes(blockTimestamp);
+//		log.fatal("matt: block timestamp bytes: {}", tsBytes);
+		// Method 1 (as MerkleLeaf):
+		final Bytes hashedTsBytes = Bytes.wrap(
+				HashUtils.computeTimestampLeafHash(sha384DigestOrThrow(), tsBytes));
+//		log.fatal("matt: timestamp as hashed _merkle leaf_ bytes (method 1): {}", hashedTsBytes);
+		final var timestampLeafAsSibling = SiblingNode.newBuilder()
+				.hash(hashedTsBytes)
+				.isLeft(true)
+				.build();
+		// Method 2 (as hashed bytes directly):
+		var digest = sha384DigestOrThrow();
+		digest.update((byte) 0x0);
+		digest.update(tsBytes.toByteArray());
+		final var hashedTsBytesMethod2 = digest.digest();
+//		log.fatal("matt: timestamp as hashed bytes (method 2): {}", hashedTsBytesMethod2);
+		// (no representation as sibling here, just for comparison)
+
+		// Copy the path to a new list and path, adding the timestamp as the left child at the end/top
+		var sibs = stateSubrootToBlockRightChildRoot.siblings();
+		var extendedSibs = new ArrayList<SiblingNode>(sibs.size() + 1);
+		extendedSibs.addAll(sibs);
+		extendedSibs.add(SiblingNode.newBuilder().hash(Bytes.EMPTY).build()); // single-child node indicator
+		extendedSibs.add(timestampLeafAsSibling);
+
+		// Extend the proof fully to the block root (now includes the timestamp as a hashed leaf)
+		final var sibsMpb = new MerklePathBuilder().appendSiblingNodes(extendedSibs);
+		blockRootProof.extendRoot(sibsMpb);
+
+		// Add the proof terminator
+		final var rootMbp = new MerklePathBuilder().setNextPathIndex(-1);
+		blockRootProof.extendRoot(rootMbp);
+
+		// Add the TSS signature and build the object
+		final var fullProof = blockRootProof.withTssSignature(tssSignature).build();
+
+        // Verify and return the completed proof
+        StateProofVerifier.verify(fullProof); // probably not _needed_, but why not have it?
+        return fullProof;
     }
+
+	private String toString(final MerkleProof merkleProof) {
+		StringBuilder sb = new StringBuilder();
+		log.fatal("state item: {}", merkleProof.stateItem());
+		sb.append("MerkleProof{stateItem=").append(merkleProof.stateItem())
+		  .append(", siblings=[");
+		for (int i = 0; i < merkleProof.siblingHashes().size(); i++) {
+			sb.append("{isLeft=").append(merkleProof.siblingHashes().get(i).isLeft())
+			  .append(", hash=").append(merkleProof.siblingHashes().get(i).hash()).append("}");
+			if (i < merkleProof.siblingHashes().size() - 1) {
+				sb.append(", ");
+			}
+		}
+		sb.append("]}");
+		return sb.toString();
+	}
 
     /**
      * Validates the state proof embedded in the supplied transaction.

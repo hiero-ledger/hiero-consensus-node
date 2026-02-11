@@ -2,6 +2,9 @@
 package com.hedera.node.app.spi.state;
 
 import com.swirlds.state.State;
+import com.hedera.hapi.block.stream.MerklePath;
+import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**
@@ -18,4 +21,22 @@ public interface BlockProvenSnapshot {
      */
     @NonNull
     State state();
+
+    /**
+     * Returns the TSS signature for the block corresponding to this state snapshot
+     */
+    @NonNull
+    Bytes tssSignature();
+
+    /**
+     * Returns the timestamp of the block corresponding to this state snapshot
+     */
+    @NonNull
+    Timestamp blockTimestamp();
+
+    /**
+     * Returns the Merkle path from the state's root hash to the block hash root's right child
+     */
+    @NonNull
+    MerklePath path();
 }

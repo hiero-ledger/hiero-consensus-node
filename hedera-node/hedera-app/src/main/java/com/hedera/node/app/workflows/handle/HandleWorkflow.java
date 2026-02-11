@@ -30,6 +30,7 @@ import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.history.ProofKey;
+import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
@@ -118,6 +119,10 @@ import org.hiero.consensus.platformstate.ReadablePlatformStateStore;
 import org.hiero.consensus.platformstate.WritablePlatformStateStore;
 import org.hiero.consensus.roster.ReadableRosterStoreImpl;
 import org.hiero.consensus.roster.WritableRosterStore;
+import org.hiero.hapi.interledger.state.clpr.ClprLedgerId;
+import org.hiero.hapi.interledger.state.clpr.ClprLocalLedgerMetadata;
+import org.hiero.interledger.clpr.ClprService;
+import org.hiero.interledger.clpr.impl.WritableClprMetadataStoreImpl;
 
 /**
  * The handle workflow that is responsible for handling the next {@link Round} of transactions.
@@ -1020,6 +1025,7 @@ public class HandleWorkflow {
             if (tssConfig.historyEnabled()) {
                 historyService.onFinishedConstruction((historyStore, construction, targetNodeWeights) -> {
                     final var rosterStore = new ReadableRosterStoreImpl(state.getReadableStates(RosterService.NAME));
+					final var clprStore = new WritableClprMetadataStoreImpl(state.getWritableStates(ClprService.NAME));
                     final var activeConstruction = historyStore.getActiveConstruction();
                     if (activeConstruction.constructionId() == construction.constructionId()) {
                         // We just finished the genesis proof, so we use it immediately
@@ -1032,6 +1038,12 @@ public class HandleWorkflow {
                         // Record its context for later externalization
                         setLedgerIdContext.set(
                                 new LedgerIdContext(ledgerId, proof.targetProofKeys(), targetNodeWeights));
+
+						var activeRoster = requireNonNull(rosterStore.getActiveRoster());
+						var activeRosterHash = Roster.PROTOBUF.toBytes(activeRoster);
+						clprStore.put(ClprLocalLedgerMetadata.newBuilder().ledgerId(
+								ClprLedgerId.newBuilder().ledgerId(ledgerId)).rosterHash(
+								activeRosterHash).build());
                         return;
                     }
                     // WRAPS genesis is the first proof that bootstraps the chain of trust; but it takes a long time

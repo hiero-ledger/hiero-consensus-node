@@ -57,4 +57,14 @@ message PendingProof {
      * for any indirect proofs.
      */
     repeated com.hedera.hapi.block.stream.MerkleSiblingHash sibling_hashes_from_prev_block_root = 6;
+
+    /**
+     * The previous blocks subroot hash for the pending block.
+     */
+    bytes prev_blocks_root_hash = 7;
+
+    /**
+     * The consensus header root hash for the pending block.
+     */
+    bytes consensus_header_root_hash = 8;
 }

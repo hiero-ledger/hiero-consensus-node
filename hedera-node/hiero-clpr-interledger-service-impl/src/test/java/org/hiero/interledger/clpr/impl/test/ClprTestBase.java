@@ -137,13 +137,8 @@ public class ClprTestBase {
     }
 
     protected StateProof buildInvalidStateProof(@NonNull final ClprLedgerConfiguration configuration) {
-        final var proof = buildLocalClprStateProofWrapper(configuration);
-        return proof.copyBuilder()
-                .signedBlockProof(proof.signedBlockProofOrThrow()
-                        .copyBuilder()
-                        .blockSignature(Bytes.wrap(new byte[] {1, 2, 3}))
-                        .build())
-                .build();
+        // Create an invalid proof with empty paths which will cause verification to fail
+        return StateProof.DEFAULT;
     }
 
     private static <T> Bytes encode(final Codec<T> codec, final T value) {

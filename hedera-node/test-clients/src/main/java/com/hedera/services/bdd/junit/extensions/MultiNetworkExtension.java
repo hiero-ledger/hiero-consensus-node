@@ -181,7 +181,7 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
 
     private Map<String, String> buildBootstrapOverrides(@NonNull final Network config) {
         final Map<String, String> overrides = new LinkedHashMap<>();
-        overrides.put("clpr.clprEnabled", "false");
+//        overrides.put("clpr.clprEnabled", "false");
         if (config.setupOverrides().length > 0) {
             for (final var override : config.setupOverrides()) {
                 overrides.put(override.key(), override.value());

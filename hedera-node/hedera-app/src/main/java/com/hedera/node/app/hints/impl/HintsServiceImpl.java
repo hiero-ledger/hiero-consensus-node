@@ -163,6 +163,7 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
             }
             case HANDOFF -> {
                 // No-op
+//				logger.fatal("matt: reconcile called in HANDOFF phase, no-op");
             }
         }
         currentRoster.set(activeRosters.findRelatedRoster(activeRosters.currentRosterHash()));

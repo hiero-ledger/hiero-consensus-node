@@ -90,8 +90,14 @@ public class IncrementalStreamingHasher {
      * @param data the raw data for the new leaf
      */
     public void addLeaf(final byte[] data) {
-        addNodeByHash(hashLeaf(digest, data));
+		var leafHash = BlockImplUtils.hashBlockItemLeaf(data);
+        addNodeByHash(leafHash.toByteArray());
     }
+
+	public void addBlockItemLeaf(final byte[] data) {
+		var leafHash = BlockImplUtils.hashBlockItemLeaf(data);
+		addNodeByHash(leafHash.toByteArray());
+	}
 
     /**
      * Add a pre-hashed node to the Merkle tree. This is needed for a tree of other trees. Where each node at the

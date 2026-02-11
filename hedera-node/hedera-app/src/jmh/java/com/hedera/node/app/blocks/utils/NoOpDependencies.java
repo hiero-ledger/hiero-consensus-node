@@ -44,6 +44,8 @@ import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Consumer;
+
 import org.hiero.base.crypto.Signature;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
@@ -236,7 +238,12 @@ public final class NoOpDependencies {
             public VirtualMapState copyMutableState() {
                 return state;
             }
-        };
+
+			@Override
+			public void addObserver(final Consumer<State> observer) {
+				// No-op
+			}
+		};
         return new BlockProvenStateAccessor(lifecycleManager);
     }
 

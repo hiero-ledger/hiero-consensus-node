@@ -1,12 +1,18 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hapi.utils.blocks;
 
+import static com.hedera.node.app.hapi.utils.CommonUtils.sha384HashOf;
+
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.MerklePath;
 import com.hedera.hapi.block.stream.SiblingNode;
 import com.hedera.hapi.block.stream.StateProof;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -44,6 +50,8 @@ import java.util.List;
  */
 public final class StateProofVerifier {
 
+	private static final Logger log = LogManager.getLogger(StateProofVerifier.class);
+
     /**
      * Private constructor to prevent instantiation of this utility class.
      */
@@ -69,12 +77,125 @@ public final class StateProofVerifier {
     public static boolean verify(@NonNull final StateProof stateProof) {
         requireNonNull(stateProof, "stateProof must not be null");
 
+		logStateProof(stateProof);
+
         // Compute root hash from merkle paths
         final byte[] rootHash = computeRootHash(stateProof.paths());
 
         // Verify TSS signature (Phase 1: mock verification)
         return verifyTssSignature(rootHash, stateProof);
     }
+
+	/**
+	 * Logs a comprehensive human-readable representation of a StateProof.
+	 *
+	 * @param stateProof the state proof to log
+	 */
+	private static void logStateProof(final StateProof stateProof) {
+		final StringBuilder sb = new StringBuilder();
+		sb.append("demo:\n========== StateProof Details ==========\n");
+
+		var hashed = sha384HashOf(StateProof.PROTOBUF.toBytes(stateProof).toByteArray());
+		sb.append("Hashed State Proof: ").append(Bytes.wrap(hashed).toHex()).append("\n");
+
+		// Log the signed block proof if present
+		if (stateProof.hasSignedBlockProof()) {
+			final var signedBlockProof = stateProof.signedBlockProof();
+			sb.append("Signed Block Proof:\n");
+			sb.append("  Block Signature: ");
+			if (signedBlockProof.blockSignature() != null) {
+				sb.append(formatBytes(signedBlockProof.blockSignature()));
+			} else {
+				sb.append("<null>");
+			}
+			sb.append("\n");
+		} else {
+			sb.append("Signed Block Proof: <not present>\n");
+		}
+
+		// Log the paths
+		final var paths = stateProof.paths();
+		sb.append("Merkle Paths: ").append(paths.size()).append(" path(s)\n");
+
+		for (int i = 0; i < paths.size(); i++) {
+			final var path = paths.get(i);
+			sb.append("  Path [").append(i).append("]:\n");
+			sb.append("    nextPathIndex: ").append(path.nextPathIndex()).append("\n");
+
+			// Log leaf if present
+			if (path.hasBlockItemLeaf() || path.hasStateItemLeaf() || path.hasTimestampLeaf()) {
+				sb.append("    Leaf:\n");
+
+				// Log the content type and value based on the oneof field
+				if (path.hasTimestampLeaf()) {
+					sb.append("      Content Type: block_consensus_timestamp\n");
+					sb.append("      Value: ").append(formatBytes(path.timestampLeaf())).append("\n");
+				} else if (path.hasBlockItemLeaf()) {
+					sb.append("      Content Type: block_item\n");
+					sb.append("      Value: ").append(formatBytes(path.blockItemLeaf())).append("\n");
+				} else if (path.hasStateItemLeaf()) {
+					sb.append("      Content Type: state_item\n");
+					sb.append("      Value: ").append(formatBytes(path.stateItemLeaf())).append("\n");
+				} else {
+					sb.append("      Content Type: <not set>\n");
+				}
+			} else if (path.hasHash()) {
+				sb.append("    Hash: ").append(formatBytes(path.hash())).append("\n");
+			} else {
+				sb.append("    Content: <neither leaf nor hash present>\n");
+			}
+
+			// Log siblings
+			final var siblings = path.siblings();
+			sb.append("    Siblings: ").append(siblings.size()).append(" sibling(s)\n");
+			for (int j = 0; j < siblings.size(); j++) {
+				final var sibling = siblings.get(j);
+				sb.append("      Sibling [").append(j).append("]:\n");
+				sb.append("        isLeft: ").append(sibling.isLeft()).append("\n");
+				sb.append("        hash: ").append(formatBytes(sibling.hash())).append("\n");
+			}
+		}
+
+		sb.append("========================================\n");
+		log.fatal("{}", sb.toString());
+	}
+
+	/**
+	 * Formats a Bytes object as a hex string for logging.
+	 *
+	 * @param bytes the bytes to format
+	 * @return a human-readable hex string representation
+	 */
+	private static String formatBytes(final Bytes bytes) {
+		if (bytes == null) {
+			return "<null>";
+		}
+
+		final byte[] array = bytes.toByteArray();
+		if (array.length == 0) {
+			return "<empty>";
+		}
+
+		return bytesToHex(array);
+	}
+
+	/**
+	 * Converts a byte array to a hexadecimal string.
+	 *
+	 * @param bytes the byte array to convert
+	 * @return the hexadecimal string representation
+	 */
+	private static String bytesToHex(final byte[] bytes) {
+		if (bytes == null || bytes.length == 0) {
+			return "";
+		}
+
+		final StringBuilder hex = new StringBuilder(bytes.length * 2);
+		for (byte b : bytes) {
+			hex.append(String.format("%02x", b));
+		}
+		return hex.toString();
+	}
 
     /**
      * FOR TESTING ONLY: Verifies the computed root hash of a {@link StateProof} against an expected value.
@@ -142,7 +263,8 @@ public final class StateProofVerifier {
             if (hasBaseHash(path)) {
                 // Base path: compute hash and push to stack
                 final byte[] basePathHash = computeBasePathHash(path);
-                stack.push(new HashIndexPair(basePathHash, path.nextPathIndex()));
+//				log.fatal("matt: leaf path hash (i={}) = {}", i, Bytes.wrap(basePathHash).toHex());
+				stack.push(new HashIndexPair(basePathHash, path.nextPathIndex()));
             } else {
                 // Internal path: must have child hashes on stack
                 if (stack.isEmpty() || stack.peek().nextPathIndex() != i) {
@@ -272,15 +394,24 @@ public final class StateProofVerifier {
      */
     @NonNull
     private static byte[] computeLeafHash(@NonNull final MerklePath path) {
-        if (path.hasStateItemLeaf()) {
-            return HashUtils.computeStateItemLeafHash(HashUtils.newMessageDigest(), path.stateItemLeaf());
+//		log.fatal("matt: computing leaf hash for path {}", path);
+		byte[] t = null;
+		if (path.hasStateItemLeaf()) {
+            t = HashUtils.computeStateItemLeafHash(HashUtils.newMessageDigest(), path.stateItemLeaf());
         }
         if (path.hasBlockItemLeaf()) {
-            return HashUtils.computeBlockItemLeafHash(HashUtils.newMessageDigest(), path.blockItemLeaf());
+            t = HashUtils.computeBlockItemLeafHash(HashUtils.newMessageDigest(), path.blockItemLeaf());
         }
         if (path.hasTimestampLeaf()) {
-            return HashUtils.computeTimestampLeafHash(HashUtils.newMessageDigest(), path.timestampLeaf());
+            t = HashUtils.computeTimestampLeafHash(HashUtils.newMessageDigest(), path.timestampLeaf());
         }
+		if (t != null) {
+//			log.fatal("matt: leaf hash = {}", Bytes.wrap(t).toHex());
+			return t;
+		} else {
+//			log.fatal("matt: leaf hash = null");
+		}
+
         throw new IllegalStateException("MerklePath does not contain leaf bytes");
     }
 
@@ -294,7 +425,10 @@ public final class StateProofVerifier {
      */
     @NonNull
     private static byte[] computeSingleChildHash(@NonNull final byte[] childHash) {
-        return HashUtils.computeSingleChildHash(HashUtils.newMessageDigest(), childHash);
+//		log.fatal("matt: single child hash before: {}", Bytes.wrap(childHash));
+        var t =  HashUtils.computeSingleChildHash(HashUtils.newMessageDigest(), childHash);
+//		log.fatal("matt: single child hash after: {}", Bytes.wrap(t).toHex());
+		return t;
     }
 
     /**
@@ -308,7 +442,10 @@ public final class StateProofVerifier {
      */
     @NonNull
     private static byte[] joinHashes(@NonNull final byte[] leftHash, @NonNull final byte[] rightHash) {
-        return HashUtils.joinHashes(HashUtils.newMessageDigest(), leftHash, rightHash);
+//		log.fatal("matt: joining left hash {} and right hash {}", Bytes.wrap(leftHash).toHex(), Bytes.wrap(rightHash).toHex());
+        var t = HashUtils.joinHashes(HashUtils.newMessageDigest(), leftHash, rightHash);
+		log.fatal("demo: joined hash = {}", Bytes.wrap(t).toHex());
+		return t;
     }
 
     private static boolean hasBaseHash(@NonNull final MerklePath path) {
@@ -338,6 +475,8 @@ public final class StateProofVerifier {
             return false;
         }
 
+		logStateProof(stateProof);
+		log.fatal("demo: verifying root hash {} against sig bytes {}", Bytes.wrap(rootHash).toHex(), signatureBytes.toHex());
         // Phase 1: Mock verification - just compare bytes
         // Phase 2 TODO: Implement real TSS signature verification
         return Arrays.equals(rootHash, signatureBytes.toByteArray());

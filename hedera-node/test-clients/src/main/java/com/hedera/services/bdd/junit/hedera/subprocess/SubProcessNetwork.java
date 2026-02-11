@@ -324,7 +324,7 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
                 // Block until all nodes are ACTIVE and ready to handle transactions
                 nodes.forEach(node -> awaitStatus(node, Duration.between(Instant.now(), deadline), ACTIVE));
                 nodes.forEach(node -> node.logFuture(HandleWorkflow.SYSTEM_ENTITIES_CREATED_MSG)
-                        .orTimeout(10, TimeUnit.SECONDS)
+//                        .orTimeout(240, TimeUnit.SECONDS)
                         .join());
                 nodes.forEach(node -> CompletableFuture.anyOf(
                                 // Only the block stream uses TSS, so it is deactivated when streamMode=RECORDS

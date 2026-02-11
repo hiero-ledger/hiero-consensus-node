@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.interledger.clpr;
 
+import static com.hedera.node.app.hapi.utils.CommonUtils.sha384HashOf;
+
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.StateProof;
@@ -9,6 +11,9 @@ import com.hedera.hapi.platform.state.StateValue;
 import com.hedera.node.app.hapi.utils.blocks.StateProofVerifier;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration;
 
 /**
@@ -22,6 +27,7 @@ import org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration;
  * </ul>
  */
 public final class ClprStateProofUtils {
+	private static final Logger log = LogManager.getLogger(ClprStateProofUtils.class);
 
     private ClprStateProofUtils() {
         // Utility class, no instantiation
@@ -48,6 +54,11 @@ public final class ClprStateProofUtils {
     @NonNull
     public static ClprLedgerConfiguration extractConfiguration(@NonNull final StateProof stateProof) {
         requireNonNull(stateProof, "stateProof must not be null");
+
+		var hashed = sha384HashOf(StateProof.PROTOBUF.toBytes(stateProof).toByteArray());
+		StateProofVerifier.verify(stateProof);
+		log.fatal("demo: state proof {} is valid, proceeding to extract configuration",
+				Bytes.wrap(hashed));
 
         // Extract the leaf from the first path
         final var paths = stateProof.paths();
