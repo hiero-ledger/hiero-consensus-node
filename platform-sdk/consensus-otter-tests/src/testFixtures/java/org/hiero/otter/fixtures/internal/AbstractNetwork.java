@@ -144,6 +144,8 @@ public abstract class AbstractNetwork implements Network {
 
     private NodeId nextNodeId = NodeId.FIRST_NODE_ID;
 
+    protected boolean proxyDisabled;
+
     protected AbstractNetwork(@NonNull final Random random, final boolean useRandomNodeIds) {
         this.random = requireNonNull(random);
         this.useRandomNodeIds = useRandomNodeIds;
@@ -304,6 +306,14 @@ public abstract class AbstractNetwork implements Network {
 
         nextNodeId = nextNodeId.getOffset(randomAdvance + 1L);
         return nextId;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void disableProxy() {
+        proxyDisabled = true;
     }
 
     /**
