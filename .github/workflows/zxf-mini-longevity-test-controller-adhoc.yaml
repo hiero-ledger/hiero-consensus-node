@@ -85,7 +85,7 @@ permissions:
 jobs:
   verify-tag:
     name: Verify Tag
-    runs-on: hl-cn-sdlt-lin-sm
+    runs-on: hl-cn-mqpt-lin-sm
     continue-on-error: true
     outputs:
       build-number: ${{ steps.verify-tag.outputs.build-number }}
@@ -152,7 +152,7 @@ jobs:
 
   tag-sdlt-result:
     name: Tag MQLT Result
-    runs-on: hl-cn-sdlt-lin-sm
+    runs-on: hl-cn-mqpt-lin-sm
     needs:
       - run-mini-longevity-test
       - verify-tag
@@ -211,7 +211,7 @@ jobs:
 
   get-commit-info:
     name: Get Commit Information
-    runs-on: hl-cn-sdlt-lin-sm
+    runs-on: hl-cn-mqpt-lin-sm
     if: ${{ inputs.disable-notifications != true }}
     needs:
       - verify-tag
@@ -261,7 +261,7 @@ jobs:
 
   report-success:
     name: Report SDLT execution success
-    runs-on: hl-cn-sdlt-lin-sm
+    runs-on: hl-cn-mqpt-lin-sm
     needs:
       - verify-tag
       - tag-sdlt-result
@@ -385,7 +385,7 @@ jobs:
 
   report-failure:
     name: Report MQLT execution failure
-    runs-on: hl-cn-sdlt-lin-sm
+    runs-on: hl-cn-mqpt-lin-sm
     needs:
       - verify-tag
       - run-mini-longevity-test

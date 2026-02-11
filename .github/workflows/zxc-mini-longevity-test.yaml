@@ -93,7 +93,7 @@ env:
 jobs:
   longevity-tests-start:
     name: Start
-    runs-on: hl-cn-sdlt-lin-lg
+    runs-on: hl-cn-mqpt-lin-lg
     outputs:
       namespace: ${{ steps.set-namespace.outputs.namespace }}
       commit-sha: ${{ steps.hederahash.outputs.sha }}
@@ -759,7 +759,7 @@ jobs:
   # Send this output back to the caller workflow
   merge-queue-test-result:
     name: Calculate Result
-    runs-on: hl-cn-sdlt-lin-lg
+    runs-on: hl-cn-mqpt-lin-lg
     if: ${{ !cancelled() }}
     needs:
       - longevity-tests-start
@@ -836,7 +836,7 @@ jobs:
 
   merge-queue-report-to-rootly:
     name: Report Failures to Rootly
-    runs-on: hl-cn-sdlt-lin-sm
+    runs-on: hl-cn-mqpt-lin-sm
     needs:
       - longevity-tests-start
       - merge-queue-test-result
@@ -878,7 +878,7 @@ jobs:
           echo "${{ steps.summary.outputs.summary }}" >> "${GITHUB_STEP_SUMMARY}"
 
   performance-report-to-slack:
-    runs-on: hl-cn-sdlt-lin-sm
+    runs-on: hl-cn-mqpt-lin-sm
     needs:
       - longevity-tests-start
       - merge-queue-test-result
