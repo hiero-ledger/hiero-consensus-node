@@ -24,7 +24,6 @@ import com.swirlds.platform.state.snapshot.SavedStateMetadata;
 import com.swirlds.platform.state.snapshot.SignedStateFilePath;
 import com.swirlds.platform.system.SwirldMain;
 import com.swirlds.platform.util.HederaUtils;
-import com.swirlds.state.MerkleNodeState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.Console;
 import java.io.IOException;
@@ -213,7 +212,7 @@ public class CrystalTransplantCommand extends AbstractCommand {
     private StateInformation loadSourceState(final Configuration configuration) {
         setupConstructableRegistry();
 
-        final SwirldMain<? extends MerkleNodeState> appMain = HederaUtils.createHederaAppMain(platformContext);
+        final SwirldMain appMain = HederaUtils.createHederaAppMain(platformContext);
         final List<SavedStateInfo> savedStateFiles = SignedStateFilePath.getSavedStateFiles(sourceStatePath);
 
         if (savedStateFiles.isEmpty()) {

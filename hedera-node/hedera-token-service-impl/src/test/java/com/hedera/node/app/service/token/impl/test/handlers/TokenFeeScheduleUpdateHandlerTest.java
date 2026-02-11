@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.test.handlers;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_FEE_SCHEDULE_UPDATE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CUSTOM_FEES_LIST_TOO_LONG;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_HAS_NO_FEE_SCHEDULE_KEY;
@@ -292,6 +293,7 @@ class TokenFeeScheduleUpdateHandlerTest extends CryptoTokenHandlerTestBase {
         when(feeCalculator.addBytesPerTransaction(anyLong())).thenReturn(feeCalculator);
         when(feeCalculator.addRamByteSeconds(anyLong())).thenReturn(feeCalculator);
         when(feeCalculator.calculate()).thenReturn(Fees.FREE);
+        when(txnInfo.functionality()).thenReturn(TOKEN_FEE_SCHEDULE_UPDATE);
 
         final var feeContext = new FeeContextImpl(
                 consensusInstant,
@@ -335,6 +337,7 @@ class TokenFeeScheduleUpdateHandlerTest extends CryptoTokenHandlerTestBase {
         when(feeCalculator.addBytesPerTransaction(anyLong())).thenReturn(feeCalculator);
         when(feeCalculator.addRamByteSeconds(anyLong())).thenReturn(feeCalculator);
         when(feeCalculator.calculate()).thenReturn(Fees.FREE);
+        when(txnInfo.functionality()).thenReturn(TOKEN_FEE_SCHEDULE_UPDATE);
 
         final var feeContext = new FeeContextImpl(
                 consensusInstant,

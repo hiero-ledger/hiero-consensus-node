@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.fees;
 
+import static java.util.Objects.requireNonNull;
+
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.SignatureMap;
 import com.hedera.hapi.node.base.SubType;
@@ -38,6 +41,7 @@ public class FeeContextImpl implements FeeContext {
     private final Authorizer authorizer;
     private final int numSignatures;
     private final TransactionDispatcher transactionDispatcher;
+    private final HederaFunctionality function;
 
     /**
      * Constructor of {@code FeeContextImpl}
@@ -72,6 +76,7 @@ public class FeeContextImpl implements FeeContext {
         this.authorizer = authorizer;
         this.numSignatures = numSignatures;
         this.transactionDispatcher = transactionDispatcher;
+        this.function = requireNonNull(txInfo.functionality());
     }
 
     @Override
@@ -165,7 +170,8 @@ public class FeeContextImpl implements FeeContext {
                 consensusTime,
                 null, // This is only used when dispatching synthetic transactions,
                 // so no signatures to verify
-                numSignatures));
+                numSignatures,
+                function));
     }
 
     @Override
@@ -176,5 +182,10 @@ public class FeeContextImpl implements FeeContext {
     @Override
     public long getGasPriceInTinycents() {
         return feeManager.getGasPriceInTinyCents(consensusTime);
+    }
+
+    @Override
+    public HederaFunctionality functionality() {
+        return function;
     }
 }

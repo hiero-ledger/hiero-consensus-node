@@ -13,14 +13,14 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
-import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.system.status.actions.PlatformStatusAction;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
-import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.StateLifecycleManagerImpl;
+import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.virtualmap.VirtualMap;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -30,17 +30,18 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.platformstate.PlatformStateModifier;
 import org.hiero.consensus.platformstate.PlatformStateUtils;
 import org.hiero.consensus.platformstate.PlatformStateValueAccumulator;
+import org.hiero.consensus.state.signed.SignedState;
 
 /**
  * A helper class for testing the {@link DefaultTransactionHandler}.
  */
 public class TransactionHandlerTester implements AutoCloseable {
     private final PlatformStateModifier platformState;
-    private final StateLifecycleManager stateLifecycleManager;
+    private final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager;
     private final DefaultTransactionHandler defaultTransactionHandler;
     private final List<PlatformStatusAction> submittedActions = new ArrayList<>();
     private final List<Round> handledRounds = new ArrayList<>();
-    private final ConsensusStateEventHandler<MerkleNodeState> consensusStateEventHandler;
+    private final ConsensusStateEventHandler consensusStateEventHandler;
     private final Instant freezeTime;
     private final Instant consensusTimestamp;
 
@@ -115,14 +116,14 @@ public class TransactionHandlerTester implements AutoCloseable {
     /**
      * @return the {@link StateLifecycleManager} used by this tester
      */
-    public StateLifecycleManager getStateLifecycleManager() {
+    public StateLifecycleManager<VirtualMapState, VirtualMap> getStateLifecycleManager() {
         return stateLifecycleManager;
     }
 
     /**
      * @return the {@link ConsensusStateEventHandler} used by this tester
      */
-    public ConsensusStateEventHandler<MerkleNodeState> getStateEventHandler() {
+    public ConsensusStateEventHandler getStateEventHandler() {
         return consensusStateEventHandler;
     }
 

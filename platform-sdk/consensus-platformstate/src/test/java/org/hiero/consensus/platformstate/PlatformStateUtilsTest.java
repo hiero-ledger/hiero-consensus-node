@@ -32,7 +32,6 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
-import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.EmptyReadableStates;
@@ -46,8 +45,8 @@ import org.mockito.Mockito;
 
 class PlatformStateUtilsTest {
 
-    private MerkleNodeState state;
-    private MerkleNodeState emptyState;
+    private VirtualMapState state;
+    private VirtualMapState emptyState;
     private PlatformStateModifier platformStateModifier;
 
     @BeforeEach
@@ -72,7 +71,6 @@ class PlatformStateUtilsTest {
         final Instant t1 = Instant.now();
         final Instant t2 = t1.plusSeconds(1);
         final Instant t3 = t2.plusSeconds(1);
-        final Instant t4 = t3.plusSeconds(1);
 
         // No freeze time set
         assertFalse(PlatformStateUtils.isInFreezePeriod(t1, null, null));
@@ -113,8 +111,6 @@ class PlatformStateUtilsTest {
 
     @Test
     void testPlatformStateOf_noPlatformState() {
-        final var virtualMapLabel =
-                "vm-" + PlatformStateUtilsTest.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
         final VirtualMapState noPlatformState = createTestState();
         noPlatformState.getReadableStates(PlatformStateService.NAME);
         assertSame(UNINITIALIZED_PLATFORM_STATE, platformStateOf(noPlatformState));
@@ -159,9 +155,7 @@ class PlatformStateUtilsTest {
     @Test
     void testUpdateLastFrozenTime() {
         final Instant newFreezeTime = Instant.now();
-        bulkUpdateOf(state, v -> {
-            v.setFreezeTime(newFreezeTime);
-        });
+        bulkUpdateOf(state, v -> v.setFreezeTime(newFreezeTime));
         updateLastFrozenTime(state);
         assertEquals(newFreezeTime, platformStateModifier.getLastFrozenTime());
         assertEquals(newFreezeTime, lastFrozenTimeOf(state));
@@ -184,8 +178,6 @@ class PlatformStateUtilsTest {
 
     @Test
     void testSetSnapshotTo() {
-        final String virtualMapLabel =
-                "vm-" + PlatformStateUtilsTest.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
         final VirtualMapState randomState = createTestState();
         TestingAppStateInitializer.initPlatformState(randomState);
         PlatformStateModifier randomPlatformState = randomPlatformState(randomState);

@@ -42,6 +42,7 @@ import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movi
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.createHollow;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.safeValidateChargedUsdWithin;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
@@ -1834,11 +1835,12 @@ public class TopicCustomFeeSubmitMessageTest extends TopicCustomFeeBase {
                             .via("extraSigs"),
                     getAccountBalance("collector").hasTinyBars(60),
                     validateChargedUsdWithin("simpleSubmit", 0.05, 0.1),
-                    validateChargedUsdWithin("submit513", 0.051, 0.1),
-                    validateChargedUsdWithin("submit800", 0.055999, 0.1),
-                    validateChargedUsdWithin("submit1000", 0.06, 0.1),
-                    validateChargedUsdWithin("submit1024", 0.06, 0.1),
-                    validateChargedUsdWithin("extraSigs", 0.0792, 0.1)));
+                    safeValidateChargedUsdWithin("submit513", 0.051, 0.1, 0.05, 0.1),
+                    safeValidateChargedUsdWithin("submit800", 0.055999, 0.1, 0.05, 0.1),
+                    // at 1000 and above we are charged for extra bytes
+                    safeValidateChargedUsdWithin("submit1000", 0.06, 0.1, 0.05 + 0.0167, 1),
+                    safeValidateChargedUsdWithin("submit1024", 0.06, 0.1, 0.05 + 0.0195, 1),
+                    safeValidateChargedUsdWithin("extraSigs", 0.0792, 0.1, 0.05, 1)));
         }
 
         @HapiTest

@@ -89,7 +89,6 @@ import com.hedera.node.config.data.TssConfig;
 import com.hedera.node.config.types.StreamMode;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.system.InitTrigger;
-import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.WritableStates;
@@ -164,6 +163,9 @@ public class HandleWorkflow {
 
     @Nullable
     private final AtomicBoolean systemEntitiesCreatedFlag;
+
+    @Nullable
+    private Dispatch inFlightDispatch;
 
     // The last second since the epoch at which the metrics were updated; this does not affect transaction handling
     private long lastMetricUpdateSecond;
@@ -263,7 +265,7 @@ public class HandleWorkflow {
      * @param stateSignatureTxnCallback A callback to be called when encountering a {@link StateSignatureTransaction}
      */
     public void handleRound(
-            @NonNull final MerkleNodeState state,
+            @NonNull final State state,
             @NonNull final Round round,
             @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> stateSignatureTxnCallback) {
         logStartRound(round);
@@ -825,6 +827,8 @@ public class HandleWorkflow {
                 stakePeriodChanges.advanceTimeTo(parentTxn, true);
                 logPreDispatch(parentTxn);
                 hollowAccountCompletions.completeHollowAccounts(parentTxn, dispatch);
+                // In case a TSS callback needs access to the current dispatch's savepoint stack
+                this.inFlightDispatch = dispatch;
                 dispatchProcessor.processDispatch(dispatch);
                 updateWorkflowMetrics(parentTxn);
             }
@@ -836,10 +840,12 @@ public class HandleWorkflow {
                     parentTxn.preHandleResult().dueDiligenceFailure(),
                     handleOutput.preferringBlockRecordSource());
             return handleOutput;
-        } catch (final Exception e) {
+        } catch (Exception e) {
             logger.error("{} - exception thrown while handling user transaction", ALERT_MESSAGE, e);
             return HandleOutput.failInvalidStreamItems(
                     parentTxn, exchangeRateManager.exchangeRates(), streamMode, recordCache);
+        } finally {
+            this.inFlightDispatch = null;
         }
     }
 
@@ -1048,8 +1054,10 @@ public class HandleWorkflow {
                         historyService.setLatestHistoryProof(construction.targetProofOrThrow());
                         // Finishing WRAPS genesis has no actual implications for hinTS
                         if (!isWrapsGenesis) {
-                            final var writableHintsStates = state.getWritableStates(HintsService.NAME);
-                            final var writableEntityStates = state.getWritableStates(EntityIdService.NAME);
+                            // Accumulate the changes in the same SavepointStack used by the HistoryProofVote tx
+                            final var stack = requireNonNull(inFlightDispatch).stack();
+                            final var writableHintsStates = stack.getWritableStates(HintsService.NAME);
+                            final var writableEntityStates = stack.getWritableStates(EntityIdService.NAME);
                             final var entityCounters = new WritableEntityIdStoreImpl(writableEntityStates);
                             final var hintsStore = new WritableHintsStoreImpl(writableHintsStates, entityCounters);
                             hintsService.handoff(

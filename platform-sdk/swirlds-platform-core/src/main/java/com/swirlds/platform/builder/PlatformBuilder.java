@@ -30,12 +30,12 @@ import com.swirlds.platform.metrics.PlatformMetricsConfig;
 import com.swirlds.platform.scratchpad.Scratchpad;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.iss.IssScratchpad;
-import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.wiring.PlatformComponents;
 import com.swirlds.platform.wiring.PlatformWiring;
-import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.StateLifecycleManager;
+import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.lang.Thread.UncaughtExceptionHandler;
@@ -55,11 +55,11 @@ import org.hiero.base.crypto.Signature;
 import org.hiero.consensus.crypto.ConsensusCryptoUtils;
 import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.event.IntakeEventCounter;
+import org.hiero.consensus.event.NoOpIntakeEventCounter;
 import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.event.intake.EventIntakeModule;
 import org.hiero.consensus.gossip.config.SyncConfig;
 import org.hiero.consensus.gossip.impl.gossip.DefaultIntakeEventCounter;
-import org.hiero.consensus.gossip.impl.gossip.NoOpIntakeEventCounter;
 import org.hiero.consensus.hashgraph.HashgraphModule;
 import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -68,6 +68,7 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.roster.RosterHistory;
+import org.hiero.consensus.state.signed.ReservedSignedState;
 
 /**
  * Builds a {@link SwirldsPlatform} instance.
@@ -80,8 +81,8 @@ public final class PlatformBuilder {
     private final SemanticVersion softwareVersion;
     private final ReservedSignedState initialState;
 
-    private final ConsensusStateEventHandler<MerkleNodeState> consensusStateEventHandler;
-    private final StateLifecycleManager stateLifecycleManager;
+    private final ConsensusStateEventHandler consensusStateEventHandler;
+    private final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager;
 
     private final NodeId selfId;
     private final String swirldName;

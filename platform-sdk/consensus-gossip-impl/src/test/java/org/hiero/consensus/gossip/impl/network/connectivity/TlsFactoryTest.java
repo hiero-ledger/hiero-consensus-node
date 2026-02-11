@@ -13,14 +13,13 @@ import java.net.Socket;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 import org.hiero.consensus.gossip.impl.gossip.Utilities;
 import org.hiero.consensus.gossip.impl.network.NetworkUtils;
 import org.hiero.consensus.gossip.impl.network.PeerInfo;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
+import org.hiero.consensus.roster.test.fixtures.RosterWithKeys;
 import org.hiero.consensus.test.fixtures.Randotron;
 import org.hiero.consensus.test.fixtures.WeightGenerators;
 import org.junit.jupiter.api.Assertions;
@@ -50,9 +49,9 @@ class TlsFactoryTest extends ConnectivityTestBase {
     @BeforeEach
     void setUp() throws Throwable {
         // create addressBook, keysAndCerts
-        final RosterAndCerts rosterAndCerts = genRosterLoadKeys(2);
-        final Roster roster = rosterAndCerts.roster();
-        final Map<NodeId, KeysAndCerts> keysAndCerts = rosterAndCerts.nodeIdKeysAndCertsMap();
+        final RosterWithKeys rosterAndCerts = genRosterLoadKeys(2);
+        final Roster roster = rosterAndCerts.getRoster();
+        final Map<NodeId, KeysAndCerts> keysAndCerts = rosterAndCerts.getAllKeysAndCerts();
         assertTrue(roster.rosterEntries().size() > 1, "Roster must contain at least 2 nodes");
 
         // choose 2 nodes to test connections
@@ -77,13 +76,13 @@ class TlsFactoryTest extends ConnectivityTestBase {
         Assertions.assertFalse(serverSocket.isClosed());
 
         // create a new address book with keys and new set of nodes
-        final RosterAndCerts updatedRosterAndCerts = genRosterLoadKeys(6);
+        final RosterWithKeys updatedRosterAndCerts = genRosterLoadKeys(6);
         final Roster updatedRoster = Roster.newBuilder()
-                .rosterEntries(updatedRosterAndCerts.roster().rosterEntries().stream()
+                .rosterEntries(updatedRosterAndCerts.getRoster().rosterEntries().stream()
                         .map(entry -> {
                             if (entry.nodeId() == nodeA.id()) {
                                 return entry.copyBuilder()
-                                        .nodeId(updatedRosterAndCerts.roster().rosterEntries().stream()
+                                        .nodeId(updatedRosterAndCerts.getRoster().rosterEntries().stream()
                                                         .mapToLong(RosterEntry::nodeId)
                                                         .max()
                                                         .getAsLong()
@@ -95,7 +94,7 @@ class TlsFactoryTest extends ConnectivityTestBase {
                         })
                         .toList())
                 .build();
-        final Map<NodeId, KeysAndCerts> updatedKeysAndCerts = updatedRosterAndCerts.nodeIdKeysAndCertsMap();
+        final Map<NodeId, KeysAndCerts> updatedKeysAndCerts = updatedRosterAndCerts.getAllKeysAndCerts();
         assertTrue(updatedRoster.rosterEntries().size() > 1, "Roster must contain at least 2 nodes");
 
         peersA = Utilities.createPeerInfoList(updatedRoster, nodeA); // Peers of A as in updated addressBook
@@ -135,19 +134,11 @@ class TlsFactoryTest extends ConnectivityTestBase {
      * @param size the size of the required roster
      */
     @NonNull
-    private static RosterAndCerts genRosterLoadKeys(final int size) {
-        final RandomRosterBuilder rosterBuilder = RandomRosterBuilder.create(Randotron.create())
+    private static RosterWithKeys genRosterLoadKeys(final int size) {
+        return RandomRosterBuilder.create(Randotron.create())
                 .withSize(size)
                 .withRealKeysEnabled(true)
-                .withWeightGenerator(WeightGenerators.BALANCED_1000_PER_NODE);
-        final Roster genRoster = rosterBuilder.build();
-        final Map<NodeId, KeysAndCerts> genKac = genRoster.rosterEntries().stream()
-                .map(RosterEntry::nodeId)
-                .map(NodeId::of)
-                .collect(Collectors.toMap(Function.identity(), rosterBuilder::getPrivateKeys));
-        return new RosterAndCerts(genRoster, genKac);
+                .withWeightGenerator(WeightGenerators.BALANCED_1000_PER_NODE)
+                .buildWithKeys();
     }
-
-    public record RosterAndCerts(
-            @NonNull Roster roster, @NonNull Map<NodeId, KeysAndCerts> nodeIdKeysAndCertsMap) {}
 }

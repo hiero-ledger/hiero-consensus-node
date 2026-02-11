@@ -22,7 +22,8 @@ public class GossipConfigurationExtension implements ConfigurationExtension {
                 GossipWiringConfig.class,
                 ProtocolConfig.class,
                 SocketConfig.class,
-                SyncConfig.class);
+                SyncConfig.class,
+                BroadcastConfig.class);
     }
 
     /**

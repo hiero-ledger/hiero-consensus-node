@@ -11,7 +11,6 @@ jmhModuleInfo {
     requires("com.swirlds.config.extensions.test.fixtures")
     requires("org.hiero.consensus.event.creator")
     requires("org.hiero.consensus.event.creator.impl")
-    requires("org.hiero.consensus.gossip.impl")
     requires("org.hiero.consensus.roster.test.fixtures")
     requires("com.hedera.node.hapi")
     requires("org.hiero.consensus.utility.test.fixtures")

@@ -45,12 +45,8 @@ public class V068AddressBookSchema extends Schema<SemanticVersion> {
     @NonNull
     @Override
     public Set<StateDefinition> statesToCreate() {
-        return Set.of(StateDefinition.onDisk(
-                ACCOUNT_NODE_REL_STATE_ID,
-                ACCOUNT_NODE_REL_STATE_KEY,
-                AccountID.PROTOBUF,
-                NodeId.PROTOBUF,
-                MAX_RELATIONS));
+        return Set.of(StateDefinition.keyValue(
+                ACCOUNT_NODE_REL_STATE_ID, ACCOUNT_NODE_REL_STATE_KEY, AccountID.PROTOBUF, NodeId.PROTOBUF));
     }
 
     @Override

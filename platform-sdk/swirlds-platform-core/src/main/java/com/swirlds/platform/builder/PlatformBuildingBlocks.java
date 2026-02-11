@@ -12,10 +12,11 @@ import com.swirlds.platform.reconnect.api.ReservedSignedStateResult;
 import com.swirlds.platform.scratchpad.Scratchpad;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.iss.IssScratchpad;
-import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.wiring.PlatformComponents;
 import com.swirlds.state.StateLifecycleManager;
+import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.security.SecureRandom;
@@ -31,6 +32,7 @@ import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.roster.RosterHistory;
+import org.hiero.consensus.state.signed.ReservedSignedState;
 
 /**
  * This record contains core utilities and basic objects needed to build a platform. It should not contain any platform
@@ -102,7 +104,7 @@ public record PlatformBuildingBlocks(
         @NonNull Scratchpad<IssScratchpad> issScratchpad,
         @NonNull NotificationEngine notificationEngine,
         @NonNull AtomicReference<StatusActionSubmitter> statusActionSubmitterReference,
-        @NonNull StateLifecycleManager stateLifecycleManager,
+        @NonNull StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager,
         @NonNull AtomicReference<Supplier<ReservedSignedState>> getLatestCompleteStateReference,
         boolean firstPlatform,
         @NonNull ConsensusStateEventHandler consensusStateEventHandler,

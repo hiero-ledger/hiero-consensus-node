@@ -5,7 +5,7 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
-import org.hiero.consensus.gossip.impl.gossip.NoOpIntakeEventCounter;
+import org.hiero.consensus.event.NoOpIntakeEventCounter;
 import org.hiero.consensus.hashgraph.impl.EventImpl;
 import org.hiero.consensus.hashgraph.impl.consensus.Consensus;
 import org.hiero.consensus.hashgraph.impl.consensus.ConsensusImpl;

@@ -17,8 +17,6 @@ import com.swirlds.platform.listeners.ReconnectCompleteNotification;
 import com.swirlds.platform.state.hashlogger.HashLogger;
 import com.swirlds.platform.state.iss.IssDetector;
 import com.swirlds.platform.state.nexus.SignedStateNexus;
-import com.swirlds.platform.state.signed.ReservedSignedState;
-import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.signed.StateSignatureCollector;
 import com.swirlds.platform.state.snapshot.StateDumpRequest;
 import com.swirlds.platform.state.snapshot.StateSnapshotManager;
@@ -26,7 +24,7 @@ import com.swirlds.platform.system.PlatformMonitor;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.system.status.StatusStateMachine;
 import com.swirlds.platform.system.status.actions.PlatformStatusAction;
-import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import org.hiero.consensus.event.creator.EventCreatorModule;
@@ -40,6 +38,8 @@ import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterStateUtils;
 import org.hiero.consensus.round.EventWindowUtils;
+import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.state.signed.SignedState;
 
 /**
  * Responsible for coordinating activities through the component's wire for the platform.
@@ -369,7 +369,7 @@ public record PlatformCoordinator(
         // if this is the case, we must make sure to send it to the writer directly
         this.putSignatureCollectorState(signedState.reserve("loading reconnect state into sig collector"));
 
-        final MerkleNodeState state = signedState.getState();
+        final State state = signedState.getState();
 
         final ConsensusSnapshot consensusSnapshot = Objects.requireNonNull(consensusSnapshotOf(state));
         this.consensusSnapshotOverride(consensusSnapshot);
