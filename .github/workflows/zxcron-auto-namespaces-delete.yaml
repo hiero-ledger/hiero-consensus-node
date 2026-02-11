@@ -133,7 +133,7 @@ jobs:
           kubernetes-cluster: k8s.pft.dal.lat.ope.eng.hashgraph.io
           certificate-ttl: 24h
 
-      - name: Get all namespaces in Dallas cluster for debugging
+      - name: Get all namespaces in Dallas cluster
         run: sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt get namespaces
 
       - name: Dallas Latitude namespaces
@@ -164,7 +164,7 @@ jobs:
           kubernetes-cluster: k8s.pft.chi.lat.ope.eng.hashgraph.io
           certificate-ttl: 24h
 
-      - name: Get all namespaces in Chicago cluster for debugging
+      - name: Get all namespaces in Chicago cluster
         run: sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt get namespaces
 
       - name: Chicago Latitude namespaces
