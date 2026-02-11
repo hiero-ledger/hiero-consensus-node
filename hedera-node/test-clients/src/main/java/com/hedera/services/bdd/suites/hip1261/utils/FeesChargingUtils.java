@@ -5,11 +5,14 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.HapiTxnOp.serializedSignedTxFrom;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithChild;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.crypto.CryptoTransferSuite.sdec;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.ACCOUNTS_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.BATCH_BASE_FEE;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONS_CREATE_TOPIC_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONS_CREATE_TOPIC_INCLUDED_KEYS;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONS_CREATE_TOPIC_WITH_CUSTOM_FEE_USD;
@@ -70,6 +73,7 @@ import com.google.protobuf.InvalidProtocolBufferException;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hedera.services.bdd.spec.SpecOperation;
+import com.hedera.services.bdd.spec.utilops.CustomSpecAssert;
 import com.hederahashgraph.api.proto.java.Transaction;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.IntToDoubleFunction;
@@ -890,12 +894,31 @@ public class FeesChargingUtils {
         });
     }
 
+    /**
+     * Calculates the <em>bytes-dependent portion</em> of the node fee for a transaction.
+     *
+     * <p>This method retrieves the transaction bytes from the spec registry using the provided
+     * {@code txnName}, then computes only the byte-size component of the node fee as follows:</p>
+     * <ul>
+     *   <li>Node bytes overage = {@code max(0, txnSize - NODE_INCLUDED_BYTES)}</li>
+     *   <li>Bytes fee = {@code nodeBytesOverage × PROCESSING_BYTES_FEE_USD × (1 + NETWORK_MULTIPLIER)}</li>
+     * </ul>
+     *
+     * <p><strong>Note:</strong> This returns <em>only</em> the bytes-overage fee portion.
+     * The complete node fee includes additional fixed components not calculated here.
+     * The first {@code NODE_INCLUDED_BYTES} bytes incur no byte-based fee. Logs transaction
+     * details including size, overage bytes, and this bytes-dependent fee.</p>
+     *
+     * @param spec the HapiSpec containing the transaction registry
+     * @param opLog the logger for operation logging
+     * @param txnName the transaction name key in the registry
+     * @return the bytes-dependent portion of the node fee in USD
+     *         (0.0 if transaction fits within included bytes)
+     */
     public static double expectedFeeFromBytesFor(HapiSpec spec, Logger opLog, String txnName) {
-        // Get the transaction bytes from the registry
         final var txnBytes = spec.registry().getBytes(txnName);
         final var txnSize = txnBytes.length;
 
-        // Node fee BYTES extra: (txnBytes - NODE_INCLUDED_BYTES) * PROCESSING_BYTES_FEE_USD * networkMultiplier
         final var nodeBytesOverage = Math.max(0, txnSize - NODE_INCLUDED_BYTES);
         double expectedFee = nodeBytesOverage * PROCESSING_BYTES_FEE_USD * (1 + NETWORK_MULTIPLIER);
 
@@ -1484,13 +1507,9 @@ public class FeesChargingUtils {
     }
 
     /**
-     * Validates the fee charged for a transaction against a legacy and a simple fee,
-     * depending on the value of the {@code fees.simpleFeesEnabled} property.
-     *
-     * @param txn the name of the transaction
-     * @param legacyFee the expected fee in USD if simple fees are disabled
-     * @param simpleFee the expected fee in USD if simple fees are enabled
-     * @return a {@link SpecOperation} that validates the fee
+     * Dual-mode fee validation that branches on {@code fees.simpleFeesEnabled} at runtime.
+     * When simple fees are enabled, validates against {@code simpleFee};
+     * otherwise validates against {@code legacyFee}.
      */
     public static SpecOperation validateFees(final String txn, final double legacyFee, final double simpleFee) {
         return doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
@@ -1500,5 +1519,37 @@ public class FeesChargingUtils {
                 return validateChargedUsdWithin(txn, legacyFee, 0.01);
             }
         });
+    }
+
+    /**
+     * Dual-mode fee validation with child records that branches on {@code fees.simpleFeesEnabled} at runtime.
+     * When simple fees are enabled, validates against {@code simpleFee};
+     * otherwise validates against {@code legacyFee}.
+     * Uses {@code validateChargedUsdWithChild} which includes child dispatch fees.
+     */
+    public static SpecOperation validateFeesWithChild(
+            final String txn, final double legacyFee, final double simpleFee, final double tolerance) {
+        return doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+            if ("true".equals(flag)) {
+                return validateChargedUsdWithChild(txn, simpleFee, tolerance);
+            } else {
+                return validateChargedUsdWithChild(txn, legacyFee, tolerance);
+            }
+        });
+    }
+
+    /** SimpleFees formula for Atomic Batch:
+     * node = NODE_BASE + bytes over 1024
+     * network = node * NETWORK_MULTIPLIER
+     * service = BATCH_BASE_FEE
+     * total   = node + network + service
+     */
+    public static double expectedBatchFullFeeUsd(long extraBytes) {
+        return BATCH_BASE_FEE + extraBytes * PROCESSING_BYTES_FEE_USD * 10;
+    }
+
+    public static CustomSpecAssert validateBatchChargedCorrectly(String batchTxn) {
+        return withOpContext((spec, log) ->
+                validateChargedUsd(batchTxn, BATCH_BASE_FEE + expectedFeeFromBytesFor(spec, log, batchTxn)));
     }
 }
