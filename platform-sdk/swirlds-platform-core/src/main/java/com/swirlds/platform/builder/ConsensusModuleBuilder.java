@@ -210,13 +210,13 @@ public class ConsensusModuleBuilder {
     /**
      * Create an instance of the {@link GossipModule} using {@link ServiceLoader}.
      *
-     * @return an instance of {@code HashgraphModule}
+     * @return an instance of {@code GossipModule}
      * @throws IllegalStateException if no implementation is found
      */
     public static GossipModule createGossipModule() {
         return ServiceLoader.load(GossipModule.class)
                 .findFirst()
-                .orElseThrow(() -> new IllegalStateException("No HashgraphModule implementation found!"));
+                .orElseThrow(() -> new IllegalStateException("No GossipModule implementation found!"));
     }
 
     /**
@@ -226,6 +226,7 @@ public class ConsensusModuleBuilder {
      * @param configuration the configuration
      * @return an initialized no-op instance of {@code GossipModule}
      */
+    @NonNull
     public static GossipModule createNoOpGossipModule(
             @NonNull final WiringModel model, @NonNull final Configuration configuration) {
         final Metrics metrics = new NoOpMetrics();

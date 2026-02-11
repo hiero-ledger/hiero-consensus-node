@@ -48,7 +48,7 @@ public class TurtleGossipModule implements GossipModule {
      *
      * @param gossip the simulated gossip instance to use for this module
      */
-    public TurtleGossipModule(final SimulatedGossip gossip) {
+    public TurtleGossipModule(@NonNull final SimulatedGossip gossip) {
         this.gossip = requireNonNull(gossip);
     }
 

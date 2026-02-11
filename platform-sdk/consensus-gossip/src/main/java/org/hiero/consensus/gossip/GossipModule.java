@@ -35,6 +35,20 @@ public interface GossipModule {
 
     /**
      * Initialize the gossip module.
+     *
+     * @param model the wiring model to use for connecting wires
+     * @param configuration the configuration for the gossip module
+     * @param metrics the metrics system
+     * @param time the time source
+     * @param keysAndCerts the keys and certificates of this node
+     * @param currentRoster the current roster of nodes in the network
+     * @param selfId the ID of this node
+     * @param appVersion the application version
+     * @param intakeEventCounter the counter for events in the intake pipeline
+     * @param latestCompleteState a supplier for the latest complete signed state
+     * @param reservedSignedStateResultPromise a promise for the result of reserving a signed state
+     * @param fallenBehindMonitor the monitor for detecting if the node has fallen behind
+     * @param stateLifecycleManager the manager for the lifecycle of the platform state
      */
     void initialize(
             @NonNull WiringModel model,
