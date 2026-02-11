@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.state.merkle.disk;
+package com.swirlds.state.merkle.vm;
 
 import static java.util.Objects.requireNonNull;
 
@@ -16,10 +16,10 @@ import java.util.Iterator;
  *
  * @param <V> The type of element in the queue
  */
-public class OnDiskWritableQueueState<V> extends WritableQueueStateBase<V> {
+public class VirtualMapWritableQueueState<V> extends WritableQueueStateBase<V> {
 
     @NonNull
-    private final OnDiskQueueHelper<V> onDiskQueueHelper;
+    private final VirtualMapQueueHelper<V> virtualMapQueueHelper;
 
     /**
      * Create a new instance
@@ -28,36 +28,36 @@ public class OnDiskWritableQueueState<V> extends WritableQueueStateBase<V> {
      * @param label       the service label
      * @param virtualMap  the backing merkle data structure to use
      */
-    public OnDiskWritableQueueState(
+    public VirtualMapWritableQueueState(
             final int stateId,
             @NonNull final String label,
             @NonNull final Codec<V> valueCodec,
             @NonNull final VirtualMap virtualMap) {
         super(stateId, requireNonNull(label));
-        this.onDiskQueueHelper = new OnDiskQueueHelper<>(stateId, valueCodec, virtualMap);
+        this.virtualMapQueueHelper = new VirtualMapQueueHelper<>(stateId, valueCodec, virtualMap);
     }
 
     /** {@inheritDoc} */
     @Override
     protected void addToDataSource(@NonNull V value) {
-        QueueState state = onDiskQueueHelper.getState();
+        QueueState state = virtualMapQueueHelper.getState();
         if (state == null) {
             // Adding to this Queue State first time - initialize QueueState.
             state = new QueueState(1, 1);
         }
-        onDiskQueueHelper.addToStore(state.tail(), value);
+        virtualMapQueueHelper.addToStore(state.tail(), value);
         // increment tail and update state
-        onDiskQueueHelper.updateState(state.elementAdded());
+        virtualMapQueueHelper.updateState(state.elementAdded());
     }
 
     /** {@inheritDoc} */
     @Override
     protected void removeFromDataSource() {
-        final QueueState state = requireNonNull(onDiskQueueHelper.getState());
-        if (!OnDiskQueueHelper.isEmpty(state)) {
-            onDiskQueueHelper.removeFromStore(state.head());
+        final QueueState state = requireNonNull(virtualMapQueueHelper.getState());
+        if (!VirtualMapQueueHelper.isEmpty(state)) {
+            virtualMapQueueHelper.removeFromStore(state.head());
             // increment head and update state
-            onDiskQueueHelper.updateState(state.elementRemoved());
+            virtualMapQueueHelper.updateState(state.elementRemoved());
         }
     }
 
@@ -65,12 +65,12 @@ public class OnDiskWritableQueueState<V> extends WritableQueueStateBase<V> {
     @NonNull
     @Override
     protected Iterator<V> iterateOnDataSource() {
-        final QueueState state = onDiskQueueHelper.getState();
+        final QueueState state = virtualMapQueueHelper.getState();
         if (state == null) {
             // Empty iterator
-            return onDiskQueueHelper.iterateOnDataSource(0, 0);
+            return virtualMapQueueHelper.iterateOnDataSource(0, 0);
         } else {
-            return onDiskQueueHelper.iterateOnDataSource(state.head(), state.tail());
+            return virtualMapQueueHelper.iterateOnDataSource(state.head(), state.tail());
         }
     }
 }

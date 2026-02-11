@@ -994,7 +994,7 @@ public class TokenAirdropTest extends TokenAirdropBase {
                             Assertions.assertEquals(currentCollectorBalance.get(), newCollectorBalance.get())),
                     validateFees(
                             "NFT with royalty fee airdrop to collector",
-                            0.001,
+                            0.0008,
                             TOKEN_TRANSFER_WITH_CUSTOM_FEE + SIGNATURE_FEE_AFTER_MULTIPLIER));
         }
 
@@ -1072,7 +1072,7 @@ public class TokenAirdropTest extends TokenAirdropBase {
                         // assert treasury balance is not changed
                         Assertions.assertEquals(currentTreasuryBalance.get(), newTreasuryBalance.get());
                     }),
-                    validateFees("NFT with royalty fee airdrop to treasury", 0.001, TOKEN_TRANSFER_WITH_CUSTOM_FEE));
+                    validateFees("NFT with royalty fee airdrop to treasury", 0.0008, TOKEN_TRANSFER_WITH_CUSTOM_FEE));
         }
 
         @EmbeddedHapiTest(NEEDS_STATE_ACCESS)

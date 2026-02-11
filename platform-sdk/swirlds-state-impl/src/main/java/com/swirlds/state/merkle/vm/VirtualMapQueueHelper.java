@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.state.merkle.disk;
+package com.swirlds.state.merkle.vm;
 
 import static com.swirlds.state.merkle.StateUtils.getStateKeyForQueue;
 import static com.swirlds.state.merkle.StateUtils.getStateKeyForSingleton;
@@ -25,7 +25,7 @@ import java.util.NoSuchElementException;
  * A helper class for managing an on-disk queue using a {@link VirtualMap} as the core storage mechanism.
  *
  * <p>This class was created to extract repetitive code from
- * {@link OnDiskWritableQueueState} and {@link OnDiskReadableQueueState}.
+ * {@link VirtualMapWritableQueueState} and {@link VirtualMapReadableQueueState}.
  *
  * <p><b>Why is it needed?</b></p>
  * To avoid duplication and simplify how Queue State classes interact with the underlying
@@ -42,13 +42,13 @@ import java.util.NoSuchElementException;
  * </ul>
  *
  * <p><b>Where is it used?</b></p>
- * It is used in {@link OnDiskWritableQueueState} and {@link OnDiskReadableQueueState} to perform
+ * It is used in {@link VirtualMapWritableQueueState} and {@link VirtualMapReadableQueueState} to perform
  * operations like adding, removing, or reading queue elements while ensuring persistence and
  * consistency across multiple layers of the queue implementation.
  *
  * @param <V> the type of elements stored in the on-disk queue
  */
-public final class OnDiskQueueHelper<V> {
+public final class VirtualMapQueueHelper<V> {
 
     /**
      * StateValue codec to store the queue state singleton.
@@ -80,7 +80,7 @@ public final class OnDiskQueueHelper<V> {
      * @param valueCodec The queue value codec
      * @param virtualMap The storage mechanism for the queue's data.
      */
-    public OnDiskQueueHelper(
+    public VirtualMapQueueHelper(
             final int stateId, @NonNull final Codec<V> valueCodec, @NonNull final VirtualMap virtualMap) {
         this.stateId = stateId;
         this.stateValueCodec = new StateValueCodec<>(stateId, requireNonNull(valueCodec));
