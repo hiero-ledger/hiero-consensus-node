@@ -208,7 +208,8 @@ class ChildFeeContextImplTest {
 
     @Test
     void delegatesHighVolumeThrottleUtilization() {
-        given(context.getHighVolumeThrottleUtilization(HederaFunctionality.CRYPTO_CREATE)).willReturn(4_321);
+        given(context.getHighVolumeThrottleUtilization(HederaFunctionality.CRYPTO_CREATE))
+                .willReturn(4_321);
 
         assertEquals(4_321, subject.getHighVolumeThrottleUtilization(HederaFunctionality.CRYPTO_CREATE));
     }
