@@ -347,7 +347,7 @@ public class PlatformWiring {
         components
                 .platformMonitorWiring()
                 .getOutputWire()
-                .solderTo(components.gossipWiring().getPlatformStatusInput(), INJECT);
+                .solderTo(components.gossipModule().platformStatusInputWire(), INJECT);
         components
                 .platformMonitorWiring()
                 .getOutputWire()
