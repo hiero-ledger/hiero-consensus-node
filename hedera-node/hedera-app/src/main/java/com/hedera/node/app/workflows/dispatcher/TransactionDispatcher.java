@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.dispatcher;
 
+import static com.hedera.hapi.node.transaction.TransactionBody.DataOneOfType.NODE_STAKE_UPDATE;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
 import static com.hedera.node.app.spi.fees.util.FeeUtils.feeResultToFees;
 import static java.util.Objects.requireNonNull;
@@ -152,53 +153,10 @@ public class TransactionDispatcher {
         if (!feeContext.configuration().getConfigData(FeesConfig.class).simpleFeesEnabled()) {
             return false;
         }
-
-        return switch (feeContext.body().data().kind()) {
-            case CONSENSUS_CREATE_TOPIC,
-                    CONSENSUS_DELETE_TOPIC,
-                    CONSENSUS_SUBMIT_MESSAGE,
-                    CONSENSUS_UPDATE_TOPIC,
-                    CRYPTO_APPROVE_ALLOWANCE,
-                    CRYPTO_CREATE_ACCOUNT,
-                    CRYPTO_DELETE,
-                    CRYPTO_DELETE_ALLOWANCE,
-                    CRYPTO_UPDATE_ACCOUNT,
-                    CRYPTO_TRANSFER,
-                    SCHEDULE_CREATE,
-                    SCHEDULE_SIGN,
-                    SCHEDULE_DELETE -> true;
-            case FILE_CREATE, FILE_APPEND, FILE_UPDATE, FILE_DELETE, SYSTEM_DELETE, SYSTEM_UNDELETE -> true;
-            case UTIL_PRNG, ATOMIC_BATCH -> true;
-            case TOKEN_CREATION,
-                    TOKEN_MINT,
-                    TOKEN_BURN,
-                    TOKEN_DELETION,
-                    TOKEN_FEE_SCHEDULE_UPDATE,
-                    TOKEN_FREEZE,
-                    TOKEN_ASSOCIATE,
-                    TOKEN_DISSOCIATE,
-                    TOKEN_GRANT_KYC,
-                    TOKEN_PAUSE,
-                    TOKEN_REVOKE_KYC,
-                    TOKEN_REJECT,
-                    TOKEN_UNFREEZE,
-                    TOKEN_UNPAUSE,
-                    TOKEN_AIRDROP,
-                    TOKEN_CLAIM_AIRDROP,
-                    TOKEN_CANCEL_AIRDROP,
-                    TOKEN_UPDATE,
-                    TOKEN_UPDATE_NFTS,
-                    TOKEN_WIPE -> true;
-            case NODE_CREATE, NODE_UPDATE, NODE_DELETE -> true;
-            case CONTRACT_CREATE_INSTANCE,
-                    CONTRACT_DELETE_INSTANCE,
-                    CONTRACT_CALL,
-                    CONTRACT_UPDATE_INSTANCE,
-                    ETHEREUM_TRANSACTION,
-                    HOOK_STORE,
-                    HOOK_DISPATCH -> true;
-            default -> false;
-        };
+        if (NODE_STAKE_UPDATE == feeContext.body().data().kind()) {
+            return false;
+        }
+        return true;
     }
 
     /**
