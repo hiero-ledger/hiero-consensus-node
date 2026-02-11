@@ -1011,7 +1011,7 @@ public class ThrottleAccumulator {
             maxUtilization = Math.max(maxUtilization, utilization);
         }
 
-        // Convert from percentage (0-100) to basis points (0-10,000)
+        // instantaneousPercentUsed() returns percent in [0,100], convert to basis points [0,10_000]
         return (int) Math.min(10_000, Math.round(maxUtilization * 100));
     }
 

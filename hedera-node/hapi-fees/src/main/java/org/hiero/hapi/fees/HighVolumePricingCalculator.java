@@ -166,7 +166,7 @@ public final class HighVolumePricingCalculator {
     /**
      * Performs linear interpolation between two points.
      */
-    private static long linearInterpolate(
+    public static long linearInterpolate(
             final int lowerUtilization,
             final long lowerMultiplier,
             final int upperUtilization,
