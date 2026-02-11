@@ -24,8 +24,7 @@ import org.hiero.consensus.concurrent.framework.StoppableThread;
 import org.hiero.consensus.concurrent.framework.TypedStoppableThread;
 import org.hiero.consensus.concurrent.framework.config.StoppableThreadConfiguration;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
-import org.hiero.consensus.config.BasicConfig;
-import org.hiero.consensus.config.ThreadConfig;
+import org.hiero.consensus.gossip.config.GossipConfig;
 import org.hiero.consensus.gossip.config.SocketConfig;
 import org.hiero.consensus.gossip.config.SyncConfig;
 import org.hiero.consensus.gossip.impl.network.communication.NegotiationProtocols;
@@ -119,10 +118,10 @@ public class PeerCommunication implements ConnectionTracker {
 
         this.connectionServer = createConnectionServer();
 
-        final ThreadConfig threadConfig = configuration.getConfigData(ThreadConfig.class);
+        final GossipConfig gossipConfig = configuration.getConfigData(GossipConfig.class);
 
         this.connectionServerThread = new StoppableThreadConfiguration<>(threadManager)
-                .setPriority(threadConfig.threadPrioritySync())
+                .setPriority(gossipConfig.threadPrioritySync())
                 .setNodeId(selfId)
                 .setComponent(PLATFORM_THREAD_POOL_NAME)
                 .setThreadName("connectionServer")
@@ -245,7 +244,7 @@ public class PeerCommunication implements ConnectionTracker {
         this.connectionServerThread.stop();
 
         for (final DedicatedStoppableThread dst : dedicatedThreads.values()) {
-            dst.thread().interrupt(); // aggresive interrupt to avoid hanging for a long time
+            dst.thread().interrupt(); // aggressive interrupt to avoid hanging for a long time
             dst.thread().stop();
         }
     }
@@ -253,8 +252,7 @@ public class PeerCommunication implements ConnectionTracker {
     private List<DedicatedStoppableThread<NodeId>> buildProtocolThreads(Collection<NodeId> peers) {
 
         final SyncConfig syncConfig = configuration.getConfigData(SyncConfig.class);
-        final BasicConfig basicConfig = configuration.getConfigData(BasicConfig.class);
-        final Duration hangingThreadDuration = basicConfig.hangingThreadDuration();
+        final Duration hangingThreadDuration = syncConfig.hangingThreadDuration();
         final ArrayList<DedicatedStoppableThread<NodeId>> syncProtocolThreads =
                 new ArrayList<DedicatedStoppableThread<NodeId>>();
         for (final NodeId otherId : peers) {

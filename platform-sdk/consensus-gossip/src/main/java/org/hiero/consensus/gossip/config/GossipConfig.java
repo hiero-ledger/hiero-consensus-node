@@ -22,6 +22,7 @@ import java.util.Optional;
  *                          particularly useful in cases where the actual network configuration
  *                          differs from the information specified in the roster, such as
  *                          behind NATs or when using virtualized networks.
+ * @param threadPrioritySync priority for threads that sync (in SyncCaller, SyncListener, SyncServer)
  */
 @ConfigData("gossip")
 public record GossipConfig(
@@ -29,7 +30,9 @@ public record GossipConfig(
         List<NetworkEndpoint> interfaceBindings,
 
         @ConfigProperty(defaultValue = Configuration.EMPTY_LIST)
-        List<NetworkEndpoint> endpointOverrides) {
+        List<NetworkEndpoint> endpointOverrides,
+
+        @ConfigProperty(defaultValue = "5") int threadPrioritySync) {
 
     /**
      * Returns the interface binding for the given node ID.
