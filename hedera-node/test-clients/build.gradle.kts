@@ -514,19 +514,15 @@ tasks.register<Test>("testRepeatable") {
 
 application.mainClass = "com.hedera.services.bdd.suites.SuiteRunner"
 
-// allow shadow Jar files to have more than 64k entries
-tasks.withType<ShadowJar>().configureEach { isZip64 = true }
-
 tasks.shadowJar { archiveFileName.set("SuiteRunner.jar") }
 
 val rcdiffJar =
     tasks.register<ShadowJar>("rcdiffJar") {
-        exclude(listOf("META-INF/*.DSA", "META-INF/*.RSA", "META-INF/*.SF", "META-INF/INDEX.LIST"))
         from(sourceSets["main"].output)
         from(sourceSets["rcdiff"].output)
-        destinationDirectory.set(project.file("rcdiff"))
-        archiveFileName.set("rcdiff.jar")
-        configurations = listOf(project.configurations.getByName("rcdiffRuntimeClasspath"))
+        destinationDirectory = layout.projectDirectory.dir("rcdiff")
+        archiveFileName = "rcdiff.jar"
+        configurations = listOf(project.configurations["rcdiffRuntimeClasspath"])
 
         manifest { attributes("Main-Class" to "com.hedera.services.rcdiff.RcDiffCmdWrapper") }
     }
