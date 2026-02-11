@@ -130,7 +130,7 @@ public class CryptoTransferWithCustomFeesSimpleFeesTest {
                             .via("ftTransferTxn"),
                     validateChargedUsdWithinWithTxnSize(
                             "ftTransferTxn",
-                            txnSize -> expectedCryptoTransferTokenWithCustomFullFeeUsd(1, 0, 2, 1, 0, 0, txnSize),
+                            txnSize -> expectedCryptoTransferTokenWithCustomFullFeeUsd(1, 0, 2, 1, 0, txnSize),
                             0.0001),
                     getAccountBalance(FEE_COLLECTOR).hasTinyBars(0L),
                     getAccountBalance(OWNER).hasTokenBalance(FT_WITH_HBAR_FIXED_FEE, 90L),
@@ -166,7 +166,7 @@ public class CryptoTransferWithCustomFeesSimpleFeesTest {
                             .via("ftTransferTxn"),
                     validateChargedUsdWithinWithTxnSize(
                             "ftTransferTxn",
-                            txnSize -> expectedCryptoTransferTokenWithCustomFullFeeUsd(2, 0, 3, 1, 0, 0, txnSize),
+                            txnSize -> expectedCryptoTransferTokenWithCustomFullFeeUsd(2, 0, 3, 1, 0, txnSize),
                             0.0001),
                     getAccountBalance(FEE_COLLECTOR).hasTinyBars(HBAR_FEE),
                     getAccountBalance(OWNER).hasTokenBalance(FT_WITH_HBAR_FIXED_FEE, 80L),
@@ -237,7 +237,7 @@ public class CryptoTransferWithCustomFeesSimpleFeesTest {
                             .via("ftTransferTxn"),
                     validateChargedUsdWithinWithTxnSize(
                             "ftTransferTxn",
-                            txnSize -> expectedCryptoTransferTokenWithCustomFullFeeUsd(4, 0, 3, 3, 0, 0, txnSize),
+                            txnSize -> expectedCryptoTransferTokenWithCustomFullFeeUsd(4, 0, 3, 3, 0, txnSize),
                             0.0001),
                     getAccountBalance(FEE_COLLECTOR).hasTinyBars(HBAR_FEE * 3),
                     getAccountBalance(OWNER)
@@ -284,7 +284,7 @@ public class CryptoTransferWithCustomFeesSimpleFeesTest {
                             .via("ftTransferTxn"),
                     validateChargedUsdWithinWithTxnSize(
                             "ftTransferTxn",
-                            txnSize -> expectedCryptoTransferTokenWithCustomFullFeeUsd(1, 0, 2, 0, 1, 0, txnSize),
+                            txnSize -> expectedCryptoTransferTokenWithCustomFullFeeUsd(1, 0, 2, 1, 0, txnSize),
                             0.0001),
                     getAccountBalance(HTS_COLLECTOR).hasTokenBalance(FT_WITH_HTS_FIXED_FEE, 0L),
                     getAccountBalance(DENOM_COLLECTOR).hasTokenBalance(DENOM_TOKEN, 0L),
@@ -343,7 +343,7 @@ public class CryptoTransferWithCustomFeesSimpleFeesTest {
                             .via("ftTransferTxn"),
                     validateChargedUsdWithinWithTxnSize(
                             "ftTransferTxn",
-                            txnSize -> expectedCryptoTransferTokenWithCustomFullFeeUsd(2, 0, 3, 0, 2, 0, txnSize),
+                            txnSize -> expectedCryptoTransferTokenWithCustomFullFeeUsd(2, 0, 3, 2, 0, txnSize),
                             0.0001),
                     getAccountBalance(HTS_COLLECTOR).hasTokenBalance(FT_WITH_HTS_FIXED_FEE, HTS_FEE * 2),
                     getAccountBalance(DENOM_COLLECTOR).hasTokenBalance(DENOM_TOKEN, HTS_FEE),
@@ -414,7 +414,7 @@ public class CryptoTransferWithCustomFeesSimpleFeesTest {
                             .via("ftTransferTxn"),
                     validateChargedUsdWithinWithTxnSize(
                             "ftTransferTxn",
-                            txnSize -> expectedCryptoTransferTokenWithCustomFullFeeUsd(3, 0, 3, 0, 2, 0, txnSize),
+                            txnSize -> expectedCryptoTransferTokenWithCustomFullFeeUsd(3, 0, 3, 2, 0, txnSize),
                             0.0001),
                     getAccountBalance(HTS_COLLECTOR).hasTokenBalance(FT_WITH_HTS_FIXED_FEE, HTS_FEE * 2),
                     getAccountBalance(DENOM_COLLECTOR).hasTokenBalance(DENOM_TOKEN, HTS_FEE * 2),
@@ -480,7 +480,7 @@ public class CryptoTransferWithCustomFeesSimpleFeesTest {
                             .via("ftTransferTxn"),
                     validateChargedUsdWithinWithTxnSize(
                             "ftTransferTxn",
-                            txnSize -> expectedCryptoTransferTokenWithCustomFullFeeUsd(3, 0, 3, 3, 0, 0, txnSize),
+                            txnSize -> expectedCryptoTransferTokenWithCustomFullFeeUsd(3, 0, 3, 3, 0, txnSize),
                             0.0001),
                     getAccountBalance(FEE_COLLECTOR).hasTinyBars(0L),
                     getAccountBalance(OWNER)
@@ -517,7 +517,7 @@ public class CryptoTransferWithCustomFeesSimpleFeesTest {
                             .via("ftTransferTxn"),
                     validateChargedUsdWithinWithTxnSize(
                             "ftTransferTxn",
-                            txnSize -> expectedCryptoTransferTokenWithCustomFullFeeUsd(1, 0, 2, 1, 0, 0, txnSize),
+                            txnSize -> expectedCryptoTransferTokenWithCustomFullFeeUsd(1, 0, 2, 1, 0, txnSize),
                             0.0001),
                     getAccountBalance(FEE_COLLECTOR).hasTokenBalance(FT_WITH_FRACTIONAL_FEE, 0L),
                     getAccountBalance(OWNER).hasTokenBalance(FT_WITH_FRACTIONAL_FEE, 90L),
@@ -554,7 +554,7 @@ public class CryptoTransferWithCustomFeesSimpleFeesTest {
                             .via("ftTransferTxn"),
                     validateChargedUsdWithinWithTxnSize(
                             "ftTransferTxn",
-                            txnSize -> expectedCryptoTransferTokenWithCustomFullFeeUsd(2, 0, 3, 1, 0, 0, txnSize),
+                            txnSize -> expectedCryptoTransferTokenWithCustomFullFeeUsd(2, 0, 3, 1, 0, txnSize),
                             0.0001),
                     getAccountBalance(FEE_COLLECTOR).hasTokenBalance(FT_WITH_FRACTIONAL_FEE, 2L),
                     getAccountBalance(OWNER).hasTokenBalance(FT_WITH_FRACTIONAL_FEE, 70L),
@@ -620,7 +620,7 @@ public class CryptoTransferWithCustomFeesSimpleFeesTest {
                             .via("ftTransferTxn"),
                     validateChargedUsdWithinWithTxnSize(
                             "ftTransferTxn",
-                            txnSize -> expectedCryptoTransferTokenWithCustomFullFeeUsd(4, 0, 3, 3, 0, 0, txnSize),
+                            txnSize -> expectedCryptoTransferTokenWithCustomFullFeeUsd(4, 0, 3, 3, 0, txnSize),
                             0.0001),
                     getAccountBalance(FEE_COLLECTOR)
                             .hasTokenBalance(FT_WITH_FRACTIONAL_FEE, 1L)
@@ -664,7 +664,7 @@ public class CryptoTransferWithCustomFeesSimpleFeesTest {
                             .via("ftTransferTxn"),
                     validateChargedUsdWithinWithTxnSize(
                             "ftTransferTxn",
-                            txnSize -> expectedCryptoTransferTokenWithCustomFullFeeUsd(1, 0, 2, 0, 1, 0, txnSize),
+                            txnSize -> expectedCryptoTransferTokenWithCustomFullFeeUsd(1, 0, 2, 1, 0, txnSize),
                             0.0001),
                     getAccountBalance(ROYALTY_FEE_COLLECTOR).hasTinyBars(0L),
                     getAccountBalance(OWNER).hasTokenBalance(NFT_WITH_ROYALTY_FEE_NO_FALLBACK, 9L),
@@ -708,7 +708,7 @@ public class CryptoTransferWithCustomFeesSimpleFeesTest {
                             .via("ftTransferTxn"),
                     validateChargedUsdWithinWithTxnSize(
                             "ftTransferTxn",
-                            txnSize -> expectedCryptoTransferTokenWithCustomFullFeeUsd(4, 0, 3, 0, 3, 0, txnSize),
+                            txnSize -> expectedCryptoTransferTokenWithCustomFullFeeUsd(4, 0, 3, 3, 0, txnSize),
                             0.0001),
                     getAccountBalance(ROYALTY_FEE_COLLECTOR).hasTinyBars(15L),
                     getAccountBalance(OWNER).hasTokenBalance(NFT_WITH_ROYALTY_FEE_NO_FALLBACK, 6L),
@@ -738,7 +738,7 @@ public class CryptoTransferWithCustomFeesSimpleFeesTest {
                             .via("ftTransferTxn"),
                     validateChargedUsdWithinWithTxnSize(
                             "ftTransferTxn",
-                            txnSize -> expectedCryptoTransferTokenWithCustomFullFeeUsd(1, 0, 2, 0, 1, 0, txnSize),
+                            txnSize -> expectedCryptoTransferTokenWithCustomFullFeeUsd(1, 0, 2, 1, 0, txnSize),
                             0.0001),
                     getAccountBalance(ROYALTY_FEE_COLLECTOR).hasTinyBars(0L),
                     getAccountBalance(OWNER).hasTokenBalance(NFT_WITH_ROYALTY_FEE_WITH_FALLBACK, 9L),
@@ -780,7 +780,7 @@ public class CryptoTransferWithCustomFeesSimpleFeesTest {
                             .via("ftTransferTxn"),
                     validateChargedUsdWithinWithTxnSize(
                             "ftTransferTxn",
-                            txnSize -> expectedCryptoTransferTokenWithCustomFullFeeUsd(4, 0, 3, 0, 3, 0, txnSize),
+                            txnSize -> expectedCryptoTransferTokenWithCustomFullFeeUsd(4, 0, 3, 3, 0, txnSize),
                             0.0001),
                     getAccountBalance(ROYALTY_FEE_COLLECTOR).hasTinyBars(2L),
                     getAccountBalance(OWNER).hasTokenBalance(NFT_WITH_ROYALTY_FEE_WITH_FALLBACK, 6L),
@@ -830,7 +830,7 @@ public class CryptoTransferWithCustomFeesSimpleFeesTest {
                             .via("ftTransferTxn"),
                     validateChargedUsdWithinWithTxnSize(
                             "ftTransferTxn",
-                            txnSize -> expectedCryptoTransferTokenWithCustomFullFeeUsd(3, 0, 3, 2, 0, 0, txnSize),
+                            txnSize -> expectedCryptoTransferTokenWithCustomFullFeeUsd(3, 0, 3, 2, 0, txnSize),
                             0.0001),
                     getAccountBalance(FEE_COLLECTOR)
                             .hasTokenBalance(FT_FIXED_AND_FRACTIONAL_FEE, 1L)
@@ -884,7 +884,7 @@ public class CryptoTransferWithCustomFeesSimpleFeesTest {
                             .via("ftTransferTxn"),
                     validateChargedUsdWithinWithTxnSize(
                             "ftTransferTxn",
-                            txnSize -> expectedCryptoTransferTokenWithCustomFullFeeUsd(2, 0, 3, 0, 2, 0, txnSize),
+                            txnSize -> expectedCryptoTransferTokenWithCustomFullFeeUsd(2, 0, 3, 2, 0, txnSize),
                             0.0001),
                     getAccountBalance(DENOM_COLLECTOR).hasTokenBalance(DENOM_TOKEN, 2L),
                     getAccountBalance(OWNER)
@@ -931,7 +931,7 @@ public class CryptoTransferWithCustomFeesSimpleFeesTest {
                             .via("ftTransferTxn"),
                     validateChargedUsdWithinWithTxnSize(
                             "ftTransferTxn",
-                            txnSize -> expectedCryptoTransferTokenWithCustomFullFeeUsd(2, 0, 3, 1, 0, 0, txnSize)
+                            txnSize -> expectedCryptoTransferTokenWithCustomFullFeeUsd(2, 0, 3, 1, 0, txnSize)
                                     + tokenAssociateFee,
                             0.0001),
                     getAccountBalance(FEE_COLLECTOR).hasTinyBars(HBAR_FEE),
@@ -998,9 +998,8 @@ public class CryptoTransferWithCustomFeesSimpleFeesTest {
                             .via("tokenTransferTxn"),
                     validateChargedUsdWithinWithTxnSize(
                             "tokenTransferTxn",
-                            txnSize ->
-                                    expectedCryptoTransferTokenWithCustomFullFeeUsd(3, 2, 5, 1, 4, 10_000_000L, txnSize)
-                                            + tokenAssociateFee,
+                            txnSize -> expectedCryptoTransferTokenWithCustomFullFeeUsd(3, 2, 5, 5, 10_000_000L, txnSize)
+                                    + tokenAssociateFee,
                             0.0001),
                     getAccountBalance(HTS_COLLECTOR).hasTokenBalance(FT_WITH_HTS_FIXED_FEE, 2L),
                     getAccountBalance(DENOM_COLLECTOR).hasTokenBalance(DENOM_TOKEN, 2L),
@@ -1072,7 +1071,7 @@ public class CryptoTransferWithCustomFeesSimpleFeesTest {
                             .hasKnownStatus(INSUFFICIENT_SENDER_ACCOUNT_BALANCE_FOR_CUSTOM_FEE),
                     validateChargedUsdWithinWithTxnSize(
                             "ftTransferTxn",
-                            txnSize -> expectedCryptoTransferTokenWithCustomFullFeeUsd(2, 0, 3, 0, 2, 0, txnSize),
+                            txnSize -> expectedCryptoTransferTokenWithCustomFullFeeUsd(2, 0, 3, 2, 0, txnSize),
                             0.0001),
                     getAccountBalance(HTS_COLLECTOR).hasTokenBalance(FT_WITH_HTS_FIXED_FEE, 0L),
                     getAccountBalance(DENOM_COLLECTOR).hasTokenBalance(DENOM_TOKEN, 0L),
@@ -1135,7 +1134,7 @@ public class CryptoTransferWithCustomFeesSimpleFeesTest {
                             .hasKnownStatus(INSUFFICIENT_SENDER_ACCOUNT_BALANCE_FOR_CUSTOM_FEE),
                     validateChargedUsdWithinWithTxnSize(
                             "ftTransferTxn",
-                            txnSize -> expectedCryptoTransferTokenWithCustomFullFeeUsd(2, 0, 3, 0, 2, 0, txnSize),
+                            txnSize -> expectedCryptoTransferTokenWithCustomFullFeeUsd(2, 0, 3, 2, 0, txnSize),
                             0.0001),
                     getAccountBalance(HTS_COLLECTOR).hasTokenBalance(FT_WITH_HTS_FIXED_FEE, 0L),
                     getAccountBalance(DENOM_COLLECTOR).hasTokenBalance(DENOM_TOKEN, 0L),
@@ -1191,7 +1190,7 @@ public class CryptoTransferWithCustomFeesSimpleFeesTest {
                             .hasKnownStatus(NO_REMAINING_AUTOMATIC_ASSOCIATIONS),
                     validateChargedUsdWithinWithTxnSize(
                             "ftTransferTxn",
-                            txnSize -> expectedCryptoTransferTokenWithCustomFullFeeUsd(2, 0, 3, 1, 0, 0, txnSize),
+                            txnSize -> expectedCryptoTransferTokenWithCustomFullFeeUsd(2, 0, 3, 1, 0, txnSize),
                             0.0001),
                     getAccountBalance(FEE_COLLECTOR).hasTinyBars(0L),
                     getAccountBalance(OWNER).hasTokenBalance(FT_WITH_HBAR_FIXED_FEE, 80L),
@@ -1256,7 +1255,7 @@ public class CryptoTransferWithCustomFeesSimpleFeesTest {
                             .hasKnownStatus(INSUFFICIENT_GAS),
                     validateChargedUsdWithinWithTxnSize(
                             "tokenTransferTxn",
-                            txnSize -> expectedCryptoTransferTokenWithCustomFullFeeUsd(3, 2, 5, 1, 4, 20L, txnSize),
+                            txnSize -> expectedCryptoTransferTokenWithCustomFullFeeUsd(3, 2, 5, 5, 20L, txnSize),
                             0.0001),
                     getAccountBalance(HTS_COLLECTOR).hasTokenBalance(FT_WITH_HTS_FIXED_FEE, 0L),
                     getAccountBalance(DENOM_COLLECTOR).hasTokenBalance(DENOM_TOKEN, 0L),
