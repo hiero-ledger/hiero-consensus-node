@@ -201,7 +201,7 @@ public class TransactionDispatcher {
             case CRYPTO_ADD_LIVE_HASH -> false;
             case CRYPTO_DELETE_LIVE_HASH -> false;
             case FREEZE -> false;
-            case UNCHECKED_SUBMIT -> false;
+            case UNCHECKED_SUBMIT -> true;
             case NODE_STAKE_UPDATE -> false;
             case STATE_SIGNATURE_TRANSACTION -> false;
             case HINTS_PREPROCESSING_VOTE -> false;

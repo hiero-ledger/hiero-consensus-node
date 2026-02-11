@@ -11,14 +11,19 @@ import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.TransactionID;
+import com.hedera.hapi.node.consensus.ConsensusCreateTopicTransactionBody;
 import com.hedera.hapi.node.transaction.Query;
+import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.node.transaction.TransactionGetRecordQuery;
 import com.hedera.hapi.node.transaction.TransactionRecord;
+import com.hedera.hapi.node.transaction.UncheckedSubmitBody;
 import com.hedera.node.app.fees.SimpleFeeContextImpl;
 import com.hedera.node.app.service.networkadmin.impl.calculator.GetByKeyFeeCalculator;
 import com.hedera.node.app.service.networkadmin.impl.calculator.GetVersionInfoFeeCalculator;
 import com.hedera.node.app.service.networkadmin.impl.calculator.TransactionGetReceiptFeeCalculator;
 import com.hedera.node.app.service.networkadmin.impl.calculator.TransactionGetRecordFeeCalculator;
+import com.hedera.node.app.service.networkadmin.impl.calculator.UncheckedSubmitFeeCalculator;
+import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.records.RecordCache;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import java.util.List;
@@ -38,6 +43,7 @@ class NetworkAdminFeeCalculatorsTest {
     private static final long GET_VERSION_INFO_FEE = 100L;
     private static final long GET_BY_KEY_FEE = 200L;
     private static final long TRANSACTION_GET_RECEIPT_FEE = 0L;
+    private static final long UNCHECKED_SUBMIT_FEE = 0L;
     private static final long TRANSACTION_GET_RECORD_FEE = 300L;
 
     @Mock
@@ -186,6 +192,30 @@ class NetworkAdminFeeCalculatorsTest {
         assertThat(calculator.getQueryType()).isEqualTo(Query.QueryOneOfType.TRANSACTION_GET_RECORD);
     }
 
+
+    @Test
+    @DisplayName("UncheckedSubmitFeeCalculator is free")
+    void testUncheckedSubmitFeeCalculator() {
+        final var calculator = new UncheckedSubmitFeeCalculator();
+        final var mockFeeContext = mock(FeeContext.class);
+        final var feeResult = new FeeResult();
+
+        var body= TransactionBody.newBuilder()
+                .uncheckedSubmit(UncheckedSubmitBody.newBuilder().build()).build();
+        calculator.accumulateServiceFee(
+                body,
+                new SimpleFeeContextImpl(mockFeeContext,null),
+                feeResult,
+                createTestFeeSchedule());
+
+        assertThat(feeResult.getNodeTotalTinycents()).isEqualTo(0L);
+        assertThat(feeResult.getNetworkTotalTinycents()).isEqualTo(0L);
+        assertThat(feeResult.getServiceTotalTinycents()).isEqualTo(0L);
+        assertThat(calculator.getTransactionType()).isEqualTo(TransactionBody.DataOneOfType.UNCHECKED_SUBMIT);
+    }
+
+
+
     private static FeeSchedule createTestFeeSchedule() {
         return FeeSchedule.DEFAULT
                 .copyBuilder()
@@ -194,6 +224,7 @@ class NetworkAdminFeeCalculatorsTest {
                         makeServiceFee(HederaFunctionality.GET_VERSION_INFO, GET_VERSION_INFO_FEE),
                         makeServiceFee(HederaFunctionality.GET_BY_KEY, GET_BY_KEY_FEE),
                         makeServiceFee(HederaFunctionality.TRANSACTION_GET_RECEIPT, TRANSACTION_GET_RECEIPT_FEE),
+                        makeServiceFee(HederaFunctionality.UNCHECKED_SUBMIT, UNCHECKED_SUBMIT_FEE),
                         makeServiceFee(
                                 HederaFunctionality.TRANSACTION_GET_RECORD,
                                 TRANSACTION_GET_RECORD_FEE,
