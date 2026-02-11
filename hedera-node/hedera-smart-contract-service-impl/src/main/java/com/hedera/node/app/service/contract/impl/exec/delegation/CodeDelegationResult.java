@@ -1,49 +1,36 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.delegation;
 
-import static org.hyperledger.besu.datatypes.CodeDelegation.PER_AUTH_BASE_COST;
-
-import java.util.Set;
-import org.hyperledger.besu.collections.trie.BytesTrieSet;
-import org.hyperledger.besu.datatypes.Address;
-
 /**
  * Class that contains the results when delegating EIP-7702 transaction.
  */
 public class CodeDelegationResult {
-    private long availableGas;
-    private final Set<Address> accessedDelegatorAddresses = new BytesTrieSet<>(Address.SIZE);
-    private long alreadyExistingDelegators = 0L;
+    private long remainingLazyCreationGasAvailable;
+    private long totalLazyCreationGasCharged;
+    private int numAuthorizationsEligibleForRefund;
 
-    public CodeDelegationResult(final long availableGas) {
-        this.availableGas = availableGas;
+    public CodeDelegationResult(final long lazyCreationGasAvailable) {
+        this.remainingLazyCreationGasAvailable = lazyCreationGasAvailable;
     }
 
-    public void addAccessedDelegatorAddress(final Address address) {
-        accessedDelegatorAddresses.add(address);
+    public void addHollowAccountCreationGasCharge(final long gas) {
+        this.remainingLazyCreationGasAvailable -= gas;
+        this.totalLazyCreationGasCharged += gas;
     }
 
-    public void incrementAlreadyExistingDelegators() {
-        this.alreadyExistingDelegators += 1;
+    public long remainingLazyCreationGasAvailable() {
+        return this.remainingLazyCreationGasAvailable;
     }
 
-    public Set<Address> accessedDelegatorAddresses() {
-        return accessedDelegatorAddresses;
+    public void incAuthorizationsEligibleForRefund() {
+        this.numAuthorizationsEligibleForRefund += 1;
     }
 
-    public long alreadyExistingDelegators() {
-        return alreadyExistingDelegators;
+    public long totalLazyCreationGasCharged() {
+        return totalLazyCreationGasCharged;
     }
 
-    public void deductGas(final long gasUsed) {
-        this.availableGas -= gasUsed;
-    }
-
-    public long getAvailableGas() {
-        return availableGas;
-    }
-
-    public long getRefund() {
-        return alreadyExistingDelegators * PER_AUTH_BASE_COST;
+    public int numAuthorizationsEligibleForRefund() {
+        return numAuthorizationsEligibleForRefund;
     }
 }

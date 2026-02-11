@@ -12,7 +12,6 @@ import com.hedera.node.app.service.contract.impl.annotations.ChildTransactionRes
 import com.hedera.node.app.service.contract.impl.annotations.InitialState;
 import com.hedera.node.app.service.contract.impl.annotations.TopLevelResourcePrices;
 import com.hedera.node.app.service.contract.impl.annotations.TransactionScope;
-import com.hedera.node.app.service.contract.impl.exec.delegation.CodeDelegationProcessor;
 import com.hedera.node.app.service.contract.impl.exec.gas.CanonicalDispatchPrices;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.gas.TinybarValues;
@@ -239,11 +238,5 @@ public interface TransactionModule {
         // create "hook-aware" EvmFrameState's that e.g. return the executing
         // hook contract's bytecode from address 0x16d
         return evmFrameStates.from(operations, nativeOperations, codeFactory);
-    }
-
-    @Provides
-    @TransactionScope
-    static CodeDelegationProcessor provideCodeDelegationProcessor(@NonNull final ContractsConfig contractsConfig) {
-        return new CodeDelegationProcessor(contractsConfig.chainId());
     }
 }

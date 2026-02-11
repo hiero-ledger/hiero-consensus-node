@@ -112,9 +112,9 @@ public class CustomGasCharging {
         requireNonNull(context);
         requireNonNull(worldUpdater);
         requireNonNull(transaction);
-        // TODO: Revisit baselineGas with Pectra support epic
-        final var gasCharges =
-                gasCalculator.transactionGasRequirements(transaction.evmPayload(), transaction.isCreate(), 0L);
+
+        final var gasCharges = gasCalculator.transactionGasRequirements(
+                transaction.evmPayload(), transaction.isCreate(), baselineGasCost(transaction));
         if (context.isNoopGasContext()) {
             return gasCharges;
         }
@@ -122,10 +122,6 @@ public class CustomGasCharging {
         if (transaction.isEthereumTransaction()) {
             requireNonNull(relayer);
             final var allowanceUsed = chargeWithRelayer(sender, relayer, context, worldUpdater, transaction);
-
-            // Increment nonce right after the gas is charged
-            sender.incrementNonce();
-
             return new GasCharges(gasCharges.intrinsicGas(), gasCharges.minimumGasUsed(), allowanceUsed);
         } else {
             chargeWithOnlySender(sender, context, worldUpdater, transaction);
@@ -153,9 +149,8 @@ public class CustomGasCharging {
         requireNonNull(context);
         requireNonNull(worldUpdater);
         requireNonNull(transaction);
-
-        // TODO: Revisit baselineGas with Pectra support epic
-        final var gasRequirements = gasCalculator.transactionGasRequirements(transaction.evmPayload(), false, 0L);
+        final var gasRequirements = gasCalculator.transactionGasRequirements(
+                transaction.evmPayload(), transaction.isCreate(), baselineGasCost(transaction));
 
         if (transaction.isEthereumTransaction()) {
             final var fee =
@@ -165,6 +160,16 @@ public class CustomGasCharging {
             final var fee = feeForAborted(sender, context, worldUpdater, gasRequirements.minimumGasUsed());
             worldUpdater.collectGasFee(sender, fee, false);
         }
+    }
+
+    private long baselineGasCost(@NonNull final HederaEvmTransaction transaction) {
+        final var authorizationListSize = transaction.codeDelegations() != null
+                ? transaction.codeDelegations().size()
+                : 0;
+        // Baseline cost is the gas used by access lists and code delegation authorizations.
+        // Since we currently don't support access lists, we're just adding code authorizations cost.
+        // TODO(access-list): add access list cost
+        return gasCalculator.delegateCodeGasCost(authorizationListSize);
     }
 
     private long feeForAborted(

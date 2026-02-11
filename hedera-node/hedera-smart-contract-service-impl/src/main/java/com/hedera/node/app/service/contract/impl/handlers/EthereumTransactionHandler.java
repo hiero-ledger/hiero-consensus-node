@@ -126,9 +126,14 @@ public class EthereumTransactionHandler extends AbstractContractTransactionHandl
                 parseInnerCodeDelegations(ethTxData);
             }
             final var authorizationListSize =
-                    ethTxData.authorizationList() == null ? 0L : ethTxData.authorizationListAsRlp().length;
+                    ethTxData.authorizationList() != null ? ethTxData.authorizationListAsRlp().length : 0;
+
+            // Baseline cost is the gas used by access lists and code delegation authorizations.
+            // Since we currently don't support access lists, we're just adding code authorizations cost.
+            // TODO(access-list): add access list cost
+            final var baselineCost = gasCalculator.delegateCodeGasCost(authorizationListSize);
             final var gasRequirements = gasCalculator.transactionGasRequirements(
-                    org.apache.tuweni.bytes.Bytes.wrap(callData), isContractCreate, 0L, authorizationListSize);
+                    org.apache.tuweni.bytes.Bytes.wrap(callData), isContractCreate, baselineCost);
             validateTruePreCheck(ethTxData.gasLimit() >= gasRequirements.minimumGasUsed(), INSUFFICIENT_GAS);
         } catch (@NonNull final Exception e) {
             bumpExceptionMetrics(ETHEREUM_TRANSACTION, e);

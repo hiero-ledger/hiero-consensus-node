@@ -10,7 +10,6 @@ import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.streams.ContractBytecode;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.node.app.service.contract.impl.annotations.TransactionScope;
-import com.hedera.node.app.service.contract.impl.exec.delegation.CodeDelegationProcessor;
 import com.hedera.node.app.service.contract.impl.exec.gas.CustomGasCharging;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.tracers.AddOnEvmActionTracer;
@@ -61,7 +60,6 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
     private final HevmTransactionFactory hevmTransactionFactory;
     private final CustomGasCharging gasCharging;
     private final ContractMetrics contractMetrics;
-    private final CodeDelegationProcessor codeDelegationProcessor;
 
     /**
      * @param hydratedEthTxData the hydrated Ethereum transaction data
@@ -89,8 +87,7 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
             @NonNull final HevmTransactionFactory hevmTransactionFactory,
             @NonNull final TransactionProcessor processor,
             @NonNull final CustomGasCharging customGasCharging,
-            @NonNull final ContractMetrics contractMetrics,
-            @NonNull final CodeDelegationProcessor codeDelegationProcessor) {
+            @NonNull final ContractMetrics contractMetrics) {
         this.context = requireNonNull(context);
         this.hydratedEthTxData = hydratedEthTxData;
         this.addOnTracers = addOnTracers;
@@ -103,7 +100,6 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
         this.hevmTransactionFactory = requireNonNull(hevmTransactionFactory);
         this.gasCharging = requireNonNull(customGasCharging);
         this.contractMetrics = requireNonNull(contractMetrics);
-        this.codeDelegationProcessor = requireNonNull(codeDelegationProcessor);
     }
 
     @Override
@@ -180,8 +176,6 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
         } else {
             opsDurationCounter = OpsDurationCounter.disabled();
         }
-
-        // Handle code delegations
 
         // Process the transaction and return its outcome
         try {
@@ -270,15 +264,13 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
             final var hevmTransaction = hevmTransactionFactory.fromHapiTransaction(context.body(), context.payer());
             validatePayloadLength(hevmTransaction);
 
-            // For EIP-7702: Check sender's nonce BEFORE processing code delegations
-            // (code delegations may increment the sender's nonce if they're also an authority)
-            if (hevmTransaction.isEthereumTransaction() && hevmTransaction.codeDelegations() != null) {
+            if (hevmTransaction.isEthereumTransaction()) {
                 final var sender = rootProxyWorldUpdater.getHederaAccount(hevmTransaction.senderId());
                 if (sender != null && hevmTransaction.nonce() != sender.getNonce()) {
                     throw new HandleException(WRONG_NONCE);
                 }
             }
-            return possiblyProcessCodeDelegations(hevmTransaction);
+            return hevmTransaction;
         } catch (IllegalArgumentException e1) {
             return hevmTransactionFactory.fromContractTxException(
                     context.body(), new HandleException(INVALID_TRANSACTION));
@@ -339,14 +331,5 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
 
     private @Nullable EthTxData ethTxDataIfApplicable() {
         return hydratedEthTxData == null ? null : hydratedEthTxData.ethTxData();
-    }
-
-    private HederaEvmTransaction possiblyProcessCodeDelegations(@NonNull final HederaEvmTransaction hevmTransaction) {
-        if ((hydratedEthTxData != null && hydratedEthTxData.ethTxData() != null)
-                && contractsConfig.evmPectraEnabled()) {
-            final var codeDelegationResult = codeDelegationProcessor.process(rootProxyWorldUpdater, hevmTransaction);
-            return hevmTransaction.fromCodeDelegationResult(codeDelegationResult);
-        }
-        return hevmTransaction;
     }
 }

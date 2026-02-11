@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.hips.hip1340;
 
+import static com.hedera.node.app.service.contract.impl.utils.ConstantUtils.ZERO_ADDRESS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
@@ -34,7 +35,6 @@ import com.hedera.services.bdd.spec.transactions.contract.HapiEthereumCall;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.bouncycastle.util.encoders.Hex;
@@ -92,9 +92,8 @@ public class CodeDelegationType4TransactionTest {
                         .signingWith(DELEGATING_ACCOUNT)
                         .payingWith(RELAYER)
                         .type(EthTransactionType.EIP7702)
-                        .setDelegationTarget(DELEGATION_TARGET.get())
+                        .addSenderCodeDelegationWithSpecNonce(DELEGATION_TARGET.get())
                         .gasLimit(2_000_000L)
-                        .nonce(0)
                         .via(DELEGATION_SET)),
                 // check delegation is set
                 getAliasedAccountInfo(DELEGATING_ACCOUNT).hasDelegationAddress(DELEGATION_TARGET.get()),
@@ -104,7 +103,6 @@ public class CodeDelegationType4TransactionTest {
                         .payingWith(RELAYER)
                         .signingWith(DELEGATING_ACCOUNT)
                         // setting nonce manually
-                        .nonce(2)
                         .hasKnownStatus(ResponseCodeEnum.SUCCESS)
                         .via(DELEGATION_CALL)),
                 // check records
@@ -126,12 +124,11 @@ public class CodeDelegationType4TransactionTest {
                         .signingWith(DELEGATING_ACCOUNT)
                         .payingWith(RELAYER)
                         .type(EthTransactionType.EIP7702)
-                        .clearDelegation()
+                        .addSenderCodeDelegationWithSpecNonce(ZERO_ADDRESS)
                         .gasLimit(50_000L)
-                        .nonce(3)
                         .via(DELEGATION_RESET)),
                 // verify delegation is cleared
-                getAliasedAccountInfo(DELEGATING_ACCOUNT).hasNoDelegationAddress(),
+                getAliasedAccountInfo(DELEGATING_ACCOUNT).hasNoDelegation(),
                 getTxnRecord(DELEGATION_RESET).andAllChildRecords().logged())));
     }
 
@@ -161,17 +158,11 @@ public class CodeDelegationType4TransactionTest {
                         .signingWith(DELEGATING_ACCOUNT)
                         .payingWith(RELAYER)
                         .type(EthTransactionType.EIP7702)
-                        .setDelegationTargets(Map.of(
-                                DELEGATING_ACCOUNT,
-                                delegationTargetAddress,
-                                DELEGATING_ACCOUNT_1,
-                                delegationTargetAddress,
-                                DELEGATING_ACCOUNT_2,
-                                delegationTargetAddress,
-                                DELEGATING_ACCOUNT_3,
-                                delegationTargetAddress))
+                        .addSenderCodeDelegationWithSpecNonce(delegationTargetAddress)
+                        .addCodeDelegationWithSpecNonce(delegationTargetAddress, DELEGATING_ACCOUNT_1)
+                        .addCodeDelegationWithSpecNonce(delegationTargetAddress, DELEGATING_ACCOUNT_2)
+                        .addCodeDelegationWithSpecNonce(delegationTargetAddress, DELEGATING_ACCOUNT_3)
                         .gasLimit(2_000_000L)
-                        .nonce(0)
                         .via(DELEGATION_SET)),
                 // check delegation is set
                 getAliasedAccountInfo(DELEGATING_ACCOUNT).hasDelegationAddress(delegationTargetAddress),
@@ -188,16 +179,17 @@ public class CodeDelegationType4TransactionTest {
                         .signingWith(DELEGATING_ACCOUNT)
                         .payingWith(RELAYER)
                         .type(EthTransactionType.EIP7702)
-                        .clearSpecificDelegations(
-                                DELEGATING_ACCOUNT, DELEGATING_ACCOUNT_1, DELEGATING_ACCOUNT_2, DELEGATING_ACCOUNT_3)
+                        .addSenderCodeDelegationWithSpecNonce(ZERO_ADDRESS)
+                        .addCodeDelegationWithSpecNonce(ZERO_ADDRESS, DELEGATING_ACCOUNT_1)
+                        .addCodeDelegationWithSpecNonce(ZERO_ADDRESS, DELEGATING_ACCOUNT_2)
+                        .addCodeDelegationWithSpecNonce(ZERO_ADDRESS, DELEGATING_ACCOUNT_3)
                         .gasLimit(200_000L)
-                        .nonce(2)
                         .via(DELEGATION_RESET)),
                 // verify delegation is cleared
-                getAliasedAccountInfo(DELEGATING_ACCOUNT).hasNoDelegationAddress(),
-                getAliasedAccountInfo(DELEGATING_ACCOUNT_1).hasNoDelegationAddress(),
-                getAliasedAccountInfo(DELEGATING_ACCOUNT_2).hasNoDelegationAddress(),
-                getAliasedAccountInfo(DELEGATING_ACCOUNT_3).hasNoDelegationAddress(),
+                getAliasedAccountInfo(DELEGATING_ACCOUNT).hasNoDelegation(),
+                getAliasedAccountInfo(DELEGATING_ACCOUNT_1).hasNoDelegation(),
+                getAliasedAccountInfo(DELEGATING_ACCOUNT_2).hasNoDelegation(),
+                getAliasedAccountInfo(DELEGATING_ACCOUNT_3).hasNoDelegation(),
                 getTxnRecord(DELEGATION_RESET).andAllChildRecords().logged())));
     }
 
@@ -218,9 +210,8 @@ public class CodeDelegationType4TransactionTest {
                         .signingWith(PAYER_KEY)
                         .payingWith(RELAYER)
                         .type(EthTransactionType.EIP7702)
-                        .setDelegationTargets(Map.of(DELEGATING_ACCOUNT, DELEGATION_TARGET.get()))
+                        .addCodeDelegationWithSpecNonce(DELEGATION_TARGET.get(), DELEGATING_ACCOUNT)
                         .gasLimit(2_000_000L)
-                        .nonce(0)
                         .via(DELEGATION_SET)),
                 // check delegation is set
                 getAliasedAccountInfo(DELEGATING_ACCOUNT).hasDelegationAddress(DELEGATION_TARGET.get()))));

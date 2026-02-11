@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.spec.queries.crypto;
 
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
+import static com.hedera.node.app.service.contract.impl.utils.ConstantUtils.ZERO_ADDRESS;
 import static com.hedera.services.bdd.spec.assertions.AssertUtils.rethrowSummaryError;
 import static com.hedera.services.bdd.spec.queries.QueryUtils.answerCostHeader;
 import static com.hedera.services.bdd.spec.queries.QueryUtils.answerHeader;
@@ -10,6 +11,7 @@ import static com.hederahashgraph.api.proto.java.CryptoGetInfoResponse.AccountIn
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.esaulpaugh.headlong.abi.Address;
 import com.google.common.base.MoreObjects;
@@ -215,8 +217,8 @@ public class HapiGetAccountInfo extends HapiQueryOp<HapiGetAccountInfo> {
         return this;
     }
 
-    public HapiGetAccountInfo hasNoDelegationAddress() {
-        this.delegationAddress = Optional.empty();
+    public HapiGetAccountInfo hasNoDelegation() {
+        this.delegationAddress = Optional.of(ZERO_ADDRESS);
         return this;
     }
 
@@ -299,10 +301,16 @@ public class HapiGetAccountInfo extends HapiQueryOp<HapiGetAccountInfo> {
         if (registryEntry.isPresent()) {
             spec.registry().saveAccountInfo(registryEntry.get(), actualInfo);
         }
-        var actualDelegationAddress = actualInfo.getDelegationAddress();
-        delegationAddress.ifPresent(address -> assertEquals(
-                address.value(),
-                Bytes.wrap(actualDelegationAddress.toByteArray()).toBigInteger()));
+        final var actualDelegationAddress = actualInfo.getDelegationAddress();
+        delegationAddress.ifPresent(address -> {
+            if (ZERO_ADDRESS.equals(address)) {
+                assertTrue(actualDelegationAddress.isEmpty());
+            } else {
+                assertEquals(
+                        address.value(),
+                        Bytes.wrap(actualDelegationAddress.toByteArray()).toBigInteger());
+            }
+        });
     }
 
     @Override

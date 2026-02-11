@@ -169,9 +169,7 @@ public class HevmTransactionFactory {
                 body,
                 null,
                 null,
-                null,
-                0,
-                0);
+                null);
     }
 
     /**
@@ -200,9 +198,7 @@ public class HevmTransactionFactory {
                 null,
                 null,
                 null,
-                body,
-                0,
-                0);
+                body);
     }
 
     private HederaEvmTransaction fromHapiCall(
@@ -222,9 +218,7 @@ public class HevmTransactionFactory {
                 null,
                 null,
                 null,
-                null,
-                0,
-                0);
+                null);
     }
 
     private HederaEvmTransaction fromHapiEthereum(
@@ -256,9 +250,7 @@ public class HevmTransactionFactory {
                 null,
                 ethTxData.extractCodeDelegations(),
                 null,
-                null,
-                0,
-                0);
+                null);
     }
 
     private @NonNull HederaEvmTransaction fromEthTxCreate(
@@ -280,9 +272,7 @@ public class HevmTransactionFactory {
                 synthEthTxCreation(ledgerConfig.autoRenewPeriodMinDuration(), ethTxData),
                 ethTxData.extractCodeDelegations(),
                 null,
-                null,
-                0,
-                0);
+                null);
     }
 
     /**
@@ -330,9 +320,7 @@ public class HevmTransactionFactory {
                 null,
                 null,
                 exception,
-                body.hookDispatch(),
-                0,
-                0);
+                body.hookDispatch());
     }
 
     private @NonNull EthTxData assertValidEthTx(@NonNull final EthereumTransactionBody body) {
@@ -347,6 +335,7 @@ public class HevmTransactionFactory {
     }
 
     private void assertValidCall(@NonNull final ContractCallTransactionBody body) {
+        // baselineCost is 0 for contract calls as neither access list nor EIP-7702 authorizations are supported
         final var gasRequirements = gasCalculator.transactionGasRequirements(EMPTY, false, 0L);
         validateTrue(body.gas() >= gasRequirements.minimumGasUsed(), INSUFFICIENT_GAS);
         validateTrue(body.amount() >= 0, CONTRACT_NEGATIVE_VALUE);

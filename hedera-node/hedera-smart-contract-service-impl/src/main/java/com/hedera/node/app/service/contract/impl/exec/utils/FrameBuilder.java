@@ -94,7 +94,7 @@ public class FrameBuilder {
             @NonNull final FeatureFlags featureFlags,
             @NonNull final Address from,
             @NonNull final Address to,
-            final long intrinsicGas,
+            final long initialGas,
             @NonNull final CodeFactory codeFactory,
             @NonNull final GasCalculator gasCalculator) {
         final var value = transaction.weiValue();
@@ -105,7 +105,7 @@ public class FrameBuilder {
         final var builder = MessageFrame.builder()
                 .maxStackSize(MAX_STACK_SIZE)
                 .worldUpdater(worldUpdater.updater())
-                .initialGas(transaction.gasAvailable(intrinsicGas))
+                .initialGas(initialGas)
                 .originator(from)
                 .gasPrice(Wei.of(context.gasPrice()))
                 .blobGasPrice(Wei.ONE) // Per Hedera CANCUN adaptation

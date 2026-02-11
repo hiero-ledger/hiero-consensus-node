@@ -3,17 +3,16 @@ package com.hedera.node.app.service.contract.impl.exec.delegation;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_GAS;
-import static com.hedera.node.app.service.contract.impl.exec.gas.HederaGasCalculatorImpl.INTRINSIC_DELEGATION_GAS_COST;
 import static org.hyperledger.besu.evm.account.Account.MAX_NONCE;
 import static org.hyperledger.besu.evm.worldstate.CodeDelegationHelper.CODE_DELEGATION_PREFIX;
 
 import com.hedera.node.app.hapi.utils.ethereum.CodeDelegation;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxSigs;
-import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransaction;
 import com.hedera.node.app.service.contract.impl.state.HederaEvmAccount;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.token.records.CryptoCreateStreamBuilder;
 import java.math.BigInteger;
+import java.util.List;
 import java.util.Optional;
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.datatypes.Address;
@@ -56,22 +55,23 @@ public record CodeDelegationProcessor(long chainId) {
      * </ol>
      *
      * @param worldUpdater The world state updater which is aware of code delegation.
-     * @param transaction  The transaction being processed.
+     * @param lazyCreationGasAvailable gas amount available for charing Hedera-specific lazy account creation cost
+     * @param codeDelegations code delegations to process
      * @return The result of the code delegation processing.
      */
-    public CodeDelegationResult process(final WorldUpdater worldUpdater, final HederaEvmTransaction transaction) {
-        final CodeDelegationResult result = new CodeDelegationResult(transaction.gasLimit());
+    public CodeDelegationResult process(
+            final WorldUpdater worldUpdater,
+            final long lazyCreationGasAvailable,
+            List<CodeDelegation> codeDelegations) {
+        final CodeDelegationResult result = new CodeDelegationResult(lazyCreationGasAvailable);
 
-        if (transaction.codeDelegations() == null) {
-            // If there are no code delegations, we can return early.
+        if (codeDelegations == null || codeDelegations.isEmpty()) {
             return result;
         }
 
         // Get a new proxy world updater to handle state changes and records for code delegations.
         final ProxyWorldUpdater proxyWorldUpdater = (ProxyWorldUpdater) worldUpdater.updater();
-        transaction
-                .codeDelegations()
-                .forEach(codeDelegation -> processCodeDelegation(proxyWorldUpdater, codeDelegation, result));
+        codeDelegations.forEach(codeDelegation -> processCodeDelegation(proxyWorldUpdater, codeDelegation, result));
         // Commit the changes for code delegations.
         proxyWorldUpdater.commit();
 
@@ -109,8 +109,6 @@ public record CodeDelegationProcessor(long chainId) {
         final Optional<MutableAccount> maybeAuthorityAccount =
                 Optional.ofNullable(proxyWorldUpdater.getAccount(authorizerAddress));
 
-        result.addAccessedDelegatorAddress(authorizerAddress);
-
         final var delegatedContractAddress =
                 Address.fromHexString(Bytes.wrap(codeDelegation.address()).toString());
 
@@ -121,13 +119,12 @@ public record CodeDelegationProcessor(long chainId) {
                 return;
             }
 
-            // Calculate the cost for lazy creation minus the intrinsic delegation gas cost for a single code delegation
-            // Ensure minimum of INTRINSIC_DELEGATION_GAS_COST
-            final var lazyCreationCost = Math.max(
-                    proxyWorldUpdater.lazyCreationCostInGas(authorizerAddress) - INTRINSIC_DELEGATION_GAS_COST,
-                    INTRINSIC_DELEGATION_GAS_COST);
-            if (result.getAvailableGas() >= lazyCreationCost) {
-                result.deductGas(lazyCreationCost);
+            // The base gas defined in EIP-7702 (PER_EMPTY_ACCOUNT_COST = 25000) is already included
+            // in the transaction intrinsic gas.
+            // Here we're only charging the Hedera-specific lazy account creation cost.
+            final var lazyCreationCost = proxyWorldUpdater.lazyCreationCostInGas(authorizerAddress);
+            if (result.remainingLazyCreationGasAvailable() >= lazyCreationCost) {
+                result.addHollowAccountCreationGasCharge(lazyCreationCost);
             } else {
                 // Create failed record due to insufficient gas for lazy creation
                 final var failedRecord =
@@ -164,7 +161,7 @@ public record CodeDelegationProcessor(long chainId) {
                     ((HederaEvmAccount) authority).hederaId(), delegatedContractAddress)) {
                 return;
             }
-            result.incrementAlreadyExistingDelegators();
+            result.incAuthorizationsEligibleForRefund();
         }
 
         authority.incrementNonce();

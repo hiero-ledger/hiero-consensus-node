@@ -65,7 +65,6 @@ public class FrameRunner {
      * @param messageCall      the message call processor to use
      * @param contractCreation the contract creation processor to use
      * @param gasCharges       the gas charges of the transaction
-     * @param codeDelegationRefund the gas refund for code delegation if any
      * @return the result of the transaction
      */
     public HederaEvmTransactionResult runToCompletion(
@@ -75,8 +74,7 @@ public class FrameRunner {
             @NonNull final ActionSidecarContentTracer tracer,
             @NonNull final CustomMessageCallProcessor messageCall,
             @NonNull final ContractCreationProcessor contractCreation,
-            @NonNull final GasCharges gasCharges,
-            final long codeDelegationRefund) {
+            @NonNull final GasCharges gasCharges) {
         requireNonNull(frame);
         requireNonNull(tracer);
         requireNonNull(senderId);
@@ -97,7 +95,7 @@ public class FrameRunner {
         tracer.sanitizeTracedActions(frame);
 
         // And return the result, success or failure
-        final var gasUsed = effectiveGasUsed(gasLimit, frame, gasCharges, codeDelegationRefund);
+        final var gasUsed = effectiveGasUsed(gasLimit, frame, gasCharges);
         if (frame.getState() == COMPLETED_SUCCESS) {
             return successFrom(
                     gasUsed,
@@ -164,14 +162,11 @@ public class FrameRunner {
     }
 
     private long effectiveGasUsed(
-            final long gasLimit,
-            @NonNull final MessageFrame frame,
-            @NonNull final GasCharges gasCharges,
-            final long codeDelegationRefund) {
+            final long gasLimit, @NonNull final MessageFrame frame, @NonNull final GasCharges gasCharges) {
         final var nominalGasUsed = gasLimit - frame.getRemainingGas();
 
-        // A gas refund limit as defined in EIP-3529
-        final var nominalRefund = frame.getGasRefund() + codeDelegationRefund;
+        // Gas refund limit as defined in EIP-3529 (including any EIP-7702 refunds)
+        final var nominalRefund = frame.getGasRefund();
         final var maxGasRefunded = nominalGasUsed / gasCalculator.getMaxRefundQuotient();
         final var actualGasToRefund = Math.min(maxGasRefunded, nominalRefund);
         var gasUsedAfterRefund = nominalGasUsed - actualGasToRefund;

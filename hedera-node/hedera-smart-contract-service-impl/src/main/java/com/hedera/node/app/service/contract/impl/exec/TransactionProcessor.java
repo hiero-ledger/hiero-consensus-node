@@ -16,6 +16,8 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
+import com.hedera.node.app.service.contract.impl.exec.delegation.CodeDelegationProcessor;
+import com.hedera.node.app.service.contract.impl.exec.delegation.CodeDelegationResult;
 import com.hedera.node.app.service.contract.impl.exec.gas.CustomGasCharging;
 import com.hedera.node.app.service.contract.impl.exec.gas.GasCharges;
 import com.hedera.node.app.service.contract.impl.exec.processors.CustomMessageCallProcessor;
@@ -135,6 +137,33 @@ public class TransactionProcessor {
                 ? GasCharges.NONE
                 : gasCharging.chargeForGas(parties.sender(), parties.relayer(), context, updater, transaction);
 
+        if (transaction.isEthereumTransaction() && !transaction.isHookExecution() && !context.isNoopGasContext()) {
+            parties.sender().incrementNonce();
+        }
+
+        final var contractsConfig = config.getConfigData(ContractsConfig.class);
+        final var hasCodeDelegations = transaction.codeDelegations() != null
+                && !transaction.codeDelegations().isEmpty();
+
+        final CodeDelegationResult codeDelegationResult;
+        if (hasCodeDelegations && contractsConfig.evmPectraEnabled()) {
+            // Gas amount available for charging Hedera-specific hollow account creation cost
+            // when processing code delegations.
+            // Note that the base EIP-7702 gas cost for authorizations is already deducted in `intrinsicGas`.
+            final var lazyCreationGasAvailable = transaction.gasLimit() - gasCharges.intrinsicGas();
+            codeDelegationResult = new CodeDelegationProcessor(contractsConfig.chainId())
+                    .process(updater, lazyCreationGasAvailable, transaction.codeDelegations());
+        } else {
+            codeDelegationResult = new CodeDelegationResult(transaction.gasLimit());
+        }
+
+        // The initial gas available for code execution is the gas limit
+        // minus intrinsic gas (which includes EIP-7702 code delegation charges)
+        // minus the Hedera-specific charges applied while processing
+        // EIP-7702 code delegations (hollow account creation).
+        final var rootFrameInitialGas =
+                transaction.gasLimit() - gasCharges.intrinsicGas() - codeDelegationResult.totalLazyCreationGasCharged();
+
         final var initialFrame = frameBuilder.buildInitialFrameWith(
                 transaction,
                 updater,
@@ -144,9 +173,15 @@ public class TransactionProcessor {
                 featureFlags,
                 parties.sender().getAddress(),
                 parties.receiverAddress(),
-                gasCharges.intrinsicGas(),
+                rootFrameInitialGas,
                 codeFactory,
                 gasCalculator);
+
+        // As per EIP-7702: add code delegation refund (for setting the delegation on *existing* accounts)
+        // to the global refund counter.
+        final var codeDelegationRefund =
+                gasCalculator.calculateDelegateCodeGasRefund(codeDelegationResult.numAuthorizationsEligibleForRefund());
+        initialFrame.incrementGasRefund(codeDelegationRefund);
 
         // Compute the result of running the frame to completion
         final var result = frameRunner.runToCompletion(
@@ -156,8 +191,7 @@ public class TransactionProcessor {
                 tracer,
                 messageCall,
                 contractCreation,
-                gasCharges,
-                transaction.codeDelegationGasRefund());
+                gasCharges);
 
         // Maybe refund some of the charged fees before committing if not a hook dispatch
         // Note that for hook dispatch, gas is charged during cryptoTransfer and will not be refunded once

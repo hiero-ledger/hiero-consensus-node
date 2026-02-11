@@ -4,7 +4,6 @@ package com.hedera.node.app.service.contract.impl.test.exec;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.*;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.ETH_DATA_WITHOUT_TO_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.ETH_DATA_WITH_TO_ADDRESS;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.GAS_LIMIT;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.HEVM_CREATION;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.HEVM_Exception;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.HEVM_OversizeException;
@@ -148,8 +147,7 @@ class ContextTransactionProcessorTest {
                 hevmTransactionFactory,
                 processor,
                 customGasCharging,
-                contractMetrics,
-                codeDelegationProcessor);
+                contractMetrics);
 
         given(enhancement.operations()).willReturn(hederaOperations);
         given(rootProxyWorldUpdater.enhancement()).willReturn(enhancement);
@@ -163,8 +161,7 @@ class ContextTransactionProcessorTest {
                         CONFIGURATION,
                         OpsDurationCounter.disabled()))
                 .willReturn(SUCCESS_RESULT_WITH_SIGNER_NONCE);
-        given(codeDelegationProcessor.process(any(), any())).willReturn(codeDelegationResult);
-        given(codeDelegationResult.getAvailableGas()).willReturn(GAS_LIMIT);
+        given(codeDelegationProcessor.process(any(), anyLong(), any())).willReturn(codeDelegationResult);
 
         final var protoResult = SUCCESS_RESULT_WITH_SIGNER_NONCE.asProtoResultOf(
                 ETH_DATA_WITH_TO_ADDRESS, rootProxyWorldUpdater, Bytes.wrap(ETH_DATA_WITH_TO_ADDRESS.callData()));
@@ -204,13 +201,11 @@ class ContextTransactionProcessorTest {
                 hevmTransactionFactory,
                 processor,
                 customGasCharging,
-                contractMetrics,
-                codeDelegationProcessor);
+                contractMetrics);
 
         given(enhancement.operations()).willReturn(hederaOperations);
         given(rootProxyWorldUpdater.enhancement()).willReturn(enhancement);
-        given(codeDelegationProcessor.process(any(), any())).willReturn(codeDelegationResult);
-        given(codeDelegationResult.getAvailableGas()).willReturn(GAS_LIMIT);
+        given(codeDelegationProcessor.process(any(), anyLong(), any())).willReturn(codeDelegationResult);
         givenSenderAccount();
         givenBodyWithTxnIdWillReturnHEVM();
         given(processor.processTransaction(
@@ -259,8 +254,7 @@ class ContextTransactionProcessorTest {
                 hevmTransactionFactory,
                 processor,
                 customGasCharging,
-                contractMetrics,
-                codeDelegationProcessor);
+                contractMetrics);
 
         given(enhancement.operations()).willReturn(hederaOperations);
         given(rootProxyWorldUpdater.enhancement()).willReturn(enhancement);
@@ -307,8 +301,7 @@ class ContextTransactionProcessorTest {
                 hevmTransactionFactory,
                 processor,
                 customGasCharging,
-                contractMetrics,
-                codeDelegationProcessor);
+                contractMetrics);
 
         given(enhancement.operations()).willReturn(hederaOperations);
         given(rootProxyWorldUpdater.enhancement()).willReturn(enhancement);
@@ -343,8 +336,7 @@ class ContextTransactionProcessorTest {
                 hevmTransactionFactory,
                 processor,
                 customGasCharging,
-                contractMetrics,
-                codeDelegationProcessor);
+                contractMetrics);
 
         given(context.body()).willReturn(transactionBody);
         final var payer = AccountID.DEFAULT;
@@ -376,8 +368,7 @@ class ContextTransactionProcessorTest {
                 hevmTransactionFactory,
                 processor,
                 customGasCharging,
-                contractMetrics,
-                codeDelegationProcessor);
+                contractMetrics);
 
         given(context.body()).willReturn(transactionBody);
         given(context.payer()).willReturn(RELAYER_ID);
@@ -408,8 +399,7 @@ class ContextTransactionProcessorTest {
                 hevmTransactionFactory,
                 processor,
                 customGasCharging,
-                contractMetrics,
-                codeDelegationProcessor);
+                contractMetrics);
 
         given(context.body()).willReturn(transactionBody);
         final var payer = AccountID.DEFAULT;
@@ -441,8 +431,7 @@ class ContextTransactionProcessorTest {
                 hevmTransactionFactory,
                 processor,
                 customGasCharging,
-                contractMetrics,
-                codeDelegationProcessor);
+                contractMetrics);
 
         given(context.body()).willReturn(transactionBody);
         final var payer = AccountID.DEFAULT;
@@ -477,8 +466,7 @@ class ContextTransactionProcessorTest {
                 hevmTransactionFactory,
                 processor,
                 customGasCharging,
-                contractMetrics,
-                codeDelegationProcessor);
+                contractMetrics);
 
         given(context.body()).willReturn(transactionBody);
         final var payer = AccountID.DEFAULT;
@@ -513,8 +501,7 @@ class ContextTransactionProcessorTest {
                 hevmTransactionFactory,
                 processor,
                 customGasCharging,
-                contractMetrics,
-                codeDelegationProcessor);
+                contractMetrics);
 
         given(context.body()).willReturn(transactionBody);
         given(context.payer()).willReturn(SENDER_ID);
@@ -544,8 +531,7 @@ class ContextTransactionProcessorTest {
                 hevmTransactionFactory,
                 processor,
                 customGasCharging,
-                contractMetrics,
-                codeDelegationProcessor);
+                contractMetrics);
 
         assertFailsWith(INVALID_ETHEREUM_TRANSACTION, subject::call);
     }
@@ -568,8 +554,7 @@ class ContextTransactionProcessorTest {
                 hevmTransactionFactory,
                 processor,
                 customGasCharging,
-                contractMetrics,
-                codeDelegationProcessor);
+                contractMetrics);
 
         final var payer = AccountID.DEFAULT;
         given(context.body()).willReturn(transactionBody);
@@ -706,8 +691,7 @@ class ContextTransactionProcessorTest {
         given(hevmTransaction.isEthereumTransaction()).willReturn(false); // Not ETH tx
         given(hevmTransaction.isException()).willReturn(false);
         given(hevmTransaction.senderId()).willReturn(SENDER_ID);
-        given(codeDelegationProcessor.process(any(), any())).willReturn(codeDelegationResult);
-        given(hevmTransaction.fromCodeDelegationResult(any())).willReturn(hevmTransaction);
+        given(codeDelegationProcessor.process(any(), anyLong(), any())).willReturn(codeDelegationResult);
         given(rootProxyWorldUpdater.entityIdFactory()).willReturn(entityIdFactory);
         given(rootProxyWorldUpdater.getHederaAccount(SENDER_ID)).willReturn(senderAccount);
         given(senderAccount.getNonce()).willReturn(1L);
@@ -730,8 +714,7 @@ class ContextTransactionProcessorTest {
         given(hevmTransaction.codeDelegations()).willReturn(null); // Null code delegations
         given(hevmTransaction.isException()).willReturn(false);
         given(hevmTransaction.senderId()).willReturn(SENDER_ID);
-        given(codeDelegationProcessor.process(any(), any())).willReturn(codeDelegationResult);
-        given(hevmTransaction.fromCodeDelegationResult(any())).willReturn(hevmTransaction);
+        given(codeDelegationProcessor.process(any(), anyLong(), any())).willReturn(codeDelegationResult);
         given(rootProxyWorldUpdater.entityIdFactory()).willReturn(entityIdFactory);
         given(rootProxyWorldUpdater.getHederaAccount(SENDER_ID)).willReturn(senderAccount);
         given(senderAccount.getNonce()).willReturn(1L);
@@ -749,7 +732,6 @@ class ContextTransactionProcessorTest {
         // Scenario 1: Processes when Pectra enabled and hydratedEthTxData present
         final var pectraConfig = PECTRA_ENABLED_CONFIG.getConfigData(ContractsConfig.class);
         final var hydratedEthTxData = HydratedEthTxData.successFrom(ETH_DATA_WITH_TO_ADDRESS, false);
-        final var updatedTransaction = mock(HederaEvmTransaction.class);
         var subject = createSubject(hydratedEthTxData, pectraConfig, PECTRA_ENABLED_CONFIG);
 
         given(context.body()).willReturn(transactionBody);
@@ -758,24 +740,20 @@ class ContextTransactionProcessorTest {
                 .willReturn(hevmTransaction);
         given(hevmTransaction.payload()).willReturn(Bytes.EMPTY);
         given(hevmTransaction.isEthereumTransaction()).willReturn(false);
-        given(codeDelegationProcessor.process(rootProxyWorldUpdater, hevmTransaction))
+        given(codeDelegationProcessor.process(rootProxyWorldUpdater, anyLong(), hevmTransaction.codeDelegations()))
                 .willReturn(codeDelegationResult);
-        given(hevmTransaction.fromCodeDelegationResult(codeDelegationResult)).willReturn(updatedTransaction);
-        given(updatedTransaction.isException()).willReturn(false);
-        given(updatedTransaction.senderId()).willReturn(SENDER_ID);
         given(rootProxyWorldUpdater.getHederaAccount(SENDER_ID)).willReturn(senderAccount);
         given(senderAccount.getNonce()).willReturn(1L);
         given(rootProxyWorldUpdater.entityIdFactory()).willReturn(entityIdFactory);
         given(rootProxyWorldUpdater.enhancement()).willReturn(enhancement);
         given(enhancement.operations()).willReturn(hederaOperations);
-        given(processor.processTransaction(eq(updatedTransaction), any(), any(), any(), any(), any()))
+        given(processor.processTransaction(eq(hevmTransaction), any(), any(), any(), any(), any()))
                 .willReturn(SUCCESS_RESULT);
 
         var outcome = subject.call();
 
-        verify(codeDelegationProcessor).process(rootProxyWorldUpdater, hevmTransaction);
-        verify(hevmTransaction).fromCodeDelegationResult(codeDelegationResult);
-        verify(processor).processTransaction(eq(updatedTransaction), any(), any(), any(), any(), any());
+        verify(codeDelegationProcessor).process(rootProxyWorldUpdater, anyLong(), hevmTransaction.codeDelegations());
+        verify(processor).processTransaction(eq(hevmTransaction), any(), any(), any(), any(), any());
         assertEquals(SUCCESS, outcome.status());
 
         // Scenario 2: Skips when hydratedEthTxData is null
@@ -796,7 +774,7 @@ class ContextTransactionProcessorTest {
 
         outcome = subject.call();
 
-        verify(codeDelegationProcessor, never()).process(any(), any());
+        verify(codeDelegationProcessor, never()).process(any(), anyLong(), any());
         assertEquals(SUCCESS, outcome.status());
     }
 
@@ -814,8 +792,7 @@ class ContextTransactionProcessorTest {
                 hevmTransactionFactory,
                 processor,
                 customGasCharging,
-                contractMetrics,
-                codeDelegationProcessor);
+                contractMetrics);
     }
 
     void givenSenderAccount() {

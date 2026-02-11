@@ -72,7 +72,7 @@ class CodeDelegationProcessorTest {
         when(tx.codeDelegations()).thenReturn(null);
 
         final var p = new CodeDelegationProcessor(CHAIN_ID);
-        final var result = p.process(world, tx);
+        final var result = p.process(world, tx.gasLimit(), tx.codeDelegations());
 
         assertNotNull(result);
         verifyNoInteractions(world);
@@ -85,7 +85,7 @@ class CodeDelegationProcessorTest {
         when(world.updater()).thenReturn(proxyWorldUpdater);
 
         final var p = new CodeDelegationProcessor(CHAIN_ID);
-        final var result = p.process(world, tx);
+        final var result = p.process(world, tx.gasLimit(), tx.codeDelegations());
 
         assertNotNull(result);
         verify(proxyWorldUpdater).commit();
@@ -99,7 +99,7 @@ class CodeDelegationProcessorTest {
         when(world.updater()).thenReturn(proxyWorldUpdater);
 
         final var p = new CodeDelegationProcessor(CHAIN_ID);
-        final var result = p.process(world, tx);
+        final var result = p.process(world, tx.gasLimit(), tx.codeDelegations());
 
         assertNotNull(result);
         verify(proxyWorldUpdater).commit();
@@ -114,7 +114,7 @@ class CodeDelegationProcessorTest {
         when(world.updater()).thenReturn(proxyWorldUpdater);
 
         final var p = new CodeDelegationProcessor(CHAIN_ID);
-        final var result = p.process(world, tx);
+        final var result = p.process(world, tx.gasLimit(), tx.codeDelegations());
 
         assertNotNull(result);
         verify(proxyWorldUpdater).commit();
@@ -129,7 +129,7 @@ class CodeDelegationProcessorTest {
         when(world.updater()).thenReturn(proxyWorldUpdater);
 
         final var p = new CodeDelegationProcessor(CHAIN_ID);
-        final var result = p.process(world, tx);
+        final var result = p.process(world, tx.gasLimit(), tx.codeDelegations());
 
         assertNotNull(result);
         verify(proxyWorldUpdater).commit();
@@ -145,7 +145,7 @@ class CodeDelegationProcessorTest {
         when(world.updater()).thenReturn(proxyWorldUpdater);
 
         final var p = new CodeDelegationProcessor(CHAIN_ID);
-        final var result = p.process(world, tx);
+        final var result = p.process(world, tx.gasLimit(), tx.codeDelegations());
 
         assertNotNull(result);
         verify(proxyWorldUpdater).commit();
@@ -164,7 +164,7 @@ class CodeDelegationProcessorTest {
             mocked.when(() -> EthTxSigs.extractAuthoritySignature(del)).thenReturn(Optional.empty());
 
             final var p = new CodeDelegationProcessor(CHAIN_ID);
-            final var result = p.process(world, tx);
+            final var result = p.process(world, tx.gasLimit(), tx.codeDelegations());
 
             assertNotNull(result);
             verify(proxyWorldUpdater).commit();
@@ -183,7 +183,8 @@ class CodeDelegationProcessorTest {
         try (MockedStatic<EthTxSigs> mocked = mockStatic(EthTxSigs.class)) {
             mocked.when(() -> EthTxSigs.extractAuthoritySignature(del)).thenReturn(null);
 
-            assertThrowsExactly(NullPointerException.class, () -> p.process(world, tx));
+            assertThrowsExactly(
+                    NullPointerException.class, () -> p.process(world, tx.gasLimit(), tx.codeDelegations()));
 
             verify(world, never()).getAccount(any(Address.class));
             verify(world, never()).createAccount(any(Address.class));
@@ -217,15 +218,13 @@ class CodeDelegationProcessorTest {
             mocked.when(() -> EthTxSigs.extractAuthoritySignature(del)).thenReturn(sig);
 
             final var p = new CodeDelegationProcessor(CHAIN_ID);
-            final var result = p.process(world, tx);
+            final var result = p.process(world, tx.gasLimit(), tx.codeDelegations());
 
             assertNotNull(result);
             verify(proxyWorldUpdater, times(2)).getAccount(authAddr);
             verify(proxyWorldUpdater).createAccountWithCodeDelegation(authAddr, contractAddr);
             verify(acct).incrementNonce();
             verify(proxyWorldUpdater).commit();
-            // Gas should be reduced by the lazy creation cost
-            assertEquals(75000L, result.getAvailableGas());
         }
     }
 
@@ -256,14 +255,12 @@ class CodeDelegationProcessorTest {
             mocked.when(() -> EthTxSigs.extractAuthoritySignature(del)).thenReturn(sig);
 
             final var p = new CodeDelegationProcessor(CHAIN_ID);
-            final var result = p.process(world, tx);
+            final var result = p.process(world, tx.gasLimit(), tx.codeDelegations());
 
             assertNotNull(result);
             verify(proxyWorldUpdater).getAccount(authAddr);
             verify(proxyWorldUpdater).createNewChildRecordBuilder(CryptoCreateStreamBuilder.class, CRYPTO_CREATE);
             verify(proxyWorldUpdater).commit();
-            // Gas should not be reduced since there was insufficient gas for lazy creation
-            assertEquals(20000L, result.getAvailableGas());
         }
     }
 
@@ -287,7 +284,7 @@ class CodeDelegationProcessorTest {
             mocked.when(() -> EthTxSigs.extractAuthoritySignature(del)).thenReturn(sig);
 
             final var p = new CodeDelegationProcessor(CHAIN_ID);
-            final var result = p.process(world, tx);
+            final var result = p.process(world, tx.gasLimit(), tx.codeDelegations());
 
             assertNotNull(result);
             verify(proxyWorldUpdater).getAccount(authAddr);
@@ -322,7 +319,7 @@ class CodeDelegationProcessorTest {
             mocked.when(() -> EthTxSigs.extractAuthoritySignature(del)).thenReturn(sig);
 
             final var p = new CodeDelegationProcessor(CHAIN_ID);
-            final var result = p.process(world, tx);
+            final var result = p.process(world, tx.gasLimit(), tx.codeDelegations());
 
             assertNotNull(result);
             verify(proxyWorldUpdater).getAccount(authAddr);
@@ -354,7 +351,7 @@ class CodeDelegationProcessorTest {
             mocked.when(() -> EthTxSigs.extractAuthoritySignature(del)).thenReturn(sig);
 
             final var p = new CodeDelegationProcessor(CHAIN_ID);
-            final var result = p.process(world, tx);
+            final var result = p.process(world, tx.gasLimit(), tx.codeDelegations());
 
             assertNotNull(result);
             verify(proxyWorldUpdater).getAccount(authAddr);
@@ -387,7 +384,7 @@ class CodeDelegationProcessorTest {
             mocked.when(() -> EthTxSigs.extractAuthoritySignature(del)).thenReturn(sig);
 
             final var p = new CodeDelegationProcessor(CHAIN_ID);
-            final var result = p.process(world, tx);
+            final var result = p.process(world, tx.gasLimit(), tx.codeDelegations());
 
             assertNotNull(result);
             verify(proxyWorldUpdater).getAccount(authAddr);
@@ -423,7 +420,7 @@ class CodeDelegationProcessorTest {
             mocked.when(() -> EthTxSigs.extractAuthoritySignature(del)).thenReturn(sig);
 
             final var p = new CodeDelegationProcessor(CHAIN_ID);
-            final var result = p.process(world, tx);
+            final var result = p.process(world, tx.gasLimit(), tx.codeDelegations());
 
             assertNotNull(result);
             verify(proxyWorldUpdater).getAccount(zeroAddr);

@@ -7,7 +7,6 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CALLED_
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_CONFIG;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.ETH_DATA_WITHOUT_TO_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.ETH_DATA_WITH_TO_ADDRESS;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.GAS_LIMIT;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.HEVM_CREATION;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.RECEIVER_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SENDER_ID;
@@ -19,6 +18,7 @@ import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.E
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.ETHEREUM_NONCE_INCREMENT_CALLBACK;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.notNull;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
@@ -212,8 +212,7 @@ class EthereumTransactionHandlerTest {
                 hevmTransactionFactory,
                 transactionProcessor,
                 customGasCharging,
-                contractMetrics,
-                codeDelegationProcessor);
+                contractMetrics);
 
         given(component.contextTransactionProcessor()).willReturn(contextTransactionProcessor);
         final var body = TransactionBody.newBuilder()
@@ -274,8 +273,7 @@ class EthereumTransactionHandlerTest {
                 .willReturn(recordBuilder);
         given(callRecordBuilder.withCommonFieldsSetFrom(expectedOutcome, context, entityIdFactory))
                 .willReturn(callRecordBuilder);
-        given(codeDelegationProcessor.process(any(), any())).willReturn(codeDelegationResult);
-        given(codeDelegationResult.getAvailableGas()).willReturn(GAS_LIMIT);
+        given(codeDelegationProcessor.process(any(), anyLong(), any())).willReturn(codeDelegationResult);
 
         assertDoesNotThrow(() -> subject.handle(context));
     }
@@ -337,8 +335,7 @@ class EthereumTransactionHandlerTest {
         given(recordBuilder.ethereumHash(Bytes.wrap(ETH_DATA_WITHOUT_TO_ADDRESS.getEthereumHash())))
                 .willReturn(recordBuilder);
         givenSenderAccountWithNonce(SIGNER_NONCE);
-        given(codeDelegationProcessor.process(any(), any())).willReturn(codeDelegationResult);
-        given(codeDelegationResult.getAvailableGas()).willReturn(GAS_LIMIT);
+        given(codeDelegationProcessor.process(any(), anyLong(), any())).willReturn(codeDelegationResult);
 
         assertDoesNotThrow(() -> subject.handle(context));
     }
@@ -435,8 +432,7 @@ class EthereumTransactionHandlerTest {
             given(ethTxDataReturned.to()).willReturn(toAddress);
             given(ethTxDataReturned.type()).willReturn(EthTransactionType.EIP2930);
             GasCharges gasCharges = TestHelpers.gasChargesFromIntrinsicGas(INTRINSIC_GAS_FOR_0_ARG_METHOD);
-            given(gasCalculator.transactionGasRequirements(
-                            org.apache.tuweni.bytes.Bytes.wrap(new byte[0]), false, 0L, 0L))
+            given(gasCalculator.transactionGasRequirements(org.apache.tuweni.bytes.Bytes.wrap(new byte[0]), false, 0L))
                     .willReturn(gasCharges);
             given(ethTxDataReturned.gasLimit()).willReturn(INTRINSIC_GAS_FOR_0_ARG_METHOD);
             assertDoesNotThrow(() -> subject.pureChecks(pureChecksContext));
@@ -496,8 +492,7 @@ class EthereumTransactionHandlerTest {
             given(ethTxDataReturned.to()).willReturn(toAddress);
             given(ethTxDataReturned.type()).willReturn(EthTransactionType.EIP2930);
             GasCharges gasCharges = TestHelpers.gasChargesFromIntrinsicGas(INTRINSIC_GAS_FOR_0_ARG_METHOD);
-            given(gasCalculator.transactionGasRequirements(
-                            org.apache.tuweni.bytes.Bytes.wrap(new byte[0]), false, 0L, 0L))
+            given(gasCalculator.transactionGasRequirements(org.apache.tuweni.bytes.Bytes.wrap(new byte[0]), false, 0L))
                     .willReturn(gasCharges);
             PreCheckException exception =
                     assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
@@ -517,8 +512,7 @@ class EthereumTransactionHandlerTest {
             given(ethTxDataReturned.to()).willReturn(toAddress);
             given(ethTxDataReturned.type()).willReturn(EthTransactionType.EIP2930);
             GasCharges gasCharges = TestHelpers.gasChargesFromIntrinsicGas(INTRINSIC_GAS_FOR_0_ARG_METHOD);
-            given(gasCalculator.transactionGasRequirements(
-                            org.apache.tuweni.bytes.Bytes.wrap(new byte[0]), false, 0L, 0L))
+            given(gasCalculator.transactionGasRequirements(org.apache.tuweni.bytes.Bytes.wrap(new byte[0]), false, 0L))
                     .willReturn(gasCharges);
             PreCheckException exception =
                     assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
@@ -616,8 +610,7 @@ class EthereumTransactionHandlerTest {
         given(context.dispatchMetadata()).willReturn(dispatchMetadata);
         given(dispatchMetadata.getMetadata(ETHEREUM_NONCE_INCREMENT_CALLBACK, BiConsumer.class))
                 .willReturn(optionalCallback);
-        given(codeDelegationProcessor.process(any(), any())).willReturn(codeDelegationResult);
-        given(codeDelegationResult.getAvailableGas()).willReturn(GAS_LIMIT);
+        given(codeDelegationProcessor.process(any(), anyLong(), any())).willReturn(codeDelegationResult);
 
         // Execute the handler
         assertDoesNotThrow(() -> subject.handle(context));

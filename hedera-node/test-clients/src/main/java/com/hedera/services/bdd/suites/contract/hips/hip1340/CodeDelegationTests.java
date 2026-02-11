@@ -3,6 +3,7 @@ package com.hedera.services.bdd.suites.contract.hips.hip1340;
 
 import static com.esaulpaugh.headlong.abi.Address.toChecksumAddress;
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
+import static com.hedera.node.app.service.contract.impl.utils.ConstantUtils.ZERO_ADDRESS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
@@ -624,10 +625,11 @@ public class CodeDelegationTests {
                     sourcing(() -> ethereumCryptoTransfer(RELAYER, 1L)
                             .signingWith(delegatingEoa.keyName)
                             .payingWith(RELAYER)
+                            .type(EthTransactionType.EIP7702)
                             .gasLimit(50_000L)
-                            .clearDelegation()),
+                            .addSenderCodeDelegationWithSpecNonce(ZERO_ADDRESS)),
                     // Verify that the delegation was cleared
-                    getAccountInfo(delegatingEoa.name()).hasNoDelegationAddress());
+                    getAccountInfo(delegatingEoa.name()).hasNoDelegation());
         }));
     }
 
@@ -643,18 +645,15 @@ public class CodeDelegationTests {
             allRunFor(
                     spec,
                     cryptoCreate(RELAYER).balance(ONE_MILLION_HBARS),
-
-                    getAccountInfo(delegatingEoa.name())
-                        .exposingEthereumNonceTo(preEthereumNonce::set),
+                    getAccountInfo(delegatingEoa.name()).exposingEthereumNonceTo(preEthereumNonce::set),
 
                     // ethereum transaction with code delegation
                     sourcing(() -> ethereumCryptoTransfer(RELAYER, 1L)
                             .signingWith(delegatingEoa.keyName())
                             .payingWith(RELAYER)
                             .type(EthTransactionType.EIP7702)
-                            .setDelegationTarget(delegationTargetContract.address())
-                            .gasLimit(2_000_000L)
-                            .nonce(0)),
+                            .addSenderCodeDelegationWithSpecNonce(delegationTargetContract.address())
+                            .gasLimit(2_000_000L)),
 
                     // Verify account has delegation set
                     getAccountInfo(delegatingEoa.name())
@@ -669,7 +668,7 @@ public class CodeDelegationTests {
                     cryptoUpdate(delegatingEoa.name()).delegationAddress(ByteString.empty()),
 
                     // Verify that the delegation was cleared from the account
-                    getAccountInfo(delegatingEoa.name()).hasNoDelegationAddress());
+                    getAccountInfo(delegatingEoa.name()).hasNoDelegation());
         })));
     }
 
