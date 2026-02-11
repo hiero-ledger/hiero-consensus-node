@@ -11,12 +11,16 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.deleteTopic;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.submitMessageTo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.updateTopic;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedConsensusHbarFee;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.safeValidateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedFeeFromBytesFor;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
 
 import com.hedera.services.bdd.junit.HapiTest;
@@ -34,6 +38,7 @@ public class ConsensusServiceFeesSuite {
     private static final double BASE_FEE_TOPIC_UPDATE = 0.00022;
     private static final double BASE_FEE_TOPIC_DELETE = 0.005;
     private static final double BASE_FEE_TOPIC_SUBMIT_MESSAGE = 0.0008;
+
     private static final double BASE_FEE_TOPIC_GET_INFO = 0.0001;
 
     private static final String PAYER = "payer";
@@ -66,7 +71,15 @@ public class ConsensusServiceFeesSuite {
                         .via("topicCreateWithMultipleCustomFees"),
                 validateChargedUsd("topicCreate", BASE_FEE_TOPIC_CREATE),
                 validateChargedUsd("topicCreateWithCustomFee", BASE_FEE_TOPIC_CREATE_WITH_CUSTOM_FEE, 1.5),
-                validateChargedUsd("topicCreateWithMultipleCustomFees", TOPIC_CREATE_WITH_FIVE_CUSTOM_FEES, 1.5));
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return validateChargedUsd(
+                                "topicCreateWithMultipleCustomFees", BASE_FEE_TOPIC_CREATE_WITH_CUSTOM_FEE, 1.5);
+                    } else {
+                        return validateChargedUsd(
+                                "topicCreateWithMultipleCustomFees", TOPIC_CREATE_WITH_FIVE_CUSTOM_FEES, 1.5);
+                    }
+                }));
     }
 
     @HapiTest
@@ -130,8 +143,11 @@ public class ConsensusServiceFeesSuite {
                         .via("submitMessage1024"),
                 sleepFor(1000),
                 validateChargedUsd("submitMessage", BASE_FEE_TOPIC_SUBMIT_MESSAGE),
-                validateChargedUsd("submitMessage500", 0.00088),
-                validateChargedUsd("submitMessage1024", 0.00098));
+                safeValidateChargedUsd("submitMessage500", 0.00088, BASE_FEE_TOPIC_SUBMIT_MESSAGE),
+                withOpContext((spec, log) -> safeValidateChargedUsd(
+                        "submitMessage1024",
+                        0.00098,
+                        BASE_FEE_TOPIC_SUBMIT_MESSAGE + expectedFeeFromBytesFor(spec, log, "submitMessage1024"))));
     }
 
     @HapiTest

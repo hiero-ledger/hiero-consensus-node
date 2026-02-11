@@ -12,6 +12,7 @@ import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
 import com.hedera.node.app.quiescence.QuiescedHeartbeat;
 import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.app.spi.metrics.StoreMetricsService;
+import com.hedera.node.app.spi.store.StoreMetrics;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.converter.FunctionalitySetConverter;
@@ -33,7 +34,6 @@ import com.swirlds.metrics.api.MetricType;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.state.State;
-import com.swirlds.state.spi.metrics.StoreMetrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Collection;
 import java.util.Collections;
@@ -316,12 +316,7 @@ public final class NoOpDependencies {
 
     /** Creates a minimal ConfigProvider */
     public static ConfigProvider createBenchmarkConfigProvider() {
-        return new ConfigProvider() {
-            @Override
-            public @NonNull VersionedConfigImpl getConfiguration() {
-                return new VersionedConfigImpl(createBenchmarkConfiguration(), 1L);
-            }
-        };
+        return () -> new VersionedConfigImpl(createBenchmarkConfiguration(), 1L);
     }
 
     /** Creates a minimal Configuration with hardcoded values */

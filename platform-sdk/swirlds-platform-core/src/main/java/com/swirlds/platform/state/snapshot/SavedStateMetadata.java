@@ -28,7 +28,6 @@ import static org.hiero.consensus.platformstate.PlatformStateUtils.roundOf;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.formatting.TextTable;
 import com.swirlds.common.utility.Mnemonics;
-import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -54,6 +53,7 @@ import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterRetriever;
 import org.hiero.consensus.roster.RosterUtils;
+import org.hiero.consensus.state.signed.SignedState;
 
 /**
  * Metadata about a saved state. Fields in this record may be null if they are not present in the metadata file. All

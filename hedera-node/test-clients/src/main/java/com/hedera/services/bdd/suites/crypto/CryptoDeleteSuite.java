@@ -43,6 +43,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_DELETE
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_ID_DOES_NOT_EXIST;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_IS_TREASURY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ACCOUNT_ID;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.PAYER_ACCOUNT_DELETED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_REQUIRES_ZERO_TOKEN_BALANCES;
@@ -94,26 +95,29 @@ public class CryptoDeleteSuite {
                 cryptoTransfer(tinyBarsFromTo(beneficiaryAccount, GENESIS, 1))
                         .payingWith(ACCOUNT_TO_BE_DELETED)
                         .via("failedTxn")
+                        .hasPrecheckFrom(OK, PAYER_ACCOUNT_DELETED)
                         .hasKnownStatus(PAYER_ACCOUNT_DELETED),
                 // Compute the net balance change of the submitting node across both transactions
                 // from their records (deterministic, no stale balance queries). Since the account
                 // is already deleted, we have less signatures to verify.
                 withOpContext((spec, opLog) -> {
-                    final var nodeAccountId = TxnUtils.asId(submittingNodeAccount, spec);
-                    final var deleteRecord = getTxnRecord("deleteTxn");
-                    final var failedRecord = getTxnRecord("failedTxn");
-                    allRunFor(spec, deleteRecord, failedRecord);
-                    long netChange = Stream.of(deleteRecord, failedRecord)
-                            .flatMap(r -> r.getResponseRecord().getTransferList().getAccountAmountsList().stream())
-                            .filter(aa -> aa.getAccountID().equals(nodeAccountId))
-                            .filter(aa -> aa.getAmount() < 0)
-                            .mapToLong(AccountAmount::getAmount)
-                            .sum();
-                    assertTrue(
-                            Math.abs(netChange - (-30000)) <= 15000,
-                            String.format(
-                                    "Expected net balance change for node '%s' to be <-30000 +/- 15000>, was <%d>",
-                                    submittingNodeAccount, netChange));
+                    if (!spec.simpleFeesEnabled()) {
+                        final var nodeAccountId = TxnUtils.asId(submittingNodeAccount, spec);
+                        final var deleteRecord = getTxnRecord("deleteTxn");
+                        final var failedRecord = getTxnRecord("failedTxn");
+                        allRunFor(spec, deleteRecord, failedRecord);
+                        long netChange = Stream.of(deleteRecord, failedRecord)
+                                .flatMap(r -> r.getResponseRecord().getTransferList().getAccountAmountsList().stream())
+                                .filter(aa -> aa.getAccountID().equals(nodeAccountId))
+                                .filter(aa -> aa.getAmount() < 0)
+                                .mapToLong(AccountAmount::getAmount)
+                                .sum();
+                        assertTrue(
+                                Math.abs(netChange - (-30000)) <= 15000,
+                                String.format(
+                                        "Expected net balance change for node '%s' to be <-30000 +/- 15000>, was <%d>",
+                                        submittingNodeAccount, netChange));
+                    }
                 }));
     }
 

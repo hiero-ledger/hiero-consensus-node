@@ -16,6 +16,7 @@ module com.hedera.node.config.test.fixtures {
     requires org.hiero.consensus.gossip;
     requires org.hiero.consensus.metrics;
     requires org.hiero.consensus.reconnect;
+    requires org.hiero.consensus.state;
     requires org.hiero.consensus.utility;
     requires static transitive com.github.spotbugs.annotations;
 }

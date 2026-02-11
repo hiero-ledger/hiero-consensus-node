@@ -36,6 +36,7 @@ module org.hiero.consensus.pcli {
     requires org.hiero.consensus.pces;
     requires org.hiero.consensus.platformstate;
     requires org.hiero.consensus.roster;
+    requires org.hiero.consensus.state;
     requires org.hiero.consensus.utility;
     requires info.picocli;
     requires io.github.classgraph;

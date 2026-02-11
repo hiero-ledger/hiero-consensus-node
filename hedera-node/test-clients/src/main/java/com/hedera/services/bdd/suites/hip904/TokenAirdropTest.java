@@ -67,6 +67,12 @@ import static com.hedera.services.bdd.suites.contract.opcodes.Create2OperationSu
 import static com.hedera.services.bdd.suites.contract.opcodes.Create2OperationSuite.setExpectedCreate2Address;
 import static com.hedera.services.bdd.suites.crypto.AutoCreateUtils.updateSpecFor;
 import static com.hedera.services.bdd.suites.crypto.TransferWithCustomFixedFees.htsFee;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateFees;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.AIRDROPS_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SIGNATURE_FEE_AFTER_MULTIPLIER;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_ASSOCIATE_EXTRA_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_TRANSFER_FEE;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_TRANSFER_WITH_CUSTOM_FEE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_AMOUNT_TRANSFERS_ONLY_ALLOWED_FOR_FUNGIBLE_COMMON;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_DELETED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_FROZEN_FOR_TOKEN;
@@ -86,6 +92,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNAT
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_NFT_SERIAL_NUMBER;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NOT_SUPPORTED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.PENDING_NFT_AIRDROP_ALREADY_EXISTS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_AIRDROP_WITH_FALLBACK_ROYALTY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_IS_PAUSED;
@@ -322,8 +329,9 @@ public class TokenAirdropTest extends TokenAirdropBase {
                         tokenAirdrop(moving(1, FUNGIBLE_TOKEN).between(OWNER, receiver))
                                 .payingWith(OWNER)
                                 .via("second airdrop"),
-                        validateChargedUsd("airdrop", 0.1, 1),
-                        validateChargedUsd("second airdrop", 0.05, 1));
+                        validateFees(
+                                "airdrop", 0.1, TOKEN_TRANSFER_FEE + AIRDROPS_FEE_USD + TOKEN_ASSOCIATE_EXTRA_FEE_USD),
+                        validateFees("second airdrop", 0.05, TOKEN_TRANSFER_FEE + AIRDROPS_FEE_USD));
             }
 
             @HapiTest
@@ -985,7 +993,10 @@ public class TokenAirdropTest extends TokenAirdropBase {
                     // assert collector balance is not changed
                     withOpContext((spec, log) ->
                             Assertions.assertEquals(currentCollectorBalance.get(), newCollectorBalance.get())),
-                    validateChargedUsd("NFT with royalty fee airdrop to collector", 0.001, 20));
+                    validateFees(
+                            "NFT with royalty fee airdrop to collector",
+                            0.0008,
+                            TOKEN_TRANSFER_WITH_CUSTOM_FEE + SIGNATURE_FEE_AFTER_MULTIPLIER));
         }
 
         @HapiTest
@@ -1062,7 +1073,7 @@ public class TokenAirdropTest extends TokenAirdropBase {
                         // assert treasury balance is not changed
                         Assertions.assertEquals(currentTreasuryBalance.get(), newTreasuryBalance.get());
                     }),
-                    validateChargedUsd("NFT with royalty fee airdrop to treasury", 0.001, 20));
+                    validateFees("NFT with royalty fee airdrop to treasury", 0.0008, TOKEN_TRANSFER_WITH_CUSTOM_FEE));
         }
 
         @HapiTest
@@ -1354,14 +1365,17 @@ public class TokenAirdropTest extends TokenAirdropBase {
             return hapiTest(withOpContext((spec, opLog) -> {
                 final var bogusTokenId = TokenID.newBuilder().setTokenNum(9999L);
                 spec.registry().saveTokenId("nonexistent", bogusTokenId.build());
-                allRunFor(
-                        spec,
-                        tokenAirdrop(movingWithDecimals(1L, "nonexistent", 2)
+                final List<SpecOperation> ops =
+                        new ArrayList<>(List.of(tokenAirdrop(movingWithDecimals(1L, "nonexistent", 2)
                                         .betweenWithDecimals(OWNER, RECEIVER_WITH_UNLIMITED_AUTO_ASSOCIATIONS))
                                 .payingWith(OWNER)
                                 .via("transferTx")
-                                .hasKnownStatus(INVALID_TOKEN_ID),
-                        validateChargedUsd("transferTx", 0.001, 10));
+                                .hasPrecheckFrom(OK, INVALID_TOKEN_ID)
+                                .hasKnownStatus(INVALID_TOKEN_ID)));
+                if (!spec.simpleFeesEnabled()) {
+                    ops.add(validateChargedUsd("transferTx", 0.001, 10));
+                }
+                allRunFor(spec, ops);
             }));
         }
 
@@ -1800,6 +1814,7 @@ public class TokenAirdropTest extends TokenAirdropBase {
                                     TokenID.newBuilder().setTokenNum(5555555L).build())),
                     tokenAirdrop(moving(50L, FUNGIBLE_TOKEN_A).between(ALICE, BOB))
                             .signedByPayerAnd(ALICE)
+                            .hasPrecheckFrom(OK, INVALID_TOKEN_ID)
                             .hasKnownStatus(INVALID_TOKEN_ID));
         }
 
@@ -1829,6 +1844,7 @@ public class TokenAirdropTest extends TokenAirdropBase {
                     tokenAirdrop(TokenMovement.movingUnique(NON_FUNGIBLE_TOKEN_A, 1L)
                                     .between(ALICE, BOB))
                             .signedByPayerAnd(ALICE)
+                            .hasPrecheckFrom(OK, INVALID_TOKEN_ID)
                             .hasKnownStatus(INVALID_TOKEN_ID));
         }
 

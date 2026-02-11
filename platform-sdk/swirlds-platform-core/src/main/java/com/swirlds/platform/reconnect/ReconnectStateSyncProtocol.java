@@ -8,7 +8,6 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.metrics.ReconnectMetrics;
 import com.swirlds.platform.reconnect.api.ReservedSignedStateResult;
-import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.state.StateLifecycleManager;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
@@ -20,6 +19,7 @@ import org.hiero.consensus.gossip.impl.network.protocol.Protocol;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
+import org.hiero.consensus.state.signed.ReservedSignedState;
 
 /**
  * This protocol is responsible for synchronizing a current state either local acting as lerner or remote acting as teacher.
