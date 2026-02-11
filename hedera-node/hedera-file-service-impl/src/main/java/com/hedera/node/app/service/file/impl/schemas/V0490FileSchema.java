@@ -127,8 +127,7 @@ public class V0490FileSchema extends Schema<SemanticVersion> {
     @SuppressWarnings("rawtypes")
     public Set<StateDefinition> statesToCreate(@NonNull final Configuration config) {
         final Set<StateDefinition> definitions = new LinkedHashSet<>();
-        definitions.add(
-                StateDefinition.onDisk(FILES_STATE_ID, FILES_KEY, FileID.PROTOBUF, File.PROTOBUF, MAX_FILES_HINT));
+        definitions.add(StateDefinition.keyValue(FILES_STATE_ID, FILES_KEY, FileID.PROTOBUF, File.PROTOBUF));
 
         final FilesConfig filesConfig = config.getConfigData(FilesConfig.class);
         final LongPair fileNums = filesConfig.softwareUpdateRange();
