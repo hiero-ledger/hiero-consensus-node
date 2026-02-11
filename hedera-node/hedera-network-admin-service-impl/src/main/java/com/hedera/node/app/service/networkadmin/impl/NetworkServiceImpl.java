@@ -28,6 +28,7 @@ public final class NetworkServiceImpl implements NetworkService {
     public Set<ServiceFeeCalculator> serviceFeeCalculators() {
         return Set.of(new UncheckedSubmitFeeCalculator());
     }
+
     @Override
     public Set<QueryFeeCalculator> queryFeeCalculators() {
         return Set.of(

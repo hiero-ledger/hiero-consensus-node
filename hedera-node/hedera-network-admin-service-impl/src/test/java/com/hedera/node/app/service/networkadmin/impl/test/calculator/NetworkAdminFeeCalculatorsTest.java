@@ -11,7 +11,6 @@ import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.TransactionID;
-import com.hedera.hapi.node.consensus.ConsensusCreateTopicTransactionBody;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.node.transaction.TransactionGetRecordQuery;
@@ -192,7 +191,6 @@ class NetworkAdminFeeCalculatorsTest {
         assertThat(calculator.getQueryType()).isEqualTo(Query.QueryOneOfType.TRANSACTION_GET_RECORD);
     }
 
-
     @Test
     @DisplayName("UncheckedSubmitFeeCalculator is free")
     void testUncheckedSubmitFeeCalculator() {
@@ -200,21 +198,17 @@ class NetworkAdminFeeCalculatorsTest {
         final var mockFeeContext = mock(FeeContext.class);
         final var feeResult = new FeeResult();
 
-        var body= TransactionBody.newBuilder()
-                .uncheckedSubmit(UncheckedSubmitBody.newBuilder().build()).build();
+        var body = TransactionBody.newBuilder()
+                .uncheckedSubmit(UncheckedSubmitBody.newBuilder().build())
+                .build();
         calculator.accumulateServiceFee(
-                body,
-                new SimpleFeeContextImpl(mockFeeContext,null),
-                feeResult,
-                createTestFeeSchedule());
+                body, new SimpleFeeContextImpl(mockFeeContext, null), feeResult, createTestFeeSchedule());
 
         assertThat(feeResult.getNodeTotalTinycents()).isEqualTo(0L);
         assertThat(feeResult.getNetworkTotalTinycents()).isEqualTo(0L);
         assertThat(feeResult.getServiceTotalTinycents()).isEqualTo(0L);
         assertThat(calculator.getTransactionType()).isEqualTo(TransactionBody.DataOneOfType.UNCHECKED_SUBMIT);
     }
-
-
 
     private static FeeSchedule createTestFeeSchedule() {
         return FeeSchedule.DEFAULT
