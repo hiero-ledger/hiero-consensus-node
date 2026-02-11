@@ -484,7 +484,7 @@ class BEVM {
     // -----------------------------------------------------------
     // Execute bytecodes until done
     BEVM run(boolean topLevel) {
-        SB trace = null; // new SB();
+        SB trace = new SB();
         PrintStream oldSysOut = System.out;
         if( trace != null ) {
             System.setOut(new PrintStream(new FileOutputStream( FileDescriptor.out)));
@@ -1495,13 +1495,13 @@ class BEVM {
     // Custom Delegate Call 6->1
     private ExceptionalHaltReason customDelegateCall(SB trace, String str) {
         preTraceCall(trace,str);
-        if( FrameUtils.isHookExecution(_frame) && isRedirectFromNativeEntity() )
+        if( FrameUtils.isHookExecution(_frame) && !isRedirectFromNativeEntity() )
             return ExceptionalHaltReason.INVALID_OPERATION;
 
         // BasicCustomCall.executeChecked
         if( _sp < 6 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
         long stipend = popLong();
-        Address to = popAddress();
+        Address contract = popAddress();
         int srcOff = popInt();
         int srcLen = popInt();
         int dstOff = popInt();
@@ -1510,35 +1510,37 @@ class BEVM {
         var recipient = _frame.getRecipientAddress();
         var sender    = _frame.getSenderAddress();
 
-        return _abstractCall(trace,str, stipend, recipient, to, sender, Wei.ZERO,false,srcOff,srcLen,dstOff,dstLen,_frame.isStatic());
+        return _abstractCall(trace,str, stipend, recipient, contract, sender, Wei.ZERO,false,srcOff,srcLen,dstOff,dstLen,_frame.isStatic());
     }
+
     private boolean isRedirectFromNativeEntity() {
         final var updater = (ProxyWorldUpdater) _frame.getWorldUpdater();
         final var recipient = updater.getHederaAccount(_frame.getRecipientAddress());
         return recipient.isTokenFacade() || recipient.isScheduleTxnFacade() || recipient.isRegularAccount();
     }
 
+    private Address hookSender() {
+        return _frame.getRecipientAddress().equals(HtsSystemContract.HTS_HOOKS_CONTRACT_ADDRESS)
+            ? FrameUtils.hookOwnerAddress(_frame)
+            : _frame.getRecipientAddress();
+    }
+
     // Custom Delegate Call 6->1
     private ExceptionalHaltReason customStaticCall(SB trace, String str) {
         preTraceCall(trace,str);
-        if( FrameUtils.isHookExecution(_frame) && isRedirectFromNativeEntity() )
-            return ExceptionalHaltReason.INVALID_OPERATION;
 
         // BasicCustomCall.executeChecked
         if( _sp < 6 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
         long stipend = popLong();
-        Address to = popAddress();
+        Address recv_contract = popAddress();
         int srcOff = popInt();
         int srcLen = popInt();
         int dstOff = popInt();
         int dstLen = popInt();
-        Address contract = to; // _frame.getWorldUpdater().get(to);
 
-        var sender = _frame.getRecipientAddress().equals(HtsSystemContract.HTS_HOOKS_CONTRACT_ADDRESS)
-            ? FrameUtils.hookOwnerAddress(_frame)
-            : _frame.getRecipientAddress();
+        var sender = hookSender();
 
-        return _abstractCall(trace,str, stipend, to, contract, sender, Wei.ZERO,false,srcOff,srcLen,dstOff,dstLen,true);
+        return _abstractCall(trace,str, stipend, recv_contract, recv_contract, sender, Wei.ZERO,false,srcOff,srcLen,dstOff,dstLen,true);
     }
 
     // Revert transaction
@@ -2063,9 +2065,7 @@ class BEVM {
         Bytes salt = hasSalt ? popBytes() : null;
 
         // Custom-only hook
-        Address sender = _frame.getRecipientAddress().equals(HtsSystemContract.HTS_HOOKS_CONTRACT_ADDRESS)
-            ? FrameUtils.hookOwnerAddress(_frame)
-            : _frame.getRecipientAddress();
+        Address sender = hookSender();
 
         _frame.clearReturnData();
 
@@ -2196,9 +2196,12 @@ class BEVM {
         // Nested create contract call; so print the post-trace before the
         // nested call, and reload the pre-trace state after call.
         preTraceCall(trace,str);
+        if( FrameUtils.isHookExecution(_frame) && !isRedirectFromNativeEntity() )
+            return ExceptionalHaltReason.INVALID_OPERATION;
+
         if( _sp < 7 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
         long stipend = popLong();
-        Address to = popAddress();
+        Address contract = popAddress();
         long val0 = STK0[--_sp], val1 = STK1[_sp], val2 = STK2[_sp], val3 = STK3[_sp];
         Wei value = Wei.wrap(UI256.intern(val0,val1,val2,val3));
         boolean hasValue = (val0 | val1 | val2 | val3) != 0;
@@ -2207,11 +2210,9 @@ class BEVM {
         int dstOff = popInt();
         int dstLen = popInt();
 
-        var recv_send = _frame.getRecipientAddress().equals(HtsSystemContract.HTS_HOOKS_CONTRACT_ADDRESS)
-            ? FrameUtils.hookOwnerAddress(_frame)
-            : _frame.getRecipientAddress();
+        var recv_send = hookSender();
 
-        return _abstractCall(trace,str, stipend, recv_send, to, recv_send, value,hasValue,srcOff,srcLen,dstOff,dstLen,_frame.isStatic());
+        return _abstractCall(trace,str, stipend, recv_send, contract, recv_send, value,hasValue,srcOff,srcLen,dstOff,dstLen,_frame.isStatic());
     }
 
     // CustomCallOperation
@@ -2219,9 +2220,10 @@ class BEVM {
         // Nested create contract call; so print the post-trace before the
         // nested call, and reload the pre-trace state after call.
         preTraceCall(trace,str);
+
         if( _sp < 7 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
         long stipend = popLong();
-        Address to = popAddress();
+        Address recv_contract = popAddress();
         long val0 = STK0[--_sp], val1 = STK1[_sp], val2 = STK2[_sp], val3 = STK3[_sp];
         Wei value = Wei.wrap(UI256.intern(val0,val1,val2,val3));
         boolean hasValue = (val0 | val1 | val2 | val3) != 0;
@@ -2230,8 +2232,9 @@ class BEVM {
         int dstOff = popInt();
         int dstLen = popInt();
         // yup, child frame sender is this frames' recipient
-        var sender = _frame.getRecipientAddress();
-        return _abstractCall(trace,str, stipend, to, to, sender, value,hasValue,srcOff,srcLen,dstOff,dstLen,_frame.isStatic());
+        var sender = hookSender();
+
+        return _abstractCall(trace,str, stipend, recv_contract, recv_contract, sender, value,hasValue,srcOff,srcLen,dstOff,dstLen,_frame.isStatic());
     }
 
 
