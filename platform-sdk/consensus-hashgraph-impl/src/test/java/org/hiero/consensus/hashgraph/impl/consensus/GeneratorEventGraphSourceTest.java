@@ -358,18 +358,18 @@ class GeneratorEventGraphSourceTest {
         }
 
         // Verify that ngen actually advances beyond FIRST_GENERATION
-        final long maxNGen = events.stream().mapToLong(PlatformEvent::getNGen).max().orElse(0);
-        assertTrue(maxNGen > NonDeterministicGeneration.FIRST_GENERATION, "ngen should advance beyond FIRST_GENERATION");
+        final long maxNGen =
+                events.stream().mapToLong(PlatformEvent::getNGen).max().orElse(0);
+        assertTrue(
+                maxNGen > NonDeterministicGeneration.FIRST_GENERATION, "ngen should advance beyond FIRST_GENERATION");
     }
 
     @Test
     @Tag(TestComponentTags.PLATFORM)
     @DisplayName("Events do not have ngen set when populateNgen is disabled")
     void populateNgenDisabled() {
-        final GeneratorEventGraphSource generator = GeneratorEventGraphSourceBuilder.builder()
-                .numNodes(4)
-                .seed(0L)
-                .build();
+        final GeneratorEventGraphSource generator =
+                GeneratorEventGraphSourceBuilder.builder().numNodes(4).seed(0L).build();
 
         final List<PlatformEvent> events = generator.nextEvents(100);
 

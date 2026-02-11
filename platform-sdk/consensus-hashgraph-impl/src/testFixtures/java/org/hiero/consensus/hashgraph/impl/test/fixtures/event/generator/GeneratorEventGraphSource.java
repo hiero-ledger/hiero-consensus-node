@@ -148,7 +148,7 @@ public class GeneratorEventGraphSource implements EventGraphSource {
         platformEvent.signalPrehandleCompletion();
         consensus.updateConsensus(platformEvent);
         latestEventPerNode[eventCreator] = platformEvent.getDescriptor().eventDescriptor();
-        if(!populateNgen){
+        if (!populateNgen) {
             platformEvent.setNGen(NonDeterministicGeneration.GENERATION_UNDEFINED);
         }
         return platformEvent;

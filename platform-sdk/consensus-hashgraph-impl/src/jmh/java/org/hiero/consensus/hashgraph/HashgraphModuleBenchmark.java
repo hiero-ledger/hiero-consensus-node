@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.hashgraph;
 
 import com.swirlds.common.context.PlatformContext;
@@ -58,7 +59,8 @@ public class HashgraphModuleBenchmark {
         // Testing showed no change in consensus performance when using more than a single thread,
         // this makes sense since consensus only has a single component.
         final int numberOfThreads = 1;
-        threadPool = ExecutorFactory.create("JMH",HashgraphModuleBenchmark::uncaughtException).createForkJoinPool(numberOfThreads);
+        threadPool = ExecutorFactory.create("JMH", HashgraphModuleBenchmark::uncaughtException)
+                .createForkJoinPool(numberOfThreads);
     }
 
     @TearDown(Level.Trial)
@@ -72,8 +74,8 @@ public class HashgraphModuleBenchmark {
                 // does not seem to have any effect on performance
                 .withValue(ConsensusConfig_.ROUNDS_NON_ANCIENT, 26)
                 .getOrCreateConfig();
-        final PlatformContext platformContext = TestPlatformContextBuilder.create()
-                .withConfiguration(config).build();
+        final PlatformContext platformContext =
+                TestPlatformContextBuilder.create().withConfiguration(config).build();
         final GeneratorEventGraphSource generator = GeneratorEventGraphSourceBuilder.builder()
                 .seed(SEED)
                 .maxOtherParents(numOP)
@@ -96,8 +98,7 @@ public class HashgraphModuleBenchmark {
                 generator.getRoster(),
                 NodeId.of(generator.getRoster().rosterEntries().getFirst().nodeId()),
                 i -> false,
-                null
-        );
+                null);
         hashgraphModule.eventInputWire();
         counter = new EventCounter(NUMBER_OF_EVENTS);
         hashgraphModule.preconsensusEventOutputWire().solderForMonitoring(counter);

@@ -79,7 +79,6 @@ public class GeneratorConsensus {
         }
         // if we reach consensus, save the snapshot for future use
         linker.setEventWindow(consensusRounds.getLast().getEventWindow());
-
     }
 
     /**
