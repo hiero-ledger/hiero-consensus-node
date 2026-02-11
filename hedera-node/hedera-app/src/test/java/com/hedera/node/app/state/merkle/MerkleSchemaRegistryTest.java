@@ -411,8 +411,8 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                     @Override
                     @SuppressWarnings("rawtypes")
                     public Set<StateDefinition> statesToCreate() {
-                        final var fruitDef = StateDefinition.onDisk(
-                                FRUIT_STATE_ID, FRUIT_STATE_KEY, ProtoBytes.PROTOBUF, ProtoBytes.PROTOBUF, 100);
+                        final var fruitDef = StateDefinition.keyValue(
+                                FRUIT_STATE_ID, FRUIT_STATE_KEY, ProtoBytes.PROTOBUF, ProtoBytes.PROTOBUF);
                         return Set.of(fruitDef);
                     }
 
@@ -436,8 +436,8 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                     @Override
                     @SuppressWarnings("rawtypes")
                     public Set<StateDefinition> statesToCreate() {
-                        final var learningDef = StateDefinition.onDisk(
-                                STEAM_STATE_ID, STEAM_STATE_KEY, ProtoBytes.PROTOBUF, ProtoBytes.PROTOBUF, 100);
+                        final var learningDef = StateDefinition.keyValue(
+                                STEAM_STATE_ID, STEAM_STATE_KEY, ProtoBytes.PROTOBUF, ProtoBytes.PROTOBUF);
                         final var countryDef =
                                 StateDefinition.singleton(COUNTRY_STATE_ID, COUNTRY_STATE_KEY, ProtoBytes.PROTOBUF);
                         return Set.of(learningDef, countryDef);
