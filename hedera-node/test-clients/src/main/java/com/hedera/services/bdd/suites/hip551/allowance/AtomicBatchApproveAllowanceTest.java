@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.hip551.allowance;
 
 import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountDetailsAsserts.accountDetailsWith;
 import static com.hedera.services.bdd.spec.assertions.AssertUtils.inOrder;
@@ -146,7 +145,6 @@ class AtomicBatchApproveAllowanceTest {
      * @return hapi test
      */
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> transferErc20TokenFromContractWithApproval() {
         final var transferFromOtherContractWithSignaturesTxn = "transferFromOtherContractWithSignaturesTxn";
         final var nestedContract = "NestedERC20Contract";
@@ -264,7 +262,6 @@ class AtomicBatchApproveAllowanceTest {
      * @return hapi test
      */
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> cannotPayForAnyTransactionWithContractAccount() {
         final var cryptoAdminKey = "cryptoAdminKey";
         final var contract = "PayableConstructor";
@@ -1480,7 +1477,6 @@ class AtomicBatchApproveAllowanceTest {
      * @return hapi test
      */
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> cannotHaveMultipleAllowedSpendersForTheSameNftSerial() {
         return hapiTest(
                 newKeyNamed(SUPPLY_KEY),
