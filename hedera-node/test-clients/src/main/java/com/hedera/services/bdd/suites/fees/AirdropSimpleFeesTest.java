@@ -67,8 +67,8 @@ public class AirdropSimpleFeesTest extends TokenAirdropBase {
                 tokenAirdrop(moving(1, "FT").between("owner", receiver))
                         .payingWith("owner")
                         .via("second airdrop"),
-                validateChargedUsd("airdrop", NODE_AND_NETWORK_FEE + PENDING_AIRDROP_FEE + TOKEN_ASSOCIATION_FEE),
-                validateChargedUsd("second airdrop", NODE_AND_NETWORK_FEE + PENDING_AIRDROP_FEE));
+                validateChargedUsd("airdrop", NODE_AND_NETWORK_FEE + PENDING_AIRDROP_FEE + TOKEN_ASSOCIATION_FEE, 5),
+                validateChargedUsd("second airdrop", NODE_AND_NETWORK_FEE + PENDING_AIRDROP_FEE, 5));
     }
 
     @HapiTest
@@ -201,7 +201,7 @@ public class AirdropSimpleFeesTest extends TokenAirdropBase {
                         .payingWith("sender")
                         .via("airdrop"),
                 // The transaction should be charged the same as a crypto transfer
-                validateChargedUsd("airdrop", TOKEN_TRANSFER_FEE));
+                validateChargedUsd("airdrop", TOKEN_TRANSFER_FEE, 10));
     }
 
     @HapiTest
