@@ -19,7 +19,10 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedFeeFromBytesFor;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateInnerTxnFees;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.FILE_APPEND_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.FILE_CREATE_BASE_FEE;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.FILE_DELETE_BASE_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.FILE_UPDATE_BASE_FEE_USD;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.spec.keys.KeyShape;
@@ -38,9 +41,6 @@ class AtomicFileServiceFeesSuite {
     private static final String CIVILIAN = "civilian";
     private static final String KEY = "key";
     private static final double BASE_FEE_FILE_CREATE = 0.05;
-    private static final double BASE_FEE_FILE_UPDATE = 0.05;
-    private static final double BASE_FEE_FILE_DELETE = 0.007;
-    private static final double BASE_FEE_FILE_APPEND = 0.05;
     private static final String BATCH_OPERATOR = "batchOperator";
     private static final String ATOMIC_BATCH = "atomicBatch";
 
@@ -96,7 +96,7 @@ class AtomicFileServiceFeesSuite {
                 withOpContext((spec, log) -> validateInnerTxnChargedUsd(
                         "fileUpdateBasic",
                         ATOMIC_BATCH,
-                        FILE_UPDATE_FEE_USD + expectedFeeFromBytesFor(spec, log, "fileUpdateBasic"),
+                        FILE_UPDATE_BASE_FEE_USD + expectedFeeFromBytesFor(spec, log, "fileUpdateBasic"),
                         5)));
     }
 
@@ -117,7 +117,7 @@ class AtomicFileServiceFeesSuite {
                         .via(ATOMIC_BATCH)
                         .signedByPayerAnd(BATCH_OPERATOR)
                         .payingWith(BATCH_OPERATOR),
-                validateInnerTxnChargedUsd("fileDeleteBasic", ATOMIC_BATCH, FILE_DELETE_FEE_USD, 10));
+                validateInnerTxnChargedUsd("fileDeleteBasic", ATOMIC_BATCH, FILE_DELETE_BASE_FEE_USD, 10));
     }
 
     @HapiTest
@@ -157,7 +157,7 @@ class AtomicFileServiceFeesSuite {
                 withOpContext((spec, log) -> validateInnerTxnChargedUsd(
                         baseAppend,
                         ATOMIC_BATCH,
-                        FILE_APPEND_FEE_USD + expectedFeeFromBytesFor(spec, log, baseAppend),
+                        FILE_APPEND_BASE_FEE_USD + expectedFeeFromBytesFor(spec, log, baseAppend),
                         5)));
     }
 }

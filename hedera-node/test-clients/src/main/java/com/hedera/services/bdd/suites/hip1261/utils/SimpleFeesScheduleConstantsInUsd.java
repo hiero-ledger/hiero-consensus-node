@@ -113,7 +113,7 @@ public class SimpleFeesScheduleConstantsInUsd {
     public static final long FILE_APPEND_INCLUDED_KEYS = 1L;
     public static final long FILE_APPEND_INCLUDED_BYTES = 1000L;
 
-    public static final double FILE_DELETE_BASE_FEE_USD = 0.0000000007;
+    public static final double FILE_DELETE_BASE_FEE_USD = 0.007;
     public static final long FILE_DELETE_INCLUDED_KEYS = 1L;
 
     public static final double FILE_GET_CONTENTS_BASE_FEE_USD = 0.000000001;
