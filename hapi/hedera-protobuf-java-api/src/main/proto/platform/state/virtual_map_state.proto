@@ -57,6 +57,7 @@ import "services/state/tss/tss_encryption_keys.proto";
 import "services/state/tss/tss_message_map_key.proto";
 import "services/state/tss/tss_vote_map_key.proto";
 import "interledger/state/clpr/clpr_ledger.proto";
+import "interledger/state/clpr/clpr_message_queue.proto";
 
 /**
  * This message defines the State Item.
@@ -287,6 +288,16 @@ message StateKey {
      * A state identifier for CLPR local ledger metadata.
      */
     org.hiero.hapi.interledger.state.clpr.ClprLocalLedgerMetadata ClprService_I_METADATA = 57;
+
+    /**
+     * A state identifier for CLPR Message Queue.
+     */
+    org.hiero.hapi.interledger.state.clpr.ClprLedgerId ClprService_I_MESSAGE_QUEUE_METADATA = 58;
+
+    /**
+     * A state identifier for CLPR Messages.
+     */
+    org.hiero.hapi.interledger.state.clpr.ClprMessageKey ClprService_I_MESSAGES = 59;
 
     // Queue states
     /**
@@ -649,6 +660,16 @@ message StateValue {
      * A state identifier for CLPR local ledger metadata. Singleton state.
      */
     org.hiero.hapi.interledger.state.clpr.ClprLocalLedgerMetadata ClprService_I_METADATA = 57;
+
+    /**
+     * A state identifier for CLPR Message Queue.
+     */
+    org.hiero.hapi.interledger.state.clpr.ClprMessageQueueMetadata ClprService_I_MESSAGE_QUEUES = 58;
+
+    /**
+     * A state identifier for CLPR Messages.
+     */
+    org.hiero.hapi.interledger.state.clpr.ClprMessageValue ClprService_I_MESSAGES = 59;
 
     /**
      * Metadata of the round receipts queue.
