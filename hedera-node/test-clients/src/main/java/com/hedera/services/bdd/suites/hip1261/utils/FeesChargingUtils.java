@@ -1313,6 +1313,11 @@ public class FeesChargingUtils {
         });
     }
 
+    /**
+     * Dual-mode fee validation for inner atomic batch transactions that branches on {@code fees.simpleFeesEnabled} at runtime.
+     * When simple fees are enabled, validates against {@code simpleFee};
+     * otherwise validates against {@code legacyFee}.
+     */
     public static SpecOperation validateInnerTxnFees(String txn, String parent, double legacyFee, double simpleFee) {
         return doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
             if ("true".equals(flag)) {
@@ -1324,12 +1329,12 @@ public class FeesChargingUtils {
     }
 
     public static SpecOperation validateInnerTxnFees(
-            String txn, String parent, double legacyFee, double simpleFee, double diff) {
+            String txn, String parent, double legacyFee, double simpleFee, double allowedDiff) {
         return doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
             if ("true".equals(flag)) {
-                return validateInnerTxnChargedUsd(txn, parent, simpleFee, diff);
+                return validateInnerTxnChargedUsd(txn, parent, simpleFee, allowedDiff);
             } else {
-                return validateInnerTxnChargedUsd(txn, parent, legacyFee, diff);
+                return validateInnerTxnChargedUsd(txn, parent, legacyFee, allowedDiff);
             }
         });
     }
