@@ -224,35 +224,40 @@ tip, but 1 is still also a tip, because it has no descendants that we know of. S
 
 ### Filtering likely duplicate events
 
-Given that all the synchronizations are happening in parallel, it is possible that the same event is sent multiple
-times from different nodes. This leads to very high event duplication. Redundant events are filtered out by the
-receiver, but it still wastes bandwidth and processing power.
+Concurrent synchronizations may result in multiple nodes transmitting the same event, leading to significant event
+duplication. Although receivers filter out redundant events, this process consumes unnecessary bandwidth and processing
+resources.
 
-To avoid that, a special mechanism was developed to delay sending some events until they are old enough. A basic form of
-it is to immediately send all self-events and all their parents, while delaying "other" events (ones created by other
-nodes and not yet used by self-events) for a long time (a few seconds) - hoping they will get synchronized by their
-creators. This reduces the duplicate ratio considerably, but not as much as one would like - given quite aggressive usage
-of other node events as parents for self-events, there is a good chance that in a short time, most of the graph will be
-ancestors of a self-event. Still, it is better than no filtering at all, at minimal cost (as ignored events will
-be synchronized by other nodes).
+To mitigate this, a delay is introduced for sending certain events until they reach a designated age. In its most basic
+configuration, self-events and their ancestors are transmitted immediately. In contrast, "other" events — those created
+by different nodes, which are not ancestors of self events — are delayed for several seconds. This delay allows the
+original creators to synchronize these events first, substantially reducing duplication. While not exhaustive — as
+self-events eventually incorporate ancestors from various creators — this method remains more efficient than no
+filtering and involves minimal overhead.
 
-When primitive broadcast is enabled, the situation changes. Broadcast preemptively sends all self-events out, and there
-is almost never a need to synchronize them (in fact, they have to be synced only in the event of network disconnection or
-after a reconnect). It makes perfect sense to delay self-events for a long time in the sync protocol when broadcast is enabled.
-At the same time, the peer might not have the other node ancestors of my self events yet (as we cannot trust their creators to broadcast
-them in a timely manner), which means some or all of the self events sent will get stuck in the peer's orphan buffer.
+The introduction of primitive broadcast modifies this dynamic. Broadcast preemptively transmits all self-events,
+significantly reducing the necessity of synchronizing them via the sync protocol. Synchronization remains essential
+primarily after network disruptions. With broadcast enabled, self-events can be delayed significantly during
+sync, as they will come over broadcast. However, node may not yet have received the ancestors from other creators,
+as there is no guarantee they will be broadcast in time.
+Missing ancestors would cause self-events to remain in the orphan buffer.
 
-To avoid that, when broadcast is enabled, 3 levels of delays are implemented - self events, parents of self-events, and
-"other" events, which are not involved in the graph of possible self-events. Timings are chosen to work with the
-broadcast paradigm - parents of self-events are delayed for the shortest time, self-events and other events are delayed
-for a longer time. Exact timings depend on the network configuration, but the example for WAN might be as follows:
+To address this, three levels of delays are implemented when broadcast is enabled. These levels categorize events as:
+self-events, ancestors of self-events, and "other" events (non-ancestors of self-events). Ancestors of self-events are
+assigned the shortest delay, while self-events and "other" events have longer delays. Timings are configurable based on
+network conditions; a typical WAN configuration might include:
 
-- self-events have to be at least 1 second old before being considered for sync
-- parents of self-events have to be at least 250ms old
-- other events have to be at least 3 seconds old
+- self-events: 1 second delay
+- ancestors of self-events: 250ms delay
+- other events: 3 seconds delay
 
-This allows well-functioning broadcast to completely replace sync protocol in actual event synchronization
-(assuming pings between nodes below 250ms), with a modest duplication rate for sending required ancestors more
-aggressively to cover for possible slow third party nodes and fallback to sync in case of big disconnections.
-Given that the broadcast is disabled before the first sync is fully completed, freshly connected nodes will be sent
-everything, not delaying their recovery after a disconnect or rereconnection.
+For such settings, if network latency (pings) remains below 250ms, the broadcast protocol can effectively replace the
+sync protocol. This configuration maintains a low duplication rate while ensuring required ancestors are sent
+aggressively enough to accommodate slower nodes. Furthermore, it serves as a robust fallback for significant network
+disconnections. Broadcast remains disabled until the initial synchronization is complete, ensuring that newly connected
+nodes receive all necessary data without delay to expedite recovery.
+
+In diagram below, you can see example categorization of events. In such a case, magenta events would be sent most
+aggressively, while green events would be sent less aggressively, and red events would be sent least aggressively.
+
+<img src="ancestor-filtering.drawio.png" />
