@@ -85,23 +85,28 @@ public record CodeDelegationProcessor(long chainId) {
         LOG.trace("Processing code delegation: {}", codeDelegation);
 
         if ((codeDelegation.getChainId() != 0) && (chainId != codeDelegation.getChainId())) {
+            result.reportIgnoredEntry(CodeDelegationResult.EntryIgnoreReason.ChainIdMismatch);
             return;
         }
 
         if (codeDelegation.nonce() == MAX_NONCE) {
+            result.reportIgnoredEntry(CodeDelegationResult.EntryIgnoreReason.NonceMismatch);
             return;
         }
 
         if (codeDelegation.getS().compareTo(HALF_CURVE_ORDER) > 0) {
+            result.reportIgnoredEntry(CodeDelegationResult.EntryIgnoreReason.Other);
             return;
         }
 
         if (codeDelegation.getYParity() >= MAX_Y_PARITY) {
+            result.reportIgnoredEntry(CodeDelegationResult.EntryIgnoreReason.Other);
             return;
         }
 
         final Optional<EthTxSigs> authorizer = EthTxSigs.extractAuthoritySignature(codeDelegation);
         if (authorizer.isEmpty()) {
+            result.reportIgnoredEntry(CodeDelegationResult.EntryIgnoreReason.Other);
             return;
         }
 
@@ -116,6 +121,7 @@ public record CodeDelegationProcessor(long chainId) {
         if (maybeAuthorityAccount.isEmpty()) {
             // only create an account if nonce is valid
             if (codeDelegation.nonce() != 0) {
+                result.reportIgnoredEntry(CodeDelegationResult.EntryIgnoreReason.NonceMismatch);
                 return;
             }
 
@@ -130,40 +136,48 @@ public record CodeDelegationProcessor(long chainId) {
                 final var failedRecord =
                         proxyWorldUpdater.createNewChildRecordBuilder(CryptoCreateStreamBuilder.class, CRYPTO_CREATE);
                 failedRecord.status(INSUFFICIENT_GAS);
+                result.reportIgnoredEntry(CodeDelegationResult.EntryIgnoreReason.InsufficientGasForLazyCreation);
                 return;
             }
 
             if (!proxyWorldUpdater.createAccountWithCodeDelegation(authorizerAddress, delegatedContractAddress)) {
+                result.reportIgnoredEntry(CodeDelegationResult.EntryIgnoreReason.Other);
                 return;
             }
 
             authority = proxyWorldUpdater.getAccount(authorizerAddress);
             if (authority == null) {
+                result.reportIgnoredEntry(CodeDelegationResult.EntryIgnoreReason.Other);
                 return;
             }
         } else {
             authority = maybeAuthorityAccount.get();
 
             if (!canSetCodeDelegation(authority)) {
+                result.reportIgnoredEntry(CodeDelegationResult.EntryIgnoreReason.AccountAlreadyHasCode);
                 return;
             }
 
             if (codeDelegation.nonce() != authority.getNonce()) {
+                result.reportIgnoredEntry(CodeDelegationResult.EntryIgnoreReason.NonceMismatch);
                 return;
             }
 
             // Ensure that the account is a regular account
             if (!((HederaEvmAccount) authority).isRegularAccount()) {
+                result.reportIgnoredEntry(CodeDelegationResult.EntryIgnoreReason.Other);
                 return;
             }
 
             if (!proxyWorldUpdater.setAccountCodeDelegation(
                     ((HederaEvmAccount) authority).hederaId(), delegatedContractAddress)) {
+                result.reportIgnoredEntry(CodeDelegationResult.EntryIgnoreReason.Other);
                 return;
             }
             result.incAuthorizationsEligibleForRefund();
         }
 
+        result.incSuccessfullyProcessedAuthorizations();
         authority.incrementNonce();
     }
 

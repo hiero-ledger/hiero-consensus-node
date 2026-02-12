@@ -184,7 +184,7 @@ public class TransactionProcessor {
         initialFrame.incrementGasRefund(codeDelegationRefund);
 
         // Compute the result of running the frame to completion
-        final var result = frameRunner.runToCompletion(
+        var result = frameRunner.runToCompletion(
                 transaction.gasLimit(),
                 parties.senderId(),
                 initialFrame,
@@ -192,6 +192,9 @@ public class TransactionProcessor {
                 messageCall,
                 contractCreation,
                 gasCharges);
+
+        // Add code delegation result
+        result = result.withCodeDelegationResult(codeDelegationResult);
 
         // Maybe refund some of the charged fees before committing if not a hook dispatch
         // Note that for hook dispatch, gas is charged during cryptoTransfer and will not be refunded once

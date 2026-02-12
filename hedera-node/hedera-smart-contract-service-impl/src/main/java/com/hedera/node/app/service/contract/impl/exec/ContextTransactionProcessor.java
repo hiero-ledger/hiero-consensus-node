@@ -10,6 +10,7 @@ import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.streams.ContractBytecode;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.node.app.service.contract.impl.annotations.TransactionScope;
+import com.hedera.node.app.service.contract.impl.exec.delegation.CodeDelegationResult;
 import com.hedera.node.app.service.contract.impl.exec.gas.CustomGasCharging;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.tracers.AddOnEvmActionTracer;
@@ -140,7 +141,8 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
             }
 
             final var elapsedNanos = System.nanoTime() - startTimeNanos;
-            recordProcessedTransactionToMetrics(hevmTransaction, outcome, elapsedNanos, 0L);
+            recordProcessedTransactionToMetrics(
+                    hevmTransaction, outcome, elapsedNanos, 0L, new CodeDelegationResult(0));
 
             return outcome;
         }
@@ -164,7 +166,8 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
                         true);
 
                 final var elapsedNanos = System.nanoTime() - startTimeNanos;
-                recordProcessedTransactionToMetrics(hevmTransaction, outcome, elapsedNanos, 0L);
+                recordProcessedTransactionToMetrics(
+                        hevmTransaction, outcome, elapsedNanos, 0L, new CodeDelegationResult(0));
 
                 return outcome;
             }
@@ -223,7 +226,11 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
 
             final var elapsedNanos = System.nanoTime() - startTimeNanos;
             recordProcessedTransactionToMetrics(
-                    hevmTransaction, outcome, elapsedNanos, opsDurationCounter.opsDurationUnitsConsumed());
+                    hevmTransaction,
+                    outcome,
+                    elapsedNanos,
+                    opsDurationCounter.opsDurationUnitsConsumed(),
+                    result.codeDelegationResult());
 
             return outcome;
         } catch (HandleException e) {
@@ -243,20 +250,30 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
 
             final var elapsedNanos = System.nanoTime() - startTimeNanos;
             recordProcessedTransactionToMetrics(
-                    hevmTransaction, outcome, elapsedNanos, opsDurationCounter.opsDurationUnitsConsumed());
+                    hevmTransaction,
+                    outcome,
+                    elapsedNanos,
+                    opsDurationCounter.opsDurationUnitsConsumed(),
+                    new CodeDelegationResult(0));
 
             return outcome;
         }
     }
 
     private void recordProcessedTransactionToMetrics(
-            HederaEvmTransaction hevmTxn, CallOutcome outcome, long elapsedNanos, long opsDurationUnitsConsumed) {
+            HederaEvmTransaction hevmTxn,
+            CallOutcome outcome,
+            long elapsedNanos,
+            long opsDurationUnitsConsumed,
+            CodeDelegationResult codeDelegationResult) {
         contractMetrics.recordProcessedTransaction(new ContractMetrics.TransactionProcessingSummary(
                 elapsedNanos,
                 opsDurationUnitsConsumed,
                 outcome.result().gasUsed(),
                 hevmTxn.hasOfferedGasPrice() ? OptionalLong.of(hevmTxn.offeredGasPrice()) : OptionalLong.empty(),
-                outcome.isSuccess()));
+                outcome.isSuccess(),
+                codeDelegationResult.successfullyProcessedAuthorizations(),
+                codeDelegationResult.ignoredCodeDelegations()));
     }
 
     private HederaEvmTransaction safeCreateHevmTransaction() {
