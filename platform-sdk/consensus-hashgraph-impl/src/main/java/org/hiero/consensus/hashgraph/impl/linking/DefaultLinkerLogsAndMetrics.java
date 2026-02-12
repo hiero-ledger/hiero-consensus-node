@@ -2,6 +2,7 @@
 package org.hiero.consensus.hashgraph.impl.linking;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
+import static com.swirlds.metrics.api.Metrics.INTERNAL_CATEGORY;
 import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
 
 import com.swirlds.base.time.Time;
@@ -10,10 +11,12 @@ import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.concurrent.atomic.AtomicLong;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.concurrent.utility.throttle.RateLimitedLogger;
 import org.hiero.consensus.hashgraph.impl.EventImpl;
+import org.hiero.consensus.metrics.RunningAverageMetric;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 
@@ -37,6 +40,16 @@ public class DefaultLinkerLogsAndMetrics implements LinkerLogsAndMetrics {
     private final LongAccumulator timeCreatedMismatchAccumulator;
 
     /**
+     * Number of events currently in memory. This is only used for an internal statistic, not for any of the algorithms.
+     */
+    private final AtomicLong numEventsInMemory = new AtomicLong(0);
+
+    private static final RunningAverageMetric.Config AVG_EVENTS_IN_MEM_CONFIG = new RunningAverageMetric.Config(
+                    INTERNAL_CATEGORY, "eventsInMem")
+            .withDescription("total number of events in memory for this node averaged over time")
+            .withUnit("count");
+
+    /**
      * Constructor.
      *
      * @param metrics the metrics instance to use
@@ -57,6 +70,9 @@ public class DefaultLinkerLogsAndMetrics implements LinkerLogsAndMetrics {
                 new LongAccumulator.Config(PLATFORM_CATEGORY, "timeCreatedMismatch")
                         .withDescription(
                                 "Parent child relationships where child time created wasn't strictly after parent time created"));
+
+        final RunningAverageMetric avgEventsInMem = metrics.getOrCreate(AVG_EVENTS_IN_MEM_CONFIG);
+        metrics.addUpdater(() -> avgEventsInMem.update(numEventsInMemory.get()));
     }
 
     /**
@@ -110,5 +126,21 @@ public class DefaultLinkerLogsAndMetrics implements LinkerLogsAndMetrics {
                 childTimeCreated,
                 parentTimeCreated);
         timeCreatedMismatchAccumulator.update(1);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void eventLinked() {
+        numEventsInMemory.incrementAndGet();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void eventUnlinked() {
+        numEventsInMemory.decrementAndGet();
     }
 }

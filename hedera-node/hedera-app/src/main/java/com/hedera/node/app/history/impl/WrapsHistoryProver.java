@@ -224,7 +224,9 @@ public class WrapsHistoryProver implements HistoryProver {
         if (state.phase() != AGGREGATE
                 && state.hasGracePeriodEndTime()
                 && now.isAfter(asInstant(state.gracePeriodEndTimeOrThrow()))) {
-            final var submittingNodes = phaseMessages.get(state.phase()).keySet();
+            final var submittingNodes =
+                    phaseMessages.getOrDefault(state.phase(), emptySortedMap()).keySet();
+            // If we reached a stage with a grace period, we must have at least one R1 message, so no getOrDefault()
             final var missingNodes = phaseMessages.get(R1).keySet().stream()
                     .filter(nodeId -> !submittingNodes.contains(nodeId))
                     .toList();
