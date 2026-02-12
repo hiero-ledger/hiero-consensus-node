@@ -95,7 +95,7 @@ public class AllBaseOpFeesSuite {
                                     spec,
                                     validateChargedUsdWithin(
                                             "moreSigsTxn",
-                                            expectedTokenMintNftFullFeeUsd(1, 1),
+                                            expectedTokenMintNftFullFeeUsd(numOfSigs, 1),
                                             ALLOWED_DIFFERENCE_PERCENTAGE));
                         });
                     } else {
