@@ -1,4 +1,4 @@
-|                   Current File Name                   |                       Current Workflow Name                       | Future File Name | Future Workflow Name |
+| Current File Name                                     | Current Workflow Name                                             | Future File Name | Future Workflow Name |
 |-------------------------------------------------------|-------------------------------------------------------------------|------------------|----------------------|
 | # Cron                                                |                                                                   |                  |                      |
 | zxcron-extended-test-suite.yaml                       | ZXCron: [CITR] Extended Test Suite                                |                  |                      |
@@ -62,7 +62,7 @@
 |                                                       |                                                                   |                  |                      |
 | # General Testing                                     |                                                                   |                  |                      |
 | flow-dry-run-extended-test-suite.yaml                 | [CITR] XTS Dry Run                                                |                  |                      |
-| flow-dry-run-mats-suite.yaml                          | [CITR] MATS Dry Run                                               |                  |                      |
+| 001-user-dry-run-mats.yaml                            | 001: [USER] MATS Dry Run                                          |                  |                      |
 | node-flow-pull-request-checks.yaml                    | Node: PR Checks                                                   |                  |                      |
 |                                                       |                                                                   |                  |                      |
 | # QOL                                                 |                                                                   |                  |                      |

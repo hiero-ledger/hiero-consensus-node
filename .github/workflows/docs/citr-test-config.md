@@ -29,7 +29,7 @@ There are several test suites that are run in the CITR environment, each with it
 
 - MATS is triggered by the [Node: Build Application](/.github/workflows/node-flow-build-application.yaml) workflow.
 - The PR Check equivalent checks are triggered by the [Node: PR Checks](/.github/workflows/node-flow-pull-request-checks.yaml) workflow.
-- MATS Dry-Run is triggered manually via the [[CITR] MATS Dry Run](/.github/workflows/flow-dry-run-mats-suite.yaml) workflow.
+- MATS Dry-Run is triggered manually via the [[CITR] MATS Dry Run](/.github/workflows/001-user-dry-run-mats.yaml) workflow.
 
 ### Included Tests
 
