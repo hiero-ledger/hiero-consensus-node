@@ -79,7 +79,7 @@ public class FrameBuilder {
      * @param featureFlags the feature flag currently used
      * @param from the sender of the transaction
      * @param to the recipient of the transaction
-     * @param intrinsicGas the intrinsic gas cost, needed to calculate remaining gas
+     * @param initialGas the initial gas amount available for execution
      * @param codeFactory the factory used to construct an instance of {@link org.hyperledger.besu.evm.Code}
      * *                    from raw bytecode.
      * @return the initial frame
