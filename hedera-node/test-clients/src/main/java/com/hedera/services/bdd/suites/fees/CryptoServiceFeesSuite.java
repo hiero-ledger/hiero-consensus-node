@@ -230,19 +230,19 @@ public class CryptoServiceFeesSuite {
                         .addTokenAllowance(OWNER, FUNGIBLE_TOKEN, SPENDER, 100L)
                         .via("approveTokenTxn")
                         .blankMemo(),
-                validateChargedUsdWithin("approveTokenTxn", 0.05012, 0.01),
+                validateChargedUsdWithin("approveTokenTxn", BASE_FEE_CRYPTO_APPROVE_ALLOWANCE, 0.01),
                 cryptoApproveAllowance()
                         .payingWith(OWNER)
                         .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, SPENDER, false, List.of(1L))
                         .via("approveNftTxn")
                         .blankMemo(),
-                validateChargedUsdWithin("approveNftTxn", 0.050101, 0.01),
+                validateChargedUsdWithin("approveNftTxn", BASE_FEE_CRYPTO_APPROVE_ALLOWANCE, 0.01),
                 cryptoApproveAllowance()
                         .payingWith(OWNER)
                         .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, ANOTHER_SPENDER, true, List.of())
                         .via("approveForAllNftTxn")
                         .blankMemo(),
-                validateChargedUsdWithin("approveForAllNftTxn", 0.05, 0.01),
+                validateChargedUsdWithin("approveForAllNftTxn", BASE_FEE_CRYPTO_APPROVE_ALLOWANCE, 0.01),
                 cryptoApproveAllowance()
                         .payingWith(OWNER)
                         .addCryptoAllowance(OWNER, SECOND_SPENDER, 100L)
