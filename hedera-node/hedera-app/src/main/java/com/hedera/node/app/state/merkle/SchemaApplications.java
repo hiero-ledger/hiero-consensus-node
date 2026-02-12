@@ -10,7 +10,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.Schema;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -19,7 +19,7 @@ import java.util.Set;
 
 /**
  * Analyzes the ways in which the {@link MerkleSchemaRegistry} should apply a {@link Schema}
- * to the {@link MerkleNodeState}.
+ * to the {@link State}.
  *
  * @see SchemaApplicationType
  */
@@ -58,7 +58,7 @@ public class SchemaApplications {
         return uses;
     }
 
-    private boolean hasStateDefinitions(@NonNull final Schema schema, @NonNull final Configuration config) {
+    private boolean hasStateDefinitions(@NonNull final Schema<?> schema, @NonNull final Configuration config) {
         return !schema.statesToCreate(config).isEmpty()
                 || !schema.statesToRemove().isEmpty();
     }

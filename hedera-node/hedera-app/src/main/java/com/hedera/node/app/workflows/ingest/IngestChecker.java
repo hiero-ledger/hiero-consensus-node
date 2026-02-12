@@ -33,6 +33,8 @@ import static com.hedera.node.app.workflows.InnerTransaction.YES;
 import static com.hedera.node.app.workflows.handle.dispatch.DispatchValidator.WorkflowCheck.INGEST;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
+import static org.hiero.consensus.model.status.PlatformStatus.FREEZE_COMPLETE;
+import static org.hiero.consensus.model.status.PlatformStatus.FREEZING;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.SignaturePair;
@@ -211,6 +213,17 @@ public final class IngestChecker {
      */
     public void verifyPlatformActive() throws PreCheckException {
         if (currentPlatformStatus.get() != ACTIVE) {
+            throw new PreCheckException(PLATFORM_NOT_ACTIVE);
+        }
+    }
+
+    /**
+     * Throws if the platform is not in a state where we can guarantee that free queries will be processed correctly.
+     * @throws PreCheckException if the response might be unreliable due to platform disruptions
+     */
+    public void verifyFreeQueryable() throws PreCheckException {
+        final var status = currentPlatformStatus.get();
+        if (status != ACTIVE && status != FREEZING && status != FREEZE_COMPLETE) {
             throw new PreCheckException(PLATFORM_NOT_ACTIVE);
         }
     }

@@ -2,8 +2,10 @@
 package com.hedera.services.bdd.suites.hip904;
 
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
+import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
+import static com.hedera.services.bdd.junit.TestTags.ONLY_EMBEDDED;
+import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.CONCURRENT;
 import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
@@ -57,6 +59,9 @@ import static com.hedera.services.bdd.suites.HapiSuite.flattened;
 import static com.hedera.services.bdd.suites.contract.leaky.LeakyContractTestsSuite.RECEIVER;
 import static com.hedera.services.bdd.suites.crypto.AutoAccountCreationSuite.LAZY_MEMO;
 import static com.hedera.services.bdd.suites.crypto.AutoCreateUtils.updateSpecFor;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateFees;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SIGNATURE_FEE_AFTER_MULTIPLIER;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_CLAIM_FEE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_DELETED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_FROZEN_FOR_TOKEN;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.EMPTY_PENDING_AIRDROP_ID_LIST;
@@ -74,9 +79,10 @@ import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 
 import com.google.protobuf.ByteString;
-import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.EmbeddedHapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
+import com.hedera.services.bdd.junit.TargetEmbeddedMode;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.queries.crypto.HapiGetAccountBalance;
@@ -98,7 +104,9 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
+@Tag(ONLY_EMBEDDED)
 @Tag(CRYPTO)
+@TargetEmbeddedMode(CONCURRENT)
 @HapiTestLifecycle
 @DisplayName("Claim token airdrop")
 public class TokenClaimAirdropTest extends TokenAirdropBase {
@@ -135,7 +143,7 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
                 overriding("tokens.airdrops.cancel.enabled", "true"));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     @DisplayName("Claim token airdrop after dissociation")
     final Stream<DynamicTest> claimTokenAirdropAfterDissociation() {
         return hapiTest(flattened(
@@ -175,7 +183,7 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
                 getAccountInfo(RECEIVER).hasToken(relationshipWith(NON_FUNGIBLE_TOKEN))));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     @DisplayName("fails gracefully with null parameters")
     final Stream<DynamicTest> idVariantsTreatedAsExpected() {
         return hapiTest(
@@ -192,7 +200,7 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
                         .payingWith(RECEIVER_WITH_0_AUTO_ASSOCIATIONS)));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     @DisplayName("single token claim success that receiver paying for it")
     final Stream<DynamicTest> singleTokenClaimSuccessThatReceiverPayingForIt() {
         return hapiTest(
@@ -210,7 +218,7 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
                 getAccountInfo(RECEIVER_WITH_0_AUTO_ASSOCIATIONS).hasToken(relationshipWith(FUNGIBLE_TOKEN_1)));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     @DisplayName("single nft claim success that receiver paying for it")
     final Stream<DynamicTest> singleNFTTransfer() {
         return hapiTest(
@@ -230,9 +238,8 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
                         .payingWith(RECEIVER));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     @DisplayName("not enough Hbar to claim and than enough")
-    @Tag(MATS)
     final Stream<DynamicTest> notEnoughHbarToClaimAndThanEnough() {
         final String ALICE = "ALICE";
         final String BOB = "BOB";
@@ -250,7 +257,7 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
                         .payingWith(ALICE));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     @DisplayName("token transfer fails but claim will pass")
     final Stream<DynamicTest> tokenTransferFailsButClaimWillPass() {
         final String ALICE = "ALICE";
@@ -266,7 +273,7 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
                 getAccountBalance(BOB).hasTokenBalance(FUNGIBLE_TOKEN_1, 1));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     @DisplayName("change a treasury owner")
     final Stream<DynamicTest> tokenTChangeTreasuryOwner() {
         final String ALICE = "ALICE";
@@ -289,7 +296,7 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
                 getAccountBalance(BOB).hasTokenBalance(FUNGIBLE_TOKEN_1, 1));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     @DisplayName("token association after the token airdrop")
     final Stream<DynamicTest> tokenAssociationAfterTokenAirdrop() {
         final String ALICE = "ALICE";
@@ -308,7 +315,7 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
                 getAccountBalance(BOB).hasTokenBalance(FUNGIBLE_TOKEN_1, 1));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     @DisplayName("multiple token airdrops one NFT and Than another NFT and claims them separately")
     final Stream<DynamicTest> twoAirdropsNFTSendTwoClaims() {
         final String ALICE = "ALICE";
@@ -335,7 +342,7 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
                 getAccountBalance(BOB).hasTokenBalance(NON_FUNGIBLE_TOKEN, 2));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     @DisplayName("token airdrop 10 FT and claim them")
     @SuppressWarnings("unchecked")
     final Stream<DynamicTest> tokenClaimOfTenFT() {
@@ -359,7 +366,7 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
                         10)));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     @DisplayName("token airdrop 10 FT and NFT claim by two receivers")
     final Stream<DynamicTest> tokenClaimOfTenFTAndNFTToTwoReceivers() {
         final String BOB = "BOB";
@@ -427,7 +434,7 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
                 validateChargedUsd("claimTxn" + claimNum, 0.0010031904, 1));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     @DisplayName("token airdrop 10 FT and claim them to different receivers")
     final Stream<DynamicTest> tokenClaimByFiveDifferentReceivers() {
         final String ALICE = "ALICE";
@@ -473,7 +480,7 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
                         .payingWith(BOB)
                         .signedByPayerAnd(BOB, CAROL, YULIA, TOM, STEVE)
                         .via("claimTxn"),
-                validateChargedUsd("claimTxn", 0.0010159536, 1),
+                validateFees("claimTxn", 0.0010159536, TOKEN_CLAIM_FEE + 4 * SIGNATURE_FEE_AFTER_MULTIPLIER),
                 tokenClaimAirdrop(
                                 pendingAirdrop(ALICE, BOB, FUNGIBLE_TOKEN_1),
                                 pendingAirdrop(ALICE, CAROL, FUNGIBLE_TOKEN_2),
@@ -504,7 +511,7 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
                 getAccountBalance(STEVE).hasTokenBalance(FUNGIBLE_TOKEN_5, 1).hasTokenBalance(FUNGIBLE_TOKEN_10, 1));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     @DisplayName("multiple token airdrops one NFT and Than another NFT and claims together")
     final Stream<DynamicTest> twoAirdropsNFTSendOneClaims() {
         final String ALICE = "ALICE";
@@ -531,7 +538,7 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
                 getAccountBalance(BOB).hasTokenBalance(NON_FUNGIBLE_TOKEN, 2));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     @DisplayName("sending two transaction with FT A and FT B and claim them")
     final Stream<DynamicTest> sendingTwoFTTransactionWithSameTokens() {
         final String ALICE = "ALICE";
@@ -560,7 +567,7 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
                 getAccountBalance(BOB).hasTokenBalance(FUNGIBLE_TOKEN_2, 5));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     @DisplayName("fails when not enough fungible token exist in the owner account")
     final Stream<DynamicTest> failsNotEnoughBalanceInSenderAccountOfFT() {
         final String ALICE = "ALICE";
@@ -583,7 +590,7 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
                         .hasKnownStatus(INSUFFICIENT_TOKEN_BALANCE));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     @DisplayName("fails attempt to claim by deleted account")
     final Stream<DynamicTest> attemptToClaimByDeletedAccount() {
         final String ALICE = "ALICE";
@@ -611,7 +618,7 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
                         .hasPrecheck(ACCOUNT_DELETED));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     @DisplayName("multiple FT token but not enough balance to transfer twice")
     final Stream<DynamicTest> multipleFTButNotEnoughBalanceToTransferTwice() {
         final String ALICE = "ALICE";
@@ -631,7 +638,7 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
                         .hasKnownStatus(INSUFFICIENT_TOKEN_BALANCE));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     @DisplayName("FT token paused during airdrop")
     final Stream<DynamicTest> tokenPausedDuringAirdrop() {
         final String ALICE = "ALICE";
@@ -652,9 +659,8 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
                         .hasKnownStatus(TOKEN_IS_PAUSED));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     @DisplayName("Claim token airdrop - 2nd account pays")
-    @Tag(MATS)
     final Stream<DynamicTest> claimTokenAirdropOtherAccountPays() {
         return hapiTest(flattened(
                 setUpTokensAndAllReceivers(),
@@ -673,16 +679,15 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
                         .hasPriority(recordWith()
                                 .tokenTransfers(includingFungibleMovement(
                                         moving(1, FUNGIBLE_TOKEN).between(OWNER, RECEIVER)))),
-                validateChargedUsd("claimTxn", 0.001, 1),
+                validateFees("claimTxn", 0.001, TOKEN_CLAIM_FEE + SIGNATURE_FEE_AFTER_MULTIPLIER),
 
                 // assert token associations
                 getAccountInfo(RECEIVER).hasToken(relationshipWith(FUNGIBLE_TOKEN)),
                 getAccountBalance(RECEIVER).hasTokenBalance(FUNGIBLE_TOKEN, 1)));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     @DisplayName("Claim token airdrop - sender account pays")
-    @Tag(MATS)
     final Stream<DynamicTest> claimTokenAirdropSenderAccountPays() {
         return hapiTest(flattened(
                 setUpTokensAndAllReceivers(),
@@ -700,14 +705,14 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
                         .hasPriority(recordWith()
                                 .tokenTransfers(includingFungibleMovement(
                                         moving(1, FUNGIBLE_TOKEN).between(OWNER, RECEIVER)))),
-                validateChargedUsd("claimTxn", 0.001, 1),
+                validateFees("claimTxn", 0.001, TOKEN_CLAIM_FEE + SIGNATURE_FEE_AFTER_MULTIPLIER),
 
                 // assert token associations
                 getAccountInfo(RECEIVER).hasToken(relationshipWith(FUNGIBLE_TOKEN)),
                 getAccountBalance(RECEIVER).hasTokenBalance(FUNGIBLE_TOKEN, 1)));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     @DisplayName("both associated and not associated FTs and receiver sig required")
     final Stream<DynamicTest> withTwoTokensAndReceiverSigReq() {
         final String ALICE = "ALICE";
@@ -735,7 +740,7 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
                 getAccountBalance(BOB).hasTokenBalance(FUNGIBLE_TOKEN_2, 10)));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     @DisplayName("multiple FT airdrops to same receiver")
     final Stream<DynamicTest> multipleFtAirdropsSameReceiver() {
         final String BOB = "BOB";
@@ -751,7 +756,7 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
                 getAccountBalance(BOB).hasTokenBalance(FUNGIBLE_TOKEN, 30)));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     @DisplayName("not associated FT and receiver sig required")
     final Stream<DynamicTest> notAssociatedFTAndReceiverSigRequired() {
         final String BOB = "BOB";
@@ -770,7 +775,7 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
                 getAccountBalance(BOB).hasTokenBalance(FUNGIBLE_TOKEN_1, 10)));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     @DisplayName("multiple pending transfers in one airdrop same token different receivers")
     final Stream<DynamicTest> multiplePendingInOneAirdropDifferentReceivers() {
         final String ALICE = "ALICE";
@@ -794,7 +799,7 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
                 getAccountBalance(CAROL).hasTokenBalance(FUNGIBLE_TOKEN_1, 1));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     @DisplayName("multiple pending transfers in one airdrop different token same receivers with max auto association")
     final Stream<DynamicTest> multiplePendingInOneAirdropSameReceiverDifferentTokensWithMaxAutoAssociation() {
         final String ALICE = "ALICE";
@@ -815,7 +820,7 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
                 getAccountBalance(BOB).hasTokenBalance(FUNGIBLE_TOKEN_2, 1));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     @DisplayName("multiple pending transfers in one airdrop different token same receivers with specific association")
     final Stream<DynamicTest> multiplePendingInOneAirdropSameReceiverDifferentTokensWithSpecificAssociation() {
         final String ALICE = "ALICE";
@@ -839,13 +844,13 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
                 getAccountBalance(BOB).hasTokenBalance(FUNGIBLE_TOKEN_2, 1));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     @DisplayName("token claim with no pending airdrop should fail")
     final Stream<DynamicTest> tokenClaimWithNoPendingAirdrop() {
         return hapiTest(tokenClaimAirdrop().hasPrecheck(EMPTY_PENDING_AIRDROP_ID_LIST));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     @DisplayName("token claim with duplicate entries should fail")
     final Stream<DynamicTest> duplicateClaimAirdrop() {
         return hapiTest(
@@ -859,7 +864,7 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
                         .hasPrecheck(PENDING_AIRDROP_ID_REPEATED));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     @DisplayName("token claim with more than ten pending airdrops should fail")
     final Stream<DynamicTest> tokenClaimWithMoreThanTenPendingAirdropsShouldFail() {
         return hapiTest(
@@ -885,7 +890,7 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
                         .hasKnownStatus(PENDING_AIRDROP_ID_LIST_TOO_LONG));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     @DisplayName("Claim frozen token airdrop")
     final Stream<DynamicTest> claimFrozenToken() {
         final var tokenFreezeKey = "freezeKey";
@@ -912,7 +917,7 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
                         getAccountBalance(RECEIVER).hasTokenBalance(FUNGIBLE_TOKEN, 0));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     @DisplayName("hollow account with 0 free maxAutoAssociations")
     final Stream<DynamicTest> airdropToAliasWithNoFreeSlots() {
         final var validAlias = "validAlias";
@@ -932,7 +937,7 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
                 getAliasedAccountInfo(validAlias).isNotHollow().hasMaxAutomaticAssociations(0)));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     @DisplayName("hollow account with 0 slots different payer")
     final Stream<DynamicTest> airdropToAliasWithNoFreeSlotsClaimWithDifferentPayer() {
         final var alias = "alias2.0";
@@ -948,13 +953,12 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
                         .signedBy(carol, alias)
                         .sigMapPrefixes(uniqueWithFullPrefixesFor(alias))
                         .via("claimTxn"),
-                validateChargedUsd("claimTxn", 0.001, 1),
-
+                validateFees("claimTxn", 0.001, TOKEN_CLAIM_FEE + SIGNATURE_FEE_AFTER_MULTIPLIER),
                 // check if account was finalized and auto associations were not modified
                 getAliasedAccountInfo(alias).isNotHollow().hasMaxAutomaticAssociations(0)));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     @DisplayName("given two same claims, second should fail")
     final Stream<DynamicTest> twoSameClaims() {
         // CLAIM_48
@@ -973,7 +977,7 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
                 validateChargedUsd("claimTxn2", 0.001, 1)));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     @DisplayName("missing pending airdrop, claim should fail")
     final Stream<DynamicTest> missingPendingClaim() {
         return hapiTest(flattened(
@@ -984,7 +988,7 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
                         .hasKnownStatus(INVALID_PENDING_AIRDROP_ID)));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     @DisplayName("attempt co claim an airdrop, that was claimed by a different account")
     // CLAIM_49
     final Stream<DynamicTest> test() {
@@ -1003,7 +1007,7 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
                         .hasKnownStatus(INVALID_SIGNATURE)));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     @DisplayName("signed by account not referenced as receiver_id in each pending airdrops")
     final Stream<DynamicTest> signedByAccountNotReferencedAsReceiverId() {
         return hapiTest(flattened(
@@ -1037,7 +1041,7 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
                 validateChargedUsd("claimTxn", 0.001, 1)));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     @DisplayName("spender has insufficient balance")
     final Stream<DynamicTest> spenderHasInsufficientBalance() {
         var spender = "spenderWithInsufficientBalance";
@@ -1053,7 +1057,7 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
                         .hasKnownStatus(INSUFFICIENT_TOKEN_BALANCE)));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     @DisplayName("claim after association edit while the account has pending airdrops")
     final Stream<DynamicTest> claimAfterAssociationEdit() {
         final String ALICE = "ALICE";
@@ -1070,7 +1074,7 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
                 getAccountBalance(BOB).hasTokenBalance(FUNGIBLE_TOKEN, 30));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     @DisplayName("with max long token balance")
     final Stream<DynamicTest> maxLongTokenBalance() {
         var receiver = "receiverWithMaxLongTokenBalance";
@@ -1086,7 +1090,7 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
                 getAccountBalance(receiver).hasTokenBalance(FUNGIBLE_TOKEN, Long.MAX_VALUE));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     @DisplayName("duplicate entries of Non Fungible Tokens should fail")
     final Stream<DynamicTest> duplicatedNFTFail() {
         return hapiTest(flattened(
@@ -1099,7 +1103,7 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
                         .hasPrecheck(PENDING_AIRDROP_ID_REPEATED)));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     @DisplayName("containing up to 10 tokens and some duplicate entries should fail")
     final Stream<DynamicTest> duplicateAirdropsFail() {
         return hapiTest(flattened(
@@ -1128,7 +1132,9 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
                         .hasPrecheck(PENDING_AIRDROP_ID_REPEATED)));
     }
 
-    @LeakyHapiTest(overrides = {"entities.unlimitedAutoAssociationsEnabled"})
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"entities.unlimitedAutoAssociationsEnabled"})
     @DisplayName("account created with same alias should fail")
     final Stream<DynamicTest> accountCreatedWithSAmeAliasShouldFail() {
         final String ALIAS = "alias";
@@ -1161,7 +1167,7 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
                                 .hasKnownStatus(INVALID_PENDING_AIRDROP_ID)));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     @DisplayName(
             "not signed by the account referenced by a receiver_id for each entry in the pending airdrops list should fail")
     final Stream<DynamicTest> notSignedByReceiverFail() {
@@ -1177,7 +1183,9 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
                         .hasPrecheck(INVALID_SIGNATURE)));
     }
 
-    @LeakyHapiTest(overrides = {"tokens.airdrops.claim.enabled"})
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"tokens.airdrops.claim.enabled"})
     @DisplayName("sign a tokenClaimAirdrop transaction when the feature flag is disabled")
     final Stream<DynamicTest> tokenClaimAirdropDisabledFail() {
         return hapiTest(
@@ -1190,7 +1198,7 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
                         .hasPrecheck(NOT_SUPPORTED));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     @DisplayName("a hollow account receiver that sigs it with no HBAR fail")
     final Stream<DynamicTest> hollowNoHbarFail() {
         final var hollowAcnt = "hollowAcnt";
@@ -1210,7 +1218,7 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
                         .hasPrecheck(INSUFFICIENT_PAYER_BALANCE));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     @DisplayName("pending airdrop does not exist")
     final Stream<DynamicTest> pendingAirdropDoesNotExist() {
         var receiver = "receiver";
@@ -1230,7 +1238,7 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
                         .hasKnownStatus(INVALID_PENDING_AIRDROP_ID)));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     @DisplayName("Attempt to claim an airdrop by the sender")
     final Stream<DynamicTest> claimWithSenderAccount() {
         var receiver = "receiver";
@@ -1245,7 +1253,7 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
                         .hasKnownStatus(INVALID_SIGNATURE)));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     @DisplayName("a hollow account with maxAutoAssociation 1 as receiver should be successful")
     final Stream<DynamicTest> hollowNoMaxAutoAssociationSuccess() {
         final String ALICE = "ALICE";
@@ -1266,9 +1274,8 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
                 getAccountBalance(BOB).hasTokenBalance(FUNGIBLE_TOKEN_1, 1));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     @DisplayName("Hollow account should be created before implementation of HIP-904")
-    @Tag(MATS)
     final Stream<DynamicTest> hollowAccountBehavior() {
         final String ALICE = "ALICE";
         final String BOB = "BOB";

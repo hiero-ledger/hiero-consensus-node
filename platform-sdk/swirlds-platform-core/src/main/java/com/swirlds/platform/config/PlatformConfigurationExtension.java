@@ -42,7 +42,6 @@ public class PlatformConfigurationExtension implements ConfigurationExtension {
                 PlatformSchedulersConfig.class,
                 PlatformStatusConfig.class,
                 StateCommonConfig.class,
-                StateConfig.class,
                 TemporaryFileConfig.class,
                 FileSystemManagerConfig.class,
                 UptimeConfig.class,

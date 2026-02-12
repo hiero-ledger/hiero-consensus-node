@@ -5,6 +5,7 @@ import static com.hedera.node.app.hapi.fees.calc.OverflowCheckingCalc.tinycentsT
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.spi.authorization.Authorizer;
@@ -113,6 +114,8 @@ public interface FeeContext {
      * @return the gas price in tinycents
      */
     long getGasPriceInTinycents();
+
+    HederaFunctionality functionality();
 
     /**
      * Gets the number of tinybars equivalent to the given number of tinycents.

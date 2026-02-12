@@ -17,8 +17,6 @@ import com.swirlds.platform.listeners.ReconnectCompleteNotification;
 import com.swirlds.platform.state.hashlogger.HashLogger;
 import com.swirlds.platform.state.iss.IssDetector;
 import com.swirlds.platform.state.nexus.SignedStateNexus;
-import com.swirlds.platform.state.signed.ReservedSignedState;
-import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.signed.StateSignatureCollector;
 import com.swirlds.platform.state.snapshot.StateDumpRequest;
 import com.swirlds.platform.state.snapshot.StateSnapshotManager;
@@ -26,7 +24,7 @@ import com.swirlds.platform.system.PlatformMonitor;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.system.status.StatusStateMachine;
 import com.swirlds.platform.system.status.actions.PlatformStatusAction;
-import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import org.hiero.consensus.event.creator.EventCreatorModule;
@@ -40,6 +38,8 @@ import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterStateUtils;
 import org.hiero.consensus.round.EventWindowUtils;
+import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.state.signed.SignedState;
 
 /**
  * Responsible for coordinating activities through the component's wire for the platform.
@@ -71,7 +71,7 @@ public record PlatformCoordinator(
 
         components.eventIntakeModule().flush();
         components.pcesModule().flush();
-        components.gossipWiring().flush();
+        components.gossipModule().flush();
         components.hashgraphModule().flush();
         components.applicationTransactionPrehandlerWiring().flush();
         components.eventCreatorModule().flush();
@@ -124,7 +124,7 @@ public record PlatformCoordinator(
         // Phase 4: clear
         // Data is no longer moving through the system. Clear all the internal data structures in the wiring objects.
         components.eventIntakeModule().clearComponentsInputWire().inject(NoInput.getInstance());
-        components.gossipWiring().getClearInput().inject(NoInput.getInstance());
+        components.gossipModule().clearInputWire().inject(NoInput.getInstance());
         components
                 .stateSignatureCollectorWiring()
                 .getInputWire(StateSignatureCollector::clear)
@@ -138,21 +138,21 @@ public record PlatformCoordinator(
      * Start gossiping.
      */
     public void startGossip() {
-        components.gossipWiring().getStartInput().inject(NoInput.getInstance());
+        components.gossipModule().startInputWire().inject(NoInput.getInstance());
     }
 
     /**
      * Resume gossiping.
      */
     public void resumeGossip() {
-        components.gossipWiring().resumeInput().inject(NoInput.getInstance());
+        components.gossipModule().resumeInputWire().inject(NoInput.getInstance());
     }
 
     /**
      * Pause gossiping.
      */
     public void pauseGossip() {
-        components.gossipWiring().pauseInput().inject(NoInput.getInstance());
+        components.gossipModule().pauseInputWire().inject(NoInput.getInstance());
     }
 
     /**
@@ -219,7 +219,7 @@ public record PlatformCoordinator(
 
         // Since there is asynchronous access to the shadowgraph, it's important to ensure that
         // it has fully ingested the new event window before continuing.
-        components.gossipWiring().flush();
+        components.gossipModule().flush();
     }
 
     /**
@@ -369,7 +369,7 @@ public record PlatformCoordinator(
         // if this is the case, we must make sure to send it to the writer directly
         this.putSignatureCollectorState(signedState.reserve("loading reconnect state into sig collector"));
 
-        final MerkleNodeState state = signedState.getState();
+        final State state = signedState.getState();
 
         final ConsensusSnapshot consensusSnapshot = Objects.requireNonNull(consensusSnapshotOf(state));
         this.consensusSnapshotOverride(consensusSnapshot);
