@@ -1323,6 +1323,17 @@ public class FeesChargingUtils {
         });
     }
 
+    public static SpecOperation validateInnerTxnFees(
+            String txn, String parent, double legacyFee, double simpleFee, double diff) {
+        return doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+            if ("true".equals(flag)) {
+                return validateInnerTxnChargedUsd(txn, parent, simpleFee, diff);
+            } else {
+                return validateInnerTxnChargedUsd(txn, parent, legacyFee, diff);
+            }
+        });
+    }
+
     /**
      * Dual-mode fee validation with child records that branches on {@code fees.simpleFeesEnabled} at runtime.
      * When simple fees are enabled, validates against {@code simpleFee};
