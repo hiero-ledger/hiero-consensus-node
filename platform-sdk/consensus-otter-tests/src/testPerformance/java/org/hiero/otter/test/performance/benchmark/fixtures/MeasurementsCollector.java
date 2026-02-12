@@ -12,6 +12,7 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.utility.StringTable;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.test.performance.benchmark.fixtures.StatisticsCalculator.Statistics;
 
@@ -173,44 +174,27 @@ public class MeasurementsCollector {
             return jmhStyleReport.toString();
         }
 
-        final org.hiero.base.utility.StringTable table = org.hiero.base.utility.StringTable.column("Benchmark")
-                .column("Cnt")
-                .column("Score")
-                .typeFloat(10, 3)
-                .headlessColumn()
-                .withFixedValue(UNIT)
-                .headlessColumn()
-                .fixedValue("±")
-                .column("Error")
-                .typeFloat(6, 3)
-                .headlessColumn()
-                .withFixedValue(UNIT)
-                .column("StdDev")
-                .typeFloat(6, 3)
-                .headlessColumn()
-                .withFixedValue(UNIT)
-                .column("p50")
-                .typeInt(6)
-                .headlessColumn()
-                .withFixedValue(UNIT)
-                .column("p95")
-                .typeInt(6)
-                .headlessColumn()
-                .withFixedValue(UNIT)
-                .column("p99")
-                .typeInt(6)
-                .headlessColumn()
-                .withFixedValue(UNIT)
-                .column("Max")
-                .typeInt(6)
-                .headlessColumn()
-                .withFixedValue(UNIT)
-                .column("Throughput")
-                .typeFloat(6, 3)
-                .headlessColumn()
-                .fixedValue("ops/s")
-                .build();
+        final StringTable.Builder tb = StringTable.column("Benchmark");
+        tb.column("Cnt");
+        tb.column("Score").typeFloat(10, 3);
+        tb.fixedValue(UNIT);
+        tb.fixedValue("±");
+        tb.column("Error").typeFloat(6, 3);
+        tb.fixedValue(UNIT);
+        tb.column("StdDev").typeFloat(6, 3);
+        tb.fixedValue(UNIT);
+        tb.column("p50").typeInt(6);
+        tb.fixedValue(UNIT);
+        tb.column("p95").typeInt(6);
+        tb.fixedValue(UNIT);
+        tb.column("p99").typeInt(6);
+        tb.fixedValue(UNIT);
+        tb.column("Max").typeInt(6);
+        tb.fixedValue(UNIT);
+        tb.column("Throughput").typeFloat(6, 3);
+        tb.fixedValue("ops/s").build();
 
+        final StringTable table = tb.build();
         jmhStyleReport.append("\n");
 
         // Per-node results

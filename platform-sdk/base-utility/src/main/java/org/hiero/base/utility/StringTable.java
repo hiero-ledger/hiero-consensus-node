@@ -177,7 +177,7 @@ public class StringTable {
          * @return this builder
          */
         @NonNull
-        public Builder headlessColumn() {
+        public Builder column() {
             columns.add(new ColumnDef());
             return this;
         }
@@ -224,13 +224,14 @@ public class StringTable {
         }
 
         /**
-         * Alias for {@link #withFixedValue(String)}.
+         * adds a column with a fixed value
          *
          * @param value the fixed value
          * @return this builder
          */
         @NonNull
         public Builder fixedValue(@NonNull final String value) {
+            column();
             lastColumn().fixedValue = value;
             return this;
         }
