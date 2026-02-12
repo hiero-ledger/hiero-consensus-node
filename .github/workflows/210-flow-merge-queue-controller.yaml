@@ -10,39 +10,9 @@ permissions:
   pull-requests: write
 
 jobs:
-  parameters:
-    name: XTS Workflow Parameters
-    runs-on: hl-cn-default-lin-sm
-    outputs:
-      solo-version: ${{ steps.params.outputs.solo-version }}
-      helm-release-name: ${{ steps.params.outputs.helm-release-name }}
-      solo-ge-0440: ${{ steps.params.outputs.solo-ge-0440 }}
-    steps:
-      - name: Initialize GitHub Job
-        uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
-
-      - name: Print Params
-        id: params
-        run: |
-          SOLO_GE_0440=$([[ "$(printf '%s\n' "${{vars.ADHOC_XTS_SOLO_VERSION}}" "v0.44.0" | sort -V | head -n1)" == "v0.44.0" ]] && echo "true" || echo "false")
-          HELM_NAME="mirror"
-          if [[ "${SOLO_GE_0440}" == "true" ]]; then
-            HELM_NAME="mirror-1"
-          fi
-          echo "Commit SHA: ${{ inputs.ref }}" | tee -a "${GITHUB_STEP_SUMMARY}"
-          echo "Branch Name: ${{ inputs.branch_name }}" | tee -a "${GITHUB_STEP_SUMMARY}"
-          echo "Solo Version: ${{ vars.ADHOC_XTS_SOLO_VERSION }}" | tee -a "${GITHUB_STEP_SUMMARY}"
-          echo "Helm Release Name: ${HELM_NAME}" | tee -a "${GITHUB_STEP_SUMMARY}"
-
-          echo "solo-version=${{ vars.ADHOC_XTS_SOLO_VERSION }}" >> "${GITHUB_OUTPUT}"
-          echo "helm-release-name=${HELM_NAME}" >> "${GITHUB_OUTPUT}"
-          echo "solo-ge-0440=${SOLO_GE_0440}" >> "${GITHUB_OUTPUT}"
-
   trigger-xts-tests:
     name: Merge Queue XTS Required Tests
     uses: ./.github/workflows/zxc-xts-tests.yaml
-    needs:
-      - parameters
     with:
       ref: ${{ github.ref }}
       branch_name: ${{ github.ref_name }}
