@@ -6,5 +6,4 @@ description = "Hiero CLPR Interledger Service API"
 testModuleInfo {
     requires("org.assertj.core")
     requires("org.junit.jupiter.api")
-    requires("com.swirlds.state.api")
 }
