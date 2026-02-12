@@ -1,0 +1,106 @@
+name: "210: [FLOW] Merge Queue Controller"
+on:
+  push:
+    branches:
+      - trunk-merge/**
+
+permissions:
+  contents: read
+  id-token: write
+  pull-requests: write
+
+jobs:
+  trigger-mats-tests:
+    name: Merge Queue MATS Tests
+    uses: ./.github/workflows/zxc-mats-tests.yaml
+    with:
+      ref: ${{ github.ref }}
+      enable-spotless-check: "true"
+      enable-dependency-check: "true"
+      enable-unit-tests: "true"
+      enable-integration-tests: "true"
+      enable-hapi-tests: "true"
+      enable-otter-tests: "true"
+      enable-snyk-scan: "true"
+      enable-gradle-determinism: "true"
+      enable-docker-determinism: "true"
+      java-version: "21.0.6"
+      java-distribution: "temurin"
+      custom-job-label: "Merge Queue MATS:"
+    secrets:
+      access-token: ${{ secrets.GITHUB_TOKEN }}
+      codacy-project-token: ${{ secrets.CODACY_PROJECT_TOKEN }}
+      codecov-token: ${{ secrets.CODECOV_TOKEN }}
+      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
+      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
+      snyk-token: ${{ secrets.SNYK_TOKEN }}
+
+  parameters:
+    name: XTS Workflow Parameters
+    runs-on: hl-cn-default-lin-sm
+    outputs:
+      solo-version: ${{ steps.params.outputs.solo-version }}
+      helm-release-name: ${{ steps.params.outputs.helm-release-name }}
+      solo-ge-0440: ${{ steps.params.outputs.solo-ge-0440 }}
+    steps:
+      - name: Initialize GitHub Job
+        uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
+
+      - name: Print Params
+        id: params
+        run: |
+          SOLO_GE_0440=$([[ "$(printf '%s\n' "${{vars.ADHOC_XTS_SOLO_VERSION}}" "v0.44.0" | sort -V | head -n1)" == "v0.44.0" ]] && echo "true" || echo "false")
+          HELM_NAME="mirror"
+          if [[ "${SOLO_GE_0440}" == "true" ]]; then
+            HELM_NAME="mirror-1"
+          fi
+          echo "Commit SHA: ${{ inputs.ref }}" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "Branch Name: ${{ inputs.branch_name }}" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "Solo Version: ${{ vars.ADHOC_XTS_SOLO_VERSION }}" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "Helm Release Name: ${HELM_NAME}" | tee -a "${GITHUB_STEP_SUMMARY}"
+
+          echo "solo-version=${{ vars.ADHOC_XTS_SOLO_VERSION }}" >> "${GITHUB_OUTPUT}"
+          echo "helm-release-name=${HELM_NAME}" >> "${GITHUB_OUTPUT}"
+          echo "solo-ge-0440=${SOLO_GE_0440}" >> "${GITHUB_OUTPUT}"
+
+  state-validator-uberjar:
+    name: Build & Publish Hedera State Validator Uber JAR
+    needs:
+      - parameters
+    uses: ./.github/workflows/zxc-build-publish-state-validator.yaml
+    with:
+      ref: ${{ github.ref }}
+
+  trigger-xts-tests:
+    name: Merge Queue XTS Required Tests
+    uses: ./.github/workflows/zxc-xts-tests.yaml
+    needs:
+      - parameters
+    with:
+      ref: ${{ github.ref }}
+      branch_name: ${{ github.ref_name }}
+      solo-version: ${{ needs.parameters.outputs.solo-version }}
+      solo-ge-0440: ${{ needs.parameters.outputs.solo-ge-0440 }}
+      helm-release-name: ${{ needs.parameters.outputs.helm-release-name }}
+      custom-job-label: "Merge Queue XTS:"
+      enable-timing-sensitive-test-suite: "true"
+      enable-hammer-test-suite: "true"
+      enable-hapi-test-suite: "true"
+      enable-otter-test-suite: "true"
+      enable-hedera-node-jrs-panel: "true"
+      enable-sdk-tck-regression-panel: "true"
+    secrets:
+      access-token: ${{ secrets.GITHUB_TOKEN }}
+      platform-access-token: ${{ secrets.PLATFORM_GH_ACCESS_TOKEN }}
+      regression-access-token: ${{ secrets.GH_ACCESS_TOKEN }}
+      gcp-project-number: ${{ secrets.PLATFORM_GCP_PROJECT_NUMBER }}
+      gcp-sa-key-contents: ${{ secrets.PLATFORM_GCP_KEY_FILE }}
+      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
+      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
+      grafana-agent-username: ${{ secrets.GRAFANA_AGENT_USERNAME }}
+      grafana-agent-password: ${{ secrets.GRAFANA_AGENT_PASSWORD }}
+      jrs-ssh-user-name: ${{ secrets.PLATFORM_JRS_SSH_USER_NAME }}
+      jrs-ssh-key-file: ${{ secrets.PLATFORM_JRS_SSH_KEY_FILE }}
+      slack-api-token: ${{ secrets.PLATFORM_SLACK_API_TOKEN }}
+      slack-citr-details-token: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
+      slack-tck-report-webhook: ${{ secrets.SLACK_TCK_MONITOR_WEBHOOK }}
