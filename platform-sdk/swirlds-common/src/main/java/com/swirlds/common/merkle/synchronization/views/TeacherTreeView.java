@@ -3,9 +3,10 @@ package com.swirlds.common.merkle.synchronization.views;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.common.merkle.synchronization.TeachingSynchronizer;
+import com.swirlds.common.merkle.synchronization.streams.AsyncInputStream;
+import com.swirlds.common.merkle.synchronization.streams.AsyncOutputStream;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
 import java.io.IOException;
-import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
 
@@ -24,15 +25,15 @@ public interface TeacherTreeView extends TeacherHandleQueue, TeacherResponseQueu
      *
      * @param teachingSynchronizer the teacher synchronizer
      * @param workGroup the work group to run teaching task(s) in
-     * @param inputStream the input stream to read data from learner
-     * @param outputStream the output stream to write data to learner
+     * @param in the input stream to read data from learner
+     * @param out the output stream to write data to learner
      */
     void startTeacherTasks(
             final TeachingSynchronizer teachingSynchronizer,
             final Time time,
             final StandardWorkGroup workGroup,
-            final SerializableDataInputStream inputStream,
-            final SerializableDataOutputStream outputStream);
+            final AsyncInputStream in,
+            final AsyncOutputStream out);
 
     /**
      * Write data for a merkle leaf to the stream.

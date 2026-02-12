@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.merkle.synchronization.views;
 
-import com.swirlds.common.merkle.synchronization.LearningSynchronizer;
 import com.swirlds.common.merkle.synchronization.stats.ReconnectMapStats;
+import com.swirlds.common.merkle.synchronization.streams.AsyncInputStream;
+import com.swirlds.common.merkle.synchronization.streams.AsyncOutputStream;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -25,22 +26,15 @@ public interface LearnerTreeView extends LearnerExpectedLessonQueue, TreeView {
      * new custom tree views are encountered, they must be added to {@code rootsToReceive}, although it isn't
      * currently supported by virtual tree views, as nested virtual maps are not supported.
      *
-     * @param learningSynchronizer the learning synchronizer
      * @param workGroup the work group to run teaching task(s) in
-     * @param inputStream the input stream to read data from teacher
-     * @param outputStream the output stream to write data to teacher
+     * @param in the input stream to read data from teacher
+     * @param out the output stream to write data to teacher
      */
     void startLearnerTasks(
-            final LearningSynchronizer learningSynchronizer,
             final StandardWorkGroup workGroup,
-            final SerializableDataInputStream inputStream,
-            final SerializableDataOutputStream outputStream);
-
-    /**
-     * Aborts the reconnect process on the learner side. It may be used to release resources, when
-     * reconnect failed with an exception.
-     */
-    default void abort() {}
+            final AsyncInputStream in,
+            final AsyncOutputStream out,
+            final Runnable completeListener);
 
     /**
      * Set the child of an internal node.

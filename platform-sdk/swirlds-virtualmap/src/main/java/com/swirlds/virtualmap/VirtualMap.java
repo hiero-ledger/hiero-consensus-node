@@ -23,6 +23,7 @@ import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.common.merkle.synchronization.stats.ReconnectMapStats;
+import com.swirlds.common.merkle.synchronization.task.ReconnectNodeCount;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
 import com.swirlds.common.merkle.synchronization.views.LearnerTreeView;
 import com.swirlds.common.merkle.synchronization.views.TeacherTreeView;
@@ -48,6 +49,7 @@ import com.swirlds.virtualmap.internal.reconnect.ConcurrentBlockingIterator;
 import com.swirlds.virtualmap.internal.reconnect.LearnerPullVirtualTreeView;
 import com.swirlds.virtualmap.internal.reconnect.LearnerPushVirtualTreeView;
 import com.swirlds.virtualmap.internal.reconnect.NodeTraversalOrder;
+import com.swirlds.virtualmap.internal.reconnect.ParallelSyncTraversalOrder;
 import com.swirlds.virtualmap.internal.reconnect.ReconnectHashLeafFlusher;
 import com.swirlds.virtualmap.internal.reconnect.ReconnectHashListener;
 import com.swirlds.virtualmap.internal.reconnect.ReconnectNodeRemover;
@@ -1101,11 +1103,13 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
     public TeacherTreeView buildTeacherView(@NonNull final ReconnectConfig reconnectConfig) {
         return switch (virtualMapConfig.reconnectMode()) {
             case VirtualMapReconnectMode.PUSH ->
-                new TeacherPushVirtualTreeView(getStaticThreadManager(), reconnectConfig, this, metadata, pipeline);
+                new TeacherPushVirtualTreeView(reconnectConfig, this, metadata, pipeline);
             case VirtualMapReconnectMode.PULL_TOP_TO_BOTTOM ->
-                new TeacherPullVirtualTreeView(getStaticThreadManager(), reconnectConfig, this, metadata, pipeline);
+                new TeacherPullVirtualTreeView(reconnectConfig, this, metadata, pipeline);
             case VirtualMapReconnectMode.PULL_TWO_PHASE_PESSIMISTIC ->
-                new TeacherPullVirtualTreeView(getStaticThreadManager(), reconnectConfig, this, metadata, pipeline);
+                new TeacherPullVirtualTreeView(reconnectConfig, this, metadata, pipeline);
+            case VirtualMapReconnectMode.PULL_PARALLEL_SYNC ->
+                new TeacherPullVirtualTreeView(reconnectConfig, this, metadata, pipeline);
             default ->
                 throw new UnsupportedOperationException("Unknown reconnect mode: " + virtualMapConfig.reconnectMode());
         };
@@ -1184,7 +1188,9 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
      * <p>The view will be closed by reconnect learner, when reconnect is complete or failed.
      */
     public LearnerTreeView buildLearnerView(
-            @NonNull final ReconnectConfig reconnectConfig, @NonNull final ReconnectMapStats mapStats) {
+            @NonNull final ReconnectConfig reconnectConfig,
+            @NonNull final ReconnectNodeCount nodeCount,
+            @NonNull final ReconnectMapStats mapStats) {
         assert originalMap != null;
         // During reconnect we want to look up state from the original records
         final VirtualMapMetadata originalState = originalMap.getMetadata();
@@ -1198,15 +1204,9 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
         return switch (virtualMapConfig.reconnectMode()) {
             case VirtualMapReconnectMode.PUSH ->
                 new LearnerPushVirtualTreeView(
-                        reconnectConfig,
-                        this,
-                        originalMap.records,
-                        originalState,
-                        reconnectState,
-                        nodeRemover,
-                        mapStats);
+                        this, originalMap.records, originalState, reconnectState, nodeRemover, nodeCount, mapStats);
             case VirtualMapReconnectMode.PULL_TOP_TO_BOTTOM -> {
-                final NodeTraversalOrder topToBottom = new TopToBottomTraversalOrder();
+                final NodeTraversalOrder topToBottom = new TopToBottomTraversalOrder(nodeCount);
                 yield new LearnerPullVirtualTreeView(
                         reconnectConfig,
                         this,
@@ -1218,7 +1218,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
                         mapStats);
             }
             case VirtualMapReconnectMode.PULL_TWO_PHASE_PESSIMISTIC -> {
-                final NodeTraversalOrder twoPhasePessimistic = new TwoPhasePessimisticTraversalOrder();
+                final NodeTraversalOrder twoPhasePessimistic = new TwoPhasePessimisticTraversalOrder(nodeCount);
                 yield new LearnerPullVirtualTreeView(
                         reconnectConfig,
                         this,
@@ -1227,6 +1227,18 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
                         reconnectState,
                         nodeRemover,
                         twoPhasePessimistic,
+                        mapStats);
+            }
+            case VirtualMapReconnectMode.PULL_PARALLEL_SYNC -> {
+                final NodeTraversalOrder parallelSync = new ParallelSyncTraversalOrder(nodeCount);
+                yield new LearnerPullVirtualTreeView(
+                        reconnectConfig,
+                        this,
+                        originalMap.records,
+                        originalState,
+                        reconnectState,
+                        nodeRemover,
+                        parallelSync,
                         mapStats);
             }
             default ->

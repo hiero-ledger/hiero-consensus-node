@@ -50,8 +50,6 @@ public class LoggingTests {
         // A non-trivial LogPayload type
         final String syncCompleteMessage = "synchronizationComplete";
         final double time = 10.0;
-        final double hashTime = 1.0;
-        final double initTime = 1.0;
         final int totalNodes = 200;
         final int leaves = 100;
         final int redundantLeaves = 10;
@@ -62,7 +60,6 @@ public class LoggingTests {
                 EXCEPTION.getMarker(),
                 new SynchronizationCompletePayload(syncCompleteMessage)
                         .setTimeInSeconds(time)
-                        .setHashTimeInSeconds(hashTime)
                         .setTotalNodes(totalNodes)
                         .setLeafNodes(leaves)
                         .setRedundantLeafNodes(redundantLeaves)
@@ -163,7 +160,6 @@ public class LoggingTests {
         logger.error(
                 EXCEPTION.getMarker(), () -> new SynchronizationCompletePayload("this message contains auxiliary data")
                         .setTimeInSeconds(10.0)
-                        .setHashTimeInSeconds(1.0)
                         .setTotalNodes(200)
                         .setLeafNodes(100)
                         .setRedundantLeafNodes(10)
@@ -174,7 +170,6 @@ public class LoggingTests {
                 EXCEPTION.getMarker(),
                 new SynchronizationCompletePayload("this message contains auxiliary data")
                         .setTimeInSeconds(10.0)
-                        .setHashTimeInSeconds(1.0)
                         .setTotalNodes(200)
                         .setLeafNodes(100)
                         .setRedundantLeafNodes(10)
@@ -189,7 +184,6 @@ public class LoggingTests {
                 EXCEPTION.getMarker(),
                 () -> new SynchronizationCompletePayload("this message contains auxiliary data and an exception")
                         .setTimeInSeconds(10.0)
-                        .setHashTimeInSeconds(1.0)
                         .setTotalNodes(200)
                         .setLeafNodes(100)
                         .setRedundantLeafNodes(10)
@@ -201,7 +195,6 @@ public class LoggingTests {
                 EXCEPTION.getMarker(),
                 new SynchronizationCompletePayload("this message contains auxiliary data and an exception")
                         .setTimeInSeconds(10.0)
-                        .setHashTimeInSeconds(1.0)
                         .setTotalNodes(200)
                         .setLeafNodes(100)
                         .setRedundantLeafNodes(10)

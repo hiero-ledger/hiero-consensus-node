@@ -1,4 +1,20 @@
 // SPDX-License-Identifier: Apache-2.0
+/*
+ * Copyright (C) 2024 Hedera Hashgraph, LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.swirlds.virtualmap.internal.reconnect;
 
 import static com.swirlds.virtualmap.internal.Path.ROOT_PATH;
@@ -9,6 +25,7 @@ import java.util.Deque;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
 /**
@@ -39,7 +56,10 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
  * from the first leaf path to the last leaf path, skipping paths with clean parents. At
  * this step some clean leaves may be sent redundantly, too.
  */
-public class TwoPhasePessimisticTraversalOrder implements NodeTraversalOrder {
+public class ParallelSyncTraversalOrder implements NodeTraversalOrder {
+
+    // FUTURE WORK: make it configurable
+    private static final int DEFAULT_CHUNK_ROOT_RANK = 16;
 
     private final ReconnectNodeCount nodeCount;
 
@@ -48,13 +68,13 @@ public class TwoPhasePessimisticTraversalOrder implements NodeTraversalOrder {
 
     private final Set<Long> cleanNodes = ConcurrentHashMap.newKeySet();
 
-    // Number of parent node chunks processed in parallel in phase 1
-    private int chunkCount;
+    // Number of parent node chunks processed in parallel
+    private volatile int chunkCount;
 
     // The rank of top-most nodes in every chunk. For example, if chunks are started at
     // rank 20, and there are 512 chunks, it means chunk height is 11, and chunk stop
     // rank is 9. Top-most paths of all chunks are at rank 9
-    private int chunksStopRank;
+    private volatile int chunksRootRank;
 
     // Start ranks for every chunk. A chunk may start at first leaf rank or first leaf rank - 1
     private AtomicReferenceArray<Integer> chunkStartRanks;
@@ -66,15 +86,19 @@ public class TwoPhasePessimisticTraversalOrder implements NodeTraversalOrder {
     private AtomicReferenceArray<Long> chunkWidths;
 
     // For every chunk, a list of paths to check next. Initially this is a starting
-    // path for every chunk. Then this list may contain clean nodes' parents. If for a chunk
-    // this list is not empty, paths from the list are sent before "pessimistic" paths
-    // for this chunk
+    // path for every chunk. Then this list may contain clean nodes' parents
     private final Deque<Long> internalsToCheck = new ConcurrentLinkedDeque<>();
 
-    // Used during phase 2
-    private long lastLeafPath = Path.INVALID_PATH;
+    private final Set<Integer> chunksInProgress = ConcurrentHashMap.newKeySet();
 
-    public TwoPhasePessimisticTraversalOrder(final ReconnectNodeCount nodeCount) {
+    private final AtomicLong nextLeafPath = new AtomicLong();
+
+    /**
+     * Constructor.
+     *
+     * @param nodeCount object to report node stats
+     */
+    public ParallelSyncTraversalOrder(final ReconnectNodeCount nodeCount) {
         this.nodeCount = nodeCount;
     }
 
@@ -83,18 +107,20 @@ public class TwoPhasePessimisticTraversalOrder implements NodeTraversalOrder {
         this.reconnectFirstLeafPath = firstLeafPath;
         this.reconnectLastLeafPath = lastLeafPath;
 
+        nextLeafPath.set(firstLeafPath);
+
         final int leafParentRank = Path.getRank(firstLeafPath) - 1;
-        if (leafParentRank < 14) {
+        if (leafParentRank < DEFAULT_CHUNK_ROOT_RANK / 2) {
             chunkCount = 0;
-            return; // no phase 1, just iterate over all leaves
+            return; // just iterate over all leaves
         }
 
+        chunksRootRank = Math.min(leafParentRank - 2, DEFAULT_CHUNK_ROOT_RANK);
         // Higher the stop rank, less the number of chunks
-        chunksStopRank = Math.max(leafParentRank / 2, 12);
-        chunkCount = 1 << chunksStopRank;
+        chunkCount = 1 << chunksRootRank;
         // Height of chunks starting from leaf parent rank. Chunks starting from first leaf rank
         // will be of minChunkHeight + 1 height
-        final int minChunkHeight = leafParentRank - chunksStopRank;
+        final int minChunkHeight = leafParentRank - chunksRootRank;
 
         final long firstPathInLeafParentRank = Path.getLeftGrandChildPath(0, leafParentRank);
 
@@ -102,6 +128,7 @@ public class TwoPhasePessimisticTraversalOrder implements NodeTraversalOrder {
         chunkWidths = new AtomicReferenceArray<>(chunkCount);
         chunkStartRanks = new AtomicReferenceArray<>(chunkCount);
         for (int i = 0; i < chunkCount; i++) {
+            chunksInProgress.add(i);
             final long p = firstPathInLeafParentRank + ((long) i << minChunkHeight);
             final int startRank;
             final long startPath;
@@ -134,26 +161,46 @@ public class TwoPhasePessimisticTraversalOrder implements NodeTraversalOrder {
             if (path != 0) {
                 assert chunkCount > 0;
                 final int chunk = getPathChunk(path);
+                final int chunkStartRank = chunkStartRanks.get(chunk);
+                final int rank = Path.getRank(path);
                 if (isClean) {
                     cleanNodes.add(path);
                     // Keep cleanNodes lean. If a parent is clean, its children are clean, too, no
                     // need to keep them in the set
                     cleanNodes.remove(Path.getLeftChildPath(path));
                     cleanNodes.remove(Path.getRightChildPath(path));
-                    // If clean and left, add the parent to the list of paths to check
-                    if ((path != Path.INVALID_PATH) && Path.isLeft(path)) {
-                        internalsToCheck.addFirst(Path.getParentPath(path));
+                    if (Path.isLeft(path)) {
+                        if (rank > chunksRootRank) {
+                            // Add the parent to the list of paths to check
+                            internalsToCheck.addFirst(Path.getParentPath(path));
+                        } else {
+                            // Chunk processing is done, the whole chunk is clean
+                            chunksInProgress.remove(chunk);
+                        }
+                    } else {
+                        final long nextPathAtChunkStartRank =
+                                Path.getRightGrandChildPath(path, chunkStartRank - rank) + 1;
+                        if (nextPathAtChunkStartRank <= getLastChunkPath(chunk)) {
+                            internalsToCheck.add(nextPathAtChunkStartRank);
+                        } else {
+                            chunksInProgress.remove(chunk);
+                        }
                     }
                 } else {
-                    // At the chunk start rank, every other path (i.e. all right paths) are skipped by
-                    // default. If a left sibling is clean, there is no need to check the right sibling,
-                    // as a request for the parent will be sent anyway. However, if the left sibling
-                    // is dirty, the right sibling may be either dirty, or clean, so a request for it
-                    // should be sent
-                    final int chunkStartRank = chunkStartRanks.get(chunk);
-                    final int pathRank = Path.getRank(path);
-                    if ((pathRank == chunkStartRank) && Path.isLeft(path)) {
-                        internalsToCheck.addLast(path + 1);
+                    if (rank == chunkStartRank) {
+                        if (path < getLastChunkPath(chunk)) {
+                            internalsToCheck.add(path + 1);
+                        } else {
+                            // The last path in the chunk is processed
+                            chunksInProgress.remove(chunk);
+                        }
+                    } else {
+                        final int pathLevelInChunk = chunkStartRank - rank;
+                        final long leftChild = Path.getLeftChildPath(path);
+                        final long nextPathAtChunkStartRank =
+                                Path.getRightGrandChildPath(leftChild, pathLevelInChunk - 1) + 1;
+                        assert nextPathAtChunkStartRank <= getLastChunkPath(chunk);
+                        internalsToCheck.add(nextPathAtChunkStartRank);
                     }
                 }
             }
@@ -166,54 +213,41 @@ public class TwoPhasePessimisticTraversalOrder implements NodeTraversalOrder {
 
     @Override
     public long getNextInternalPathToSend() {
-        while (true) {
-            final Long pathToCheck = internalsToCheck.pollFirst();
-            if (pathToCheck == null) {
-                break;
-            }
-            if (hasCleanParent(pathToCheck)) {
-                continue;
-            }
-            final int pathRank = Path.getRank(pathToCheck);
-            final int chunk = getPathChunk(pathToCheck);
-            if ((pathRank == chunkStartRanks.get(chunk)) && Path.isLeft(pathToCheck)) {
-                // Pessimistic path
-                long next = skipCleanPaths(pathToCheck + 2, getLastChunkPath(chunk));
-                if (next != Path.INVALID_PATH) {
-                    internalsToCheck.addLast(next);
-                }
-            }
-            return pathToCheck;
+        final Long path = internalsToCheck.pollFirst();
+        if (path != null) {
+            return path;
         }
         return Path.INVALID_PATH;
     }
 
+    @Override
     public long getNextLeafPathToSend() {
-        long path = lastLeafPath == Path.INVALID_PATH ? reconnectFirstLeafPath : lastLeafPath + 1;
-        if ((path > reconnectLastLeafPath) || (reconnectFirstLeafPath < 0)) {
+        long path = nextLeafPath.get();
+        if (path == Path.INVALID_PATH) {
             return Path.INVALID_PATH;
         }
-        long result = skipCleanPaths(path, reconnectLastLeafPath);
-        if (result == Path.INVALID_PATH) {
-            // No more leaf paths to send. Set lastLeafPath to reconnectLastLeafPath + 1, so
-            // all subsequent calls to this method return INVALID_PATH
-            lastLeafPath = reconnectLastLeafPath + 1;
-        } else {
-            assert result >= reconnectFirstLeafPath;
-            lastLeafPath = result;
+        path = skipCleanPaths(path, reconnectLastLeafPath);
+        if (path == Path.INVALID_PATH) {
+            nextLeafPath.set(path);
+            return path;
         }
-        return result;
+        final int chunk = getPathChunk(path);
+        if (!chunksInProgress.contains(chunk)) {
+            nextLeafPath.set(path + 1);
+            return path;
+        }
+        return -2;
     }
 
     private int getPathChunk(long path) {
         int rank = Path.getRank(path);
-        if (rank < chunksStopRank) {
+        if (rank < chunksRootRank) {
             // This may happen if the whole chunk is clean
-            path = Path.getLeftGrandChildPath(path, chunksStopRank - rank);
-            rank = chunksStopRank;
+            path = Path.getLeftGrandChildPath(path, chunksRootRank - rank);
+            rank = chunksRootRank;
         }
-        final long pathAtTopRank = Path.getGrandParentPath(path, rank - chunksStopRank);
-        return (int) (pathAtTopRank - Path.getLeftGrandChildPath(0, chunksStopRank));
+        final long pathAtTopRank = Path.getGrandParentPath(path, rank - chunksRootRank);
+        return (int) (pathAtTopRank - Path.getLeftGrandChildPath(0, chunksRootRank));
     }
 
     private long getLastChunkPath(final int chunk) {

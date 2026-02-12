@@ -7,7 +7,7 @@ import com.swirlds.base.time.Time;
 import com.swirlds.common.merkle.synchronization.TeachingSynchronizer;
 import com.swirlds.common.merkle.synchronization.streams.AsyncOutputStream;
 import com.swirlds.common.merkle.synchronization.views.TeacherTreeView;
-import org.hiero.base.io.SelfSerializable;
+import java.util.function.Supplier;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
@@ -51,11 +51,15 @@ public class BenchmarkSlowTeachingSynchronizer extends TeachingSynchronizer {
      * {@inheritDoc}
      */
     @Override
-    public <T extends SelfSerializable> AsyncOutputStream<T> buildOutputStream(
-            final StandardWorkGroup workGroup, final SerializableDataOutputStream out) {
-        return new BenchmarkSlowAsyncOutputStream<>(
+    protected AsyncOutputStream buildOutputStream(
+            final StandardWorkGroup workGroup,
+            final SerializableDataOutputStream out,
+            final Supplier<Boolean> alive,
+            final ReconnectConfig reconnectConfig) {
+        return new BenchmarkSlowAsyncOutputStream(
                 out,
                 workGroup,
+                alive,
                 randomSeed,
                 delayStorageMicroseconds,
                 delayStorageFuzzRangePercent,

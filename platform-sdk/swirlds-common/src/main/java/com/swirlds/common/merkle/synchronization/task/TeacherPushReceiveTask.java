@@ -5,7 +5,6 @@ import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 import com.swirlds.common.merkle.synchronization.streams.AsyncInputStream;
-import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
 import com.swirlds.common.merkle.synchronization.views.TeacherTreeView;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.logging.log4j.LogManager;
@@ -22,7 +21,7 @@ public class TeacherPushReceiveTask {
     private static final String NAME = "teacher-receive-task";
 
     private final StandardWorkGroup workGroup;
-    private final AsyncInputStream<QueryResponse> in;
+    private final AsyncInputStream in;
     private final TeacherTreeView view;
     private final AtomicBoolean senderIsFinished;
 
@@ -40,7 +39,7 @@ public class TeacherPushReceiveTask {
      */
     public TeacherPushReceiveTask(
             final StandardWorkGroup workGroup,
-            final AsyncInputStream<QueryResponse> in,
+            final AsyncInputStream in,
             final TeacherTreeView view,
             final AtomicBoolean senderIsFinished) {
         this.workGroup = workGroup;
@@ -54,13 +53,13 @@ public class TeacherPushReceiveTask {
     }
 
     private void run() {
-        try (in) {
+        try {
             boolean finished = senderIsFinished.get();
             boolean responseExpected = view.isResponseExpected();
 
-            while (!finished || responseExpected) {
+            while ((!finished || responseExpected) && !Thread.currentThread().isInterrupted()) {
                 if (responseExpected) {
-                    final QueryResponse response = in.readAnticipatedMessage();
+                    final QueryResponse response = in.readAnticipatedMessageSync(QueryResponse::new);
                     final long node = view.getNodeForNextResponse();
                     view.registerResponseForNode(node, response.doesLearnerHaveTheNode());
                 } else {
@@ -74,7 +73,9 @@ public class TeacherPushReceiveTask {
             logger.warn(RECONNECT.getMarker(), "teacher's receiving thread interrupted");
             Thread.currentThread().interrupt();
         } catch (final Exception ex) {
-            throw new MerkleSynchronizationException("exception in the teacher's receiving thread", ex);
+            workGroup.handleError(ex);
         }
+
+        logger.info(RECONNECT.getMarker(), "Teacher receive task finished");
     }
 }

@@ -25,8 +25,8 @@ public class Lesson implements Releasable, SelfSerializable {
         public static final int ORIGINAL = 1;
     }
 
-    private byte lessonType;
-    private SelfSerializable subLesson;
+    private volatile byte lessonType;
+    private volatile SelfSerializable subLesson;
 
     private LearnerTreeView learnerView;
 

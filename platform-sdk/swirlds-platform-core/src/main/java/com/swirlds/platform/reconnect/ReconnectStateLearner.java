@@ -2,6 +2,7 @@
 package com.swirlds.platform.reconnect;
 
 import static com.swirlds.base.formatting.StringFormattingUtils.formattedList;
+import static com.swirlds.base.units.UnitConstants.MILLISECONDS_TO_SECONDS;
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 import static java.util.Objects.requireNonNull;
 
@@ -10,10 +11,12 @@ import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.swirlds.common.merkle.synchronization.LearningSynchronizer;
 import com.swirlds.common.merkle.synchronization.stats.ReconnectMapMetrics;
 import com.swirlds.common.merkle.synchronization.stats.ReconnectMapStats;
+import com.swirlds.common.merkle.synchronization.task.ReconnectNodeCount;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
 import com.swirlds.common.merkle.synchronization.views.LearnerTreeView;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.logging.legacy.payload.ReconnectDataUsagePayload;
+import com.swirlds.logging.legacy.payload.SynchronizationCompletePayload;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.metrics.ReconnectMetrics;
 import com.swirlds.platform.state.signed.ReservedSignedState;
@@ -41,7 +44,7 @@ import org.hiero.consensus.reconnect.config.ReconnectConfig;
 /**
  * This class encapsulates logic for receiving the up-to-date state from a peer when the local node's state is out-of-date.
  */
-public class ReconnectStateLearner {
+public class ReconnectStateLearner implements ReconnectNodeCount {
 
     /** use this for all logging, as controlled by the optional data/log4j2.xml file */
     private static final Logger logger = LogManager.getLogger(ReconnectStateLearner.class);
@@ -60,12 +63,18 @@ public class ReconnectStateLearner {
     private final Metrics metrics;
 
     private SigSet sigSet;
+
     /**
      * After reconnect is finished, restore the socket timeout to the original value.
      */
     private int originalSocketTimeout;
 
     private final ThreadManager threadManager;
+
+    private int leafNodesReceived;
+    private int internalNodesReceived;
+    private int redundantLeafNodes;
+    private int redundantInternalNodes;
 
     /**
      *
@@ -210,9 +219,10 @@ public class ReconnectStateLearner {
         final VirtualMap reconnectRoot = virtualMapState.getRoot().newReconnectRoot();
         final ReconnectMapStats mapStats = new ReconnectMapMetrics(metrics, null, null);
         // The learner view will be closed by LearningSynchronizer
-        final LearnerTreeView learnerView = reconnectRoot.buildLearnerView(reconnectConfig, mapStats);
+        final LearnerTreeView learnerView = reconnectRoot.buildLearnerView(reconnectConfig, this, mapStats);
         final LearningSynchronizer synchronizer = new LearningSynchronizer(
                 threadManager, in, out, reconnectRoot, learnerView, connection::disconnect, reconnectConfig);
+        final long syncStartTime = System.currentTimeMillis();
         try {
             synchronizer.synchronize();
             logger.info(RECONNECT.getMarker(), () -> mapStats.format());
@@ -225,6 +235,16 @@ public class ReconnectStateLearner {
             reconnectRoot.release();
             throw new MerkleSynchronizationException(e);
         }
+
+        final long synchronizationTimeMilliseconds = System.currentTimeMillis() - syncStartTime;
+        logger.info(RECONNECT.getMarker(), () -> new SynchronizationCompletePayload("Finished synchronization")
+                .setTimeInSeconds(synchronizationTimeMilliseconds * MILLISECONDS_TO_SECONDS)
+                .setTotalNodes(leafNodesReceived + internalNodesReceived)
+                .setLeafNodes(leafNodesReceived)
+                .setRedundantLeafNodes(redundantLeafNodes)
+                .setInternalNodes(internalNodesReceived)
+                .setRedundantInternalNodes(redundantInternalNodes)
+                .toString());
 
         final MerkleNodeState receivedState = stateLifecycleManager.createStateFrom(reconnectRoot);
         final SignedState newSignedState = new SignedState(
@@ -265,5 +285,37 @@ public class ReconnectStateLearner {
         sb.append("Received signatures from nodes ");
         formattedList(sb, sigSet.iterator());
         logger.info(RECONNECT.getMarker(), sb);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void incrementLeafCount() {
+        leafNodesReceived++;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void incrementRedundantLeafCount() {
+        redundantLeafNodes++;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void incrementInternalCount() {
+        internalNodesReceived++;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void incrementRedundantInternalCount() {
+        redundantInternalNodes++;
     }
 }

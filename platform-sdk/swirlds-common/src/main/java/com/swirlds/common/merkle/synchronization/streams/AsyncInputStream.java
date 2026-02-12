@@ -2,21 +2,21 @@
 package com.swirlds.common.merkle.synchronization.streams;
 
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
-import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.Objects;
-import java.util.concurrent.BlockingQueue;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.base.Releasable;
 import org.hiero.base.io.SelfSerializable;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
@@ -37,7 +37,7 @@ import org.hiero.consensus.reconnect.config.ReconnectConfig;
  * This object is not thread safe. Only one thread should attempt to read data from stream at any point in time.
  * </p>
  */
-public class AsyncInputStream<T extends SelfSerializable> implements AutoCloseable {
+public class AsyncInputStream {
 
     private static final Logger logger = LogManager.getLogger(AsyncInputStream.class);
 
@@ -45,8 +45,25 @@ public class AsyncInputStream<T extends SelfSerializable> implements AutoCloseab
 
     private final SerializableDataInputStream inputStream;
 
-    private final AtomicLong anticipatedMessages;
-    private final BlockingQueue<SelfSerializable> receivedMessages;
+    // Reading directly from inputStream is expensive, since every read results in
+    // taking a lock. To minimize the number of reads, let's use our own buffer
+    private final byte[] readBuffer = new byte[256 * 1024];
+
+    // A position in readBuffer to read data next. If the position is equal readLimit
+    // below, there is no data available in the buffer, and a read from inputStream
+    // is required
+    private int readPos = 0;
+
+    // Read buffer may not be filled up completely, it really depends on how much
+    // data is available in the socket. This limit indicates the last position in
+    // the buffer that holds data read from inputStream
+    private int readLimit = 0;
+
+    private final Queue<byte[]> inputQueue = new ConcurrentLinkedQueue<>();
+
+    // Checking queue size on every received message may be expensive. Instead, track the
+    // size manually using an atomic
+    private final AtomicInteger inputQueueSize = new AtomicInteger(0);
 
     /**
      * The maximum amount of time to wait when reading a message.
@@ -58,36 +75,31 @@ public class AsyncInputStream<T extends SelfSerializable> implements AutoCloseab
      */
     private final CountDownLatch finishedLatch;
 
-    private volatile boolean alive;
-
-    private final Supplier<T> messageFactory;
+    private final AtomicBoolean alive = new AtomicBoolean(true);
 
     private final StandardWorkGroup workGroup;
+
+    private final int sharedQueueSizeThreshold;
 
     /**
      * Create a new async input stream.
      *
-     * @param inputStream    the base stream to read from
-     * @param workGroup      the work group that is managing this stream's thread
-     * @param messageFactory this function constructs new message objects. These messages objects are then used to read
-     *                       data via {@link SelfSerializable#deserialize(SerializableDataInputStream, int)}.
-     * @param config         the configuration to use
+     * @param inputStream the base stream to read from
+     * @param workGroup the work group that is managing this stream's thread
+     * @param reconnectConfig the configuration to use
      */
     public AsyncInputStream(
             @NonNull final SerializableDataInputStream inputStream,
             @NonNull final StandardWorkGroup workGroup,
-            @NonNull final Supplier<T> messageFactory,
-            @NonNull final ReconnectConfig config) {
-        Objects.requireNonNull(config, "config must not be null");
+            @NonNull final ReconnectConfig reconnectConfig) {
+        Objects.requireNonNull(reconnectConfig, "reconnectConfig must not be null");
 
         this.inputStream = Objects.requireNonNull(inputStream, "inputStream must not be null");
         this.workGroup = Objects.requireNonNull(workGroup, "workGroup must not be null");
-        this.messageFactory = Objects.requireNonNull(messageFactory, "messageFactory must not be null");
-        this.pollTimeout = config.asyncStreamTimeout();
-        this.anticipatedMessages = new AtomicLong(0L);
-        this.receivedMessages = new LinkedBlockingQueue<>(config.asyncStreamBufferSize());
         this.finishedLatch = new CountDownLatch(1);
-        this.alive = true;
+        this.pollTimeout = reconnectConfig.asyncStreamTimeout();
+
+        this.sharedQueueSizeThreshold = reconnectConfig.asyncStreamBufferSize();
     }
 
     /**
@@ -98,78 +110,122 @@ public class AsyncInputStream<T extends SelfSerializable> implements AutoCloseab
     }
 
     /**
-     * Returns true if the message pump is still running or false if the message pump has terminated or will terminate.
-     *
-     * @return true if the message pump is still running; false if the message pump has terminated or will terminate
-     */
-    public boolean isAlive() {
-        return alive;
-    }
-
-    /**
-     * Get the number of messages that this stream is still expecting to receive.
-     */
-    public long getTotalAnticipatedMessages() {
-        return anticipatedMessages.get();
-    }
-
-    /**
      * This method is run on a background thread. Continuously reads things from the stream and puts them into the
      * queue.
      */
     private void run() {
-        T message = null;
-        logger.info(RECONNECT.getMarker(), this.toString() + " start run()");
+        logger.debug(RECONNECT.getMarker(), Thread.currentThread().getName() + " run");
         try {
-            while (isAlive() && !Thread.currentThread().isInterrupted()) {
-                final long previous =
-                        anticipatedMessages.getAndUpdate((final long value) -> value == 0L ? 0L : (value - 1L));
-
-                if (previous == 0L) {
-                    MILLISECONDS.sleep(1);
-                    continue;
+            while (!Thread.currentThread().isInterrupted()) {
+                final int len = inputStream.readInt();
+                if (len < 0) {
+                    logger.info(RECONNECT.getMarker(), "Async input stream is done");
+                    alive.set(false);
+                    break;
                 }
-
-                message = messageFactory.get();
-                message.deserialize(inputStream, message.getVersion());
-
-                final boolean accepted = receivedMessages.offer(message, pollTimeout.toMillis(), MILLISECONDS);
+                final byte[] messageBytes = new byte[len];
+                inputStream.readNBytes(messageBytes, 0, len);
+                final boolean accepted = inputQueue.add(messageBytes);
                 if (!accepted) {
-                    new MerkleSynchronizationException(
-                            this.toString() + " timed out waiting to add message to received messages queue");
+                    throw new MerkleSynchronizationException(
+                            "Timed out waiting to add message to received messages queue");
+                }
+                if (inputQueueSize.incrementAndGet() > sharedQueueSizeThreshold) {
+                    // Slow down reading from the stream if handling threads can't keep up
+                    while (inputQueueSize.get() > sharedQueueSizeThreshold) {
+                        Thread.onSpinWait();
+                    }
                 }
             }
         } catch (final IOException e) {
-            throw new MerkleSynchronizationException(
-                    String.format(
-                            "%s failed to deserialize object with class ID %d(0x%08X) (%s)",
-                            this.toString(),
-                            message.getClassId(),
-                            message.getClassId(),
-                            message.getClass().toString()),
-                    e);
-        } catch (final InterruptedException e) {
-            logger.warn(RECONNECT.getMarker(), this.toString() + " interrupted");
-            Thread.currentThread().interrupt();
+            workGroup.handleError(e);
         } finally {
             finishedLatch.countDown();
         }
-        logger.info(RECONNECT.getMarker(), this.toString() + " finish run()");
+        logger.debug(RECONNECT.getMarker(), Thread.currentThread().getName() + " done");
     }
 
     /**
-     * Inform the buffer that a message is anticipated to be received at a future time.
+     * Makes sure that at least {@code bytes} bytes are available to use in the read
+     * buffer. It may require a read from the underlying input stream. This method may
+     * update both {@link #readPos} and {@link #readLimit}.
+     *
+     * @param bytes number of bytes to make available in the read buffer
+     * @throws IOException if an I/O error occurs
      */
-    public void anticipateMessage() {
-        anticipatedMessages.getAndIncrement();
+    private void ensureAvailable(final int bytes) throws IOException {
+        if (bytes > readBuffer.length) {
+            throw new IllegalStateException("Read buffer is too small to read " + bytes + " bytes");
+        }
+        final int currentlyAvailable = readLimit - readPos;
+        if (currentlyAvailable >= bytes) {
+            return;
+        }
+        if (readPos + bytes > readBuffer.length) {
+            System.arraycopy(readBuffer, readPos, readBuffer, 0, currentlyAvailable);
+            readPos = 0;
+            readLimit = currentlyAvailable;
+        }
+        while (readLimit - readPos < bytes) {
+            // Read at least the requested number of bytes
+            int toRead = bytes - (readLimit - readPos);
+            // If more bytes are inputStream.available(), read all of them, but no more than to the
+            // end of the read buffer
+            final int avail = inputStream.available();
+            if (avail > toRead) {
+                toRead = Math.min(avail, readBuffer.length - readLimit);
+            }
+            readLimit += inputStream.read(readBuffer, readLimit, toRead);
+        }
+        assert readPos + bytes <= readBuffer.length;
     }
 
-    /**
-     * Get an anticipated message. Blocks until the message is ready. Object returned will be the same object passed
-     * into addAnticipatedMessage, but deserialized from the stream.
-     */
-    public T readAnticipatedMessage() throws InterruptedException {
-        return asyncRead();
+    public boolean isAlive() {
+        return alive.get();
+    }
+
+    private <T extends SelfSerializable> T deserializeMessage(final byte[] messageBytes, final T message)
+            throws IOException {
+        try (final ByteArrayInputStream bin = new ByteArrayInputStream(messageBytes);
+                final SerializableDataInputStream in = new SerializableDataInputStream(bin)) {
+            message.deserialize(in, message.getVersion());
+        }
+        return message;
+    }
+
+    public <T extends SelfSerializable> T readAnticipatedMessage(final Supplier<T> messageFactory) throws IOException {
+        final byte[] itemBytes = inputQueue.poll();
+        if (itemBytes != null) {
+            inputQueueSize.decrementAndGet();
+            return deserializeMessage(itemBytes, messageFactory.get());
+        }
+        return null;
+    }
+
+    public <T extends SelfSerializable> T readAnticipatedMessageSync(final Supplier<T> messageFactory)
+            throws IOException {
+        T message = readAnticipatedMessage(messageFactory);
+        if (message != null) {
+            return message;
+        }
+        final long start = System.currentTimeMillis();
+        final Thread currentThread = Thread.currentThread();
+        while (true) {
+            message = readAnticipatedMessage(messageFactory);
+            if (message != null) {
+                return message;
+            }
+            final long now = System.currentTimeMillis();
+            if (currentThread.isInterrupted() || (now - start > pollTimeout.toMillis())) {
+                break;
+            }
+        }
+        try {
+            inputStream.close();
+        } catch (IOException e) {
+            throw new MerkleSynchronizationException("Unable to close stream", e);
+        }
+        throw new MerkleSynchronizationException("Timed out waiting for data");
     }
 
     /**
@@ -177,49 +233,11 @@ public class AsyncInputStream<T extends SelfSerializable> implements AutoCloseab
      * encounters an exception). This method ensures that any resources used by the buffered messages are released.
      */
     public void abort() {
-        close();
-
+        alive.set(false);
         try {
             finishedLatch.await();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
-
-        while (!receivedMessages.isEmpty()) {
-            SelfSerializable message = receivedMessages.remove();
-            if (message instanceof Releasable) {
-                ((Releasable) message).release();
-            }
-        }
-    }
-
-    /**
-     * Close this buffer and release resources.
-     */
-    @Override
-    public void close() {
-        alive = false;
-    }
-
-    /**
-     * Read a message. Will throw an exception if time equal to {@link #pollTimeout} passes without a message becoming
-     * available.
-     */
-    @SuppressWarnings("unchecked")
-    private T asyncRead() throws InterruptedException {
-        T data = (T) receivedMessages.poll(pollTimeout.toMillis(), MILLISECONDS);
-        if (data == null) {
-            try {
-                // An interrupt may not stop the thread if the thread is blocked on a stream read operation.
-                // The only way to ensure that the stream is closed is to close the stream.
-                inputStream.close();
-            } catch (IOException e) {
-                throw new MerkleSynchronizationException("Unable to close stream", e);
-            }
-
-            throw new MerkleSynchronizationException("Timed out waiting for data");
-        }
-
-        return data;
     }
 }

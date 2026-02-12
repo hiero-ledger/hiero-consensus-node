@@ -8,11 +8,10 @@ import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.common.merkle.synchronization.streams.AsyncInputStream;
 import com.swirlds.common.merkle.synchronization.streams.AsyncOutputStream;
-import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
 import com.swirlds.common.merkle.synchronization.views.TeacherTreeView;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -36,8 +35,7 @@ public class TeacherPushSendTask {
     private static final Lesson UP_TO_DATE_LESSON = new Lesson(NODE_IS_UP_TO_DATE, null);
 
     private final StandardWorkGroup workGroup;
-    private final AsyncInputStream<QueryResponse> in;
-    private final AsyncOutputStream<Lesson> out;
+    private final AsyncOutputStream out;
     private final TeacherTreeView view;
 
     private final AtomicBoolean senderIsFinished;
@@ -51,7 +49,6 @@ public class TeacherPushSendTask {
      * @param time                  the wall clock time
      * @param reconnectConfig       the configuration for reconnect
      * @param workGroup             the work group managing the reconnect
-     * @param in                    the input stream
      * @param out                   the output stream, this object is responsible for closing this object when finished
      * @param view                  an object that interfaces with the subtree
      * @param senderIsFinished      set to true when this thread has finished
@@ -60,12 +57,10 @@ public class TeacherPushSendTask {
             @NonNull final Time time,
             @NonNull final ReconnectConfig reconnectConfig,
             final StandardWorkGroup workGroup,
-            final AsyncInputStream<QueryResponse> in,
-            final AsyncOutputStream<Lesson> out,
+            final AsyncOutputStream out,
             final TeacherTreeView view,
             final AtomicBoolean senderIsFinished) {
         this.workGroup = workGroup;
-        this.in = in;
         this.out = out;
         this.view = view;
         this.senderIsFinished = senderIsFinished;
@@ -92,7 +87,6 @@ public class TeacherPushSendTask {
      * prepares for the responses to those queries.
      */
     private void prepareForQueryResponse(final long parent, final int childIndex) {
-        in.anticipateMessage();
         final long child = view.getChildAndPrepareForQueryResponse(parent, childIndex);
         view.addToHandleQueue(child);
     }
@@ -159,21 +153,28 @@ public class TeacherPushSendTask {
      * This thread is responsible for sending lessons (and nested queries) to the learner.
      */
     private void run() {
-        try (out) {
-            out.sendAsync(buildDataLesson(0));
-
-            while (view.areThereNodesToHandle()) {
+        try {
+            out.sendAsync(buildDataLesson(0L));
+            while (view.areThereNodesToHandle() && !Thread.currentThread().isInterrupted()) {
                 rateLimit();
                 final long node = view.getNextNodeToHandle();
                 sendLesson(node);
             }
+            // All lessons have been scheduled to send. However, serializing them to the
+            // socket output stream is asynchronous. Let's wait for all currently scheduled
+            // messages to be serialized before claiming this task is complete
+            final CountDownLatch allMessagesSerialized = new CountDownLatch(1);
+            out.whenCurrentMessagesProcessed(allMessagesSerialized::countDown);
+            allMessagesSerialized.await();
         } catch (final InterruptedException ex) {
-            logger.warn(RECONNECT.getMarker(), "teacher's sending thread interrupted");
+            logger.warn(RECONNECT.getMarker(), "Teacher sending task is interrupted");
             Thread.currentThread().interrupt();
         } catch (final Exception ex) {
-            throw new MerkleSynchronizationException("exception in the teacher's receiving thread", ex);
+            workGroup.handleError(ex);
         } finally {
             senderIsFinished.set(true);
         }
+
+        logger.info(RECONNECT.getMarker(), "Teacher send task finished");
     }
 }

@@ -6,12 +6,14 @@ import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
 import com.swirlds.common.utility.StopWatch;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.Objects;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.io.SelfSerializable;
@@ -33,10 +35,8 @@ import org.hiero.consensus.reconnect.config.ReconnectConfig;
  * <p>
  * This object is not thread safe. Only one thread should attempt to send data over this stream at any point in time.
  * </p>
- *
- * @param <T> the type of the message to send
  */
-public class AsyncOutputStream<T extends SelfSerializable> implements AutoCloseable {
+public class AsyncOutputStream {
 
     private static final Logger logger = LogManager.getLogger(AsyncOutputStream.class);
 
@@ -46,9 +46,9 @@ public class AsyncOutputStream<T extends SelfSerializable> implements AutoClosea
     private final SerializableDataOutputStream outputStream;
 
     /**
-     * A queue of messages that need to be written to the output stream.
+     * A queue that need to be written to the output stream.
      */
-    private final BlockingQueue<T> outgoingMessages;
+    private final BlockingQueue<QueueItem> streamQueue;
 
     /**
      * The time that has elapsed since the last flush was attempted.
@@ -59,11 +59,6 @@ public class AsyncOutputStream<T extends SelfSerializable> implements AutoClosea
      * The maximum amount of time that is permitted to pass without a flush being attempted.
      */
     private final Duration flushInterval;
-
-    /**
-     * If this becomes false then this object's worker thread will stop transmitting messages.
-     */
-    private volatile boolean alive;
 
     /**
      * The number of messages that have been written to the stream but have not yet been flushed
@@ -78,6 +73,11 @@ public class AsyncOutputStream<T extends SelfSerializable> implements AutoClosea
     private final StandardWorkGroup workGroup;
 
     /**
+     * A condition to check whether it's time to terminate this output stream.
+     */
+    private final Supplier<Boolean> alive;
+
+    /**
      * Constructs a new instance using the given underlying {@link SerializableDataOutputStream} and
      * {@link StandardWorkGroup}.
      *
@@ -88,13 +88,14 @@ public class AsyncOutputStream<T extends SelfSerializable> implements AutoClosea
     public AsyncOutputStream(
             @NonNull final SerializableDataOutputStream outputStream,
             @NonNull final StandardWorkGroup workGroup,
+            @NonNull final Supplier<Boolean> alive,
             @NonNull final ReconnectConfig config) {
         Objects.requireNonNull(config, "config must not be null");
 
         this.outputStream = Objects.requireNonNull(outputStream, "outputStream must not be null");
         this.workGroup = Objects.requireNonNull(workGroup, "workGroup must not be null");
-        this.outgoingMessages = new LinkedBlockingQueue<>(config.asyncStreamBufferSize());
-        this.alive = true;
+        this.alive = Objects.requireNonNull(alive, "alive must not be null");
+        this.streamQueue = new LinkedBlockingQueue<>(config.asyncStreamBufferSize());
         this.timeSinceLastFlush = new StopWatch();
         this.timeSinceLastFlush.start();
         this.flushInterval = config.asyncOutputStreamFlush();
@@ -102,64 +103,69 @@ public class AsyncOutputStream<T extends SelfSerializable> implements AutoClosea
     }
 
     /**
-     * Start the thread that reads from the stream.
+     * Start the thread that writes to the stream.
      */
     public void start() {
         workGroup.execute("async-output-stream", this::run);
     }
 
-    /**
-     * Returns true if the message pump is still running or false if the message pump has terminated or will terminate.
-     *
-     * @return true if the message pump is still running; false if the message pump has terminated or will terminate
-     */
-    public boolean isAlive() {
-        return alive;
-    }
-
-    protected SerializableDataOutputStream getOutputStream() {
-        return outputStream;
-    }
-
-    /**
-     * This is exposed to allow test classes to simulate latency.
-     */
-    protected BlockingQueue<T> getOutgoingMessages() {
-        return outgoingMessages;
-    }
-
     public void run() {
-        while ((isAlive() || !outgoingMessages.isEmpty())
-                && !Thread.currentThread().isInterrupted()) {
-            flushIfRequired();
-            boolean workDone = handleNextMessage();
-            if (!workDone) {
-                workDone = flush();
+        logger.debug(RECONNECT.getMarker(), Thread.currentThread().getName() + " run");
+        try {
+            while ((alive.get() || !streamQueue.isEmpty())
+                    && !Thread.currentThread().isInterrupted()) {
+                flushIfRequired();
+                boolean workDone = handleQueuedMessages();
                 if (!workDone) {
-                    try {
-                        Thread.sleep(0, 1);
-                    } catch (final InterruptedException e) {
-                        logger.warn(RECONNECT.getMarker(), "AsyncOutputStream interrupted");
-                        alive = false;
-                        Thread.currentThread().interrupt();
-                        return;
+                    workDone = flush();
+                    if (!workDone) {
+                        Thread.onSpinWait();
                     }
                 }
             }
+            // Handle remaining queued messages
+            boolean wasNotEmpty = true;
+            while (wasNotEmpty) {
+                wasNotEmpty = handleQueuedMessages();
+            }
+            flush();
+            try {
+                logger.info(RECONNECT.getMarker(), Thread.currentThread().getName() + " closing stream");
+                // Send reconnect termination marker
+                outputStream.writeInt(-1);
+                outputStream.flush();
+            } catch (final IOException e) {
+                throw new MerkleSynchronizationException(e);
+            }
+        } catch (final Exception e) {
+            workGroup.handleError(e);
         }
-        flush();
+        logger.debug(RECONNECT.getMarker(), Thread.currentThread().getName() + " done");
     }
 
     /**
      * Send a message asynchronously. Messages are guaranteed to be delivered in the order sent.
      */
-    public void sendAsync(final T message) throws InterruptedException {
-        if (!isAlive()) {
-            throw new MerkleSynchronizationException("Messages can not be sent after close has been called.");
+    public void sendAsync(final SelfSerializable message) throws InterruptedException {
+        final ByteArrayOutputStream bout = new ByteArrayOutputStream(64);
+        try (final SerializableDataOutputStream dout = new SerializableDataOutputStream(bout)) {
+            serializeMessage(message, dout);
+        } catch (final IOException e) {
+            throw new MerkleSynchronizationException("Can't serialize message", e);
         }
+        sendAsync(new QueueItem(bout.toByteArray()));
+    }
 
-        final boolean success = outgoingMessages.offer(message, timeout.toMillis(), TimeUnit.MILLISECONDS);
+    /**
+     * Schedule to run a given runnable, when all messages currently scheduled in this async
+     * stream are serialized into the underlying output stream.
+     */
+    public void whenCurrentMessagesProcessed(final Runnable run) throws InterruptedException {
+        sendAsync(new QueueItem(run));
+    }
 
+    private void sendAsync(final QueueItem item) throws InterruptedException {
+        final boolean success = streamQueue.offer(item, timeout.toMillis(), TimeUnit.MILLISECONDS);
         if (!success) {
             try {
                 outputStream.close();
@@ -171,36 +177,39 @@ public class AsyncOutputStream<T extends SelfSerializable> implements AutoClosea
     }
 
     /**
-     * Close this buffer and release resources. If there are still messages awaiting transmission then resources will
-     * not be immediately freed.
-     */
-    @Override
-    public void close() {
-        alive = false;
-    }
-
-    /**
      * Send the next message if possible.
      *
      * @return true if a message was sent.
      */
-    private boolean handleNextMessage() {
-        if (!outgoingMessages.isEmpty()) {
-            final T message = outgoingMessages.remove();
-            try {
-                serializeMessage(message);
-            } catch (final IOException e) {
-                throw new MerkleSynchronizationException(e);
-            }
-
-            bufferedMessageCount += 1;
-            return true;
+    private boolean handleQueuedMessages() {
+        QueueItem item = streamQueue.poll();
+        if (item == null) {
+            return false;
         }
-        return false;
+        try {
+            // bufferedOut.reset();
+            while (item != null) {
+                if (item.toNotify() != null) {
+                    assert item.messageBytes() == null;
+                    item.toNotify().run();
+                } else {
+                    final byte[] messageBytes = item.messageBytes();
+                    outputStream.writeInt(messageBytes.length);
+                    outputStream.write(messageBytes);
+                    bufferedMessageCount += 1;
+                }
+                item = streamQueue.poll();
+            }
+            // bufferedOut.writeTo(outputStream);
+        } catch (final IOException e) {
+            throw new MerkleSynchronizationException(e);
+        }
+        return true;
     }
 
-    protected void serializeMessage(final T message) throws IOException {
-        message.serialize(outputStream);
+    protected void serializeMessage(final SelfSerializable message, final SerializableDataOutputStream out)
+            throws IOException {
+        message.serialize(out);
     }
 
     private boolean flush() {
@@ -224,6 +233,17 @@ public class AsyncOutputStream<T extends SelfSerializable> implements AutoClosea
     private void flushIfRequired() {
         if (timeSinceLastFlush.getElapsedTimeNano() > flushInterval.toNanos()) {
             flush();
+        }
+    }
+
+    private record QueueItem(byte[] messageBytes, Runnable toNotify) {
+
+        public QueueItem(byte[] messageBytes) {
+            this(messageBytes, null);
+        }
+
+        public QueueItem(Runnable toNotify) {
+            this(null, toNotify);
         }
     }
 }

@@ -7,7 +7,6 @@ package com.swirlds.logging.legacy.payload;
 public class SynchronizationCompletePayload extends AbstractLogPayload {
 
     private double timeInSeconds;
-    private double hashTimeInSeconds;
     private int totalNodes;
     private int leafNodes;
     private int redundantLeafNodes;
@@ -40,25 +39,6 @@ public class SynchronizationCompletePayload extends AbstractLogPayload {
      */
     public SynchronizationCompletePayload setTimeInSeconds(double timeInSeconds) {
         this.timeInSeconds = timeInSeconds;
-        return this;
-    }
-
-    /**
-     * Get the time required to required to hash the state, in seconds.
-     */
-    public double getHashTimeInSeconds() {
-        return hashTimeInSeconds;
-    }
-
-    /**
-     * Set the time required to required to hash the state, in seconds.
-     *
-     * @param hashTimeInSeconds
-     * 		the time required to hash the state
-     * @return this object
-     */
-    public SynchronizationCompletePayload setHashTimeInSeconds(final double hashTimeInSeconds) {
-        this.hashTimeInSeconds = hashTimeInSeconds;
         return this;
     }
 

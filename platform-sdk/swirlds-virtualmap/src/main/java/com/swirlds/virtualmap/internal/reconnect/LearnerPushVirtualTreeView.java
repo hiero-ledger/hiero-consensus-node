@@ -8,14 +8,12 @@ import static com.swirlds.virtualmap.internal.Path.getParentPath;
 import static com.swirlds.virtualmap.internal.Path.isLeft;
 import static java.util.Objects.requireNonNull;
 
-import com.swirlds.common.merkle.synchronization.LearningSynchronizer;
 import com.swirlds.common.merkle.synchronization.stats.ReconnectMapStats;
 import com.swirlds.common.merkle.synchronization.streams.AsyncInputStream;
 import com.swirlds.common.merkle.synchronization.streams.AsyncOutputStream;
 import com.swirlds.common.merkle.synchronization.task.ExpectedLesson;
 import com.swirlds.common.merkle.synchronization.task.LearnerPushTask;
-import com.swirlds.common.merkle.synchronization.task.Lesson;
-import com.swirlds.common.merkle.synchronization.task.QueryResponse;
+import com.swirlds.common.merkle.synchronization.task.ReconnectNodeCount;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
 import com.swirlds.common.merkle.synchronization.views.LearnerTreeView;
 import com.swirlds.virtualmap.VirtualMap;
@@ -30,9 +28,7 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.io.streams.SerializableDataInputStream;
-import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
-import org.hiero.consensus.reconnect.config.ReconnectConfig;
 
 /**
  * An implementation of {@link LearnerTreeView} for the virtual merkle. The learner during reconnect
@@ -50,10 +46,6 @@ public final class LearnerPushVirtualTreeView extends VirtualTreeViewBase implem
      * than needed, if it is too small, we put pressure on the GC.
      */
     private static final int EXPECTED_BIT_SET_INITIAL_CAPACITY = 1024 * 1024;
-
-    private final ReconnectConfig reconnectConfig;
-
-    private AsyncInputStream<Lesson> in;
 
     /**
      * Handles removal of old nodes.
@@ -82,6 +74,8 @@ public final class LearnerPushVirtualTreeView extends VirtualTreeViewBase implem
      */
     private final RecordAccessor originalRecords;
 
+    private final ReconnectNodeCount nodeCount;
+
     private final ReconnectMapStats mapStats;
 
     /**
@@ -103,39 +97,29 @@ public final class LearnerPushVirtualTreeView extends VirtualTreeViewBase implem
      *      A ReconnectMapStats object to collect reconnect metrics
      */
     public LearnerPushVirtualTreeView(
-            @NonNull final ReconnectConfig reconnectConfig,
             @NonNull final VirtualMap map,
             @NonNull final RecordAccessor originalRecords,
             @NonNull final VirtualMapMetadata originalState,
             @NonNull final VirtualMapMetadata reconnectState,
             @NonNull final ReconnectNodeRemover nodeRemover,
+            @NonNull final ReconnectNodeCount nodeCount,
             @NonNull final ReconnectMapStats mapStats) {
         super(map, originalState, reconnectState);
-        this.reconnectConfig = requireNonNull(reconnectConfig);
         this.originalRecords = requireNonNull(originalRecords);
         this.nodeRemover = requireNonNull(nodeRemover);
+        this.nodeCount = requireNonNull(nodeCount);
         this.mapStats = requireNonNull(mapStats);
     }
 
     @Override
     public void startLearnerTasks(
-            final LearningSynchronizer learningSynchronizer,
             final StandardWorkGroup workGroup,
-            final SerializableDataInputStream inputStream,
-            final SerializableDataOutputStream outputStream) {
-        in = new AsyncInputStream<>(inputStream, workGroup, () -> new Lesson(this), reconnectConfig);
-        in.start();
-        final AsyncOutputStream<QueryResponse> out = learningSynchronizer.buildOutputStream(workGroup, outputStream);
-        out.start();
-
+            final AsyncInputStream in,
+            final AsyncOutputStream out,
+            final Runnable completeListener) {
         final LearnerPushTask learnerThread =
-                new LearnerPushTask(workGroup, in, out, this, learningSynchronizer, mapStats);
+                new LearnerPushTask(workGroup, in, out, this, nodeCount, mapStats, completeListener);
         learnerThread.start();
-    }
-
-    @Override
-    public void abort() {
-        in.abort();
     }
 
     /**
@@ -186,7 +170,7 @@ public final class LearnerPushVirtualTreeView extends VirtualTreeViewBase implem
         final int index = isLeft(child) ? 0 : 1;
         final Long original = expectedOriginalExists.remove() ? child : null;
         final boolean nodeAlreadyPresent = expectedNodeAlreadyPresent.remove();
-        return new ExpectedLesson(parent, index, original, nodeAlreadyPresent);
+        return new ExpectedLesson(parent < 0 ? null : parent, index, original, nodeAlreadyPresent);
     }
 
     /**
@@ -206,7 +190,7 @@ public final class LearnerPushVirtualTreeView extends VirtualTreeViewBase implem
      */
     @Override
     public Long deserializeLeaf(final SerializableDataInputStream in) throws IOException {
-        final VirtualLeafBytes leaf = VirtualReconnectUtils.readLeafRecord(in);
+        final VirtualLeafBytes<?> leaf = VirtualReconnectUtils.readLeafRecord(in);
         nodeRemover.newLeafNode(leaf.path(), leaf.keyBytes());
         map.handleReconnectLeaf(leaf); // may block if hashing is slower than ingest
         return leaf.path();
