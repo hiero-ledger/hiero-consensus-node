@@ -98,6 +98,8 @@ val prCheckTags =
                 put("$task$matsSuffix", "($tags)&MATS")
             }
         }
+        put("hapiTestClpr", "CLPR")
+        put("hapiTestMultiNetwork", "MULTINETWORK")
     }
 
 val remoteCheckTags =
@@ -129,6 +131,8 @@ val prCheckStartPorts =
         put("hapiTestMiscRecords", "27200")
         put("hapiTestAtomicBatch", "27400")
         put("hapiTestCryptoSerial", "27600")
+        put("hapiTestClpr", "27800")
+        put("hapiTestMultiNetwork", "28000")
 
         // Create the MATS variants
         val originalEntries = toMap() // Create a snapshot of current entries
@@ -170,6 +174,11 @@ val prCheckPropOverrides =
             "blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true",
         )
         put("hapiTestAtomicBatch", "nodes.nodeRewardsEnabled=false,quiescence.enabled=true")
+        put(
+            "hapiTestClpr",
+            "clpr.clprEnabled=true,clpr.devModeEnabled=true,clpr.connectionFrequency=100",
+        )
+        put("hapiTestMultiNetwork", "clpr.clprEnabled=false")
 
         val originalEntries = toMap() // Create a snapshot of current entries
         originalEntries.forEach { (taskName: String, overrides: String) ->
@@ -235,6 +244,8 @@ tasks.register<Test>("testSubprocess") {
             // cases
             else if (ciTagExpression.contains("ISS") || ciTagExpression.contains("BLOCK_NODE"))
                 "(${ciTagExpression})&!(EMBEDDED|REPEATABLE)"
+            else if (ciTagExpression.contains("CLPR")) "(CLPR)"
+            else if (ciTagExpression.contains("MULTINETWORK")) "(MULTINETWORK)"
             else "(${ciTagExpression}|STREAM_VALIDATION|LOG_VALIDATION)&!(EMBEDDED|REPEATABLE|ISS)"
         )
     }

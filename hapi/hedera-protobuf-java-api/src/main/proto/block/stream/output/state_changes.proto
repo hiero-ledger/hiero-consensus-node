@@ -61,6 +61,8 @@ import "services/state/hints/hints_types.proto";
 import "services/state/history/history_types.proto";
 import "services/state/entity/entity_counts.proto";
 import "services/auxiliary/hints/crs_publication.proto";
+import "interledger/state/clpr/clpr_ledger.proto";
+import "interledger/state/clpr/clpr_message_queue.proto";
 
 /**
  * A set of state changes.
@@ -487,6 +489,21 @@ enum StateIdentifier {
     * A state identifier for the node payments. Singleton state.
     */
     STATE_ID_NODE_PAYMENTS = 55;
+
+    /**
+     * A state identifier for CLPR ledger configurations. Key/value state.
+     */
+    STATE_ID_CLPR_LEDGER_CONFIGURATIONS = 56;
+
+    /**
+     * A state identifier for CLPR message queue metadata. Key/value state.
+     */
+    STATE_ID_CLPR_MESSAGE_QUEUE_METADATA = 57;
+
+    /**
+     * A state identifier for CLPR messages.
+     */
+    STATE_ID_CLPR_MESSAGES = 58;
 
     /**
      * A state identifier for the round receipts queue. Queue state.
@@ -925,6 +942,16 @@ message MapChangeKey {
          * An EVM hook's storage slot key.
          */
         com.hedera.hapi.node.state.hooks.EvmHookSlotKey evm_hook_slot_key = 24;
+
+        /**
+         * A CLPR ledger identifier key.
+         */
+        org.hiero.hapi.interledger.state.clpr.ClprLedgerId clpr_ledger_id_key = 30;
+
+        /**
+         * A CLPR message key.
+         */
+        org.hiero.hapi.interledger.state.clpr.ClprMessageKey clpr_message_key = 31;
     }
 }
 
@@ -1105,6 +1132,21 @@ message MapChangeValue {
          * A WRAPS message history.
          */
         com.hedera.hapi.node.state.history.WrapsMessageHistory wraps_message_history_value = 31;
+
+        /**
+         * A CLPR ledger configuration value.
+         */
+        org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration clpr_ledger_configuration_value = 32;
+
+        /**
+         * A CLPR message queue metadata value.
+         */
+        org.hiero.hapi.interledger.state.clpr.ClprMessageQueueMetadata clpr_message_queue_metadata_value = 33;
+
+        /**
+         * A CLPR message value.
+         */
+        org.hiero.hapi.interledger.state.clpr.ClprMessageValue clpr_message_value = 34;
     }
 }
 

@@ -26,6 +26,9 @@ public final class BlockStreamUtils {
             case UNKNOWN -> throw new IllegalArgumentException("Unknown state identifier");
             case STATE_ID_NODES -> "AddressBookService.NODES";
             case STATE_ID_ACCOUNT_NODE_REL -> "AddressBookService.ACCOUNT_NODE_REL";
+            case STATE_ID_CLPR_LEDGER_CONFIGURATIONS -> "ClprService.LEDGER_CONFIGURATIONS";
+            case STATE_ID_CLPR_MESSAGES -> "ClprService.MESSAGES";
+            case STATE_ID_CLPR_MESSAGE_QUEUE_METADATA -> "ClprService.MESSAGE_QUEUE_METADATA";
             case STATE_ID_BLOCKS -> "BlockRecordService.BLOCKS";
             case STATE_ID_RUNNING_HASHES -> "BlockRecordService.RUNNING_HASHES";
             case STATE_ID_BLOCK_STREAM_INFO -> "BlockStreamService.BLOCK_STREAM_INFO";
@@ -154,6 +157,8 @@ public final class BlockStreamUtils {
             case CONSTRUCTION_NODE_ID_KEY -> mapChangeKey.constructionNodeIdKeyOrThrow();
             case HOOK_ID_KEY -> mapChangeKey.hookIdKeyOrThrow();
             case EVM_HOOK_SLOT_KEY -> mapChangeKey.evmHookSlotKeyOrThrow();
+            case CLPR_LEDGER_ID_KEY -> mapChangeKey.clprLedgerIdKeyOrThrow();
+            case CLPR_MESSAGE_KEY -> mapChangeKey.clprMessageKeyOrThrow();
         };
     }
 
@@ -191,6 +196,9 @@ public final class BlockStreamUtils {
             case EVM_HOOK_STATE_VALUE -> mapChangeValue.evmHookStateValueOrThrow();
             case NODE_ID_VALUE -> mapChangeValue.nodeIdValueOrThrow();
             case WRAPS_MESSAGE_HISTORY_VALUE -> mapChangeValue.wrapsMessageHistoryValueOrThrow();
+            case CLPR_LEDGER_CONFIGURATION_VALUE -> mapChangeValue.clprLedgerConfigurationValueOrThrow();
+            case CLPR_MESSAGE_QUEUE_METADATA_VALUE -> mapChangeValue.clprMessageQueueMetadataValueOrThrow();
+            case CLPR_MESSAGE_VALUE -> mapChangeValue.clprMessageValueOrThrow();
         };
     }
 

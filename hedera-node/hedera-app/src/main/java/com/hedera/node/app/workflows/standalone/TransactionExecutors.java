@@ -37,8 +37,12 @@ import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.types.StreamMode;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.base.time.Time;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.State;
+import com.swirlds.state.StateLifecycleManager;
+import com.swirlds.state.merkle.StateLifecycleManagerImpl;
+import com.swirlds.state.merkle.VirtualMapStateImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.InstantSource;
@@ -297,6 +301,17 @@ public enum TransactionExecutors {
                 new HistoryServiceImpl(NO_OP_METRICS, ForkJoinPool.commonPool(), appContext, new HistoryLibraryImpl());
         final var standaloneNetworkInfo = new StandaloneNetworkInfo(configProvider);
         standaloneNetworkInfo.initFrom(state);
+        final StateLifecycleManager stateLifecycleManager = new StateLifecycleManagerImpl(
+                NO_OP_METRICS,
+                Time.getCurrent(),
+                virtualMap -> new VirtualMapStateImpl(virtualMap, NO_OP_METRICS),
+                configProvider.getConfiguration());
+        // The state lifecycle manager assumes merkle-backed states that support fast-copy and reserving/releasing
+        // the same root VirtualMap instance. Many tests use lightweight fakes that implement VirtualMapState but
+        // don't satisfy these semantics, leading to leaked MerkleDB instances and flaky "open databases" failures.
+        if (state instanceof VirtualMapStateImpl virtualMapState && virtualMapState.isMutable()) {
+            stateLifecycleManager.initState(virtualMapState);
+        }
         final var component = DaggerExecutorComponent.builder()
                 .appContext(appContext)
                 .configProviderImpl(configProvider)
@@ -316,6 +331,7 @@ public enum TransactionExecutors {
                 .throttleFactory(appContext.throttleFactory())
                 .selfNodeAccountIdManager(
                         new SelfNodeAccountIdManagerImpl(configProvider, standaloneNetworkInfo, state))
+                .stateLifecycleManager(stateLifecycleManager)
                 .build();
         componentRef.set(component);
         return component;

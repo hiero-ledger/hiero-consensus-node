@@ -13,6 +13,7 @@ import com.hedera.node.app.quiescence.QuiescedHeartbeat;
 import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.app.spi.metrics.StoreMetricsService;
 import com.hedera.node.app.spi.store.StoreMetrics;
+import com.hedera.node.app.state.BlockProvenStateAccessor;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.converter.FunctionalitySetConverter;
@@ -34,7 +35,13 @@ import com.swirlds.metrics.api.MetricType;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.state.State;
+import com.swirlds.state.StateLifecycleManager;
+import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.state.spi.metrics.StoreMetrics;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.concurrent.CompletableFuture;
@@ -184,6 +191,54 @@ public final class NoOpDependencies {
     /** Creates a no-op InitialStateHash */
     public static InitialStateHash createNoOpInitialStateHash() {
         return new InitialStateHash(CompletableFuture.completedFuture(Bytes.wrap(new byte[48])), 0L);
+    }
+
+    /** Creates a no-op BlockProvenStateAccessor backed by a fixed benchmark state. */
+    public static BlockProvenStateAccessor createBenchmarkBlockProvenStateAccessor(
+            @NonNull final VirtualMapState state) {
+        final StateLifecycleManager<VirtualMapState, VirtualMap> lifecycleManager = new StateLifecycleManager<>() {
+            @Override
+            public VirtualMapState createStateFrom(@NonNull final VirtualMap rootNode) {
+                throw new UnsupportedOperationException("NoOpStateLifecycleManager.createStateFrom()");
+            }
+
+            @Override
+            public void initState(@NonNull final VirtualMapState state) {
+                // No-op
+            }
+
+            @Override
+            public void initStateOnReconnect(@NonNull final VirtualMapState state) {
+                // No-op
+            }
+
+            @Override
+            public VirtualMapState getMutableState() {
+                return state;
+            }
+
+            @Override
+            public VirtualMapState getLatestImmutableState() {
+                return state;
+            }
+
+            @Override
+            public void createSnapshot(
+                    @NonNull final VirtualMapState virtualMapState, @NonNull final Path targetPath) {
+                // No-op
+            }
+
+            @Override
+            public VirtualMapState loadSnapshot(@NonNull final Path targetPath) throws IOException {
+                throw new UnsupportedOperationException("NoOpStateLifecycleManager.loadSnapshot()");
+            }
+
+            @Override
+            public VirtualMapState copyMutableState() {
+                return state;
+            }
+        };
+        return new BlockProvenStateAccessor(lifecycleManager);
     }
 
     /** No-op Lifecycle */

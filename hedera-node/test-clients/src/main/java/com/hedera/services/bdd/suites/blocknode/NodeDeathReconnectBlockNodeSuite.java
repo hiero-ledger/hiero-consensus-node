@@ -10,6 +10,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogDoesN
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.logIt;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForActive;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForAny;
 import static com.hedera.services.bdd.suites.regression.system.MixedOperations.burstOfTps;
@@ -34,6 +35,11 @@ import org.junit.jupiter.api.Tag;
 @OrderedInIsolation
 public class NodeDeathReconnectBlockNodeSuite implements LifecycleTest {
 
+    /**
+     * Exercises shutdown and restart of a node while block node streaming remains stable.
+     *
+     * @return dynamic tests for the restart flow
+     */
     @HapiTest
     @HapiBlockNode(
             networkSize = 4,

@@ -33,15 +33,16 @@
 			"ContractDelete",
 			"ContractGetInfo",
 			"ContractGetBytecode",
-			"ContractGetRecords",
-			"ContractCallLocal",
-			"TransactionGetRecord",
-			"GetVersionInfo",
-			"NodeCreate",
-			"NodeUpdate",
-			"NodeDelete",
-		  	"AtomicBatch"
-		  ]
+            "ContractGetRecords",
+            "ContractCallLocal",
+            "TransactionGetRecord",
+            "GetVersionInfo",
+            "ClprGetLedgerConfig",
+            "NodeCreate",
+            "NodeUpdate",
+            "NodeDelete",
+          	"AtomicBatch"
+          ]
 		},
 		{
 		  "opsPerSec": 1000,
@@ -88,6 +89,18 @@
 				  "HookStore"
 			  ]
 		  }
+	  ]
+	},
+	{
+	  "name": "ClprSetLedgerConfig (TODO: determine realistic throttle)",
+	  "burstPeriod": 1,
+	  "throttleGroups": [
+		{
+		  "opsPerSec": 20000,
+		  "operations": [
+			"ClprSetLedgerConfig"
+		  ]
+		}
 	  ]
 	},
 	{

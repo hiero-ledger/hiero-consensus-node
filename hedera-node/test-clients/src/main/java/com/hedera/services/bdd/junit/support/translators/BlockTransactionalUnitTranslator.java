@@ -2,6 +2,8 @@
 package com.hedera.services.bdd.junit.support.translators;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.ATOMIC_BATCH;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_GET_LEDGER_CONFIG;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_SET_LEDGER_CONFIG;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_CREATE_TOPIC;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_DELETE_TOPIC;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_SUBMIT_MESSAGE;
@@ -185,6 +187,8 @@ public class BlockTransactionalUnitTranslator {
                     put(HISTORY_ASSEMBLY_SIGNATURE, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
                     put(HISTORY_PROOF_VOTE, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
                     put(LEDGER_ID_PUBLICATION, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
+                    put(CLPR_GET_LEDGER_CONFIG, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
+                    put(CLPR_SET_LEDGER_CONFIG, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
                 }
             };
 

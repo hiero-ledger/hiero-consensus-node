@@ -8,7 +8,6 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.buildUpgradeZipFrom;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doAdhoc;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.freezeOnly;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.freezeUpgrade;
@@ -17,6 +16,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.prepareUpgrade;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.purgeUpgradeArtifacts;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.runBackgroundTrafficUntilFreezeComplete;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.updateSpecialFile;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForActive;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForActiveNetworkWithReassignedPorts;
@@ -36,6 +36,8 @@ import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
 import static org.hiero.consensus.model.status.PlatformStatus.CATASTROPHIC_FAILURE;
 
 import com.hedera.services.bdd.junit.hedera.NodeSelector;
+import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
+import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
@@ -43,8 +45,12 @@ import com.hedera.services.bdd.spec.utilops.FakeNmt;
 import com.hederahashgraph.api.proto.java.SemanticVersion;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
 /**
@@ -60,7 +66,56 @@ public interface LifecycleTest {
     Duration EXEC_IMMEDIATE_MF_TIMEOUT = Duration.ofSeconds(10);
     Duration RESTART_TO_ACTIVE_TIMEOUT = Duration.ofSeconds(210);
     Duration PORT_UNBINDING_WAIT_PERIOD = Duration.ofSeconds(180);
+    /**
+     * Legacy global config version used by initial subprocess startups.
+     */
     AtomicInteger CURRENT_CONFIG_VERSION = new AtomicInteger(0);
+    /**
+     * Tracks configuration versions per network to avoid cross-network interference.
+     */
+    ConcurrentMap<String, AtomicInteger> CONFIG_VERSIONS_BY_NETWORK = new ConcurrentHashMap<>();
+
+    /**
+     * Returns the config version tracker for the target network in the given spec.
+     *
+     * @param spec the HAPI spec in scope
+     * @return the config version tracker
+     */
+    static AtomicInteger configVersionFor(@NonNull final HapiSpec spec) {
+        requireNonNull(spec);
+        final var networkName = spec.targetNetworkOrThrow().name();
+        return CONFIG_VERSIONS_BY_NETWORK.computeIfAbsent(networkName, ignore -> new AtomicInteger(0));
+    }
+
+    /**
+     * Returns the current config version for the target network in the given spec.
+     *
+     * @param spec the HAPI spec in scope
+     * @return the current config version
+     */
+    static int currentConfigVersion(@NonNull final HapiSpec spec) {
+        return configVersionFor(spec).get();
+    }
+
+    /**
+     * Sets the current config version for the target network in the given spec.
+     *
+     * @param spec the HAPI spec in scope
+     * @param version the config version to record
+     */
+    static void setCurrentConfigVersion(@NonNull final HapiSpec spec, final int version) {
+        configVersionFor(spec).set(version);
+    }
+
+    /**
+     * Increments and returns the config version for the target network in the given spec.
+     *
+     * @param spec the HAPI spec in scope
+     * @return the incremented config version
+     */
+    static int incrementConfigVersion(@NonNull final HapiSpec spec) {
+        return configVersionFor(spec).incrementAndGet();
+    }
 
     /**
      * Returns an operation that asserts that the current version of the network has the given
@@ -70,8 +125,8 @@ public interface LifecycleTest {
      * @return the operation
      */
     default HapiSpecOperation assertGetVersionInfoMatches(@NonNull final Supplier<SemanticVersion> versionSupplier) {
-        return sourcing(() -> getVersionInfo()
-                .hasProtoServicesVersion(fromBaseAndConfig(versionSupplier.get(), CURRENT_CONFIG_VERSION.get())));
+        return sourcingContextual(spec -> getVersionInfo()
+                .hasProtoServicesVersion(fromBaseAndConfig(versionSupplier.get(), currentConfigVersion(spec))));
     }
 
     /**
@@ -147,7 +202,255 @@ public interface LifecycleTest {
      * @return the operation
      */
     default SpecOperation upgradeToNextConfigVersion() {
-        return sourcing(() -> upgradeToConfigVersion(CURRENT_CONFIG_VERSION.get() + 1, Map.of(), noOp()));
+        return sourcingContextual(spec -> upgradeToConfigVersion(currentConfigVersion(spec) + 1, Map.of(), noOp()));
+    }
+
+    /**
+     * Returns an operation that upgrades the network to the next configuration version without
+     * refreshing override-network.json files.
+     *
+     * @return the operation
+     */
+    default SpecOperation upgradeToNextConfigVersionWithoutOverrides() {
+        return sourcingContextual(
+                spec -> upgradeToConfigVersionWithoutOverrides(currentConfigVersion(spec) + 1, Map.of(), noOp()));
+    }
+
+    /**
+     * Returns an operation that advances the network to the next configuration version, but does not
+     * start any nodes yet. Call {@link #resumeUpgradedNetwork(NodeSelector)} to start nodes afterward.
+     *
+     * @param preRestartOps operations to run before the network is restarted
+     * @return the operation that prepares the upgrade and shuts down the network
+     */
+    default SpecOperation beginUpgradeToNextConfigVersion(@NonNull final SpecOperation... preRestartOps) {
+        requireNonNull(preRestartOps);
+        return sourcingContextual(spec -> beginUpgradeToConfigVersion(currentConfigVersion(spec) + 1, preRestartOps));
+    }
+
+    /**
+     * Returns an operation that advances the network to the given configuration version, but does not
+     * start any nodes yet. Call {@link #resumeUpgradedNetwork(NodeSelector)} to start nodes afterward.
+     *
+     * @param version the configuration version to upgrade to
+     * @param preRestartOps operations to run before the network is restarted
+     * @return the operation that prepares the upgrade and shuts down the network
+     */
+    default HapiSpecOperation beginUpgradeToConfigVersion(
+            final int version, @NonNull final SpecOperation... preRestartOps) {
+        requireNonNull(preRestartOps);
+        return blockingOrder(
+                runBackgroundTrafficUntilFreezeComplete(),
+                sourcing(() -> freezeUpgrade()
+                        .startingIn(2)
+                        .seconds()
+                        .withUpdateFile(DEFAULT_UPGRADE_FILE_ID)
+                        .havingHash(upgradeFileHashAt(FAKE_UPGRADE_ZIP_LOC))),
+                confirmFreezeAndShutdown(),
+                blockingOrder(preRestartOps),
+                doingContextual(spec -> setCurrentConfigVersion(spec, version)));
+    }
+
+    /**
+     * Returns an operation that starts the selected nodes with the current configuration version.
+     *
+     * @param selector the selector for the nodes to start
+     * @param envOverrides the environment overrides to use
+     * @return the operation that starts the nodes
+     */
+    default SpecOperation resumeUpgradedNetwork(
+            @NonNull final NodeSelector selector, @NonNull final Map<String, String> envOverrides) {
+        requireNonNull(selector);
+        requireNonNull(envOverrides);
+        return sourcingContextual(spec -> FakeNmt.startNodes(selector, currentConfigVersion(spec), envOverrides));
+    }
+
+    /**
+     * Returns an operation that starts the selected nodes with the current configuration version.
+     *
+     * @param selector the selector for the nodes to start
+     * @return the operation that starts the nodes
+     */
+    default SpecOperation resumeUpgradedNetwork(@NonNull final NodeSelector selector) {
+        return resumeUpgradedNetwork(selector, Map.of());
+    }
+
+    /**
+     * Returns an operation that starts the selected nodes with the current configuration version
+     * without refreshing override-network.json files.
+     *
+     * @param selector the selector for the nodes to start
+     * @param envOverrides the environment overrides to use
+     * @return the operation that starts the nodes
+     */
+    default SpecOperation resumeUpgradedNetworkWithoutOverrides(
+            @NonNull final NodeSelector selector, @NonNull final Map<String, String> envOverrides) {
+        requireNonNull(selector);
+        requireNonNull(envOverrides);
+        return sourcingContextual(
+                spec -> FakeNmt.startNodesNoOverride(selector, currentConfigVersion(spec), envOverrides));
+    }
+
+    /**
+     * Returns an operation that starts the selected nodes with the current configuration version
+     * without refreshing override-network.json files.
+     *
+     * @param selector the selector for the nodes to start
+     * @return the operation that starts the nodes
+     */
+    default SpecOperation resumeUpgradedNetworkWithoutOverrides(@NonNull final NodeSelector selector) {
+        return resumeUpgradedNetworkWithoutOverrides(selector, Map.of());
+    }
+
+    /**
+     * Returns an operation that upgrades the network to the next configuration version and defers
+     * starting the given node ids until after existing nodes are ACTIVE and a signed state is copied.
+     *
+     * @param deferredNodeIds the node ids to defer starting
+     * @param sourceNodeId the node id to copy signed state and PCES from
+     * @param signedStateTimeout the timeout for waiting on a post-upgrade signed state
+     * @param preRestartOps operations to run before the network is restarted
+     * @param postResumeOps operations to run after existing nodes are ACTIVE, before copying state
+     * @return the operation that performs the staged upgrade
+     */
+    default SpecOperation upgradeToNextConfigVersionWithDeferredNodes(
+            @NonNull final List<Long> deferredNodeIds,
+            final long sourceNodeId,
+            @NonNull final Duration signedStateTimeout,
+            @NonNull final Map<String, String> envOverrides,
+            @NonNull final SpecOperation preRestartOps,
+            @NonNull final SpecOperation postResumeOps) {
+        requireNonNull(deferredNodeIds);
+        requireNonNull(signedStateTimeout);
+        requireNonNull(envOverrides);
+        requireNonNull(preRestartOps);
+        requireNonNull(postResumeOps);
+        if (deferredNodeIds.isEmpty()) {
+            throw new IllegalArgumentException("Deferred node ids must not be empty");
+        }
+        final var baselineSignedStateRound = new AtomicLong(-1L);
+        final var deferredIds =
+                deferredNodeIds.stream().mapToLong(Long::longValue).toArray();
+        final NodeSelector deferredSelector = node -> deferredNodeIds.contains(node.getNodeId());
+        final var existingSelector = NodeSelector.exceptNodeIds(deferredIds);
+        return blockingOrder(
+                doingContextual(spec -> {
+                    final var subProcessNetwork = spec.subProcessNetworkOrThrow();
+                    setCurrentConfigVersion(spec, subProcessNetwork.currentConfigVersion(sourceNodeId));
+                    baselineSignedStateRound.set(subProcessNetwork.latestSignedStateRound(sourceNodeId));
+                    subProcessNetwork.clearOverrideNetworks();
+                    subProcessNetwork.assertNoOverrideNetworks();
+                }),
+                beginUpgradeToNextConfigVersion(preRestartOps),
+                resumeUpgradedNetworkWithoutOverrides(existingSelector, envOverrides),
+                waitForActive(existingSelector, RESTART_TO_ACTIVE_TIMEOUT),
+                doingContextual(spec -> spec.subProcessNetworkOrThrow().refreshClients()),
+                postResumeOps,
+                doingContextual(spec -> {
+                    final var subProcessNetwork = spec.subProcessNetworkOrThrow();
+                    subProcessNetwork.awaitSignedStateAfterRoundWithRosterEntries(
+                            sourceNodeId, baselineSignedStateRound.get(), signedStateTimeout, deferredNodeIds);
+                    final var firstRound = subProcessNetwork.latestSignedStateRound(sourceNodeId);
+                    // Recommended: wait for a second signed state so copied PCES has fewer events
+                    // from nodes removed from the roster.
+                    subProcessNetwork.awaitSignedStateAfterRoundWithRosterEntries(
+                            sourceNodeId, firstRound, signedStateTimeout, deferredNodeIds);
+                }),
+                doingContextual(spec -> {
+                    final var subProcessNetwork = spec.subProcessNetworkOrThrow();
+                    for (final var deferredNodeId : deferredNodeIds) {
+                        subProcessNetwork.copyLatestSignedStateAndPces(sourceNodeId, deferredNodeId);
+                    }
+                }),
+                resumeUpgradedNetworkWithoutOverrides(deferredSelector, envOverrides),
+                waitForActive(deferredSelector, RESTART_TO_ACTIVE_TIMEOUT),
+                doingContextual(spec -> spec.subProcessNetworkOrThrow().refreshClients()),
+                waitForActive(NodeSelector.allNodes(), RESTART_TO_ACTIVE_TIMEOUT),
+                doingContextual(spec -> {
+                    if (spec.targetNetworkOrThrow() instanceof SubProcessNetwork subProcessNetwork) {
+                        subProcessNetwork.assertNoOverrideNetworks();
+                    }
+                }));
+    }
+
+    /**
+     * Returns an operation that upgrades the network to the next configuration version and defers
+     * starting the given node ids until after existing nodes are ACTIVE and a signed state is copied,
+     * using a default signed-state timeout.
+     *
+     * @param deferredNodeIds the node ids to defer starting
+     * @param sourceNodeId the node id to copy signed state and PCES from
+     * @param preRestartOps operations to run before the network is restarted
+     * @param postResumeOps operations to run after existing nodes are ACTIVE, before copying state
+     * @return the operation that performs the staged upgrade
+     */
+    default SpecOperation upgradeToNextConfigVersionWithDeferredNodes(
+            @NonNull final List<Long> deferredNodeIds,
+            final long sourceNodeId,
+            @NonNull final SpecOperation preRestartOps,
+            @NonNull final SpecOperation postResumeOps) {
+        return upgradeToNextConfigVersionWithDeferredNodes(
+                deferredNodeIds, sourceNodeId, Duration.ofMinutes(1), Map.of(), preRestartOps, postResumeOps);
+    }
+
+    /**
+     * Returns an operation that upgrades the network to the next configuration version and defers
+     * starting the given node ids until after existing nodes are ACTIVE and a signed state is copied,
+     * using a default signed-state timeout.
+     *
+     * @param deferredNodeIds the node ids to defer starting
+     * @param sourceNodeId the node id to copy signed state and PCES from
+     * @param envOverrides the environment overrides to use when starting nodes
+     * @param preRestartOps operations to run before the network is restarted
+     * @param postResumeOps operations to run after existing nodes are ACTIVE, before copying state
+     * @return the operation that performs the staged upgrade
+     */
+    default SpecOperation upgradeToNextConfigVersionWithDeferredNodes(
+            @NonNull final List<Long> deferredNodeIds,
+            final long sourceNodeId,
+            @NonNull final Map<String, String> envOverrides,
+            @NonNull final SpecOperation preRestartOps,
+            @NonNull final SpecOperation postResumeOps) {
+        return upgradeToNextConfigVersionWithDeferredNodes(
+                deferredNodeIds, sourceNodeId, Duration.ofMinutes(1), envOverrides, preRestartOps, postResumeOps);
+    }
+
+    /**
+     * Returns an operation that upgrades the network to the next configuration version and defers
+     * starting the given node ids until after existing nodes are ACTIVE and a signed state is copied,
+     * using default signed-state timeout and no post-resume operations.
+     *
+     * @param deferredNodeIds the node ids to defer starting
+     * @param sourceNodeId the node id to copy signed state and PCES from
+     * @param envOverrides the environment overrides to use when starting nodes
+     * @param preRestartOps operations to run before the network is restarted
+     * @return the operation that performs the staged upgrade
+     */
+    default SpecOperation upgradeToNextConfigVersionWithDeferredNodes(
+            @NonNull final List<Long> deferredNodeIds,
+            final long sourceNodeId,
+            @NonNull final Map<String, String> envOverrides,
+            @NonNull final SpecOperation preRestartOps) {
+        return upgradeToNextConfigVersionWithDeferredNodes(
+                deferredNodeIds, sourceNodeId, Duration.ofMinutes(1), envOverrides, preRestartOps, noOp());
+    }
+
+    /**
+     * Returns an operation that upgrades the network to the next configuration version and defers
+     * starting the given node ids until after existing nodes are ACTIVE and a signed state is copied,
+     * using default signed-state timeout and no post-resume operations.
+     *
+     * @param deferredNodeIds the node ids to defer starting
+     * @param sourceNodeId the node id to copy signed state and PCES from
+     * @param preRestartOps operations to run before the network is restarted
+     * @return the operation that performs the staged upgrade
+     */
+    default SpecOperation upgradeToNextConfigVersionWithDeferredNodes(
+            @NonNull final List<Long> deferredNodeIds,
+            final long sourceNodeId,
+            @NonNull final SpecOperation preRestartOps) {
+        return upgradeToNextConfigVersionWithDeferredNodes(
+                deferredNodeIds, sourceNodeId, Duration.ofMinutes(1), Map.of(), preRestartOps, noOp());
     }
 
     /**
@@ -161,7 +464,7 @@ public interface LifecycleTest {
                 // reset when last frozen time matches it (i.e., in a post-upgrade transaction)
                 cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1)),
                 confirmFreezeAndShutdown(),
-                sourcing(() -> FakeNmt.restartNetwork(CURRENT_CONFIG_VERSION.incrementAndGet(), Map.of())),
+                sourcingContextual(spec -> FakeNmt.restartNetwork(incrementConfigVersion(spec), Map.of())),
                 waitForActiveNetworkWithReassignedPorts(RESTART_TIMEOUT));
     }
 
@@ -170,8 +473,8 @@ public interface LifecycleTest {
      * @return the operation
      */
     static SpecOperation restartWithDisabledNodeOperatorGrpcPort() {
-        return restartAtNextConfigVersionVia(sourcing(
-                () -> FakeNmt.restartNetworkWithDisabledNodeOperatorPort(CURRENT_CONFIG_VERSION.incrementAndGet())));
+        return restartAtNextConfigVersionVia(sourcingContextual(
+                spec -> FakeNmt.restartNetworkWithDisabledNodeOperatorPort(incrementConfigVersion(spec))));
     }
 
     /**
@@ -211,7 +514,24 @@ public interface LifecycleTest {
             @NonNull final Map<String, String> envOverrides, @NonNull final SpecOperation... preRestartOps) {
         requireNonNull(envOverrides);
         requireNonNull(preRestartOps);
-        return sourcing(() -> upgradeToConfigVersion(CURRENT_CONFIG_VERSION.get() + 1, envOverrides, preRestartOps));
+        return sourcingContextual(
+                spec -> upgradeToConfigVersion(currentConfigVersion(spec) + 1, envOverrides, preRestartOps));
+    }
+
+    /**
+     * Returns an operation that upgrades the network to the next configuration version without
+     * refreshing override-network.json files, running the given operations before restart.
+     *
+     * @param envOverrides the environment overrides to use
+     * @param preRestartOps operations to run before the network is restarted
+     * @return the operation that performs the upgrade
+     */
+    default SpecOperation upgradeToNextConfigVersionWithoutOverrides(
+            @NonNull final Map<String, String> envOverrides, @NonNull final SpecOperation... preRestartOps) {
+        requireNonNull(envOverrides);
+        requireNonNull(preRestartOps);
+        return sourcingContextual(spec ->
+                upgradeToConfigVersionWithoutOverrides(currentConfigVersion(spec) + 1, envOverrides, preRestartOps));
     }
 
     /**
@@ -239,8 +559,52 @@ public interface LifecycleTest {
                 confirmFreezeAndShutdown(),
                 blockingOrder(preRestartOps),
                 FakeNmt.restartNetwork(version, envOverrides),
-                doAdhoc(() -> CURRENT_CONFIG_VERSION.set(version)),
+                doingContextual(spec -> setCurrentConfigVersion(spec, version)),
                 waitForActiveNetworkWithReassignedPorts(RESTART_TIMEOUT),
+                cryptoCreate("postUpgradeAccount"),
+                // Ensure we have a post-upgrade transaction in a new period to trigger
+                // system file exports while still streaming records
+                doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted));
+    }
+
+    /**
+     * Returns an operation that upgrades the network to the given configuration version using a fake upgrade ZIP,
+     * without refreshing override-network.json files, and running the given operation before restart.
+     *
+     * @param version the configuration version to upgrade to
+     * @param envOverrides the environment overrides to use
+     * @param preRestartOps operations to run before the network is restarted
+     * @return the operation
+     */
+    default HapiSpecOperation upgradeToConfigVersionWithoutOverrides(
+            final int version,
+            @NonNull final Map<String, String> envOverrides,
+            @NonNull final SpecOperation... preRestartOps) {
+        requireNonNull(preRestartOps);
+        requireNonNull(envOverrides);
+        return blockingOrder(
+                doingContextual(spec -> {
+                    if (spec.targetNetworkOrThrow() instanceof SubProcessNetwork subProcessNetwork) {
+                        subProcessNetwork.clearOverrideNetworks();
+                        subProcessNetwork.assertNoOverrideNetworks();
+                    }
+                }),
+                runBackgroundTrafficUntilFreezeComplete(),
+                sourcing(() -> freezeUpgrade()
+                        .startingIn(2)
+                        .seconds()
+                        .withUpdateFile(DEFAULT_UPGRADE_FILE_ID)
+                        .havingHash(upgradeFileHashAt(FAKE_UPGRADE_ZIP_LOC))),
+                confirmFreezeAndShutdown(),
+                blockingOrder(preRestartOps),
+                FakeNmt.restartNetworkNoOverride(version, envOverrides),
+                doingContextual(spec -> setCurrentConfigVersion(spec, version)),
+                waitForActiveNetworkWithReassignedPorts(RESTART_TIMEOUT),
+                doingContextual(spec -> {
+                    if (spec.targetNetworkOrThrow() instanceof SubProcessNetwork subProcessNetwork) {
+                        subProcessNetwork.assertNoOverrideNetworks();
+                    }
+                }),
                 cryptoCreate("postUpgradeAccount"),
                 // Ensure we have a post-upgrade transaction in a new period to trigger
                 // system file exports while still streaming records
@@ -272,7 +636,7 @@ public interface LifecycleTest {
     }
 
     /**
-     * Returns a {@link SemanticVersion} that combines the given version with the given configuration version.
+     * Returns the config version parsed from the build metadata in a {@link SemanticVersion}.
      *
      * @param version the base version
      * @return the config version

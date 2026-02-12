@@ -56,6 +56,8 @@ import "services/state/token/token_relation.proto";
 import "services/state/tss/tss_encryption_keys.proto";
 import "services/state/tss/tss_message_map_key.proto";
 import "services/state/tss/tss_vote_map_key.proto";
+import "interledger/state/clpr/clpr_ledger.proto";
+import "interledger/state/clpr/clpr_message_queue.proto";
 
 /**
  * This message defines the State Item.
@@ -102,6 +104,9 @@ message QueueState {
  * Note that `_I_` plays a role of a reliable separator between the service name
  * and the state name, which will be present in all types of code generation results as just underscores
  * may be deleted and create unexpected collisions.
+ *
+ * For key/value states, numeric field numbers here MUST match the corresponding field numbers in StateValue.
+ * For queue states, keys use the queue state id, while values use queue_state = 8001.
  */
 message StateKey {
   oneof key {
@@ -274,6 +279,26 @@ message StateKey {
      */
     com.hedera.hapi.node.state.history.ConstructionNodeId HistoryService_I_WRAPS_MESSAGE_HISTORIES = 54;
 
+    /**
+     * A state identifier for CLPR Ledger Configuration.
+     */
+    org.hiero.hapi.interledger.state.clpr.ClprLedgerId ClprService_I_CONFIGURATIONS = 56;
+
+    /**
+     * A state identifier for CLPR local ledger metadata.
+     */
+    org.hiero.hapi.interledger.state.clpr.ClprLocalLedgerMetadata ClprService_I_METADATA = 57;
+
+    /**
+     * A state identifier for CLPR Message Queue.
+     */
+    org.hiero.hapi.interledger.state.clpr.ClprLedgerId ClprService_I_MESSAGE_QUEUE_METADATA = 58;
+
+    /**
+     * A state identifier for CLPR Messages.
+     */
+    org.hiero.hapi.interledger.state.clpr.ClprMessageKey ClprService_I_MESSAGES = 59;
+
     // Queue states
     /**
      * Queue index for the round receipts queue.
@@ -338,6 +363,10 @@ message StateKey {
  * Note that `_I_` plays a role of a reliable separator between the service name
  * and the state name, which will be present in all types of code generation results as just underscores
  * may be deleted and create unexpected collisions.<br/>
+ *
+ * For key/value states, numeric field numbers here MUST match the corresponding field numbers in StateKey.
+ * For singleton states, numeric field numbers here MUST match the corresponding values in SingletonType.
+ * For queue states, values use queue_state = 8001 instead of the queue state id.
  * ID ranges for StateValue types:
  * <ol>
  *   <li>0–7999: Core state entries. Reserved for all platform states
@@ -623,6 +652,26 @@ message StateValue {
     com.hedera.hapi.node.state.token.NodePayments TokenService_I_NODE_PAYMENTS = 55;
 
     /**
+     * A state identifier for CLPR Ledger Configuration.
+     */
+    org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration ClprService_I_CONFIGURATIONS = 56;
+
+    /**
+     * A state identifier for CLPR local ledger metadata. Singleton state.
+     */
+    org.hiero.hapi.interledger.state.clpr.ClprLocalLedgerMetadata ClprService_I_METADATA = 57;
+
+    /**
+     * A state identifier for CLPR Message Queue.
+     */
+    org.hiero.hapi.interledger.state.clpr.ClprMessageQueueMetadata ClprService_I_MESSAGE_QUEUES = 58;
+
+    /**
+     * A state identifier for CLPR Messages.
+     */
+    org.hiero.hapi.interledger.state.clpr.ClprMessageValue ClprService_I_MESSAGES = 59;
+
+    /**
      * Metadata of the round receipts queue.
      */
     proto.TransactionReceiptEntries RecordCache_I_TRANSACTION_RECEIPTS = 126;
@@ -692,6 +741,8 @@ message StateValue {
 
 /**
   * An enumeration of the singleton state types.
+  *
+  * Numeric values here MUST match the corresponding field numbers in StateValue for singleton states.
  */
 enum SingletonType {
   /**
@@ -805,6 +856,11 @@ enum SingletonType {
    * A state identifier for the node payments. Singleton state.
    */
   TokenService_I_NODE_PAYMENTS = 55;
+
+  /**
+   * A state identifier for CLPR local ledger metadata. Singleton state.
+   */
+  ClprService_I_METADATA = 57;
 
   // Queue metadata
 

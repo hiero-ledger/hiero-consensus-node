@@ -111,7 +111,9 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -210,6 +212,7 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
 
     public static final ThreadLocal<TestLifecycle> TEST_LIFECYCLE = new ThreadLocal<>();
     public static final ThreadLocal<String> SPEC_NAME = new ThreadLocal<>();
+    public static final ThreadLocal<String> DISPLAY_NAME = new ThreadLocal<>();
 
     private static final String CI_PROPS_FLAG_FOR_NO_UNRECOVERABLE_NETWORK_FAILURES = "suppressNetworkFailures";
     private static final ThreadPoolExecutor THREAD_POOL =
@@ -942,15 +945,31 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
     private void buildRemoteNetwork() {
         try {
             targetNetwork = RemoteNetworkFactory.newWithTargetFrom(hapiSetup.remoteNodesYmlLoc());
-            hapiSetup.addOverrides(Map.of(
-                    "default.shard", "" + targetNetwork.shard(),
-                    "default.realm", "" + targetNetwork.realm()));
+            applyShardRealmOverrides(targetNetwork.shard(), targetNetwork.realm());
         } catch (Exception ignore) {
             final long shard = HapiPropertySource.getConfigShard();
             final long realm = HapiPropertySource.getConfigRealm();
             targetNetwork = RemoteNetwork.newRemoteNetwork(
                     hapiSetup.nodes(shard, realm), clientsFor(hapiSetup, shard, realm), shard, realm);
+            applyShardRealmOverrides(shard, realm);
         }
+    }
+
+    /**
+     * Aligns the default shard/realm used to construct account IDs with the
+     * shard/realm of the target network, so default node/payer IDs map to an
+     * existing node and corresponding stubs.
+     */
+    private void applyShardRealmOverrides(final long shard, final long realm) {
+        final var shardStr = Long.toString(shard);
+        final var realmStr = Long.toString(realm);
+        hapiSetup.addOverrides(Map.of(
+                "default.shard", shardStr,
+                "default.realm", realmStr,
+                "hapi.spec.default.shard", shardStr,
+                "hapi.spec.default.realm", realmStr));
+        System.setProperty("hapi.spec.default.shard", shardStr);
+        System.setProperty("hapi.spec.default.realm", realmStr);
     }
 
     private void tearDown() {
@@ -1352,6 +1371,20 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
                         .withPrioritySetup(setupOverrides))));
     }
 
+    public static MultiNetworkSpecBuilder multiNetworkHapiTest(@NonNull final HederaNetwork... networks) {
+        requireNonNull(networks);
+        final Map<String, HederaNetwork> networkMap = new LinkedHashMap<>();
+        for (final var network : networks) {
+            requireNonNull(network);
+            final var name = network.name();
+            if (networkMap.containsKey(name)) {
+                throw new IllegalArgumentException("Duplicate network name: " + name);
+            }
+            networkMap.put(name, network);
+        }
+        return new MultiNetworkSpecBuilder(networkMap);
+    }
+
     public static DynamicTest namedHapiTest(String name, @NonNull final SpecOperation... ops) {
         return DynamicTest.dynamicTest(
                 name,
@@ -1400,6 +1433,16 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
                 put("memo.useSpecName", "true");
             }
         };
+        if (!targetNetwork.nodes().isEmpty()) {
+            final var defaultNodeAccount = targetNetwork.nodes().getFirst().getAccountId();
+            // Ensure a valid node account is used for transactions when the network uses non-default node IDs.
+            overrides.put(
+                    "default.node",
+                    HapiPropertySource.asEntityString(
+                            defaultNodeAccount.shardNum(),
+                            defaultNodeAccount.realmNum(),
+                            defaultNodeAccount.accountNumOrThrow()));
+        }
 
         // We only need to set shard/realm if they aren't the default values (zero)
         final var shardRealm = determineShardRealm(targetNetwork);
@@ -1509,6 +1552,90 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
                 .startupProperties()
                 .get("fees.simpleFeesEnabled")
                 .equals("true");
+    }
+
+    public static final class MultiNetworkSpecBuilder {
+        private final Map<String, HederaNetwork> networks;
+        private final List<NetworkStep> steps = new ArrayList<>();
+
+        private MultiNetworkSpecBuilder(@NonNull final Map<String, HederaNetwork> networks) {
+            requireNonNull(networks);
+            if (networks.isEmpty()) {
+                throw new IllegalArgumentException("multiNetworkHapiTest requires at least one network");
+            }
+            this.networks = Map.copyOf(networks);
+        }
+
+        public MultiNetworkSpecBuilder onNetwork(
+                @NonNull final String networkName, @NonNull final SpecOperation... ops) {
+            requireNonNull(networkName);
+            requireNonNull(ops);
+            if (!networks.containsKey(networkName)) {
+                throw new IllegalArgumentException("Unknown network name: " + networkName);
+            }
+            if (ops.length > 0) {
+                steps.add(new NetworkStep(networkName, List.of(ops)));
+            }
+            return this;
+        }
+
+        public Stream<DynamicTest> asDynamicTests() {
+            final var displayName = determineDisplayName();
+            return Stream.of(DynamicTest.dynamicTest(displayName, () -> runSteps(displayName)));
+        }
+
+        public void run(@NonNull final String displayName) {
+            runSteps(displayName);
+        }
+
+        private void runSteps(@NonNull final String displayName) {
+            requireNonNull(displayName);
+            if (steps.isEmpty()) {
+                throw new IllegalStateException("multiNetworkHapiTest requires at least one network step");
+            }
+            int index = 1;
+            for (final var step : steps) {
+                if (step.operations().isEmpty()) {
+                    continue;
+                }
+                final var network = networks.get(step.networkName());
+                final var specName = String.format(
+                        "%s-%s-step-%d", displayName, step.networkName().toLowerCase(Locale.ROOT), index++);
+                runSpec(specName, step.operations(), network);
+            }
+        }
+
+        private String determineDisplayName() {
+            return Optional.ofNullable(DISPLAY_NAME.get())
+                    .orElseGet(() -> Optional.ofNullable(SPEC_NAME.get()).orElse("multi-network-spec"));
+        }
+
+        private void runSpec(final String specName, final List<SpecOperation> operations, final HederaNetwork network) {
+            final var preserved =
+                    Optional.ofNullable(PROPERTIES_TO_PRESERVE.get()).orElse(List.of());
+            final var spec = new HapiSpec(
+                    specName,
+                    setupFrom(getDefaultPropertySource()),
+                    new SpecOperation[0],
+                    new SpecOperation[0],
+                    operations.toArray(new SpecOperation[0]),
+                    preserved);
+            final var previousTarget = TARGET_NETWORK.get();
+            try {
+                TARGET_NETWORK.set(network);
+                targeted(spec).execute();
+            } catch (Throwable t) {
+                throw new RuntimeException("Failed executing multi-network step '" + specName + "'", t);
+            } finally {
+                if (previousTarget == null) {
+                    TARGET_NETWORK.remove();
+                } else {
+                    TARGET_NETWORK.set(previousTarget);
+                }
+            }
+        }
+
+        private record NetworkStep(String networkName, List<SpecOperation> operations) {}
     }
 
     @Override

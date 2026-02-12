@@ -40,6 +40,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 import javax.inject.Named;
 import javax.inject.Singleton;
+import org.hiero.interledger.clpr.impl.handlers.ClprLedgerConfigurationHandlers;
 
 @Module
 public interface HandleWorkflowModule {
@@ -134,8 +135,10 @@ public interface HandleWorkflowModule {
             @NonNull final UtilHandlers utilHandlers,
             @NonNull final AddressBookHandlers addressBookHandlers,
             @NonNull final HintsHandlers hintsHandlers,
-            @NonNull final HistoryHandlers historyHandlers) {
+            @NonNull final HistoryHandlers historyHandlers,
+            @NonNull final ClprLedgerConfigurationHandlers clprLedgerConfigurationHandlers) {
         return new TransactionHandlers(
+                clprLedgerConfigurationHandlers.clprSetLedgerConfigurationHandler(),
                 consensusHandlers.consensusCreateTopicHandler(),
                 consensusHandlers.consensusUpdateTopicHandler(),
                 consensusHandlers.consensusDeleteTopicHandler(),

@@ -251,7 +251,8 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
             savepoint.commit();
         }
         if (streamMode != RECORDS && immediateStateChangeListener != null) {
-            builder.stateChanges(immediateStateChangeListener.getStateChanges());
+            final var capturedChanges = immediateStateChangeListener.getStateChanges();
+            builder.stateChanges(capturedChanges);
         }
         setupFirstSavepoint(baseBuilder.category());
     }

@@ -10,7 +10,7 @@ import static com.hedera.services.bdd.junit.hedera.utils.NetworkUtils.CLASSIC_NO
 import static com.hedera.services.bdd.junit.hedera.utils.NetworkUtils.classicFeeCollectorIdFor;
 import static com.hedera.services.bdd.junit.hedera.utils.NetworkUtils.entryById;
 import static com.hedera.services.bdd.junit.hedera.utils.NetworkUtils.nodeIdsFrom;
-import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.VALID_CERT;
+import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.gossipCaCertificateForNodeId;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccountString;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asServiceEndpoint;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -25,6 +25,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeUpdate;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.ensureStakingActivated;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.logIt;
@@ -32,6 +33,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustInc
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.selectedItems;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateCandidateRoster;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForActive;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilStartOfNextStakingPeriod;
@@ -39,6 +41,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItemsValidator.EXISTENCE_ONLY_VALIDATOR;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
+import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.NODE_DETAILS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_BILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
@@ -54,6 +57,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
+import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
@@ -93,13 +97,14 @@ import org.junit.jupiter.api.TestMethodOrder;
 /**
  * Asserts expected behavior of the network when upgrading with DAB enabled.
  * <p>
- * The test framework simulates DAB by copying the <i>config.txt</i> from the node's upgrade artifacts into their
- * working directories, instead of regenerating a <i>config.txt</i> to match its {@link HederaNode} instances. It
+ * The test framework simulates DAB by relying on node-generated upgrade artifacts (such as <i>config.txt</i> and
+ * <i>candidate-roster.json</i>) and preserving subprocess ports across restarts, instead of regenerating a
+ * <i>config.txt</i> to match its {@link HederaNode} instances or writing override-network.json files.
  * <p>
  * There are three upgrades in this test. The first leaves the address book unchanged, the second removes `node1`,
  * and the last one adds a new `node5`.
  * <p>
- * Halfway through the sequence, we also verify that reconnect is still possible  with only `node0` and `node2`
+ * Halfway through the sequence, we also verify that reconnect is still possible with only `node0` and `node2`
  * left online while `node3` reconnects; which we accomplish by giving most of the stake to those nodes.
  * <p>
  * We also verify that an account staking to a deleted node cannot earn rewards.
@@ -116,6 +121,7 @@ import org.junit.jupiter.api.TestMethodOrder;
 @OrderedInIsolation
 public class DabEnabledUpgradeTest implements LifecycleTest {
     private static final List<String> NODE_ACCOUNT_IDS = List.of("3", "4", "5", "6");
+    private static final AtomicLong MAX_CREATED_NODE_ID = new AtomicLong(CLASSIC_HAPI_TEST_NETWORK_SIZE - 1);
 
     // To test BirthRoundStateMigration, use,
     //    Map.of("event.useBirthRoundAncientThreshold", "true")
@@ -179,21 +185,10 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
                 waitUntilStartOfNextStakingPeriod(1).withBackgroundTraffic(),
                 // Now do the first upgrade
                 getVersionInfo().exposingServicesVersionTo(startVersion::set),
+                nodeUpdate("0").grpcCertificateHash(newNode0CertHash.toByteArray()),
                 prepareFakeUpgrade(),
                 validateCandidateRoster(DabEnabledUpgradeTest::hasClassicRosterMetadata),
-                doingContextual(spec -> spec.subProcessNetworkOrThrow()
-                        .setOneTimeOverrideCustomizer(network -> network.copyBuilder()
-                                .nodeMetadata(network.nodeMetadata().stream()
-                                        .map(meta -> meta.nodeOrThrow().nodeId() == 0L
-                                                ? meta.copyBuilder()
-                                                        .node(meta.nodeOrThrow()
-                                                                .copyBuilder()
-                                                                .grpcCertificateHash(newNode0CertHash))
-                                                        .build()
-                                                : meta)
-                                        .toList())
-                                .build())),
-                upgradeToNextConfigVersion(),
+                upgradeToNextConfigVersionWithoutOverrides(),
                 assertGetVersionInfoMatches(startVersion::get),
                 burstOfTps(MIXED_OPS_BURST_TPS, Duration.ofSeconds(5)),
                 getFileContents(NODE_DETAILS).andValidate(bytes -> {
@@ -216,7 +211,7 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
                 prepareFakeUpgrade(),
                 validateCandidateRoster(
                         addressBook -> assertThat(nodeIdsFrom(addressBook)).containsExactlyInAnyOrder(0L, 2L, 3L)),
-                upgradeToNextConfigVersion(ENV_OVERRIDES, FakeNmt.removeNode(byNodeId(1))),
+                upgradeToNextConfigVersionWithoutOverrides(ENV_OVERRIDES, FakeNmt.removeNodeNoOverride(byNodeId(1))),
                 waitUntilStartOfNextStakingPeriod(1).withBackgroundTraffic(),
                 touchBalanceOf(NODE0_STAKER, NODE2_STAKER, NODE3_STAKER).andAssertStakingRewardCount(3),
                 touchBalanceOf(NODE1_STAKER).andAssertStakingRewardCount(0));
@@ -241,7 +236,7 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
                 prepareFakeUpgrade(),
                 validateCandidateRoster(
                         addressBook -> assertThat(nodeIdsFrom(addressBook)).containsExactlyInAnyOrder(0L, 2L)),
-                upgradeToNextConfigVersion(ENV_OVERRIDES, FakeNmt.removeNode(byNodeId(3))),
+                upgradeToNextConfigVersionWithoutOverrides(ENV_OVERRIDES, FakeNmt.removeNodeNoOverride(byNodeId(3))),
                 waitUntilStartOfNextStakingPeriod(1).withBackgroundTraffic(),
                 touchBalanceOf(NODE0_STAKER, NODE2_STAKER).andAssertStakingRewardCount(2),
                 touchBalanceOf(NODE3_STAKER).andAssertStakingRewardCount(0));
@@ -257,12 +252,18 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
                         .adminKey(DEFAULT_PAYER)
                         .description(CLASSIC_NODE_NAMES[4])
                         .withAvailableSubProcessPorts()
-                        .gossipCaCertificate(VALID_CERT),
+                        .gossipCaCertificate(gossipCaCertificateForNodeId(4L))
+                        .exposingCreatedIdTo(id -> MAX_CREATED_NODE_ID.updateAndGet(prev -> Math.max(prev, id))),
                 prepareFakeUpgrade(),
                 // node4 was not active before this the upgrade, so it could not have written a config.txt
                 validateCandidateRoster(exceptNodeIds(4L), addressBook -> assertThat(nodeIdsFrom(addressBook))
                         .contains(4L)),
-                upgradeToNextConfigVersion(ENV_OVERRIDES, FakeNmt.addNode(4L)));
+                upgradeToNextConfigVersionWithDeferredNodes(
+                        List.of(4L),
+                        0L,
+                        ENV_OVERRIDES,
+                        FakeNmt.addNodeNoOverride(4L),
+                        cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1))));
     }
 
     @Nested
@@ -284,17 +285,19 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
                             .adminKey(DEFAULT_PAYER)
                             .description(CLASSIC_NODE_NAMES[5])
                             .withAvailableSubProcessPorts()
-                            .gossipCaCertificate(VALID_CERT),
+                            .gossipCaCertificate(gossipCaCertificateForNodeId(5L))
+                            .exposingCreatedIdTo(id -> MAX_CREATED_NODE_ID.updateAndGet(prev -> Math.max(prev, id))),
                     nodeCreate("toBeDeletedNode6", classicFeeCollectorIdFor(6))
                             .adminKey(DEFAULT_PAYER)
                             .description(CLASSIC_NODE_NAMES[6])
                             .withAvailableSubProcessPorts()
-                            .gossipCaCertificate(VALID_CERT),
+                            .gossipCaCertificate(gossipCaCertificateForNodeId(6L))
+                            .exposingCreatedIdTo(id -> MAX_CREATED_NODE_ID.updateAndGet(prev -> Math.max(prev, id))),
                     nodeCreate("disallowedNode7", classicFeeCollectorIdFor(7))
                             .adminKey(DEFAULT_PAYER)
                             .description(CLASSIC_NODE_NAMES[7])
                             .withAvailableSubProcessPorts()
-                            .gossipCaCertificate(VALID_CERT)
+                            .gossipCaCertificate(gossipCaCertificateForNodeId(7L))
                             .hasKnownStatus(MAX_NODES_CREATED),
                     // Delete a pending node
                     nodeDelete("6"),
@@ -323,12 +326,16 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
                             EXISTENCE_ONLY_VALIDATOR, 2, sysFileUpdateTo("files.nodeDetails", "files.addressBook"))),
                     prepareFakeUpgrade(),
                     // Now make some changes that should not be incorporated in this upgrade
-                    nodeDelete("5"),
-                    nodeDelete("2"),
+                    nodeUpdate("node5").description("ignored-after-prepare"),
+                    nodeUpdate("2").description("ignored-after-prepare"),
                     validateCandidateRoster(
                             NodeSelector.allNodes(), DabEnabledUpgradeTest::validateNodeId5MultipartEdits),
-                    upgradeToNextConfigVersion(
-                            ENV_OVERRIDES, FakeNmt.removeNode(NodeSelector.byNodeId(4L)), FakeNmt.addNode(5L)),
+                    upgradeToNextConfigVersionWithDeferredNodes(
+                            List.of(5L),
+                            0L,
+                            ENV_OVERRIDES,
+                            blockingOrder(FakeNmt.removeNodeNoOverride(byNodeId(4L)), FakeNmt.addNodeNoOverride(5L)),
+                            cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1))),
                     // Validate that nodeId2 and nodeId5 have their new fee collector account IDs,
                     // since those were updated before the prepare upgrade
                     cryptoTransfer(tinyBarsFromTo(DEFAULT_PAYER, FUNDING, 1L))
@@ -359,19 +366,53 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
                     cryptoCreate("nodeAccountId").exposingCreatedIdTo(initialNodeAccount::set),
                     cryptoCreate("newNodeAccountId").exposingCreatedIdTo(newNodeAccount::set),
                     // create node txn
-                    sourcing(
-                            () -> nodeCreate("newNode", initialNodeAccount.get().getAccountNum())
-                                    .adminKey(DEFAULT_PAYER)
-                                    .description(CLASSIC_NODE_NAMES[4])
-                                    .withAvailableSubProcessPorts()
-                                    .gossipCaCertificate(VALID_CERT)
-                                    .exposingCreatedIdTo(nodeId::set)),
+                    sourcingContextual(spec -> {
+                        final var expectedNodeId = MAX_CREATED_NODE_ID.get() + 1;
+                        final var baseNode = spec.subProcessNetworkOrThrow().nodes().stream()
+                                .filter(node -> node.getNodeId() == 0L)
+                                .findFirst()
+                                .orElseThrow();
+                        final var host = baseNode.getHost();
+                        final var baseGrpcPort = baseNode.getGrpcPort();
+                        final var baseInternalGossipPort = baseNode.metadata().internalGossipPort();
+                        final var baseExternalGossipPort = baseNode.metadata().externalGossipPort();
+                        return nodeCreate("newNode", initialNodeAccount.get().getAccountNum())
+                                .adminKey(DEFAULT_PAYER)
+                                .description(CLASSIC_NODE_NAMES[(int) expectedNodeId])
+                                .gossipEndpoint(List.of(
+                                        CommonPbjConverters.fromPbj(asServiceEndpoint(
+                                                host + ":" + (baseInternalGossipPort + (int) expectedNodeId * 2))),
+                                        CommonPbjConverters.fromPbj(asServiceEndpoint(
+                                                host + ":" + (baseExternalGossipPort + (int) expectedNodeId * 2)))))
+                                .serviceEndpoint(List.of(CommonPbjConverters.fromPbj(
+                                        asServiceEndpoint(host + ":" + (baseGrpcPort + (int) expectedNodeId * 2)))))
+                                .gossipCaCertificate(gossipCaCertificateForNodeId(expectedNodeId))
+                                .exposingCreatedIdTo(id -> {
+                                    nodeId.set(id);
+                                    MAX_CREATED_NODE_ID.updateAndGet(prev -> Math.max(prev, id));
+                                    assertEquals(expectedNodeId, id);
+                                });
+                    }),
+                    withOpContext((spec, opLog) -> {
+                        final var pbjId = CommonPbjConverters.toPbj(initialNodeAccount.get());
+                        spec.subProcessNetworkOrThrow().updateNodeAccount(nodeId.get(), pbjId);
+                        opLog.info(
+                                "Mapped node {} to account {} for {}",
+                                nodeId.get(),
+                                initialNodeAccount.get().getAccountNum(),
+                                spec.targetNetworkOrThrow().name());
+                    }),
                     doingContextual(spec -> {
                         allRunFor(
                                 spec,
                                 // Add the new node to the network
                                 prepareFakeUpgrade(),
-                                upgradeToNextConfigVersion(ENV_OVERRIDES, FakeNmt.addNode(nodeId.get())),
+                                upgradeToNextConfigVersionWithDeferredNodes(
+                                        List.of(nodeId.get()),
+                                        0L,
+                                        ENV_OVERRIDES,
+                                        FakeNmt.addNodeNoOverride(nodeId.get()),
+                                        cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1))),
                                 // update the node account id
                                 nodeUpdate("newNode")
                                         .accountId("newNodeAccountId")
@@ -415,7 +456,7 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
 
                     // 3. The output paths should update on startup after the upgrade
                     prepareFakeUpgrade(),
-                    upgradeToNextConfigVersion(),
+                    upgradeToNextConfigVersionWithoutOverrides(),
                     // create record
                     burstOfTps(MIXED_OPS_BURST_TPS, Duration.ofSeconds(5)),
 
@@ -433,7 +474,7 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
 
                     // 7. upgrade and validate the new records and blocks paths exist
                     prepareFakeUpgrade(),
-                    upgradeToNextConfigVersion(),
+                    upgradeToNextConfigVersionWithoutOverrides(),
                     // create record
                     burstOfTps(MIXED_OPS_BURST_TPS, Duration.ofSeconds(5)),
                     validatePathsExist(nodeToUpdate, newAccountId));

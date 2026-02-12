@@ -231,6 +231,11 @@ public class BoundaryStateChangeListener implements StateChangeListener {
             case ProtoString protoString -> {
                 return new OneOf<>(SingletonUpdateChange.NewValueOneOfType.STRING_VALUE, protoString.value());
             }
+            case org.hiero.hapi.interledger.state.clpr.ClprLocalLedgerMetadata metadata -> {
+                return new OneOf<>(
+                        SingletonUpdateChange.NewValueOneOfType.BYTES_VALUE,
+                        org.hiero.hapi.interledger.state.clpr.ClprLocalLedgerMetadata.PROTOBUF.toBytes(metadata));
+            }
             case RunningHashes runningHashes -> {
                 return new OneOf<>(SingletonUpdateChange.NewValueOneOfType.RUNNING_HASHES_VALUE, runningHashes);
             }
