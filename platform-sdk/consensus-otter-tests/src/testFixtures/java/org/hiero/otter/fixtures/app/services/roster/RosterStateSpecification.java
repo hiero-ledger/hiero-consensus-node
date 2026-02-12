@@ -34,8 +34,7 @@ public class RosterStateSpecification implements OtterServiceStateSpecification 
     public Set<StateDefinition<?, ?>> statesToCreate() {
         return Set.of(
                 StateDefinition.singleton(ROSTER_STATE_ID, ROSTER_STATE_KEY, RosterState.PROTOBUF),
-                StateDefinition.onDisk(
-                        ROSTERS_STATE_ID, ROSTERS_STATE_KEY, ProtoBytes.PROTOBUF, Roster.PROTOBUF, MAX_ROSTERS));
+                StateDefinition.keyValue(ROSTERS_STATE_ID, ROSTERS_STATE_KEY, ProtoBytes.PROTOBUF, Roster.PROTOBUF));
     }
 
     /**

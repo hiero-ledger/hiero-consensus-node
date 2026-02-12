@@ -30,8 +30,7 @@ public class SimpleFeesScheduleConstantsInUsd {
     public static final double ACCOUNTS_FEE_USD = 0.0001;
     public static final double SIGNATURE_FEE_AFTER_MULTIPLIER = (NETWORK_MULTIPLIER + 1) * SIGNATURE_FEE_USD;
 
-    public static final double FUNGIBLE_TOKENS_FEE_USD = 0.0001;
-    public static final double NON_FUNGIBLE_TOKENS_FEE_USD = 0.0001;
+    public static final double TOKEN_TYPES_FEE = 0.0001;
 
     public static final double GAS_FEE_USD = 0.0000000852;
     public static final double ALLOWANCES_FEE_USD = 0.05;
@@ -74,8 +73,7 @@ public class SimpleFeesScheduleConstantsInUsd {
     public static final long CRYPTO_TRANSFER_INCLUDED_HOOK_EXECUTION = 0L;
     public static final long CRYPTO_TRANSFER_INCLUDED_GAS = 0L;
     public static final long CRYPTO_TRANSFER_INCLUDED_ACCOUNTS = 2L;
-    public static final long CRYPTO_TRANSFER_INCLUDED_FUNGIBLE_TOKENS = 1L;
-    public static final long CRYPTO_TRANSFER_INCLUDED_NON_FUNGIBLE_TOKENS = 1L;
+    public static final long INCLUDED_TOKEN_TYPES = 1L;
 
     public static final double CRYPTO_APPROVE_ALLOWANCE_FEE = 0.05;
     public static final double CRYPTO_DELETE_ALLOWANCE_FEE = 0.05;
@@ -164,4 +162,12 @@ public class SimpleFeesScheduleConstantsInUsd {
     public static final double SCHEDULE_SIGN_BASE_FEE_USD = 0.0009;
 
     public static final double SCHEDULE_DELETE_BASE_FEE_USD = 0.0009;
+
+    /* ---------- Atomic Batch service ------------ */
+    public static final double BATCH_BASE_FEE = 0.001;
+
+    /* ---------- Address Book service ---------- */
+    public static final double NODE_CREATE_BASE_FEE_USD = 0.0177;
+    public static final double NODE_UPDATE_BASE_FEE_USD = 0.001;
+    public static final double NODE_DELETE_BASE_FEE_USD = 0.001;
 }
