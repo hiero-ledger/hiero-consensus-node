@@ -39,11 +39,11 @@ RUN set -eux; \
         case "${ARCH}" in \
            aarch64|arm64) \
             ESUM='a9d73e711d967dc44896d4f430f73a68fd33590dabc29a7f2fb9f593425b854c'; \
-            BINARY_URL='https://github.com/adoptium/temurin25-binaries/releases/download/jdk-25.0.2%2B10/OpenJDK25U-jdk_aarch64_linux_hotspot_25.0.2_10.tar.gz'; \
+            BINARY_URL='https://download.oracle.com/java/25/latest/jdk-25_linux-aarch64_bin.tar.gz'; \
             ;; \
           amd64|i386:x86-64) \
             ESUM='987387933b64b9833846dee373b640440d3e1fd48a04804ec01a6dbf718e8ab8'; \
-            BINARY_URL='https://github.com/adoptium/temurin25-binaries/releases/download/jdk-25.0.2%2B10/OpenJDK25U-jdk_x64_linux_hotspot_25.0.2_10.tar.gz'; \
+            BINARY_URL='https://download.oracle.com/java/25/latest/jdk-25_linux-x64_bin.tar.gz'; \
             ;; \
            ppc64el|powerpc:common64) \
             ESUM='5b73fbc44eb9ed4bae5af99e65800e63f4f5974274a89878eb57a85cc92e2cee'; \
@@ -223,7 +223,7 @@ FROM operating-system-base AS production-image-interim
 ARG SOURCE_DATE_EPOCH
 
 # Define Standard Environment Variables
-ENV JAVA_VERSION "jdk-25.0.2+10"
+ENV JAVA_VERSION "jdk-25"
 ENV JAVA_HOME /usr/local/java
 ENV PATH ${JAVA_HOME}/bin:${PATH}
 
@@ -266,7 +266,7 @@ FROM scratch AS production-image
 COPY --from=production-image-interim / /
 
 # Define Standard Environment Variables
-ENV JAVA_VERSION "jdk-25.0.2+10"
+ENV JAVA_VERSION "jdk-25"
 ENV JAVA_HOME /usr/local/java
 ENV PATH ${JAVA_HOME}/bin:${PATH}
 
