@@ -57,9 +57,7 @@ class RpcPeerHandlerTest {
     private Configuration configuration;
 
     @BeforeEach
-    void testSetup() throws Exception {
-        ConstructableRegistry.getInstance().registerConstructables("");
-
+    void testSetup() {
         this.configuration = ConfigurationBuilder.create()
                 .withSource(SystemEnvironmentConfigSource.getInstance())
                 .withSource(SystemPropertiesConfigSource.getInstance())

@@ -4,7 +4,9 @@ package org.hiero.base.constructable;
 /**
  * A central registry of constructors for {@link RuntimeConstructable} classes. This central registry has a set of
  * sub-registries based on the constructor type of the class.
+ * @deprecated should be removed once all serialization moves to PBJ
  */
+@Deprecated(forRemoval = true)
 public interface ConstructableRegistry {
 
     ConstructableRegistry INSTANCE = ConstructableRegistryFactory.createConstructableRegistry();
@@ -89,10 +91,7 @@ public interface ConstructableRegistry {
      * 		the ClassConstructorPair to register
      * @throws ConstructableRegistryException
      * 		thrown if constructor cannot be registered for any reason
-     * @deprecated should be replaced with {@link #getRegistry(Class)} with the parameter {@link NoArgsConstructor}
-     * 		and then {@link ConstructorRegistry#registerConstructable(Class, Object)}
      */
-    @Deprecated(forRemoval = true)
     void registerConstructable(ClassConstructorPair pair) throws ConstructableRegistryException;
 
     /**

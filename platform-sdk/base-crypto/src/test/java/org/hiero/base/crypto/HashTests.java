@@ -15,6 +15,7 @@ import com.swirlds.common.test.fixtures.io.SerializationUtils;
 import com.swirlds.common.utility.Mnemonics;
 import java.io.IOException;
 import java.util.Arrays;
+import org.hiero.base.constructable.ClassConstructorPair;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.crypto.test.fixtures.CryptoRandomUtils;
@@ -28,7 +29,9 @@ public class HashTests {
 
     @BeforeAll
     public static void setUp() throws ConstructableRegistryException {
-        ConstructableRegistry.getInstance().registerConstructables("org.hiero.base.crypto");
+        ConstructableRegistry.getInstance().registerConstructable(new ClassConstructorPair(
+                Hash.class, Hash::new
+        ));
     }
 
     @Test

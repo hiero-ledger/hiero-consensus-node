@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import com.swirlds.common.test.fixtures.io.SerializationUtils;
 import com.swirlds.common.test.fixtures.stream.ObjectForTestStream;
 import java.time.Instant;
+import org.hiero.base.constructable.ClassConstructorPair;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.junit.jupiter.api.Test;
 
@@ -28,7 +29,9 @@ class ObjectForTestStreamTest {
 
     @Test
     void serializeDeserializeTest() throws Exception {
-        ConstructableRegistry.getInstance().registerConstructables("com.swirlds.common.test.fixtures.stream");
+        ConstructableRegistry.getInstance().registerConstructable(
+                new ClassConstructorPair(ObjectForTestStream.class, ObjectForTestStream::new)
+        );
         ObjectForTestStream deserialized = SerializationUtils.serializeDeserialize(object);
         assertEquals(object, deserialized, "deserialized object should equal to original object");
     }

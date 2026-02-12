@@ -7,10 +7,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.common.constructable.constructables.scannable.ConstructableExample;
-import com.swirlds.common.constructable.constructables.scannable.StringConstructable;
 import com.swirlds.common.constructable.constructables.scannable.subpackage.SubpackageConstructable;
-import com.swirlds.common.constructable.constructors.StringConstructor;
-import java.util.stream.Stream;
+import org.hiero.base.constructable.ClassConstructorPair;
 import org.hiero.base.constructable.ClassIdFormatter;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
@@ -26,9 +24,6 @@ import org.junit.jupiter.api.TestMethodOrder;
 
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class ConstructableRegistryTest {
-    private static final String PACKAGE_PREFIX = "com.swirlds.common.constructable.constructables.scannable";
-    private static final String SUBPACKAGE = "com.swirlds.common.constructable.constructables.scannable.subpackage";
-
     private final ConstructableRegistry mainReg;
     private final ConstructorRegistry<NoArgsConstructor> noArgsRegistry;
 
@@ -37,23 +32,15 @@ class ConstructableRegistryTest {
 
         final long start = System.currentTimeMillis();
         // find all RuntimeConstructable classes and register their constructors
-        mainReg.registerConstructables(PACKAGE_PREFIX);
+        mainReg.registerConstructable(new ClassConstructorPair(
+            ConstructableExample.class, ConstructableExample::new));
         System.out.printf(
                 "Time taken to register all RuntimeConstructables: %dms\n", System.currentTimeMillis() - start);
         noArgsRegistry = mainReg.getRegistry(NoArgsConstructor.class);
-        // printPackages();
     }
 
     @Test
     @Order(1)
-    void testRegistry() throws ConstructableRegistryException {
-        assertTrue(isSubpackageLoaded());
-        // calling this again should not cause problems
-        mainReg.registerConstructables(PACKAGE_PREFIX);
-    }
-
-    @Test
-    @Order(2)
     void testNoArgsClass() {
         // checks whether the object will be constructed and if the type is correct
         final RuntimeConstructable r =
@@ -70,11 +57,13 @@ class ConstructableRegistryTest {
         // Test the scenario of a class ID clash
         final long oldClassId = ConstructableExample.CLASS_ID;
         ConstructableExample.CLASS_ID = SubpackageConstructable.CLASS_ID;
-        assertThrows(ConstructableRegistryException.class, () -> mainReg.registerConstructables(PACKAGE_PREFIX));
+        mainReg.registerConstructable(new ClassConstructorPair(SubpackageConstructable.class, SubpackageConstructable::new));
+        assertThrows(ConstructableRegistryException.class,
+                () -> mainReg.registerConstructable(new ClassConstructorPair(ConstructableExample.class, ConstructableExample::new)));
         // return the old CLASS_ID
         ConstructableExample.CLASS_ID = oldClassId;
         // now it should be fine again
-        mainReg.registerConstructables(PACKAGE_PREFIX);
+        mainReg.registerConstructable(new ClassConstructorPair(ConstructableExample.class, ConstructableExample::new));
     }
 
     @Test
@@ -86,18 +75,6 @@ class ConstructableRegistryTest {
 
     @Test
     @Order(4)
-    void testStringConstructable() {
-        final String randomString = "what is truly random?";
-        assertEquals(
-                randomString,
-                mainReg.getRegistry(StringConstructor.class)
-                        .getConstructor(StringConstructable.CLASS_ID)
-                        .construct(randomString)
-                        .getString());
-    }
-
-    @Test
-    @Order(5)
     void testClassIdFormatting() {
         assertEquals("0(0x0)", ClassIdFormatter.classIdString(0), "generated class ID string should match expected");
 
@@ -115,23 +92,5 @@ class ConstructableRegistryTest {
                 "org.hiero.base.crypto.Hash:-854880720348154850(0xF422DA83A251741E)",
                 ClassIdFormatter.classIdString(new Hash()),
                 "generated class ID string should match expected");
-    }
-
-    private static boolean isSubpackageLoaded() {
-        return Stream.of(Package.getPackages())
-                .map(Package::getName)
-                .anyMatch((p) -> p.equals(ConstructableRegistryTest.SUBPACKAGE));
-    }
-
-    @SuppressWarnings("unused")
-    private static void printPackages() {
-        final Package[] packages = Package.getPackages();
-        System.out.println("\n+++ PACKAGES:");
-        for (final Package aPackage : packages) {
-            if (aPackage.getName().startsWith("com.swirlds")) {
-                System.out.println(aPackage.getName());
-            }
-        }
-        System.out.println("--- PACKAGES:\n");
     }
 }
