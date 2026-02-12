@@ -96,7 +96,7 @@ public class SimpleFeesScheduleConstantsInUsd {
 
     /* ---------- File service ---------- */
 
-    public static final double FILE_CREATE_BASE_FEE_USD = 0.000000005;
+    public static final double FILE_CREATE_BASE_FEE = 0.05;
     public static final long FILE_CREATE_INCLUDED_KEYS = 1L;
     public static final long FILE_CREATE_INCLUDED_BYTES = 1000L;
 
