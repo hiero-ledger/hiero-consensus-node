@@ -12,8 +12,6 @@ import com.swirlds.platform.builder.PlatformComponentBuilder;
 import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.components.SavedStateController;
-import com.swirlds.platform.components.appcomm.CompleteStateNotificationWithCleanup;
-import com.swirlds.platform.components.appcomm.LatestCompleteStateNotifier;
 import com.swirlds.platform.event.branching.BranchDetector;
 import com.swirlds.platform.event.branching.BranchReporter;
 import com.swirlds.platform.event.preconsensus.PcesReplayer;
@@ -42,7 +40,7 @@ import java.util.Objects;
 import java.util.Queue;
 import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.event.intake.EventIntakeModule;
-import org.hiero.consensus.gossip.impl.gossip.GossipWiring;
+import org.hiero.consensus.gossip.GossipModule;
 import org.hiero.consensus.hashgraph.HashgraphModule;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -63,6 +61,7 @@ public record PlatformComponents(
         EventIntakeModule eventIntakeModule,
         PcesModule pcesModule,
         HashgraphModule hashgraphModule,
+        GossipModule gossipModule,
         ComponentWiring<TransactionPrehandler, Queue<ScopedSystemTransaction<StateSignatureTransaction>>>
                 applicationTransactionPrehandlerWiring,
         ComponentWiring<StateSignatureCollector, List<ReservedSignedState>> stateSignatureCollectorWiring,
@@ -72,14 +71,11 @@ public record PlatformComponents(
         ComponentWiring<ConsensusEventStream, Void> consensusEventStreamWiring,
         RunningEventHashOverrideWiring runningEventHashOverrideWiring,
         ComponentWiring<StateHasher, ReservedSignedState> stateHasherWiring,
-        GossipWiring gossipWiring,
         PcesReplayerWiring pcesReplayerWiring,
         ComponentWiring<EventWindowManager, EventWindow> eventWindowManagerWiring,
         ComponentWiring<IssDetector, List<IssNotification>> issDetectorWiring,
         ComponentWiring<IssHandler, Void> issHandlerWiring,
         ComponentWiring<HashLogger, Void> hashLoggerWiring,
-        ComponentWiring<LatestCompleteStateNotifier, CompleteStateNotificationWithCleanup>
-                latestCompleteStateNotifierWiring,
         ComponentWiring<SignedStateNexus, Void> latestImmutableStateNexusWiring,
         ComponentWiring<LatestCompleteStateNexus, Void> latestCompleteStateNexusWiring,
         ComponentWiring<SavedStateController, StateWithHashComplexity> savedStateControllerWiring,
@@ -123,7 +119,6 @@ public record PlatformComponents(
         issDetectorWiring.bind(builder::buildIssDetector);
         issHandlerWiring.bind(builder::buildIssHandler);
         hashLoggerWiring.bind(builder::buildHashLogger);
-        latestCompleteStateNotifierWiring.bind(builder::buildLatestCompleteStateNotifier);
         latestImmutableStateNexusWiring.bind(latestImmutableStateNexus);
         latestCompleteStateNexusWiring.bind(latestCompleteStateNexus);
         savedStateControllerWiring.bind(savedStateController);
@@ -132,7 +127,6 @@ public record PlatformComponents(
         stateGarbageCollectorWiring.bind(builder::buildStateGarbageCollector);
         platformMonitorWiring.bind(builder::buildPlatformMonitor);
         signedStateSentinelWiring.bind(builder::buildSignedStateSentinel);
-        gossipWiring.bind(builder.buildGossip());
         branchDetectorWiring.bind(builder::buildBranchDetector);
         branchReporterWiring.bind(builder::buildBranchReporter);
     }
@@ -149,7 +143,8 @@ public record PlatformComponents(
             @NonNull final EventCreatorModule eventCreatorModule,
             @NonNull final EventIntakeModule eventIntakeModule,
             @NonNull final PcesModule pcesModule,
-            @NonNull final HashgraphModule hashgraphModule) {
+            @NonNull final HashgraphModule hashgraphModule,
+            @NonNull final GossipModule gossipModule) {
 
         Objects.requireNonNull(platformContext);
         Objects.requireNonNull(model);
@@ -163,6 +158,7 @@ public record PlatformComponents(
                 eventIntakeModule,
                 pcesModule,
                 hashgraphModule,
+                gossipModule,
                 new ComponentWiring<>(model, TransactionPrehandler.class, config.applicationTransactionPrehandler()),
                 new ComponentWiring<>(model, StateSignatureCollector.class, config.stateSignatureCollector()),
                 new ComponentWiring<>(model, StateSnapshotManager.class, config.stateSnapshotManager()),
@@ -179,13 +175,11 @@ public record PlatformComponents(
                         StateHasher.class,
                         config.stateHasher(),
                         data -> data instanceof final StateWithHashComplexity swhc ? swhc.hashComplexity() : 1),
-                new GossipWiring(platformContext.getConfiguration(), model),
                 PcesReplayerWiring.create(model),
                 new ComponentWiring<>(model, EventWindowManager.class, DIRECT_THREADSAFE_CONFIGURATION),
                 new ComponentWiring<>(model, IssDetector.class, config.issDetector()),
                 new ComponentWiring<>(model, IssHandler.class, config.issHandler()),
                 new ComponentWiring<>(model, HashLogger.class, config.hashLogger()),
-                new ComponentWiring<>(model, LatestCompleteStateNotifier.class, config.latestCompleteStateNotifier()),
                 new ComponentWiring<>(model, SignedStateNexus.class, DIRECT_THREADSAFE_CONFIGURATION),
                 new ComponentWiring<>(model, LatestCompleteStateNexus.class, DIRECT_THREADSAFE_CONFIGURATION),
                 new ComponentWiring<>(model, SavedStateController.class, DIRECT_THREADSAFE_CONFIGURATION),

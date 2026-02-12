@@ -3,7 +3,6 @@ package com.hedera.services.bdd.suites.crypto;
 
 import static com.hedera.node.app.service.token.AliasUtils.recoverAddressFromPubKey;
 import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
@@ -22,12 +21,14 @@ import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movi
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUnique;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.safeValidateChargedUsdWithin;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.PROCESSING_BYTES_FEE_USD;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ACCOUNT_ID;
@@ -139,7 +140,6 @@ class AtomicBatchAutoAccountCreationBasicTests {
 
     @HapiTest
     @DisplayName("Auto Create ECDSA Account with FT Transfer success in Atomic Batch")
-    @Tag(MATS)
     Stream<DynamicTest> autoCreateECDSA_AccountWithFT_TransferSuccessInBatch() {
 
         // create transfer to alias inner transaction
@@ -601,7 +601,6 @@ class AtomicBatchAutoAccountCreationBasicTests {
 
     @HapiTest
     @DisplayName("Auto Create Hollow Account with NFT Transfer success in Atomic Batch")
-    @Tag(MATS)
     Stream<DynamicTest> autoCreateHollowAccountWithNFT_TransferSuccessInBatch() {
 
         final AtomicReference<ByteString> evmAlias = new AtomicReference<>();
@@ -790,7 +789,13 @@ class AtomicBatchAutoAccountCreationBasicTests {
                             .via("batchTxnAllAccounts")
                             .hasKnownStatus(SUCCESS);
 
-                    final var batchTxnFeeCheck = validateChargedUsd("batchTxnAllAccounts", BASE_FEE_BATCH_TRANSACTION);
+                    final var batchTxnFeeCheck = safeValidateChargedUsdWithin(
+                            "batchTxnAllAccounts",
+                            BASE_FEE_BATCH_TRANSACTION,
+                            1,
+                            // account for extra bytes in the node + network fee
+                            BASE_FEE_BATCH_TRANSACTION + 199 * PROCESSING_BYTES_FEE_USD * 10,
+                            2);
 
                     // validate ED25519 account is created and has the expected balance
                     final var ED25519_AccountCheck = getAliasedAccountInfo(VALID_ALIAS_ED25519)
@@ -897,7 +902,13 @@ class AtomicBatchAutoAccountCreationBasicTests {
                             .via("batchTxnAllAccounts")
                             .hasKnownStatus(SUCCESS);
 
-                    final var batchTxnFeeCheck = validateChargedUsd("batchTxnAllAccounts", BASE_FEE_BATCH_TRANSACTION);
+                    final var batchTxnFeeCheck = safeValidateChargedUsdWithin(
+                            "batchTxnAllAccounts",
+                            BASE_FEE_BATCH_TRANSACTION,
+                            1,
+                            // account for extra bytes in the node + network fee
+                            BASE_FEE_BATCH_TRANSACTION + 210 * PROCESSING_BYTES_FEE_USD * 10,
+                            2);
 
                     // validate ED25519 account is created and has the expected balance
                     final var ED25519_AccountCheck = getAliasedAccountInfo(VALID_ALIAS_ED25519)
@@ -1012,7 +1023,13 @@ class AtomicBatchAutoAccountCreationBasicTests {
                             .via("batchTxnAllAccounts")
                             .hasKnownStatus(SUCCESS);
 
-                    final var batchTxnFeeCheck = validateChargedUsd("batchTxnAllAccounts", BASE_FEE_BATCH_TRANSACTION);
+                    final var batchTxnFeeCheck = safeValidateChargedUsdWithin(
+                            "batchTxnAllAccounts",
+                            BASE_FEE_BATCH_TRANSACTION,
+                            1,
+                            // account for extra bytes in the node + network fee
+                            BASE_FEE_BATCH_TRANSACTION + 235 * PROCESSING_BYTES_FEE_USD * 10,
+                            2);
 
                     // validate ED25519 account is created and has the expected balance
                     final var ED25519_AccountCheck = getAliasedAccountInfo(VALID_ALIAS_ED25519)
