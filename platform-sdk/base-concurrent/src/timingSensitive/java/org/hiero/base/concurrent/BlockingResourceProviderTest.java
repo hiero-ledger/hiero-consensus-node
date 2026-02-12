@@ -66,46 +66,6 @@ class BlockingResourceProviderTest {
                 numThreads * numResources, consumed.size(), "each resource was supposed to be consumed exactly once");
     }
 
-    /**
-     * After a consumer is interrupted in {@code waitForResource()}, the provider should still be in a usable
-     * state: a full provide/consume cycle must succeed.
-     */
-    @Test
-    void provideConsumeWorksAfterConsumerInterruption() throws InterruptedException {
-        final BlockingResourceProvider<String> provider = new BlockingResourceProvider<>();
-        // First consumer blocks then gets interrupted
-        Thread consumerThread = new Thread(() -> {
-            try {
-                // do not close the resource on purpose
-                provider.waitForResource();
-            } catch (final InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-        });
-        consumerThread.start();
-        // Wait until the consumer is blocked waiting for a resource
-        final long deadline = System.currentTimeMillis() + TIMEOUT.toMillis();
-        while (!provider.isWaitingForResource()) {
-            assertTrue(System.currentTimeMillis() < deadline, "Consumer never started waiting");
-            Thread.sleep(10);
-        }
-
-        provider.acquireProvidePermit();
-        provider.provide("");
-        consumerThread.interrupt();
-
-        consumerThread = new Thread(() -> {
-            try (final var value = provider.waitForResource()) {
-                assertEquals("Hi", value.getResource());
-            } catch (final InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-        });
-        consumerThread.start();
-        provider.provide("Hi");
-        consumerThread.join(TIMEOUT);
-    }
-
     @Test
     void interruptWithResourceAlreadyDelivered() throws Exception {
         final BlockingResourceProvider<String> provider = new BlockingResourceProvider<>();
@@ -179,6 +139,76 @@ class BlockingResourceProviderTest {
         lock.unlock();
         consumerThread.interrupt();
         return resource;
+    }
+
+    /**
+     * Tests the scenario where a provider acquires the permit while the consumer is waiting,
+     * but the consumer gets interrupted before the provider calls {@code provide()}.
+     * The provider should return immediately without blocking and leave the provider in a usable state.
+     */
+    @Test
+    void providerDoesNotBlockWhenConsumerFinishesBeforeProvide() throws InterruptedException {
+        final BlockingResourceProvider<String> provider = new BlockingResourceProvider<>();
+
+        // Start a consumer that waits for a resource
+        final Thread consumerThread = new Thread(() -> {
+            try {
+                provider.waitForResource();
+            } catch (final InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        });
+        consumerThread.start();
+
+        // Wait until the consumer is blocked waiting for a resource
+        final long deadline = System.currentTimeMillis() + TIMEOUT.toMillis();
+        while (!provider.isWaitingForResource()) {
+            assertTrue(System.currentTimeMillis() < deadline, "Consumer never started waiting");
+            Thread.sleep(10);
+        }
+
+        // Provider acquires the permit (succeeds because consumer is waiting)
+        assertTrue(provider.acquireProvidePermit());
+
+        // Consumer gets interrupted before the provider calls provide()
+        consumerThread.interrupt();
+        consumerThread.join(TIMEOUT);
+        assertFalse(consumerThread.isAlive(), "Consumer thread should have finished");
+        assertFalse(provider.isWaitingForResource(), "Consumer should no longer be waiting");
+
+        // Provider calls provide() — should return immediately without blocking
+        final Thread providerThread = new Thread(() -> {
+            try {
+                provider.provide("too late");
+            } catch (final InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        });
+        providerThread.start();
+        providerThread.join(TIMEOUT);
+        assertFalse(providerThread.isAlive(), "Provider should not be blocked");
+
+        // Verify the provider is in a usable state: a full provide/consume cycle must succeed
+        final Thread nextConsumer = new Thread(() -> {
+            try (final var value = provider.waitForResource()) {
+                assertEquals("next", value.getResource());
+            } catch (final InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        });
+        nextConsumer.start();
+
+        // Wait for the next consumer to be waiting
+        final long deadline2 = System.currentTimeMillis() + TIMEOUT.toMillis();
+        while (!provider.isWaitingForResource()) {
+            assertTrue(System.currentTimeMillis() < deadline2, "Next consumer never started waiting");
+            Thread.sleep(10);
+        }
+
+        assertTrue(provider.acquireProvidePermit(), "Permit should be available for the next cycle");
+        provider.provide("next");
+        nextConsumer.join(TIMEOUT);
+        assertFalse(nextConsumer.isAlive(), "Next consumer should have finished");
     }
 
     private record Resource(int threadId, int sequence) {}
