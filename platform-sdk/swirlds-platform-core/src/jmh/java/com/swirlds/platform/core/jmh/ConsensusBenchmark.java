@@ -2,22 +2,22 @@
 package com.swirlds.platform.core.jmh;
 
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.WeightGenerators;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
-import com.swirlds.platform.gossip.NoOpIntakeEventCounter;
-import com.swirlds.platform.test.fixtures.event.emitter.EventEmitterBuilder;
-import com.swirlds.platform.test.fixtures.event.emitter.StandardEventEmitter;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import org.hiero.consensus.gossip.impl.gossip.NoOpIntakeEventCounter;
 import org.hiero.consensus.hashgraph.impl.EventImpl;
 import org.hiero.consensus.hashgraph.impl.consensus.Consensus;
 import org.hiero.consensus.hashgraph.impl.consensus.ConsensusImpl;
 import org.hiero.consensus.hashgraph.impl.linking.ConsensusLinker;
 import org.hiero.consensus.hashgraph.impl.linking.NoOpLinkerLogsAndMetrics;
 import org.hiero.consensus.hashgraph.impl.metrics.NoOpConsensusMetrics;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.event.emitter.EventEmitterBuilder;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.event.emitter.StandardEventEmitter;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.orphan.DefaultOrphanBuffer;
+import org.hiero.consensus.test.fixtures.WeightGenerators;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;

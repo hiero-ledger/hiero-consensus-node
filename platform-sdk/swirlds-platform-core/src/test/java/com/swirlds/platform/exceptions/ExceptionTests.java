@@ -7,14 +7,14 @@ import static com.swirlds.platform.exceptions.ExceptionAssertions.MESSAGE;
 import static com.swirlds.platform.exceptions.ExceptionAssertions.assertExceptionContains;
 import static com.swirlds.platform.exceptions.ExceptionAssertions.assertExceptionSame;
 
-import com.swirlds.platform.crypto.KeyCertPurpose;
-import com.swirlds.platform.crypto.KeyGeneratingException;
 import com.swirlds.platform.crypto.KeyLoadingException;
-import com.swirlds.platform.gossip.shadowgraph.SyncTimeoutException;
-import com.swirlds.platform.network.NetworkProtocolException;
 import java.time.Duration;
 import java.util.List;
+import org.hiero.consensus.crypto.KeyCertPurpose;
+import org.hiero.consensus.crypto.KeyGeneratingException;
 import org.hiero.consensus.exceptions.PlatformConstructionException;
+import org.hiero.consensus.gossip.impl.gossip.shadowgraph.SyncTimeoutException;
+import org.hiero.consensus.gossip.impl.network.NetworkProtocolException;
 import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.Test;
 

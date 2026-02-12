@@ -9,6 +9,7 @@ import static org.mockito.Mockito.when;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
+import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -38,7 +39,7 @@ class StoreFactoryImplTest {
     void testCreateReadableStore() {
         // given
         final var result = mock(ReadableAccountStore.class);
-        when(readableStoreFactory.getStore(ReadableAccountStore.class)).thenReturn(result);
+        when(readableStoreFactory.readableStore(ReadableAccountStore.class)).thenReturn(result);
 
         // when
         final var actual = subject.readableStore(ReadableAccountStore.class);
@@ -71,6 +72,15 @@ class StoreFactoryImplTest {
 
         // then
         assertThat(actual).isSameAs(result);
+    }
+
+    @Test
+    void testAsReadOnly() {
+        // when
+        final var actual = subject.asReadOnly();
+
+        // then
+        assertThat(actual).isSameAs(readableStoreFactory);
     }
 
     @SuppressWarnings("ConstantConditions")

@@ -62,7 +62,7 @@ public class ExportCommand implements Runnable {
 
         log.debug("Initializing the state...");
         long start = System.currentTimeMillis();
-        final MerkleNodeState state = StateUtils.getState();
+        final MerkleNodeState state = StateUtils.getDefaultState();
         log.debug("State has been initialized in {} seconds.", (System.currentTimeMillis() - start) / 1000);
 
         final JsonExporter exporter =

@@ -40,7 +40,6 @@ import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils;
-import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
 import java.io.BufferedReader;
 import java.io.FileReader;
@@ -145,12 +144,12 @@ class SignedStateFileReadWriteTest {
         hashState(deserializedSignedState.reservedSignedState().get());
 
         final VirtualMapMetadata originalMetadata =
-                ((VirtualMap) signedState.getState().getRoot()).getMetadata();
-        final VirtualMapMetadata loadedMetadata = ((VirtualMap) deserializedSignedState
-                        .reservedSignedState()
-                        .get()
-                        .getState()
-                        .getRoot())
+                signedState.getState().getRoot().getMetadata();
+        final VirtualMapMetadata loadedMetadata = deserializedSignedState
+                .reservedSignedState()
+                .get()
+                .getState()
+                .getRoot()
                 .getMetadata();
 
         assertEquals(originalMetadata, loadedMetadata, "metadata should be equal");

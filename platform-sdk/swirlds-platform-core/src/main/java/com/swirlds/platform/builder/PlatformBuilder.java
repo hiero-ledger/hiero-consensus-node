@@ -11,9 +11,9 @@ import static com.swirlds.platform.builder.ConsensusModuleBuilder.createPcesModu
 import static com.swirlds.platform.builder.PlatformBuildConstants.DEFAULT_SETTINGS_FILE_NAME;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.doStaticSetup;
 import static com.swirlds.platform.config.internal.PlatformConfigUtils.checkConfiguration;
-import static com.swirlds.platform.state.service.PlatformStateUtils.isInFreezePeriod;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.isInFreezePeriod;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
@@ -26,8 +26,6 @@ import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.SwirldsPlatform;
-import com.swirlds.platform.gossip.DefaultIntakeEventCounter;
-import com.swirlds.platform.gossip.NoOpIntakeEventCounter;
 import com.swirlds.platform.metrics.PlatformMetricsConfig;
 import com.swirlds.platform.scratchpad.Scratchpad;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
@@ -60,6 +58,8 @@ import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.event.intake.EventIntakeModule;
 import org.hiero.consensus.gossip.config.SyncConfig;
+import org.hiero.consensus.gossip.impl.gossip.DefaultIntakeEventCounter;
+import org.hiero.consensus.gossip.impl.gossip.NoOpIntakeEventCounter;
 import org.hiero.consensus.hashgraph.HashgraphModule;
 import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
 import org.hiero.consensus.model.event.PlatformEvent;

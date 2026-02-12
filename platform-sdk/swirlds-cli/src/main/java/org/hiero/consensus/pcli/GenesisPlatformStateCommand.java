@@ -1,16 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.pcli;
 
-import static com.swirlds.platform.state.service.PlatformStateUtils.bulkUpdateOf;
 import static com.swirlds.platform.state.snapshot.SavedStateMetadata.NO_NODE_ID;
 import static com.swirlds.platform.state.snapshot.SignedStateFileWriter.writeSignedStateFilesToDirectory;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.bulkUpdateOf;
 
 import com.hedera.pbj.runtime.ParseException;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.platform.config.DefaultConfiguration;
-import com.swirlds.platform.state.PlatformStateAccessor;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.platform.state.snapshot.SignedStateFileReader;
@@ -25,6 +24,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.concurrent.ExecutionException;
 import org.hiero.consensus.hashgraph.impl.consensus.SyntheticSnapshot;
+import org.hiero.consensus.platformstate.PlatformStateAccessor;
 import org.hiero.consensus.roster.RosterStateId;
 import org.hiero.consensus.roster.WritableRosterStore;
 import picocli.CommandLine;

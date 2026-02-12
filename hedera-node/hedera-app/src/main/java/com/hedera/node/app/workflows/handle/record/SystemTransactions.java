@@ -22,10 +22,10 @@ import static com.hedera.node.app.workflows.handle.HandleWorkflow.ALERT_MESSAGE;
 import static com.hedera.node.app.workflows.handle.TransactionType.INTERNAL_TRANSACTION;
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
-import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID;
 import static com.swirlds.platform.system.InitTrigger.GENESIS;
 import static java.util.Objects.requireNonNull;
-import static org.hiero.consensus.roster.RosterUtils.formatNodeName;
+import static org.hiero.consensus.node.NodeUtilities.formatNodeName;
+import static org.hiero.consensus.platformstate.V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID;
 
 import com.hedera.hapi.node.addressbook.NodeCreateTransactionBody;
 import com.hedera.hapi.node.addressbook.NodeDeleteTransactionBody;
@@ -78,7 +78,7 @@ import com.hedera.node.app.spi.records.SelfNodeAccountIdManager;
 import com.hedera.node.app.spi.workflows.SystemContext;
 import com.hedera.node.app.state.HederaRecordCache;
 import com.hedera.node.app.state.recordcache.LegacyListRecordSource;
-import com.hedera.node.app.store.ReadableStoreFactory;
+import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.app.workflows.handle.Dispatch;
 import com.hedera.node.app.workflows.handle.DispatchProcessor;
 import com.hedera.node.app.workflows.handle.HandleOutput;
@@ -101,7 +101,6 @@ import com.hedera.node.config.types.StreamMode;
 import com.hedera.node.internal.network.NodeMetadata;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.WritableSingletonState;
@@ -130,6 +129,7 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.platformstate.PlatformStateService;
 import org.hiero.consensus.roster.ReadableRosterStore;
 import org.hiero.hapi.support.fees.FeeSchedule;
 
@@ -406,7 +406,7 @@ public class SystemTransactions {
         onSuccess.set(DEFAULT_DISPATCH_ON_SUCCESS);
 
         // Now that the node metadata is correct, create the system files
-        final var nodeStore = new ReadableStoreFactory(state).getStore(ReadableNodeStore.class);
+        final var nodeStore = new ReadableStoreFactoryImpl(state).readableStore(ReadableNodeStore.class);
         fileService.createSystemEntities(systemContext, nodeStore);
 
         // And dispatch a node stake update transaction for mirror node benefit
@@ -428,7 +428,7 @@ public class SystemTransactions {
         // We update the node details file from the address book that resulted from all pre-upgrade HAPI node changes
         final var nodesConfig = config.getConfigData(NodesConfig.class);
         if (nodesConfig.enableDAB()) {
-            final var nodeStore = new ReadableStoreFactory(state).getStore(ReadableNodeStore.class);
+            final var nodeStore = new ReadableStoreFactoryImpl(state).readableStore(ReadableNodeStore.class);
             fileService.updateAddressBookAndNodeDetailsAfterFreeze(systemContext, nodeStore);
         }
         selfNodeAccountIdManager.setSelfNodeAccountId(networkInfo.selfNodeInfo().accountId());
@@ -656,9 +656,9 @@ public class SystemTransactions {
     public boolean dispatchTransplantUpdates(final State state, final Instant now, final long currentRoundNum) {
         requireNonNull(state);
         requireNonNull(now);
-        final var readableStoreFactory = new ReadableStoreFactory(state);
-        final var rosterStore = readableStoreFactory.getStore(ReadableRosterStore.class);
-        final var nodeStore = readableStoreFactory.getStore(ReadableNodeStore.class);
+        final var readableStoreFactory = new ReadableStoreFactoryImpl(state);
+        final var rosterStore = readableStoreFactory.readableStore(ReadableRosterStore.class);
+        final var nodeStore = readableStoreFactory.readableStore(ReadableNodeStore.class);
         final var systemContext = newSystemContext(
                 now, state, dispatch -> {}, UseReservedConsensusTimes.YES, TriggerStakePeriodSideEffects.YES);
         final var network = startupNetworks.overrideNetworkFor(currentRoundNum - 1, configProvider.getConfiguration());
@@ -710,8 +710,9 @@ public class SystemTransactions {
                     log.info("Node {} in state is part of the override network and is being updated", node.nodeId());
                 }
             }
-            final var numNodes =
-                    readableStoreFactory.getStore(ReadableEntityIdStore.class).numNodes();
+            final var numNodes = readableStoreFactory
+                    .readableStore(ReadableEntityIdStore.class)
+                    .numNodes();
             for (var i = 0; i < numNodes; i++) {
                 final long nodeId = i;
                 final var existingNode = nodeStore.get(i);

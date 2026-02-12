@@ -2,11 +2,11 @@
 package com.swirlds.platform;
 
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
-import static com.swirlds.platform.state.service.PlatformStateUtils.creationSoftwareVersionOf;
-import static com.swirlds.platform.state.service.PlatformStateUtils.getInfoString;
 import static com.swirlds.platform.system.InitTrigger.GENESIS;
 import static com.swirlds.platform.system.InitTrigger.RESTART;
 import static org.hiero.base.concurrent.interrupt.Uninterruptable.abortAndThrowIfInterrupted;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.creationSoftwareVersionOf;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.getInfoString;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.common.context.PlatformContext;

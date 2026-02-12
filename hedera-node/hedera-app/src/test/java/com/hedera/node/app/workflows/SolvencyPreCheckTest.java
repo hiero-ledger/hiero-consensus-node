@@ -35,9 +35,10 @@ import com.hedera.node.app.fixtures.AppTestBase;
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.authorization.SystemPrivilege;
 import com.hedera.node.app.spi.fees.Fees;
+import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.hedera.node.app.spi.workflows.InsufficientBalanceException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
-import com.hedera.node.app.store.ReadableStoreFactory;
+import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.app.validation.ExpiryValidation;
 import java.time.Instant;
 import org.junit.jupiter.api.AfterEach;
@@ -99,7 +100,7 @@ class SolvencyPreCheckTest extends AppTestBase {
         @BeforeEach
         void setup() {
             setupStandardStates();
-            storeFactory = new ReadableStoreFactory(state);
+            storeFactory = new ReadableStoreFactoryImpl(state);
         }
 
         @SuppressWarnings("ConstantConditions")

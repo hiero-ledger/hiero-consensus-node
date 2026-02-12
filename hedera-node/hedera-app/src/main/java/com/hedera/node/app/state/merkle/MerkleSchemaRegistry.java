@@ -6,9 +6,9 @@ import static com.hedera.node.app.state.merkle.SchemaApplicationType.RESTART;
 import static com.hedera.node.app.state.merkle.SchemaApplicationType.STATE_DEFINITIONS;
 import static com.hedera.node.app.state.merkle.VersionUtils.alreadyIncludesStateDefs;
 import static com.hedera.node.app.state.merkle.VersionUtils.isSoOrdered;
-import static com.swirlds.platform.state.PlatformStateAccessor.GENESIS_ROUND;
-import static com.swirlds.platform.state.service.PlatformStateUtils.roundOf;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.consensus.platformstate.PlatformStateAccessor.GENESIS_ROUND;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.roundOf;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.util.HapiUtils;

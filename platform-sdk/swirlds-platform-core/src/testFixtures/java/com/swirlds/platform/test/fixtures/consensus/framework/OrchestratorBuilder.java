@@ -1,20 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.consensus.framework;
 
-import static com.swirlds.common.test.fixtures.WeightGenerators.BALANCED;
+import static org.hiero.consensus.test.fixtures.WeightGenerators.BALANCED;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.WeightGenerator;
-import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
-import com.swirlds.platform.test.fixtures.event.emitter.EventEmitter;
-import com.swirlds.platform.test.fixtures.event.emitter.EventEmitterGenerator;
-import com.swirlds.platform.test.fixtures.event.emitter.ShuffledEventEmitter;
-import com.swirlds.platform.test.fixtures.event.emitter.StandardEventEmitter;
-import com.swirlds.platform.test.fixtures.event.generator.StandardGraphGenerator;
-import com.swirlds.platform.test.fixtures.event.source.EventSource;
-import com.swirlds.platform.test.fixtures.event.source.StandardEventSource;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.List;
@@ -23,6 +14,15 @@ import java.util.function.Function;
 import java.util.stream.Stream;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
 import org.hiero.base.utility.test.fixtures.ResettableRandom;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.event.emitter.EventEmitter;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.event.emitter.EventEmitterGenerator;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.event.emitter.ShuffledEventEmitter;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.event.emitter.StandardEventEmitter;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.StandardGraphGenerator;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.event.source.EventSource;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.event.source.StandardEventSource;
+import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
+import org.hiero.consensus.test.fixtures.WeightGenerator;
 
 /** A builder for {@link ConsensusTestOrchestrator} instances */
 public class OrchestratorBuilder {

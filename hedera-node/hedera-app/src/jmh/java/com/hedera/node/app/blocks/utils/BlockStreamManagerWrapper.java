@@ -19,7 +19,6 @@ import com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.internal.network.PendingProof;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.platform.system.state.notifications.StateHashedNotification;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.MerkleProof;
@@ -34,6 +33,7 @@ import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableQueueState;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.Collections;
@@ -46,6 +46,7 @@ import java.util.function.Supplier;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.hashgraph.Round;
+import org.hiero.consensus.platformstate.V0540PlatformStateSchema;
 
 /**
  * Wrapper around BlockStreamManagerImpl that provides a simpler API for benchmarking.
@@ -126,7 +127,7 @@ public class BlockStreamManagerWrapper {
                 NoOpDependencies.createBenchmarkQuiescedHeartbeat(quiescenceController),
                 new NoOpDependencies.NoOpMetrics());
 
-        manager.init(state, BlockStreamManager.ZERO_BLOCK_HASH);
+        manager.init(state, BlockStreamManager.HASH_OF_ZERO);
     }
 
     public void startBlock(long blockNumber, BlockItem header) {
@@ -206,7 +207,7 @@ public class BlockStreamManagerWrapper {
     }
 
     // Minimal MerkleNodeState implementation
-    private static class BenchmarkState implements MerkleNodeState {
+    private static class BenchmarkState implements MerkleNodeState<VirtualMap> {
         private Hash hash;
         private final AtomicReference<BlockStreamInfo> blockStreamInfoRef;
         private long blockNumber = 0;
@@ -221,7 +222,7 @@ public class BlockStreamManagerWrapper {
         }
 
         @Override
-        public MerkleNode getRoot() {
+        public VirtualMap getRoot() {
             return null; // Not needed for benchmark
         }
 
@@ -440,9 +441,7 @@ public class BlockStreamManagerWrapper {
 
                         @Override
                         public @NonNull Set<Integer> stateIds() {
-                            return Set.of(
-                                    com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema
-                                            .PLATFORM_STATE_STATE_ID);
+                            return Set.of(V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID);
                         }
                     };
                 case EntityIdService.NAME ->

@@ -2,9 +2,9 @@
 package com.swirlds.platform.reconnect;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
-import static com.swirlds.platform.state.service.PlatformStateUtils.consensusTimestampOf;
-import static com.swirlds.platform.state.service.PlatformStateUtils.getInfoString;
-import static com.swirlds.platform.state.service.PlatformStateUtils.roundOf;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.consensusTimestampOf;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.getInfoString;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.roundOf;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.platform.state.signed.SignedState;

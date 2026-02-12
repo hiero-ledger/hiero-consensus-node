@@ -5,12 +5,12 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.test.fixtures.consensus.framework.validation.ConsensusOutputValidator;
 import com.swirlds.platform.test.fixtures.consensus.framework.validation.ConsensusRoundValidator;
-import com.swirlds.platform.test.fixtures.event.generator.GraphGenerator;
 import com.swirlds.platform.test.fixtures.gui.ListEventProvider;
 import com.swirlds.platform.test.fixtures.gui.TestGuiSource;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.function.Consumer;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.GraphGenerator;
 import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.node.NodeId;
 
@@ -161,7 +161,7 @@ public class ConsensusTestOrchestrator {
     }
 
     /**
-     * Calls {@link com.swirlds.platform.test.fixtures.event.source.EventSource#setNewEventWeight(double)}
+     * Calls {@link org.hiero.consensus.hashgraph.impl.test.fixtures.event.source.EventSource#setNewEventWeight(double)}
      */
     public void setNewEventWeight(final int nodeIndex, final double eventWeight) {
         for (final ConsensusTestNode node : nodes) {

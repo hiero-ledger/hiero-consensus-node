@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.hashgraph.impl.consensus;
 
-import static com.swirlds.common.test.fixtures.WeightGenerators.BALANCED;
-import static com.swirlds.common.test.fixtures.WeightGenerators.BALANCED_REAL_WEIGHT;
-import static com.swirlds.common.test.fixtures.WeightGenerators.INCREMENTING;
-import static com.swirlds.common.test.fixtures.WeightGenerators.ONE_THIRD_ZERO_WEIGHT;
-import static com.swirlds.common.test.fixtures.WeightGenerators.RANDOM;
-import static com.swirlds.common.test.fixtures.WeightGenerators.RANDOM_REAL_WEIGHT;
-import static com.swirlds.common.test.fixtures.WeightGenerators.SINGLE_NODE_STRONG_MINORITY;
+import static org.hiero.consensus.test.fixtures.WeightGenerators.BALANCED;
+import static org.hiero.consensus.test.fixtures.WeightGenerators.BALANCED_REAL_WEIGHT;
+import static org.hiero.consensus.test.fixtures.WeightGenerators.INCREMENTING;
+import static org.hiero.consensus.test.fixtures.WeightGenerators.ONE_THIRD_ZERO_WEIGHT;
+import static org.hiero.consensus.test.fixtures.WeightGenerators.RANDOM;
+import static org.hiero.consensus.test.fixtures.WeightGenerators.RANDOM_REAL_WEIGHT;
+import static org.hiero.consensus.test.fixtures.WeightGenerators.SINGLE_NODE_STRONG_MINORITY;
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;

@@ -28,6 +28,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SOURCE_KEY;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedFeeFromBytesFor;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SIGNATURE_FEE_AFTER_MULTIPLIER;
 
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -58,6 +59,9 @@ public class SimpleSmartContractServiceFeesTest {
     // EXTRAS
     static final double EXTRA_HOOK_SLOT_UPDATE_FEE = 0.0050;
     static final double SINGLE_SIGNATURE_COST = 0.001;
+    static final double SINGLE_BYTE_FEE = 0.000011;
+    static final int NODE_INCLUDED_BYTES = 1024;
+    static final int NETWORK_MULTIPLIER = 9;
     static final double EXPECTED_GAS_USED = 0.00184;
 
     @Contract(contract = "SmartContractsFees")
@@ -105,8 +109,8 @@ public class SimpleSmartContractServiceFeesTest {
                         .signedBy(civilian.name(), "EmptyOne")
                         .via("deleteTxn"),
                 validateChargedUsd("createTxn", CONTRACT_CREATE_BASE_FEE),
-                validateChargedUsd("updateTxn", CONTRACT_UPDATE_BASE_FEE + SINGLE_SIGNATURE_COST),
-                validateChargedUsd("deleteTxn", CONTRACT_DELETE_BASE_FEE + SINGLE_SIGNATURE_COST));
+                validateChargedUsd("updateTxn", CONTRACT_UPDATE_BASE_FEE + SIGNATURE_FEE_AFTER_MULTIPLIER),
+                validateChargedUsd("deleteTxn", CONTRACT_DELETE_BASE_FEE + SIGNATURE_FEE_AFTER_MULTIPLIER));
     }
 
     @HapiTest

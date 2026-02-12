@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.state;
 
-import static com.swirlds.platform.state.service.PlatformStateUtils.bulkUpdateOf;
 import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
 import static com.swirlds.platform.test.fixtures.state.manager.SignatureVerificationTestUtils.buildFakeSignature;
 import static com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils.createTestState;
@@ -10,6 +9,7 @@ import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomHashBy
 import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomSignature;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.hiero.consensus.model.PbjConverters.toPbjTimestamp;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.bulkUpdateOf;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
@@ -18,13 +18,11 @@ import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.JudgeId;
 import com.hedera.hapi.platform.state.MinimumJudgeInfo;
 import com.swirlds.common.Reservable;
-import com.swirlds.common.test.fixtures.WeightGenerators;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.state.signed.SignedState;
-import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.state.manager.SignatureVerificationTestUtils;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.virtualmap.VirtualMap;
@@ -52,6 +50,8 @@ import org.hiero.consensus.crypto.SignatureVerifier;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterStateUtils;
 import org.hiero.consensus.roster.RosterUtils;
+import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
+import org.hiero.consensus.test.fixtures.WeightGenerators;
 
 /**
  * A utility for generating random signed states.
@@ -129,7 +129,7 @@ public class RandomSignedStateGenerator {
             softwareVersionInstance = softwareVersion;
         }
 
-        final MerkleNodeState stateInstance;
+        final MerkleNodeState<VirtualMap> stateInstance;
         final long roundInstance;
         if (round == null) {
             roundInstance = Math.abs(random.nextLong());

@@ -4,7 +4,7 @@ pluginManagement { includeBuild("gradle/besu-native-patch") }
 plugins {
     id("org.hiero.gradle.build") version "0.7.0"
     id("org.hiero.gradle.feature.besu-native-patch")
-    id("com.hedera.pbj.pbj-compiler") version "0.12.10" apply false
+    id("com.hedera.pbj.pbj-compiler") version "0.14.0" apply false
 }
 
 javaModules {

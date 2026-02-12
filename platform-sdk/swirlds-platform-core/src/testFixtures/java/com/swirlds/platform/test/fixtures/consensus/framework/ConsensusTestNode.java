@@ -6,11 +6,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.test.fixtures.consensus.TestIntake;
-import com.swirlds.platform.test.fixtures.event.emitter.EventEmitter;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.LinkedList;
 import java.util.Objects;
 import java.util.Random;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.event.emitter.EventEmitter;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
 

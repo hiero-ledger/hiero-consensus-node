@@ -119,6 +119,19 @@ public class BlockNodeHelidonHttpConfiguration {
                 priorKnowledge);
     }
 
+    @Override
+    public String toString() {
+        return "BlockNodeHelidonHttpConfiguration{" + "flowControlBlockTimeout="
+                + flowControlBlockTimeout + ", initialWindowSize="
+                + initialWindowSize + ", maxFrameSize="
+                + maxFrameSize + ", maxHeaderListSize="
+                + maxHeaderListSize + ", name="
+                + (name == null ? null : "'" + name + "'") + ", ping="
+                + ping + ", pingTimeout="
+                + pingTimeout + ", priorKnowledge="
+                + priorKnowledge + '}';
+    }
+
     /**
      * Converts a HelidonHttpConfig proto to a BlockNodeHelidonHttpConfiguration object.
      *

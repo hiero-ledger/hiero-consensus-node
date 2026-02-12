@@ -14,8 +14,8 @@ import com.swirlds.platform.components.state.output.StateLacksSignaturesConsumer
 import com.swirlds.platform.state.StateSignatureCollectorTester;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
-import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
+import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

@@ -38,7 +38,7 @@ import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.metrics.StoreMetricsService;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
-import com.hedera.node.app.store.ReadableStoreFactory;
+import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.app.store.ServiceApiFactory;
 import com.hedera.node.app.store.StoreFactoryImpl;
 import com.hedera.node.app.store.WritableStoreFactory;
@@ -155,7 +155,7 @@ public class StandaloneDispatchFactory {
                 new BoundaryStateChangeListener(storeMetricsService, () -> config),
                 new ImmediateStateChangeListener(),
                 blockStreamConfig.streamMode());
-        final var readableStoreFactory = new ReadableStoreFactory(stack);
+        final var readableStoreFactory = new ReadableStoreFactoryImpl(stack);
         final var entityIdStore = new WritableEntityIdStoreImpl(stack.getWritableStates(EntityIdService.NAME));
         final var consensusTransaction = consensusTransactionFor(transactionBody);
         final var creatorInfo = creatorInfoFor(transactionBody);

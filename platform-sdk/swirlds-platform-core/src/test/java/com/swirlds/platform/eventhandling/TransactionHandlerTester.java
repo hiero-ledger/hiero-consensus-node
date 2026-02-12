@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.eventhandling;
 
-import static com.swirlds.platform.state.service.PlatformStateUtils.bulkUpdateOf;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.bulkUpdateOf;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
@@ -13,9 +13,6 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
-import com.swirlds.platform.state.PlatformStateModifier;
-import com.swirlds.platform.state.service.PlatformStateUtils;
-import com.swirlds.platform.state.service.PlatformStateValueAccumulator;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.system.status.actions.PlatformStatusAction;
@@ -30,6 +27,9 @@ import java.util.List;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.platformstate.PlatformStateModifier;
+import org.hiero.consensus.platformstate.PlatformStateUtils;
+import org.hiero.consensus.platformstate.PlatformStateValueAccumulator;
 
 /**
  * A helper class for testing the {@link DefaultTransactionHandler}.

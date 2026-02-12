@@ -7,18 +7,13 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.PLATFORM_NOT_ACTIVE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UNKNOWN;
 import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
 import static com.hedera.hapi.util.HapiUtils.functionOf;
-import static com.hedera.node.app.blocks.BlockStreamManager.ZERO_BLOCK_HASH;
+import static com.hedera.node.app.blocks.BlockStreamManager.HASH_OF_ZERO;
 import static com.hedera.node.app.quiescence.QuiescenceUtils.isRelevantTransaction;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.nodeSignedTxWith;
 import static com.hedera.node.app.util.HederaAsciiArt.HEDERA;
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
-import static com.swirlds.platform.state.PlatformStateAccessor.GENESIS_ROUND;
-import static com.swirlds.platform.state.service.PlatformStateUtils.creationSemanticVersionOf;
-import static com.swirlds.platform.state.service.PlatformStateUtils.freezeTimeOf;
-import static com.swirlds.platform.state.service.PlatformStateUtils.lastFrozenTimeOf;
-import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID;
 import static com.swirlds.platform.system.InitTrigger.GENESIS;
 import static com.swirlds.platform.system.InitTrigger.RECONNECT;
 import static java.nio.charset.StandardCharsets.UTF_8;
@@ -26,6 +21,11 @@ import static java.util.Objects.requireNonNull;
 import static java.util.concurrent.CompletableFuture.completedFuture;
 import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
 import static org.hiero.consensus.model.status.PlatformStatus.STARTING_UP;
+import static org.hiero.consensus.platformstate.PlatformStateAccessor.GENESIS_ROUND;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.creationSemanticVersionOf;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.freezeTimeOf;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.lastFrozenTimeOf;
+import static org.hiero.consensus.platformstate.V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID;
 import static org.hiero.consensus.roster.RosterUtils.rosterFrom;
 
 import com.hedera.hapi.block.stream.output.StateChanges;
@@ -90,7 +90,7 @@ import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.migrate.StartupNetworks;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.state.recordcache.RecordCacheService;
-import com.hedera.node.app.store.ReadableStoreFactory;
+import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.app.throttle.AppThrottleFactory;
 import com.hedera.node.app.throttle.CongestionThrottleService;
 import com.hedera.node.app.throttle.ThrottleAccumulator;
@@ -119,7 +119,6 @@ import com.swirlds.platform.listeners.ReconnectCompleteListener;
 import com.swirlds.platform.listeners.ReconnectCompleteNotification;
 import com.swirlds.platform.listeners.StateWriteToDiskCompleteListener;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
-import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.SwirldMain;
@@ -133,6 +132,7 @@ import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.WritableSingletonStateBase;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.charset.Charset;
@@ -163,6 +163,7 @@ import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.consensus.model.transaction.TimestampedTransaction;
 import org.hiero.consensus.model.transaction.Transaction;
+import org.hiero.consensus.platformstate.PlatformStateService;
 import org.hiero.consensus.roster.ReadableRosterStore;
 import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.consensus.transaction.TransactionLimits;
@@ -594,7 +595,7 @@ public final class Hedera
      */
     @Override
     @NonNull
-    public MerkleNodeState newStateRoot() {
+    public MerkleNodeState<VirtualMap> newStateRoot() {
         return stateRootSupplier.get();
     }
 
@@ -996,7 +997,7 @@ public final class Hedera
             @NonNull final Event event,
             @NonNull final MerkleNodeState state,
             @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> stateSignatureTxnCallback) {
-        final var readableStoreFactory = new ReadableStoreFactory(state);
+        final var readableStoreFactory = new ReadableStoreFactoryImpl(state);
         // Will be null if the submitting node is no longer in the address book
         final var creatorInfo =
                 daggerApp.networkInfo().nodeInfo(event.getCreatorId().id());
@@ -1264,7 +1265,7 @@ public final class Hedera
                         .round();
         final var initialStateHash = new InitialStateHash(initialStateHashFuture, roundNum);
 
-        final var rosterStore = new ReadableStoreFactory(state).getStore(ReadableRosterStore.class);
+        final var rosterStore = new ReadableStoreFactoryImpl(state).readableStore(ReadableRosterStore.class);
         final var currentRoster =
                 trigger == GENESIS ? genesisRosterOrThrow() : requireNonNull(rosterStore.getActiveRoster());
         final var networkInfo = new StateNetworkInfo(
@@ -1319,7 +1320,7 @@ public final class Hedera
         if (blockStreamEnabled) {
             notifications.register(StateHashedListener.class, daggerApp.blockStreamManager());
             final var lastBlockHash = (trigger == GENESIS)
-                    ? ZERO_BLOCK_HASH
+                    ? HASH_OF_ZERO
                     : blockStreamService.migratedLastBlockHash().orElse(null);
             daggerApp.blockStreamManager().init(state, lastBlockHash);
             migrationStateChanges = null;

@@ -3,7 +3,7 @@ package com.swirlds.platform.builder;
 
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMetricsProvider;
 import static com.swirlds.platform.state.iss.IssDetector.DO_NOT_IGNORE_ROUNDS;
-import static com.swirlds.platform.state.service.PlatformStateUtils.latestFreezeRoundOf;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.latestFreezeRoundOf;
 
 import com.swirlds.common.merkle.utility.SerializableLong;
 import com.swirlds.component.framework.component.ComponentWiring;
@@ -21,8 +21,6 @@ import com.swirlds.platform.eventhandling.DefaultTransactionHandler;
 import com.swirlds.platform.eventhandling.DefaultTransactionPrehandler;
 import com.swirlds.platform.eventhandling.TransactionHandler;
 import com.swirlds.platform.eventhandling.TransactionPrehandler;
-import com.swirlds.platform.gossip.SyncGossipModular;
-import com.swirlds.platform.network.protocol.Protocol;
 import com.swirlds.platform.reconnect.api.ProtocolFactory;
 import com.swirlds.platform.state.hasher.DefaultStateHasher;
 import com.swirlds.platform.state.hasher.StateHasher;
@@ -46,7 +44,6 @@ import com.swirlds.platform.system.DefaultPlatformMonitor;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.PlatformMonitor;
 import com.swirlds.platform.system.SystemExitUtils;
-import com.swirlds.platform.wiring.components.Gossip;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import java.util.ServiceLoader;
@@ -54,6 +51,9 @@ import java.util.function.Supplier;
 import org.hiero.consensus.concurrent.manager.AdHocThreadManager;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.crypto.PlatformSigner;
+import org.hiero.consensus.gossip.impl.gossip.Gossip;
+import org.hiero.consensus.gossip.impl.gossip.SyncGossipModular;
+import org.hiero.consensus.gossip.impl.network.protocol.Protocol;
 import org.hiero.consensus.model.event.CesEvent;
 import org.hiero.consensus.pces.config.PcesConfig;
 

@@ -280,6 +280,7 @@ jobs:
       java-version: ${{ inputs.java-version || '21.0.6' }}
       java-distribution: ${{ inputs.java-distribution || 'temurin' }}
     secrets:
+      github-token: ${{ secrets.access-token }}
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
       gradle-cache-password: ${{ secrets.gradle-cache-password }}
 
@@ -295,6 +296,7 @@ jobs:
       java-version: ${{ inputs.java-version || '21.0.6' }}
       java-distribution: ${{ inputs.java-distribution || 'temurin' }}
     secrets:
+      github-token: ${{ secrets.access-token }}
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
       gradle-cache-password: ${{ secrets.gradle-cache-password }}
 

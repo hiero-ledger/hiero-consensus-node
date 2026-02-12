@@ -2,7 +2,7 @@
 package com.swirlds.platform.state.signed;
 
 import com.hedera.hapi.node.state.roster.Roster;
-import com.swirlds.platform.state.service.ReadablePlatformStateStore;
+import org.hiero.consensus.platformstate.ReadablePlatformStateStore;
 
 /**
  * Validates a signed state received via reconnect.

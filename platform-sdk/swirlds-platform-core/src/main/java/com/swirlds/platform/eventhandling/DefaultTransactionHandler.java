@@ -12,11 +12,11 @@ import static com.swirlds.platform.eventhandling.TransactionHandlerPhase.SETTING
 import static com.swirlds.platform.eventhandling.TransactionHandlerPhase.UPDATING_PLATFORM_STATE;
 import static com.swirlds.platform.eventhandling.TransactionHandlerPhase.UPDATING_PLATFORM_STATE_RUNNING_HASH;
 import static com.swirlds.platform.eventhandling.TransactionHandlerPhase.WAITING_FOR_PREHANDLE;
-import static com.swirlds.platform.state.service.PlatformStateUtils.bulkUpdateOf;
-import static com.swirlds.platform.state.service.PlatformStateUtils.isInFreezePeriod;
-import static com.swirlds.platform.state.service.PlatformStateUtils.setLegacyRunningEventHashTo;
-import static com.swirlds.platform.state.service.PlatformStateUtils.updateLastFrozenTime;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.bulkUpdateOf;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.isInFreezePeriod;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.setLegacyRunningEventHashTo;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.updateLastFrozenTime;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
@@ -26,7 +26,6 @@ import com.swirlds.component.framework.schedulers.builders.TaskSchedulerType;
 import com.swirlds.platform.metrics.RoundHandlingMetrics;
 import com.swirlds.platform.metrics.TransactionMetrics;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
-import com.swirlds.platform.state.PlatformStateModifier;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
@@ -54,6 +53,7 @@ import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
+import org.hiero.consensus.platformstate.PlatformStateModifier;
 
 /**
  * A standard implementation of {@link TransactionHandler}.

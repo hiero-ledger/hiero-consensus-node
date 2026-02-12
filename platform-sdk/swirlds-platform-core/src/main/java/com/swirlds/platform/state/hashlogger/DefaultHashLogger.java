@@ -2,7 +2,7 @@
 package com.swirlds.platform.state.hashlogger;
 
 import static com.swirlds.logging.legacy.LogMarker.STATE_HASH;
-import static com.swirlds.platform.state.service.PlatformStateUtils.getInfoString;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.getInfoString;
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.config.StateConfig;

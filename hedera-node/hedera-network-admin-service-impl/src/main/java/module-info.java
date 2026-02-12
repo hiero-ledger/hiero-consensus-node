@@ -13,8 +13,8 @@ module com.hedera.node.app.service.network.admin.impl {
     requires transitive com.hedera.node.hapi;
     requires transitive com.hedera.pbj.runtime;
     requires transitive com.swirlds.config.api;
-    requires transitive com.swirlds.platform.core;
     requires transitive com.swirlds.state.api;
+    requires transitive org.hiero.consensus.platformstate;
     requires transitive dagger;
     requires transitive java.compiler; // javax.annotation.processing.Generated
     requires transitive javax.inject;

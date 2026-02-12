@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.state.merkle;
 
-import static com.swirlds.virtualmap.VirtualMap.ClassVersion.NO_VIRTUAL_ROOT_NODE;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -33,6 +32,7 @@ import com.swirlds.state.spi.WritableQueueState;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.test.fixtures.merkle.MerkleTestBase;
 import com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils;
+import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.config.VirtualMapConfig_;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -137,7 +137,7 @@ class SerializationTest extends MerkleTestBase {
         state.release();
     }
 
-    private void initServices(Schema<SemanticVersion> schemaV1, MerkleNodeState loadedTree) {
+    private void initServices(Schema<SemanticVersion> schemaV1, MerkleNodeState<VirtualMap> loadedTree) {
         final var newRegistry = new MerkleSchemaRegistry(FIRST_SERVICE, new SchemaApplications());
         newRegistry.register(schemaV1);
         newRegistry.migrate(
@@ -150,14 +150,13 @@ class SerializationTest extends MerkleTestBase {
                 migrationStateChanges,
                 startupNetworks,
                 InitTrigger.RESTART);
-        loadedTree.getRoot().migrate(NO_VIRTUAL_ROOT_NODE);
     }
 
     private StateLifecycleManager createStateLifecycleManager(Schema schemaV1) {
         final SignedState randomState =
                 new RandomSignedStateGenerator().setRound(1).build();
 
-        final MerkleNodeState originalTree = randomState.getState();
+        final MerkleNodeState<VirtualMap> originalTree = randomState.getState();
         // the state is not hashed yet
         final var originalTreeCopy = originalTree.copy();
         originalTree.release();

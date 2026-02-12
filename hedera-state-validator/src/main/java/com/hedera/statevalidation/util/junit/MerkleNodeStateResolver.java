@@ -21,6 +21,6 @@ public class MerkleNodeStateResolver implements ParameterResolver {
     @Override
     public MerkleNodeState resolveParameter(ParameterContext parameterContext, ExtensionContext extensionContext)
             throws ParameterResolutionException {
-        return StateUtils.getState();
+        return StateUtils.getDefaultState();
     }
 }

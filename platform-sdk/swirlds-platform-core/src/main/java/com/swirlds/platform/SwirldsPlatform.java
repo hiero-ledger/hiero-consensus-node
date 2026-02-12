@@ -2,15 +2,14 @@
 package com.swirlds.platform;
 
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
-import static com.swirlds.logging.legacy.LogMarker.STATE_TO_DISK;
 import static com.swirlds.platform.StateInitializer.initializeState;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMetricsProvider;
 import static com.swirlds.platform.state.address.RosterMetrics.registerRosterMetrics;
-import static com.swirlds.platform.state.service.PlatformStateUtils.ancientThresholdOf;
-import static com.swirlds.platform.state.service.PlatformStateUtils.consensusSnapshotOf;
-import static com.swirlds.platform.state.service.PlatformStateUtils.legacyRunningEventHashOf;
-import static com.swirlds.platform.state.service.PlatformStateUtils.setCreationSoftwareVersionTo;
 import static org.hiero.base.CompareTo.isLessThan;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.ancientThresholdOf;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.consensusSnapshotOf;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.legacyRunningEventHashOf;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.setCreationSoftwareVersionTo;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
@@ -45,8 +44,6 @@ import com.swirlds.platform.state.signed.SignedStateMetrics;
 import com.swirlds.platform.state.signed.StateSignatureCollector;
 import com.swirlds.platform.state.snapshot.SavedStateInfo;
 import com.swirlds.platform.state.snapshot.SignedStateFilePath;
-import com.swirlds.platform.state.snapshot.StateDumpRequest;
-import com.swirlds.platform.state.snapshot.StateToDiskReason;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.status.actions.DoneReplayingEventsAction;
 import com.swirlds.platform.system.status.actions.StartedReplayingEventsAction;
@@ -339,40 +336,6 @@ public class SwirldsPlatform implements Platform {
         platformContext.getRecycleBin().stop();
         platformCoordinator.stop();
         getMetricsProvider().removePlatformMetrics(selfId);
-    }
-
-    /**
-     * Performs a PCES recovery:
-     * <ul>
-     *     <li>Starts all components for handling events</li>
-     *     <li>Does not start gossip</li>
-     *     <li>Replays events from PCES, reaches consensus on them and handles them</li>
-     *     <li>Saves the last state produces by this replay to disk</li>
-     * </ul>
-     */
-    public void performPcesRecovery() {
-        platformContext.getRecycleBin().start();
-        platformContext.getMetrics().start();
-        platformCoordinator.start();
-
-        replayPreconsensusEvents();
-        try (final ReservedSignedState reservedState = latestImmutableStateNexus.getState("Get PCES recovery state")) {
-            if (reservedState == null) {
-                logger.warn(
-                        STATE_TO_DISK.getMarker(),
-                        "Trying to dump PCES recovery state to disk, but no state is available.");
-            } else {
-                final SignedState signedState = reservedState.get();
-                signedState.markAsStateToSave(StateToDiskReason.PCES_RECOVERY_COMPLETE);
-
-                final StateDumpRequest request =
-                        StateDumpRequest.create(signedState.reserve("dumping PCES recovery state"));
-
-                platformCoordinator.dumpStateToDisk(request);
-
-                request.waitForFinished().run();
-            }
-        }
     }
 
     /**

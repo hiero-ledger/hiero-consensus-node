@@ -100,6 +100,7 @@ enum Extra {
   HOOK_SLOT_UPDATE=20;
   TOKEN_MINT_NFT_BASE=21;
   NFT_UPDATE=22;
+  RECORDS=23;
 }
 
 /**

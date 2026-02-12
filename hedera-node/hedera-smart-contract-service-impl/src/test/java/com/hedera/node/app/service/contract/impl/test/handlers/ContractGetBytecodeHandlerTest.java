@@ -9,6 +9,7 @@ import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tu
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatCode;
+import static org.hyperledger.besu.evm.worldstate.CodeDelegationHelper.CODE_DELEGATION_PREFIX;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.when;
@@ -43,6 +44,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hederahashgraph.api.proto.java.FeeComponents;
 import java.util.Objects;
 import java.util.function.Function;
+import org.bouncycastle.util.encoders.Hex;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -371,6 +373,7 @@ class ContractGetBytecodeHandlerTest {
         given(context.createStore(ReadableAccountStore.class)).willReturn(contractStore);
         given(contractStore.getContractById(contractID)).willReturn(account);
         given(account.accountIdOrThrow()).willReturn(accountId);
+        given(account.smartContract()).willReturn(true);
 
         given(context.createStore(ContractStateStore.class)).willReturn(stateStore);
 
@@ -387,6 +390,28 @@ class ContractGetBytecodeHandlerTest {
         assertThat(Objects.requireNonNull(response.contractGetBytecodeResponse())
                         .bytecode())
                 .isEqualTo(expectedResult);
+    }
+
+    @Test
+    void returnsCodeDelegationIndicatorForEoaQueries() {
+        given(responseHeader.nodeTransactionPrecheckCode()).willReturn(OK);
+        given(responseHeader.responseType()).willReturn(ANSWER_ONLY);
+
+        given(context.query()).willReturn(query);
+        given(query.contractGetBytecodeOrThrow()).willReturn(contractGetBytecodeQuery);
+        given(contractGetBytecodeQuery.contractIDOrElse(ContractID.DEFAULT)).willReturn(contractID);
+        given(context.createStore(ReadableAccountStore.class)).willReturn(contractStore);
+        given(contractStore.getContractById(contractID)).willReturn(account);
+        given(account.smartContract()).willReturn(false);
+        final var delegationAddressBytes =
+                Bytes.wrap(Hex.decode("00000000000000000000000000000000000000000000000000000000cafebabe"));
+        given(account.delegationAddress()).willReturn(delegationAddressBytes);
+
+        final var response = subject.findResponse(context, responseHeader);
+
+        assertThat(response.contractGetBytecodeResponse().header()).isEqualTo(responseHeader);
+        assertThat(response.contractGetBytecodeResponse().bytecode())
+                .isEqualTo(Bytes.merge(Bytes.wrap(CODE_DELEGATION_PREFIX.toArray()), delegationAddressBytes));
     }
 
     private void givenAccountIdAsContractId() {
@@ -408,6 +433,7 @@ class ContractGetBytecodeHandlerTest {
     void computeFeesAccountIdAsContractId() {
         givenAccountIdAsContractId();
         given(account.accountIdOrThrow()).willReturn(accountId);
+        given(account.smartContract()).willReturn(true);
 
         given(context.createStore(ContractStateStore.class)).willReturn(stateStore);
         final var expectedResult = Bytes.wrap(new byte[] {1, 2, 3, 4, 5});
@@ -426,6 +452,7 @@ class ContractGetBytecodeHandlerTest {
     void findResponseAccountIdAsContractId() {
         givenAccountIdAsContractId();
         given(account.accountIdOrThrow()).willReturn(accountId);
+        given(account.smartContract()).willReturn(true);
         given(context.createStore(ContractStateStore.class)).willReturn(stateStore);
         final var expectedResult = Bytes.wrap(new byte[] {1, 2, 3, 4, 5});
         final var bytecode = Bytecode.newBuilder().code(expectedResult).build();

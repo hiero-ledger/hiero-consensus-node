@@ -21,9 +21,9 @@ import com.hedera.hapi.node.scheduled.ScheduleSignTransactionBody;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.fees.SimpleFeeCalculatorImpl;
+import com.hedera.node.app.fees.SimpleFeeContextImpl;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
-import com.hedera.node.app.spi.fees.SimpleFeeContextUtil;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -202,7 +202,7 @@ class ScheduleFeeCalculatorsTest {
     void testFeeCalculators(TestCase testCase) {
         lenient().when(feeContext.numTxnSignatures()).thenReturn(testCase.numSignatures);
 
-        final var result = feeCalculator.calculateTxFee(testCase.body, SimpleFeeContextUtil.fromFeeContext(feeContext));
+        final var result = feeCalculator.calculateTxFee(testCase.body, new SimpleFeeContextImpl(feeContext, null));
 
         assertThat(result).isNotNull();
         assertThat(result.getNodeTotalTinycents()).isEqualTo(testCase.expectedNodeFee);
@@ -218,7 +218,7 @@ class ScheduleFeeCalculatorsTest {
         final var feeResult = new FeeResult();
 
         queryFeeCalculator.accumulateNodePayment(
-                query, SimpleFeeContextUtil.fromQueryContext(mockQueryContext), feeResult, createTestFeeSchedule());
+                query, new SimpleFeeContextImpl(null, mockQueryContext), feeResult, createTestFeeSchedule());
 
         assertThat(feeResult.getNodeTotalTinycents()).isEqualTo(0L);
         assertThat(feeResult.getNetworkTotalTinycents()).isEqualTo(0L);

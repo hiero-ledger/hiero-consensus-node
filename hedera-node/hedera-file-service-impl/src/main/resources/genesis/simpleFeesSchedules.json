@@ -18,7 +18,7 @@
   },
 
   "extras": [
-    { "name":  "SIGNATURES",                     "fee": 1000000 },
+    { "name":  "SIGNATURES",                     "fee": 100000 },
     { "name":  "BYTES",                          "fee": 110000 },
     { "name":  "KEYS",                           "fee": 100000000 },
     { "name":  "NFT_SERIALS",                    "fee": 8900000 },
@@ -34,6 +34,7 @@
     { "name":  "NFT_UPDATE",                     "fee": 10000000 },
     { "name":  "AIRDROPS",                       "fee": 500000000 },
     { "name":  "HOOK_UPDATES",                   "fee": 10000000000 },
+    { "name":  "RECORDS",                        "fee": 1000000 },
     { "name":  "TOKEN_TRANSFER_BASE",                       "fee": 9000000 },
     { "name":  "TOKEN_TRANSFER_BASE_CUSTOM_FEES",           "fee": 19000000 },
     { "name":  "CONSENSUS_CREATE_TOPIC_WITH_CUSTOM_FEE",    "fee": 19900000000 },
@@ -583,7 +584,12 @@
         {
           "name": "TransactionGetRecord",
           "baseFee": 0,
-          "extras": []
+          "extras": [
+            {
+              "name": "RECORDS",
+              "includedCount": 1
+            }
+          ]
         },
         {
           "name": "TransactionGetReceipt",

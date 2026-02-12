@@ -5,21 +5,17 @@ import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 import static com.swirlds.metrics.api.FloatFormats.FORMAT_10_0;
 import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
-import static com.swirlds.platform.state.service.PlatformStateUtils.getInfoString;
-import static com.swirlds.platform.state.service.PlatformStateUtils.roundOf;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.getInfoString;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.roundOf;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.logging.legacy.payload.ReconnectFinishPayload;
 import com.swirlds.logging.legacy.payload.ReconnectStartPayload;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.Utilities;
 import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.metrics.ReconnectMetrics;
-import com.swirlds.platform.network.Connection;
-import com.swirlds.platform.network.NetworkProtocolException;
-import com.swirlds.platform.network.protocol.PeerProtocol;
 import com.swirlds.platform.reconnect.api.ReservedSignedStateResult;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
@@ -34,6 +30,10 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.BlockingResourceProvider;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.concurrent.utility.throttle.RateLimitedLogger;
+import org.hiero.consensus.exceptions.ThrowableUtilities;
+import org.hiero.consensus.gossip.impl.network.Connection;
+import org.hiero.consensus.gossip.impl.network.NetworkProtocolException;
+import org.hiero.consensus.gossip.impl.network.protocol.PeerProtocol;
 import org.hiero.consensus.metrics.extensions.CountPerSecond;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
@@ -350,7 +350,7 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
             reservedSignedStateResultProvider.provide(new ReservedSignedStateResult(reservedSignedState, null));
 
         } catch (final RuntimeException e) {
-            if (!Utilities.isOrCausedBySocketException(e)) {
+            if (!ThrowableUtilities.isOrCausedBySocketException(e)) {
                 // We are closing the connection as we don't know the state in which is in
                 // it might contain non-read bytes.
                 if (connection != null) {

@@ -5,9 +5,9 @@ import static com.swirlds.platform.test.fixtures.graph.OtherParentMatrixFactory.
 import static com.swirlds.platform.test.fixtures.graph.OtherParentMatrixFactory.createForcedOtherParentMatrix;
 import static com.swirlds.platform.test.fixtures.graph.OtherParentMatrixFactory.createShunnedNodeOtherParentAffinityMatrix;
 
-import com.swirlds.platform.test.fixtures.event.emitter.StandardEventEmitter;
 import java.util.List;
 import java.util.Random;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.event.emitter.StandardEventEmitter;
 
 /**
  * <p>This class manipulates the event generator to force the creation of a split branch, where each node has one branch

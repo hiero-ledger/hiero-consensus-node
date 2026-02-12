@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.consensus;
 
-import static com.swirlds.platform.test.fixtures.event.EventUtils.areBirthRoundNumbersValid;
-import static com.swirlds.platform.test.fixtures.event.EventUtils.areEventListsEquivalent;
-import static com.swirlds.platform.test.fixtures.event.EventUtils.isEventOrderValid;
+import static org.hiero.consensus.hashgraph.impl.test.fixtures.event.EventUtils.areBirthRoundNumbersValid;
+import static org.hiero.consensus.hashgraph.impl.test.fixtures.event.EventUtils.areEventListsEquivalent;
+import static org.hiero.consensus.hashgraph.impl.test.fixtures.event.EventUtils.isEventOrderValid;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
@@ -11,14 +11,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
-import com.swirlds.platform.test.fixtures.event.emitter.CollectingEventEmitter;
-import com.swirlds.platform.test.fixtures.event.emitter.EventEmitter;
-import com.swirlds.platform.test.fixtures.event.emitter.EventEmitterBuilder;
-import com.swirlds.platform.test.fixtures.event.emitter.PriorityEventEmitter;
-import com.swirlds.platform.test.fixtures.event.emitter.ShuffledEventEmitter;
-import com.swirlds.platform.test.fixtures.event.emitter.StandardEventEmitter;
 import java.util.List;
 import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.event.emitter.CollectingEventEmitter;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.event.emitter.EventEmitter;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.event.emitter.EventEmitterBuilder;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.event.emitter.PriorityEventEmitter;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.event.emitter.ShuffledEventEmitter;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.event.emitter.StandardEventEmitter;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;

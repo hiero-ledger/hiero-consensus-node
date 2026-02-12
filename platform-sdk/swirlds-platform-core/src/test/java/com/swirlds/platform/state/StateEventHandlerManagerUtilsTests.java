@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state;
 
-import static com.swirlds.platform.state.service.PlatformStateUtils.setCreationSoftwareVersionTo;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.setCreationSoftwareVersionTo;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 

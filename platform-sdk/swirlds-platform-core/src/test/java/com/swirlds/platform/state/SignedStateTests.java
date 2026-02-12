@@ -15,15 +15,14 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
-import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
-import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils;
 import com.swirlds.state.test.fixtures.merkle.VirtualMapUtils;
+import com.swirlds.virtualmap.VirtualMap;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -32,7 +31,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import org.hiero.base.exceptions.ReferenceCountException;
 import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
 import org.hiero.consensus.crypto.SignatureVerifier;
+import org.hiero.consensus.platformstate.PlatformStateModifier;
 import org.hiero.consensus.roster.RosterStateUtils;
+import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -65,9 +66,9 @@ class SignedStateTests {
         TestingAppStateInitializer.initConsensusModuleStates(real, CONFIGURATION);
         RosterStateUtils.setActiveRoster(
                 real, RandomRosterBuilder.create(random).build(), 0L);
-        final MerkleNodeState state = spy(real);
-        final MerkleNode realRoot = state.getRoot();
-        final MerkleNode rootSpy = spy(realRoot);
+        final MerkleNodeState<VirtualMap> state = spy(real);
+        final VirtualMap realRoot = state.getRoot();
+        final VirtualMap rootSpy = spy(realRoot);
         when(state.getRoot()).thenReturn(rootSpy);
 
         if (reserveCallback != null) {

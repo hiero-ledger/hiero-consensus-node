@@ -19,14 +19,13 @@ import static com.hedera.node.app.quiescence.TctProbe.blockStreamInfoFrom;
 import static com.hedera.node.app.records.BlockRecordService.EPOCH;
 import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.HASH_SIZE;
 import static com.hedera.node.app.workflows.handle.HandleWorkflow.ALERT_MESSAGE;
-import static com.swirlds.platform.state.service.PlatformStateUtils.creationSemanticVersionOf;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.model.quiescence.QuiescenceCommand.QUIESCE;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.creationSemanticVersionOf;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.BlockProof;
-import com.hedera.hapi.block.stream.ChainOfTrustProof;
 import com.hedera.hapi.block.stream.MerklePath;
 import com.hedera.hapi.block.stream.MerkleSiblingHash;
 import com.hedera.hapi.block.stream.StateProof;
@@ -38,13 +37,13 @@ import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.blockstream.BlockStreamInfo;
+import com.hedera.hapi.node.state.history.ChainOfTrustProof;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.blocks.BlockItemWriter;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.BlockStreamService;
 import com.hedera.node.app.blocks.InitialStateHash;
-import com.hedera.node.app.blocks.StreamingTreeHasher;
 import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.node.app.info.DiskStartupNetworks;
 import com.hedera.node.app.info.DiskStartupNetworks.InfoType;
@@ -52,7 +51,7 @@ import com.hedera.node.app.quiescence.QuiescedHeartbeat;
 import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.app.quiescence.TctProbe;
 import com.hedera.node.app.records.impl.BlockRecordInfoUtils;
-import com.hedera.node.app.store.ReadableStoreFactory;
+import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
@@ -66,9 +65,6 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Counter;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.state.service.PlatformStateService;
-import com.swirlds.platform.state.service.ReadablePlatformStateStore;
-import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.state.notifications.StateHashedNotification;
 import com.swirlds.state.MerkleNodeState;
@@ -106,6 +102,9 @@ import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
+import org.hiero.consensus.platformstate.PlatformStateService;
+import org.hiero.consensus.platformstate.ReadablePlatformStateStore;
+import org.hiero.consensus.platformstate.V0540PlatformStateSchema;
 
 @Singleton
 public class BlockStreamManagerImpl implements BlockStreamManager {
@@ -264,7 +263,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             // Most of the ingredients in the block hash are directly in the BlockStreamInfo
             // Branch 1: lastBlockHash
             final var prevBlockHash = blockStreamInfo.blockNumber() <= 0L
-                    ? ZERO_BLOCK_HASH
+                    ? HASH_OF_ZERO
                     : BlockRecordInfoUtils.blockHashByBlockNumber(
                             blockStreamInfo.trailingBlockHashes(),
                             blockStreamInfo.blockNumber() - 1,
@@ -280,13 +279,11 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             final var allPrevBlocksHash = Bytes.wrap(previousBlockHashes.computeRootHash());
 
             // Branch 3: Retrieve the previous block's starting state hash (not done right here, just part of the
-            // calculated
-            // last block hash below)
+            // calculated last block hash below)
 
             // We have to calculate the final hash of the previous block's state changes subtree because only the
             // penultimate state hash is in the block stream info object (constructed from numPrecedingStateChangesItems
-            // and
-            // rightmostPrecedingStateChangesTreeHashes)
+            // and rightmostPrecedingStateChangesTreeHashes)
             final var initialStateChangesHasher = new IncrementalStreamingHasher(
                     sha384DigestOrThrow(),
                     blockStreamInfo.rightmostPrecedingStateChangesTreeHashes().stream()
@@ -306,6 +303,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     // state change time
                     .stateChanges(new StateChanges(blockStreamInfo.blockEndTime(), List.of(lastBlockFinalStateChange)))
                     .build();
+            // Add the final state change item's hash to the reconstructed state changes tree, and use it to compute the
+            // final hash
             initialStateChangesHasher.addLeaf(
                     BlockItem.PROTOBUF.toBytes(lastStateChanges).toByteArray());
             final var lastBlockFinalStateChangesHash = Bytes.wrap(initialStateChangesHasher.computeRootHash());
@@ -322,8 +321,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     .blockRootHash();
         }
         this.lastBlockHash = effectiveLastBlockHash;
-        if (!Objects.equals(effectiveLastBlockHash, ZERO_BLOCK_HASH)) {
-            this.previousBlockHashes.addLeaf(effectiveLastBlockHash.toByteArray());
+        if (!Objects.equals(effectiveLastBlockHash, HASH_OF_ZERO)) {
+            previousBlockHashes.addNodeByHash(effectiveLastBlockHash.toByteArray());
         }
     }
 
@@ -346,7 +345,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             blockTimestamp = asTimestamp(firstConsensusTimestampOf(round));
             lastUsedTime = asTimestamp(round.getConsensusTimestamp());
 
-            final var blockStreamInfo = blockStreamInfoFrom(state, ZERO_BLOCK_HASH.equals(lastBlockHash));
+            final var blockStreamInfo = blockStreamInfoFrom(state, HASH_OF_ZERO.equals(lastBlockHash));
             pendingWork = classifyPendingWork(blockStreamInfo, version);
             lastTopLevelTime = asInstant(blockStreamInfo.lastHandleTimeOrElse(EPOCH));
             lastIntervalProcessTime = asInstant(blockStreamInfo.lastIntervalProcessTimeOrElse(EPOCH));
@@ -384,7 +383,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     /**
      * Initializes the block stream manager after a restart or during reconnect with the hash of the last block
      * incorporated in the state used in the restart or reconnect. (At genesis, this hash should be the
-     * {@link #ZERO_BLOCK_HASH}.)
+     * {@link #HASH_OF_ZERO}.)
      *
      * @param blockHash the hash of the last block
      */
@@ -486,8 +485,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
     @Override
     public boolean endRound(@NonNull final MerkleNodeState state, final long roundNum) {
-        final var storeFactory = new ReadableStoreFactory(state);
-        final var platformStateStore = storeFactory.getStore(ReadablePlatformStateStore.class);
+        final var storeFactory = new ReadableStoreFactoryImpl(state);
+        final var platformStateStore = storeFactory.readableStore(ReadablePlatformStateStore.class);
         final long freezeRoundNumber = platformStateStore.getLatestFreezeRound();
         final boolean closesBlock = shouldCloseBlock(roundNum, freezeRoundNumber);
         if (closesBlock) {
@@ -599,7 +598,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
             // Update in-memory state to prepare for the next block
             lastBlockHash = finalBlockRootHash;
-            previousBlockHashes.addLeaf(lastBlockHash.toByteArray());
+            previousBlockHashes.addNodeByHash(lastBlockHash.toByteArray());
             writer = null;
 
             // Special case when signing with hinTS and this is the freeze round; we have to wait
@@ -778,7 +777,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             } else {
                 // This is a pending block whose block number precedes the signed block number, so we construct an
                 // indirect state proof
-
                 if (configProvider
                         .getConfiguration()
                         .getConfigData(BlockStreamConfig.class)
@@ -1179,12 +1177,12 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
      * lifecycle, the sibling hashes required for an indirect proof are also computed.
      * <p>
      * Note that all of these initial hash values should have all been hashed prior to this point, whether
-     * as a leaf node (prefixed with {@link StreamingTreeHasher#LEAF_PREFIX}) or as an internal node (prefixed
-     * with {@link StreamingTreeHasher#INTERNAL_NODE_PREFIX}). Therefore, they should <b>not</b> be hashed
+     * as a leaf node (prefixed with {@link BlockImplUtils#LEAF_PREFIX}) or as an internal node (prefixed
+     * with {@link BlockImplUtils#INTERNAL_NODE_PREFIX}). Therefore, they should <b>not</b> be hashed
      * again until combined with another hash.
      * <p>
      * While {@code prevBlockHash} could programmatically be null, in practice it never should be. Even
-     * in the case of the genesis block, this value should be {@link BlockStreamManager#ZERO_BLOCK_HASH}. For
+     * in the case of the genesis block, this value should be {@link BlockStreamManager#HASH_OF_ZERO}. For
      * all other blocks, it should be the actual previous block's root hash.
      * @return the block root hash and all possibly-required sibling hashes, ordered from bottom (the
      * leaf level, depth six) to top (the root, depth one)
@@ -1233,7 +1231,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             // Level 4 first sibling (right child)
             new MerkleSiblingHash(false, depth4Node2)
             // Level 3 has no sibling because reserved roots 9-16 aren't represented as real subroots in the tree. It's
-            // just a single child node hash operation
+            // just a single child node hash operation. NOTE: if any of the reserved roots are ever included in the
+            // tree, this level's hash will need to be re-added as an internal node here.
             // Level 2's _left_ sibling–the block's timestamp–is represented explicitly outside these sibling hashes
         });
     }

@@ -2,8 +2,8 @@
 package com.swirlds.platform.test.fixtures.consensus.framework;
 
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.WeightGenerator;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.consensus.test.fixtures.WeightGenerator;
 
 /**
  * Holds the input to a consensus test.

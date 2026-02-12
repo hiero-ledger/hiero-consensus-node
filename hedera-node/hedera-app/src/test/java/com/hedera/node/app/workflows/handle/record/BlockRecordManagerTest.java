@@ -15,8 +15,8 @@ import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_LABEL;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.RUNNING_HASHES_STATE_ID;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.RUNNING_HASHES_STATE_LABEL;
-import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.UNINITIALIZED_PLATFORM_STATE;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hiero.consensus.platformstate.V0540PlatformStateSchema.UNINITIALIZED_PLATFORM_STATE;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 
@@ -42,8 +42,6 @@ import com.hedera.node.app.records.impl.producers.formats.SelfNodeAccountIdManag
 import com.hedera.node.app.records.impl.producers.formats.v6.BlockRecordFormatV6;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.platform.state.service.PlatformStateService;
-import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.state.State;
@@ -64,6 +62,8 @@ import java.util.concurrent.ForkJoinPool;
 import java.util.stream.Stream;
 import org.assertj.core.api.Assertions;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.platformstate.PlatformStateService;
+import org.hiero.consensus.platformstate.V0540PlatformStateSchema;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

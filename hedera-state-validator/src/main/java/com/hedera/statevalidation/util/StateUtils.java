@@ -6,9 +6,9 @@ import static com.hedera.statevalidation.util.ConfigUtils.getConfiguration;
 import static com.hedera.statevalidation.util.ConfigUtils.resetConfiguration;
 import static com.hedera.statevalidation.util.PlatformContextHelper.getPlatformContext;
 import static com.hedera.statevalidation.util.PlatformContextHelper.resetPlatformContext;
-import static com.swirlds.platform.state.service.PlatformStateUtils.creationSoftwareVersionOf;
 import static com.swirlds.platform.state.signed.StartupStateUtils.copyInitialSignedState;
 import static com.swirlds.platform.state.snapshot.SignedStateFileReader.readState;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.creationSoftwareVersionOf;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.transaction.ThrottleDefinitions;
@@ -58,7 +58,6 @@ import com.hedera.pbj.runtime.JsonCodec;
 import com.hedera.pbj.runtime.OneOf;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
@@ -68,14 +67,16 @@ import com.swirlds.state.State;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
+import com.swirlds.state.lifecycle.StateMetadata;
 import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.state.spi.ReadableKVStateBase;
+import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.lang.reflect.Field;
 import java.nio.file.Path;
 import java.time.InstantSource;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -86,6 +87,7 @@ import java.util.function.Supplier;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.platformstate.PlatformStateService;
 
 /**
  * Utility for loading and initializing state from disk. Manages the complete initialization
@@ -101,8 +103,8 @@ public final class StateUtils {
      */
     private static final String DEFAULT = "DEFAULT";
 
-    private static final Map<String, MerkleNodeState> states = new HashMap<>();
-    private static final Map<String, DeserializedSignedState> deserializedSignedStates = new HashMap<>();
+    private static final Map<String, MerkleNodeState> states = new ConcurrentHashMap<>();
+    private static final Map<String, DeserializedSignedState> deserializedSignedStates = new ConcurrentHashMap<>();
 
     // Static JSON codec cache
     private static final Map<Integer, JsonCodec> keyCodecsById = new ConcurrentHashMap<>();
@@ -114,7 +116,7 @@ public final class StateUtils {
      * Returns <b>mutable</b> instance of {@link MerkleNodeState} loaded from disk.
      * @return mutable instance of {@link MerkleNodeState}
      */
-    public static MerkleNodeState getState() {
+    public static MerkleNodeState getDefaultState() {
         return getState(DEFAULT);
     }
 
@@ -128,6 +130,31 @@ public final class StateUtils {
             initState(key);
         }
         return states.get(key);
+    }
+
+    /**
+     * Call to this method resets the state caches
+     */
+    public static synchronized void resetStateCache() {
+        if (states.get(DEFAULT) == null) {
+            throw new IllegalStateException("State is not initialized yet");
+        }
+        VirtualMapState defaultState = (VirtualMapState) getDefaultState();
+        Set<Map.Entry<String, Map<Integer, StateMetadata<?, ?>>>> serviceEntries =
+                defaultState.getServices().entrySet();
+        // resetting readable state caches
+        for (Map.Entry<String, Map<Integer, StateMetadata<?, ?>>> serviceEntry : serviceEntries) {
+            ReadableStates readableStates = defaultState.getReadableStates(serviceEntry.getKey());
+            for (Map.Entry<Integer, StateMetadata<?, ?>> stateEntry :
+                    serviceEntry.getValue().entrySet()) {
+                StateMetadata<?, ?> md = stateEntry.getValue();
+                if (md.stateDefinition().onDisk()) {
+                    ReadableKVStateBase<?, ?> readableState =
+                            (ReadableKVStateBase) readableStates.get(stateEntry.getKey());
+                    readableState.reset();
+                }
+            }
+        }
     }
 
     /**
@@ -164,9 +191,10 @@ public final class StateUtils {
                     virtualMap -> new VirtualMapState(virtualMap, platformContext.getMetrics()),
                     platformContext.getConfiguration());
 
-            serviceRegistry.register(new RosterServiceImpl(roster -> true, (r, b) -> {}, StateUtils::getState, () -> {
-                throw new UnsupportedOperationException("No startup networks available");
-            }));
+            serviceRegistry.register(
+                    new RosterServiceImpl(roster -> true, (r, b) -> {}, () -> StateUtils.getState(key), () -> {
+                        throw new UnsupportedOperationException("No startup networks available");
+                    }));
 
             final DeserializedSignedState dss =
                     readState(Path.of(ConfigUtils.STATE_DIR).toAbsolutePath(), platformContext, stateLifecycleManager);
@@ -253,7 +281,7 @@ public final class StateUtils {
                                 bootstrapConfig
                                         .getConfigData(BlockStreamConfig.class)
                                         .blockPeriod()),
-                        new RosterServiceImpl(roster -> true, (r, b) -> {}, StateUtils::getState, () -> {
+                        new RosterServiceImpl(roster -> true, (r, b) -> {}, StateUtils::getDefaultState, () -> {
                             throw new UnsupportedOperationException("No startup networks available");
                         }),
                         new PlatformStateService())
