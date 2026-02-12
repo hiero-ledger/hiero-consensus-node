@@ -64,12 +64,4 @@ message RegisteredNode {
      * This list SHALL NOT contain more than `50` entries.
      */
     repeated com.hedera.hapi.node.addressbook.RegisteredServiceEndpoint service_endpoint = 4;
-
-    /**
-     * A flag indicating this registered node is deleted.
-     * <p>
-     * If this field is set, then this registered node SHALL be treated as
-     * deleted and MUST NOT be used.
-     */
-    bool deleted = 5;
 }
