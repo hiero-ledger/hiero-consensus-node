@@ -43,7 +43,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.emptyChildRecordsCheck;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateInnerTxnChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
@@ -63,9 +62,7 @@ import static com.hedera.services.bdd.suites.contract.leaky.LeakyContractTestsSu
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.FeeParam.ALLOWANCES;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.FeeParam.SIGNATURES;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.FeeParam.TXN_SIZE;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedAtomicBatchFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedCryptoApproveAllowanceFullFeeUsd;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedCryptoCreateFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdWithinWithTxnSize;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateInnerChargedUsdWithinWithTxnSize;
 import static com.hedera.services.bdd.suites.token.TokenTransactSpecs.TRANSFER_TXN;
@@ -813,12 +810,12 @@ class AtomicBatchApproveAllowanceTest {
                                 txnSize -> expectedCryptoApproveAllowanceFullFeeUsd(Map.of(
                                         SIGNATURES, 2,
                                         ALLOWANCES, 3,
-                                        TXN_SIZE, txnSize)), 0.001);
+                                        TXN_SIZE, txnSize)),
+                                0.001);
                     } else {
                         return validateChargedUsdWithin(APPROVE_TXN, 0.052_380, 0.01);
                     }
                 }),
-
                 getAccountDetails(PAYER)
                         .payingWith(GENESIS)
                         .has(accountDetailsWith()
@@ -1362,7 +1359,8 @@ class AtomicBatchApproveAllowanceTest {
                                 txnSize -> expectedCryptoApproveAllowanceFullFeeUsd(Map.of(
                                         SIGNATURES, 1,
                                         ALLOWANCES, 1,
-                                        TXN_SIZE, txnSize)), 0.001);
+                                        TXN_SIZE, txnSize)),
+                                0.001);
                     } else {
                         return validateInnerTxnChargedUsd(BASE_APPROVE_TXN + "_1", batchTxn, 0.05, 0.01);
                     }
@@ -1375,7 +1373,8 @@ class AtomicBatchApproveAllowanceTest {
                                 txnSize -> expectedCryptoApproveAllowanceFullFeeUsd(Map.of(
                                         SIGNATURES, 1,
                                         ALLOWANCES, 2,
-                                        TXN_SIZE, txnSize)), 0.001);
+                                        TXN_SIZE, txnSize)),
+                                0.001);
                     } else {
                         return validateInnerTxnChargedUsd(BASE_APPROVE_TXN + "_2", batchTxn, 0.0505, 0.1);
                     }
@@ -1388,7 +1387,8 @@ class AtomicBatchApproveAllowanceTest {
                                 txnSize -> expectedCryptoApproveAllowanceFullFeeUsd(Map.of(
                                         SIGNATURES, 1,
                                         ALLOWANCES, 3,
-                                        TXN_SIZE, txnSize)), 0.001);
+                                        TXN_SIZE, txnSize)),
+                                0.001);
                     } else {
                         return validateInnerTxnChargedUsd(BASE_APPROVE_TXN + "_3", batchTxn, 0.0509, 0.1);
                     }
@@ -1456,7 +1456,8 @@ class AtomicBatchApproveAllowanceTest {
                                 txnSize -> expectedCryptoApproveAllowanceFullFeeUsd(Map.of(
                                         SIGNATURES, 1,
                                         ALLOWANCES, 1,
-                                        TXN_SIZE, txnSize)), 0.001);
+                                        TXN_SIZE, txnSize)),
+                                0.001);
                     } else {
                         return validateInnerTxnChargedUsd(BASE_APPROVE_TXN, batchTxn, 0.05, 0.01);
                     }
@@ -1469,7 +1470,8 @@ class AtomicBatchApproveAllowanceTest {
                                 txnSize -> expectedCryptoApproveAllowanceFullFeeUsd(Map.of(
                                         SIGNATURES, 1,
                                         ALLOWANCES, 3,
-                                        TXN_SIZE, txnSize)), 0.001);
+                                        TXN_SIZE, txnSize)),
+                                0.001);
                     } else {
                         return validateInnerTxnChargedUsd(APPROVE_TXN, batchTxn, 0.052_380, 0.01);
                     }

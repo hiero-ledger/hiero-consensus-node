@@ -32,7 +32,6 @@ import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.exp
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdWithinWithTxnSize;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CUSTOM_FEES_LIST_TOO_LONG;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_SENDER_ACCOUNT_BALANCE_FOR_CUSTOM_FEE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOPIC_ID;
@@ -135,9 +134,8 @@ class AtomicBatchConsensusServiceEndToEndTest {
                         if ("true".equals(flag)) {
                             return validateChargedUsdWithinWithTxnSize(
                                     "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
-                                            SIGNATURES, 1,
-                                            TXN_SIZE, txnSize)), 0.001);
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                    0.001);
                         } else {
                             return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
                         }
@@ -180,9 +178,8 @@ class AtomicBatchConsensusServiceEndToEndTest {
                         if ("true".equals(flag)) {
                             return validateChargedUsdWithinWithTxnSize(
                                     "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
-                                            SIGNATURES, 1,
-                                            TXN_SIZE, txnSize)), 0.001);
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                    0.001);
                         } else {
                             return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
                         }
@@ -233,9 +230,8 @@ class AtomicBatchConsensusServiceEndToEndTest {
                         if ("true".equals(flag)) {
                             return validateChargedUsdWithinWithTxnSize(
                                     "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
-                                            SIGNATURES, 1,
-                                            TXN_SIZE, txnSize)), 0.001);
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                    0.001);
                         } else {
                             return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
                         }
@@ -281,9 +277,8 @@ class AtomicBatchConsensusServiceEndToEndTest {
                         if ("true".equals(flag)) {
                             return validateChargedUsdWithinWithTxnSize(
                                     "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
-                                            SIGNATURES, 1,
-                                            TXN_SIZE, txnSize)), 0.001);
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                    0.001);
                         } else {
                             return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
                         }
@@ -327,9 +322,8 @@ class AtomicBatchConsensusServiceEndToEndTest {
                         if ("true".equals(flag)) {
                             return validateChargedUsdWithinWithTxnSize(
                                     "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
-                                            SIGNATURES, 1,
-                                            TXN_SIZE, txnSize)), 0.001);
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                    0.001);
                         } else {
                             return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
                         }
@@ -378,9 +372,8 @@ class AtomicBatchConsensusServiceEndToEndTest {
                         if ("true".equals(flag)) {
                             return validateChargedUsdWithinWithTxnSize(
                                     "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
-                                            SIGNATURES, 1,
-                                            TXN_SIZE, txnSize)), 0.001);
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                    0.001);
                         } else {
                             return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
                         }
@@ -434,9 +427,8 @@ class AtomicBatchConsensusServiceEndToEndTest {
                         if ("true".equals(flag)) {
                             return validateChargedUsdWithinWithTxnSize(
                                     "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
-                                            SIGNATURES, 1,
-                                            TXN_SIZE, txnSize)), 0.001);
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                    0.001);
                         } else {
                             return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
                         }
@@ -488,9 +480,8 @@ class AtomicBatchConsensusServiceEndToEndTest {
                         if ("true".equals(flag)) {
                             return validateChargedUsdWithinWithTxnSize(
                                     "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
-                                            SIGNATURES, 1,
-                                            TXN_SIZE, txnSize)), 0.001);
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                    0.001);
                         } else {
                             return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
                         }
@@ -543,9 +534,8 @@ class AtomicBatchConsensusServiceEndToEndTest {
                         if ("true".equals(flag)) {
                             return validateChargedUsdWithinWithTxnSize(
                                     "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
-                                            SIGNATURES, 1,
-                                            TXN_SIZE, txnSize)), 0.001);
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                    0.001);
                         } else {
                             return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
                         }
@@ -601,9 +591,8 @@ class AtomicBatchConsensusServiceEndToEndTest {
                         if ("true".equals(flag)) {
                             return validateChargedUsdWithinWithTxnSize(
                                     "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
-                                            SIGNATURES, 1,
-                                            TXN_SIZE, txnSize)), 0.001);
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                    0.001);
                         } else {
                             return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
                         }
@@ -660,9 +649,8 @@ class AtomicBatchConsensusServiceEndToEndTest {
                         if ("true".equals(flag)) {
                             return validateChargedUsdWithinWithTxnSize(
                                     "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
-                                            SIGNATURES, 1,
-                                            TXN_SIZE, txnSize)), 0.001);
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                    0.001);
                         } else {
                             return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
                         }
@@ -716,9 +704,8 @@ class AtomicBatchConsensusServiceEndToEndTest {
                         if ("true".equals(flag)) {
                             return validateChargedUsdWithinWithTxnSize(
                                     "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
-                                            SIGNATURES, 1,
-                                            TXN_SIZE, txnSize)), 0.001);
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                    0.001);
                         } else {
                             return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
                         }
@@ -772,9 +759,8 @@ class AtomicBatchConsensusServiceEndToEndTest {
                         if ("true".equals(flag)) {
                             return validateChargedUsdWithinWithTxnSize(
                                     "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
-                                            SIGNATURES, 1,
-                                            TXN_SIZE, txnSize)), 0.001);
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                    0.001);
                         } else {
                             return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
                         }
@@ -824,9 +810,8 @@ class AtomicBatchConsensusServiceEndToEndTest {
                         if ("true".equals(flag)) {
                             return validateChargedUsdWithinWithTxnSize(
                                     "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
-                                            SIGNATURES, 1,
-                                            TXN_SIZE, txnSize)), 0.001);
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                    0.001);
                         } else {
                             return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
                         }
@@ -878,9 +863,8 @@ class AtomicBatchConsensusServiceEndToEndTest {
                         if ("true".equals(flag)) {
                             return validateChargedUsdWithinWithTxnSize(
                                     "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
-                                            SIGNATURES, 1,
-                                            TXN_SIZE, txnSize)), 0.001);
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                    0.001);
                         } else {
                             return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
                         }
@@ -932,9 +916,8 @@ class AtomicBatchConsensusServiceEndToEndTest {
                         if ("true".equals(flag)) {
                             return validateChargedUsdWithinWithTxnSize(
                                     "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
-                                            SIGNATURES, 1,
-                                            TXN_SIZE, txnSize)), 0.001);
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                    0.001);
                         } else {
                             return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
                         }
@@ -986,9 +969,8 @@ class AtomicBatchConsensusServiceEndToEndTest {
                         if ("true".equals(flag)) {
                             return validateChargedUsdWithinWithTxnSize(
                                     "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
-                                            SIGNATURES, 1,
-                                            TXN_SIZE, txnSize)), 0.001);
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                    0.001);
                         } else {
                             return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
                         }
@@ -1050,9 +1032,8 @@ class AtomicBatchConsensusServiceEndToEndTest {
                         if ("true".equals(flag)) {
                             return validateChargedUsdWithinWithTxnSize(
                                     "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
-                                            SIGNATURES, 1,
-                                            TXN_SIZE, txnSize)), 0.001);
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                    0.001);
                         } else {
                             return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
                         }
@@ -1115,9 +1096,8 @@ class AtomicBatchConsensusServiceEndToEndTest {
                         if ("true".equals(flag)) {
                             return validateChargedUsdWithinWithTxnSize(
                                     "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
-                                            SIGNATURES, 1,
-                                            TXN_SIZE, txnSize)), 0.001);
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                    0.001);
                         } else {
                             return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
                         }
@@ -1168,9 +1148,8 @@ class AtomicBatchConsensusServiceEndToEndTest {
                         if ("true".equals(flag)) {
                             return validateChargedUsdWithinWithTxnSize(
                                     "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
-                                            SIGNATURES, 1,
-                                            TXN_SIZE, txnSize)), 0.001);
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                    0.001);
                         } else {
                             return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
                         }
@@ -1232,9 +1211,8 @@ class AtomicBatchConsensusServiceEndToEndTest {
                         if ("true".equals(flag)) {
                             return validateChargedUsdWithinWithTxnSize(
                                     "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
-                                            SIGNATURES, 1,
-                                            TXN_SIZE, txnSize)), 0.001);
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                    0.001);
                         } else {
                             return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
                         }
@@ -1289,9 +1267,8 @@ class AtomicBatchConsensusServiceEndToEndTest {
                         if ("true".equals(flag)) {
                             return validateChargedUsdWithinWithTxnSize(
                                     "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
-                                            SIGNATURES, 1,
-                                            TXN_SIZE, txnSize)), 0.001);
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                    0.001);
                         } else {
                             return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
                         }
@@ -1345,9 +1322,8 @@ class AtomicBatchConsensusServiceEndToEndTest {
                         if ("true".equals(flag)) {
                             return validateChargedUsdWithinWithTxnSize(
                                     "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
-                                            SIGNATURES, 1,
-                                            TXN_SIZE, txnSize)), 0.001);
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                    0.001);
                         } else {
                             return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
                         }
@@ -1397,9 +1373,8 @@ class AtomicBatchConsensusServiceEndToEndTest {
                         if ("true".equals(flag)) {
                             return validateChargedUsdWithinWithTxnSize(
                                     "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
-                                            SIGNATURES, 1,
-                                            TXN_SIZE, txnSize)), 0.001);
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                    0.001);
                         } else {
                             return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
                         }
@@ -1456,9 +1431,8 @@ class AtomicBatchConsensusServiceEndToEndTest {
                         if ("true".equals(flag)) {
                             return validateChargedUsdWithinWithTxnSize(
                                     "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
-                                            SIGNATURES, 1,
-                                            TXN_SIZE, txnSize)), 0.001);
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                    0.001);
                         } else {
                             return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
                         }
@@ -1504,9 +1478,8 @@ class AtomicBatchConsensusServiceEndToEndTest {
                         if ("true".equals(flag)) {
                             return validateChargedUsdWithinWithTxnSize(
                                     "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
-                                            SIGNATURES, 1,
-                                            TXN_SIZE, txnSize)), 0.001);
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                    0.001);
                         } else {
                             return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
                         }
@@ -1555,9 +1528,8 @@ class AtomicBatchConsensusServiceEndToEndTest {
                         if ("true".equals(flag)) {
                             return validateChargedUsdWithinWithTxnSize(
                                     "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
-                                            SIGNATURES, 1,
-                                            TXN_SIZE, txnSize)), 0.001);
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                    0.001);
                         } else {
                             return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
                         }
@@ -1634,9 +1606,8 @@ class AtomicBatchConsensusServiceEndToEndTest {
                         if ("true".equals(flag)) {
                             return validateChargedUsdWithinWithTxnSize(
                                     "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
-                                            SIGNATURES, 1,
-                                            TXN_SIZE, txnSize)), 0.001);
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                    0.001);
                         } else {
                             return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
                         }
@@ -1698,9 +1669,8 @@ class AtomicBatchConsensusServiceEndToEndTest {
                         if ("true".equals(flag)) {
                             return validateChargedUsdWithinWithTxnSize(
                                     "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
-                                            SIGNATURES, 1,
-                                            TXN_SIZE, txnSize)), 0.001);
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                    0.001);
                         } else {
                             return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
                         }
@@ -1762,9 +1732,8 @@ class AtomicBatchConsensusServiceEndToEndTest {
                         if ("true".equals(flag)) {
                             return validateChargedUsdWithinWithTxnSize(
                                     "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
-                                            SIGNATURES, 1,
-                                            TXN_SIZE, txnSize)), 0.001);
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                    0.001);
                         } else {
                             return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
                         }
@@ -1826,9 +1795,8 @@ class AtomicBatchConsensusServiceEndToEndTest {
                         if ("true".equals(flag)) {
                             return validateChargedUsdWithinWithTxnSize(
                                     "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
-                                            SIGNATURES, 1,
-                                            TXN_SIZE, txnSize)), 0.001);
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                    0.001);
                         } else {
                             return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
                         }
@@ -1903,9 +1871,8 @@ class AtomicBatchConsensusServiceEndToEndTest {
                         if ("true".equals(flag)) {
                             return validateChargedUsdWithinWithTxnSize(
                                     "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
-                                            SIGNATURES, 1,
-                                            TXN_SIZE, txnSize)), 0.001);
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                    0.001);
                         } else {
                             return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
                         }
@@ -1967,9 +1934,8 @@ class AtomicBatchConsensusServiceEndToEndTest {
                         if ("true".equals(flag)) {
                             return validateChargedUsdWithinWithTxnSize(
                                     "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
-                                            SIGNATURES, 1,
-                                            TXN_SIZE, txnSize)), 0.001);
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                    0.001);
                         } else {
                             return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
                         }
@@ -2041,9 +2007,8 @@ class AtomicBatchConsensusServiceEndToEndTest {
                         if ("true".equals(flag)) {
                             return validateChargedUsdWithinWithTxnSize(
                                     "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
-                                            SIGNATURES, 1,
-                                            TXN_SIZE, txnSize)), 0.001);
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                    0.001);
                         } else {
                             return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
                         }
@@ -2099,9 +2064,8 @@ class AtomicBatchConsensusServiceEndToEndTest {
                         if ("true".equals(flag)) {
                             return validateChargedUsdWithinWithTxnSize(
                                     "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
-                                            SIGNATURES, 1,
-                                            TXN_SIZE, txnSize)), 0.001);
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                    0.001);
                         } else {
                             return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
                         }
@@ -2149,9 +2113,8 @@ class AtomicBatchConsensusServiceEndToEndTest {
                         if ("true".equals(flag)) {
                             return validateChargedUsdWithinWithTxnSize(
                                     "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
-                                            SIGNATURES, 1,
-                                            TXN_SIZE, txnSize)), 0.001);
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                    0.001);
                         } else {
                             return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
                         }
@@ -2211,9 +2174,8 @@ class AtomicBatchConsensusServiceEndToEndTest {
                         if ("true".equals(flag)) {
                             return validateChargedUsdWithinWithTxnSize(
                                     "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
-                                            SIGNATURES, 1,
-                                            TXN_SIZE, txnSize)), 0.001);
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                    0.001);
                         } else {
                             return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
                         }
@@ -2275,9 +2237,8 @@ class AtomicBatchConsensusServiceEndToEndTest {
                         if ("true".equals(flag)) {
                             return validateChargedUsdWithinWithTxnSize(
                                     "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
-                                            SIGNATURES, 1,
-                                            TXN_SIZE, txnSize)), 0.001);
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                    0.001);
                         } else {
                             return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
                         }
@@ -2349,9 +2310,8 @@ class AtomicBatchConsensusServiceEndToEndTest {
                         if ("true".equals(flag)) {
                             return validateChargedUsdWithinWithTxnSize(
                                     "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
-                                            SIGNATURES, 1,
-                                            TXN_SIZE, txnSize)), 0.001);
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                    0.001);
                         } else {
                             return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
                         }

@@ -12,19 +12,16 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.submitModified;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateInnerTxnChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.mod.ModificationUtils.withSuccessivelyVariedBodyIds;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.FeeParam.SIGNATURES;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.FeeParam.TXN_SIZE;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTopicDeleteFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdWithinWithTxnSize;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateInnerChargedUsdWithinWithTxnSize;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOPIC_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.UNAUTHORIZED;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
-
 import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
@@ -104,9 +101,8 @@ public class TopicDeleteSuite {
                     if ("true".equals(flag)) {
                         return validateChargedUsdWithinWithTxnSize(
                                 "topicDelete",
-                                txnSize -> expectedTopicDeleteFullFeeUsd(Map.of(
-                                        SIGNATURES, 1,
-                                        TXN_SIZE, txnSize)), 0.001);
+                                txnSize -> expectedTopicDeleteFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                0.001);
                     } else {
                         return validateChargedUsd("topicDelete", 0.005);
                     }

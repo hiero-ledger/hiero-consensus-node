@@ -58,6 +58,8 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
 import static com.hedera.services.bdd.suites.contract.leaky.LeakyContractTestsSuite.RECEIVER;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.FeeParam.SIGNATURES;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.FeeParam.TOKEN_TYPES;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenCreateNftFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenCreateNftWithCustomFeesFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenMintNftFullFeeUsd;
@@ -634,7 +636,10 @@ public class TokenServiceFeesSuite {
                         BASE_TXN,
                         expectedFee,
                         ALLOWED_DIFFERENCE_PERCENTAGE,
-                        expectedTokenMintNftFullFeeUsd(0, 10) + PROCESSING_BYTES_FEE_USD * 117 * 10,
+                        expectedTokenMintNftFullFeeUsd(Map.of(
+                                        SIGNATURES, 1,
+                                        TOKEN_TYPES, 1))
+                                + PROCESSING_BYTES_FEE_USD * 117 * 10,
                         0.01));
     }
 

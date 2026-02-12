@@ -31,7 +31,11 @@ import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.FeeParam.SIGNATURES;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.FeeParam.TOKEN_TYPES;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.FeeParam.TXN_SIZE;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenMintNftFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdWithinWithTxnSize;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -47,6 +51,7 @@ import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.TransactionRecord;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
@@ -95,9 +100,12 @@ public class AllBaseOpFeesSuite {
                         return withOpContext((spec, log) -> {
                             allRunFor(
                                     spec,
-                                    validateChargedUsdWithin(
+                                    validateChargedUsdWithinWithTxnSize(
                                             "moreSigsTxn",
-                                            expectedTokenMintNftFullFeeUsd(1, 1),
+                                            txnSize -> expectedTokenMintNftFullFeeUsd(Map.of(
+                                                    SIGNATURES, 1,
+                                                    TOKEN_TYPES, 1,
+                                                    TXN_SIZE, txnSize)),
                                             ALLOWED_DIFFERENCE_PERCENTAGE));
                         });
                     } else {

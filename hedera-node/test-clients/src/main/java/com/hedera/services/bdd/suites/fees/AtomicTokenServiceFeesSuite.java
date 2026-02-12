@@ -57,7 +57,6 @@ import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.Fee
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.FeeParam.TXN_SIZE;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedCryptoTransferFTFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedCryptoTransferNFTFullFeeUsd;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedPrngFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenAssociateFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenBurnFungibleFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenCancelAirdropFullFeeUsd;
@@ -187,10 +186,13 @@ class AtomicTokenServiceFeesSuite {
                                 "airdrop",
                                 ATOMIC_BATCH,
                                 txnSize -> expectedCryptoTransferFTFullFeeUsd(Map.of(
-                                        SIGNATURES, 1,
-                                        ACCOUNTS, 2,
-                                        FUNGIBLE_TOKENS, 1,
-                                        TXN_SIZE, txnSize)) + TOKEN_ASSOCIATE_BASE_FEE_USD + AIRDROPS_FEE_USD, 0.1);
+                                                SIGNATURES, 1,
+                                                ACCOUNTS, 2,
+                                                FUNGIBLE_TOKENS, 1,
+                                                TXN_SIZE, txnSize))
+                                        + TOKEN_ASSOCIATE_BASE_FEE_USD
+                                        + AIRDROPS_FEE_USD,
+                                0.1);
                     } else {
                         return validateInnerTxnChargedUsd("airdrop", ATOMIC_BATCH, 0.1, 1);
                     }
@@ -234,10 +236,13 @@ class AtomicTokenServiceFeesSuite {
                                 "airdrop",
                                 ATOMIC_BATCH,
                                 txnSize -> expectedCryptoTransferNFTFullFeeUsd(Map.of(
-                                        SIGNATURES, 1,
-                                        ACCOUNTS, 2,
-                                        NON_FUNGIBLE_TOKENS, 1,
-                                        TXN_SIZE, txnSize)) + TOKEN_ASSOCIATE_BASE_FEE_USD + AIRDROPS_FEE_USD, 0.1);
+                                                SIGNATURES, 1,
+                                                ACCOUNTS, 2,
+                                                NON_FUNGIBLE_TOKENS, 1,
+                                                TXN_SIZE, txnSize))
+                                        + TOKEN_ASSOCIATE_BASE_FEE_USD
+                                        + AIRDROPS_FEE_USD,
+                                0.1);
                     } else {
                         return validateInnerTxnChargedUsd("airdrop", ATOMIC_BATCH, 0.1, 1);
                     }
@@ -285,9 +290,9 @@ class AtomicTokenServiceFeesSuite {
                         return validateInnerChargedUsdWithinWithTxnSize(
                                 "claimTxn",
                                 ATOMIC_BATCH,
-                                txnSize -> expectedTokenClaimAirdropFullFeeUsd(Map.of(
-                                        SIGNATURES, 1,
-                                        TXN_SIZE, txnSize)), 0.1);
+                                txnSize ->
+                                        expectedTokenClaimAirdropFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                0.1);
                     } else {
                         return validateInnerTxnChargedUsd("claimTxn", ATOMIC_BATCH, 0.001, 1);
                     }
@@ -338,9 +343,9 @@ class AtomicTokenServiceFeesSuite {
                         return validateInnerChargedUsdWithinWithTxnSize(
                                 "cancelAirdrop",
                                 ATOMIC_BATCH,
-                                txnSize -> expectedTokenCancelAirdropFullFeeUsd(Map.of(
-                                        SIGNATURES, 1,
-                                        TXN_SIZE, txnSize)), 0.1);
+                                txnSize ->
+                                        expectedTokenCancelAirdropFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                0.1);
                     } else {
                         return validateInnerTxnChargedUsd("cancelAirdrop", ATOMIC_BATCH, 0.001, 1);
                     }
@@ -399,9 +404,9 @@ class AtomicTokenServiceFeesSuite {
                         return validateInnerChargedUsdWithinWithTxnSize(
                                 "cancelAirdrop",
                                 ATOMIC_BATCH,
-                                txnSize -> expectedTokenCancelAirdropFullFeeUsd(Map.of(
-                                        SIGNATURES, 1,
-                                        TXN_SIZE, txnSize)), 0.1);
+                                txnSize ->
+                                        expectedTokenCancelAirdropFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                0.1);
                     } else {
                         return validateInnerTxnChargedUsd("cancelAirdrop", ATOMIC_BATCH, 0.001, 1);
                     }
@@ -459,7 +464,8 @@ class AtomicTokenServiceFeesSuite {
                                         SIGNATURES, 1,
                                         ACCOUNTS, 2,
                                         NON_FUNGIBLE_TOKENS, 1,
-                                        TXN_SIZE, txnSize)), 0.1);
+                                        TXN_SIZE, txnSize)),
+                                0.1);
                     } else {
                         return validateInnerTxnChargedUsd(
                                 "nftTransfer", ATOMIC_BATCH, EXPECTED_NFT_REJECT_PRICE_USD, ALLOWED_DIFFERENCE);
@@ -488,10 +494,14 @@ class AtomicTokenServiceFeesSuite {
                                         SIGNATURES, 1,
                                         ACCOUNTS, 2,
                                         FUNGIBLE_TOKENS, 1,
-                                        TXN_SIZE, txnSize)), 0.1);
+                                        TXN_SIZE, txnSize)),
+                                0.1);
                     } else {
                         return validateInnerTxnChargedUsd(
-                                "fungibleTransfer", ATOMIC_BATCH, EXPECTED_FUNGIBLE_REJECT_PRICE_USD, ALLOWED_DIFFERENCE);
+                                "fungibleTransfer",
+                                ATOMIC_BATCH,
+                                EXPECTED_FUNGIBLE_REJECT_PRICE_USD,
+                                ALLOWED_DIFFERENCE);
                     }
                 })));
     }
@@ -519,9 +529,8 @@ class AtomicTokenServiceFeesSuite {
                         return validateInnerChargedUsdWithinWithTxnSize(
                                 "rejectFungible",
                                 ATOMIC_BATCH,
-                                txnSize -> expectedTokenRejectFullFeeUsd(Map.of(
-                                        SIGNATURES, 1,
-                                        TXN_SIZE, txnSize)), 0.1);
+                                txnSize -> expectedTokenRejectFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                0.1);
                     } else {
                         return validateInnerTxnChargedUsd(
                                 "rejectFungible", ATOMIC_BATCH, EXPECTED_FUNGIBLE_REJECT_PRICE_USD, ALLOWED_DIFFERENCE);
@@ -551,9 +560,8 @@ class AtomicTokenServiceFeesSuite {
                         return validateInnerChargedUsdWithinWithTxnSize(
                                 "rejectNft",
                                 ATOMIC_BATCH,
-                                txnSize -> expectedTokenRejectFullFeeUsd(Map.of(
-                                        SIGNATURES, 1,
-                                        TXN_SIZE, txnSize)), 0.1);
+                                txnSize -> expectedTokenRejectFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                0.1);
                     } else {
                         return validateInnerTxnChargedUsd(
                                 "rejectNft", ATOMIC_BATCH, EXPECTED_NFT_REJECT_PRICE_USD, ALLOWED_DIFFERENCE);
@@ -605,11 +613,11 @@ class AtomicTokenServiceFeesSuite {
                         return validateInnerChargedUsdWithinWithTxnSize(
                                 txnFor(commonNoFees),
                                 ATOMIC_BATCH,
-                                txnSize -> expectedTokenCreateFullFeeUsd(Map.of(
-                                        SIGNATURES, 1,
-                                        TXN_SIZE, txnSize)), 0.1);
+                                txnSize -> expectedTokenCreateFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                0.1);
                     } else {
-                        return validateInnerTxnChargedUsd(txnFor(commonNoFees), ATOMIC_BATCH, expectedCommonNoCustomFeesPriceUsd, 1);
+                        return validateInnerTxnChargedUsd(
+                                txnFor(commonNoFees), ATOMIC_BATCH, expectedCommonNoCustomFeesPriceUsd, 1);
                     }
                 })));
     }
@@ -649,7 +657,8 @@ class AtomicTokenServiceFeesSuite {
                                 txnSize -> expectedTokenCreateWithCustomFullFeeUsd(Map.of(
                                         SIGNATURES, 1,
                                         KEYS, 2,
-                                        TXN_SIZE, txnSize)), 0.1);
+                                        TXN_SIZE, txnSize)),
+                                0.1);
                     } else {
                         return validateInnerTxnChargedUsd(
                                 txnFor(commonWithFees), ATOMIC_BATCH, expectedCommonWithCustomFeesPriceUsd, 1);
@@ -692,9 +701,11 @@ class AtomicTokenServiceFeesSuite {
                                 txnSize -> expectedTokenCreateFullFeeUsd(Map.of(
                                         SIGNATURES, 1,
                                         KEYS, 2,
-                                        TXN_SIZE, txnSize)), 0.1);
+                                        TXN_SIZE, txnSize)),
+                                0.1);
                     } else {
-                        return validateInnerTxnChargedUsd(txnFor(uniqueNoFees), ATOMIC_BATCH, expectedUniqueNoCustomFeesPriceUsd, 1);
+                        return validateInnerTxnChargedUsd(
+                                txnFor(uniqueNoFees), ATOMIC_BATCH, expectedUniqueNoCustomFeesPriceUsd, 1);
                     }
                 })));
     }
@@ -737,7 +748,8 @@ class AtomicTokenServiceFeesSuite {
                                 txnSize -> expectedTokenCreateWithCustomFullFeeUsd(Map.of(
                                         SIGNATURES, 1,
                                         KEYS, 3,
-                                        TXN_SIZE, txnSize)), 0.1);
+                                        TXN_SIZE, txnSize)),
+                                0.1);
                     } else {
                         return validateInnerTxnChargedUsd(
                                 txnFor(uniqueWithFees), ATOMIC_BATCH, expectedUniqueWithCustomFeesPriceUsd, 1);
@@ -780,9 +792,9 @@ class AtomicTokenServiceFeesSuite {
                         return validateInnerChargedUsdWithinWithTxnSize(
                                 "baseFeeSchUpd",
                                 ATOMIC_BATCH,
-                                txnSize -> expectedTokenFeeScheduleUpdateFullFeeUsd(Map.of(
-                                        SIGNATURES, 1,
-                                        TXN_SIZE, txnSize)), 0.1);
+                                txnSize -> expectedTokenFeeScheduleUpdateFullFeeUsd(
+                                        Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                0.1);
                     } else {
                         return validateInnerTxnChargedUsd("baseFeeSchUpd", ATOMIC_BATCH, expectedBasePriceUsd, 5);
                     }
@@ -818,11 +830,12 @@ class AtomicTokenServiceFeesSuite {
                         return validateInnerChargedUsdWithinWithTxnSize(
                                 "fungibleMint",
                                 ATOMIC_BATCH,
-                                txnSize -> expectedTokenMintFungibleFullFeeUsd(Map.of(
-                                        SIGNATURES, 1,
-                                        TXN_SIZE, txnSize)), 0.1);
+                                txnSize ->
+                                        expectedTokenMintFungibleFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                0.1);
                     } else {
-                        return validateInnerTxnChargedUsd("fungibleMint", ATOMIC_BATCH, EXPECTED_FUNGIBLE_MINT_PRICE_USD, 10);
+                        return validateInnerTxnChargedUsd(
+                                "fungibleMint", ATOMIC_BATCH, EXPECTED_FUNGIBLE_MINT_PRICE_USD, 10);
                     }
                 }));
     }
@@ -864,7 +877,8 @@ class AtomicTokenServiceFeesSuite {
                                 txnSize -> expectedTokenMintNftFullFeeUsd(Map.of(
                                         SIGNATURES, 1,
                                         NON_FUNGIBLE_TOKENS, 1,
-                                        TXN_SIZE, txnSize)), 0.1);
+                                        TXN_SIZE, txnSize)),
+                                0.1);
                     } else {
                         return validateInnerTxnChargedUsd(
                                 BASE_TXN, ATOMIC_BATCH, EXPECTED_NFT_MINT_PRICE_USD, ALLOWED_DIFFERENCE_PERCENTAGE);
@@ -922,9 +936,11 @@ class AtomicTokenServiceFeesSuite {
                                 txnSize -> expectedTokenMintNftFullFeeUsd(Map.of(
                                         SIGNATURES, 1,
                                         NON_FUNGIBLE_TOKENS, 10,
-                                        TXN_SIZE, txnSize)), 0.1);
+                                        TXN_SIZE, txnSize)),
+                                0.1);
                     } else {
-                        return validateInnerTxnChargedUsd(BASE_TXN, ATOMIC_BATCH, expectedFee, ALLOWED_DIFFERENCE_PERCENTAGE);
+                        return validateInnerTxnChargedUsd(
+                                BASE_TXN, ATOMIC_BATCH, expectedFee, ALLOWED_DIFFERENCE_PERCENTAGE);
                     }
                 }));
     }
@@ -958,9 +974,9 @@ class AtomicTokenServiceFeesSuite {
                         return validateInnerChargedUsdWithinWithTxnSize(
                                 BASE_TXN,
                                 ATOMIC_BATCH,
-                                txnSize -> expectedTokenBurnFungibleFullFeeUsd(Map.of(
-                                        SIGNATURES, 1,
-                                        TXN_SIZE, txnSize)), 0.1);
+                                txnSize ->
+                                        expectedTokenBurnFungibleFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                0.1);
                     } else {
                         return validateInnerTxnChargedUsd(BASE_TXN, ATOMIC_BATCH, EXPECTED_NFT_BURN_PRICE_USD, 5);
                     }
@@ -1004,9 +1020,8 @@ class AtomicTokenServiceFeesSuite {
                         return validateInnerChargedUsdWithinWithTxnSize(
                                 "grantKyc",
                                 ATOMIC_BATCH,
-                                txnSize -> expectedTokenGrantKycFullFeeUsd(Map.of(
-                                        SIGNATURES, 1,
-                                        TXN_SIZE, txnSize)), 0.1);
+                                txnSize -> expectedTokenGrantKycFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                0.1);
                     } else {
                         return validateInnerTxnChargedUsd("grantKyc", ATOMIC_BATCH, EXPECTED_GRANTKYC_PRICE_USD, 10);
                     }
@@ -1032,9 +1047,8 @@ class AtomicTokenServiceFeesSuite {
                         return validateInnerChargedUsdWithinWithTxnSize(
                                 "revokeKyc",
                                 ATOMIC_BATCH,
-                                txnSize -> expectedTokenRevokeKycFullFeeUsd(Map.of(
-                                        SIGNATURES, 1,
-                                        TXN_SIZE, txnSize)), 0.1);
+                                txnSize -> expectedTokenRevokeKycFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                0.1);
                     } else {
                         return validateInnerTxnChargedUsd("revokeKyc", ATOMIC_BATCH, EXPECTED_REVOKEKYC_PRICE_USD, 10);
                     }
@@ -1088,9 +1102,8 @@ class AtomicTokenServiceFeesSuite {
                         return validateInnerChargedUsdWithinWithTxnSize(
                                 "freeze",
                                 ATOMIC_BATCH,
-                                txnSize -> expectedTokenFreezeFullFeeUsd(Map.of(
-                                        SIGNATURES, 1,
-                                        TXN_SIZE, txnSize)), 0.1);
+                                txnSize -> expectedTokenFreezeFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                0.1);
                     } else {
                         return validateInnerTxnChargedUsd("freeze", ATOMIC_BATCH, EXPECTED_FREEZE_PRICE_USD, 5);
                     }
@@ -1116,9 +1129,8 @@ class AtomicTokenServiceFeesSuite {
                         return validateInnerChargedUsdWithinWithTxnSize(
                                 UNFREEZE,
                                 ATOMIC_BATCH,
-                                txnSize -> expectedTokenUnfreezeFullFeeUsd(Map.of(
-                                        SIGNATURES, 1,
-                                        TXN_SIZE, txnSize)), 0.1);
+                                txnSize -> expectedTokenUnfreezeFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                0.1);
                     } else {
                         return validateInnerTxnChargedUsd(UNFREEZE, ATOMIC_BATCH, EXPECTED_UNFREEZE_PRICE_USD, 5);
                     }
@@ -1169,9 +1181,8 @@ class AtomicTokenServiceFeesSuite {
                         return validateInnerChargedUsdWithinWithTxnSize(
                                 "freeze",
                                 ATOMIC_BATCH,
-                                txnSize -> expectedTokenFreezeFullFeeUsd(Map.of(
-                                        SIGNATURES, 1,
-                                        TXN_SIZE, txnSize)), 0.1);
+                                txnSize -> expectedTokenFreezeFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                0.1);
                     } else {
                         return validateInnerTxnChargedUsd("freeze", ATOMIC_BATCH, EXPECTED_FREEZE_PRICE_USD, 5);
                     }
@@ -1197,9 +1208,8 @@ class AtomicTokenServiceFeesSuite {
                         return validateInnerChargedUsdWithinWithTxnSize(
                                 UNFREEZE,
                                 ATOMIC_BATCH,
-                                txnSize -> expectedTokenUnfreezeFullFeeUsd(Map.of(
-                                        SIGNATURES, 1,
-                                        TXN_SIZE, txnSize)), 0.1);
+                                txnSize -> expectedTokenUnfreezeFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                0.1);
                     } else {
                         return validateInnerTxnChargedUsd(UNFREEZE, ATOMIC_BATCH, EXPECTED_UNFREEZE_PRICE_USD, 5);
                     }
@@ -1241,9 +1251,8 @@ class AtomicTokenServiceFeesSuite {
                         return validateInnerChargedUsdWithinWithTxnSize(
                                 tokenPauseTransaction,
                                 ATOMIC_BATCH,
-                                txnSize -> expectedTokenPauseFullFeeUsd(Map.of(
-                                        SIGNATURES, 1,
-                                        TXN_SIZE, txnSize)), 0.1);
+                                txnSize -> expectedTokenPauseFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                0.1);
                     } else {
                         return validateInnerTxnChargedUsd(tokenPauseTransaction, ATOMIC_BATCH, expectedBaseFee, 5);
                     }
@@ -1273,9 +1282,8 @@ class AtomicTokenServiceFeesSuite {
                         return validateInnerChargedUsdWithinWithTxnSize(
                                 tokenUnpauseTransaction,
                                 ATOMIC_BATCH,
-                                txnSize -> expectedTokenUnpauseFullFeeUsd(Map.of(
-                                        SIGNATURES, 1,
-                                        TXN_SIZE, txnSize)), 0.1);
+                                txnSize -> expectedTokenUnpauseFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                0.1);
                     } else {
                         return validateInnerTxnChargedUsd(tokenUnpauseTransaction, ATOMIC_BATCH, expectedBaseFee, 5);
                     }
@@ -1345,9 +1353,8 @@ class AtomicTokenServiceFeesSuite {
                         return validateInnerChargedUsdWithinWithTxnSize(
                                 "uniqueTokenUpdate",
                                 ATOMIC_BATCH,
-                                txnSize -> expectedTokenUpdateFullFeeUsd(Map.of(
-                                        SIGNATURES, 1,
-                                        TXN_SIZE, txnSize)), 0.1);
+                                txnSize -> expectedTokenUpdateFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                0.1);
                     } else {
                         return validateInnerTxnChargedUsd("uniqueTokenUpdate", ATOMIC_BATCH, expectedUpdatePriceUsd, 5);
                     }
@@ -1402,7 +1409,8 @@ class AtomicTokenServiceFeesSuite {
                                 txnSize -> expectedTokenNftUpdateFullFeeUsd(Map.of(
                                         SIGNATURES, 1,
                                         NON_FUNGIBLE_TOKENS, 7,
-                                        TXN_SIZE, txnSize)), 0.1);
+                                        TXN_SIZE, txnSize)),
+                                0.1);
                     } else {
                         return validateInnerTxnChargedUsd(nftUpdateTxn, ATOMIC_BATCH, expectedNftUpdatePriceUsd, 0.01);
                     }
@@ -1437,7 +1445,8 @@ class AtomicTokenServiceFeesSuite {
                                 txnSize -> expectedTokenDeleteFullFeeUsd(Map.of(
                                         SIGNATURES, 1,
                                         NON_FUNGIBLE_TOKENS, 1,
-                                        TXN_SIZE, txnSize)), 0.1);
+                                        TXN_SIZE, txnSize)),
+                                0.1);
                     } else {
                         return validateInnerTxnChargedUsd("uniqueTokenDelete", ATOMIC_BATCH, expectedDeletePriceUsd, 5);
                     }
@@ -1477,7 +1486,8 @@ class AtomicTokenServiceFeesSuite {
                                         txnSize -> expectedTokenAssociateFullFeeUsd(Map.of(
                                                 SIGNATURES, 1,
                                                 TOKENS, 1,
-                                                TXN_SIZE, txnSize)), 0.1);
+                                                TXN_SIZE, txnSize)),
+                                        0.1);
                             } else {
                                 return validateInnerTxnChargedUsd("tokenAssociate", ATOMIC_BATCH, 0.05, 5);
                             }
@@ -1508,9 +1518,9 @@ class AtomicTokenServiceFeesSuite {
                                 return validateInnerChargedUsdWithinWithTxnSize(
                                         "tokenDissociate",
                                         ATOMIC_BATCH,
-                                        txnSize -> expectedTokenDissociateFullFeeUsd(Map.of(
-                                                SIGNATURES, 1,
-                                                TXN_SIZE, txnSize)), 0.1);
+                                        txnSize -> expectedTokenDissociateFullFeeUsd(
+                                                Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                        0.1);
                             } else {
                                 return validateInnerTxnChargedUsd("tokenDissociate", ATOMIC_BATCH, 0.05, 5);
                             }
@@ -1567,7 +1577,8 @@ class AtomicTokenServiceFeesSuite {
                                 txnSize -> expectedTokenNftUpdateFullFeeUsd(Map.of(
                                         SIGNATURES, 1,
                                         NON_FUNGIBLE_TOKENS, 5,
-                                        TXN_SIZE, txnSize)), 0.1);
+                                        TXN_SIZE, txnSize)),
+                                0.1);
                     } else {
                         return validateInnerTxnChargedUsd(nftUpdateTxn, ATOMIC_BATCH, expectedNftUpdatePriceUsd, 0.01);
                     }
@@ -1621,7 +1632,8 @@ class AtomicTokenServiceFeesSuite {
                                 txnSize -> expectedTokenNftUpdateFullFeeUsd(Map.of(
                                         SIGNATURES, 1,
                                         NON_FUNGIBLE_TOKENS, 1,
-                                        TXN_SIZE, txnSize)), 0.1);
+                                        TXN_SIZE, txnSize)),
+                                0.1);
                     } else {
                         return validateInnerTxnChargedUsd("nftUpdateTxn", ATOMIC_BATCH, expectedTokenUpdateNfts, 1);
                     }

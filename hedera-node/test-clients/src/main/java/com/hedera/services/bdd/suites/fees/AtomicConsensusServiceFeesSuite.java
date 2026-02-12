@@ -19,7 +19,6 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.FeeParam.BYTES;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.FeeParam.KEYS;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.FeeParam.SIGNATURES;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.FeeParam.TXN_SIZE;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTopicCreateFullFeeUsd;
@@ -85,9 +84,8 @@ class AtomicConsensusServiceFeesSuite {
                         return validateInnerChargedUsdWithinWithTxnSize(
                                 "topicCreate",
                                 ATOMIC_BATCH,
-                                txnSize -> expectedTopicCreateFullFeeUsd(Map.of(
-                                        SIGNATURES, 1,
-                                        TXN_SIZE, txnSize)), 0.001);
+                                txnSize -> expectedTopicCreateFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                0.001);
                     } else {
                         return validateInnerTxnChargedUsd("topicCreate", ATOMIC_BATCH, BASE_FEE_TOPIC_CREATE, 6);
                     }
@@ -113,9 +111,9 @@ class AtomicConsensusServiceFeesSuite {
                         return validateInnerChargedUsdWithinWithTxnSize(
                                 "topicCreateWithCustomFee",
                                 ATOMIC_BATCH,
-                                txnSize -> expectedTopicCreateWithCustomFeeFullFeeUsd(Map.of(
-                                        SIGNATURES, 1,
-                                        TXN_SIZE, txnSize)), 0.001);
+                                txnSize -> expectedTopicCreateWithCustomFeeFullFeeUsd(
+                                        Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                0.001);
                     } else {
                         return validateInnerTxnChargedUsd(
                                 "topicCreateWithCustomFee", ATOMIC_BATCH, BASE_FEE_TOPIC_CREATE_WITH_CUSTOM_FEE, 5);
@@ -147,12 +145,15 @@ class AtomicConsensusServiceFeesSuite {
                         return validateInnerChargedUsdWithinWithTxnSize(
                                 "topicCreateWithMultipleCustomFees",
                                 ATOMIC_BATCH,
-                                txnSize -> expectedTopicCreateWithCustomFeeFullFeeUsd(Map.of(
-                                        SIGNATURES, 1,
-                                        TXN_SIZE, txnSize)), 0.001);
+                                txnSize -> expectedTopicCreateWithCustomFeeFullFeeUsd(
+                                        Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                0.001);
                     } else {
                         return validateInnerTxnChargedUsd(
-                                "topicCreateWithMultipleCustomFees", ATOMIC_BATCH, TOPIC_CREATE_WITH_FIVE_CUSTOM_FEES, 5);
+                                "topicCreateWithMultipleCustomFees",
+                                ATOMIC_BATCH,
+                                TOPIC_CREATE_WITH_FIVE_CUSTOM_FEES,
+                                5);
                     }
                 })));
     }
@@ -182,9 +183,8 @@ class AtomicConsensusServiceFeesSuite {
                         return validateInnerChargedUsdWithinWithTxnSize(
                                 "updateTopic",
                                 ATOMIC_BATCH,
-                                txnSize -> expectedTopicUpdateFullFeeUsd(Map.of(
-                                        SIGNATURES, 1,
-                                        TXN_SIZE, txnSize)), 0.001);
+                                txnSize -> expectedTopicUpdateFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                0.001);
                     } else {
                         return validateInnerTxnChargedUsd("updateTopic", ATOMIC_BATCH, BASE_FEE_TOPIC_UPDATE, 10);
                     }
@@ -211,9 +211,8 @@ class AtomicConsensusServiceFeesSuite {
                         return validateInnerChargedUsdWithinWithTxnSize(
                                 "topicDelete",
                                 ATOMIC_BATCH,
-                                txnSize -> expectedTopicDeleteFullFeeUsd(Map.of(
-                                        SIGNATURES, 1,
-                                        TXN_SIZE, txnSize)), 0.001);
+                                txnSize -> expectedTopicDeleteFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                0.001);
                     } else {
                         return validateInnerTxnChargedUsd("topicDelete", ATOMIC_BATCH, BASE_FEE_TOPIC_DELETE, 10);
                     }
@@ -248,9 +247,11 @@ class AtomicConsensusServiceFeesSuite {
                                 txnSize -> expectedTopicSubmitMessageFullFeeUsd(Map.of(
                                         SIGNATURES, 1,
                                         BYTES, 100,
-                                        TXN_SIZE, txnSize)), 0.001);
+                                        TXN_SIZE, txnSize)),
+                                0.001);
                     } else {
-                        return validateInnerTxnChargedUsd("submitMessage", ATOMIC_BATCH, BASE_FEE_TOPIC_SUBMIT_MESSAGE, 6);
+                        return validateInnerTxnChargedUsd(
+                                "submitMessage", ATOMIC_BATCH, BASE_FEE_TOPIC_SUBMIT_MESSAGE, 6);
                     }
                 }));
     }

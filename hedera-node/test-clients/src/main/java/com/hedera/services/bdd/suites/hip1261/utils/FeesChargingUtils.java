@@ -5,8 +5,8 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.HapiTxnOp.serializedSignedTxFrom;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertionsHold;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.getChargedUsedForInnerTxn;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.getChargedUsedForInnerTxn;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithChild;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
@@ -18,7 +18,6 @@ import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleCon
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.AIRDROP_CANCEL_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.AIRDROP_CLAIM_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.ATOMIC_BATCH_BASE_FEE_USD;
-import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.BYTES_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.BATCH_BASE_FEE;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONS_CREATE_TOPIC_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONS_CREATE_TOPIC_INCLUDED_KEYS;
@@ -27,7 +26,6 @@ import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleCon
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONS_SUBMIT_MESSAGE_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONS_SUBMIT_MESSAGE_INCLUDED_BYTES;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE_USD;
-import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONS_SUBMIT_MESSAGE_INCLUDED_BYTES;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONS_UPDATE_TOPIC_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONS_UPDATE_TOPIC_INCLUDED_KEYS;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_APPROVE_ALLOWANCE_BASE_FEE_USD;
@@ -44,7 +42,6 @@ import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleCon
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_TRANSFER_INCLUDED_ACCOUNTS;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_TRANSFER_INCLUDED_GAS;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_TRANSFER_INCLUDED_HOOK_EXECUTION;
-import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_TRANSFER_INCLUDED_NON_FUNGIBLE_TOKENS;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_UPDATE_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_UPDATE_INCLUDED_HOOKS;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_UPDATE_INCLUDED_KEYS;
@@ -54,7 +51,6 @@ import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleCon
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.FILE_CREATE_INCLUDED_BYTES;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.FILE_CREATE_INCLUDED_KEYS;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.FILE_DELETE_BASE_FEE_USD;
-import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.FUNGIBLE_TOKENS_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.GAS_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.HOOK_EXECUTION_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.HOOK_UPDATES_FEE_USD;
@@ -66,7 +62,6 @@ import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleCon
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.PROCESSING_BYTES_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SIGNATURE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.STATE_BYTES_FEE_USD;
-import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SUBMIT_MESSAGE_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_ASSOCIATE_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_ASSOCIATE_EXTRA_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_ASSOCIATE_INCLUDED_TOKENS;
@@ -94,7 +89,6 @@ import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleCon
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_UPDATE_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_UPDATE_INCLUDED_KEYS;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_UPDATE_INCLUDED_NFT_COUNT;
-import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_UPDATE_INCLUDED_NFTS;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_UPDATE_NFT_FEE;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_WIPE_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.UTIL_PRNG_BASE_FEE_USD;
@@ -106,7 +100,6 @@ import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.utilops.CustomSpecAssert;
 import com.hederahashgraph.api.proto.java.Transaction;
-
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.IntToDoubleFunction;
@@ -242,8 +235,7 @@ public class FeesChargingUtils {
     public static double expectedCryptoDeleteFullFeeUsd(final Map<FeeParam, Object> extras) {
 
         return expectedCryptoDeleteFullFeeUsd(
-                longValue(extras, FeeParam.SIGNATURES, 0),
-                intValue(extras, FeeParam.TXN_SIZE, 0));
+                longValue(extras, FeeParam.SIGNATURES, 0), intValue(extras, FeeParam.TXN_SIZE, 0));
     }
 
     public static double expectedCryptoUpdateFullFeeUsd(long sigs, int keys, int hooks, int txnSize) {
@@ -348,10 +340,13 @@ public class FeesChargingUtils {
 
             final double actualUsdCharged = getChargedUsedForInnerTxn(spec, parentTxnId, innerTxnId);
 
-
             assertLog.info(
                     "Inner txn '{}' (parent '{}') signed size={} bytes, expectedUsd={}, actualUsd={}",
-                    innerTxnId, parentTxnId, signedInnerTxnSize, expectedUsd, actualUsdCharged);
+                    innerTxnId,
+                    parentTxnId,
+                    signedInnerTxnSize,
+                    expectedUsd,
+                    actualUsdCharged);
 
             assertEquals(
                     expectedUsd,
@@ -431,6 +426,7 @@ public class FeesChargingUtils {
         ACCOUNTS,
         FUNGIBLE_TOKENS,
         NON_FUNGIBLE_TOKENS,
+        TOKEN_TYPES,
         TOKEN_AIRDROPS,
         GAS,
         BYTES,
@@ -515,8 +511,7 @@ public class FeesChargingUtils {
                 longValue(extras, FeeParam.SIGNATURES, 0),
                 longValue(extras, FeeParam.HOOKS_EXECUTED, 0),
                 longValue(extras, FeeParam.ACCOUNTS, 0),
-                longValue(extras, FeeParam.FUNGIBLE_TOKENS, 0),
-                longValue(extras, FeeParam.NON_FUNGIBLE_TOKENS, 0),
+                longValue(extras, FeeParam.TOKEN_TYPES, 0),
                 longValue(extras, FeeParam.GAS, 0),
                 intValue(extras, FeeParam.TXN_SIZE, 0));
     }
@@ -541,8 +536,7 @@ public class FeesChargingUtils {
                 longValue(extras, FeeParam.SIGNATURES, 0),
                 longValue(extras, FeeParam.HOOKS_EXECUTED, 0),
                 longValue(extras, FeeParam.ACCOUNTS, 0),
-                longValue(extras, FeeParam.FUNGIBLE_TOKENS, 0),
-                longValue(extras, FeeParam.NON_FUNGIBLE_TOKENS, 0),
+                longValue(extras, FeeParam.TOKEN_TYPES, 0),
                 longValue(extras, FeeParam.GAS, 0),
                 intValue(extras, FeeParam.TXN_SIZE, 0));
     }
@@ -567,8 +561,7 @@ public class FeesChargingUtils {
                 longValue(extras, FeeParam.SIGNATURES, 0),
                 longValue(extras, FeeParam.HOOKS_EXECUTED, 0),
                 longValue(extras, FeeParam.ACCOUNTS, 0),
-                longValue(extras, FeeParam.FUNGIBLE_TOKENS, 0),
-                longValue(extras, FeeParam.NON_FUNGIBLE_TOKENS, 0),
+                longValue(extras, FeeParam.TOKEN_TYPES, 0),
                 longValue(extras, FeeParam.GAS, 0),
                 intValue(extras, FeeParam.TXN_SIZE, 0));
     }
@@ -654,8 +647,7 @@ public class FeesChargingUtils {
                 longValue(extras, FeeParam.SIGNATURES, 0),
                 longValue(extras, FeeParam.HOOKS_EXECUTED, 0),
                 longValue(extras, FeeParam.ACCOUNTS, 0),
-                longValue(extras, FeeParam.FUNGIBLE_TOKENS, 0),
-                longValue(extras, FeeParam.NON_FUNGIBLE_TOKENS, 0),
+                longValue(extras, FeeParam.TOKEN_TYPES, 0),
                 longValue(extras, FeeParam.GAS, 0),
                 intValue(extras, FeeParam.TXN_SIZE, 0));
     }
@@ -706,7 +698,8 @@ public class FeesChargingUtils {
         // ----- service fees -----
         final long keyExtrasService = Math.max(0L, keys - CONS_CREATE_TOPIC_INCLUDED_KEYS);
         final double serviceExtrasFee = keyExtrasService * KEYS_FEE_USD;
-        final double serviceFee = CONS_CREATE_TOPIC_BASE_FEE_USD + CONS_CREATE_TOPIC_WITH_CUSTOM_FEE_USD + serviceExtrasFee;
+        final double serviceFee =
+                CONS_CREATE_TOPIC_BASE_FEE_USD + CONS_CREATE_TOPIC_WITH_CUSTOM_FEE_USD + serviceExtrasFee;
 
         return nodeFee + networkFee + serviceFee;
     }
@@ -803,8 +796,7 @@ public class FeesChargingUtils {
 
     public static double expectedTopicDeleteFullFeeUsd(final Map<FeeParam, Object> extras) {
         return expectedTopicDeleteFullFeeUsd(
-                longValue(extras, FeeParam.SIGNATURES, 0),
-                intValue(extras, FeeParam.TXN_SIZE, 0));
+                longValue(extras, FeeParam.SIGNATURES, 0), intValue(extras, FeeParam.TXN_SIZE, 0));
     }
 
     public static double expectedTopicDeleteNetworkFeeOnlyUsd(long sigs) {
@@ -838,7 +830,7 @@ public class FeesChargingUtils {
 
         // ----- service fees -----
         final long byteExtrasService = Math.max(0L, messageBytes - CONS_SUBMIT_MESSAGE_INCLUDED_BYTES);
-        final double serviceBytesExtrasFee = byteExtrasService * BYTES_FEE_USD;
+        final double serviceBytesExtrasFee = byteExtrasService * STATE_BYTES_FEE_USD;
 
         double serviceBaseFee = CONS_SUBMIT_MESSAGE_BASE_FEE_USD;
         if (includesCustomFee) {
@@ -1185,8 +1177,7 @@ public class FeesChargingUtils {
 
     public static double expectedTokenDeleteFullFeeUsd(final Map<FeeParam, Object> extras) {
         return expectedTokenDeleteFullFeeUsd(
-                longValue(extras, FeeParam.SIGNATURES, 0),
-                intValue(extras, FeeParam.TXN_SIZE, 0));
+                longValue(extras, FeeParam.SIGNATURES, 0), intValue(extras, FeeParam.TXN_SIZE, 0));
     }
 
     /**
@@ -1231,8 +1222,7 @@ public class FeesChargingUtils {
     public static double expectedTokenMintFungibleFullFeeUsd(final Map<FeeParam, Object> extras) {
 
         return expectedTokenMintFungibleFullFeeUsd(
-                longValue(extras, FeeParam.SIGNATURES, 0),
-                intValue(extras, FeeParam.TXN_SIZE, 0));
+                longValue(extras, FeeParam.SIGNATURES, 0), intValue(extras, FeeParam.TXN_SIZE, 0));
     }
 
     /**
@@ -1263,7 +1253,7 @@ public class FeesChargingUtils {
 
         return expectedTokenMintNftFullFeeUsd(
                 longValue(extras, FeeParam.SIGNATURES, 0),
-                longValue(extras, FeeParam.NON_FUNGIBLE_TOKENS, 0),
+                longValue(extras, FeeParam.TOKEN_TYPES, 0),
                 intValue(extras, FeeParam.TXN_SIZE, 0));
     }
 
@@ -1308,8 +1298,7 @@ public class FeesChargingUtils {
 
     public static double expectedTokenBurnFungibleFullFeeUsd(final Map<FeeParam, Object> extras) {
         return expectedTokenBurnFungibleFullFeeUsd(
-                longValue(extras, FeeParam.SIGNATURES, 0),
-                intValue(extras, FeeParam.TXN_SIZE, 0));
+                longValue(extras, FeeParam.SIGNATURES, 0), intValue(extras, FeeParam.TXN_SIZE, 0));
     }
 
     /**
@@ -1422,8 +1411,7 @@ public class FeesChargingUtils {
 
     public static double expectedTokenDissociateFullFeeUsd(final Map<FeeParam, Object> extras) {
         return expectedTokenDissociateFullFeeUsd(
-                longValue(extras, FeeParam.SIGNATURES, 0),
-                intValue(extras, FeeParam.TXN_SIZE, 0));
+                longValue(extras, FeeParam.SIGNATURES, 0), intValue(extras, FeeParam.TXN_SIZE, 0));
     }
 
     /**
@@ -1462,10 +1450,9 @@ public class FeesChargingUtils {
         return expectedTokenGrantKycFullFeeUsd(sigs, 0);
     }
 
-public static double expectedTokenGrantKycFullFeeUsd(final Map<FeeParam, Object> extras) {
+    public static double expectedTokenGrantKycFullFeeUsd(final Map<FeeParam, Object> extras) {
         return expectedTokenGrantKycFullFeeUsd(
-                longValue(extras, FeeParam.SIGNATURES, 0),
-                intValue(extras, FeeParam.TXN_SIZE, 0));
+                longValue(extras, FeeParam.SIGNATURES, 0), intValue(extras, FeeParam.TXN_SIZE, 0));
     }
 
     /**
@@ -1507,10 +1494,9 @@ public static double expectedTokenGrantKycFullFeeUsd(final Map<FeeParam, Object>
         return expectedTokenRevokeKycFullFeeUsd(sigs, 0);
     }
 
-public static double expectedTokenRevokeKycFullFeeUsd(final Map<FeeParam, Object> extras) {
+    public static double expectedTokenRevokeKycFullFeeUsd(final Map<FeeParam, Object> extras) {
         return expectedTokenRevokeKycFullFeeUsd(
-                longValue(extras, FeeParam.SIGNATURES, 0),
-                intValue(extras, FeeParam.TXN_SIZE, 0));
+                longValue(extras, FeeParam.SIGNATURES, 0), intValue(extras, FeeParam.TXN_SIZE, 0));
     }
 
     /**
@@ -1552,10 +1538,9 @@ public static double expectedTokenRevokeKycFullFeeUsd(final Map<FeeParam, Object
         return expectedTokenFreezeFullFeeUsd(sigs, 0);
     }
 
-public static double expectedTokenFreezeFullFeeUsd(final Map<FeeParam, Object> extras) {
+    public static double expectedTokenFreezeFullFeeUsd(final Map<FeeParam, Object> extras) {
         return expectedTokenFreezeFullFeeUsd(
-                longValue(extras, FeeParam.SIGNATURES, 0),
-                intValue(extras, FeeParam.TXN_SIZE, 0));
+                longValue(extras, FeeParam.SIGNATURES, 0), intValue(extras, FeeParam.TXN_SIZE, 0));
     }
 
     /**
@@ -1594,10 +1579,9 @@ public static double expectedTokenFreezeFullFeeUsd(final Map<FeeParam, Object> e
         return expectedTokenUnfreezeFullFeeUsd(sigs, 0);
     }
 
-public static double expectedTokenUnfreezeFullFeeUsd(final Map<FeeParam, Object> extras) {
+    public static double expectedTokenUnfreezeFullFeeUsd(final Map<FeeParam, Object> extras) {
         return expectedTokenUnfreezeFullFeeUsd(
-                longValue(extras, FeeParam.SIGNATURES, 0),
-                intValue(extras, FeeParam.TXN_SIZE, 0));
+                longValue(extras, FeeParam.SIGNATURES, 0), intValue(extras, FeeParam.TXN_SIZE, 0));
     }
 
     /**
@@ -1636,10 +1620,9 @@ public static double expectedTokenUnfreezeFullFeeUsd(final Map<FeeParam, Object>
         return expectedTokenPauseFullFeeUsd(sigs, 0);
     }
 
-public static double expectedTokenPauseFullFeeUsd(final Map<FeeParam, Object> extras) {
+    public static double expectedTokenPauseFullFeeUsd(final Map<FeeParam, Object> extras) {
         return expectedTokenPauseFullFeeUsd(
-                longValue(extras, FeeParam.SIGNATURES, 0),
-                intValue(extras, FeeParam.TXN_SIZE, 0));
+                longValue(extras, FeeParam.SIGNATURES, 0), intValue(extras, FeeParam.TXN_SIZE, 0));
     }
 
     /**
@@ -1678,10 +1661,9 @@ public static double expectedTokenPauseFullFeeUsd(final Map<FeeParam, Object> ex
         return expectedTokenUnpauseFullFeeUsd(sigs, 0);
     }
 
-public static double expectedTokenUnpauseFullFeeUsd(final Map<FeeParam, Object> extras) {
+    public static double expectedTokenUnpauseFullFeeUsd(final Map<FeeParam, Object> extras) {
         return expectedTokenUnpauseFullFeeUsd(
-                longValue(extras, FeeParam.SIGNATURES, 0),
-                intValue(extras, FeeParam.TXN_SIZE, 0));
+                longValue(extras, FeeParam.SIGNATURES, 0), intValue(extras, FeeParam.TXN_SIZE, 0));
     }
 
     /**
@@ -1751,8 +1733,7 @@ public static double expectedTokenUnpauseFullFeeUsd(final Map<FeeParam, Object> 
     public static double expectedAtomicBatchFullFeeUsd(final Map<FeeParam, Object> extras) {
 
         return expectedAtomicBatchFullFeeUsd(
-                longValue(extras, FeeParam.SIGNATURES, 0),
-                intValue(extras, FeeParam.TXN_SIZE, 0));
+                longValue(extras, FeeParam.SIGNATURES, 0), intValue(extras, FeeParam.TXN_SIZE, 0));
     }
 
     public static double expectedCryptoApproveAllowanceFullFeeUsd(long sigs, long allowances, int txnSize) {
@@ -1766,7 +1747,8 @@ public static double expectedTokenUnpauseFullFeeUsd(final Map<FeeParam, Object> 
 
         // ----- service fees -----
         final long allowanceExtras = Math.max(0L, allowances - CRYPTO_APPROVE_ALLOWANCE_INCLUDED_COUNT);
-        final double serviceFee = CRYPTO_APPROVE_ALLOWANCE_BASE_FEE_USD + allowanceExtras * CRYPTO_APPROVE_ALLOWANCE_EXTRA_FEE_USD;
+        final double serviceFee =
+                CRYPTO_APPROVE_ALLOWANCE_BASE_FEE_USD + allowanceExtras * CRYPTO_APPROVE_ALLOWANCE_EXTRA_FEE_USD;
 
         return nodeFee + networkFee + serviceFee;
     }
@@ -1789,7 +1771,8 @@ public static double expectedTokenUnpauseFullFeeUsd(final Map<FeeParam, Object> 
 
         // ----- service fees -----
         final long allowanceExtras = Math.max(0L, allowances - CRYPTO_DELETE_ALLOWANCE_INCLUDED_COUNT);
-        final double serviceFee = CRYPTO_DELETE_ALLOWANCE_BASE_FEE_USD + allowanceExtras * CRYPTO_DELETE_ALLOWANCE_EXTRA_FEE_USD;
+        final double serviceFee =
+                CRYPTO_DELETE_ALLOWANCE_BASE_FEE_USD + allowanceExtras * CRYPTO_DELETE_ALLOWANCE_EXTRA_FEE_USD;
 
         return nodeFee + networkFee + serviceFee;
     }
@@ -1812,7 +1795,7 @@ public static double expectedTokenUnpauseFullFeeUsd(final Map<FeeParam, Object> 
 
         // ----- service fees -----
         final long byteExtrasService = Math.max(0L, messageBytes - FILE_CREATE_INCLUDED_BYTES);
-        final double serviceBytesExtrasFee = byteExtrasService * BYTES_FEE_USD;
+        final double serviceBytesExtrasFee = byteExtrasService * STATE_BYTES_FEE_USD;
 
         final long keysExtrasService = Math.max(0L, keys - FILE_CREATE_INCLUDED_KEYS);
         final double serviceKeysExtrasFee = keysExtrasService * KEYS_FEE_USD;
@@ -1846,8 +1829,7 @@ public static double expectedTokenUnpauseFullFeeUsd(final Map<FeeParam, Object> 
     public static double expectedFileDeleteFullFeeUsd(final Map<FeeParam, Object> extras) {
 
         return expectedFileDeleteFullFeeUsd(
-                longValue(extras, FeeParam.SIGNATURES, 0),
-                intValue(extras, FeeParam.TXN_SIZE, 0));
+                longValue(extras, FeeParam.SIGNATURES, 0), intValue(extras, FeeParam.TXN_SIZE, 0));
     }
 
     public static double expectedFileAppendFullFeeUsd(long sigs, long messageBytes, int txnSize) {
@@ -1861,7 +1843,7 @@ public static double expectedTokenUnpauseFullFeeUsd(final Map<FeeParam, Object> 
 
         // ----- service fees -----
         final long byteExtrasService = Math.max(0L, messageBytes - FILE_APPEND_INCLUDED_BYTES);
-        final double serviceBytesExtrasFee = byteExtrasService * BYTES_FEE_USD;
+        final double serviceBytesExtrasFee = byteExtrasService * STATE_BYTES_FEE_USD;
 
         final double serviceFee = FILE_APPEND_BASE_FEE_USD + serviceBytesExtrasFee;
 
@@ -1891,8 +1873,7 @@ public static double expectedTokenUnpauseFullFeeUsd(final Map<FeeParam, Object> 
     public static double expectedPrngFullFeeUsd(final Map<FeeParam, Object> extras) {
 
         return expectedPrngFullFeeUsd(
-                longValue(extras, FeeParam.SIGNATURES, 0),
-                intValue(extras, FeeParam.TXN_SIZE, 0));
+                longValue(extras, FeeParam.SIGNATURES, 0), intValue(extras, FeeParam.TXN_SIZE, 0));
     }
 
     public static double expectedTokenClaimAirdropFullFeeUsd(long sigs, int txnSize) {
@@ -1910,8 +1891,7 @@ public static double expectedTokenUnpauseFullFeeUsd(final Map<FeeParam, Object> 
     public static double expectedTokenClaimAirdropFullFeeUsd(final Map<FeeParam, Object> extras) {
 
         return expectedTokenClaimAirdropFullFeeUsd(
-                longValue(extras, FeeParam.SIGNATURES, 0),
-                intValue(extras, FeeParam.TXN_SIZE, 0));
+                longValue(extras, FeeParam.SIGNATURES, 0), intValue(extras, FeeParam.TXN_SIZE, 0));
     }
 
     public static double expectedTokenCancelAirdropFullFeeUsd(long sigs, int txnSize) {
@@ -1929,8 +1909,7 @@ public static double expectedTokenUnpauseFullFeeUsd(final Map<FeeParam, Object> 
     public static double expectedTokenCancelAirdropFullFeeUsd(final Map<FeeParam, Object> extras) {
 
         return expectedTokenCancelAirdropFullFeeUsd(
-                longValue(extras, FeeParam.SIGNATURES, 0),
-                intValue(extras, FeeParam.TXN_SIZE, 0));
+                longValue(extras, FeeParam.SIGNATURES, 0), intValue(extras, FeeParam.TXN_SIZE, 0));
     }
 
     public static double expectedTokenRejectFullFeeUsd(long sigs, int txnSize) {
@@ -1948,8 +1927,7 @@ public static double expectedTokenUnpauseFullFeeUsd(final Map<FeeParam, Object> 
     public static double expectedTokenRejectFullFeeUsd(final Map<FeeParam, Object> extras) {
 
         return expectedTokenRejectFullFeeUsd(
-                longValue(extras, FeeParam.SIGNATURES, 0),
-                intValue(extras, FeeParam.TXN_SIZE, 0));
+                longValue(extras, FeeParam.SIGNATURES, 0), intValue(extras, FeeParam.TXN_SIZE, 0));
     }
 
     public static double expectedTokenFeeScheduleUpdateFullFeeUsd(long sigs, int txnSize) {
@@ -1967,10 +1945,10 @@ public static double expectedTokenUnpauseFullFeeUsd(final Map<FeeParam, Object> 
     public static double expectedTokenFeeScheduleUpdateFullFeeUsd(final Map<FeeParam, Object> extras) {
 
         return expectedTokenFeeScheduleUpdateFullFeeUsd(
-                longValue(extras, FeeParam.SIGNATURES, 0),
-                intValue(extras, FeeParam.TXN_SIZE, 0));
+                longValue(extras, FeeParam.SIGNATURES, 0), intValue(extras, FeeParam.TXN_SIZE, 0));
     }
 
+    /*
      * Dual-mode fee validation that branches on {@code fees.simpleFeesEnabled} at runtime.
      * When simple fees are enabled, validates against {@code simpleFee};
      * otherwise validates against {@code legacyFee}.

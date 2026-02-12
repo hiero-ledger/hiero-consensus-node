@@ -14,11 +14,8 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateInnerTxnChargedUsd;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.FeeParam.BYTES;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.FeeParam.KEYS;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.FeeParam.SIGNATURES;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.FeeParam.TXN_SIZE;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedFileCreateFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedPrngFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateInnerChargedUsdWithinWithTxnSize;
 
@@ -69,9 +66,8 @@ class AtomicMiscellaneousFeesSuite {
                         return validateInnerChargedUsdWithinWithTxnSize(
                                 plusRangeTxn,
                                 ATOMIC_BATCH,
-                                txnSize -> expectedPrngFullFeeUsd(Map.of(
-                                        SIGNATURES, 1,
-                                        TXN_SIZE, txnSize)), 0.001);
+                                txnSize -> expectedPrngFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                0.001);
                     } else {
                         return validateInnerTxnChargedUsd(plusRangeTxn, ATOMIC_BATCH, EXPECTED_FEE_PRNG_RANGE_TRX, 5);
                     }

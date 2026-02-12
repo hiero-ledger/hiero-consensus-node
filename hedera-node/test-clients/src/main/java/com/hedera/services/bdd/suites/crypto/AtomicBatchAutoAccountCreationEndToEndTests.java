@@ -24,7 +24,7 @@ import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movi
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.safeValidateChargedUsdWithin;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
@@ -195,9 +195,9 @@ class AtomicBatchAutoAccountCreationEndToEndTests {
                             if ("true".equals(flag)) {
                                 return validateChargedUsdWithinWithTxnSize(
                                         "batchTxn",
-                                        txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
-                                                SIGNATURES, 1,
-                                                TXN_SIZE, txnSize)), 0.001);
+                                        txnSize ->
+                                                expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                        0.001);
                             } else {
                                 return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
                             }
@@ -400,9 +400,9 @@ class AtomicBatchAutoAccountCreationEndToEndTests {
                             if ("true".equals(flag)) {
                                 return validateChargedUsdWithinWithTxnSize(
                                         "batchTxn",
-                                        txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
-                                                SIGNATURES, 1,
-                                                TXN_SIZE, txnSize)), 0.001);
+                                        txnSize ->
+                                                expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                        0.001);
                             } else {
                                 return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
                             }

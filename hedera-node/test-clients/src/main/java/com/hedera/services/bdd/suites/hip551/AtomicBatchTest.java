@@ -76,7 +76,6 @@ import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.Fee
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedAtomicBatchFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedCryptoCreateFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedCryptoTransferHbarFullFeeUsd;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTopicSubmitMessageFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTopicSubmitMessageWithCustomFeeFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdWithinWithTxnSize;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateInnerChargedUsdWithinWithTxnSize;
@@ -159,9 +158,8 @@ public class AtomicBatchTest {
                     if ("true".equals(flag)) {
                         return validateChargedUsdWithinWithTxnSize(
                                 "batchTxn",
-                                txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
-                                        SIGNATURES, 1,
-                                        TXN_SIZE, txnSize)), 0.001);
+                                txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                0.001);
                     } else {
                         return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
                     }
@@ -171,9 +169,9 @@ public class AtomicBatchTest {
                         return validateInnerChargedUsdWithinWithTxnSize(
                                 "innerTxn",
                                 "batchTxn",
-                                txnSize -> expectedCryptoTransferHbarFullFeeUsd(Map.of(
-                                        SIGNATURES, 1,
-                                        TXN_SIZE, txnSize)), 0.001);
+                                txnSize ->
+                                        expectedCryptoTransferHbarFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                0.001);
                     } else {
                         return validateInnerTxnChargedUsd("innerTxn", "batchTxn", BASE_FEE_HBAR_CRYPTO_TRANSFER, 5);
                     }
@@ -186,9 +184,11 @@ public class AtomicBatchTest {
                                 txnSize -> expectedTopicSubmitMessageWithCustomFeeFullFeeUsd(Map.of(
                                         SIGNATURES, 1,
                                         BYTES, 4,
-                                        TXN_SIZE, txnSize)), 0.001);
+                                        TXN_SIZE, txnSize)),
+                                0.001);
                     } else {
-                        return validateInnerTxnChargedUsd("innerTxn2", "batchTxn", BASE_FEE_SUBMIT_MESSAGE_CUSTOM_FEE, 5);
+                        return validateInnerTxnChargedUsd(
+                                "innerTxn2", "batchTxn", BASE_FEE_SUBMIT_MESSAGE_CUSTOM_FEE, 5);
                     }
                 }));
     }
@@ -224,9 +224,8 @@ public class AtomicBatchTest {
                     if ("true".equals(flag)) {
                         return validateChargedUsdWithinWithTxnSize(
                                 "batchTxn",
-                                txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
-                                        SIGNATURES, 1,
-                                        TXN_SIZE, txnSize)), 0.001);
+                                txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                0.001);
                     } else {
                         return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
                     }
@@ -693,9 +692,8 @@ public class AtomicBatchTest {
                         if ("true".equals(flag)) {
                             return validateChargedUsdWithinWithTxnSize(
                                     "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
-                                            SIGNATURES, 1,
-                                            TXN_SIZE, txnSize)), 0.001);
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                    0.001);
                         } else {
                             return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
                         }
@@ -705,9 +703,8 @@ public class AtomicBatchTest {
                             return validateInnerChargedUsdWithinWithTxnSize(
                                     "innerTxn1",
                                     "batchTxn",
-                                    txnSize -> expectedCryptoCreateFullFeeUsd(Map.of(
-                                            SIGNATURES, 1,
-                                            TXN_SIZE, txnSize)), 0.001);
+                                    txnSize -> expectedCryptoCreateFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                    0.001);
                         } else {
                             return validateInnerTxnChargedUsd("innerTxn1", "batchTxn", 0.05, 5);
                         }
@@ -717,9 +714,8 @@ public class AtomicBatchTest {
                             return validateInnerChargedUsdWithinWithTxnSize(
                                     "innerTxn2",
                                     "batchTxn",
-                                    txnSize -> expectedCryptoCreateFullFeeUsd(Map.of(
-                                            SIGNATURES, 1,
-                                            TXN_SIZE, txnSize)), 0.001);
+                                    txnSize -> expectedCryptoCreateFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                    0.001);
                         } else {
                             return validateInnerTxnChargedUsd("innerTxn2", "batchTxn", 0.05, 5);
                         }

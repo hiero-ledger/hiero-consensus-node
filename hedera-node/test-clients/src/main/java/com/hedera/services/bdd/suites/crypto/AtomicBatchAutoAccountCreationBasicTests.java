@@ -22,7 +22,6 @@ import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movi
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.safeValidateChargedUsdWithin;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
@@ -110,9 +109,8 @@ class AtomicBatchAutoAccountCreationBasicTests {
                         if ("true".equals(flag)) {
                             return validateChargedUsdWithinWithTxnSize(
                                     "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
-                                            SIGNATURES, 1,
-                                            TXN_SIZE, txnSize)), 0.001);
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                    0.001);
                         } else {
                             return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
                         }
@@ -182,9 +180,8 @@ class AtomicBatchAutoAccountCreationBasicTests {
                         if ("true".equals(flag)) {
                             return validateChargedUsdWithinWithTxnSize(
                                     "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
-                                            SIGNATURES, 1,
-                                            TXN_SIZE, txnSize)), 0.001);
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                    0.001);
                         } else {
                             return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
                         }
@@ -263,9 +260,8 @@ class AtomicBatchAutoAccountCreationBasicTests {
                         if ("true".equals(flag)) {
                             return validateChargedUsdWithinWithTxnSize(
                                     batchTxnName,
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
-                                            SIGNATURES, 1,
-                                            TXN_SIZE, txnSize)), 0.001);
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                    0.001);
                         } else {
                             return validateChargedUsd(batchTxnName, BASE_FEE_BATCH_TRANSACTION);
                         }
@@ -323,9 +319,8 @@ class AtomicBatchAutoAccountCreationBasicTests {
                         if ("true".equals(flag)) {
                             return validateChargedUsdWithinWithTxnSize(
                                     batchTxnName,
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
-                                            SIGNATURES, 1,
-                                            TXN_SIZE, txnSize)), 0.001);
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                    0.001);
                         } else {
                             return validateChargedUsd(batchTxnName, BASE_FEE_BATCH_TRANSACTION);
                         }
@@ -404,9 +399,8 @@ class AtomicBatchAutoAccountCreationBasicTests {
                         if ("true".equals(flag)) {
                             return validateChargedUsdWithinWithTxnSize(
                                     batchTxnName,
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
-                                            SIGNATURES, 1,
-                                            TXN_SIZE, txnSize)), 0.001);
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                    0.001);
                         } else {
                             return validateChargedUsd(batchTxnName, BASE_FEE_BATCH_TRANSACTION);
                         }
@@ -490,9 +484,8 @@ class AtomicBatchAutoAccountCreationBasicTests {
                         if ("true".equals(flag)) {
                             return validateChargedUsdWithinWithTxnSize(
                                     batchTxnName,
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
-                                            SIGNATURES, 1,
-                                            TXN_SIZE, txnSize)), 0.001);
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                    0.001);
                         } else {
                             return validateChargedUsd(batchTxnName, BASE_FEE_BATCH_TRANSACTION);
                         }
@@ -572,18 +565,16 @@ class AtomicBatchAutoAccountCreationBasicTests {
                             .via("batchTxn_" + VALID_ALIAS_ECDSA)
                             .hasKnownStatus(SUCCESS);
 
-                    final var batchTxnFeeCheck =
-                            doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-                                if ("true".equals(flag)) {
-                                    return validateChargedUsdWithinWithTxnSize(
-                                            "batchTxn_" + VALID_ALIAS_ECDSA,
-                                            txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
-                                                    SIGNATURES, 1,
-                                                    TXN_SIZE, txnSize)), 0.001);
-                                } else {
-                                    return validateChargedUsd("batchTxn_" + VALID_ALIAS_ECDSA, BASE_FEE_BATCH_TRANSACTION);
-                                }
-                            });
+                    final var batchTxnFeeCheck = doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                        if ("true".equals(flag)) {
+                            return validateChargedUsdWithinWithTxnSize(
+                                    "batchTxn_" + VALID_ALIAS_ECDSA,
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                    0.001);
+                        } else {
+                            return validateChargedUsd("batchTxn_" + VALID_ALIAS_ECDSA, BASE_FEE_BATCH_TRANSACTION);
+                        }
+                    });
 
                     // validate the hollow account creation and transfers
                     final var infoCheck = getAliasedAccountInfo(evmAlias.get())
@@ -649,18 +640,16 @@ class AtomicBatchAutoAccountCreationBasicTests {
                             .via("batchTxn_" + VALID_ALIAS_ECDSA)
                             .hasKnownStatus(SUCCESS);
 
-                    final var batchTxnFeeCheck =
-                            doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-                                if ("true".equals(flag)) {
-                                    return validateChargedUsdWithinWithTxnSize(
-                                            "batchTxn_" + VALID_ALIAS_ECDSA,
-                                            txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
-                                                    SIGNATURES, 1,
-                                                    TXN_SIZE, txnSize)), 0.001);
-                                } else {
-                                    return validateChargedUsd("batchTxn_" + VALID_ALIAS_ECDSA, BASE_FEE_BATCH_TRANSACTION);
-                                }
-                            });
+                    final var batchTxnFeeCheck = doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                        if ("true".equals(flag)) {
+                            return validateChargedUsdWithinWithTxnSize(
+                                    "batchTxn_" + VALID_ALIAS_ECDSA,
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                    0.001);
+                        } else {
+                            return validateChargedUsd("batchTxn_" + VALID_ALIAS_ECDSA, BASE_FEE_BATCH_TRANSACTION);
+                        }
+                    });
 
                     // validate the hollow account creation and transfers
                     final var infoCheck = getAliasedAccountInfo(evmAlias.get())
@@ -726,18 +715,16 @@ class AtomicBatchAutoAccountCreationBasicTests {
                             .via("batchTxn_" + VALID_ALIAS_ECDSA)
                             .hasKnownStatus(SUCCESS);
 
-                    final var batchTxnFeeCheck =
-                            doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-                                if ("true".equals(flag)) {
-                                    return validateChargedUsdWithinWithTxnSize(
-                                            "batchTxn_" + VALID_ALIAS_ECDSA,
-                                            txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
-                                                    SIGNATURES, 1,
-                                                    TXN_SIZE, txnSize)), 0.001);
-                                } else {
-                                    return validateChargedUsd("batchTxn_" + VALID_ALIAS_ECDSA, BASE_FEE_BATCH_TRANSACTION);
-                                }
-                            });
+                    final var batchTxnFeeCheck = doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                        if ("true".equals(flag)) {
+                            return validateChargedUsdWithinWithTxnSize(
+                                    "batchTxn_" + VALID_ALIAS_ECDSA,
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                    0.001);
+                        } else {
+                            return validateChargedUsd("batchTxn_" + VALID_ALIAS_ECDSA, BASE_FEE_BATCH_TRANSACTION);
+                        }
+                    });
 
                     // validate the hollow account creation and transfers
                     final var infoCheck = getAliasedAccountInfo(evmAlias.get())
@@ -803,18 +790,16 @@ class AtomicBatchAutoAccountCreationBasicTests {
                             .via("batchTxn_" + VALID_ALIAS_ECDSA)
                             .hasKnownStatus(SUCCESS);
 
-                    final var batchTxnFeeCheck =
-                            doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-                                if ("true".equals(flag)) {
-                                    return validateChargedUsdWithinWithTxnSize(
-                                            "batchTxn_" + VALID_ALIAS_ECDSA,
-                                            txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
-                                                    SIGNATURES, 1,
-                                                    TXN_SIZE, txnSize)), 0.001);
-                                } else {
-                                    return validateChargedUsd("batchTxn_" + VALID_ALIAS_ECDSA, BASE_FEE_BATCH_TRANSACTION);
-                                }
-                            });
+                    final var batchTxnFeeCheck = doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                        if ("true".equals(flag)) {
+                            return validateChargedUsdWithinWithTxnSize(
+                                    "batchTxn_" + VALID_ALIAS_ECDSA,
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                    0.001);
+                        } else {
+                            return validateChargedUsd("batchTxn_" + VALID_ALIAS_ECDSA, BASE_FEE_BATCH_TRANSACTION);
+                        }
+                    });
 
                     // validate the hollow account creation and transfers
                     final var infoCheck = getAliasedAccountInfo(evmAlias.get())
@@ -894,18 +879,16 @@ class AtomicBatchAutoAccountCreationBasicTests {
                             .via("batchTxnAllAccounts")
                             .hasKnownStatus(SUCCESS);
 
-                    final var batchTxnFeeCheck =
-                            doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-                                if ("true".equals(flag)) {
-                                    return validateChargedUsdWithinWithTxnSize(
-                                            "batchTxnAllAccounts",
-                                            txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
-                                                    SIGNATURES, 1,
-                                                    TXN_SIZE, txnSize)), 0.001);
-                                } else {
-                                    return validateChargedUsd("batchTxnAllAccounts", BASE_FEE_BATCH_TRANSACTION);
-                                }
-                            });
+                    final var batchTxnFeeCheck = doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                        if ("true".equals(flag)) {
+                            return validateChargedUsdWithinWithTxnSize(
+                                    "batchTxnAllAccounts",
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                    0.001);
+                        } else {
+                            return validateChargedUsd("batchTxnAllAccounts", BASE_FEE_BATCH_TRANSACTION);
+                        }
+                    });
 
                     // validate ED25519 account is created and has the expected balance
                     final var ED25519_AccountCheck = getAliasedAccountInfo(VALID_ALIAS_ED25519)
@@ -1016,9 +999,8 @@ class AtomicBatchAutoAccountCreationBasicTests {
                         if ("true".equals(flag)) {
                             return validateChargedUsdWithinWithTxnSize(
                                     "batchTxnAllAccounts",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
-                                            SIGNATURES, 1,
-                                            TXN_SIZE, txnSize)), 0.001);
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                    0.001);
                         } else {
                             return validateChargedUsd("batchTxnAllAccounts", BASE_FEE_BATCH_TRANSACTION);
                         }
@@ -1141,9 +1123,8 @@ class AtomicBatchAutoAccountCreationBasicTests {
                         if ("true".equals(flag)) {
                             return validateChargedUsdWithinWithTxnSize(
                                     "batchTxnAllAccounts",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
-                                            SIGNATURES, 1,
-                                            TXN_SIZE, txnSize)), 0.001);
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                    0.001);
                         } else {
                             return validateChargedUsd("batchTxnAllAccounts", BASE_FEE_BATCH_TRANSACTION);
                         }
@@ -1265,9 +1246,8 @@ class AtomicBatchAutoAccountCreationBasicTests {
                         if ("true".equals(flag)) {
                             return validateChargedUsdWithinWithTxnSize(
                                     "batchTxnAllAccounts",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
-                                            SIGNATURES, 1,
-                                            TXN_SIZE, txnSize)), 0.001);
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                    0.001);
                         } else {
                             return validateChargedUsd("batchTxnAllAccounts", BASE_FEE_BATCH_TRANSACTION);
                         }
@@ -1360,9 +1340,8 @@ class AtomicBatchAutoAccountCreationBasicTests {
                         if ("true".equals(flag)) {
                             return validateChargedUsdWithinWithTxnSize(
                                     "batchTxnAllAccounts",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
-                                            SIGNATURES, 1,
-                                            TXN_SIZE, txnSize)), 0.001);
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                    0.001);
                         } else {
                             return validateChargedUsd("batchTxnAllAccounts", BASE_FEE_BATCH_TRANSACTION);
                         }
@@ -1441,18 +1420,17 @@ class AtomicBatchAutoAccountCreationBasicTests {
                                 .hasPriority(recordWith().status(INVALID_ALIAS_KEY))
                                 .logged();
 
-                        final var batchTxnFeeCheck =
-                                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-                                    if ("true".equals(flag)) {
-                                        return validateChargedUsdWithinWithTxnSize(
-                                                batchTxn,
-                                                txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
-                                                        SIGNATURES, 1,
-                                                        TXN_SIZE, txnSize)), 0.001);
-                                    } else {
-                                        return validateChargedUsd(batchTxn, BASE_FEE_BATCH_TRANSACTION);
-                                    }
-                                });
+                        final var batchTxnFeeCheck = doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                            if ("true".equals(flag)) {
+                                return validateChargedUsdWithinWithTxnSize(
+                                        batchTxn,
+                                        txnSize ->
+                                                expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                        0.001);
+                            } else {
+                                return validateChargedUsd(batchTxn, BASE_FEE_BATCH_TRANSACTION);
+                            }
+                        });
 
                         final var invalidAliasCheck = getAliasedAccountInfo(invalidEvmAliasBytes)
                                 .hasCostAnswerPrecheck(INVALID_ACCOUNT_ID)
@@ -1523,9 +1501,9 @@ class AtomicBatchAutoAccountCreationBasicTests {
                             if ("true".equals(flag)) {
                                 return validateChargedUsdWithinWithTxnSize(
                                         batchTxn,
-                                        txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
-                                                SIGNATURES, 1,
-                                                TXN_SIZE, txnSize)), 0.001);
+                                        txnSize ->
+                                                expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                        0.001);
                             } else {
                                 return validateChargedUsd(batchTxn, BASE_FEE_BATCH_TRANSACTION);
                             }
@@ -1581,9 +1559,8 @@ class AtomicBatchAutoAccountCreationBasicTests {
                         if ("true".equals(flag)) {
                             return validateChargedUsdWithinWithTxnSize(
                                     "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
-                                            SIGNATURES, 1,
-                                            TXN_SIZE, txnSize)), 0.001);
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                    0.001);
                         } else {
                             return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
                         }
@@ -1629,9 +1606,8 @@ class AtomicBatchAutoAccountCreationBasicTests {
                         if ("true".equals(flag)) {
                             return validateChargedUsdWithinWithTxnSize(
                                     "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
-                                            SIGNATURES, 1,
-                                            TXN_SIZE, txnSize)), 0.001);
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                    0.001);
                         } else {
                             return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
                         }
@@ -1698,9 +1674,8 @@ class AtomicBatchAutoAccountCreationBasicTests {
                         if ("true".equals(flag)) {
                             return validateChargedUsdWithinWithTxnSize(
                                     "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(
-                                            SIGNATURES, 1,
-                                            TXN_SIZE, txnSize)), 0.001);
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                    0.001);
                         } else {
                             return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
                         }

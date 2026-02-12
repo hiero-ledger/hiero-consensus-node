@@ -26,7 +26,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sendModified;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.submitModified;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateInnerTxnChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.mod.ModificationUtils.withSuccessivelyVariedBodyIds;
 import static com.hedera.services.bdd.spec.utilops.mod.ModificationUtils.withSuccessivelyVariedQueryIds;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
@@ -41,7 +40,6 @@ import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.Fee
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.FeeParam.TXN_SIZE;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTopicCreateFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdWithinWithTxnSize;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateInnerChargedUsdWithinWithTxnSize;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.AUTORENEW_DURATION_NOT_IN_RANGE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BAD_ENCODING;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_AUTORENEW_ACCOUNT;
@@ -54,7 +52,6 @@ import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.keys.TrieSigMapGenerator;
-
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
@@ -64,6 +61,7 @@ import org.junit.jupiter.api.Tag;
 public class TopicCreateSuite {
     public static final String TEST_TOPIC = "testTopic";
     public static final String TESTMEMO = "testmemo";
+    public static final Double EXPECTED_PRICE_USD = 0.01;
 
     @HapiTest
     final Stream<DynamicTest> adminKeyIsValidated() {
@@ -191,11 +189,10 @@ public class TopicCreateSuite {
                     if ("true".equals(flag)) {
                         return validateChargedUsdWithinWithTxnSize(
                                 "createTopic",
-                                txnSize -> expectedTopicCreateFullFeeUsd(Map.of(
-                                        SIGNATURES, 1,
-                                        TXN_SIZE, txnSize)), 0.001);
+                                txnSize -> expectedTopicCreateFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                0.001);
                     } else {
-                        return validateChargedUsd("createTopic", expectedPriceUsd, 1.0);
+                        return validateChargedUsd("createTopic", EXPECTED_PRICE_USD, 1.0);
                     }
                 }));
     }
@@ -217,11 +214,10 @@ public class TopicCreateSuite {
                     if ("true".equals(flag)) {
                         return validateChargedUsdWithinWithTxnSize(
                                 "createTopic",
-                                txnSize -> expectedTopicCreateFullFeeUsd(Map.of(
-                                        SIGNATURES, 1,
-                                        TXN_SIZE, txnSize)), 0.001);
+                                txnSize -> expectedTopicCreateFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                0.001);
                     } else {
-                        return validateChargedUsd("createTopic", expectedPriceUsd, 1.0);
+                        return validateChargedUsd("createTopic", EXPECTED_PRICE_USD, 1.0);
                     }
                 }));
     }
@@ -248,9 +244,10 @@ public class TopicCreateSuite {
                                 txnSize -> expectedTopicCreateFullFeeUsd(Map.of(
                                         SIGNATURES, 1,
                                         KEYS, 1,
-                                        TXN_SIZE, txnSize)), 0.001);
+                                        TXN_SIZE, txnSize)),
+                                0.001);
                     } else {
-                        return validateChargedUsd("createTopic", expectedPriceUsd, 1.0);
+                        return validateChargedUsd("createTopic", EXPECTED_PRICE_USD, 1.0);
                     }
                 }));
     }

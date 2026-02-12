@@ -69,7 +69,6 @@ class AtomicFileServiceFeesSuite {
                         .via(ATOMIC_BATCH)
                         .signedByPayerAnd(BATCH_OPERATOR)
                         .payingWith(BATCH_OPERATOR),
-
                 doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
                     if ("true".equals(flag)) {
                         return validateInnerChargedUsdWithinWithTxnSize(
@@ -79,12 +78,12 @@ class AtomicFileServiceFeesSuite {
                                         SIGNATURES, 1,
                                         KEYS, 1,
                                         BYTES, 1000,
-                                        TXN_SIZE, txnSize)), 0.001);
+                                        TXN_SIZE, txnSize)),
+                                0.001);
                     } else {
                         return validateInnerTxnChargedUsd("fileCreateBasic", ATOMIC_BATCH, BASE_FEE_FILE_CREATE, 5);
                     }
                 }));
-
     }
 
     @HapiTest
@@ -115,12 +114,12 @@ class AtomicFileServiceFeesSuite {
                                         SIGNATURES, 1,
                                         KEYS, 1,
                                         BYTES, 1000,
-                                        TXN_SIZE, txnSize)), 0.001);
+                                        TXN_SIZE, txnSize)),
+                                0.001);
                     } else {
                         return validateInnerTxnChargedUsd("fileUpdateBasic", ATOMIC_BATCH, BASE_FEE_FILE_UPDATE, 5);
                     }
-                })
-                );
+                }));
     }
 
     @HapiTest
@@ -145,9 +144,8 @@ class AtomicFileServiceFeesSuite {
                         return validateInnerChargedUsdWithinWithTxnSize(
                                 "fileDeleteBasic",
                                 ATOMIC_BATCH,
-                                txnSize -> expectedFileDeleteFullFeeUsd(Map.of(
-                                        SIGNATURES, 1,
-                                        TXN_SIZE, txnSize)), 0.001);
+                                txnSize -> expectedFileDeleteFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                0.001);
                     } else {
                         return validateInnerTxnChargedUsd("fileDeleteBasic", ATOMIC_BATCH, BASE_FEE_FILE_DELETE, 10);
                     }
@@ -196,7 +194,8 @@ class AtomicFileServiceFeesSuite {
                                 txnSize -> expectedFileAppendFullFeeUsd(Map.of(
                                         SIGNATURES, 1,
                                         BYTES, 1000,
-                                        TXN_SIZE, txnSize)), 0.001);
+                                        TXN_SIZE, txnSize)),
+                                0.001);
                     } else {
                         return validateInnerTxnChargedUsd(baseAppend, ATOMIC_BATCH, BASE_FEE_FILE_APPEND, 5);
                     }
