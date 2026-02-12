@@ -405,23 +405,10 @@ public class FeesChargingUtils {
     }
 
     public static double expectedCryptoTransferHbarFullFeeUsd(
-            long sigs,
-            long uniqueHooksExecuted,
-            long uniqueAccounts,
-            long tokenTypes,
-            long gasAmount,
-            int txnSize) {
+            long sigs, long uniqueHooksExecuted, long uniqueAccounts, long tokenTypes, long gasAmount, int txnSize) {
 
         return expectedCryptoTransferFullFeeUsd(
-                sigs,
-                uniqueHooksExecuted,
-                uniqueAccounts,
-                tokenTypes,
-                gasAmount,
-                txnSize,
-                true,
-                false,
-                false);
+                sigs, uniqueHooksExecuted, uniqueAccounts, tokenTypes, gasAmount, txnSize, true, false, false);
     }
 
     public static double expectedCryptoTransferHbarFullFeeUsd(final Map<FeeParam, Object> extras) {
@@ -443,23 +430,10 @@ public class FeesChargingUtils {
     }
 
     public static double expectedCryptoTransferFTFullFeeUsd(
-            long sigs,
-            long uniqueHooksExecuted,
-            long uniqueAccounts,
-            long tokenTypes,
-            long gasAmount,
-            int txnSize) {
+            long sigs, long uniqueHooksExecuted, long uniqueAccounts, long tokenTypes, long gasAmount, int txnSize) {
 
         return expectedCryptoTransferFullFeeUsd(
-                sigs,
-                uniqueHooksExecuted,
-                uniqueAccounts,
-                tokenTypes,
-                gasAmount,
-                txnSize,
-                false,
-                true,
-                false);
+                sigs, uniqueHooksExecuted, uniqueAccounts, tokenTypes, gasAmount, txnSize, false, true, false);
     }
 
     public static double expectedCryptoTransferFTFullFeeUsd(final Map<FeeParam, Object> extras) {
@@ -481,23 +455,10 @@ public class FeesChargingUtils {
     }
 
     public static double expectedCryptoTransferNFTFullFeeUsd(
-            long sigs,
-            long uniqueHooksExecuted,
-            long uniqueAccounts,
-            long tokenTypes,
-            long gasAmount,
-            int txnSize) {
+            long sigs, long uniqueHooksExecuted, long uniqueAccounts, long tokenTypes, long gasAmount, int txnSize) {
 
         return expectedCryptoTransferFullFeeUsd(
-                sigs,
-                uniqueHooksExecuted,
-                uniqueAccounts,
-                tokenTypes,
-                gasAmount,
-                txnSize,
-                false,
-                true,
-                false);
+                sigs, uniqueHooksExecuted, uniqueAccounts, tokenTypes, gasAmount, txnSize, false, true, false);
     }
 
     public static double expectedCryptoTransferNFTFullFeeUsd(final Map<FeeParam, Object> extras) {
@@ -519,23 +480,10 @@ public class FeesChargingUtils {
     }
 
     public static double expectedCryptoTransferFTAndNFTFullFeeUsd(
-            long sigs,
-            long uniqueHooksExecuted,
-            long uniqueAccounts,
-            long tokenTypes,
-            long gasAmount,
-            int txnSize) {
+            long sigs, long uniqueHooksExecuted, long uniqueAccounts, long tokenTypes, long gasAmount, int txnSize) {
 
         return expectedCryptoTransferFullFeeUsd(
-                sigs,
-                uniqueHooksExecuted,
-                uniqueAccounts,
-                tokenTypes,
-                gasAmount,
-                txnSize,
-                false,
-                true,
-                false);
+                sigs, uniqueHooksExecuted, uniqueAccounts, tokenTypes, gasAmount, txnSize, false, true, false);
     }
 
     public static double expectedCryptoTransferFTAndNFTFullFeeUsd(final Map<FeeParam, Object> extras) {
@@ -557,23 +505,10 @@ public class FeesChargingUtils {
     }
 
     public static double expectedCryptoTransferHBARAndFTFullFeeUsd(
-            long sigs,
-            long uniqueHooksExecuted,
-            long uniqueAccounts,
-            long tokenTypes,
-            long gasAmount,
-            int txnSize) {
+            long sigs, long uniqueHooksExecuted, long uniqueAccounts, long tokenTypes, long gasAmount, int txnSize) {
 
         return expectedCryptoTransferFullFeeUsd(
-                sigs,
-                uniqueHooksExecuted,
-                uniqueAccounts,
-                tokenTypes,
-                gasAmount,
-                txnSize,
-                true,
-                true,
-                false);
+                sigs, uniqueHooksExecuted, uniqueAccounts, tokenTypes, gasAmount, txnSize, true, true, false);
     }
 
     public static double expectedCryptoTransferHBARAndFTFullFeeUsd(final Map<FeeParam, Object> extras) {
@@ -595,23 +530,10 @@ public class FeesChargingUtils {
     }
 
     public static double expectedCryptoTransferHBARAndNFTFullFeeUsd(
-            long sigs,
-            long uniqueHooksExecuted,
-            long uniqueAccounts,
-            long tokenTypes,
-            long gasAmount,
-            int txnSize) {
+            long sigs, long uniqueHooksExecuted, long uniqueAccounts, long tokenTypes, long gasAmount, int txnSize) {
 
         return expectedCryptoTransferFullFeeUsd(
-                sigs,
-                uniqueHooksExecuted,
-                uniqueAccounts,
-                tokenTypes,
-                gasAmount,
-                txnSize,
-                true,
-                true,
-                false);
+                sigs, uniqueHooksExecuted, uniqueAccounts, tokenTypes, gasAmount, txnSize, true, true, false);
     }
 
     public static double expectedCryptoTransferHBARAndNFTFullFeeUsd(final Map<FeeParam, Object> extras) {
@@ -633,23 +555,10 @@ public class FeesChargingUtils {
     }
 
     public static double expectedCryptoTransferHBARAndFTAndNFTFullFeeUsd(
-            long sigs,
-            long uniqueHooksExecuted,
-            long uniqueAccounts,
-            long tokenTypes,
-            long gasAmount,
-            int txnSize) {
+            long sigs, long uniqueHooksExecuted, long uniqueAccounts, long tokenTypes, long gasAmount, int txnSize) {
 
         return expectedCryptoTransferFullFeeUsd(
-                sigs,
-                uniqueHooksExecuted,
-                uniqueAccounts,
-                tokenTypes,
-                gasAmount,
-                txnSize,
-                true,
-                true,
-                false);
+                sigs, uniqueHooksExecuted, uniqueAccounts, tokenTypes, gasAmount, txnSize, true, true, false);
     }
 
     public static double expectedCryptoTransferHBARAndFTAndNFTFullFeeUsd(final Map<FeeParam, Object> extras) {
