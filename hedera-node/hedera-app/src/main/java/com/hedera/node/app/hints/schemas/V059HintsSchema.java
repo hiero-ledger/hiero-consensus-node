@@ -76,17 +76,12 @@ public class V059HintsSchema extends Schema<SemanticVersion> {
                         ACTIVE_HINTS_CONSTRUCTION_STATE_ID, ACTIVE_HINTS_CONSTRUCTION_KEY, HintsConstruction.PROTOBUF),
                 StateDefinition.singleton(
                         NEXT_HINTS_CONSTRUCTION_STATE_ID, NEXT_HINTS_CONSTRUCTION_KEY, HintsConstruction.PROTOBUF),
-                StateDefinition.onDisk(
-                        HINTS_KEY_SETS_STATE_ID,
-                        HINTS_KEY_SETS_KEY,
-                        HintsPartyId.PROTOBUF,
-                        HintsKeySet.PROTOBUF,
-                        MAX_HINTS),
-                StateDefinition.onDisk(
+                StateDefinition.keyValue(
+                        HINTS_KEY_SETS_STATE_ID, HINTS_KEY_SETS_KEY, HintsPartyId.PROTOBUF, HintsKeySet.PROTOBUF),
+                StateDefinition.keyValue(
                         PREPROCESSING_VOTES_STATE_ID,
                         PREPROCESSING_VOTES_KEY,
                         PreprocessingVoteId.PROTOBUF,
-                        PreprocessingVote.PROTOBUF,
-                        MAX_PREPROCESSING_VOTES));
+                        PreprocessingVote.PROTOBUF));
     }
 }

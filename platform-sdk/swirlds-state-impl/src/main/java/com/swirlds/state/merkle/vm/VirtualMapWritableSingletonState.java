@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.state.merkle.disk;
+package com.swirlds.state.merkle.vm;
 
 import static com.swirlds.state.merkle.StateUtils.getStateKeyForSingleton;
 import static com.swirlds.state.merkle.StateUtils.getStateValueForSingleton;
@@ -20,7 +20,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  *
  * @param <V> The type of the value
  */
-public class OnDiskWritableSingletonState<V> extends WritableSingletonStateBase<V> {
+public class VirtualMapWritableSingletonState<V> extends WritableSingletonStateBase<V> {
 
     /** The backing merkle data structure to use */
     @NonNull
@@ -37,7 +37,7 @@ public class OnDiskWritableSingletonState<V> extends WritableSingletonStateBase<
      * @param valueCodec   the protobuf value codec
      * @param virtualMap   the backing merkle data structure to use
      */
-    public OnDiskWritableSingletonState(
+    public VirtualMapWritableSingletonState(
             final int stateId,
             @NonNull final String label,
             @NonNull final Codec<V> valueCodec,
