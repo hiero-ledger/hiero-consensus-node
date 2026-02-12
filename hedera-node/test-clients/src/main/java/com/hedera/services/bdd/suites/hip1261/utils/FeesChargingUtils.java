@@ -294,6 +294,7 @@ public class FeesChargingUtils {
         ACCOUNTS,
         FUNGIBLE_TOKENS,
         NON_FUNGIBLE_TOKENS,
+        TOKEN_TYPES,
         GAS,
         TXN_SIZE
     }
@@ -359,8 +360,7 @@ public class FeesChargingUtils {
             long sigs,
             long uniqueHooksExecuted,
             long uniqueAccounts,
-            long uniqueFungibleTokens,
-            long uniqueNonFungibleTokens,
+            long tokenTypes,
             long gasAmount,
             int txnSize,
             boolean includesHbarBaseFee,
@@ -389,18 +389,10 @@ public class FeesChargingUtils {
         final double hooksExtrasFee =
                 extra(uniqueHooksExecuted, CRYPTO_TRANSFER_INCLUDED_HOOK_EXECUTION, HOOK_EXECUTION_FEE_USD);
         final double accountsExtrasFee = extra(uniqueAccounts, CRYPTO_TRANSFER_INCLUDED_ACCOUNTS, ACCOUNTS_FEE_USD);
-        final double uniqueFungibleTokensExtrasFee =
-                extra(uniqueFungibleTokens, CRYPTO_TRANSFER_INCLUDED_FUNGIBLE_TOKENS, FUNGIBLE_TOKENS_FEE_USD);
-        final double uniqueNonFungibleTokensExtrasFee = extra(
-                uniqueNonFungibleTokens, CRYPTO_TRANSFER_INCLUDED_NON_FUNGIBLE_TOKENS, NON_FUNGIBLE_TOKENS_FEE_USD);
+        final double tokenTypesFee = extra(tokenTypes, INCLUDED_TOKEN_TYPES, TOKEN_TYPES_FEE);
         final double gasExtrasFee = extra(gasAmount, CRYPTO_TRANSFER_INCLUDED_GAS, GAS_FEE_USD);
 
-        final double serviceFee = serviceBaseFee
-                + hooksExtrasFee
-                + accountsExtrasFee
-                + uniqueFungibleTokensExtrasFee
-                + uniqueNonFungibleTokensExtrasFee
-                + gasExtrasFee;
+        final double serviceFee = serviceBaseFee + hooksExtrasFee + accountsExtrasFee + tokenTypesFee + gasExtrasFee;
 
         return nodeFee + networkFee + serviceFee;
     }
@@ -416,8 +408,7 @@ public class FeesChargingUtils {
             long sigs,
             long uniqueHooksExecuted,
             long uniqueAccounts,
-            long uniqueFungibleTokens,
-            long uniqueNonFungibleTokens,
+            long tokenTypes,
             long gasAmount,
             int txnSize) {
 
@@ -425,8 +416,7 @@ public class FeesChargingUtils {
                 sigs,
                 uniqueHooksExecuted,
                 uniqueAccounts,
-                uniqueFungibleTokens,
-                uniqueNonFungibleTokens,
+                tokenTypes,
                 gasAmount,
                 txnSize,
                 true,
@@ -440,8 +430,7 @@ public class FeesChargingUtils {
                 longValue(extras, FeeParam.SIGNATURES, 0),
                 longValue(extras, FeeParam.HOOKS_EXECUTED, 0),
                 longValue(extras, FeeParam.ACCOUNTS, 0),
-                longValue(extras, FeeParam.FUNGIBLE_TOKENS, 0),
-                longValue(extras, FeeParam.NON_FUNGIBLE_TOKENS, 0),
+                longValue(extras, FeeParam.TOKEN_TYPES, 0),
                 longValue(extras, FeeParam.GAS, 0),
                 intValue(extras, FeeParam.TXN_SIZE, 0));
     }
@@ -457,8 +446,7 @@ public class FeesChargingUtils {
             long sigs,
             long uniqueHooksExecuted,
             long uniqueAccounts,
-            long uniqueFungibleTokens,
-            long uniqueNonFungibleTokens,
+            long tokenTypes,
             long gasAmount,
             int txnSize) {
 
@@ -466,8 +454,7 @@ public class FeesChargingUtils {
                 sigs,
                 uniqueHooksExecuted,
                 uniqueAccounts,
-                uniqueFungibleTokens,
-                uniqueNonFungibleTokens,
+                tokenTypes,
                 gasAmount,
                 txnSize,
                 false,
@@ -481,8 +468,7 @@ public class FeesChargingUtils {
                 longValue(extras, FeeParam.SIGNATURES, 0),
                 longValue(extras, FeeParam.HOOKS_EXECUTED, 0),
                 longValue(extras, FeeParam.ACCOUNTS, 0),
-                longValue(extras, FeeParam.FUNGIBLE_TOKENS, 0),
-                longValue(extras, FeeParam.NON_FUNGIBLE_TOKENS, 0),
+                longValue(extras, FeeParam.TOKEN_TYPES, 0),
                 longValue(extras, FeeParam.GAS, 0),
                 intValue(extras, FeeParam.TXN_SIZE, 0));
     }
@@ -498,8 +484,7 @@ public class FeesChargingUtils {
             long sigs,
             long uniqueHooksExecuted,
             long uniqueAccounts,
-            long uniqueFungibleTokens,
-            long uniqueNonFungibleTokens,
+            long tokenTypes,
             long gasAmount,
             int txnSize) {
 
@@ -507,8 +492,7 @@ public class FeesChargingUtils {
                 sigs,
                 uniqueHooksExecuted,
                 uniqueAccounts,
-                uniqueFungibleTokens,
-                uniqueNonFungibleTokens,
+                tokenTypes,
                 gasAmount,
                 txnSize,
                 false,
@@ -522,8 +506,7 @@ public class FeesChargingUtils {
                 longValue(extras, FeeParam.SIGNATURES, 0),
                 longValue(extras, FeeParam.HOOKS_EXECUTED, 0),
                 longValue(extras, FeeParam.ACCOUNTS, 0),
-                longValue(extras, FeeParam.FUNGIBLE_TOKENS, 0),
-                longValue(extras, FeeParam.NON_FUNGIBLE_TOKENS, 0),
+                longValue(extras, FeeParam.TOKEN_TYPES, 0),
                 longValue(extras, FeeParam.GAS, 0),
                 intValue(extras, FeeParam.TXN_SIZE, 0));
     }
@@ -539,8 +522,7 @@ public class FeesChargingUtils {
             long sigs,
             long uniqueHooksExecuted,
             long uniqueAccounts,
-            long uniqueFungibleTokens,
-            long uniqueNonFungibleTokens,
+            long tokenTypes,
             long gasAmount,
             int txnSize) {
 
@@ -548,8 +530,7 @@ public class FeesChargingUtils {
                 sigs,
                 uniqueHooksExecuted,
                 uniqueAccounts,
-                uniqueFungibleTokens,
-                uniqueNonFungibleTokens,
+                tokenTypes,
                 gasAmount,
                 txnSize,
                 false,
@@ -563,8 +544,7 @@ public class FeesChargingUtils {
                 longValue(extras, FeeParam.SIGNATURES, 0),
                 longValue(extras, FeeParam.HOOKS_EXECUTED, 0),
                 longValue(extras, FeeParam.ACCOUNTS, 0),
-                longValue(extras, FeeParam.FUNGIBLE_TOKENS, 0),
-                longValue(extras, FeeParam.NON_FUNGIBLE_TOKENS, 0),
+                longValue(extras, FeeParam.TOKEN_TYPES, 0),
                 longValue(extras, FeeParam.GAS, 0),
                 intValue(extras, FeeParam.TXN_SIZE, 0));
     }
@@ -580,8 +560,7 @@ public class FeesChargingUtils {
             long sigs,
             long uniqueHooksExecuted,
             long uniqueAccounts,
-            long uniqueFungibleTokens,
-            long uniqueNonFungibleTokens,
+            long tokenTypes,
             long gasAmount,
             int txnSize) {
 
@@ -589,8 +568,7 @@ public class FeesChargingUtils {
                 sigs,
                 uniqueHooksExecuted,
                 uniqueAccounts,
-                uniqueFungibleTokens,
-                uniqueNonFungibleTokens,
+                tokenTypes,
                 gasAmount,
                 txnSize,
                 true,
@@ -604,8 +582,7 @@ public class FeesChargingUtils {
                 longValue(extras, FeeParam.SIGNATURES, 0),
                 longValue(extras, FeeParam.HOOKS_EXECUTED, 0),
                 longValue(extras, FeeParam.ACCOUNTS, 0),
-                longValue(extras, FeeParam.FUNGIBLE_TOKENS, 0),
-                longValue(extras, FeeParam.NON_FUNGIBLE_TOKENS, 0),
+                longValue(extras, FeeParam.TOKEN_TYPES, 0),
                 longValue(extras, FeeParam.GAS, 0),
                 intValue(extras, FeeParam.TXN_SIZE, 0));
     }
@@ -621,8 +598,7 @@ public class FeesChargingUtils {
             long sigs,
             long uniqueHooksExecuted,
             long uniqueAccounts,
-            long uniqueFungibleTokens,
-            long uniqueNonFungibleTokens,
+            long tokenTypes,
             long gasAmount,
             int txnSize) {
 
@@ -630,8 +606,7 @@ public class FeesChargingUtils {
                 sigs,
                 uniqueHooksExecuted,
                 uniqueAccounts,
-                uniqueFungibleTokens,
-                uniqueNonFungibleTokens,
+                tokenTypes,
                 gasAmount,
                 txnSize,
                 true,
@@ -645,8 +620,7 @@ public class FeesChargingUtils {
                 longValue(extras, FeeParam.SIGNATURES, 0),
                 longValue(extras, FeeParam.HOOKS_EXECUTED, 0),
                 longValue(extras, FeeParam.ACCOUNTS, 0),
-                longValue(extras, FeeParam.FUNGIBLE_TOKENS, 0),
-                longValue(extras, FeeParam.NON_FUNGIBLE_TOKENS, 0),
+                longValue(extras, FeeParam.TOKEN_TYPES, 0),
                 longValue(extras, FeeParam.GAS, 0),
                 intValue(extras, FeeParam.TXN_SIZE, 0));
     }
@@ -662,8 +636,7 @@ public class FeesChargingUtils {
             long sigs,
             long uniqueHooksExecuted,
             long uniqueAccounts,
-            long uniqueFungibleTokens,
-            long uniqueNonFungibleTokens,
+            long tokenTypes,
             long gasAmount,
             int txnSize) {
 
@@ -671,8 +644,7 @@ public class FeesChargingUtils {
                 sigs,
                 uniqueHooksExecuted,
                 uniqueAccounts,
-                uniqueFungibleTokens,
-                uniqueNonFungibleTokens,
+                tokenTypes,
                 gasAmount,
                 txnSize,
                 true,
@@ -686,8 +658,7 @@ public class FeesChargingUtils {
                 longValue(extras, FeeParam.SIGNATURES, 0),
                 longValue(extras, FeeParam.HOOKS_EXECUTED, 0),
                 longValue(extras, FeeParam.ACCOUNTS, 0),
-                longValue(extras, FeeParam.FUNGIBLE_TOKENS, 0),
-                longValue(extras, FeeParam.NON_FUNGIBLE_TOKENS, 0),
+                longValue(extras, FeeParam.TOKEN_TYPES, 0),
                 longValue(extras, FeeParam.GAS, 0),
                 intValue(extras, FeeParam.TXN_SIZE, 0));
     }
@@ -721,8 +692,7 @@ public class FeesChargingUtils {
                 longValue(extras, FeeParam.SIGNATURES, 0),
                 longValue(extras, FeeParam.HOOKS_EXECUTED, 0),
                 longValue(extras, FeeParam.ACCOUNTS, 0),
-                longValue(extras, FeeParam.FUNGIBLE_TOKENS, 0),
-                longValue(extras, FeeParam.NON_FUNGIBLE_TOKENS, 0),
+                longValue(extras, FeeParam.TOKEN_TYPES, 0),
                 longValue(extras, FeeParam.GAS, 0),
                 intValue(extras, FeeParam.TXN_SIZE, 0));
     }

@@ -40,11 +40,10 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.FeeParam.ACCOUNTS;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.FeeParam.FUNGIBLE_TOKENS;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.FeeParam.GAS;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.FeeParam.HOOKS_EXECUTED;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.FeeParam.NON_FUNGIBLE_TOKENS;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.FeeParam.SIGNATURES;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.FeeParam.TOKEN_TYPES;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.FeeParam.TXN_SIZE;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedCryptoTransferFTAndNFTFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedCryptoTransferFTFullFeeUsd;
@@ -180,8 +179,6 @@ public class CryptoTransferSimpleFeesTest {
                                             SIGNATURES, 1,
                                             HOOKS_EXECUTED, 0,
                                             ACCOUNTS, 1,
-                                            FUNGIBLE_TOKENS, 0,
-                                            NON_FUNGIBLE_TOKENS, 0,
                                             GAS, 0,
                                             TXN_SIZE, txnSize)),
                                     0.001)));
@@ -387,7 +384,7 @@ public class CryptoTransferSimpleFeesTest {
                                     txnSize -> expectedCryptoTransferFTFullFeeUsd(Map.of(
                                             SIGNATURES, 1,
                                             ACCOUNTS, 2,
-                                            FUNGIBLE_TOKENS, 1,
+                                            TOKEN_TYPES, 1,
                                             TXN_SIZE, txnSize)),
                                     0.001),
                             getAccountBalance(OWNER).hasTokenBalance(FUNGIBLE_TOKEN, 90L),
@@ -414,7 +411,7 @@ public class CryptoTransferSimpleFeesTest {
                                     txnSize -> expectedCryptoTransferFTFullFeeUsd(Map.of(
                                             SIGNATURES, 2,
                                             ACCOUNTS, 2,
-                                            FUNGIBLE_TOKENS, 1,
+                                            TOKEN_TYPES, 1,
                                             TXN_SIZE, txnSize)),
                                     0.001),
                             getAccountBalance(OWNER).hasTokenBalance(FUNGIBLE_TOKEN, 90L),
@@ -444,7 +441,7 @@ public class CryptoTransferSimpleFeesTest {
                                     txnSize -> expectedCryptoTransferFTFullFeeUsd(Map.of(
                                             SIGNATURES, 2,
                                             ACCOUNTS, 2,
-                                            FUNGIBLE_TOKENS, 2,
+                                            TOKEN_TYPES, 2,
                                             TXN_SIZE, txnSize)),
                                     0.001),
                             getAccountBalance(OWNER)
@@ -481,7 +478,7 @@ public class CryptoTransferSimpleFeesTest {
                                     txnSize -> expectedCryptoTransferFTFullFeeUsd(Map.of(
                                             SIGNATURES, 2,
                                             ACCOUNTS, 3,
-                                            FUNGIBLE_TOKENS, 2,
+                                            TOKEN_TYPES, 2,
                                             TXN_SIZE, txnSize)),
                                     0.001),
                             getAccountBalance(OWNER)
@@ -519,7 +516,7 @@ public class CryptoTransferSimpleFeesTest {
                                     txnSize -> expectedCryptoTransferFTFullFeeUsd(Map.of(
                                             SIGNATURES, 2,
                                             ACCOUNTS, 4,
-                                            FUNGIBLE_TOKENS, 2,
+                                            TOKEN_TYPES, 2,
                                             TXN_SIZE, txnSize)),
                                     0.001),
                             getAccountBalance(OWNER)
@@ -552,7 +549,7 @@ public class CryptoTransferSimpleFeesTest {
                                     txnSize -> expectedCryptoTransferFTFullFeeUsd(Map.of(
                                             SIGNATURES, 2,
                                             ACCOUNTS, 2,
-                                            FUNGIBLE_TOKENS, 1,
+                                            TOKEN_TYPES, 1,
                                             TXN_SIZE, txnSize)),
                                     0.001),
                             getAccountBalance(OWNER).hasTokenBalance(FUNGIBLE_TOKEN, 80L),
@@ -583,7 +580,7 @@ public class CryptoTransferSimpleFeesTest {
                                     txnSize -> expectedCryptoTransferFTFullFeeUsd(Map.of(
                                             SIGNATURES, 2,
                                             ACCOUNTS, 3,
-                                            FUNGIBLE_TOKENS, 1,
+                                            TOKEN_TYPES, 1,
                                             TXN_SIZE, txnSize)),
                                     0.001),
                             getAccountBalance(OWNER).hasTokenBalance(FUNGIBLE_TOKEN, 80L),
@@ -618,7 +615,7 @@ public class CryptoTransferSimpleFeesTest {
                                     txnSize -> expectedCryptoTransferFTFullFeeUsd(Map.of(
                                             SIGNATURES, 2,
                                             ACCOUNTS, 4,
-                                            FUNGIBLE_TOKENS, 1,
+                                            TOKEN_TYPES, 1,
                                             TXN_SIZE, txnSize)),
                                     0.001),
                             getAccountBalance(OWNER).hasTokenBalance(FUNGIBLE_TOKEN, 70L),
@@ -653,7 +650,7 @@ public class CryptoTransferSimpleFeesTest {
                                     txnSize -> expectedCryptoTransferNFTFullFeeUsd(Map.of(
                                             SIGNATURES, 1,
                                             ACCOUNTS, 2,
-                                            NON_FUNGIBLE_TOKENS, 1,
+                                            TOKEN_TYPES, 1,
                                             TXN_SIZE, txnSize)),
                                     0.001),
                             getAccountBalance(OWNER).hasTokenBalance(NON_FUNGIBLE_TOKEN, 3L),
@@ -682,7 +679,7 @@ public class CryptoTransferSimpleFeesTest {
                                     txnSize -> expectedCryptoTransferNFTFullFeeUsd(Map.of(
                                             SIGNATURES, 2,
                                             ACCOUNTS, 2,
-                                            NON_FUNGIBLE_TOKENS, 1,
+                                            TOKEN_TYPES, 1,
                                             TXN_SIZE, txnSize)),
                                     0.001),
                             getAccountBalance(OWNER).hasTokenBalance(NON_FUNGIBLE_TOKEN, 3L),
@@ -717,7 +714,7 @@ public class CryptoTransferSimpleFeesTest {
                                     txnSize -> expectedCryptoTransferNFTFullFeeUsd(Map.of(
                                             SIGNATURES, 2,
                                             ACCOUNTS, 2,
-                                            NON_FUNGIBLE_TOKENS, 2,
+                                            TOKEN_TYPES, 2,
                                             TXN_SIZE, txnSize)),
                                     0.001),
                             getAccountBalance(OWNER)
@@ -764,7 +761,7 @@ public class CryptoTransferSimpleFeesTest {
                                     txnSize -> expectedCryptoTransferNFTFullFeeUsd(Map.of(
                                             SIGNATURES, 2,
                                             ACCOUNTS, 2,
-                                            NON_FUNGIBLE_TOKENS, 3,
+                                            TOKEN_TYPES, 3,
                                             TXN_SIZE, txnSize)),
                                     0.001),
                             getAccountBalance(OWNER)
@@ -825,7 +822,7 @@ public class CryptoTransferSimpleFeesTest {
                                     txnSize -> expectedCryptoTransferNFTFullFeeUsd(Map.of(
                                             SIGNATURES, 2,
                                             ACCOUNTS, 3,
-                                            NON_FUNGIBLE_TOKENS, 6,
+                                            TOKEN_TYPES, 6,
                                             TXN_SIZE, txnSize)),
                                     0.001),
                             getAccountBalance(OWNER)
@@ -903,7 +900,7 @@ public class CryptoTransferSimpleFeesTest {
                                     txnSize -> expectedCryptoTransferNFTFullFeeUsd(Map.of(
                                             SIGNATURES, 2,
                                             ACCOUNTS, 4,
-                                            NON_FUNGIBLE_TOKENS, 10,
+                                            TOKEN_TYPES, 10,
                                             TXN_SIZE, txnSize)),
                                     0.001),
                             getAccountBalance(OWNER)
@@ -946,7 +943,7 @@ public class CryptoTransferSimpleFeesTest {
                                     txnSize -> expectedCryptoTransferNFTFullFeeUsd(Map.of(
                                             SIGNATURES, 2,
                                             ACCOUNTS, 2,
-                                            NON_FUNGIBLE_TOKENS, 2,
+                                            TOKEN_TYPES, 2,
                                             TXN_SIZE, txnSize)),
                                     0.001),
                             getAccountBalance(OWNER).hasTokenBalance(NON_FUNGIBLE_TOKEN, 2L),
@@ -982,7 +979,7 @@ public class CryptoTransferSimpleFeesTest {
                                     txnSize -> expectedCryptoTransferNFTFullFeeUsd(Map.of(
                                             SIGNATURES, 2,
                                             ACCOUNTS, 2,
-                                            NON_FUNGIBLE_TOKENS, 4,
+                                            TOKEN_TYPES, 4,
                                             TXN_SIZE, txnSize)),
                                     0.001),
                             getAccountBalance(OWNER)
@@ -1024,8 +1021,7 @@ public class CryptoTransferSimpleFeesTest {
                                     txnSize -> expectedCryptoTransferFTAndNFTFullFeeUsd(Map.of(
                                             SIGNATURES, 1,
                                             ACCOUNTS, 2,
-                                            FUNGIBLE_TOKENS, 1,
-                                            NON_FUNGIBLE_TOKENS, 1,
+                                            TOKEN_TYPES, 2,
                                             TXN_SIZE, txnSize)),
                                     0.001),
                             getAccountBalance(OWNER)
@@ -1063,8 +1059,7 @@ public class CryptoTransferSimpleFeesTest {
                                     txnSize -> expectedCryptoTransferFTAndNFTFullFeeUsd(Map.of(
                                             SIGNATURES, 2,
                                             ACCOUNTS, 2,
-                                            FUNGIBLE_TOKENS, 1,
-                                            NON_FUNGIBLE_TOKENS, 1,
+                                            TOKEN_TYPES, 2,
                                             TXN_SIZE, txnSize)),
                                     0.001),
                             getAccountBalance(OWNER)
@@ -1103,8 +1098,7 @@ public class CryptoTransferSimpleFeesTest {
                                     txnSize -> expectedCryptoTransferHBARAndFTAndNFTFullFeeUsd(Map.of(
                                             SIGNATURES, 1,
                                             ACCOUNTS, 2,
-                                            FUNGIBLE_TOKENS, 1,
-                                            NON_FUNGIBLE_TOKENS, 1,
+                                            TOKEN_TYPES, 2,
                                             TXN_SIZE, txnSize)),
                                     0.001),
                             getAccountBalance(OWNER)
@@ -1143,8 +1137,7 @@ public class CryptoTransferSimpleFeesTest {
                                     txnSize -> expectedCryptoTransferHBARAndFTAndNFTFullFeeUsd(Map.of(
                                             SIGNATURES, 2,
                                             ACCOUNTS, 2,
-                                            FUNGIBLE_TOKENS, 1,
-                                            NON_FUNGIBLE_TOKENS, 1,
+                                            TOKEN_TYPES, 2,
                                             TXN_SIZE, txnSize)),
                                     0.001),
                             getAccountBalance(OWNER)
@@ -1182,7 +1175,7 @@ public class CryptoTransferSimpleFeesTest {
                                     txnSize -> expectedCryptoTransferFTFullFeeUsd(Map.of(
                                                     SIGNATURES, 1,
                                                     ACCOUNTS, 2,
-                                                    FUNGIBLE_TOKENS, 1,
+                                                    TOKEN_TYPES, 1,
                                                     TXN_SIZE, txnSize))
                                             + TOKEN_ASSOCIATE_EXTRA_FEE_USD,
                                     0.001)));
@@ -1216,7 +1209,7 @@ public class CryptoTransferSimpleFeesTest {
                                     txnSize -> (expectedCryptoTransferFTAndNFTFullFeeUsd(Map.of(
                                                     SIGNATURES, 2,
                                                     ACCOUNTS, 3,
-                                                    FUNGIBLE_TOKENS, 1,
+                                                    TOKEN_TYPES, 1,
                                                     TXN_SIZE, txnSize))
                                             + TOKEN_ASSOCIATE_EXTRA_FEE_USD * 2),
                                     0.001)));
@@ -1254,8 +1247,7 @@ public class CryptoTransferSimpleFeesTest {
                                     txnSize -> (expectedCryptoTransferFTAndNFTFullFeeUsd(Map.of(
                                                     SIGNATURES, 2,
                                                     ACCOUNTS, 3,
-                                                    FUNGIBLE_TOKENS, 1,
-                                                    NON_FUNGIBLE_TOKENS, 2,
+                                                    TOKEN_TYPES, 3,
                                                     TXN_SIZE, txnSize))
                                             + TOKEN_ASSOCIATE_EXTRA_FEE_USD * 3),
                                     0.001)));
@@ -1379,7 +1371,7 @@ public class CryptoTransferSimpleFeesTest {
                                     txnSize -> (expectedCryptoTransferFTFullFeeUsd(Map.of(
                                                     SIGNATURES, 1,
                                                     ACCOUNTS, 2,
-                                                    FUNGIBLE_TOKENS, 1,
+                                                    TOKEN_TYPES, 1,
                                                     TXN_SIZE, txnSize))
                                             + TOKEN_ASSOCIATE_EXTRA_FEE_USD),
                                     0.001),
@@ -1411,7 +1403,7 @@ public class CryptoTransferSimpleFeesTest {
                                     txnSize -> (expectedCryptoTransferFTFullFeeUsd(Map.of(
                                                     SIGNATURES, 1,
                                                     ACCOUNTS, 2,
-                                                    FUNGIBLE_TOKENS, 1,
+                                                    TOKEN_TYPES, 1,
                                                     TXN_SIZE, txnSize))
                                             + TOKEN_ASSOCIATE_EXTRA_FEE_USD),
                                     0.001),
@@ -1453,7 +1445,7 @@ public class CryptoTransferSimpleFeesTest {
                                         txnSize -> (expectedCryptoTransferFTFullFeeUsd(Map.of(
                                                         SIGNATURES, 1,
                                                         ACCOUNTS, 2,
-                                                        FUNGIBLE_TOKENS, 1,
+                                                        TOKEN_TYPES, 1,
                                                         TXN_SIZE, txnSize))
                                                 + TOKEN_ASSOCIATE_EXTRA_FEE_USD),
                                         0.001);
@@ -1494,7 +1486,7 @@ public class CryptoTransferSimpleFeesTest {
                                     txnSize -> (expectedCryptoTransferNFTFullFeeUsd(Map.of(
                                                     SIGNATURES, 1,
                                                     ACCOUNTS, 2,
-                                                    NON_FUNGIBLE_TOKENS, 1,
+                                                    TOKEN_TYPES, 1,
                                                     TXN_SIZE, txnSize))
                                             + TOKEN_ASSOCIATE_EXTRA_FEE_USD),
                                     0.001),
@@ -1528,7 +1520,7 @@ public class CryptoTransferSimpleFeesTest {
                                     txnSize -> (expectedCryptoTransferNFTFullFeeUsd(Map.of(
                                                     SIGNATURES, 1,
                                                     ACCOUNTS, 2,
-                                                    NON_FUNGIBLE_TOKENS, 1,
+                                                    TOKEN_TYPES, 1,
                                                     TXN_SIZE, txnSize))
                                             + TOKEN_ASSOCIATE_EXTRA_FEE_USD),
                                     0.001),
@@ -1572,7 +1564,7 @@ public class CryptoTransferSimpleFeesTest {
                                         txnSize -> (expectedCryptoTransferNFTFullFeeUsd(Map.of(
                                                         SIGNATURES, 1,
                                                         ACCOUNTS, 2,
-                                                        NON_FUNGIBLE_TOKENS, 1,
+                                                        TOKEN_TYPES, 1,
                                                         TXN_SIZE, txnSize))
                                                 + TOKEN_ASSOCIATE_EXTRA_FEE_USD),
                                         0.001);
@@ -1686,7 +1678,7 @@ public class CryptoTransferSimpleFeesTest {
                                         txnSize -> (expectedCryptoTransferFTFullFeeUsd(Map.of(
                                                         SIGNATURES, 1,
                                                         ACCOUNTS, 3,
-                                                        FUNGIBLE_TOKENS, 2,
+                                                        TOKEN_TYPES, 2,
                                                         TXN_SIZE, txnSize))
                                                 + TOKEN_ASSOCIATE_EXTRA_FEE_USD * 2),
                                         0.001);
@@ -1759,7 +1751,7 @@ public class CryptoTransferSimpleFeesTest {
                                         txnSize -> (expectedCryptoTransferHBARAndFTAndNFTFullFeeUsd(Map.of(
                                                         SIGNATURES, 1,
                                                         ACCOUNTS, 4,
-                                                        NON_FUNGIBLE_TOKENS, 3,
+                                                        TOKEN_TYPES, 3,
                                                         TXN_SIZE, txnSize))
                                                 + TOKEN_ASSOCIATE_EXTRA_FEE_USD * 3),
                                         0.001);
@@ -1837,8 +1829,7 @@ public class CryptoTransferSimpleFeesTest {
                                         txnSize -> (expectedCryptoTransferHBARAndFTAndNFTFullFeeUsd(Map.of(
                                                         SIGNATURES, 1,
                                                         ACCOUNTS, 4,
-                                                        FUNGIBLE_TOKENS, 1,
-                                                        NON_FUNGIBLE_TOKENS, 1,
+                                                        TOKEN_TYPES, 2,
                                                         TXN_SIZE, txnSize))
                                                 + TOKEN_ASSOCIATE_EXTRA_FEE_USD * 2),
                                         0.001);
@@ -1910,7 +1901,7 @@ public class CryptoTransferSimpleFeesTest {
                                         txnSize -> (expectedCryptoTransferFTFullFeeUsd(Map.of(
                                                         SIGNATURES, 1,
                                                         ACCOUNTS, 2,
-                                                        FUNGIBLE_TOKENS, 1,
+                                                        TOKEN_TYPES, 1,
                                                         TXN_SIZE, txnSize))
                                                 + TOKEN_ASSOCIATE_EXTRA_FEE_USD),
                                         0.001);
@@ -1954,7 +1945,7 @@ public class CryptoTransferSimpleFeesTest {
                                         txnSize -> (expectedCryptoTransferFTFullFeeUsd(Map.of(
                                                 SIGNATURES, 2,
                                                 ACCOUNTS, 2,
-                                                FUNGIBLE_TOKENS, 1,
+                                                TOKEN_TYPES, 1,
                                                 TXN_SIZE, txnSize))),
                                         0.001);
 
@@ -2031,7 +2022,7 @@ public class CryptoTransferSimpleFeesTest {
                                             SIGNATURES, 1,
                                             HOOKS_EXECUTED, 1,
                                             ACCOUNTS, 2,
-                                            FUNGIBLE_TOKENS, 1,
+                                            TOKEN_TYPES, 1,
                                             GAS, 5_000_000L,
                                             TXN_SIZE, txnSize)),
                                     0.001),
@@ -2066,7 +2057,7 @@ public class CryptoTransferSimpleFeesTest {
                                             SIGNATURES, 1,
                                             HOOKS_EXECUTED, 1,
                                             ACCOUNTS, 3,
-                                            FUNGIBLE_TOKENS, 1,
+                                            TOKEN_TYPES, 1,
                                             GAS, 5_000_000L,
                                             TXN_SIZE, txnSize)),
                                     0.001),
@@ -2100,7 +2091,7 @@ public class CryptoTransferSimpleFeesTest {
                                             SIGNATURES, 1,
                                             HOOKS_EXECUTED, 1,
                                             ACCOUNTS, 2,
-                                            NON_FUNGIBLE_TOKENS, 1,
+                                            TOKEN_TYPES, 1,
                                             GAS, 5_000_000L,
                                             TXN_SIZE, txnSize)),
                                     0.001),
@@ -2134,7 +2125,7 @@ public class CryptoTransferSimpleFeesTest {
                                             SIGNATURES, 2,
                                             HOOKS_EXECUTED, 2,
                                             ACCOUNTS, 3,
-                                            FUNGIBLE_TOKENS, 1,
+                                            TOKEN_TYPES, 1,
                                             GAS, 10_000_000L,
                                             TXN_SIZE, txnSize)),
                                     0.001),
@@ -2170,7 +2161,7 @@ public class CryptoTransferSimpleFeesTest {
                                             SIGNATURES, 2,
                                             HOOKS_EXECUTED, 2,
                                             ACCOUNTS, 3,
-                                            NON_FUNGIBLE_TOKENS, 1,
+                                            TOKEN_TYPES, 1,
                                             GAS, 10_000_000L,
                                             TXN_SIZE, txnSize)),
                                     0.001),
@@ -2211,8 +2202,7 @@ public class CryptoTransferSimpleFeesTest {
                                             SIGNATURES, 2,
                                             HOOKS_EXECUTED, 2,
                                             ACCOUNTS, 5,
-                                            FUNGIBLE_TOKENS, 1,
-                                            NON_FUNGIBLE_TOKENS, 1,
+                                            TOKEN_TYPES, 2,
                                             GAS, 10_000_000L,
                                             TXN_SIZE, txnSize)),
                                     0.001),
@@ -2257,8 +2247,7 @@ public class CryptoTransferSimpleFeesTest {
                                             SIGNATURES, 2,
                                             HOOKS_EXECUTED, 2,
                                             ACCOUNTS, 5,
-                                            FUNGIBLE_TOKENS, 1,
-                                            NON_FUNGIBLE_TOKENS, 1,
+                                            TOKEN_TYPES, 2,
                                             GAS, 10_000_000L,
                                             TXN_SIZE, txnSize)),
                                     0.001),
@@ -2291,7 +2280,7 @@ public class CryptoTransferSimpleFeesTest {
                                                     SIGNATURES, 1,
                                                     HOOKS_EXECUTED, 1,
                                                     ACCOUNTS, 2,
-                                                    FUNGIBLE_TOKENS, 1,
+                                                    TOKEN_TYPES, 1,
                                                     GAS, 5_000_000L,
                                                     TXN_SIZE, txnSize))
                                             + TOKEN_ASSOCIATE_EXTRA_FEE_USD,
@@ -3133,7 +3122,7 @@ public class CryptoTransferSimpleFeesTest {
                                     txnSize -> expectedCryptoTransferFTFullFeeUsd(Map.of(
                                             SIGNATURES, 2,
                                             ACCOUNTS, 2,
-                                            FUNGIBLE_TOKENS, 1,
+                                            TOKEN_TYPES, 1,
                                             TXN_SIZE, txnSize)),
                                     0.001),
                             getAccountBalance(OWNER).hasTokenBalance(FUNGIBLE_TOKEN, 10L),
@@ -3163,7 +3152,7 @@ public class CryptoTransferSimpleFeesTest {
                                     txnSize -> expectedCryptoTransferNFTFullFeeUsd(Map.of(
                                             SIGNATURES, 1,
                                             ACCOUNTS, 2,
-                                            NON_FUNGIBLE_TOKENS, 1,
+                                            TOKEN_TYPES, 1,
                                             TXN_SIZE, txnSize)),
                                     0.001),
                             getAccountBalance(OWNER).hasTokenBalance(NON_FUNGIBLE_TOKEN, 2L),
@@ -3193,7 +3182,7 @@ public class CryptoTransferSimpleFeesTest {
                                     txnSize -> expectedCryptoTransferHBARAndFTFullFeeUsd(Map.of(
                                             SIGNATURES, 2,
                                             ACCOUNTS, 2,
-                                            FUNGIBLE_TOKENS, 1,
+                                            TOKEN_TYPES, 1,
                                             TXN_SIZE, txnSize)),
                                     0.001),
                             getAccountBalance(OWNER).hasTokenBalance(FUNGIBLE_TOKEN, 10L),
@@ -3225,7 +3214,7 @@ public class CryptoTransferSimpleFeesTest {
                                     txnSize -> expectedCryptoTransferHBARAndNFTFullFeeUsd(Map.of(
                                             SIGNATURES, 2,
                                             ACCOUNTS, 2,
-                                            NON_FUNGIBLE_TOKENS, 1,
+                                            TOKEN_TYPES, 1,
                                             TXN_SIZE, txnSize)),
                                     0.001),
                             getAccountBalance(OWNER).hasTokenBalance(NON_FUNGIBLE_TOKEN, 2L),
@@ -3261,8 +3250,7 @@ public class CryptoTransferSimpleFeesTest {
                                     txnSize -> expectedCryptoTransferHBARAndFTAndNFTFullFeeUsd(Map.of(
                                             SIGNATURES, 2,
                                             ACCOUNTS, 2,
-                                            FUNGIBLE_TOKENS, 1,
-                                            NON_FUNGIBLE_TOKENS, 1,
+                                            TOKEN_TYPES, 2,
                                             TXN_SIZE, txnSize)),
                                     0.001),
                             getAccountBalance(OWNER)
@@ -3301,8 +3289,7 @@ public class CryptoTransferSimpleFeesTest {
                                     txnSize -> expectedCryptoTransferHBARAndFTAndNFTFullFeeUsd(Map.of(
                                             SIGNATURES, 2,
                                             ACCOUNTS, 2,
-                                            FUNGIBLE_TOKENS, 1,
-                                            NON_FUNGIBLE_TOKENS, 1,
+                                            TOKEN_TYPES, 2,
                                             TXN_SIZE, txnSize)),
                                     0.001),
                             getAccountBalance(OWNER)
@@ -3333,7 +3320,7 @@ public class CryptoTransferSimpleFeesTest {
                                     txnSize -> expectedCryptoTransferFTFullFeeUsd(Map.of(
                                             SIGNATURES, 2,
                                             ACCOUNTS, 2,
-                                            FUNGIBLE_TOKENS, 1,
+                                            TOKEN_TYPES, 1,
                                             TXN_SIZE, txnSize)),
                                     0.001),
                             getAccountBalance(OWNER).hasTokenBalance(FUNGIBLE_TOKEN, 10L),
@@ -3361,7 +3348,7 @@ public class CryptoTransferSimpleFeesTest {
                                     txnSize -> expectedCryptoTransferNFTFullFeeUsd(Map.of(
                                             SIGNATURES, 2,
                                             ACCOUNTS, 2,
-                                            NON_FUNGIBLE_TOKENS, 1,
+                                            TOKEN_TYPES, 1,
                                             TXN_SIZE, txnSize)),
                                     0.001),
                             getAccountBalance(OWNER).hasTokenBalance(NON_FUNGIBLE_TOKEN, 4L),
@@ -3396,8 +3383,7 @@ public class CryptoTransferSimpleFeesTest {
                                     txnSize -> expectedCryptoTransferFTAndNFTFullFeeUsd(Map.of(
                                             SIGNATURES, 2,
                                             ACCOUNTS, 3,
-                                            FUNGIBLE_TOKENS, 1,
-                                            NON_FUNGIBLE_TOKENS, 1,
+                                            TOKEN_TYPES, 2,
                                             TXN_SIZE, txnSize)),
                                     0.001),
                             getAccountBalance(OWNER)
@@ -3438,8 +3424,7 @@ public class CryptoTransferSimpleFeesTest {
                                     txnSize -> expectedCryptoTransferHBARAndFTAndNFTFullFeeUsd(Map.of(
                                             SIGNATURES, 2,
                                             ACCOUNTS, 4,
-                                            FUNGIBLE_TOKENS, 1,
-                                            NON_FUNGIBLE_TOKENS, 1,
+                                            TOKEN_TYPES, 2,
                                             TXN_SIZE, txnSize)),
                                     0.001),
                             getAccountBalance(OWNER)
@@ -3488,8 +3473,7 @@ public class CryptoTransferSimpleFeesTest {
                                     txnSize -> (expectedCryptoTransferFTAndNFTFullFeeUsd(Map.of(
                                             SIGNATURES, 3,
                                             ACCOUNTS, 4,
-                                            FUNGIBLE_TOKENS, 1,
-                                            NON_FUNGIBLE_TOKENS, 2,
+                                            TOKEN_TYPES, 3,
                                             TXN_SIZE, txnSize))),
                                     0.001),
                             // validate balances
@@ -3535,8 +3519,7 @@ public class CryptoTransferSimpleFeesTest {
                                     txnSize -> (expectedCryptoTransferFTAndNFTFullFeeUsd(Map.of(
                                             SIGNATURES, 2,
                                             ACCOUNTS, 2,
-                                            FUNGIBLE_TOKENS, 2,
-                                            NON_FUNGIBLE_TOKENS, 2,
+                                            TOKEN_TYPES, 4,
                                             TXN_SIZE, txnSize))),
                                     0.001),
                             // validate balances
@@ -3591,8 +3574,7 @@ public class CryptoTransferSimpleFeesTest {
                                         txnSize -> expectedCryptoTransferHBARAndFTAndNFTFullFeeUsd(Map.of(
                                                 SIGNATURES, 1,
                                                 ACCOUNTS, 6,
-                                                FUNGIBLE_TOKENS, 2,
-                                                NON_FUNGIBLE_TOKENS, 2,
+                                                TOKEN_TYPES, 4,
                                                 TXN_SIZE, txnSize)),
                                         0.001);
 
@@ -3658,7 +3640,7 @@ public class CryptoTransferSimpleFeesTest {
                                             SIGNATURES, 1,
                                             HOOKS_EXECUTED, 1,
                                             ACCOUNTS, 2,
-                                            FUNGIBLE_TOKENS, 1,
+                                            TOKEN_TYPES, 1,
                                             GAS, 10L,
                                             TXN_SIZE, txnSize)),
                                     0.001),
