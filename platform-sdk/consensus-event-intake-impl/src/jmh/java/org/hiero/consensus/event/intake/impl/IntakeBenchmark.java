@@ -18,6 +18,7 @@ import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.Generato
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.GeneratorEventGraphSourceBuilder;
 import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
 import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.test.fixtures.event.EventCounter;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.transaction.TransactionLimits;
 import org.openjdk.jmh.annotations.Benchmark;
