@@ -17,7 +17,6 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Random;
 import java.util.function.Consumer;
-import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.event.NoOpIntakeEventCounter;
 import org.hiero.consensus.gossip.config.BroadcastConfig;

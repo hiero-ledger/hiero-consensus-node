@@ -29,7 +29,7 @@ public interface ConstructableRegistry {
     /**
      * Returns the no-arg constructor for the {@link RuntimeConstructable} if previously registered. If no
      * constructor is found, it returns null. This method will always return null unless
-     * {@link #registerConstructables(String)} is called beforehand.
+     * {@link #registerConstructable(ClassConstructorPair)} is called beforehand.
      *
      * @param classId
      * 		the unique class ID to get the constructor for
@@ -42,7 +42,7 @@ public interface ConstructableRegistry {
 
     /**
      * Instantiates an object of a class defined by the supplied {@code classId}. If no object is registered with this
-     * ID, it will return null. This method will always return null unless {@link #registerConstructables(String)} is
+     * ID, it will return null. This method will always return null unless {@link #registerConstructable(ClassConstructorPair)} is
      * called beforehand.
      *
      * @param classId
@@ -55,34 +55,6 @@ public interface ConstructableRegistry {
      */
     @Deprecated(forRemoval = true)
     <T extends RuntimeConstructable> T createObject(final long classId);
-
-    /**
-     * Searches the classpath and registers constructors for {@link RuntimeConstructable} classes.
-     * <p>
-     * The method will search the classpath for any non-abstract classes that implement {@link RuntimeConstructable}.
-     * When a class is found, the method creates a lambda for its no-arguments constructor. The lambda is then
-     * registered by the class ID defined in the implementation.
-     *
-     * @param packagePrefix
-     * 		the package prefix of classes to search for, can be an empty String to search all packages
-     * @param additionalClassloader
-     * 		if any classes are loaded by a non-system classloader, it must be provided to find those classes
-     * @throws ConstructableRegistryException
-     * 		thrown if constructor cannot be registered for any reason
-     */
-    void registerConstructables(String packagePrefix, URLClassLoaderWithLookup additionalClassloader)
-            throws ConstructableRegistryException;
-
-    /**
-     * Same as {@link #registerConstructables(String, URLClassLoaderWithLookup)} but with {@code ClassLoader} set to
-     * null
-     *
-     * @param packagePrefix
-     * 		the package prefix of classes to search for, can be an empty String to search all packages
-     * @throws ConstructableRegistryException
-     * 		thrown if constructor cannot be registered for any reason
-     */
-    void registerConstructables(String packagePrefix) throws ConstructableRegistryException;
 
     /**
      * Register the provided {@link ClassConstructorPair} so that it can be instantiated based on its class ID

@@ -25,8 +25,13 @@ import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils;
 import com.swirlds.virtualmap.VirtualMap;
+import org.hiero.base.constructable.ClassConstructorPair;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.crypto.SerializablePublicKey;
+import org.hiero.consensus.model.event.CesEvent;
+import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
 import org.hiero.consensus.state.signed.SignedState;
 import org.hiero.consensus.test.fixtures.Randotron;
@@ -44,11 +49,11 @@ class StateLifecycleManagerTests {
     @BeforeAll
     static void beforeAll() throws ConstructableRegistryException {
         final var registry = ConstructableRegistry.getInstance();
-        registry.registerConstructables("org.hiero");
-        registry.registerConstructables("com.swirlds.platform");
-        registry.registerConstructables("com.swirlds.state");
-        registry.registerConstructables("com.swirlds.virtualmap");
-        registry.registerConstructables("com.swirlds.merkledb");
+        registry.registerConstructable(new ClassConstructorPair(Hash.class, Hash::new));
+        registry.registerConstructable(
+                new ClassConstructorPair(SerializablePublicKey.class, SerializablePublicKey::new));
+        registry.registerConstructable(new ClassConstructorPair(CesEvent.class, CesEvent::new));
+        registry.registerConstructable(new ClassConstructorPair(NodeId.class, NodeId::new));
     }
 
     @BeforeEach

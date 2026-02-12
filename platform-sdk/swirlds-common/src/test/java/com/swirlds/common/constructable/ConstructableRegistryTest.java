@@ -32,8 +32,7 @@ class ConstructableRegistryTest {
 
         final long start = System.currentTimeMillis();
         // find all RuntimeConstructable classes and register their constructors
-        mainReg.registerConstructable(new ClassConstructorPair(
-            ConstructableExample.class, ConstructableExample::new));
+        mainReg.registerConstructable(new ClassConstructorPair(ConstructableExample.class, ConstructableExample::new));
         System.out.printf(
                 "Time taken to register all RuntimeConstructables: %dms\n", System.currentTimeMillis() - start);
         noArgsRegistry = mainReg.getRegistry(NoArgsConstructor.class);
@@ -57,9 +56,12 @@ class ConstructableRegistryTest {
         // Test the scenario of a class ID clash
         final long oldClassId = ConstructableExample.CLASS_ID;
         ConstructableExample.CLASS_ID = SubpackageConstructable.CLASS_ID;
-        mainReg.registerConstructable(new ClassConstructorPair(SubpackageConstructable.class, SubpackageConstructable::new));
-        assertThrows(ConstructableRegistryException.class,
-                () -> mainReg.registerConstructable(new ClassConstructorPair(ConstructableExample.class, ConstructableExample::new)));
+        mainReg.registerConstructable(
+                new ClassConstructorPair(SubpackageConstructable.class, SubpackageConstructable::new));
+        assertThrows(
+                ConstructableRegistryException.class,
+                () -> mainReg.registerConstructable(
+                        new ClassConstructorPair(ConstructableExample.class, ConstructableExample::new)));
         // return the old CLASS_ID
         ConstructableExample.CLASS_ID = oldClassId;
         // now it should be fine again

@@ -10,5 +10,6 @@ open module com.swirlds.virtualmap.test.fixtures {
     requires com.swirlds.common;
     requires com.swirlds.virtualmap;
     requires org.hiero.base.utility;
+    requires org.hiero.consensus.model;
     requires org.hiero.consensus.reconnect;
 }

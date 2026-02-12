@@ -56,8 +56,7 @@ public class SerializableStreamTests {
     static void setUp() throws ConstructableRegistryException {
         final ConstructableRegistry registry = ConstructableRegistry.getInstance();
 
-        registry.registerConstructables(PACKAGE_PREFIX);
-        registry.registerConstructables("com.swirlds.common.merkle.utility");
+        registry.registerConstructable(new ClassConstructorPair(SerializableLong.class, SerializableLong::new));
 
         registry.registerConstructable(
                 new ClassConstructorPair(SelfSerializableExample.class, SelfSerializableExample::new));

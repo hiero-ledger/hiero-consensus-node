@@ -10,6 +10,11 @@ import static org.hiero.consensus.platformstate.PlatformStateUtils.creationSoftw
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.util.HapiUtils;
+import com.swirlds.common.merkle.synchronization.task.InternalDataLesson;
+import com.swirlds.common.merkle.synchronization.task.LeafDataLesson;
+import com.swirlds.common.merkle.synchronization.task.Lesson;
+import com.swirlds.common.merkle.synchronization.task.QueryResponse;
+import com.swirlds.common.merkle.utility.SerializableLong;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.api.source.ConfigSource;
@@ -41,9 +46,13 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.constructable.ClassConstructorPair;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.crypto.SerializablePublicKey;
 import org.hiero.consensus.config.BasicConfig;
+import org.hiero.consensus.model.event.CesEvent;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.state.signed.SignedState;
 
@@ -120,7 +129,17 @@ public final class BootstrapUtils {
      */
     public static void setupConstructableRegistry() {
         try {
-            ConstructableRegistry.getInstance().registerConstructables("");
+            final ConstructableRegistry registry = ConstructableRegistry.getInstance();
+            registry.registerConstructable(new ClassConstructorPair(Hash.class, Hash::new));
+            registry.registerConstructable(
+                    new ClassConstructorPair(SerializablePublicKey.class, SerializablePublicKey::new));
+            registry.registerConstructable(new ClassConstructorPair(CesEvent.class, CesEvent::new));
+            registry.registerConstructable(new ClassConstructorPair(NodeId.class, NodeId::new));
+            registry.registerConstructable(new ClassConstructorPair(Lesson.class, Lesson::new));
+            registry.registerConstructable(new ClassConstructorPair(InternalDataLesson.class, InternalDataLesson::new));
+            registry.registerConstructable(new ClassConstructorPair(QueryResponse.class, QueryResponse::new));
+            registry.registerConstructable(new ClassConstructorPair(LeafDataLesson.class, LeafDataLesson::new));
+            registry.registerConstructable(new ClassConstructorPair(SerializableLong.class, SerializableLong::new));
         } catch (final ConstructableRegistryException e) {
             throw new RuntimeException(e);
         }

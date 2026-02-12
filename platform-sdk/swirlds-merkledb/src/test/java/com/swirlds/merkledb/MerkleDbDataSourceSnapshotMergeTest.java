@@ -34,8 +34,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
-import org.hiero.base.constructable.ConstructableRegistry;
-import org.hiero.base.constructable.ConstructableRegistryException;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -48,9 +46,7 @@ class MerkleDbDataSourceSnapshotMergeTest {
     private static final int COUNT2 = 30_000;
 
     @BeforeAll
-    public static void beforeAll() throws ConstructableRegistryException {
-        ConstructableRegistry.getInstance().registerConstructables("com.swirlds.merkledb");
-    }
+    public static void beforeAll() {}
 
     /*
      * RUN THE TEST IN A BACKGROUND THREAD. We do this so that we can kill the thread at the end of the test which will

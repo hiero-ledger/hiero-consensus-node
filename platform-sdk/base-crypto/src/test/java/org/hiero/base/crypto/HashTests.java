@@ -29,9 +29,7 @@ public class HashTests {
 
     @BeforeAll
     public static void setUp() throws ConstructableRegistryException {
-        ConstructableRegistry.getInstance().registerConstructable(new ClassConstructorPair(
-                Hash.class, Hash::new
-        ));
+        ConstructableRegistry.getInstance().registerConstructable(new ClassConstructorPair(Hash.class, Hash::new));
     }
 
     @Test

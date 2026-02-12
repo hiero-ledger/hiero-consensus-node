@@ -29,9 +29,8 @@ class ObjectForTestStreamTest {
 
     @Test
     void serializeDeserializeTest() throws Exception {
-        ConstructableRegistry.getInstance().registerConstructable(
-                new ClassConstructorPair(ObjectForTestStream.class, ObjectForTestStream::new)
-        );
+        ConstructableRegistry.getInstance()
+                .registerConstructable(new ClassConstructorPair(ObjectForTestStream.class, ObjectForTestStream::new));
         ObjectForTestStream deserialized = SerializationUtils.serializeDeserialize(object);
         assertEquals(object, deserialized, "deserialized object should equal to original object");
     }
