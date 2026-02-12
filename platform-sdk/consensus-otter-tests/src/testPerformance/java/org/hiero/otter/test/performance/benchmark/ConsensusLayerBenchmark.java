@@ -44,7 +44,7 @@ public class ConsensusLayerBenchmark {
     private static final int TRANSACTION_COUNT = 1000;
     private static final int MAX_TPS = 20;
     // Setup simulation with 4 nodes
-    public static final int NUMBER_OF_NODES = 2;
+    public static final int NUMBER_OF_NODES = 4;
 
     /**
      * Benchmark test that runs a network with 4 nodes and submits benchmark transactions.
