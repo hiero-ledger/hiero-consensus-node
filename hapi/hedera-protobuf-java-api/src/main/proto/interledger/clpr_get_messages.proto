@@ -38,7 +38,7 @@ message ClprGetMessagesQuery {
   proto.QueryHeader header = 1;
 
   /**
-   * The ledger id of the CLPR ledger from which messages are requested.
+   * The ledger id of the CLPR ledger to which messages are to be sent.
    */
   org.hiero.hapi.interledger.state.clpr.ClprLedgerId ledger_id = 2;
 
