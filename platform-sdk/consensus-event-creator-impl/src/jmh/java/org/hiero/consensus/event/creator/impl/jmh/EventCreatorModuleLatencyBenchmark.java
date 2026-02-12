@@ -6,25 +6,32 @@ import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
+import com.swirlds.component.framework.component.ComponentWiring;
+import com.swirlds.component.framework.model.WiringModel;
+import com.swirlds.component.framework.model.WiringModelBuilder;
+import com.swirlds.component.framework.schedulers.builders.TaskSchedulerConfiguration;
+import com.swirlds.component.framework.wires.input.InputWire;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.metrics.api.Metrics;
-import java.security.KeyPair;
 import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import org.hiero.base.crypto.BytesSigner;
-import org.hiero.consensus.crypto.SigningFactory;
-import org.hiero.consensus.crypto.SigningImplementation;
+import org.hiero.consensus.crypto.KeysAndCertsGenerator;
+import org.hiero.consensus.crypto.PlatformSigner;
+import org.hiero.consensus.crypto.SigningSchema;
 import org.hiero.consensus.event.NoOpIntakeEventCounter;
 import org.hiero.consensus.event.creator.config.EventCreationConfig;
 import org.hiero.consensus.event.creator.config.EventCreationConfig_;
 import org.hiero.consensus.event.creator.impl.DefaultEventCreationManager;
+import org.hiero.consensus.event.creator.impl.EventCreationManager;
 import org.hiero.consensus.event.creator.impl.EventCreator;
 import org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreator;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
+import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.orphan.DefaultOrphanBuffer;
@@ -47,7 +54,14 @@ import org.openjdk.jmh.annotations.Warmup;
 
 /**
  * A JMH benchmark that measures the latency of event creation through the complete
- * event creator module.
+ * event creator module, replicating the exact setup of {@link
+ * org.hiero.consensus.event.creator.impl.DefaultEventCreatorModule}.
+ *
+ * <p>The self node (node 0) is wired through a {@link ComponentWiring} with a {@code DIRECT}
+ * scheduler, matching the production module's component architecture. A {@link PlatformSigner}
+ * created from {@link KeysAndCerts} is used for signing, exactly as the module does. Peer nodes
+ * use direct {@link DefaultEventCreationManager} instances since only the self node's latency
+ * is measured.
  */
 @State(Scope.Thread)
 @Fork(value = 1)
@@ -65,13 +79,31 @@ public class EventCreatorModuleLatencyBenchmark {
 
     /** The signing implementation to benchmark. Empty {@code @Param} auto-discovers all enum values. */
     @Param()
-    public SigningImplementation signingType;
+    public SigningSchema signingSchema;
 
-    /** The event creation manager under test (node 0). */
-    private DefaultEventCreationManager selfManager;
+    // --- Self node: ComponentWiring (matching DefaultEventCreatorModule) ---
 
-    /** All event creation managers in the simulated network, indexed by roster order. */
-    private List<DefaultEventCreationManager> allManagers;
+    /** Input wire that triggers {@link EventCreationManager#maybeCreateEvent()}. */
+    private InputWire<Void> creationTriggerWire;
+
+    /** Input wire for {@link EventCreationManager#registerEvent(PlatformEvent)}. */
+    private InputWire<PlatformEvent> registerEventWire;
+
+    /** Input wire for {@link EventCreationManager#setEventWindow(EventWindow)}. */
+    private InputWire<EventWindow> eventWindowWire;
+
+    /** Input wire for {@link EventCreationManager#updatePlatformStatus(PlatformStatus)}. */
+    private InputWire<PlatformStatus> platformStatusWire;
+
+    /** The last event captured from the output wire after triggering creation. */
+    private PlatformEvent lastCreatedEvent;
+
+    // --- Peer nodes: direct managers ---
+
+    /** All peer event creation managers (nodes 1..numNodes-1), indexed 0-based. */
+    private List<DefaultEventCreationManager> peerManagers;
+
+    // --- Shared state ---
 
     /** The roster defining the network topology. */
     private Roster roster;
@@ -108,9 +140,10 @@ public class EventCreatorModuleLatencyBenchmark {
     }
 
     /**
-     * Creates fresh {@link DefaultEventCreationManager} instances for each node and bootstraps
-     * the network with genesis events. This runs once per measurement iteration, giving a clean
-     * slate for each set of samples.
+     * Sets up the self node with {@link ComponentWiring} (matching
+     * {@link org.hiero.consensus.event.creator.impl.DefaultEventCreatorModule}) and peer nodes
+     * with direct managers. Bootstraps the network with genesis events.
+     * This runs once per measurement iteration, giving a clean slate for each set of samples.
      */
     @Setup(Level.Iteration)
     public void setupIteration() {
@@ -118,6 +151,7 @@ public class EventCreatorModuleLatencyBenchmark {
         eventsCreated = 0;
         nextPeerIndex = 1;
         pendingSelfEvent = null;
+        lastCreatedEvent = null;
 
         // Use production defaults except maxCreationRate which is disabled for latency measurement.
         // All other rules (PlatformStatusRule, PlatformHealthRule, SyncLagRule, QuiescenceRule) remain active.
@@ -131,31 +165,72 @@ public class EventCreatorModuleLatencyBenchmark {
         final Metrics metrics = platformContext.getMetrics();
         final Time time = platformContext.getTime();
 
-        allManagers = new ArrayList<>(numNodes);
-        for (final RosterEntry entry : roster.rosterEntries()) {
+        // --- Self node: ComponentWiring setup (replicates DefaultEventCreatorModule.initialize()) ---
+        final NodeId selfNodeId = NodeId.of(roster.rosterEntries().getFirst().nodeId());
+
+        final WiringModel wiringModel = WiringModelBuilder.create(metrics, time).build();
+        final ComponentWiring<EventCreationManager, PlatformEvent> selfWiring =
+                new ComponentWiring<>(wiringModel, EventCreationManager.class, TaskSchedulerConfiguration.parse("DIRECT"));
+
+        // Declare all input wires (matching DefaultEventCreatorModule.initialize())
+        creationTriggerWire = selfWiring.getInputWire(EventCreationManager::maybeCreateEvent, "heartbeat");
+        registerEventWire = selfWiring.getInputWire(EventCreationManager::registerEvent);
+        eventWindowWire = selfWiring.getInputWire(EventCreationManager::setEventWindow, "event window");
+        platformStatusWire = selfWiring.getInputWire(EventCreationManager::updatePlatformStatus, "PlatformStatus");
+        selfWiring.getInputWire(EventCreationManager::reportUnhealthyDuration, "health info");
+        selfWiring.getInputWire(EventCreationManager::reportSyncProgress);
+        selfWiring.getInputWire(EventCreationManager::clear);
+        selfWiring.getInputWire(EventCreationManager::quiescenceCommand);
+
+        // Capture created events from the output wire
+        selfWiring.getOutputWire().solderForMonitoring(event -> lastCreatedEvent = event);
+
+        // Create signer from KeysAndCerts (matching DefaultEventCreatorModule.initialize())
+        final KeysAndCerts selfKeysAndCerts = generateKeysAndCerts(selfNodeId);
+        final BytesSigner selfSigner = new PlatformSigner(selfKeysAndCerts);
+
+        final SecureRandom selfRandom = new SecureRandom();
+        selfRandom.setSeed(selfNodeId.id());
+        final EventCreator selfEventCreator =
+                new TipsetEventCreator(configuration, metrics, time, selfRandom, selfSigner, roster, selfNodeId, List::of);
+        final DefaultEventCreationManager selfManager = new DefaultEventCreationManager(
+                configuration, metrics, time, () -> false, selfEventCreator, roster, selfNodeId);
+        selfWiring.bind(selfManager);
+
+        // Set initial state via wires
+        platformStatusWire.put(PlatformStatus.ACTIVE);
+        eventWindowWire.put(eventWindow);
+
+        // --- Peer nodes: direct managers ---
+        peerManagers = new ArrayList<>(numNodes - 1);
+        for (int i = 1; i < roster.rosterEntries().size(); i++) {
+            final RosterEntry entry = roster.rosterEntries().get(i);
             final NodeId nodeId = NodeId.of(entry.nodeId());
+            final KeysAndCerts keysAndCerts = generateKeysAndCerts(nodeId);
+            final BytesSigner signer = new PlatformSigner(keysAndCerts);
             final SecureRandom nodeRandom = new SecureRandom();
             nodeRandom.setSeed(nodeId.id());
-            final KeyPair keyPair = SigningFactory.generateKeyPair(signingType.getSigningSchema(), nodeRandom);
-            final BytesSigner signer = SigningFactory.createSigner(signingType, keyPair);
             final EventCreator eventCreator =
                     new TipsetEventCreator(configuration, metrics, time, nodeRandom, signer, roster, nodeId, List::of);
-
             final DefaultEventCreationManager manager = new DefaultEventCreationManager(
                     configuration, metrics, time, () -> false, eventCreator, roster, nodeId);
-
-            // Set platform status to ACTIVE, as in production steady state
             manager.updatePlatformStatus(PlatformStatus.ACTIVE);
             manager.setEventWindow(eventWindow);
-
-            allManagers.add(manager);
+            peerManagers.add(manager);
         }
-        selfManager = allManagers.getFirst();
+
         orphanBuffer = new DefaultOrphanBuffer(metrics, new NoOpIntakeEventCounter());
 
         // Bootstrap: each node creates a genesis event and distributes it to all others
-        for (final DefaultEventCreationManager manager : allManagers) {
-            final PlatformEvent genesis = manager.maybeCreateEvent();
+        // Self genesis via wire
+        lastCreatedEvent = null;
+        creationTriggerWire.put(null);
+        if (lastCreatedEvent != null) {
+            processAndDistribute(lastCreatedEvent);
+        }
+        // Peer genesis directly
+        for (final DefaultEventCreationManager peer : peerManagers) {
+            final PlatformEvent genesis = peer.maybeCreateEvent();
             if (genesis != null) {
                 processAndDistribute(genesis);
             }
@@ -180,7 +255,7 @@ public class EventCreatorModuleLatencyBenchmark {
         // Have one peer create an event and distribute it, providing fresh parents for self.
         // Try each peer in round-robin order until one succeeds.
         for (int attempt = 0; attempt < numNodes - 1; attempt++) {
-            final DefaultEventCreationManager peer = allManagers.get(nextPeerIndex);
+            final DefaultEventCreationManager peer = peerManagers.get(nextPeerIndex - 1);
             advancePeerIndex();
 
             final PlatformEvent peerEvent = peer.maybeCreateEvent();
@@ -197,76 +272,47 @@ public class EventCreatorModuleLatencyBenchmark {
                     eventWindow.newEventBirthRound() + 1,
                     Math.max(1, eventWindow.latestConsensusRound() - 25),
                     Math.max(1, eventWindow.latestConsensusRound() - 25));
-            for (final DefaultEventCreationManager manager : allManagers) {
+            eventWindowWire.put(eventWindow);
+            for (final DefaultEventCreationManager manager : peerManagers) {
                 manager.setEventWindow(eventWindow);
             }
         }
     }
 
     /**
-     * Measures the latency of a single {@link DefaultEventCreationManager#maybeCreateEvent()} call.
+     * Measures the latency of a single event creation through the complete module's
+     * {@link ComponentWiring} stack.
      * <p>
-     * This exercises the complete event creator module code path: rule evaluation
+     * This exercises the full production code path: wire dispatch, rule evaluation
      * ({@code AggregateEventCreationRules}), phase tracking ({@code PhaseTimer}), future event buffering
-     * ({@code FutureEventBuffer}), tipset parent selection, event assembly, hashing, and signing.
+     * ({@code FutureEventBuffer}), tipset parent selection, event assembly, hashing, and signing via
+     * {@link PlatformSigner}.
      *
      * @return the created event (returned to prevent dead-code elimination)
      */
-    /*
-    Results on a M3 Max MacBook Pro:
-
-    Benchmark                                               (numNodes)  (seed)   (signingType)    Mode     Cnt       Score    Error  Units
-    EventCreatorModuleLatencyBenchmark.createEvent                   4       0          RSA_BC  sample   12378    2019.293 ±  3.772  us/op
-    EventCreatorModuleLatencyBenchmark.createEvent:p0.50             4       0          RSA_BC  sample            1996.800           us/op
-    EventCreatorModuleLatencyBenchmark.createEvent:p0.99             4       0          RSA_BC  sample            2233.180           us/op
-    EventCreatorModuleLatencyBenchmark.createEvent:p0.999            4       0          RSA_BC  sample            3867.054           us/op
-    EventCreatorModuleLatencyBenchmark.createEvent                   4       0         RSA_JDK  sample   12877    1938.601 ±  2.891  us/op
-    EventCreatorModuleLatencyBenchmark.createEvent:p0.50             4       0         RSA_JDK  sample            1921.024           us/op
-    EventCreatorModuleLatencyBenchmark.createEvent:p0.99             4       0         RSA_JDK  sample            2146.304           us/op
-    EventCreatorModuleLatencyBenchmark.createEvent:p0.999            4       0         RSA_JDK  sample            3760.628           us/op
-    EventCreatorModuleLatencyBenchmark.createEvent                   4       0  ED25519_SODIUM  sample  778071      14.055 ±  0.834  us/op
-    EventCreatorModuleLatencyBenchmark.createEvent:p0.50             4       0  ED25519_SODIUM  sample              13.040           us/op
-    EventCreatorModuleLatencyBenchmark.createEvent:p0.99             4       0  ED25519_SODIUM  sample              17.280           us/op
-    EventCreatorModuleLatencyBenchmark.createEvent:p0.999            4       0  ED25519_SODIUM  sample              32.896           us/op
-    EventCreatorModuleLatencyBenchmark.createEvent                   4       0     ED25519_SUN  sample   66379     374.103 ±  0.998  us/op
-    EventCreatorModuleLatencyBenchmark.createEvent:p0.50             4       0     ED25519_SUN  sample             369.664           us/op
-    EventCreatorModuleLatencyBenchmark.createEvent:p0.99             4       0     ED25519_SUN  sample             417.280           us/op
-    EventCreatorModuleLatencyBenchmark.createEvent:p0.999            4       0     ED25519_SUN  sample             456.120           us/op
-    EventCreatorModuleLatencyBenchmark.createEvent                  40       0          RSA_BC  sample   12107    2025.422 ± 15.270  us/op
-    EventCreatorModuleLatencyBenchmark.createEvent:p0.50            40       0          RSA_BC  sample            1994.752           us/op
-    EventCreatorModuleLatencyBenchmark.createEvent:p0.99            40       0          RSA_BC  sample            2240.512           us/op
-    EventCreatorModuleLatencyBenchmark.createEvent:p0.999           40       0          RSA_BC  sample            5191.074           us/op
-    EventCreatorModuleLatencyBenchmark.createEvent                  40       0         RSA_JDK  sample   12604    1938.701 ±  3.642  us/op
-    EventCreatorModuleLatencyBenchmark.createEvent:p0.50            40       0         RSA_JDK  sample            1923.072           us/op
-    EventCreatorModuleLatencyBenchmark.createEvent:p0.99            40       0         RSA_JDK  sample            2134.016           us/op
-    EventCreatorModuleLatencyBenchmark.createEvent:p0.999           40       0         RSA_JDK  sample            5028.168           us/op
-    EventCreatorModuleLatencyBenchmark.createEvent                  40       0  ED25519_SODIUM  sample  466444      15.185 ±  1.021  us/op
-    EventCreatorModuleLatencyBenchmark.createEvent:p0.50            40       0  ED25519_SODIUM  sample              14.368           us/op
-    EventCreatorModuleLatencyBenchmark.createEvent:p0.99            40       0  ED25519_SODIUM  sample              19.360           us/op
-    EventCreatorModuleLatencyBenchmark.createEvent:p0.999           40       0  ED25519_SODIUM  sample              34.496           us/op
-    EventCreatorModuleLatencyBenchmark.createEvent                  40       0     ED25519_SUN  sample   57766     391.637 ±  2.879  us/op
-    EventCreatorModuleLatencyBenchmark.createEvent:p0.50            40       0     ED25519_SUN  sample             371.712           us/op
-    EventCreatorModuleLatencyBenchmark.createEvent:p0.99            40       0     ED25519_SUN  sample             547.840           us/op
-    EventCreatorModuleLatencyBenchmark.createEvent:p0.999           40       0     ED25519_SUN  sample            4366.336           us/op
-    */
     @Benchmark
     @BenchmarkMode(Mode.SampleTime)
     @OutputTimeUnit(TimeUnit.MICROSECONDS)
     public PlatformEvent createEvent() {
-        final PlatformEvent event = selfManager.maybeCreateEvent();
-        if (event == null) {
+        lastCreatedEvent = null;
+        creationTriggerWire.put(null);
+        if (lastCreatedEvent == null) {
             throw new IllegalStateException("Self manager should always be able to create an event");
         }
-        pendingSelfEvent = event;
-        return event;
+        pendingSelfEvent = lastCreatedEvent;
+        return lastCreatedEvent;
     }
 
     /**
-     * Processes an event through the orphan buffer (to assign nGen) and distributes it to all managers.
+     * Processes an event through the orphan buffer (to assign nGen) and distributes it to
+     * the self node via its input wire and to all peer managers directly.
      */
     private void processAndDistribute(final PlatformEvent event) {
         orphanBuffer.handleEvent(event);
-        for (final DefaultEventCreationManager manager : allManagers) {
+        // Self via input wire (ComponentWiring path)
+        registerEventWire.put(event);
+        // Peers directly
+        for (final DefaultEventCreationManager manager : peerManagers) {
             manager.registerEvent(event);
         }
         eventsCreated++;
@@ -279,6 +325,21 @@ public class EventCreatorModuleLatencyBenchmark {
         nextPeerIndex++;
         if (nextPeerIndex >= numNodes) {
             nextPeerIndex = 1;
+        }
+    }
+
+    /**
+     * Generates {@link KeysAndCerts} for the given node using the configured {@link #signingSchema}.
+     */
+    private KeysAndCerts generateKeysAndCerts(final NodeId nodeId) {
+        try {
+            final SecureRandom sigRandom = new SecureRandom();
+            sigRandom.setSeed(nodeId.id() * 2L);
+            final SecureRandom agrRandom = new SecureRandom();
+            agrRandom.setSeed(nodeId.id() * 2L + 1);
+            return KeysAndCertsGenerator.generate(nodeId, signingSchema, sigRandom, agrRandom);
+        } catch (final Exception e) {
+            throw new RuntimeException("Failed to generate keys for node " + nodeId, e);
         }
     }
 }
