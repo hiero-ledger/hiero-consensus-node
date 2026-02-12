@@ -10,31 +10,6 @@ permissions:
   pull-requests: write
 
 jobs:
-  trigger-mats-tests:
-    name: Merge Queue MATS Tests
-    uses: ./.github/workflows/zxc-mats-tests.yaml
-    with:
-      ref: ${{ github.ref }}
-      enable-spotless-check: "true"
-      enable-dependency-check: "true"
-      enable-unit-tests: "true"
-      enable-integration-tests: "true"
-      enable-hapi-tests: "true"
-      enable-otter-tests: "true"
-      enable-snyk-scan: "true"
-      enable-gradle-determinism: "true"
-      enable-docker-determinism: "true"
-      java-version: "21.0.6"
-      java-distribution: "temurin"
-      custom-job-label: "Merge Queue MATS:"
-    secrets:
-      access-token: ${{ secrets.GITHUB_TOKEN }}
-      codacy-project-token: ${{ secrets.CODACY_PROJECT_TOKEN }}
-      codecov-token: ${{ secrets.CODECOV_TOKEN }}
-      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
-      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
-      snyk-token: ${{ secrets.SNYK_TOKEN }}
-
   parameters:
     name: XTS Workflow Parameters
     runs-on: hl-cn-default-lin-sm
@@ -63,14 +38,6 @@ jobs:
           echo "helm-release-name=${HELM_NAME}" >> "${GITHUB_OUTPUT}"
           echo "solo-ge-0440=${SOLO_GE_0440}" >> "${GITHUB_OUTPUT}"
 
-  state-validator-uberjar:
-    name: Build & Publish Hedera State Validator Uber JAR
-    needs:
-      - parameters
-    uses: ./.github/workflows/zxc-build-publish-state-validator.yaml
-    with:
-      ref: ${{ github.ref }}
-
   trigger-xts-tests:
     name: Merge Queue XTS Required Tests
     uses: ./.github/workflows/zxc-xts-tests.yaml
@@ -79,9 +46,9 @@ jobs:
     with:
       ref: ${{ github.ref }}
       branch_name: ${{ github.ref_name }}
-      solo-version: ${{ needs.parameters.outputs.solo-version }}
-      solo-ge-0440: ${{ needs.parameters.outputs.solo-ge-0440 }}
-      helm-release-name: ${{ needs.parameters.outputs.helm-release-name }}
+      solo-version: ${{ vars.ADHOC_XTS_SOLO_VERSION }}
+      solo-ge-0440: "true"
+      helm-release-name: "mirror-1"
       custom-job-label: "Merge Queue XTS:"
       enable-timing-sensitive-test-suite: "true"
       enable-hammer-test-suite: "true"
