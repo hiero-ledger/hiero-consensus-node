@@ -11,6 +11,7 @@ description = "Base Crypto"
 mainModuleInfo { annotationProcessor("com.swirlds.config.processor") }
 
 testModuleInfo {
+    requires("com.hedera.node.app.spi.test.fixtures")
     requires("com.swirlds.common")
     requires("com.swirlds.common.test.fixtures")
     requires("com.swirlds.config.extensions.test.fixtures")
@@ -19,7 +20,8 @@ testModuleInfo {
     requires("org.assertj.core")
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")
-    requires("org.mockito")
+
+    opensTo("com.hedera.node.app.spi.test.fixtures") // log captor injection
 }
 
 timingSensitiveModuleInfo {

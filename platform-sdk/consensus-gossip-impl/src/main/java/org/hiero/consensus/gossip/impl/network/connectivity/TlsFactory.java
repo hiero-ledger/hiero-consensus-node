@@ -80,7 +80,7 @@ public class TlsFactory implements SocketFactory {
         if (passphrase == null || passphrase.isBlank()) {
             throw new IllegalArgumentException("crypto.keystorePassword must not be null or blank");
         }
-        KeystorePasswordPolicy.warnIfNonCompliant(logger, CryptoConfig_.KEYSTORE_PASSWORD, passphrase);
+        KeystorePasswordPolicy.warnIfNonCompliant(CryptoConfig_.KEYSTORE_PASSWORD, passphrase);
         final char[] password = passphrase.toCharArray();
 
         /* nondeterministic CSPRNG */

@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.hiero.base.crypto.config.CryptoConfig;
+import org.hiero.base.crypto.config.CryptoConfig_;
 import org.hiero.consensus.gossip.impl.gossip.Utilities;
 import org.hiero.consensus.gossip.impl.network.NetworkUtils;
 import org.hiero.consensus.gossip.impl.network.PeerInfo;
@@ -160,10 +161,11 @@ class TlsFactoryTest extends ConnectivityTestBase {
                 () -> new TlsFactory(
                         mock(Certificate.class), mock(PrivateKey.class), List.of(), NodeId.of(0), configuration));
 
-        assertEquals(
-                "crypto.keystorePassword must not be null or blank",
-                exception.getMessage(),
-                "TlsFactory should fail fast when crypto.keystorePassword is null");
+        final String expectedMessage = CryptoConfig_.KEYSTORE_PASSWORD + " must not be null or blank";
+        final String assertionMessage =
+                "TlsFactory should fail fast when " + CryptoConfig_.KEYSTORE_PASSWORD + " is null";
+
+        assertEquals(expectedMessage, exception.getMessage(), assertionMessage);
     }
 
     @Test
@@ -176,10 +178,11 @@ class TlsFactoryTest extends ConnectivityTestBase {
                 () -> new TlsFactory(
                         mock(Certificate.class), mock(PrivateKey.class), List.of(), NodeId.of(0), configuration));
 
-        assertEquals(
-                "crypto.keystorePassword must not be null or blank",
-                exception.getMessage(),
-                "TlsFactory should fail fast when crypto.keystorePassword is blank");
+        final String expectedMessage = CryptoConfig_.KEYSTORE_PASSWORD + " must not be null or blank";
+        final String assertionMessage =
+                "TlsFactory should fail fast when " + CryptoConfig_.KEYSTORE_PASSWORD + " is blank";
+
+        assertEquals(expectedMessage, exception.getMessage(), assertionMessage);
     }
 
     /**
