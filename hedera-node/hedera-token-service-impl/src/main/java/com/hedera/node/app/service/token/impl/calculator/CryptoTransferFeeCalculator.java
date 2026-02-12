@@ -4,12 +4,11 @@ package com.hedera.node.app.service.token.impl.calculator;
 import static com.hedera.node.app.service.token.impl.handlers.CryptoTransferHandler.getHookInfo;
 import static org.hiero.hapi.fees.FeeScheduleUtils.lookupServiceFee;
 import static org.hiero.hapi.support.fees.Extra.ACCOUNTS;
-import static org.hiero.hapi.support.fees.Extra.FUNGIBLE_TOKENS;
 import static org.hiero.hapi.support.fees.Extra.GAS;
 import static org.hiero.hapi.support.fees.Extra.HOOK_EXECUTION;
-import static org.hiero.hapi.support.fees.Extra.NON_FUNGIBLE_TOKENS;
 import static org.hiero.hapi.support.fees.Extra.TOKEN_TRANSFER_BASE;
 import static org.hiero.hapi.support.fees.Extra.TOKEN_TRANSFER_BASE_CUSTOM_FEES;
+import static org.hiero.hapi.support.fees.Extra.TOKEN_TYPES;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
@@ -93,15 +92,13 @@ public class CryptoTransferFeeCalculator implements ServiceFeeCalculator {
             }
 
             final long totalFungible = tokenCounts.standardFungible() + tokenCounts.customFeeFungible();
-            addExtraFee(feeResult, serviceDef, FUNGIBLE_TOKENS, feeSchedule, totalFungible);
             final long totalNft = tokenCounts.standardNft() + tokenCounts.customFeeNft();
-            addExtraFee(feeResult, serviceDef, NON_FUNGIBLE_TOKENS, feeSchedule, totalNft);
+            addExtraFee(feeResult, serviceDef, TOKEN_TYPES, feeSchedule, totalFungible + totalNft);
         } else {
             for (final var ttl : op.tokenTransfers()) {
                 var regular_count = ttl.transfers().size();
-                addExtraFee(feeResult, serviceDef, FUNGIBLE_TOKENS, feeSchedule, regular_count);
                 var nft_count = ttl.nftTransfers().size();
-                addExtraFee(feeResult, serviceDef, NON_FUNGIBLE_TOKENS, feeSchedule, nft_count);
+                addExtraFee(feeResult, serviceDef, TOKEN_TYPES, feeSchedule, regular_count + nft_count);
             }
         }
     }
