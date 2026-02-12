@@ -231,16 +231,16 @@ receiver, but it still wastes bandwidth and processing power.
 To avoid that, a special mechanism was developed to delay sending some events until they are old enough. A basic form of
 it is to immediately send all self-events and all their parents, while delaying "other" events (ones created by other
 nodes and not yet used by self-events) for a long time (a few seconds) - hoping they will get synchronized by their
-creators. This reduces duplicate ration considerably, but not as much as one would like - given quite aggressive usage
-of other node events and parents for self-events, there is a good chance that in a short time, most of the graph will be
-covered by parents of self-event. Still, it is better than no filtering at all, at minimal cost (as ignored events will
+creators. This reduces the duplicate ratio considerably, but not as much as one would like - given quite aggressive usage
+of other node events as parents for self-events, there is a good chance that in a short time, most of the graph will be
+ancestors of a self-event. Still, it is better than no filtering at all, at minimal cost (as ignored events will
 be synchronized by other nodes).
 
 When primitive broadcast is enabled, the situation changes. Broadcast preemptively sends all self-events out, and there
-is almost never a need to synchronize them (in fact, they have to be synced only in event of network disconnection or
-running reconnect from the other node). It makes perfect sense to delay self-events for a long time in sync protocol.
-At the same time, their parents might not be available to the peer yet (as we cannot trust their creator to broadcast
-them in a timely manner), which makes them useless for processing, as they will get stuck in the orphan buffer.
+is almost never a need to synchronize them (in fact, they have to be synced only in the event of network disconnection or
+after a reconnect). It makes perfect sense to delay self-events for a long time in the sync protocol when broadcast is enabled.
+At the same time, the peer might not have the other node ancestors of my self events yet (as we cannot trust their creators to broadcast
+them in a timely manner), which means some or all of the self events sent will get stuck in the peer's orphan buffer.
 
 To avoid that, when broadcast is enabled, 3 levels of delays are implemented - self events, parents of self-events, and
 "other" events, which are not involved in the graph of possible self-events. Timings are chosen to work with the
