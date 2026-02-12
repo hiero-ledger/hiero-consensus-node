@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.crypto;
 
+import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountDetailsAsserts.accountDetailsWith;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountDetails;
@@ -51,7 +51,7 @@ import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
 import com.hederahashgraph.api.proto.java.TokenSupplyType;
 import com.hederahashgraph.api.proto.java.TokenType;
 import java.util.List;
@@ -98,7 +98,6 @@ public class CryptoDeleteAllowanceSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> canDeleteAllowanceForDeletedSpender() {
         final String owner = "owner";
         final String spender = "spender";
@@ -277,7 +276,6 @@ public class CryptoDeleteAllowanceSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> feesAsExpected() {
         final String owner = "owner";
         final String spender = "spender";
@@ -357,7 +355,6 @@ public class CryptoDeleteAllowanceSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> succeedsWhenTokenPausedFrozenKycRevoked() {
         final String owner = "owner";
         final String spender = "spender";
@@ -443,7 +440,9 @@ public class CryptoDeleteAllowanceSuite {
                                 "hedera.allowances.maxAccountLimit", "100")));
     }
 
-    @LeakyHapiTest(overrides = {"hedera.allowances.maxTransactionLimit"})
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"hedera.allowances.maxTransactionLimit"})
     final Stream<DynamicTest> exceedsTransactionLimit() {
         final String owner = "owner";
         final String spender = "spender";
