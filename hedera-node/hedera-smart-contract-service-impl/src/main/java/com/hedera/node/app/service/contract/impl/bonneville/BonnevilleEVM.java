@@ -484,7 +484,7 @@ class BEVM {
     // -----------------------------------------------------------
     // Execute bytecodes until done
     BEVM run(boolean topLevel) {
-        SB trace = new SB();
+        SB trace = null; // new SB();
         PrintStream oldSysOut = System.out;
         if( trace != null ) {
             System.setOut(new PrintStream(new FileOutputStream( FileDescriptor.out)));
@@ -1709,9 +1709,13 @@ class BEVM {
     private ExceptionalHaltReason PRNGSeed() {
         var halt = useGas(_gasCalc.getBaseTierGasCost());
         if( halt!=null ) return halt;
-        if( _frame.getBlockValues().getMixHashOrPrevRandao() != Bytes32.ZERO )
-            throw new TODO();
-        return push0();
+        ProxyWorldUpdater pwu = (ProxyWorldUpdater) _frame.getWorldUpdater();
+        com.hedera.pbj.runtime.io.buffer.Bytes entropy = pwu.enhancement().operations().entropy();
+        long x0 = entropy.getLong(0);
+        long x1 = entropy.getLong(8);
+        long x2 = entropy.getLong(16);
+        long x3 = entropy.getLong(24);
+        return push(x0,x1,x2,x3);
     }
 
     private ExceptionalHaltReason gasLimit() {
