@@ -5,6 +5,7 @@ import static com.hedera.hapi.node.base.HederaFunctionality.ATOMIC_BATCH;
 import static com.hedera.hapi.node.base.HederaFunctionality.HOOK_DISPATCH;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NO_SCHEDULING_ALLOWED_AFTER_SCHEDULED_RECURSION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.RECURSIVE_SCHEDULING_LIMIT_REACHED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.REVERTED_SUCCESS;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.BATCH_INNER;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.CHILD;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.NODE;
@@ -15,6 +16,7 @@ import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBe
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBehavior.REMOVABLE;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBehavior.REVERSIBLE;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
+import static com.hedera.node.app.workflows.handle.stack.savepoints.AbstractSavepoint.SUCCESSES;
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static java.util.Objects.requireNonNull;
@@ -260,6 +262,12 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
     public void rollbackFullStack() {
         while (!stack.isEmpty()) {
             stack.pop().rollback();
+        }
+        // Rolling back is idempotent for stream builders; so make certain here that we do it for our base builder
+        // (if we were used to persist stake-period changes, it will have already been "flushed" into our sink)
+        baseBuilder.nullOutSideEffectFields();
+        if (SUCCESSES.contains(baseBuilder.status())) {
+            baseBuilder.status(REVERTED_SUCCESS);
         }
         setupFirstSavepoint(baseBuilder.category());
     }
