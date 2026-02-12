@@ -51,30 +51,26 @@ public class GeneratorConsensus {
     }
 
     /**
-     * Feeds an event into the internal consensus, updating the consensus state. The event is copied so that internal
-     * metadata does not interfere with the original event.
+     * Feeds an event into the internal consensus, updating the consensus state. This method will modify the given event
+     * with metadata such as nGen, and consensus information.
      *
      * @param e the platform event to process
      */
     public void updateConsensus(@NonNull final PlatformEvent e) {
-        /* The event given to the internal consensus needs its own EventImpl & PlatformEvent for
-        metadata to be kept separate from the event that is returned to the caller.  The orphan
-        buffer assigns an nGen value. The SimpleLinker wraps the event in an EventImpl and links
-        it. The event must be hashed and have a descriptor built for its use in the SimpleLinker. */
-        final PlatformEvent copy = e.copyGossipedData();
-        final List<PlatformEvent> events = orphanBuffer.handleEvent(copy);
-        for (final PlatformEvent event : events) {
-            final EventImpl linkedEvent = linker.linkEvent(event);
-            if (linkedEvent == null) {
-                continue;
-            }
-            final List<ConsensusRound> consensusRounds = consensus.addEvent(linkedEvent);
-            if (consensusRounds.isEmpty()) {
-                continue;
-            }
-            // if we reach consensus, save the snapshot for future use
-            linker.setEventWindow(consensusRounds.getLast().getEventWindow());
+        final List<PlatformEvent> events = orphanBuffer.handleEvent(e);
+        if (events.size() != 1) {
+            throw new IllegalStateException("Expected exactly one event to be returned from the orphan buffer");
         }
+        final EventImpl linkedEvent = linker.linkEvent(events.getFirst());
+        if (linkedEvent == null) {
+            return;
+        }
+        final List<ConsensusRound> consensusRounds = consensus.addEvent(linkedEvent);
+        if (consensusRounds.isEmpty()) {
+            return;
+        }
+        // if we reach consensus, save the snapshot for future use
+        linker.setEventWindow(consensusRounds.getLast().getEventWindow());
     }
 
     /**

@@ -122,7 +122,6 @@ public class SyncGossipModular implements Gossip {
                 time,
                 rosterSize,
                 syncMetrics,
-                fallenBehindMonitor,
                 intakeEventCounter,
                 lag -> syncProgressHandler.accept(lag));
 
