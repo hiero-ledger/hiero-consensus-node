@@ -169,8 +169,8 @@ public class EventCreatorModuleLatencyBenchmark {
         final NodeId selfNodeId = NodeId.of(roster.rosterEntries().getFirst().nodeId());
 
         final WiringModel wiringModel = WiringModelBuilder.create(metrics, time).build();
-        final ComponentWiring<EventCreationManager, PlatformEvent> selfWiring =
-                new ComponentWiring<>(wiringModel, EventCreationManager.class, TaskSchedulerConfiguration.parse("DIRECT"));
+        final ComponentWiring<EventCreationManager, PlatformEvent> selfWiring = new ComponentWiring<>(
+                wiringModel, EventCreationManager.class, TaskSchedulerConfiguration.parse("DIRECT"));
 
         // Declare all input wires (matching DefaultEventCreatorModule.initialize())
         creationTriggerWire = selfWiring.getInputWire(EventCreationManager::maybeCreateEvent, "heartbeat");
@@ -191,8 +191,8 @@ public class EventCreatorModuleLatencyBenchmark {
 
         final SecureRandom selfRandom = new SecureRandom();
         selfRandom.setSeed(selfNodeId.id());
-        final EventCreator selfEventCreator =
-                new TipsetEventCreator(configuration, metrics, time, selfRandom, selfSigner, roster, selfNodeId, List::of);
+        final EventCreator selfEventCreator = new TipsetEventCreator(
+                configuration, metrics, time, selfRandom, selfSigner, roster, selfNodeId, List::of);
         final DefaultEventCreationManager selfManager = new DefaultEventCreationManager(
                 configuration, metrics, time, () -> false, selfEventCreator, roster, selfNodeId);
         selfWiring.bind(selfManager);
