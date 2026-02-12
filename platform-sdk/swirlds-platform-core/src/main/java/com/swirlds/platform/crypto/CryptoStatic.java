@@ -40,7 +40,6 @@ import org.apache.logging.log4j.Logger;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.hiero.base.crypto.CryptographyException;
 import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
-import org.hiero.consensus.config.BasicConfig;
 import org.hiero.consensus.crypto.ConsensusCryptoUtils;
 import org.hiero.consensus.crypto.KeyGeneratingException;
 import org.hiero.consensus.crypto.KeysAndCertsGenerator;
@@ -165,7 +164,6 @@ public final class CryptoStatic {
         Objects.requireNonNull(localNode, LOCAL_NODES_MUST_NOT_BE_NULL);
 
         final PathsConfig pathsConfig = configuration.getConfigData(PathsConfig.class);
-        final BasicConfig basicConfig = configuration.getConfigData(BasicConfig.class);
 
         final Map<NodeId, KeysAndCerts> keysAndCerts;
         try {

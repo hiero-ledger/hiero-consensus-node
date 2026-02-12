@@ -11,6 +11,7 @@ import com.hedera.node.config.converter.SemanticVersionConverter;
 import com.hedera.node.internal.network.Network;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.spec.props.JutilPropertySource;
+import com.swirlds.platform.crypto.EnhancedKeyStoreLoader;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.File;
@@ -32,6 +33,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.stream.Stream;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.node.NodeUtilities;
 
 public class WorkingDirUtils {
     private static final Path BASE_WORKING_LOC = Path.of("./build");
@@ -114,8 +116,6 @@ public class WorkingDirUtils {
         // Initialize the data folders
         WORKING_DIR_DATA_FOLDERS.forEach(folder ->
                 createDirectoriesUnchecked(workingDir.resolve(DATA_DIR).resolve(folder)));
-        // Generate the node's keys and certs
-        generateKeyAndCert(nodeId);
         // Initialize the current upgrade folder
         createDirectoriesUnchecked(
                 workingDir.resolve(DATA_DIR).resolve(UPGRADE_DIR).resolve(CURRENT_DIR));
@@ -129,11 +129,26 @@ public class WorkingDirUtils {
         updateLog4j2XmlOutputDir(workingDir, nodeId);
     }
 
-    private static void generateKeyAndCert(final long nodeId) {
+    /**
+     * Writes the signing private key PEM file for the given node into the working directory's
+     * {@code data/keys/} folder, using the naming convention expected by
+     * {@code EnhancedKeyStoreLoader}: {@code s-private-node{nodeId+1}.pem}.
+     *
+     * @param workingDir the node's working directory
+     * @param nodeId the node ID
+     * @param kac the keys and certs for the node
+     */
+    public static void writeSigningKey(
+            @NonNull final Path workingDir, final long nodeId, @NonNull final KeysAndCerts kac) {
+        requireNonNull(workingDir);
+        requireNonNull(kac);
+        final String pemFileName = "s-private-" + NodeUtilities.formatNodeName(nodeId) + ".pem";
+        final Path pemPath = workingDir.resolve(DATA_DIR).resolve(KEYS_FOLDER).resolve(pemFileName);
         try {
-            generateKeysAndCerts(List.of(NodeId.of(nodeId)));
-        } catch (final ExecutionException | InterruptedException | KeyStoreException e) {
-            throw new RuntimeException(e);
+            EnhancedKeyStoreLoader.writePemFile(
+                    true, pemPath, kac.sigKeyPair().getPrivate().getEncoded());
+        } catch (final IOException e) {
+            throw new UncheckedIOException(e);
         }
     }
 
