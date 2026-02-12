@@ -82,7 +82,8 @@ public class BlockingResourceProvider<T> {
     }
 
     /**
-     * Delivers a resource to the consumer. Must only be called after acquiring the permit via
+     * If the consumer {@link #isWaitingForResource()}, delivers a resource to the consumer.
+     * Must only be called after acquiring the permit via
      * {@link #acquireProvidePermit()}. Blocks until the consumer closes the {@link LockedResource},
      * completing the cycle.
      *
@@ -94,6 +95,12 @@ public class BlockingResourceProvider<T> {
     public void provide(final T resource) throws InterruptedException {
         lock.lock();
         try {
+            if (!isWaitingForResource()) {
+                // In this case, the consumer for some reason (error or otherwise)
+                // is not waiting anymore (it was when we got the permit), if we send the resource eitherway
+                // the provider will become blocked as it will never get the notification back
+                return;
+            }
             this.resource.setResource(resource);
             // Signal the consumer that there is a resource available
             resourceProvided.signalAll();
