@@ -11,7 +11,6 @@ import java.util.Map;
 import java.util.Objects;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.hashgraph.impl.EventImpl;
-import org.hiero.consensus.hashgraph.impl.metrics.EventCounter;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -88,7 +87,7 @@ public class ConsensusLinker {
                 .filter(Objects::nonNull)
                 .toList();
         final EventImpl linkedEvent = new EventImpl(event, parents);
-        EventCounter.incrementLinkedEventCount();
+        logsAndMetrics.eventLinked();
 
         final EventDescriptorWrapper eventDescriptorWrapper = event.getDescriptor();
         parentDescriptorMap.put(eventDescriptorWrapper, linkedEvent);
@@ -110,6 +109,7 @@ public class ConsensusLinker {
         parentDescriptorMap.shiftWindow(eventWindow.ancientThreshold(), (descriptor, event) -> {
             parentHashMap.remove(descriptor.hash());
             event.clear();
+            logsAndMetrics.eventUnlinked();
             ancientEvents.add(event);
         });
         return ancientEvents;

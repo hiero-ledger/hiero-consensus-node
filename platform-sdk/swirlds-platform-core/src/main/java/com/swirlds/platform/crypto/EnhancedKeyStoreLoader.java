@@ -240,7 +240,7 @@ public class EnhancedKeyStoreLoader {
             throw new IllegalArgumentException("keyStorePassphrase must not be null or blank");
         }
 
-        KeystorePasswordPolicy.warnIfNonCompliant(logger, CryptoConfig_.KEYSTORE_PASSWORD, keyStorePassphrase);
+        KeystorePasswordPolicy.warnIfNonCompliant(CryptoConfig_.KEYSTORE_PASSWORD, keyStorePassphrase);
 
         return new EnhancedKeyStoreLoader(
                 keyStoreDirectory, keyStorePassphrase.toCharArray(), localNodes, rosterEntries);

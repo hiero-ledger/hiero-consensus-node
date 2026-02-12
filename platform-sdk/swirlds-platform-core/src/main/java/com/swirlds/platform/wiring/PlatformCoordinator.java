@@ -71,7 +71,7 @@ public record PlatformCoordinator(
 
         components.eventIntakeModule().flush();
         components.pcesModule().flush();
-        components.gossipWiring().flush();
+        components.gossipModule().flush();
         components.hashgraphModule().flush();
         components.applicationTransactionPrehandlerWiring().flush();
         components.eventCreatorModule().flush();
@@ -124,7 +124,7 @@ public record PlatformCoordinator(
         // Phase 4: clear
         // Data is no longer moving through the system. Clear all the internal data structures in the wiring objects.
         components.eventIntakeModule().clearComponentsInputWire().inject(NoInput.getInstance());
-        components.gossipWiring().getClearInput().inject(NoInput.getInstance());
+        components.gossipModule().clearInputWire().inject(NoInput.getInstance());
         components
                 .stateSignatureCollectorWiring()
                 .getInputWire(StateSignatureCollector::clear)
@@ -138,21 +138,21 @@ public record PlatformCoordinator(
      * Start gossiping.
      */
     public void startGossip() {
-        components.gossipWiring().getStartInput().inject(NoInput.getInstance());
+        components.gossipModule().startInputWire().inject(NoInput.getInstance());
     }
 
     /**
      * Resume gossiping.
      */
     public void resumeGossip() {
-        components.gossipWiring().resumeInput().inject(NoInput.getInstance());
+        components.gossipModule().resumeInputWire().inject(NoInput.getInstance());
     }
 
     /**
      * Pause gossiping.
      */
     public void pauseGossip() {
-        components.gossipWiring().pauseInput().inject(NoInput.getInstance());
+        components.gossipModule().pauseInputWire().inject(NoInput.getInstance());
     }
 
     /**
@@ -219,7 +219,7 @@ public record PlatformCoordinator(
 
         // Since there is asynchronous access to the shadowgraph, it's important to ensure that
         // it has fully ingested the new event window before continuing.
-        components.gossipWiring().flush();
+        components.gossipModule().flush();
     }
 
     /**
