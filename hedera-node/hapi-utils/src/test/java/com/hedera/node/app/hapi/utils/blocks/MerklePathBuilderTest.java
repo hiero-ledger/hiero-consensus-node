@@ -6,8 +6,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.hedera.hapi.block.stream.SiblingNode;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.state.MerkleProof;
-import com.swirlds.state.SiblingHash;
+import com.swirlds.state.binary.MerkleProof;
+import com.swirlds.state.binary.SiblingHash;
 import java.util.List;
 import org.hiero.base.crypto.Hash;
 import org.junit.jupiter.api.DisplayName;
@@ -43,7 +43,7 @@ class MerklePathBuilderTest {
     @Test
     @DisplayName("build() should create MerklePath with single sibling")
     void buildWithSingleSibling() {
-        // Given a MerkleProof with one sibling as represented by the State API (direction inverted)
+        // Given a MerkleProof with one sibling as represented by the State API
         final var siblingHash = new SiblingHash(true, TEST_HASH_1);
         final var merkleProof = new MerkleProof(TEST_STATE_ITEM, List.of(siblingHash), List.of(TEST_INNER_HASH));
 
@@ -55,7 +55,7 @@ class MerklePathBuilderTest {
         assertThat(merklePath.hasStateItemLeaf()).isTrue();
         assertThat(merklePath.stateItemLeaf()).isEqualTo(TEST_STATE_ITEM);
         assertThat(merklePath.siblings()).hasSize(1);
-        assertThat(merklePath.siblings().get(0).isLeft()).isFalse();
+        assertThat(merklePath.siblings().get(0).isLeft()).isTrue();
         assertThat(merklePath.siblings().get(0).hash()).isEqualTo(Bytes.wrap(TEST_HASH_1.copyToByteArray()));
         assertThat(merklePath.nextPathIndex()).isEqualTo(-1);
     }
@@ -63,7 +63,7 @@ class MerklePathBuilderTest {
     @Test
     @DisplayName("build() should create MerklePath with multiple siblings")
     void buildWithMultipleSiblings() {
-        // Given a MerkleProof with multiple siblings as represented by the State API (direction inverted)
+        // Given a MerkleProof with multiple siblings as represented by the State API
         final var sibling1 = new SiblingHash(false, TEST_HASH_1); // Right sibling
         final var sibling2 = new SiblingHash(true, TEST_HASH_2); // Left sibling
         final var merkleProof = new MerkleProof(TEST_STATE_ITEM, List.of(sibling1, sibling2), List.of(TEST_INNER_HASH));
@@ -75,11 +75,11 @@ class MerklePathBuilderTest {
         assertThat(merklePath.siblings()).hasSize(2);
 
         // First sibling (right)
-        assertThat(merklePath.siblings().get(0).isLeft()).isTrue();
+        assertThat(merklePath.siblings().get(0).isLeft()).isFalse();
         assertThat(merklePath.siblings().get(0).hash()).isEqualTo(Bytes.wrap(TEST_HASH_1.copyToByteArray()));
 
         // Second sibling (left)
-        assertThat(merklePath.siblings().get(1).isLeft()).isFalse();
+        assertThat(merklePath.siblings().get(1).isLeft()).isTrue();
         assertThat(merklePath.siblings().get(1).hash()).isEqualTo(Bytes.wrap(TEST_HASH_2.copyToByteArray()));
     }
 
@@ -130,8 +130,8 @@ class MerklePathBuilderTest {
     }
 
     @Test
-    @DisplayName("fromStateApi() should invert sibling direction flag from the State API")
-    void fromStateApiInvertsSiblingDirection() {
+    @DisplayName("fromStateApi() should preserve sibling direction flag from the State API")
+    void fromStateApiPreservesSiblingDirection() {
         // Given a MerkleProof with a sibling marked `isLeft=true` by the State API
         final var leftSibling = new SiblingHash(true, TEST_HASH_1);
         final var merkleProof = new MerkleProof(TEST_STATE_ITEM, List.of(leftSibling), List.of(TEST_INNER_HASH));
@@ -139,13 +139,13 @@ class MerklePathBuilderTest {
         // When building the MerklePath
         final var merklePath = MerklePathBuilder.fromStateApi(merkleProof).build();
 
-        // Then the protobuf direction flag is inverted
-        assertThat(merklePath.siblings().get(0).isLeft()).isFalse();
+        // Then the protobuf direction flag is preserved
+        assertThat(merklePath.siblings().get(0).isLeft()).isTrue();
     }
 
     @Test
-    @DisplayName("fromStateApi() should invert sibling direction flag from the State API (right sibling case)")
-    void fromStateApiInvertsSiblingDirectionForRightSiblingCase() {
+    @DisplayName("fromStateApi() should preserve sibling direction flag from the State API (right sibling case)")
+    void fromStateApiPreservesSiblingDirectionForRightSiblingCase() {
         // Given a MerkleProof with a sibling marked `isLeft=false` by the State API
         final var rightSibling = new SiblingHash(false, TEST_HASH_1);
         final var merkleProof = new MerkleProof(TEST_STATE_ITEM, List.of(rightSibling), List.of(TEST_INNER_HASH));
@@ -153,8 +153,8 @@ class MerklePathBuilderTest {
         // When building the MerklePath
         final var merklePath = MerklePathBuilder.fromStateApi(merkleProof).build();
 
-        // Then the protobuf direction flag is inverted
-        assertThat(merklePath.siblings().get(0).isLeft()).isTrue();
+        // Then the protobuf direction flag is preserved
+        assertThat(merklePath.siblings().get(0).isLeft()).isFalse();
     }
 
     @Test

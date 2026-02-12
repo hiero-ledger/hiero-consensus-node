@@ -58,6 +58,7 @@ public class WorkingDirUtils {
     private static final Key CLASSIC_ADMIN_KEY = Key.newBuilder()
             .ed25519(Bytes.fromHex("0aa8e21064c61eab86e2a9c164565b4e7a9a4146106e0a6cd03a8c395a110e92"))
             .build();
+
     private static final Path BASE_WORKING_LOC = Path.of("./build");
     private static final String DEFAULT_SCOPE = "hapi";
     private static final String KEYS_FOLDER = "keys";
@@ -506,8 +507,7 @@ public class WorkingDirUtils {
         if (Files.exists(genesisNetworkPath)) {
             return nodeIdsFromNetworkJson(genesisNetworkPath, "genesis network");
         }
-        final var archivedGenesisNetworkPath =
-                configDir.resolve(ARCHIVE).resolve(GENESIS_NETWORK_JSON);
+        final var archivedGenesisNetworkPath = configDir.resolve(ARCHIVE).resolve(GENESIS_NETWORK_JSON);
         if (Files.exists(archivedGenesisNetworkPath)) {
             return nodeIdsFromNetworkJson(archivedGenesisNetworkPath, "archived genesis network");
         }

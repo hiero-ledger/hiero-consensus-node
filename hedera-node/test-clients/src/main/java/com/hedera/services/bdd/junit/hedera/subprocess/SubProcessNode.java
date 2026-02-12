@@ -34,6 +34,7 @@ import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -276,8 +277,14 @@ public class SubProcessNode extends AbstractLocalNode<SubProcessNode> implements
     }
 
     private int numApplicationLogLinesWith(@NonNull final String text) {
-        try (var lines = Files.lines(getExternalPath(APPLICATION_LOG))) {
+        final var applicationLog = getExternalPath(APPLICATION_LOG);
+        if (!Files.exists(applicationLog)) {
+            return 0;
+        }
+        try (var lines = Files.lines(applicationLog)) {
             return (int) lines.filter(line -> line.contains(text)).count();
+        } catch (NoSuchFileException e) {
+            return 0;
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

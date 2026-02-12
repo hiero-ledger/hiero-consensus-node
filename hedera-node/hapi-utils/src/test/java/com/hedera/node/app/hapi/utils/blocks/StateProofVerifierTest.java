@@ -6,8 +6,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.hedera.hapi.block.stream.MerklePath;
 import com.hedera.hapi.block.stream.StateProof;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.state.MerkleProof;
-import com.swirlds.state.SiblingHash;
+import com.swirlds.state.binary.MerkleProof;
+import com.swirlds.state.binary.SiblingHash;
 import java.util.List;
 import org.hiero.base.crypto.Hash;
 import org.junit.jupiter.api.DisplayName;
@@ -107,7 +107,8 @@ class StateProofVerifierTest {
         // Tamper with the leaf data
         final var tamperedPaths = new java.util.ArrayList<>(stateProof.paths());
         final var originalPath = tamperedPaths.get(0);
-        final var tamperedPath = originalPath.copyBuilder()
+        final var tamperedPath = originalPath
+                .copyBuilder()
                 .stateItemLeaf(Bytes.wrap("tampered-leaf"))
                 .build();
         tamperedPaths.set(0, tamperedPath);
@@ -167,29 +168,29 @@ class StateProofVerifierTest {
         final var proof0 = new MerkleProof(
                 TEST_STATE_ITEM_1,
                 List.of(
-                        new SiblingHash(true, new Hash(tree.leaf1Hash())),
-                        new SiblingHash(true, new Hash(tree.rightHash()))),
+                        new SiblingHash(false, new Hash(tree.leaf1Hash())),
+                        new SiblingHash(false, new Hash(tree.rightHash()))),
                 List.of(new Hash(tree.leaf0Hash()), new Hash(tree.leftHash()), new Hash(tree.rootHash())));
 
         final var proof1 = new MerkleProof(
                 TEST_STATE_ITEM_2,
                 List.of(
-                        new SiblingHash(false, new Hash(tree.leaf0Hash())),
-                        new SiblingHash(true, new Hash(tree.rightHash()))),
+                        new SiblingHash(true, new Hash(tree.leaf0Hash())),
+                        new SiblingHash(false, new Hash(tree.rightHash()))),
                 List.of(new Hash(tree.leaf1Hash()), new Hash(tree.leftHash()), new Hash(tree.rootHash())));
 
         final var proof2 = new MerkleProof(
                 TEST_STATE_ITEM_3,
                 List.of(
-                        new SiblingHash(true, new Hash(tree.leaf3Hash())),
-                        new SiblingHash(false, new Hash(tree.leftHash()))),
+                        new SiblingHash(false, new Hash(tree.leaf3Hash())),
+                        new SiblingHash(true, new Hash(tree.leftHash()))),
                 List.of(new Hash(tree.leaf2Hash()), new Hash(tree.rightHash()), new Hash(tree.rootHash())));
 
         final var proof3 = new MerkleProof(
                 TEST_STATE_ITEM_4,
                 List.of(
-                        new SiblingHash(false, new Hash(tree.leaf2Hash())),
-                        new SiblingHash(false, new Hash(tree.leftHash()))),
+                        new SiblingHash(true, new Hash(tree.leaf2Hash())),
+                        new SiblingHash(true, new Hash(tree.leftHash()))),
                 List.of(new Hash(tree.leaf3Hash()), new Hash(tree.rightHash()), new Hash(tree.rootHash())));
 
         return new MerkleProof[] {proof0, proof1, proof2, proof3};

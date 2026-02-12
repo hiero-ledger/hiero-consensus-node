@@ -95,8 +95,8 @@ class ClprStateProofUtilsTest extends ClprTestBase {
     @Test
     void testExtractConfiguration_MalformedConfigurationBytes() {
         // Create leaf with invalid configuration bytes
-        final var pathBuilder = new MerklePathBuilder()
-                .setStateItemLeaf(Bytes.wrap(new byte[] {1, 2, 3, 4, 5})); // Invalid protobuf
+        final var pathBuilder =
+                new MerklePathBuilder().setStateItemLeaf(Bytes.wrap(new byte[] {1, 2, 3, 4, 5})); // Invalid protobuf
 
         final var stateProof =
                 StateProofBuilder.newBuilder().addMerklePath(pathBuilder).build();

@@ -2,8 +2,8 @@
 package com.hedera.node.app.hapi.utils.blocks;
 
 import static com.hedera.node.app.hapi.utils.blocks.HashUtils.computeBlockItemLeafHash;
-import static com.hedera.node.app.hapi.utils.blocks.HashUtils.computeStateItemLeafHash;
 import static com.hedera.node.app.hapi.utils.blocks.HashUtils.computeSingleChildHash;
+import static com.hedera.node.app.hapi.utils.blocks.HashUtils.computeStateItemLeafHash;
 import static com.hedera.node.app.hapi.utils.blocks.HashUtils.computeTimestampLeafHash;
 import static com.hedera.node.app.hapi.utils.blocks.HashUtils.joinHashes;
 import static com.hedera.node.app.hapi.utils.blocks.HashUtils.newMessageDigest;
@@ -12,8 +12,8 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.block.stream.MerklePath;
 import com.hedera.hapi.block.stream.SiblingNode;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.state.MerkleProof;
-import com.swirlds.state.SiblingHash;
+import com.swirlds.state.binary.MerkleProof;
+import com.swirlds.state.binary.SiblingHash;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.MessageDigest;
 import java.util.ArrayList;
@@ -84,13 +84,8 @@ public final class MerklePathBuilder {
         requireNonNull(siblingHashes, "siblingHashes must not be null");
         final var result = new ArrayList<SiblingNode>(siblingHashes.size());
         for (final var siblingHash : siblingHashes) {
-            // The State API currently encodes sibling direction opposite of the protobuf `SiblingNode.is_left`
-            // convention (see `VirtualMapStateImpl.getMerkleProof()`).
-            //
-            // To ensure we compute the same root hash as the underlying VirtualMap, we invert the flag when
-            // mapping into the protobuf representation used in StateProofs.
             result.add(SiblingNode.newBuilder()
-                    .isLeft(!siblingHash.isLeft())
+                    .isLeft(siblingHash.isLeft())
                     .hash(Bytes.wrap(siblingHash.hash().copyToByteArray()))
                     .build());
         }

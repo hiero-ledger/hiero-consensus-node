@@ -88,12 +88,16 @@ public class NetworkUtils {
                                     .port(nextExternalGossipPort + ((int) hNode.getNodeId() * 2))
                                     .build()))
                     .build();
+            final var grpcPort = hNode.getGrpcPort();
+            final var serviceEndpoint = grpcPort > 0
+                    ? HapiPropertySource.asServiceEndpoint(hNode.getHost() + ":" + grpcPort)
+                    : rosterEntry.gossipEndpoint().getFirst();
             final var node = com.hedera.hapi.node.state.addressbook.Node.newBuilder()
                     .nodeId(hNode.getNodeId())
                     .accountId(hNode.getAccountId())
                     .description("node" + (hNode.getNodeId() + 1))
                     .gossipEndpoint(rosterEntry.gossipEndpoint())
-                    .serviceEndpoint(HapiPropertySource.asServiceEndpoint(hNode.getHost() + ":" + hNode.getGrpcPort()))
+                    .serviceEndpoint(serviceEndpoint)
                     .gossipCaCertificate(cert)
                     // The gRPC certificate hash is irrelevant for PR checks
                     .grpcCertificateHash(Bytes.EMPTY)

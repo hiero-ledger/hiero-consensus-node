@@ -7,7 +7,7 @@ import com.hedera.hapi.block.stream.MerklePath;
 import com.hedera.hapi.block.stream.StateProof;
 import com.hedera.hapi.block.stream.TssSignedBlockProof;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.state.MerkleProof;
+import com.swirlds.state.binary.MerkleProof;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.Arrays;

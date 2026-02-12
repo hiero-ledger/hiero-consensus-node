@@ -37,7 +37,6 @@ import com.swirlds.platform.system.Platform;
 import com.swirlds.state.State;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
-import com.swirlds.state.spi.metrics.StoreMetrics;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -223,8 +222,7 @@ public final class NoOpDependencies {
             }
 
             @Override
-            public void createSnapshot(
-                    @NonNull final VirtualMapState virtualMapState, @NonNull final Path targetPath) {
+            public void createSnapshot(@NonNull final VirtualMapState virtualMapState, @NonNull final Path targetPath) {
                 // No-op
             }
 

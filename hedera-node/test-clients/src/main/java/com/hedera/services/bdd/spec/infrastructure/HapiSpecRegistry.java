@@ -370,7 +370,8 @@ public class HapiSpecRegistry {
                     // Parse the configuration from the leaf bytes
                     final var stateItemBytes = stateProof.getPaths(0).getStateItemLeaf();
                     final var ledgerConfig = ClprLedgerConfiguration.parseFrom(stateItemBytes.toByteArray());
-                    final var ledgerIdBytes = ledgerConfig.getLedgerId().getLedgerId().toByteArray();
+                    final var ledgerIdBytes =
+                            ledgerConfig.getLedgerId().getLedgerId().toByteArray();
                     builder.setLedgerConfigurationProof(stateProof);
                     put(ByteString.copyFrom(ledgerIdBytes).toStringUtf8(), builder.build());
                 } catch (com.google.protobuf.InvalidProtocolBufferException e) {

@@ -38,6 +38,7 @@ final class HashUtils {
      * they were serialized inside the legacy {@code MerkleLeaf} message using these field numbers.
      */
     private static final byte LEGACY_TIMESTAMP_LEAF_TAG = 0x0A; // (1 << 3) | 2
+
     private static final byte LEGACY_BLOCK_ITEM_LEAF_TAG = 0x12; // (2 << 3) | 2
     private static final byte LEGACY_STATE_ITEM_LEAF_TAG = 0x1A; // (3 << 3) | 2
 
@@ -97,7 +98,8 @@ final class HashUtils {
      * encoding of a hypothetical legacy {@code MerkleLeaf} message that sets exactly one bytes field corresponding
      * to the given tag.
      */
-    private static byte[] computeLegacyMerkleLeafHash(final MessageDigest digest, final byte legacyFieldTag, final Bytes leafBytes) {
+    private static byte[] computeLegacyMerkleLeafHash(
+            final MessageDigest digest, final byte legacyFieldTag, final Bytes leafBytes) {
         requireNonNull(digest, "digest must not be null");
         requireNonNull(leafBytes, "leafBytes must not be null");
         digest.reset();

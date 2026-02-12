@@ -22,7 +22,6 @@ public class V0700ClprSchema extends Schema<SemanticVersion> {
             StateKey.KeyOneOfType.CLPRSERVICE_I_CONFIGURATIONS.toString();
     public static final int CLPR_LEDGER_CONFIGURATIONS_STATE_ID =
             StateKey.KeyOneOfType.CLPRSERVICE_I_CONFIGURATIONS.protoOrdinal();
-    private static final long MAX_LEDGER_CONFIGURATION_ENTRIES = 50_000L;
 
     public static final String CLPR_LEDGER_METADATA_STATE_KEY = StateKey.KeyOneOfType.CLPRSERVICE_I_METADATA.toString();
     public static final int CLPR_LEDGER_METADATA_STATE_ID = SingletonType.CLPRSERVICE_I_METADATA.protoOrdinal();
@@ -32,12 +31,10 @@ public class V0700ClprSchema extends Schema<SemanticVersion> {
             StateKey.KeyOneOfType.CLPRSERVICE_I_MESSAGE_QUEUE_METADATA.toString();
     public static final int CLPR_MESSAGE_QUEUE_METADATA_STATE_ID =
             StateKey.KeyOneOfType.CLPRSERVICE_I_MESSAGE_QUEUE_METADATA.protoOrdinal();
-    private static final long MAX_MESSAGE_QUEUE_METADATA = 50_000L;
 
     // Messages state
     public static final String CLPR_MESSAGES_STATE_LABEL = StateKey.KeyOneOfType.CLPRSERVICE_I_MESSAGES.toString();
     public static final int CLPR_MESSAGES_STATE_ID = StateKey.KeyOneOfType.CLPRSERVICE_I_MESSAGES.protoOrdinal();
-    private static final long MAX_MESSAGES = 50_000L;
 
     private static final SemanticVersion VERSION =
             SemanticVersion.newBuilder().major(0).minor(70).patch(0).build();
@@ -53,12 +50,11 @@ public class V0700ClprSchema extends Schema<SemanticVersion> {
     }
 
     private static StateDefinition<ClprLedgerId, ClprLedgerConfiguration> ledgerConfigurationMap() {
-        return StateDefinition.onDisk(
+        return StateDefinition.keyValue(
                 CLPR_LEDGER_CONFIGURATIONS_STATE_ID,
                 CLPR_LEDGER_CONFIGURATIONS_STATE_KEY,
                 ClprLedgerId.PROTOBUF,
-                ClprLedgerConfiguration.PROTOBUF,
-                MAX_LEDGER_CONFIGURATION_ENTRIES);
+                ClprLedgerConfiguration.PROTOBUF);
     }
 
     private static StateDefinition ledgerMetadataSingleton() {
@@ -67,20 +63,15 @@ public class V0700ClprSchema extends Schema<SemanticVersion> {
     }
 
     private static StateDefinition<ClprLedgerId, ClprMessageQueueMetadata> messageQueueMap() {
-        return StateDefinition.onDisk(
+        return StateDefinition.keyValue(
                 CLPR_MESSAGE_QUEUE_METADATA_STATE_ID,
                 CLPR_MESSAGE_QUEUE_METADATA_STATE_LABEL,
                 ClprLedgerId.PROTOBUF,
-                ClprMessageQueueMetadata.PROTOBUF,
-                MAX_MESSAGE_QUEUE_METADATA);
+                ClprMessageQueueMetadata.PROTOBUF);
     }
 
     private static StateDefinition<ClprMessageKey, ClprMessageValue> messagesMap() {
-        return StateDefinition.onDisk(
-                CLPR_MESSAGES_STATE_ID,
-                CLPR_MESSAGES_STATE_LABEL,
-                ClprMessageKey.PROTOBUF,
-                ClprMessageValue.PROTOBUF,
-                MAX_MESSAGES);
+        return StateDefinition.keyValue(
+                CLPR_MESSAGES_STATE_ID, CLPR_MESSAGES_STATE_LABEL, ClprMessageKey.PROTOBUF, ClprMessageValue.PROTOBUF);
     }
 }

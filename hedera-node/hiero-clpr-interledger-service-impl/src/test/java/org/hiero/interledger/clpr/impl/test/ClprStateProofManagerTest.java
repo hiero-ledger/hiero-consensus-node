@@ -56,12 +56,11 @@ class ClprStateProofManagerTest extends ClprTestBase {
             ledgerConfigStateMetadata() {
         return new com.swirlds.state.lifecycle.StateMetadata<>(
                 ClprService.NAME,
-                StateDefinition.onDisk(
+                StateDefinition.keyValue(
                         V0700ClprSchema.CLPR_LEDGER_CONFIGURATIONS_STATE_ID,
                         V0700ClprSchema.CLPR_LEDGER_CONFIGURATIONS_STATE_KEY,
                         ClprLedgerId.PROTOBUF,
-                        ClprLedgerConfiguration.PROTOBUF,
-                        50_000L));
+                        ClprLedgerConfiguration.PROTOBUF));
     }
 
     private com.swirlds.state.lifecycle.StateMetadata<Void, ClprLocalLedgerMetadata> ledgerMetadataStateMetadata() {
