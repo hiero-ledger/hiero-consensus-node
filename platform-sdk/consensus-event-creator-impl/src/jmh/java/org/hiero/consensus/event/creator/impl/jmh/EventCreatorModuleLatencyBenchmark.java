@@ -290,6 +290,27 @@ public class EventCreatorModuleLatencyBenchmark {
      *
      * @return the created event (returned to prevent dead-code elimination)
      */
+    /*
+    Results on a M3 Max MacBook Pro:
+
+    Benchmark                                               (numNodes)  (seed)  (signingSchema)    Mode     Cnt       Score    Error  Units
+    EventCreatorModuleLatencyBenchmark.createEvent                   4       0              RSA  sample   12384    2015.741 ±  3.272  us/op
+    EventCreatorModuleLatencyBenchmark.createEvent:p0.50             4       0              RSA  sample            2000.896           us/op
+    EventCreatorModuleLatencyBenchmark.createEvent:p0.99             4       0              RSA  sample            2220.032           us/op
+    EventCreatorModuleLatencyBenchmark.createEvent:p0.999            4       0              RSA  sample            3426.775           us/op
+    EventCreatorModuleLatencyBenchmark.createEvent                   4       0          ED25519  sample  769502      13.868 ±  0.420  us/op
+    EventCreatorModuleLatencyBenchmark.createEvent:p0.50             4       0          ED25519  sample              13.152           us/op
+    EventCreatorModuleLatencyBenchmark.createEvent:p0.99             4       0          ED25519  sample              18.400           us/op
+    EventCreatorModuleLatencyBenchmark.createEvent:p0.999            4       0          ED25519  sample              31.568           us/op
+    EventCreatorModuleLatencyBenchmark.createEvent                  40       0              RSA  sample   12138    2015.194 ±  4.126  us/op
+    EventCreatorModuleLatencyBenchmark.createEvent:p0.50            40       0              RSA  sample            1998.848           us/op
+    EventCreatorModuleLatencyBenchmark.createEvent:p0.99            40       0              RSA  sample            2215.936           us/op
+    EventCreatorModuleLatencyBenchmark.createEvent:p0.999           40       0              RSA  sample            4950.909           us/op
+    EventCreatorModuleLatencyBenchmark.createEvent                  40       0          ED25519  sample  461018      15.135 ±  0.997  us/op
+    EventCreatorModuleLatencyBenchmark.createEvent:p0.50            40       0          ED25519  sample              14.320           us/op
+    EventCreatorModuleLatencyBenchmark.createEvent:p0.99            40       0          ED25519  sample              19.040           us/op
+    EventCreatorModuleLatencyBenchmark.createEvent:p0.999           40       0          ED25519  sample              38.271           us/op
+    */
     @Benchmark
     @BenchmarkMode(Mode.SampleTime)
     @OutputTimeUnit(TimeUnit.MICROSECONDS)
