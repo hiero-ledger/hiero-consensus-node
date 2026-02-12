@@ -26,9 +26,9 @@ message RegisteredNodeDeleteTransactionBody {
      * The node identified MUST exist in the registered address book.<br/>
      * The node identified MUST NOT be deleted.<br/>
      * This value is REQUIRED.
-     *
+     * <p>
      * A given value for `registered_node_id` SHALL be unique within a given
-     * shard or realm.
+     * shard or realm.<br/>
      * A given value for `registered_node_id` SHALL NOT be reused, even if the
      * corresponding entry is deleted.
      */

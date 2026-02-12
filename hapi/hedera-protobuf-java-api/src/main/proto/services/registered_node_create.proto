@@ -8,7 +8,6 @@ option java_package = "com.hederahashgraph.api.proto.java";
 option java_multiple_files = true;
 
 import "services/basic_types.proto";
-import "services/registered_service_endpoint.proto";
 
 /**
  * A transaction body to create a new registered node in the network
@@ -25,13 +24,13 @@ import "services/registered_service_endpoint.proto";
 message RegisteredNodeCreateTransactionBody {
     /**
      * An administrative key controlled by the node operator.
-     *
-     * This key MUST sign this transaction.
-     * This key MUST sign each transaction to update this node.
-     * This field MUST contain a valid `Key` value.
-     * This field is REQUIRED and MUST NOT be set to an empty `KeyList`.
+     * <p>
+     * This key MUST sign this transaction.<br/>
+     * This key MUST sign each transaction to update this node.<br/>
+     * This field MUST contain a valid `Key` value.<br/>
+     * This field is REQUIRED and MUST NOT be set to an empty `KeyList`.<br/>
      * It is RECOMMENDED that this key be composed of one or more unique public
-     * keys that are not associated with any network account.
+     * keys that are not associated with any network account.<br/>
      * This key MAY be a complex key containing `KeyList` or `ThresholdKey`
      * elements, but SHOULD NOT be a contract ID key.
      */
@@ -39,23 +38,23 @@ message RegisteredNodeCreateTransactionBody {
 
     /**
      * A short description of the node.
-     *
-     * This value, if set, MUST NOT exceed 100 bytes when encoded as UTF-8.
+     * <p>
+     * This value, if set, MUST NOT exceed 100 bytes when encoded as UTF-8.<br/>
      * This field is OPTIONAL.
      */
     string description = 2;
 
     /**
      * A list of service endpoints for client calls.
-     *
+     * <p>
      * These endpoints SHALL represent the published endpoints to which
-     * clients may submit requests.
+     * clients may submit requests.<br/>
      * Endpoints in this list MAY supply either IP address or FQDN, but MUST
-     * NOT supply both values for the same endpoint.
-     * Multiple endpoints in this list MAY resolve to the same interface.
-     * One Registered Node MAY expose endpoints for multiple service types.
-     * This list MUST NOT be empty.
+     * NOT supply both values for the same endpoint.<br/>
+     * Multiple endpoints in this list MAY resolve to the same interface.<br/>
+     * One Registered Node MAY expose endpoints for multiple service types.<br/>
+     * This list MUST NOT be empty.<br/>
      * This list MUST NOT contain more than `50` entries.
      */
-    repeated RegisteredServiceEndpoint service_endpoint = 3;
+    repeated proto.RegisteredServiceEndpoint service_endpoint = 3;
 }
