@@ -53,8 +53,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.hiero.base.concurrent.BlockingResourceProvider;
 import org.hiero.base.concurrent.ThrowingRunnable;
 import org.hiero.base.concurrent.test.fixtures.RunnableCompletionControl;
-import org.hiero.base.constructable.ConstructableRegistry;
-import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.consensus.gossip.ReservedSignedStateResult;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
@@ -66,7 +64,6 @@ import org.hiero.consensus.test.fixtures.WeightGenerators;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
@@ -99,16 +96,6 @@ class ReconnectControllerTest {
     private ReservedSignedState testReservedSignedState;
     private VirtualMapState testWorkingState;
     private SignedStateValidator signedStateValidator;
-
-    @BeforeAll
-    static void setUpClass() throws ConstructableRegistryException {
-        final ConstructableRegistry registry = ConstructableRegistry.getInstance();
-        registry.registerConstructables("com.swirlds.common");
-        registry.registerConstructables("com.swirlds.platform.state");
-        registry.registerConstructables("com.swirlds.platform.state.signed");
-        registry.registerConstructables("com.swirlds.platform.system");
-        registry.registerConstructables("com.swirlds.state.merkle");
-    }
 
     @AfterAll
     static void tearDownClass() {
