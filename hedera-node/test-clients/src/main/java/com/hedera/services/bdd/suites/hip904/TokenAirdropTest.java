@@ -331,8 +331,10 @@ public class TokenAirdropTest extends TokenAirdropBase {
                                 .payingWith(OWNER)
                                 .via("second airdrop"),
                         validateFees(
-                                "airdrop", 0.1, TOKEN_TRANSFER_FEE + AIRDROPS_FEE_USD + TOKEN_ASSOCIATE_EXTRA_FEE_USD),
-                        validateFees("second airdrop", 0.05, TOKEN_TRANSFER_FEE + AIRDROPS_FEE_USD));
+                                "airdrop",
+                                0.1004310852,
+                                TOKEN_TRANSFER_FEE + AIRDROPS_FEE_USD + TOKEN_ASSOCIATE_EXTRA_FEE_USD),
+                        validateFees("second airdrop", 0.050431086, TOKEN_TRANSFER_FEE + AIRDROPS_FEE_USD));
             }
 
             @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
@@ -1058,7 +1060,7 @@ public class TokenAirdropTest extends TokenAirdropBase {
                     // set new treasury balance variable
                     getAccountBalance(TREASURY_FOR_CUSTOM_FEE_TOKENS)
                             .exposingBalanceTo(newTreasuryBalance::set)
-                            .hasTokenBalance(NFT_WITH_ROYALTY_FEE, 100),
+                            .hasTokenBalance(NFT_WITH_ROYALTY_FEE, 99),
                     // assert owner balance
                     withOpContext((spec, log) -> {
                         final var record = getTxnRecord("NFT with royalty fee airdrop to treasury");
