@@ -1,0 +1,160 @@
+syntax = "proto3";
+
+package com.hedera.hapi.node.addressbook;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.addressbook">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+/**
+ * A registered network node endpoint.
+ * Each registered network node in the global address book publishes one or
+ * more endpoints which enable the nodes to communicate both with other
+ * nodes and with clients to receive requests.
+ *
+ * This message supports a TCP/UDP port and IP address (V4 or V6),
+ * or MAY include a FQDN _instead of_ an IP address.
+ */
+message RegisteredServiceEndpoint {
+    /**
+     * An IP address or fully qualified domain name.
+     *
+     * This oneof is REQUIRED.
+     */
+    oneof address {
+        /**
+         * A 32-bit IPv4 address or 128-bit IPv6 address.
+         * This is the address of the endpoint, encoded in pure "big-endian"
+         * (i.e. left to right) order (e.g. IPv4 address `127.0.0.1` has
+         * hex bytes in the order `7F`, `00`, `00`, `01`.
+         * IPv6 address `::1` has hex bytes `00`, `00`, `00`, `00`, `00`, `00`,
+         * `00`, `00`, `00`, `00`, `00`, `00`, `00`, `00`, `00`, `01`).
+         */
+        bytes ip_address = 1;
+
+        /**
+         * A node domain name.
+         *
+         * This MUST be the fully qualified domain name of the node.
+         * This value MUST NOT exceed 250 ASCII characters.
+         * This value MUST meet all other DNS name requirements.
+         */
+        string domain_name = 2;
+    }
+
+    /**
+     * A network port to use.
+     *
+     * This value MUST be between 0 and 65535, inclusive.
+     * This value is REQUIRED.
+     */
+    uint32 port = 3;
+
+    /**
+     * A flag indicating if this endpoint requires TLS.
+     *
+     * If this value is set true, then connections to this endpoint MUST
+     * enable TLS.
+     *
+     * TLS endpoints MAY use self-signed certificates for this purpose,
+     * but use of self-signed certificates SHOULD be limited to testing and
+     * development environments to ensure production environments meet all
+     * expected characteristics for transport layer security.
+     */
+    bool requires_tls = 4;
+
+    /**
+     * An endpoint type.
+     * This declares the type of registered node endpoint and includes any
+     * type-specific fields.
+     *
+     * This oneof is REQUIRED.
+     */
+    oneof endpoint_type {
+        /**
+         * A Block Node.
+         * A Block Node stores the block chain, provides content proof services,
+         * and delivers the block stream to other clients.
+         */
+        BlockNodeEndpoint block_node = 5;
+
+        /**
+         * A Mirror Node.
+         * A Mirror Node is an advanced indexing and query service that provides
+         * fast and flexible access to query the block chain and transaction
+         * history. A Mirror Node typically stores all recent blockchain data,
+         * and some store the entire history of the network.
+         */
+        MirrorNodeEndpoint mirror_node = 6;
+
+        /**
+         * A RPC Relay.
+         * A RPC Relay is a proxy and translator between EVM tooling and a
+         * Hiero consensus network.
+         */
+        RpcRelayEndpoint rpc_relay = 7;
+    }
+
+    /**
+     * A message indicating this endpoint is a Block Node endpoint.
+     * Block Node endpoints offer one of several block node APIs, so this
+     * endpoint entry also declares which well-known Block Node API is
+     * supported by this endpoint, or "OTHER" for less common APIs.
+     */
+    message BlockNodeEndpoint {
+        /**
+         * An indicator of what API this endpoint supports.
+         *
+         * This field is REQUIRED.
+         */
+        BlockNodeApi endpoint_api = 1;
+
+        /**
+         * An enumeration of well-known block node endpoint APIs, and a
+         * catch-all option for otherwise unknown endpoint APIs.
+         */
+        enum BlockNodeApi {
+            /**
+             * Any other API type associated with a block node.
+             * The caller must consult local documentation to determine the
+             * correct call semantics.
+             * It is RECOMMENDED to call the detail status endpoint for further
+             * information before using this endpoint.
+             */
+            OTHER = 0;
+
+            /**
+             * The Block Node Status API.
+             */
+            STATUS = 1;
+
+            /**
+             * The Block Node Publish API.
+             */
+            PUBLISH = 2;
+
+            /**
+             * The Block Node Subscribe Stream API.
+             */
+            SUBSCRIBE_STREAM = 3;
+
+            /**
+             * The Block Node State Proof API.
+             */
+            STATE_PROOF = 4;
+        }
+    }
+
+    /**
+     * A message indicating this endpoint is a Mirror Node endpoint.
+     */
+    message MirrorNodeEndpoint {
+    }
+
+    /**
+     * A message indicating this endpoint is a RPC Relay endpoint.
+     */
+    message RpcRelayEndpoint {
+    }
+}
