@@ -24,7 +24,6 @@ import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.TransactionGenerator;
 import org.hiero.otter.fixtures.container.network.NetworkBehavior;
-import org.hiero.otter.fixtures.container.network.ProxyNetworkBehavior;
 import org.hiero.otter.fixtures.internal.AbstractNetwork;
 import org.hiero.otter.fixtures.internal.RegularTimeManager;
 import org.hiero.otter.fixtures.internal.network.ConnectionKey;
@@ -51,6 +50,7 @@ public class ContainerNetwork extends AbstractNetwork {
 
     private ToxiproxyContainer toxiproxyContainer;
     private NetworkBehavior networkBehavior;
+    private final boolean proxyEnabled;
 
     /**
      * Constructor for {@link ContainerNetwork}.
@@ -59,12 +59,14 @@ public class ContainerNetwork extends AbstractNetwork {
      * @param transactionGenerator the transaction generator to use
      * @param rootOutputDirectory  the root output directory for the network
      * @param useRandomNodeIds     {@code true} if the node IDs should be selected randomly; {@code false} otherwise
+     * @param proxyEnabled         {@code true} if the toxiproxy should be enabled; {@code false} otherwise
      */
     public ContainerNetwork(
             @NonNull final RegularTimeManager timeManager,
             @NonNull final ContainerTransactionGenerator transactionGenerator,
             @NonNull final Path rootOutputDirectory,
-            final boolean useRandomNodeIds) {
+            final boolean useRandomNodeIds,
+            final boolean proxyEnabled) {
         super(new Random(), useRandomNodeIds);
         this.timeManager = requireNonNull(timeManager);
         this.transactionGenerator = requireNonNull(transactionGenerator);
@@ -72,6 +74,7 @@ public class ContainerNetwork extends AbstractNetwork {
         this.dockerImage = new ImageFromDockerfile()
                 .withDockerfile(Path.of("..", "consensus-otter-docker-app", "build", "data", "Dockerfile"));
         transactionGenerator.setNodesSupplier(this::nodes);
+        this.proxyEnabled = proxyEnabled;
     }
 
     /**
@@ -97,7 +100,9 @@ public class ContainerNetwork extends AbstractNetwork {
      */
     @Override
     protected void onConnectionsChanged(@NonNull final Map<ConnectionKey, ConnectionState> connections) {
-        networkBehavior.onConnectionsChanged(nodes(), connections);
+        if (networkBehavior != null) {
+            networkBehavior.onConnectionsChanged(nodes(), connections);
+        }
     }
 
     /**
@@ -146,16 +151,14 @@ public class ContainerNetwork extends AbstractNetwork {
      */
     @Override
     protected void preStartHook(@NonNull final Roster roster) {
-        if (proxyDisabled) {
-            networkBehavior = new NoOpNetworkBehavior();
-        } else {
+        if (proxyEnabled) {
             // set up the toxiproxy container and network behavior
             toxiproxyContainer = new ToxiproxyContainer(network);
             toxiproxyContainer.start();
             final String toxiproxyHost = toxiproxyContainer.getHost();
             final int toxiproxyPort = toxiproxyContainer.getMappedPort(ToxiproxyContainer.CONTROL_PORT);
             final String toxiproxyIpAddress = toxiproxyContainer.getNetworkIpAddress();
-            networkBehavior = new ProxyNetworkBehavior(toxiproxyHost, toxiproxyPort, roster, toxiproxyIpAddress);
+            networkBehavior = new NetworkBehavior(toxiproxyHost, toxiproxyPort, roster, toxiproxyIpAddress);
 
             // override the endpoint for each node with the corresponding proxy endpoint
             for (final Node sender : nodes()) {

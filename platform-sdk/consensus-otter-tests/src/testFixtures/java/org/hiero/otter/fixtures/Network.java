@@ -170,14 +170,6 @@ public interface Network extends Configurable<Network> {
     Roster roster();
 
     /**
-     * Disable the existence of proxy between the nodes in the network. This disables any functionality related to
-     * controlling latency, bandwidth, node isolation, etc. At the same time, in some of the environments, enabling
-     * proxy has considerable latency cost, even if all latencies are set to zero and bandwidth is unlimited. To be used
-     * mostly by performance-sensitive tests.
-     */
-    void disableProxy();
-
-    /**
      * Start the network with the currently configured setup.
      *
      * <p>The method will wait until all nodes have become
