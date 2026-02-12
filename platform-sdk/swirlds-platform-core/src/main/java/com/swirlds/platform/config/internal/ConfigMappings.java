@@ -19,7 +19,7 @@ public final class ConfigMappings {
 
     static final List<ConfigMapping> MAPPINGS = List.of(
             new ConfigMapping("gossip.connectionServerThreadPriority", "thread.threadPrioritySync"),
-            new ConfigMapping("sync.hangingThreadDuration", "hangingThreadDuration"),
+            new ConfigMapping("gossip.hangingThreadDuration", "hangingThreadDuration"),
             new ConfigMapping("consensus.roundsNonAncient", "state.roundsNonAncient"),
             new ConfigMapping("consensus.roundsExpired", "state.roundsExpired"),
             new ConfigMapping("consensus.coinFreq", "coinFreq"),
