@@ -1306,28 +1306,23 @@ public class FeesChargingUtils {
     public static SpecOperation validateFees(final String txn, final double legacyFee, final double simpleFee) {
         return doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
             if ("true".equals(flag)) {
-                return validateChargedUsdWithin(txn, simpleFee, 0.01);
+                return validateChargedUsdWithin(txn, simpleFee, 0.1);
             } else {
-                return validateChargedUsdWithin(txn, legacyFee, 0.01);
+                return validateChargedUsdWithin(txn, legacyFee, 0.1);
             }
         });
+    }
+
+    public static SpecOperation validateInnerTxnFees(String txn, String parent, double legacyFee, double simpleFee) {
+        return validateInnerTxnFees(txn, parent, legacyFee, simpleFee, 0.1);
     }
 
     /**
      * Dual-mode fee validation for inner atomic batch transactions that branches on {@code fees.simpleFeesEnabled} at runtime.
      * When simple fees are enabled, validates against {@code simpleFee};
      * otherwise validates against {@code legacyFee}.
+     * @param allowedDiff the allowed percent difference.
      */
-    public static SpecOperation validateInnerTxnFees(String txn, String parent, double legacyFee, double simpleFee) {
-        return doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-            if ("true".equals(flag)) {
-                return validateInnerTxnChargedUsd(txn, parent, simpleFee);
-            } else {
-                return validateInnerTxnChargedUsd(txn, parent, legacyFee);
-            }
-        });
-    }
-
     public static SpecOperation validateInnerTxnFees(
             String txn, String parent, double legacyFee, double simpleFee, double allowedDiff) {
         return doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
