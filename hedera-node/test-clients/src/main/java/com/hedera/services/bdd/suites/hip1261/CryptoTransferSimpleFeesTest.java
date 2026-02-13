@@ -1173,10 +1173,14 @@ public class CryptoTransferSimpleFeesTest {
                             validateChargedUsdWithinWithTxnSize(
                                     "tokenTransferTxn",
                                     txnSize -> expectedCryptoTransferFTFullFeeUsd(Map.of(
-                                                    SIGNATURES, 1L,
-                                                    ACCOUNTS, 2L,
-                                                    TOKEN_TYPES, 1L,
-                                            PROCESSING_BYTES, (long) txnSize))
+                                                    SIGNATURES,
+                                                    1L,
+                                                    ACCOUNTS,
+                                                    2L,
+                                                    TOKEN_TYPES,
+                                                    1L,
+                                                    PROCESSING_BYTES,
+                                                    (long) txnSize))
                                             + TOKEN_ASSOCIATE_EXTRA_FEE_USD,
                                     0.001)));
                 }
@@ -1369,10 +1373,14 @@ public class CryptoTransferSimpleFeesTest {
                             validateChargedUsdWithinWithTxnSize(
                                     "tokenTransferTxn",
                                     txnSize -> (expectedCryptoTransferFTFullFeeUsd(Map.of(
-                                                    SIGNATURES, 1L,
-                                                    ACCOUNTS, 2L,
-                                                    TOKEN_TYPES, 1L,
-                                            PROCESSING_BYTES, (long) txnSize))
+                                                    SIGNATURES,
+                                                    1L,
+                                                    ACCOUNTS,
+                                                    2L,
+                                                    TOKEN_TYPES,
+                                                    1L,
+                                                    PROCESSING_BYTES,
+                                                    (long) txnSize))
                                             + TOKEN_ASSOCIATE_EXTRA_FEE_USD),
                                     0.001),
                             // validate balances
@@ -3095,7 +3103,8 @@ public class CryptoTransferSimpleFeesTest {
                                     txnSize -> expectedCryptoTransferHbarFullFeeUsd(Map.of(
                                             SIGNATURES, 2L,
                                             ACCOUNTS, 2L,
-                                            PROCESSING_BYTES, (long) txnSize)), 0.001),
+                                            PROCESSING_BYTES, (long) txnSize)),
+                                    0.001),
                             getAccountBalance(HBAR_OWNER_INSUFFICIENT_BALANCE).hasTinyBars(1000L),
                             getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTinyBars(100000000L)));
                 }

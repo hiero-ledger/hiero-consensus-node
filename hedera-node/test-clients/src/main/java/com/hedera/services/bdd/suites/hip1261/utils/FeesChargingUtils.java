@@ -822,33 +822,13 @@ public class FeesChargingUtils {
             long sigs, long uniqueHooksExecuted, long uniqueAccounts, long tokenTypes, long gasAmount) {
 
         return expectedCryptoTransferFullFeeUsd(
-                sigs,
-                uniqueHooksExecuted,
-                uniqueAccounts,
-                tokenTypes,
-                gasAmount,
-                true,
-                true,
-                false);
+                sigs, uniqueHooksExecuted, uniqueAccounts, tokenTypes, gasAmount, true, true, false);
     }
 
     public static double expectedCryptoTransferHBARAndFTAndNFTFullFeeUsd(
-            long sigs,
-            long uniqueHooksExecuted,
-            long uniqueAccounts,
-            long tokenTypes,
-            long gasAmount,
-            int txnSize) {
+            long sigs, long uniqueHooksExecuted, long uniqueAccounts, long tokenTypes, long gasAmount, int txnSize) {
         return expectedCryptoTransferFullFeeUsd(
-                sigs,
-                uniqueHooksExecuted,
-                uniqueAccounts,
-                tokenTypes,
-                gasAmount,
-                txnSize,
-                true,
-                true,
-                false);
+                sigs, uniqueHooksExecuted, uniqueAccounts, tokenTypes, gasAmount, txnSize, true, true, false);
     }
 
     /**
