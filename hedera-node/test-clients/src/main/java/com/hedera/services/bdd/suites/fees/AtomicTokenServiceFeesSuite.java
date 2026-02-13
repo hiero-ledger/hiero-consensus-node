@@ -504,7 +504,8 @@ class AtomicTokenServiceFeesSuite {
     @Tag(MATS)
     final Stream<DynamicTest> baseCreationsUniqueNoFeesHaveExpectedPrices() {
         final var civilian = "NonExemptPayer";
-        final var expectedUniqueNoCustomFeesPriceUsd = TOKEN_CREATE_FEE + 3 * SIGNATURE_FEE_AFTER_MULTIPLIER + KEYS_FEE_USD;
+        final var expectedUniqueNoCustomFeesPriceUsd =
+                TOKEN_CREATE_FEE + 3 * SIGNATURE_FEE_AFTER_MULTIPLIER + KEYS_FEE_USD;
         final var uniqueNoFees = "uniqueNoFees";
 
         return hapiTest(flattened(

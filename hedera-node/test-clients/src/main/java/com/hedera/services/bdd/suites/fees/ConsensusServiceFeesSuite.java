@@ -74,7 +74,10 @@ public class ConsensusServiceFeesSuite {
                         .via("topicCreateWithMultipleCustomFees"),
                 validateChargedUsd("topicCreate", BASE_FEE_TOPIC_CREATE),
                 validateChargedUsd("topicCreateWithCustomFee", BASE_FEE_TOPIC_CREATE_WITH_CUSTOM_FEE, 1.5),
-                validateFees("topicCreateWithMultipleCustomFees", TOPIC_CREATE_WITH_FIVE_CUSTOM_FEES, BASE_FEE_TOPIC_CREATE_WITH_CUSTOM_FEE));
+                validateFees(
+                        "topicCreateWithMultipleCustomFees",
+                        TOPIC_CREATE_WITH_FIVE_CUSTOM_FEES,
+                        BASE_FEE_TOPIC_CREATE_WITH_CUSTOM_FEE));
     }
 
     @HapiTest
@@ -139,12 +142,14 @@ public class ConsensusServiceFeesSuite {
                 sleepFor(1000),
                 validateChargedUsd("submitMessage", BASE_FEE_TOPIC_SUBMIT_MESSAGE),
                 safeValidateChargedUsd("submitMessage500", 0.00088, BASE_FEE_TOPIC_SUBMIT_MESSAGE),
-                withOpContext((spec, log) -> allRunFor(spec, safeValidateChargedUsdWithin(
-                        "submitMessage1024",
-                        0.00098,
-                        1.0,
-                        SUBMIT_MESSAGE_FULL_FEE_USD + expectedFeeFromBytesFor(spec, log, "submitMessage1024"),
-                        3.0))));
+                withOpContext((spec, log) -> allRunFor(
+                        spec,
+                        safeValidateChargedUsdWithin(
+                                "submitMessage1024",
+                                0.00098,
+                                1.0,
+                                SUBMIT_MESSAGE_FULL_FEE_USD + expectedFeeFromBytesFor(spec, log, "submitMessage1024"),
+                                3.0))));
     }
 
     @HapiTest

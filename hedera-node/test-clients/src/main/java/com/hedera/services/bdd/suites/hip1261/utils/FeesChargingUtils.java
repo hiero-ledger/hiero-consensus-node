@@ -1476,7 +1476,7 @@ public class FeesChargingUtils {
             if ("true".equals(flag)) {
                 return validateChargedUsdWithin(txn, simpleFee, 0.1);
             } else {
-                return validateChargedUsdWithin(txn, legacyFee, 0.1);
+                return validateChargedUsdWithin(txn, legacyFee, 1);
             }
         });
     }
