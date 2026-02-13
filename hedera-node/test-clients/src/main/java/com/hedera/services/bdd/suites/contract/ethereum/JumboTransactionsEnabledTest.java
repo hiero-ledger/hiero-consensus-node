@@ -128,7 +128,6 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
         final var tooBigPayload = new byte[130 * 1024 + 1];
 
         return hapiTest(
-                overriding("fees.simpleFeesEnabled", "false"),
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
                 cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS)),
                 cryptoCreate(PAYER).balance(ONE_MILLION_HBARS),
