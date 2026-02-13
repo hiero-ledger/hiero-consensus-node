@@ -67,8 +67,8 @@ public class CryptoServiceFeesSuite {
     private static final double BASE_FEE_CRYPTO_CREATE = 0.05;
     private static final double BASE_FEE_CRYPTO_DELETE = 0.005;
     private static final double BASE_FEE_CRYPTO_DELETE_ALLOWANCE = 0.05;
-    private static final double BASE_FEE_CRYPTO_UPDATE = 0.000214;
-    private static final double BASE_FEE_WITH_EXPIRY_CRYPTO_UPDATE = 0.00022;
+    private static final double BASE_FEE_CRYPTO_UPDATE = 0.000214952;
+    private static final double BASE_FEE_WITH_EXPIRY_CRYPTO_UPDATE = 0.000221485;
     private static final double BASE_FEE_HBAR_CRYPTO_TRANSFER = 0.0001;
     private static final double BASE_FEE_HTS_CRYPTO_TRANSFER = 0.001;
     private static final double BASE_FEE_NFT_CRYPTO_TRANSFER = 0.001;

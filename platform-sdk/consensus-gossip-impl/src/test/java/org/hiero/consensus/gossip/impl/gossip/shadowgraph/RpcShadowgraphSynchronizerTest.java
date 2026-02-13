@@ -78,14 +78,7 @@ class RpcPeerHandlerTest {
         this.syncProgressReporter = mock(Consumer.class);
         this.intakeCounter = new NoOpIntakeEventCounter();
         this.synchronizer = new ShadowgraphSynchronizer(
-                configuration,
-                new NoOpMetrics(),
-                time,
-                NUM_NODES,
-                syncMetrics,
-                fallenBehindManager,
-                intakeCounter,
-                syncProgressReporter);
+                configuration, new NoOpMetrics(), time, NUM_NODES, syncMetrics, intakeCounter, syncProgressReporter);
 
         this.synchronizer.updateEventWindow(EventWindow.getGenesisEventWindow());
 
