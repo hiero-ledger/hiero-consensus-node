@@ -77,6 +77,7 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.security.MessageDigest;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -587,11 +588,42 @@ public class StateChangesValidator implements BlockStreamValidator {
         }
     }
 
-    private static Bytes hashLeaf(final Bytes leafData) {
-        final var digest = sha384DigestOrThrow();
-        digest.update(BlockImplUtils.LEAF_PREFIX);
-        digest.update(leafData.toByteArray());
+    //    private static Bytes hashLeaf(final Bytes leafData) {
+    //        final var digest = sha384DigestOrThrow();
+    //        digest.update(BlockImplUtils.LEAF_PREFIX);
+    //        digest.update(leafData.toByteArray());
+    //        return Bytes.wrap(digest.digest());
+    //    }
+
+    // This method _may_ be temporary! State items currently require a wonky legacy prefix to work,
+    // which may be modified by the state team
+    private static Bytes hashTimestampLeaf(final Bytes leafData) {
+        final MessageDigest digest = sha384DigestOrThrow();
+        return doLegacyLeafHash(digest, (byte) 0x0A, leafData.toByteArray());
+    }
+
+    private static Bytes doLegacyLeafHash(
+            @NonNull final MessageDigest digest, final byte legacyPrefix, @NonNull final byte[] leafData) {
+        digest.update((byte) 0x0);
+        digest.update(legacyPrefix);
+        long leafLength = leafData.length;
+        if (leafLength < 0 || leafLength > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException("leafBytes length out of range: " + leafLength);
+        }
+        updateVarint(digest, (int) leafLength);
+        digest.update(leafData);
+
         return Bytes.wrap(digest.digest());
+    }
+
+    private static void updateVarint(final MessageDigest digest, int value) {
+        // See `VirtualLeafBytes.writeToForHashing(...)`'s implementation, which essentially encodes the former
+        // `MerkleLeaf` class into the hash of state item leaves
+        while ((value & ~0x7F) != 0) {
+            digest.update((byte) ((value & 0x7F) | 0x80));
+            value >>>= 7;
+        }
+        digest.update((byte) value);
     }
 
     private static Bytes hashInternalNodeSingleChild(final Bytes hash) {
@@ -642,7 +674,7 @@ public class StateChangesValidator implements BlockStreamValidator {
 
         // Compute depth two hashes (timestamp + last right sibling)
         final var timestamp = Timestamp.PROTOBUF.toBytes(blockTimestamp);
-        final var depth2Node1 = hashLeaf(timestamp);
+        final var depth2Node1 = hashTimestampLeaf(timestamp);
         final var depth2Node2 = hashInternalNodeSingleChild(depth3Node1);
 
         // Compute the block's root hash (depth 1)
