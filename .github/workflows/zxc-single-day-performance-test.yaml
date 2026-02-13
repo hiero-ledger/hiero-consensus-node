@@ -344,7 +344,6 @@ jobs:
             NETWORK_OWNER="adhoc-single-day-test"
           elif [[ "${NAMESPACE_ALIAS}" =~ ^MDLT[0-9]+$ ]]; then
             NETWORK_OWNER="multi-day-longevity-test"
-          else
           elif [[ "${NAMESPACE_ALIAS}" =~ ^Dallas[0-9]+$ ]]; then
             NETWORK_OWNER="merge-queue-performance-test"
           else
