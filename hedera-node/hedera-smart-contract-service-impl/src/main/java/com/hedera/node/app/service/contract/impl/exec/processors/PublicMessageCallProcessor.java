@@ -2,14 +2,12 @@
 package com.hedera.node.app.service.contract.impl.exec.processors;
 
 import com.hedera.node.app.service.contract.impl.hevm.HEVM;
-import java.util.Collection;
-import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.precompile.PrecompileContractRegistry;
 import org.hyperledger.besu.evm.processor.MessageCallProcessor;
 import org.hyperledger.besu.evm.tracing.OperationTracer;
 
-public class PublicMessageCallProcessor extends MessageCallProcessor {
+public class PublicMessageCallProcessor extends MessageCallProcessor implements PublicMessageProcessor {
     public PublicMessageCallProcessor( HEVM evm, PrecompileContractRegistry precompiles) {
         super(evm, precompiles);
     }

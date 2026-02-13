@@ -8,7 +8,7 @@ import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.processor.ContractCreationProcessor;
 import org.hyperledger.besu.evm.tracing.OperationTracer;
 
-public class PublicContractCreationProcessor extends ContractCreationProcessor {
+public class PublicContractCreationProcessor extends ContractCreationProcessor implements PublicMessageProcessor {
     public PublicContractCreationProcessor( HEVM evm, boolean requireCodeDepositToSucceed, List<ContractValidationRule> contractValidationRules, long initialContractNonce) {
         super(evm,requireCodeDepositToSucceed, contractValidationRules, initialContractNonce);
     }

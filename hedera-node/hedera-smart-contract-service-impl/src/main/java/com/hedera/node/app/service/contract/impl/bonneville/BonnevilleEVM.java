@@ -9,7 +9,6 @@ import com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalH
 import com.hedera.node.app.service.contract.impl.exec.operations.CustomExtCodeSizeOperation;
 import com.hedera.node.app.service.contract.impl.exec.operations.CustomSelfDestructOperation;
 import com.hedera.node.app.service.contract.impl.exec.processors.*;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HederaSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
 import com.hedera.node.app.service.contract.impl.hevm.HEVM;
@@ -47,7 +46,6 @@ import org.hyperledger.besu.evm.frame.BlockValues;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
-import org.hyperledger.besu.evm.gascalculator.FrontierGasCalculator;
 import org.hyperledger.besu.evm.gascalculator.TangerineWhistleGasCalculator;
 import org.hyperledger.besu.evm.internal.EvmConfiguration;
 import org.hyperledger.besu.evm.log.Log;
@@ -146,7 +144,6 @@ class BEVM {
     BonnevilleEVM _bevm;
 
     final GasCalculator _gasCalc;
-    final boolean _gasTangerineWhistle; // True if TW, False if Frontier, ERROR is anything else
 
     final FeatureFlags _flags;
     final AddressChecks _adrChk;
@@ -181,8 +178,8 @@ class BEVM {
     private long _gas;
 
     // Recipient
-    @NonNull Account _recv;     // Always have a readable aocount
-    MutableAccount _recvMutable;// Sometimes a writable account
+    Account _recv;               // Always have a readable aocount
+    MutableAccount _recvMutable; // Sometimes a writable account
 
     Configuration _config;
 
@@ -192,7 +189,7 @@ class BEVM {
     StorageAccessTracker _tracker;
 
     // Top-level shared warm-address stack.
-    final ArrayList<AdrKey> _warmAdrStkTopLevel = new ArrayList<AdrKey>();
+    final ArrayList<AdrKey> _warmAdrStkTopLevel = new ArrayList<>();
     // Nested warm-address stack, points to some top-level stack
     ArrayList<AdrKey> _warmAdrStk;
     // Stack depth on entry, used to unwind on Revert
@@ -220,9 +217,6 @@ class BEVM {
         // If SSTore minimum gas is ever not-zero, will need to check in sStore
         if( _gasCalc.getVeryLowTierGasCost() > 10 )
             throw new TODO("Need to restructure how gas is computed");
-        // TW gas calc has a back-door call cost computation
-        _gasTangerineWhistle = _gasCalc instanceof TangerineWhistleGasCalculator;
-        assert _gasTangerineWhistle || (_gasCalc instanceof FrontierGasCalculator);
 
         // Local temp storage
         _mem = new Memory();
@@ -418,7 +412,7 @@ class BEVM {
     private static long getLong( byte[] src, int off, int len ) {
         long adr = 0;
         if( len<=0 ) return adr;
-        adr |= (long) (src[--len+off] & 0xFF);
+        adr |=        (src[--len+off] & 0xFF);
         if( len==0 ) return adr;
         adr |= (long) (src[--len+off] & 0xFF) <<  8;
         if( len==0 ) return adr;
@@ -467,7 +461,7 @@ class BEVM {
     // Expensive
     private Address popAddress() {
         assert _sp > 0;         // Caller already checked for stack underflow
-        long x0 = STK0[--_sp], x1 = STK1[_sp], x2 = STK2[_sp], x3 = STK3[_sp];
+        long x0 = STK0[--_sp], x1 = STK1[_sp], x2 = STK2[_sp];
         byte[] bs = new byte[20];
         Memory.write8(bs,12,     x0);
         Memory.write8(bs, 4,     x1);
@@ -1298,7 +1292,7 @@ class BEVM {
         long x3 = getLong(_callData, off, len);  if( 0 < len && len < 8 ) x3 <<= ((len+24)<<3); len -= 8;
         long x2 = getLong(_callData, off, len);  if( 0 < len && len < 8 ) x2 <<= ((len+24)<<3); len -= 8;
         long x1 = getLong(_callData, off, len);  if( 0 < len && len < 8 ) x1 <<= ((len+24)<<3); len -= 8;
-        long x0 = getLong(_callData, off, len);  if( 0 < len && len < 8 ) x0 <<= ((len+24)<<3); len -= 8;
+        long x0 = getLong(_callData, off, len);  if( 0 < len && len < 8 ) x0 <<= ((len+24)<<3);
         return push(x0,x1,x2,x3);
     }
 
@@ -1492,55 +1486,16 @@ class BEVM {
         return ExceptionalHaltReason.NONE;
     }
 
-    // Custom Delegate Call 6->1
-    private ExceptionalHaltReason customDelegateCall(SB trace, String str) {
-        preTraceCall(trace,str);
-        if( FrameUtils.isHookExecution(_frame) && !isRedirectFromNativeEntity() )
-            return ExceptionalHaltReason.INVALID_OPERATION;
-
-        // BasicCustomCall.executeChecked
-        if( _sp < 6 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
-        long stipend = popLong();
-        Address contract = popAddress();
-        int srcOff = popInt();
-        int srcLen = popInt();
-        int dstOff = popInt();
-        int dstLen = popInt();
-
-        var recipient = _frame.getRecipientAddress();
-        var sender    = _frame.getSenderAddress();
-
-        return _abstractCall(trace,str, stipend, recipient, contract, sender, Wei.ZERO,false,srcOff,srcLen,dstOff,dstLen,_frame.isStatic());
-    }
-
-    private boolean isRedirectFromNativeEntity() {
+    private boolean isNotRedirectFromNativeEntity() {
         final var updater = (ProxyWorldUpdater) _frame.getWorldUpdater();
         final var recipient = updater.getHederaAccount(_frame.getRecipientAddress());
-        return recipient.isTokenFacade() || recipient.isScheduleTxnFacade() || recipient.isRegularAccount();
+        return !recipient.isTokenFacade() && !recipient.isScheduleTxnFacade() && !recipient.isRegularAccount();
     }
 
     private Address hookSender() {
         return _frame.getRecipientAddress().equals(HtsSystemContract.HTS_HOOKS_CONTRACT_ADDRESS)
             ? FrameUtils.hookOwnerAddress(_frame)
             : _frame.getRecipientAddress();
-    }
-
-    // Custom Delegate Call 6->1
-    private ExceptionalHaltReason customStaticCall(SB trace, String str) {
-        preTraceCall(trace,str);
-
-        // BasicCustomCall.executeChecked
-        if( _sp < 6 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
-        long stipend = popLong();
-        Address recv_contract = popAddress();
-        int srcOff = popInt();
-        int srcLen = popInt();
-        int dstOff = popInt();
-        int dstLen = popInt();
-
-        var sender = hookSender();
-
-        return _abstractCall(trace,str, stipend, recv_contract, recv_contract, sender, Wei.ZERO,false,srcOff,srcLen,dstOff,dstLen,true);
     }
 
     // Revert transaction
@@ -2034,9 +1989,9 @@ class BEVM {
         int off = popInt();
         int len = popInt();
         if( _frame.isStatic() ) return ExceptionalHaltReason.ILLEGAL_STATE_CHANGE;
-        var halt = useGas(375 +           // Frontier.LOG_OPERATION_BASE_GAS_COST,
-                          len * 8L +      // Frontier.LOG_OPERATION_DATA_BYTE_GAS_COST
-                          ntopics * 375 + // Frontier.LOG_OPERATION_TOPIC_GAS_COST
+        var halt = useGas(375L +           // Frontier.LOG_OPERATION_BASE_GAS_COST,
+                          len * 8L +       // Frontier.LOG_OPERATION_DATA_BYTE_GAS_COST
+                          ntopics * 375L + // Frontier.LOG_OPERATION_TOPIC_GAS_COST
                           memoryExpansionGasCost(off,len));
         if( halt!=null ) return halt;
         Bytes data = _mem.copyBytes(off,len); // Copy, since backing Memory will be crushed by later bytecodes
@@ -2061,6 +2016,9 @@ class BEVM {
         if( _frame.isStatic() ) return ExceptionalHaltReason.ILLEGAL_STATE_CHANGE;
         long val0 = STK0[--_sp], val1 = STK1[_sp], val2 = STK2[_sp], val3 = STK3[_sp];
         Wei value = Wei.wrap(UI256.intern(val0,val1,val2,val3));
+
+        // Custom-only hook
+        Address sender = hookSender();
         // Memory size for code and gas
         int off = popInt();
         int len = popInt();
@@ -2068,10 +2026,7 @@ class BEVM {
         int dstLen = 0;
         Bytes salt = hasSalt ? popBytes() : null;
 
-        // Custom-only hook
-        Address sender = hookSender();
-
-        _frame.clearReturnData();
+        Code code = _bevm.getCodeUncached(_mem.asBytes(off,len));
 
         var senderAccount = _frame.getWorldUpdater().getAccount(sender);
         if( value.compareTo(senderAccount.getBalance()) > 0 || _frame.getDepth() >= 1024/*AbstractCustomCreateOperation.MAX_STACK_DEPTH*/)
@@ -2079,11 +2034,9 @@ class BEVM {
         long senderNonce = senderAccount.getNonce();
         senderAccount.incrementNonce(); // Post increment
 
-        Code code = _bevm.getCodeUncached(_mem.asBytes(off,len));
-
         Address contract;
         if( hasSalt ) {
-            Bytes bytes = Bytes.concatenate(new Bytes[]{BonnevilleEVM.CREATE2_PREFIX, sender, salt, code.getCodeHash()});
+            Bytes bytes = Bytes.concatenate(BonnevilleEVM.CREATE2_PREFIX, sender, salt, code.getCodeHash());
             Bytes32 hash = org.hyperledger.besu.crypto.Hash.keccak256(bytes);
             contract = Address.extract(hash);
 
@@ -2091,108 +2044,69 @@ class BEVM {
             contract = Address.contractAddress(sender, senderNonce);
         }
         assert contract != null;
+        Address recipient = contract;
+        isWarm(contract);       // Force contract address to be warmed up
 
         if( _frame.getWorldUpdater() instanceof ProxyWorldUpdater proxyUpdater )
             proxyUpdater.setupInternalAliasedCreate(sender, contract);
-        isWarm(contract);
 
         // gas cost for making the contract
         long gas = _gasCalc.txCreateCost() + // 32000
-            _gasCalc.initcodeCost(len) + // Shanghai: words(544)*2 == 16 words *2 = 32
-            memoryExpansionGasCost(off,len); // 63-63==0
+            _gasCalc.initcodeCost(len) +     // Shanghai: words(544)*2 == 16 words *2 = 32
+            memoryExpansionGasCost(off,len);
         if( hasSalt ) gas += _gasCalc.createKeccakCost(len);
-        var halt = useGas(gas);
-        if( halt != null ) return null;
-        // Gas for child
-        long childGasStipend = _gasCalc.gasAvailableForChildCreate(_gas);
-        _gas -= childGasStipend;
-        _frame.setGasRemaining(_gas);
 
-        Bytes src = Bytes.EMPTY;
-
-
-        // ----------------------------
-        // child frame is added to frame stack via build method
-        MessageFrame child = MessageFrame.builder()
-            .parentMessageFrame(_frame)
-            .type(MessageFrame.Type.CONTRACT_CREATION)
-            .initialGas(childGasStipend)
-            .address(contract)
-            .contract(contract)
-            .inputData(src)
-            .sender(sender)
-            .value(value)
-            .apparentValue(value)
-            .code(code)
-            .isStatic(false)
-            .completer(child0 -> {} )
-            .build();
-        _frame.setState(MessageFrame.State.CODE_SUSPENDED);
-
-        // Frame lifetime management
-        PublicContractCreationProcessor msg = _bevm._create;
-        assert child.getState() == MessageFrame.State.NOT_STARTED;
-        _tracing.traceContextEnter(child);
-        msg.start(child, _tracing);
-
-        if( child.getState() == MessageFrame.State.CODE_EXECUTING ) {
-            // ----------------------------
-            // Recursively call
-            _bevm.runToHalt(this,child,_tracing);
-            // ----------------------------
-        }
-
-        switch( child.getState() ) {
-        case MessageFrame.State.CODE_SUSPENDED:    throw new TODO("Should not reach here");
-        case MessageFrame.State.CODE_SUCCESS:      msg.codeSuccess(child, _tracing);  break; // Sets COMPLETED_SUCCESS
-        case MessageFrame.State.REVERT:            msg.revert(child);  break;
-        case MessageFrame.State.COMPLETED_SUCCESS: throw new TODO("cant find who sets this");
-        case MessageFrame.State.COMPLETED_FAILED:  throw new TODO("cant find who sets this");
-        case MessageFrame.State.EXCEPTIONAL_HALT:  {
-            FrameUtils.exceptionalHalt(child);
-            var haltReason = child.getExceptionalHaltReason().get();
-            // Fairly obnoxious back-door signal to propagate a particular
-            // failure 1 call level, or not.  From CustomMessageCallProcessor:324
-            var maybeFailureToPropagate = FrameUtils.getAndClearPropagatedCallFailure(_frame);
-            if( maybeFailureToPropagate != HevmPropagatedCallFailure.NONE ) {
-                assert maybeFailureToPropagate.exceptionalHaltReason().get() == haltReason;
-                halt = haltReason;
-            }
-            // These propagate indefinitely, killing the code at the top level.
-            if( haltReason == CustomExceptionalHaltReason.INVALID_CONTRACT_ID ||
-                haltReason == CustomExceptionalHaltReason.INSUFFICIENT_CHILD_RECORDS )
-                halt = haltReason;
-            break;
-        }
-        default: throw new TODO();
-        };
-
-        _tracing.traceContextExit(child);
-        child.getWorldUpdater().commit();
-        child.getMessageFrameStack().removeFirst(); // Pop child frame
-
-        // See AbstractCustomCreateOperation.complete
-        _mem.write(dstOff, child.getOutputData(), 0, dstLen);
-        _frame.setReturnData(child.getOutputData());
-        _frame.addLogs(child.getLogs());
-        _frame.addCreates(child.getCreates());
-        _frame.addSelfDestructs(child.getSelfDestructs());
-        _frame.incrementGasRefund(child.getGasRefund());
-
-        _gas += child.getRemainingGas(); // Refund unused child gas
-
-        if( trace != null )
-            System.out.println(trace.clear().p("RETURN ").p(str).nl());
-        push(child.getState() == MessageFrame.State.COMPLETED_SUCCESS ? child.getContractAddress() : null);
-        return halt;
+        return _abstractCall2(trace,str,
+                              MessageFrame.Type.CONTRACT_CREATION,
+                              gas,
+                              _gas,
+                              false,
+                              recipient, contract, sender,
+                              value,
+                              Bytes.EMPTY,
+                              code,
+                              false,
+                              dstOff, dstLen,
+                              _bevm._create);
     }
 
-    public void complete( MessageFrame frame, MessageFrame child ) {/*nothing*/}
-
-    private ExceptionalHaltReason customCreate2(SB trace, String str) {
-        if( !(_frame.getWorldUpdater() instanceof ProxyWorldUpdater)  || !_flags.isCreate2Enabled(_frame) )
+    // Custom Delegate Call 6->1
+    private ExceptionalHaltReason customDelegateCall(SB trace, String str) {
+        preTraceCall(trace,str);
+        if( FrameUtils.isHookExecution(_frame) && isNotRedirectFromNativeEntity())
             return ExceptionalHaltReason.INVALID_OPERATION;
-        throw new TODO();
+
+        // BasicCustomCall.executeChecked
+        if( _sp < 6 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
+        long stipend = popLong();
+        Address contract = popAddress();
+        var recipient = _frame.getRecipientAddress();
+        var sender    = _frame.getSenderAddress();
+
+        int srcOff = popInt();
+        int srcLen = popInt();
+        int dstOff = popInt();
+        int dstLen = popInt();
+
+        return _abstractCall(trace,str, stipend, recipient, contract, sender, Wei.ZERO,false,srcOff,srcLen,dstOff,dstLen,_frame.isStatic());
+    }
+
+    // Custom Delegate Call 6->1
+    private ExceptionalHaltReason customStaticCall(SB trace, String str) {
+        preTraceCall(trace,str);
+
+        // BasicCustomCall.executeChecked
+        if( _sp < 6 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
+        long stipend = popLong();
+        Address recv_contract = popAddress();
+        var sender = hookSender();
+
+        int srcOff = popInt();
+        int srcLen = popInt();
+        int dstOff = popInt();
+        int dstLen = popInt();
+
+        return _abstractCall(trace,str, stipend, recv_contract, recv_contract, sender, Wei.ZERO,false,srcOff,srcLen,dstOff,dstLen,true);
     }
 
     // Call Code - same as customCall except skips the custom mustBePresent check
@@ -2200,7 +2114,7 @@ class BEVM {
         // Nested create contract call; so print the post-trace before the
         // nested call, and reload the pre-trace state after call.
         preTraceCall(trace,str);
-        if( FrameUtils.isHookExecution(_frame) && !isRedirectFromNativeEntity() )
+        if( FrameUtils.isHookExecution(_frame) && isNotRedirectFromNativeEntity())
             return ExceptionalHaltReason.INVALID_OPERATION;
 
         if( _sp < 7 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
@@ -2209,12 +2123,13 @@ class BEVM {
         long val0 = STK0[--_sp], val1 = STK1[_sp], val2 = STK2[_sp], val3 = STK3[_sp];
         Wei value = Wei.wrap(UI256.intern(val0,val1,val2,val3));
         boolean hasValue = (val0 | val1 | val2 | val3) != 0;
+
+        var recv_send = hookSender();
+
         int srcOff = popInt();
         int srcLen = popInt();
         int dstOff = popInt();
         int dstLen = popInt();
-
-        var recv_send = hookSender();
 
         return _abstractCall(trace,str, stipend, recv_send, contract, recv_send, value,hasValue,srcOff,srcLen,dstOff,dstLen,_frame.isStatic());
     }
@@ -2231,19 +2146,81 @@ class BEVM {
         long val0 = STK0[--_sp], val1 = STK1[_sp], val2 = STK2[_sp], val3 = STK3[_sp];
         Wei value = Wei.wrap(UI256.intern(val0,val1,val2,val3));
         boolean hasValue = (val0 | val1 | val2 | val3) != 0;
+        // yup, child frame sender is this frames' recipient
+        var sender = hookSender();
+
         int srcOff = popInt();
         int srcLen = popInt();
         int dstOff = popInt();
         int dstLen = popInt();
-        // yup, child frame sender is this frames' recipient
-        var sender = hookSender();
 
         return _abstractCall(trace,str, stipend, recv_contract, recv_contract, sender, value,hasValue,srcOff,srcLen,dstOff,dstLen,_frame.isStatic());
     }
 
-
+    ///   Start a nested contract/call frame.  This code is shared by several
+    ///   callers, all of whom alter how <code>{reciever, contract,
+    ///   sender}</code> are chosen; other parameters are generally pulled from
+    ///   the stack or are static values.  Here <code>hook</code> means the
+    ///   *hooked* current frame recipient - the recipient after checking for
+    ///   Hedera hooks.  Also, <code>pop</code> means the value is popped from
+    ///   the stack.
+    ///
+    ///   | CallType | Recipient   | Contract | Sender       |
+    ///   |----------|-------------|----------|--------------|
+    ///   | Created  | constructed | =recip   | hook         |
+    ///   | Delegate | _frame.recip| pop      | _frame.recip |
+    ///   | Static   | pop         | =recip   | hook         |
+    ///   | Normal   | hook        | pop      | =recip       |
+    ///   | Custom   | pop         | =recip   | hook         |
+    ///
+    ///
+    ///   A non-halting return can still be a *failed* (or successful)
+    ///   call.  A halting return halts this current frame execution.
+    ///   A non-halting return pushes a boolean onto the stack.
+    ///
+    ///   @param trace Not-null to trace execution
+    ///   @param str Used for tracing
+    ///   @param stipend Used to compute minimum gas for the child frame
+    ///   @param recipient recipient
+    ///   @param contract contract
+    ///   @param sender sender
+    ///   @param value Money sent to the child contract
+    ///   @param hasValue Short-cut non-zero check of <code>value</code>
+    ///   @param srcOff Start  of data copied from <code>_mem</code> to pass to the child
+    ///   @param srcLen Length of data copied from <code>_mem</code> to pass to the child
+    ///   @param dstOff Start  of data returned from child and copied to <code>_mem</code>
+    ///   @param dstLen Start  of data returned from child and copied to <code>_mem</code>
+    ///   @param isStatic child is a static frame
+    ///   @return null for non-halting return, or a {@see ExceptionHaltReason} otherwise.
     private ExceptionalHaltReason _abstractCall(SB trace, String str, long stipend, Address recipient, Address contract, Address sender, Wei value, boolean hasValue, int srcOff, int srcLen, int dstOff, int dstLen, boolean isStatic ) {
+
+        if( mustBePresent(contract, hasValue) ) {
+        //    FrameUtils.invalidAddressContext(_frame).set(to, InvalidAddressContext.InvalidAddressType.InvalidCallTarget);
+        //    return new OperationResult(cost, INVALID_SOLIDITY_ADDRESS);
+            throw new TODO();
+        }
+
+        // CallOperation
+        if( isStatic && hasValue )
+            return ExceptionalHaltReason.ILLEGAL_STATE_CHANGE;
+
+        // Not sure how this can be set
         Account contractAccount = _frame.getWorldUpdater().get(contract);
+        if( contractAccount!=null && contractAccount.hasDelegatedCode() )
+            throw new TODO();
+
+        // If the call is sending more value than the account has or the
+        // message frame is to deep return a failed call
+        if( value.compareTo(_recv.getBalance()) > 0 || _frame.getDepth() >= 1024 )
+            return push0();
+
+        // Get the bytecodes to execute; if we have a contract account, get
+        // code from it
+        Code code =  contractAccount==null
+            ? CodeV0.EMPTY_CODE
+            : _bevm.getCode(contractAccount.getCodeHash(), contractAccount.getCode());
+        if( !code.isValid() )
+            throw new TODO();
 
         // gas cost check.  As usual, the input values are capped at
         // Integer.MAX_VALUE and the sum of a few of these will not overflow a
@@ -2263,66 +2240,52 @@ class BEVM {
         if( _gas < gas+ (isStatic ? _gasCalc.getWarmStorageReadCost() : _gasCalc.getColdAccountAccessCost()) )
             return ExceptionalHaltReason.INSUFFICIENT_GAS;
 
-        if( mustBePresent(contract, hasValue) ) {
-        //    FrameUtils.invalidAddressContext(_frame).set(to, InvalidAddressContext.InvalidAddressType.InvalidCallTarget);
-        //    return new OperationResult(cost, INVALID_SOLIDITY_ADDRESS);
-            throw new TODO();
-        }
-
-        // CallOperation
-        if( isStatic && hasValue )
-            return ExceptionalHaltReason.ILLEGAL_STATE_CHANGE;
-
-        // AbstractCallOperation
-
         // There is a 2nd gas check made here, with account possibly being warm
         // which is lower cost, so never fails...
         gas += isWarm(contract)
             ? _gasCalc.getWarmStorageReadCost()
             : _gasCalc.getColdAccountAccessCost();
-        // Charge gas for call
-        var halt = useGas(gas);
-        assert halt==null;      // always works because codeAccount check above is larger
 
+        return _abstractCall2(trace,str,
+                              MessageFrame.Type.MESSAGE_CALL,
+                              gas,
+                              stipend,
+                              hasValue,
+                              recipient, contract, sender,
+                              value,
+                              _mem.asBytes(srcOff, srcLen),
+                              code,
+                              isStatic,
+                              dstOff, dstLen,
+                              _bevm._call );
+    }
+
+    private ExceptionalHaltReason _abstractCall2(SB trace, String str, MessageFrame.Type type, long gas, long stipend, boolean getsValueStipend, Address recipient, Address contract, Address sender, Wei value, Bytes src, Code code, boolean isStatic, int dstOff, int dstLen, PublicMessageProcessor msg ) {
         _frame.clearReturnData();
 
-        // Not sure how this can be set
-        if( contractAccount!=null && contractAccount.hasDelegatedCode() )
-            throw new TODO();
+        // Charge gas for call
+        var halt = useGas(gas);
+        if( halt != null ) return halt;
 
-        Bytes src = _mem.asBytes(srcOff, srcLen);
-
-        // If the call is sending more value than the account has or the
-        // message frame is to deep return a failed call
-        if( value.compareTo(_recv.getBalance()) > 0 || _frame.getDepth() >= 1024 )
-            return push0();
-
-        // Get the bytecodes to execute
-        Code code = CodeV0.EMPTY_CODE;
-
-        // If has a contract account, get code from it
-        if( contractAccount!=null ) {
-            code = _bevm.getCode(contractAccount.getCodeHash(), contractAccount.getCode());
-            if( !code.isValid() )
-                throw new TODO();
-        }
-
+        // We unwind the TW back-door gas calc, and so need to make sure thats
+        // what we got
+        assert _gasCalc instanceof TangerineWhistleGasCalculator;
         // gasAvailableForChildCall; this is the "all but 1/64th" computation
-        long gasCap = Math.min(_gas - (_gas>>6),stipend);
-        if( _gasTangerineWhistle )
-            _gas -= gasCap;
-        else
-            throw new TODO();   // Make sure FrontierGas calc is sane
+        long gasCap = Math.min(_gas - (_gas>>6), stipend);
+        _gas -= gasCap;
         _frame.setGasRemaining(_gas);
-        // Child getting value also gets a gas stipend
-        if( hasValue ) gasCap += _gasCalc.getAdditionalCallStipend();
+
+        long childGasStipend = gasCap;
+        // Calls (not Create) with value get an additional stipend
+        if( getsValueStipend )
+            childGasStipend +=  2300L /*_gasCalc.getAdditionalCallStipend()*/;
 
         // ----------------------------
         // child frame is added to frame stack via build method
         MessageFrame child = MessageFrame.builder()
             .parentMessageFrame(_frame)
-            .type(MessageFrame.Type.MESSAGE_CALL)
-            .initialGas(gasCap)
+            .type(type)
+            .initialGas(childGasStipend)
             .address(recipient)
             .contract(contract)
             .inputData(src)
@@ -2331,16 +2294,15 @@ class BEVM {
             .apparentValue(value)
             .code(code)
             .isStatic(isStatic)
-            .completer( child0 -> {} )
+            .completer(child0 -> {} )
             .build();
         _frame.setState(MessageFrame.State.CODE_SUSPENDED);
 
         // Frame lifetime management
         assert child.getState() == MessageFrame.State.NOT_STARTED;
         _tracing.traceContextEnter(child);
-        PublicMessageCallProcessor msg = _bevm._call;
 
-        // More frame safety checks
+        // More frame safety checks, also pre-compiled contracts
         msg.start(child, _tracing);
 
         if( child.getState() == MessageFrame.State.CODE_EXECUTING ) {
@@ -2356,30 +2318,15 @@ class BEVM {
         case MessageFrame.State.REVERT:            msg.revert(child);  break;
         case MessageFrame.State.COMPLETED_SUCCESS: break; // Precompiled sys contracts hit here
         case MessageFrame.State.COMPLETED_FAILED:  throw new TODO("cant find who sets this");
-        case MessageFrame.State.EXCEPTIONAL_HALT:  {
-            FrameUtils.exceptionalHalt(child);
-            var haltReason = child.getExceptionalHaltReason().get();
-            // Fairly obnoxious back-door signal to propagate a particular
-            // failure 1 call level, or not.  From CustomMessageCallProcessor:324
-            var maybeFailureToPropagate = FrameUtils.getAndClearPropagatedCallFailure(_frame);
-            if( maybeFailureToPropagate != HevmPropagatedCallFailure.NONE ) {
-                assert maybeFailureToPropagate.exceptionalHaltReason().get() == haltReason;
-                halt = haltReason;
-            }
-            // These propagate indefinitely, killing the code at the top level.
-            if( haltReason == CustomExceptionalHaltReason.INVALID_CONTRACT_ID ||
-                haltReason == CustomExceptionalHaltReason.INSUFFICIENT_CHILD_RECORDS )
-                halt = haltReason;
-            break;
-        }
+        case MessageFrame.State.EXCEPTIONAL_HALT:  halt = childHalted(child); break;
         default: throw new TODO();
-        };
+        }
 
         _tracing.traceContextExit(child);
         child.getWorldUpdater().commit();
         child.getMessageFrameStack().removeFirst(); // Pop child frame
 
-        // See AbstractCallOperation.complete
+        // See AbstractCustomCreateOperation.complete
         _mem.write(dstOff, child.getOutputData(), 0, dstLen);
         _frame.setReturnData(child.getOutputData());
         _frame.addLogs(child.getLogs());
@@ -2391,9 +2338,32 @@ class BEVM {
 
         if( trace != null )
             System.out.println(trace.clear().p("RETURN ").p(str).nl());
-        push(child.getState()==MessageFrame.State.COMPLETED_SUCCESS ? 1 : 0);
+
+        boolean success = child.getState()==MessageFrame.State.COMPLETED_SUCCESS;
+        if( type == MessageFrame.Type.CONTRACT_CREATION )
+            push( success ? child.getContractAddress() : null );
+        else
+            push( success ? 1 : 0);
         return halt;
     }
+
+    private ExceptionalHaltReason childHalted( MessageFrame child ) {
+        FrameUtils.exceptionalHalt(child);
+        var haltReason = child.getExceptionalHaltReason().get();
+        // Fairly obnoxious back-door signal to propagate a particular
+        // failure 1 call level, or not.  From CustomMessageCallProcessor:324
+        var maybeFailureToPropagate = FrameUtils.getAndClearPropagatedCallFailure(_frame);
+        if( maybeFailureToPropagate != HevmPropagatedCallFailure.NONE ) {
+            assert maybeFailureToPropagate.exceptionalHaltReason().get() == haltReason;
+            return haltReason;
+        }
+        // These propagate indefinitely, killing the code at the top level.
+        if( haltReason == CustomExceptionalHaltReason.INVALID_CONTRACT_ID ||
+            haltReason == CustomExceptionalHaltReason.INSUFFICIENT_CHILD_RECORDS )
+            return haltReason;
+        return null;
+    }
+
 
     // This call will create the "to" address, so it doesn't need to be present
     private boolean mustBePresent( Address to, boolean hasValue ) {
@@ -2408,5 +2378,7 @@ class BEVM {
             && !_adrChk.isSystemAccount(to)
             && FrameUtils.contractRequired(_frame, to, _flags);
     }
+
+    public void complete( MessageFrame frame, MessageFrame child ) {/*nothing*/}
 
 }
