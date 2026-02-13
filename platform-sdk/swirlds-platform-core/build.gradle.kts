@@ -18,7 +18,10 @@ mainModuleInfo {
     runtimeOnly("com.swirlds.config.impl")
     runtimeOnly("org.hiero.consensus.event.creator.impl")
     runtimeOnly("org.hiero.consensus.event.intake.impl")
+    runtimeOnly("org.hiero.consensus.hashgraph.impl")
     runtimeOnly("org.hiero.consensus.pces.impl")
+    runtimeOnly("org.hiero.consensus.gossip.impl")
+    runtimeOnly("org.hiero.consensus.reconnect.impl")
 }
 
 jmhModuleInfo {
