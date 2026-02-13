@@ -1,6 +1,5 @@
-syntax error on purpose
 # SPDX-License-Identifier: Apache-2.0
-name: "ZXF: [CITR] Adhoc - Single Day Longevity Test Controller"
+name: "Single Node Memory Resource Meter"
 on:
   workflow_dispatch:
     inputs:
