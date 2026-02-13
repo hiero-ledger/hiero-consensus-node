@@ -35,6 +35,7 @@ import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItemsValidator;
 import edu.umd.cs.findbugs.annotations.NonNull;
+
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
@@ -171,7 +172,7 @@ public class Hip1313EnabledTest {
                             topicThrottle.allow(1, entry.consensusTime());
                             final var observedMultiplier = observedMultiplier(spec, fee, TOPIC_CREATE_BASE_FEE);
                             final var expectedMultiplier = getInterpolatedMultiplier(
-                                            CRYPTO_TOPIC_CREATE_MULTIPLIER_MAP, utilizationBasisPointsBefore)
+                                    CRYPTO_TOPIC_CREATE_MULTIPLIER_MAP, utilizationBasisPointsBefore)
                                     / 1000.0;
                             assertMultiplierAtLeastFour(observedMultiplier, "topic create");
                             assertMultiplierMatchesExpectation(
@@ -185,7 +186,7 @@ public class Hip1313EnabledTest {
                             scheduleThrottle.allow(1, entry.consensusTime());
                             final var observedMultiplier = observedMultiplier(spec, fee, SCHEDULE_CREATE_BASE_FEE);
                             final var expectedMultiplier = getInterpolatedMultiplier(
-                                            SCHEDULE_CREATE_MULTIPLIER_MAP, utilizationBasisPointsBefore)
+                                    SCHEDULE_CREATE_MULTIPLIER_MAP, utilizationBasisPointsBefore)
                                     / 1000.0;
                             assertMultiplierMatchesExpectation(
                                     expectedMultiplier,
@@ -206,14 +207,13 @@ public class Hip1313EnabledTest {
     }
 
     private static PiecewiseLinearCurve asPiecewiseLinearCurve(final NavigableMap<Integer, Long> map) {
-        final var builder = PiecewiseLinearCurve.newBuilder();
-        for (final var entry : map.entrySet()) {
-            builder.points(PiecewiseLinearPoint.newBuilder()
-                    .utilizationBasisPoints(entry.getKey())
-                    .multiplier(entry.getValue().intValue())
-                    .build());
-        }
-        return builder.build();
+        final var points = map.entrySet().stream()
+                .map(entry -> PiecewiseLinearPoint.newBuilder()
+                        .utilizationBasisPoints(entry.getKey())
+                        .multiplier(entry.getValue().intValue())
+                        .build())
+                .toList();
+        return PiecewiseLinearCurve.newBuilder().points(points).build();
     }
 
     private static void submitHighVolumeCryptoCreates(@NonNull final HapiSpec spec, final int numCreates) {
