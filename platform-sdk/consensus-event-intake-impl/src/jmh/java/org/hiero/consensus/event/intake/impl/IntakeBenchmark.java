@@ -11,9 +11,11 @@ import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.TimeUnit;
 import org.hiero.base.concurrent.ExecutorFactory;
+import org.hiero.consensus.crypto.SigningSchema;
 import org.hiero.consensus.event.NoOpIntakeEventCounter;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.GeneratorEventGraphSource;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.GeneratorEventGraphSourceBuilder;
@@ -21,6 +23,7 @@ import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.test.fixtures.event.EventCounter;
 import org.hiero.consensus.roster.RosterHistory;
+import org.hiero.consensus.roster.test.fixtures.RosterWithKeys;
 import org.hiero.consensus.transaction.TransactionLimits;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -36,6 +39,7 @@ import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Warmup;
+import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
 
 /**
  * A JMH benchmark that measures the throughput of the event intake pipeline. Events are generated using a
@@ -61,8 +65,10 @@ public class IntakeBenchmark {
     @Param({"10"})
     public int numberOfThreads;
 
+    @Param({"RSA", "ED25519"})
+    public SigningSchema signingSchema;
+
     private PlatformContext platformContext;
-    private Roster roster;
     private List<PlatformEvent> events;
     private DefaultEventIntakeModule intake;
     private EventCounter counter;
@@ -94,13 +100,17 @@ public class IntakeBenchmark {
      */
     @Setup(Level.Invocation)
     public void beforeInvocation() {
+        final RosterWithKeys rosterWithKeys = RandomRosterBuilder.create(new Random(seed))
+                .withSize(numNodes)
+                .withRealKeysEnabled(true)
+                .withSigningSchema(signingSchema)
+                .buildWithKeys();
         final GeneratorEventGraphSource generator = GeneratorEventGraphSourceBuilder.builder()
-                .numNodes(numNodes)
+                .rosterWithKeys(rosterWithKeys)
                 .maxOtherParents(1)
                 .seed(seed)
                 .realSignatures(true)
                 .build();
-        roster = generator.getRoster();
         events = generator.nextEvents(NUMBER_OF_EVENTS);
 
         model = WiringModelBuilder.create(platformContext.getMetrics(), platformContext.getTime())
@@ -109,7 +119,7 @@ public class IntakeBenchmark {
                 .withWiringConfig(platformContext.getConfiguration().getConfigData(WiringConfig.class))
                 .build();
         final RosterHistory rosterHistory =
-                new RosterHistory(List.of(new RoundRosterPair(0L, Bytes.EMPTY)), Map.of(Bytes.EMPTY, roster));
+                new RosterHistory(List.of(new RoundRosterPair(0L, Bytes.EMPTY)), Map.of(Bytes.EMPTY, rosterWithKeys.getRoster()));
 
         intake = new DefaultEventIntakeModule();
         intake.initialize(
