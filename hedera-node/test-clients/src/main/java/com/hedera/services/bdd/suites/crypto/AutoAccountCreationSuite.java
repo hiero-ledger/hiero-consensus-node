@@ -618,7 +618,8 @@ public class AutoAccountCreationSuite {
                                 moving(10, A_TOKEN).between(TOKEN_TREASURY, VALID_ALIAS))
                         .via(sameTokenXfer)
                         .payingWith(CIVILIAN)
-                        .signedBy(CIVILIAN, VALID_ALIAS, TOKEN_TREASURY),
+                        .signedBy(CIVILIAN, VALID_ALIAS, TOKEN_TREASURY)
+                        .logged(),
                 getTxnRecord(sameTokenXfer)
                         .andAllChildRecords()
                         .hasNonStakingChildRecordCount(1)

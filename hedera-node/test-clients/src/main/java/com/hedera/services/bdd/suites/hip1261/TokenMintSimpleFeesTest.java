@@ -68,6 +68,7 @@ import org.junit.jupiter.api.Tag;
 @Tag(SIMPLE_FEES)
 @HapiTestLifecycle
 public class TokenMintSimpleFeesTest {
+
     private static final String PAYER = "payer";
     private static final String TREASURY = "treasury";
     private static final String SUPPLY_KEY = "supplyKey";
