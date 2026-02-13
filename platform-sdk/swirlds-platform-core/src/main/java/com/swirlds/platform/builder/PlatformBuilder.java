@@ -560,6 +560,9 @@ public final class PlatformBuilder {
         if (this.hashgraphModule == null) {
             this.hashgraphModule = createHashgraphModule();
         }
+        if (this.gossipModule == null) {
+            this.gossipModule = createGossipModule();
+        }
 
         final PlatformComponents platformComponents = PlatformComponents.create(
                 platformContext,

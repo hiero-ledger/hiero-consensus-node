@@ -133,11 +133,14 @@ public class NodeCommunicationService extends NodeCommunicationServiceImplBase {
         final SemanticVersion version = ProtobufConverter.toPbj(request.getVersion());
         final KeysAndCerts keysAndCerts = KeysAndCertsConverter.fromProto(request.getKeysAndCerts());
 
-        consensusNodeManager = new ConsensusNodeManager(selfId, platformConfig, genesisRoster, version, keysAndCerts);
+        wrapWithErrorHandling(responseObserver, () -> {
+            consensusNodeManager =
+                    new ConsensusNodeManager(selfId, platformConfig, genesisRoster, version, keysAndCerts);
 
-        setupStreamingEventDispatcher();
+            setupStreamingEventDispatcher();
 
-        consensusNodeManager.start();
+            consensusNodeManager.start();
+        });
     }
 
     /**
@@ -273,10 +276,13 @@ public class NodeCommunicationService extends NodeCommunicationServiceImplBase {
         try {
             action.run();
         } catch (final IllegalArgumentException e) {
+            log.error("Error processing gRPC request", e);
             responseObserver.onError(Status.INVALID_ARGUMENT.withCause(e).asRuntimeException());
         } catch (final UnsupportedOperationException e) {
+            log.error("Error processing gRPC request", e);
             responseObserver.onError(Status.UNIMPLEMENTED.withCause(e).asRuntimeException());
         } catch (final Exception e) {
+            log.error("Error processing gRPC request", e);
             responseObserver.onError(Status.INTERNAL.withCause(e).asRuntimeException());
         }
     }
