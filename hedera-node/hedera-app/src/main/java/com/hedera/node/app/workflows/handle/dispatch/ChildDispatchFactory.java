@@ -315,7 +315,7 @@ public class ChildDispatchFactory {
         if (congestionMultiplier > 1) {
             builder.congestionMultiplier(congestionMultiplier);
         }
-
+        // A child transaction cannot be high volume
         final var isHighVolume = txnInfo.txBody().highVolume();
         if (isHighVolume) {
             final var utilizationBasisPoints = throttleAdviser.highVolumeThrottleUtilization(txnInfo.functionality());

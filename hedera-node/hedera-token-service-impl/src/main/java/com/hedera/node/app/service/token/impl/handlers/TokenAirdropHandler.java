@@ -422,9 +422,12 @@ public class TokenAirdropHandler extends TransferExecutor implements Transaction
      */
     private CryptoTransferTransactionBody assessAndChargeCustomFee(
             @NonNull final HandleContext context, @NonNull final CryptoTransferTransactionBody body) {
-        final var syntheticCryptoTransferTxn =
-                TransactionBody.newBuilder().cryptoTransfer(body).build();
-        final var transferContext = new TransferContextImpl(context, body, true);
+        final var isHighVolume = context.body().highVolume();
+        final var syntheticCryptoTransferTxn = TransactionBody.newBuilder()
+                .highVolume(isHighVolume)
+                .cryptoTransfer(body)
+                .build();
+        final var transferContext = new TransferContextImpl(context, body, true, isHighVolume);
         return chargeCustomFeeForAirdrops(syntheticCryptoTransferTxn, transferContext);
     }
 

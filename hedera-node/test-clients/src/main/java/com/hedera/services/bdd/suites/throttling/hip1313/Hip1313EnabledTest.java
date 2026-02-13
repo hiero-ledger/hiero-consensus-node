@@ -4,19 +4,26 @@ package com.hedera.services.bdd.suites.throttling.hip1313;
 import static com.hedera.services.bdd.junit.ContextRequirement.THROTTLE_OVERRIDES;
 import static com.hedera.services.bdd.junit.TestTags.SIMPLE_FEES;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAutoCreatedAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.createTopic;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAirdrop;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.allVisibleItems;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingThrottles;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingTwo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustIncludeNoFailuresFrom;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithChild;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItemsAssertion.ALL_TX_IDS;
 import static com.hedera.services.bdd.suites.HapiSuite.CIVILIAN_PAYER;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
@@ -29,11 +36,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.hedera.node.app.hapi.utils.forensics.RecordStreamEntry;
 import com.hedera.node.app.hapi.utils.throttles.DeterministicThrottle;
 import com.hedera.services.bdd.junit.GenesisHapiTest;
+import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
+import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItemsValidator;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
@@ -107,6 +116,62 @@ public class Hip1313EnabledTest {
                         .payingWith(CIVILIAN_PAYER)
                         .withHighVolume()
                         .hasPrecheck(BUSY));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> cryptoTransferAutoCreationsUsesHighVolume() {
+        return hapiTest(
+                newKeyNamed("alias"),
+                cryptoCreate("hvTotalCreate")
+                        .payingWith(CIVILIAN_PAYER)
+                        .hasPrecheck(OK)
+                        .via("createAccount"),
+                cryptoTransfer(TokenMovement.movingHbar(ONE_HBAR).between(CIVILIAN_PAYER, "alias"))
+                        .payingWith(CIVILIAN_PAYER)
+                        .withHighVolume()
+                        .via("autoCreation"),
+                getTxnRecord("autoCreation").andAllChildRecords().logged(),
+                // Apply high volume multiplier for crypto create only
+                validateChargedUsdWithChild("autoCreation", 0.0001 + (0.05 * 4), 0.01));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> airdropAutoCreationsUsesHighVolume() {
+        return hapiTest(
+                newKeyNamed("alias"),
+                cryptoCreate("hvTotalCreate")
+                        .payingWith(CIVILIAN_PAYER)
+                        .hasPrecheck(OK)
+                        .via("createAccount"),
+                tokenCreate("token").treasury(CIVILIAN_PAYER).initialSupply(1000L),
+                tokenAirdrop(TokenMovement.moving(10, "token").between(CIVILIAN_PAYER, "alias"))
+                        .payingWith(CIVILIAN_PAYER)
+                        .signedBy(CIVILIAN_PAYER)
+                        .withHighVolume()
+                        .via("autoCreation"),
+                getAutoCreatedAccountBalance("alias").hasTokenBalance("token", 10),
+                getTxnRecord("autoCreation").andAllChildRecords().logged(),
+                // Apply high volume multiplier for crypto create only
+                validateChargedUsdWithChild("autoCreation", 0.1 + (0.051 * 4), 0.01));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> cannotUseAliasesInAirdrops() {
+        return hapiTest(
+                newKeyNamed("alias"),
+                cryptoCreate("hvTotalCreate")
+                        .payingWith(CIVILIAN_PAYER)
+                        .hasPrecheck(OK)
+                        .via("createAccount"),
+                tokenCreate("token").treasury(CIVILIAN_PAYER).initialSupply(1000L),
+                tokenAirdrop(TokenMovement.moving(10, "token").between(CIVILIAN_PAYER, "alias"))
+                        .payingWith(CIVILIAN_PAYER)
+                        .signedBy(CIVILIAN_PAYER)
+                        .withHighVolume()
+                        .via("autoCreation"),
+                getTxnRecord("autoCreation").andAllChildRecords().logged(),
+                // Apply high volume multiplier for crypto create only
+                validateChargedUsdWithChild("autoCreation", 0.1 + (0.051 * 4), 0.01));
     }
 
     @GenesisHapiTest

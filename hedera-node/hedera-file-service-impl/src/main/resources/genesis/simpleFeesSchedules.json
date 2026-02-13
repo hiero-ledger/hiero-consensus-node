@@ -414,7 +414,7 @@
         },
         {
           "name": "TokenAirdrop",
-          "baseFee": 1000000000,
+          "baseFee": 100000000,
           "extras": [
             { "name": "AIRDROPS", "includedCount": 1 }
           ],

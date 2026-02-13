@@ -6,7 +6,7 @@
       "throttleGroups": [
         {
           "opsPerSec": 200,
-          "operations": [ "CryptoCreate" ]
+          "operations": [ "CryptoCreate", "CryptoTransfer" ]
         }
       ]
     },
@@ -42,7 +42,8 @@
             "TransactionGetReceipt",
             "FileGetInfo",
             "FileGetContents",
-            "TokenGetInfo"
+            "TokenGetInfo",
+            "TransactionGetRecord"
           ]
         }
       ]
