@@ -138,6 +138,9 @@ public class TransactionDispatcher {
         try {
             final var handler = getHandler(feeContext.body());
             if (shouldUseSimpleFees(feeContext)) {
+                if (isInternalFreeTransaction(feeContext)) {
+                    return Fees.FREE;
+                }
                 var feeResult = requireNonNull(feeManager.getSimpleFeeCalculator())
                         .calculateTxFee(feeContext.body(), new SimpleFeeContextImpl(feeContext, null));
                 return feeResultToFees(feeResult, fromPbj(feeContext.activeRate()));
@@ -212,6 +215,27 @@ public class TransactionDispatcher {
             case HISTORY_PROOF_VOTE -> false;
             case CRS_PUBLICATION -> false;
             case LEDGER_ID_PUBLICATION -> false;
+        };
+    }
+
+    private boolean isInternalFreeTransaction(FeeContext feeContext) {
+        return switch(feeContext.body().data().kind()) {
+            case UNSET -> false;
+            case CRYPTO_ADD_LIVE_HASH -> false;
+            case CRYPTO_DELETE_LIVE_HASH -> false;
+            case FREEZE -> false;
+            case UNCHECKED_SUBMIT -> true;
+            case NODE_STAKE_UPDATE -> false;
+            case STATE_SIGNATURE_TRANSACTION -> false;
+            case HINTS_PREPROCESSING_VOTE -> false;
+            case HINTS_KEY_PUBLICATION -> false;
+            case HINTS_PARTIAL_SIGNATURE -> false;
+            case HISTORY_PROOF_SIGNATURE -> false;
+            case HISTORY_PROOF_KEY_PUBLICATION -> false;
+            case HISTORY_PROOF_VOTE -> false;
+            case CRS_PUBLICATION -> false;
+            case LEDGER_ID_PUBLICATION -> false;
+            default -> false;
         };
     }
 
