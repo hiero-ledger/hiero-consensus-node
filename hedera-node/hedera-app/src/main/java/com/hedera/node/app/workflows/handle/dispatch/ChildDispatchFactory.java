@@ -317,6 +317,7 @@ public class ChildDispatchFactory {
         }
         // A child transaction cannot be high volume
         final var isHighVolume = txnInfo.txBody().highVolume();
+        // FUTURE: Use the already computed multiplier in dispatch
         if (isHighVolume) {
             final var utilizationBasisPoints = throttleAdviser.highVolumeThrottleUtilization(txnInfo.functionality());
             final var highVolumeMultiplier = feeManager.highVolumeMultiplierFor(

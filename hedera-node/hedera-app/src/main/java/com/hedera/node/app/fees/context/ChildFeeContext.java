@@ -45,7 +45,7 @@ public class ChildFeeContext implements FeeContext {
     private final AppKeyVerifier verifier;
 
     private final int signatureMapSize;
-    private HederaFunctionality functionality;
+    private final HederaFunctionality functionality;
 
     public ChildFeeContext(
             @NonNull final FeeManager feeManager,
@@ -138,7 +138,7 @@ public class ChildFeeContext implements FeeContext {
 
     @Override
     public int numTxnBytes() {
-        return TransactionBody.PROTOBUF.measureRecord(body);
+        return TransactionBody.PROTOBUF.measureRecord(body) + signatureMapSize;
     }
 
     @Override

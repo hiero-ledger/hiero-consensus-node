@@ -23,11 +23,14 @@ import java.time.Instant;
 import java.util.List;
 import java.util.function.IntSupplier;
 import java.util.function.Supplier;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * The application's strategy for creating a {@link ScheduleThrottle} to use at consensus.
  */
 public class AppThrottleFactory implements ScheduleThrottle.Factory {
+    private static final Logger log = LogManager.getLogger(AppThrottleFactory.class);
     private final Supplier<State> stateSupplier;
     private final Supplier<Configuration> configSupplier;
     private final Supplier<ThrottleDefinitions> definitionsSupplier;

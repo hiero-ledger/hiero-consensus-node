@@ -345,6 +345,10 @@ public class ThrottleServiceManager {
         if (allThrottles.size() == snapshots.size()) {
             return allThrottles;
         }
+        log.info(
+                "Snapshot size {} does not match all throttles size {}, using normal throttles",
+                snapshots.size(),
+                allThrottles.size());
         final var normalThrottles = throttleAccumulator.allActiveThrottles();
         if (normalThrottles.size() == snapshots.size()) {
             return normalThrottles;
