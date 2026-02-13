@@ -44,6 +44,7 @@ public class SimpleFeesScheduleConstantsInUsd {
     public static final double TOKEN_CLAIM_FEE = 0.001;
     public static final double HOOK_UPDATES_FEE_USD = 1.0;
     public static final double HOOK_EXECUTION_FEE_USD = 0.005;
+    public static final double HOOK_SLOT_UPDATE_FEE = 0.005;
 
     public static final double TOKEN_TRANSFER_FEE = 0.001;
     public static final double TOKEN_TRANSFER_WITH_CUSTOM_FEE = 0.002;
@@ -171,4 +172,12 @@ public class SimpleFeesScheduleConstantsInUsd {
     public static final double NODE_CREATE_BASE_FEE_USD = 0.0177;
     public static final double NODE_UPDATE_BASE_FEE_USD = 0.001;
     public static final double NODE_DELETE_BASE_FEE_USD = 0.001;
+
+    /* ---------- Smart Contracts service ---------- */
+    public static final double CONTRACT_CREATE_BASE_FEE = 1.0;
+    public static final double CONTRACT_DELETE_BASE_FEE = 0.007;
+    public static final double CONTRACT_CALL_BASE_FEE = 0;
+    public static final double CONTRACT_UPDATE_BASE_FEE = 0.026;
+    public static final double ETHEREUM_CALL_BASE_FEE = 0.0001;
+    public static final double HOOK_SLOT_UPDATE_BASE_FEE = 0.005;
 }
