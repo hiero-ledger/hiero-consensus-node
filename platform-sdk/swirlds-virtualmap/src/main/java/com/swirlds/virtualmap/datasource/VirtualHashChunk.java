@@ -38,10 +38,6 @@ import org.hiero.base.crypto.Hash;
  * on chunk IDs, index size is “chunk size” smaller than the size of the virtual map. Chunks closer to
  * the leaf rank may be incomplete, i.e. contain fewer hashes than the full size. The number of hashes
  * in {@link #hashData} is always the full chunk size.
- *
- * @param path Chunk path
- * @param height Chunk height
- * @param hashData Chunk hashes
  */
 public class VirtualHashChunk {
 
