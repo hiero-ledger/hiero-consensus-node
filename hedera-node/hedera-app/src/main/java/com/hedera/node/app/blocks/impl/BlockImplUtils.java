@@ -2,6 +2,7 @@
 package com.hedera.node.app.blocks.impl;
 
 import static com.hedera.node.app.hapi.utils.CommonUtils.hashOfAll;
+import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
 import static com.hedera.node.app.hapi.utils.CommonUtils.sha384HashOf;
 import static com.hedera.node.app.hapi.utils.CommonUtils.sha384HashOfAll;
 import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.HASH_SIZE;
@@ -75,16 +76,63 @@ public class BlockImplUtils {
         return sha384HashOf(LEAF_PREFIX, leafData);
     }
 
-    public static Bytes hashLeaf(@NonNull final Bytes leafData) {
+    // This method _may_ be temporary! State items currently require a wonky legacy prefix to work,
+    // which may be modified by the state team
+    // (FUTURE) Either remove or write tests for this
+    public static Bytes hashBlockItemLeaf(@NonNull final Bytes leafData) {
+        return hashBlockItemLeaf(leafData.toByteArray());
+    }
+
+    // This method _may_ be temporary! State items currently require a wonky legacy prefix to work,
+    // which may be modified by the state team
+    // (FUTURE) Either remove or write tests for this
+    public static Bytes hashBlockItemLeaf(@NonNull final byte[] leafData) {
+        final MessageDigest digest = sha384DigestOrThrow();
+        return doLegacyLeafHash(digest, (byte) 0x12, leafData);
+    }
+
+    // This method _may_ be temporary! State items currently require a wonky legacy prefix to work,
+    // which may be modified by the state team
+    // (FUTURE) Either remove or write tests for this
+    public static Bytes hashTimestampLeaf(@NonNull final Bytes leafData) {
+        final MessageDigest digest = sha384DigestOrThrow();
+        return doLegacyLeafHash(digest, (byte) 0x0A, leafData.toByteArray());
+    }
+
+    private static Bytes doLegacyLeafHash(
+            @NonNull final MessageDigest digest, final byte legacyPrefix, @NonNull final byte[] leafData) {
+        digest.update(LEAF_PREFIX_BYTES.toByteArray());
+        digest.update(legacyPrefix);
+        long leafLength = leafData.length;
+        if (leafLength < 0 || leafLength > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException("leafBytes length out of range: " + leafLength);
+        }
+        updateVarint(digest, (int) leafLength);
+        digest.update(leafData);
+
+        return Bytes.wrap(digest.digest());
+    }
+
+    static Bytes hashLeaf(@NonNull final Bytes leafData) {
         return sha384HashOfAll(LEAF_PREFIX_BYTES, leafData);
     }
 
-    public static Bytes hashLeaf(@NonNull final MessageDigest digest, @NonNull final Bytes leafData) {
+    static Bytes hashLeaf(@NonNull final MessageDigest digest, @NonNull final Bytes leafData) {
         return hashOfAll(digest, LEAF_PREFIX_BYTES, leafData);
     }
 
-    public static byte[] hashLeaf(@NonNull final MessageDigest digest, @NonNull final byte[] leafData) {
+    static byte[] hashLeaf(@NonNull final MessageDigest digest, @NonNull final byte[] leafData) {
         return hashOfAll(digest, LEAF_PREFIX, leafData);
+    }
+
+    private static void updateVarint(final MessageDigest digest, int value) {
+        // See `VirtualLeafBytes.writeToForHashing(...)`'s implementation, which essentially encodes the former
+        // `MerkleLeaf` class into the hash of state item leaves
+        while ((value & ~0x7F) != 0) {
+            digest.update((byte) ((value & 0x7F) | 0x80));
+            value >>>= 7;
+        }
+        digest.update((byte) value);
     }
 
     public static Bytes hashInternalNodeSingleChild(@NonNull final Bytes hash) {

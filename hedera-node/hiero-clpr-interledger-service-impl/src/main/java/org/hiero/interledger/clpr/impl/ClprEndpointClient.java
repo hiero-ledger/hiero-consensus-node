@@ -8,6 +8,7 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.node.app.hapi.utils.blocks.StateProofVerifier;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.ClprConfig;
@@ -114,6 +115,8 @@ public class ClprEndpointClient {
             if (localProof == null) {
                 log.debug("CLPR endpoint maintenance skipped; no state proof available for ledger {}", localLedgerId);
                 return;
+            } else {
+                StateProofVerifier.verify(requireNonNull(localProof));
             }
             final var selfNodeInfo = networkInfo.selfNodeInfo();
             final var localEndpoint = localServiceEndpoint();

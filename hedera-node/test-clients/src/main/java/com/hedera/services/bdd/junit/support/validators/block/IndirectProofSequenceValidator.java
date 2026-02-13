@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.support.validators.block;
 
-import static com.hedera.node.app.blocks.impl.BlockImplUtils.hashLeaf;
+import static com.hedera.node.app.blocks.impl.BlockImplUtils.hashTimestampLeaf;
 import static com.hedera.node.app.blocks.impl.BlockStateProofGenerator.BLOCK_CONTENTS_PATH_INDEX;
 import static com.hedera.node.app.blocks.impl.BlockStateProofGenerator.EXPECTED_MERKLE_PATH_COUNT;
 import static com.hedera.node.app.blocks.impl.BlockStateProofGenerator.FINAL_MERKLE_PATH_INDEX;
@@ -80,6 +80,11 @@ class IndirectProofSequenceValidator {
      * @param ignore not used
      */
     public static void main(String[] ignore) {
+        // TODO: this test case no longer works due to the change from hashing leaves with
+        // `BlockImplUtils.hashLeaf(...)` to `BlockImplUtils.hashTimestampLeaf(...)`. If the state representation
+        // changes to no longer encode the former `MerkleLeaf` in hashes of state items, this test case can produce the
+        // correct hashes. However, if that work does not happen, this test case will need a new set of regenerated
+        // hashes as the correct values to verify against.
         TestCase.run();
     }
 
@@ -349,7 +354,7 @@ class IndirectProofSequenceValidator {
 
             // Combine with the current block's timestamp
             final var unsignedTsBytes = currentBlockPaths.left().leaf().timestampLeafOrThrow();
-            final var hashedUnsignedTsBytes = BlockImplUtils.hashLeaf(unsignedTsBytes);
+            final var hashedUnsignedTsBytes = hashTimestampLeaf(unsignedTsBytes);
             allSiblingHashes[firstSiblingIndex + blockSiblings.size()] = SiblingNode.newBuilder()
                     .isLeft(true)
                     .hash(hashedUnsignedTsBytes)
@@ -529,7 +534,7 @@ class IndirectProofSequenceValidator {
         final var signedTimestamp = paths.getFirst().timestampLeafOrThrow();
         final var signedTimestampBytes = Timestamp.PROTOBUF.toBytes(signedBlockTimestamp);
         assertEquals(signedTimestampBytes, signedTimestamp, "Mismatch in signed block's timestamp bytes");
-        final var hashedTsBytes = BlockImplUtils.hashLeaf(signedTimestampBytes);
+        final var hashedTsBytes = hashTimestampLeaf(signedTimestampBytes);
         hash = BlockImplUtils.hashInternalNode(hashedTsBytes, hash);
 
         // This hash must now equal the root hash of the signed block
@@ -698,7 +703,7 @@ class IndirectProofSequenceValidator {
             final var ts9 =
                     Timestamp.newBuilder().seconds(1764666647).nanos(830783000).build();
             final var ts9Bytes = Timestamp.PROTOBUF.toBytes(ts9);
-            final var hashedTs9Bytes = hashLeaf(ts9Bytes);
+            final var hashedTs9Bytes = hashTimestampLeaf(ts9Bytes);
             final var b9Siblings = new MerkleSiblingHash[] {
                 // given subroot 2
                 MerkleSiblingHash.newBuilder()
@@ -793,7 +798,7 @@ class IndirectProofSequenceValidator {
             final var ts8 =
                     Timestamp.newBuilder().seconds(1764666645).nanos(540871000).build();
             final var ts8Bytes = Timestamp.PROTOBUF.toBytes(ts8);
-            final var hashedTs8Bytes = hashLeaf(ts8Bytes);
+            final var hashedTs8Bytes = hashTimestampLeaf(ts8Bytes);
             final var b8Siblings =
                     new MerkleSiblingHash[] {
                         // given subroot 2
@@ -828,7 +833,7 @@ class IndirectProofSequenceValidator {
                                                 "2d1149d3e744ac28a809b89959869d7432f29f5998d1000abe92a28501a8369f9af2d9cc8ae7ae7f308d3258ccac955c"))
                                 .build()
                     };
-            final var hashedTs9Bytes = hashLeaf(BLOCK_9.timestampBytes());
+            final var hashedTs9Bytes = hashTimestampLeaf(BLOCK_9.timestampBytes());
             final var proof8 = BlockProof.newBuilder()
                     .block(8)
                     .blockStateProof(StateProof.newBuilder()

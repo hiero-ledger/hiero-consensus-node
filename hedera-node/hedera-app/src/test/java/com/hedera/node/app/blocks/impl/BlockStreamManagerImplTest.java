@@ -366,7 +366,7 @@ class BlockStreamManagerImplTest {
                 2,
                 List.of(
                         Bytes.fromHex(
-                                "41c6949285489fa59ddf82402a2670489ba298a235e2963d5594f952620cb91254aacdea53f97d0d6b46259392aeb198")),
+                                "a858bfba2f46ede742477560d22e6f95b2e216a5143dea559aef023b943af39f3e266859ee81bd76628a0f7cd31ed573")),
                 FAKE_TRANSACTION_RESULT.transactionResultOrThrow().consensusTimestampOrThrow(),
                 true,
                 SemanticVersion.DEFAULT,
@@ -374,7 +374,7 @@ class BlockStreamManagerImplTest {
                 CONSENSUS_THEN,
                 HASH_OF_ZERO,
                 Bytes.fromHex(
-                        "9362621b45a8b81d91d65f58bc82aca40fcc2576157b6775052f66b23f968a4a0bde57d401840abb4c916ab7d9be081b"),
+                        "89c91251f573ed1041d4d0a82eeffec444337a66c103c3b1f403797dc9bda39b3a6c8bbef6b48fa5ed288635b6d61936"),
                 HASH_OF_ZERO,
                 List.of(FAKE_RESTART_BLOCK_HASH),
                 1);
@@ -592,7 +592,7 @@ class BlockStreamManagerImplTest {
                 2,
                 List.of(
                         Bytes.fromHex(
-                                "41c6949285489fa59ddf82402a2670489ba298a235e2963d5594f952620cb91254aacdea53f97d0d6b46259392aeb198")),
+                                "a858bfba2f46ede742477560d22e6f95b2e216a5143dea559aef023b943af39f3e266859ee81bd76628a0f7cd31ed573")),
                 FAKE_TRANSACTION_RESULT.transactionResultOrThrow().consensusTimestampOrThrow(),
                 false,
                 SemanticVersion.DEFAULT,
@@ -600,7 +600,7 @@ class BlockStreamManagerImplTest {
                 CONSENSUS_THEN,
                 HASH_OF_ZERO,
                 Bytes.fromHex(
-                        "b4a01b52bd0d845e70cecaa6bc6851d8d6f1000e3dcd808f88a1f2999009c48462da8e2b247d771b783188147946fca7"),
+                        "71ec550b4a816a76c505948fd0e5e4cb5ffad7e3a2a42be59739b83c06314066b7504b77337712bbb1ab1a2dec187b92"),
                 HASH_OF_ZERO,
                 List.of(FAKE_RESTART_BLOCK_HASH),
                 1);
@@ -1434,7 +1434,7 @@ class BlockStreamManagerImplTest {
     }
 
     private static Bytes leafHashOfItem(@NonNull final BlockItem item) {
-        return hashLeaf(BlockItem.PROTOBUF.toBytes(item));
+        return BlockImplUtils.hashBlockItemLeaf(BlockItem.PROTOBUF.toBytes(item));
     }
 
     private void mockRoundWithTxnTimestamp(Instant timestamp) {
