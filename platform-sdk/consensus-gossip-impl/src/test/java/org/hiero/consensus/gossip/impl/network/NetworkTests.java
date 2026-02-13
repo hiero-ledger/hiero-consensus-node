@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform;
+package org.hiero.consensus.gossip.impl.network;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -9,8 +9,6 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.net.InetAddress;
-import org.hiero.consensus.gossip.impl.network.ExternalIpAddress;
-import org.hiero.consensus.gossip.impl.network.Network;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

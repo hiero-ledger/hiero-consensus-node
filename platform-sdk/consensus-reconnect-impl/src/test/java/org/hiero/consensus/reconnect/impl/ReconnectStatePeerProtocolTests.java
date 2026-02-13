@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.reconnect;
+package org.hiero.consensus.reconnect.impl;
 
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;

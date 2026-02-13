@@ -851,8 +851,8 @@ public final class Hedera
      * {@link SwirldMain#newStateRoot()} or an instance of {@link VirtualMapState} created by the platform and
      * loaded from the saved state).
      *
-     * <p>(FUTURE) Consider moving this initialization into {@link #onStateInitialized(VirtualMapState, Platform, InitTrigger, SemanticVersion)}
-     * instead, as there is no special significance to having it here instead.
+     * <p>(FUTURE) Consider moving this initialization into {@code onStateInitialized()} instead, as there is no
+     * special significance to having it here instead.
      */
     @SuppressWarnings("java:S1181") // catching Throwable instead of Exception when we do a direct System.exit()
     @Override
@@ -886,7 +886,8 @@ public final class Hedera
                 throw new IllegalArgumentException("" + NOT_SUPPORTED);
             }
             final var payload = SignedTransaction.PROTOBUF.toBytes(nodeSignedTxWith(body));
-            requireNonNull(daggerApp).submissionManager().submit(body, payload);
+            // Always use priority=true for node gossip submissions
+            requireNonNull(daggerApp).submissionManager().submit(body, payload, true);
             if (quiescenceEnabled && isRelevantTransaction(body)) {
                 daggerApp.txPipelineTracker().incrementInFlight();
             }

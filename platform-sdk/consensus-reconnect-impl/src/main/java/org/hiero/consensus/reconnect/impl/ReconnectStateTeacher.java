@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.reconnect;
+package org.hiero.consensus.reconnect.impl;
 
 import static com.swirlds.base.formatting.StringFormattingUtils.formattedList;
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
-import static com.swirlds.platform.reconnect.ReconnectStateLearner.endReconnectHandshake;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.getInfoString;
+import static org.hiero.consensus.reconnect.impl.ReconnectStateLearner.endReconnectHandshake;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;

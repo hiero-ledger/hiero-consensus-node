@@ -19,6 +19,7 @@ import com.swirlds.common.stream.RunningEventHashOverride;
 import com.swirlds.common.utility.AutoCloseableWrapper;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
+import com.swirlds.platform.builder.ConsensusModuleBuilder;
 import com.swirlds.platform.builder.PlatformBuildingBlocks;
 import com.swirlds.platform.builder.PlatformComponentBuilder;
 import com.swirlds.platform.components.AppNotifier;
@@ -28,8 +29,7 @@ import com.swirlds.platform.components.DefaultSavedStateController;
 import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.components.SavedStateController;
 import com.swirlds.platform.metrics.RuntimeMetrics;
-import com.swirlds.platform.reconnect.DefaultSignedStateValidator;
-import com.swirlds.platform.reconnect.ReconnectController;
+import com.swirlds.platform.reconnect.ReconnectModule;
 import com.swirlds.platform.state.nexus.DefaultLatestCompleteStateNexus;
 import com.swirlds.platform.state.nexus.LatestCompleteStateNexus;
 import com.swirlds.platform.state.nexus.SignedStateNexus;
@@ -53,8 +53,6 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Signature;
-import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
-import org.hiero.consensus.concurrent.manager.AdHocThreadManager;
 import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.hashgraph.config.ConsensusConfig;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -190,10 +188,12 @@ public class SwirldsPlatform implements Platform {
 
         final AppNotifier appNotifier = new DefaultAppNotifier(blocks.notificationEngine());
 
-        final ReconnectController reconnectController = new ReconnectController(
+        final ReconnectModule reconnectModule = ConsensusModuleBuilder.createReconnectModule();
+        reconnectModule.initialize(
                 configuration,
                 platformContext.getTime(),
                 currentRoster,
+                platformComponents,
                 this,
                 platformCoordinator,
                 stateLifecycleManager,
@@ -201,18 +201,7 @@ public class SwirldsPlatform implements Platform {
                 blocks.consensusStateEventHandler(),
                 blocks.reservedSignedStateResultPromise(),
                 selfId,
-                blocks.fallenBehindMonitor(),
-                new DefaultSignedStateValidator());
-
-        final Thread reconnectControllerThread = new ThreadConfiguration(AdHocThreadManager.getStaticThreadManager())
-                .setComponent("platform-core")
-                .setThreadName("reconnectController")
-                .setRunnable(reconnectController)
-                .build(true);
-        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            reconnectController.stopReconnectLoop();
-            reconnectControllerThread.interrupt();
-        }));
+                blocks.fallenBehindMonitor());
 
         platformComponents.bind(
                 builder,
