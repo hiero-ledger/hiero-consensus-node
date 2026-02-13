@@ -353,7 +353,7 @@ public class CryptoDeleteAllowanceSuite {
                         .signedBy(payer, owner)
                         .via("twoDeleteNft"),
                 // one extra signature
-                validateFees("twoDeleteNft", 0.08124, CRYPTO_DELETE_ALLOWANCE_FEE + SIGNATURE_FEE_USD*1*10));
+                validateFees("twoDeleteNft", 0.08124, CRYPTO_DELETE_ALLOWANCE_FEE + SIGNATURE_FEE_USD * 1 * 10));
     }
 
     @HapiTest
