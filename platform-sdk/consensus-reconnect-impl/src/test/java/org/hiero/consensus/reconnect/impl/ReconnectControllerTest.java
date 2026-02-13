@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.reconnect;
+package org.hiero.consensus.reconnect.impl;
 
 import static com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils.createTestState;
 import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomSignature;
@@ -37,7 +37,6 @@ import com.swirlds.platform.system.SystemExitUtils;
 import com.swirlds.platform.system.status.actions.FallenBehindAction;
 import com.swirlds.platform.system.status.actions.ReconnectCompleteAction;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
-import com.swirlds.platform.wiring.PlatformCoordinator;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
@@ -87,7 +86,7 @@ class ReconnectControllerTest {
     private Configuration configuration;
     private Roster roster;
     private Platform platform;
-    private PlatformCoordinator platformCoordinator;
+    private ReconnectCoordinator reconnectCoordinator;
     private StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager;
     private SavedStateController savedStateController;
     private ConsensusStateEventHandler consensusStateEventHandler;
@@ -156,8 +155,8 @@ class ReconnectControllerTest {
         // Mock Platform
         platform = mock(Platform.class);
 
-        // Mock PlatformCoordinator
-        platformCoordinator = mock(PlatformCoordinator.class);
+        // Mock ReconnectCoordinator
+        reconnectCoordinator = mock(ReconnectCoordinator.class);
 
         // Create real FallenBehindMonitor (needs to be created before setting up coordinator mock)
         fallenBehindMonitor = new FallenBehindMonitor(NUM_NODES - 1, 0.5);
@@ -167,7 +166,7 @@ class ReconnectControllerTest {
                     fallenBehindMonitor.notifySyncProtocolPaused();
                     return null;
                 })
-                .when(platformCoordinator)
+                .when(reconnectCoordinator)
                 .pauseGossip();
 
         // Mock SwirldStateManager
@@ -206,7 +205,7 @@ class ReconnectControllerTest {
                 Time.getCurrent(),
                 roster,
                 platform,
-                platformCoordinator,
+                reconnectCoordinator,
                 stateLifecycleManager,
                 savedStateController,
                 consensusStateEventHandler,
@@ -224,7 +223,7 @@ class ReconnectControllerTest {
                 time,
                 roster,
                 platform,
-                platformCoordinator,
+                reconnectCoordinator,
                 stateLifecycleManager,
                 savedStateController,
                 consensusStateEventHandler,
@@ -465,12 +464,12 @@ class ReconnectControllerTest {
                 .stop(LONG_TIMEOUT, "Controller did not finished when expected");
 
         // Verify the expected interactions
-        verify(platformCoordinator, times(1)).submitStatusAction(any(FallenBehindAction.class));
-        verify(platformCoordinator, times(1)).pauseGossip();
-        verify(platformCoordinator, atLeast(1)).clear();
-        verify(platformCoordinator, times(1)).loadReconnectState(any(), any());
-        verify(platformCoordinator, times(1)).submitStatusAction(any(ReconnectCompleteAction.class));
-        verify(platformCoordinator, times(1)).resumeGossip();
+        verify(reconnectCoordinator, times(1)).submitStatusAction(any(FallenBehindAction.class));
+        verify(reconnectCoordinator, times(1)).pauseGossip();
+        verify(reconnectCoordinator, atLeast(1)).clear();
+        verify(reconnectCoordinator, times(1)).loadReconnectState(any(), any());
+        verify(reconnectCoordinator, times(1)).submitStatusAction(any(ReconnectCompleteAction.class));
+        verify(reconnectCoordinator, times(1)).resumeGossip();
     }
 
     @Test
@@ -530,7 +529,7 @@ class ReconnectControllerTest {
                 .stop(LONG_TIMEOUT, "Controller did not finished when expected");
 
         assertEquals(2, validationAttempts.get(), "Should have attempted validation twice");
-        verify(platformCoordinator, times(1)).resumeGossip();
+        verify(reconnectCoordinator, times(1)).resumeGossip();
     }
 
     @Test
@@ -573,21 +572,21 @@ class ReconnectControllerTest {
                     fallenBehindMonitor.notifySyncProtocolPaused();
                     return null;
                 })
-                .when(platformCoordinator)
+                .when(reconnectCoordinator)
                 .pauseGossip();
 
         doAnswer(inv -> {
                     operationOrder.updateAndGet(s -> s + "clear,");
                     return null;
                 })
-                .when(platformCoordinator)
+                .when(reconnectCoordinator)
                 .clear();
 
         doAnswer(inv -> {
                     operationOrder.updateAndGet(s -> s + "resumeGossip,");
                     return null;
                 })
-                .when(platformCoordinator)
+                .when(reconnectCoordinator)
                 .resumeGossip();
 
         new ReconnectScenario(createController())
@@ -623,7 +622,7 @@ class ReconnectControllerTest {
                     }
                     return null;
                 })
-                .when(platformCoordinator)
+                .when(reconnectCoordinator)
                 .submitStatusAction(any());
 
         final var scenario = new ReconnectScenario(controller);
@@ -745,7 +744,7 @@ class ReconnectControllerTest {
 
         // Make platformCoordinator.pauseGossip() throw an unexpected RuntimeException
         doThrow(new RuntimeException("Unexpected error during pauseGossip"))
-                .when(platformCoordinator)
+                .when(reconnectCoordinator)
                 .pauseGossip();
 
         new ReconnectScenario(createController())

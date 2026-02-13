@@ -10,20 +10,20 @@ module org.hiero.consensus.gossip.impl {
     exports org.hiero.consensus.gossip.impl.gossip.shadowgraph to
             org.hiero.consensus.gossip.impl.test.fixtures;
     exports org.hiero.consensus.gossip.impl.gossip.sync to
-            com.swirlds.platform.core, // required by reconnect, will be fixed soon
-            org.hiero.consensus.gossip.impl.test.fixtures;
+            org.hiero.consensus.gossip.impl.test.fixtures,
+            org.hiero.consensus.reconnect.impl;
     exports org.hiero.consensus.gossip.impl.network to
-            com.swirlds.platform.core, // required by reconnect, will be fixed soon
-            org.hiero.consensus.gossip.impl.test.fixtures;
+            org.hiero.consensus.gossip.impl.test.fixtures,
+            org.hiero.consensus.reconnect.impl;
     exports org.hiero.consensus.gossip.impl.network.communication to
             org.hiero.consensus.gossip.impl.test.fixtures;
     exports org.hiero.consensus.gossip.impl.network.protocol to
-            com.swirlds.platform.core, // required by reconnect, will be fixed soon
-            org.hiero.consensus.gossip.impl.test.fixtures;
+            org.hiero.consensus.gossip.impl.test.fixtures,
+            org.hiero.consensus.reconnect.impl;
     exports org.hiero.consensus.gossip.impl.network.topology to
             org.hiero.consensus.gossip.impl.test.fixtures;
     exports org.hiero.consensus.gossip.impl.reconnect to
-            com.swirlds.platform.core; // required by reconnect, will be fixed soon
+            org.hiero.consensus.reconnect.impl;
 
     requires transitive com.hedera.node.hapi;
     requires transitive com.swirlds.base;
