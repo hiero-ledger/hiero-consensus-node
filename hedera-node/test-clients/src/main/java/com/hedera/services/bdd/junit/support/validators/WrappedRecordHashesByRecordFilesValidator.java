@@ -190,19 +190,27 @@ public class WrappedRecordHashesByRecordFilesValidator {
 
     private static RecordFilesSignature recordFilesSignature(@NonNull final HederaNode node) {
         requireNonNull(node);
-        final var recordStreamsDir =
-                node.getExternalPath(ExternalPath.RECORD_STREAMS_DIR).toAbsolutePath();
+        final var recordStreamsRoot = Optional.ofNullable(node.getExternalPath(ExternalPath.RECORD_STREAMS_DIR)
+                        .toAbsolutePath()
+                        .getParent())
+                .orElseGet(() -> node.getExternalPath(ExternalPath.WORKING_DIR)
+                        .resolve("data")
+                        .resolve("recordStreams")
+                        .toAbsolutePath());
+        if (!Files.exists(recordStreamsRoot)) {
+            return new RecordFilesSignature(List.of());
+        }
         try {
             final var orderedRecordFiles =
-                    RecordStreamingUtils.orderedRecordFilesFrom(recordStreamsDir.toString(), f -> true);
+                    RecordStreamingUtils.orderedRecordFilesFrom(recordStreamsRoot.toString(), f -> true);
             final var relative = orderedRecordFiles.stream()
                     .map(Path::of)
-                    .map(p -> recordStreamsDir.relativize(p.toAbsolutePath()).toString())
+                    .map(p -> recordStreamsRoot.relativize(p.toAbsolutePath()).toString())
                     .toList();
             return new RecordFilesSignature(relative);
         } catch (final IOException e) {
             throw new UncheckedIOException(
-                    "Unable to list record stream files for node " + node.getNodeId() + " at " + recordStreamsDir, e);
+                    "Unable to list record stream files for node " + node.getNodeId() + " at " + recordStreamsRoot, e);
         }
     }
 
