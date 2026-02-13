@@ -669,17 +669,6 @@ public class FeesChargingUtils {
                 sigs, uniqueHooksExecuted, uniqueAccounts, tokenTypes, gasAmount, txnSize, true, false, false);
     }
 
-    public static double expectedCryptoTransferHbarFullFeeUsd(final Map<FeeParam, Object> extras) {
-
-        return expectedCryptoTransferHbarFullFeeUsd(
-                longValue(extras, FeeParam.SIGNATURES, 0),
-                longValue(extras, FeeParam.HOOKS_EXECUTED, 0),
-                longValue(extras, FeeParam.ACCOUNTS, 0),
-                longValue(extras, FeeParam.TOKEN_TYPES, 0),
-                longValue(extras, FeeParam.GAS, 0),
-                intValue(extras, FeeParam.TXN_SIZE, 0));
-    }
-
     /**
      * Overload when extras are provided in a map.
      */
@@ -705,17 +694,6 @@ public class FeesChargingUtils {
 
         return expectedCryptoTransferFullFeeUsd(
                 sigs, uniqueHooksExecuted, uniqueAccounts, tokenTypes, gasAmount, txnSize, false, true, false);
-    }
-
-    public static double expectedCryptoTransferFTFullFeeUsd(final Map<FeeParam, Object> extras) {
-
-        return expectedCryptoTransferFTFullFeeUsd(
-                longValue(extras, FeeParam.SIGNATURES, 0),
-                longValue(extras, FeeParam.HOOKS_EXECUTED, 0),
-                longValue(extras, FeeParam.ACCOUNTS, 0),
-                longValue(extras, FeeParam.TOKEN_TYPES, 0),
-                longValue(extras, FeeParam.GAS, 0),
-                intValue(extras, FeeParam.TXN_SIZE, 0));
     }
 
     /**
@@ -746,17 +724,6 @@ public class FeesChargingUtils {
                 sigs, uniqueHooksExecuted, uniqueAccounts, tokenTypes, gasAmount, txnSize, false, true, false);
     }
 
-    public static double expectedCryptoTransferNFTFullFeeUsd(final Map<FeeParam, Object> extras) {
-
-        return expectedCryptoTransferNFTFullFeeUsd(
-                longValue(extras, FeeParam.SIGNATURES, 0),
-                longValue(extras, FeeParam.HOOKS_EXECUTED, 0),
-                longValue(extras, FeeParam.ACCOUNTS, 0),
-                longValue(extras, FeeParam.TOKEN_TYPES, 0),
-                longValue(extras, FeeParam.GAS, 0),
-                intValue(extras, FeeParam.TXN_SIZE, 0));
-    }
-
     /**
      * Overload when extras are provided in a map.
      */
@@ -784,15 +751,17 @@ public class FeesChargingUtils {
                 sigs, uniqueHooksExecuted, uniqueAccounts, tokenTypes, gasAmount, txnSize, false, true, false);
     }
 
-    public static double expectedCryptoTransferFTAndNFTFullFeeUsd(final Map<FeeParam, Object> extras) {
-
+    /**
+     * Overload when extras are provided in a map.
+     */
+    public static double expectedCryptoTransferFTAndNFTFullFeeUsd(final Map<Extra, Long> extras) {
         return expectedCryptoTransferFTAndNFTFullFeeUsd(
-                longValue(extras, FeeParam.SIGNATURES, 0),
-                longValue(extras, FeeParam.HOOKS_EXECUTED, 0),
-                longValue(extras, FeeParam.ACCOUNTS, 0),
-                longValue(extras, FeeParam.TOKEN_TYPES, 0),
-                longValue(extras, FeeParam.GAS, 0),
-                intValue(extras, FeeParam.TXN_SIZE, 0));
+                extras.getOrDefault(Extra.SIGNATURES, 0L),
+                extras.getOrDefault(Extra.HOOK_EXECUTION, 0L),
+                extras.getOrDefault(Extra.ACCOUNTS, 0L),
+                extras.getOrDefault(Extra.TOKEN_TYPES, 0L),
+                extras.getOrDefault(Extra.GAS, 0L),
+                Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
     }
 
     public static double expectedCryptoTransferHBARAndFTFullFeeUsd(
@@ -809,15 +778,17 @@ public class FeesChargingUtils {
                 sigs, uniqueHooksExecuted, uniqueAccounts, tokenTypes, gasAmount, txnSize, true, true, false);
     }
 
-    public static double expectedCryptoTransferHBARAndFTFullFeeUsd(final Map<FeeParam, Object> extras) {
-
+    /**
+     * Overload when extras are provided in a map.
+     */
+    public static double expectedCryptoTransferHBARAndFTFullFeeUsd(final Map<Extra, Long> extras) {
         return expectedCryptoTransferHBARAndFTFullFeeUsd(
-                longValue(extras, FeeParam.SIGNATURES, 0),
-                longValue(extras, FeeParam.HOOKS_EXECUTED, 0),
-                longValue(extras, FeeParam.ACCOUNTS, 0),
-                longValue(extras, FeeParam.TOKEN_TYPES, 0),
-                longValue(extras, FeeParam.GAS, 0),
-                intValue(extras, FeeParam.TXN_SIZE, 0));
+                extras.getOrDefault(Extra.SIGNATURES, 0L),
+                extras.getOrDefault(Extra.HOOK_EXECUTION, 0L),
+                extras.getOrDefault(Extra.ACCOUNTS, 0L),
+                extras.getOrDefault(Extra.TOKEN_TYPES, 0L),
+                extras.getOrDefault(Extra.GAS, 0L),
+                Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
     }
 
     public static double expectedCryptoTransferHBARAndNFTFullFeeUsd(
@@ -834,40 +805,63 @@ public class FeesChargingUtils {
                 sigs, uniqueHooksExecuted, uniqueAccounts, tokenTypes, gasAmount, txnSize, true, true, false);
     }
 
-    public static double expectedCryptoTransferHBARAndNFTFullFeeUsd(final Map<FeeParam, Object> extras) {
-
+    /**
+     * Overload when extras are provided in a map.
+     */
+    public static double expectedCryptoTransferHBARAndNFTFullFeeUsd(final Map<Extra, Long> extras) {
         return expectedCryptoTransferHBARAndNFTFullFeeUsd(
-                longValue(extras, FeeParam.SIGNATURES, 0),
-                longValue(extras, FeeParam.HOOKS_EXECUTED, 0),
-                longValue(extras, FeeParam.ACCOUNTS, 0),
-                longValue(extras, FeeParam.TOKEN_TYPES, 0),
-                longValue(extras, FeeParam.GAS, 0),
-                intValue(extras, FeeParam.TXN_SIZE, 0));
+                extras.getOrDefault(Extra.SIGNATURES, 0L),
+                extras.getOrDefault(Extra.HOOK_EXECUTION, 0L),
+                extras.getOrDefault(Extra.ACCOUNTS, 0L),
+                extras.getOrDefault(Extra.TOKEN_TYPES, 0L),
+                extras.getOrDefault(Extra.GAS, 0L),
+                Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
     }
 
     public static double expectedCryptoTransferHBARAndFTAndNFTFullFeeUsd(
             long sigs, long uniqueHooksExecuted, long uniqueAccounts, long tokenTypes, long gasAmount) {
 
         return expectedCryptoTransferFullFeeUsd(
-                sigs, uniqueHooksExecuted, uniqueAccounts, tokenTypes, gasAmount, true, true, false);
+                sigs,
+                uniqueHooksExecuted,
+                uniqueAccounts,
+                tokenTypes,
+                gasAmount,
+                true,
+                true,
+                false);
     }
 
     public static double expectedCryptoTransferHBARAndFTAndNFTFullFeeUsd(
-            long sigs, long uniqueHooksExecuted, long uniqueAccounts, long tokenTypes, long gasAmount, int txnSize) {
-
+            long sigs,
+            long uniqueHooksExecuted,
+            long uniqueAccounts,
+            long tokenTypes,
+            long gasAmount,
+            int txnSize) {
         return expectedCryptoTransferFullFeeUsd(
-                sigs, uniqueHooksExecuted, uniqueAccounts, tokenTypes, gasAmount, txnSize, true, true, false);
+                sigs,
+                uniqueHooksExecuted,
+                uniqueAccounts,
+                tokenTypes,
+                gasAmount,
+                txnSize,
+                true,
+                true,
+                false);
     }
 
-    public static double expectedCryptoTransferHBARAndFTAndNFTFullFeeUsd(final Map<FeeParam, Object> extras) {
-
+    /**
+     * Overload when extras are provided in a map.
+     */
+    public static double expectedCryptoTransferHBARAndFTAndNFTFullFeeUsd(final Map<Extra, Long> extras) {
         return expectedCryptoTransferHBARAndFTAndNFTFullFeeUsd(
-                longValue(extras, FeeParam.SIGNATURES, 0),
-                longValue(extras, FeeParam.HOOKS_EXECUTED, 0),
-                longValue(extras, FeeParam.ACCOUNTS, 0),
-                longValue(extras, FeeParam.TOKEN_TYPES, 0),
-                longValue(extras, FeeParam.GAS, 0),
-                intValue(extras, FeeParam.TXN_SIZE, 0));
+                extras.getOrDefault(Extra.SIGNATURES, 0L),
+                extras.getOrDefault(Extra.HOOK_EXECUTION, 0L),
+                extras.getOrDefault(Extra.ACCOUNTS, 0L),
+                extras.getOrDefault(Extra.TOKEN_TYPES, 0L),
+                extras.getOrDefault(Extra.GAS, 0L),
+                Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
     }
 
     public static double expectedCryptoTransferTokenWithCustomFullFeeUsd(
@@ -908,14 +902,6 @@ public class FeesChargingUtils {
                 Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
     }
 
-    public static double expectedCryptoTransferHBARAndFTAndNFTFullFeeUsd(
-            long sigs, long uniqueHooksExecuted, long uniqueAccounts, long tokenTypes, long gasAmount, int txnSize) {
-        return addNodeAndNetworkBytes(
-                expectedCryptoTransferHBARAndFTAndNFTFullFeeUsd(
-                        sigs, uniqueHooksExecuted, uniqueAccounts, tokenTypes, gasAmount),
-                txnSize);
-    }
-
     /**
      * Overloads for network fee only.
      */
@@ -936,6 +922,15 @@ public class FeesChargingUtils {
 
         // ----- network fees -----
         return nodeFee * NETWORK_MULTIPLIER;
+    }
+
+    /**
+     * Overload when extras are provided in a map.
+     */
+    public static double expectedCryptoTransferNetworkFeeOnlyUsd(final Map<Extra, Long> extras) {
+        return expectedCryptoTransferNetworkFeeOnlyUsd(
+                extras.getOrDefault(Extra.SIGNATURES, 0L),
+                Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
     }
 
     // -------- ConsensusCreateTopic with custom fee simple fees utils ---------//
