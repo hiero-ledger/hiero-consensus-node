@@ -28,12 +28,16 @@ import com.hedera.node.app.service.token.impl.handlers.TokenGetNftInfoHandler;
 import com.hedera.node.app.service.token.impl.handlers.TokenGetNftInfosHandler;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.interledger.clpr.impl.handlers.ClprGetLedgerConfigurationHandler;
+import org.hiero.interledger.clpr.impl.handlers.ClprGetMessageQueueMetadataHandler;
+import org.hiero.interledger.clpr.impl.handlers.ClprGetMessagesHandler;
 
 /**
  * A record that contains all {@link com.hedera.node.app.spi.workflows.QueryHandler}s that are available in the app
  */
 public record QueryHandlers(
         @NonNull ClprGetLedgerConfigurationHandler clprGetLedgerConfigurationHandler,
+        @NonNull ClprGetMessagesHandler clprGetMessagesHandler,
+        @NonNull ClprGetMessageQueueMetadataHandler clprGetMessageQueueMetadataHandler,
         @NonNull ConsensusGetTopicInfoHandler consensusGetTopicInfoHandler,
         @NonNull ContractGetBySolidityIDHandler contractGetBySolidityIDHandler,
         @NonNull ContractCallLocalHandler contractCallLocalHandler,

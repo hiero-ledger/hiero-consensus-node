@@ -223,6 +223,8 @@ public class TransactionDispatcher {
     private TransactionHandler getHandler(@NonNull final TransactionBody txBody) {
         return switch (txBody.data().kind()) {
             case CLPR_SET_LEDGER_CONFIGURATION -> handlers.clprSetLedgerConfigurationHandler();
+            case CLPR_UPDATE_MESSAGE_QUEUE_METADATA -> handlers.clprUpdateMessageQueueMetadataHandler();
+            case CLPR_PROCESS_MESSAGE_BUNDLE -> handlers.clprProcessMessageBundleHandler();
 
             case CONSENSUS_CREATE_TOPIC -> handlers.consensusCreateTopicHandler();
             case CONSENSUS_UPDATE_TOPIC -> handlers.consensusUpdateTopicHandler();

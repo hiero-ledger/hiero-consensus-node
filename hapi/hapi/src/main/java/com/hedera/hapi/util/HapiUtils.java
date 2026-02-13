@@ -20,7 +20,6 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.Comparator;
 import java.util.EnumSet;
-import java.util.Objects;
 import java.util.Set;
 import java.util.regex.Pattern;
 
@@ -200,6 +199,8 @@ public class HapiUtils {
         return switch (txn.data().kind()) {
             case ATOMIC_BATCH -> HederaFunctionality.ATOMIC_BATCH;
             case CLPR_SET_LEDGER_CONFIGURATION -> HederaFunctionality.CLPR_SET_LEDGER_CONFIG;
+            case CLPR_UPDATE_MESSAGE_QUEUE_METADATA -> HederaFunctionality.CLPR_UPDATE_MESSAGE_QUEUE_METADATA;
+            case CLPR_PROCESS_MESSAGE_BUNDLE -> HederaFunctionality.CLPR_PROCESS_MESSAGE_BUNDLE;
             case CONSENSUS_CREATE_TOPIC -> HederaFunctionality.CONSENSUS_CREATE_TOPIC;
             case CONSENSUS_UPDATE_TOPIC -> HederaFunctionality.CONSENSUS_UPDATE_TOPIC;
             case CONSENSUS_DELETE_TOPIC -> HederaFunctionality.CONSENSUS_DELETE_TOPIC;
@@ -274,6 +275,8 @@ public class HapiUtils {
             case TOKEN_GET_NFT_INFOS -> HederaFunctionality.TOKEN_GET_NFT_INFOS;
             case ACCOUNT_DETAILS -> HederaFunctionality.GET_ACCOUNT_DETAILS;
             case GET_CLPR_LEDGER_CONFIGURATION -> HederaFunctionality.CLPR_GET_LEDGER_CONFIG;
+            case GET_CLPR_MESSAGE_QUEUE_METADATA -> HederaFunctionality.CLPR_GET_MESSAGE_QUEUE_METADATA;
+            case GET_CLPR_MESSAGES -> HederaFunctionality.CLPR_GET_MESSAGES;
             case CONSENSUS_GET_TOPIC_INFO -> HederaFunctionality.CONSENSUS_GET_TOPIC_INFO;
             case CONTRACT_CALL_LOCAL -> HederaFunctionality.CONTRACT_CALL_LOCAL;
             case CONTRACT_GET_BYTECODE -> HederaFunctionality.CONTRACT_GET_BYTECODE;
@@ -334,7 +337,7 @@ public class HapiUtils {
      * @throws IllegalArgumentException if the input string is not a valid semantic version.
      */
     public static SemanticVersion fromString(@NonNull final String value) {
-        Objects.requireNonNull(value, "value must not be null");
+        requireNonNull(value, "value must not be null");
         if (value.length() > MAX_VERSION_LENGTH) {
             throw new IllegalArgumentException("Semantic version '" + value + "' is too long");
         }

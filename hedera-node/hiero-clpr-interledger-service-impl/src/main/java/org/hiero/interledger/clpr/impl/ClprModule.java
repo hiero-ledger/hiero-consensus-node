@@ -61,8 +61,12 @@ public interface ClprModule {
             @NonNull final ExecutorService executor,
             @NonNull final Metrics metrics,
             @NonNull final ClprConnectionManager clprConnectionManager,
-            @NonNull final ClprStateProofManager stateProofManager) {
+            @NonNull final ClprStateProofManager stateProofManager // ,
+            //            @NonNull final BlockProvenSnapshotProvider snapshotProvider
+            ) {
         return new ClprEndpointClient(
-                networkInfo, configProvider, executor, metrics, clprConnectionManager, stateProofManager);
+                networkInfo, configProvider, executor, metrics, clprConnectionManager, stateProofManager // ,
+                //                snapshotProvider
+                );
     }
 }

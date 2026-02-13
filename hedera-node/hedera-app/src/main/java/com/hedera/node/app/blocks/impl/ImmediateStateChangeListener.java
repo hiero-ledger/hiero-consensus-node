@@ -79,6 +79,7 @@ import java.util.function.Predicate;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerId;
 import org.hiero.hapi.interledger.state.clpr.ClprMessageKey;
+import org.hiero.hapi.interledger.state.clpr.ClprMessageQueueMetadata;
 import org.hiero.hapi.interledger.state.clpr.ClprMessageValue;
 
 /**
@@ -321,6 +322,10 @@ public class ImmediateStateChangeListener implements StateChangeListener {
             case ClprLedgerConfiguration clprLedgerConfiguration ->
                 new MapChangeValue(new OneOf<>(
                         MapChangeValue.ValueChoiceOneOfType.CLPR_LEDGER_CONFIGURATION_VALUE, clprLedgerConfiguration));
+            case ClprMessageQueueMetadata clprMessageQueueMetadata ->
+                new MapChangeValue(new OneOf<>(
+                        MapChangeValue.ValueChoiceOneOfType.CLPR_MESSAGE_QUEUE_METADATA_VALUE,
+                        clprMessageQueueMetadata));
             case EvmHookState evmHookState ->
                 new MapChangeValue(new OneOf<>(MapChangeValue.ValueChoiceOneOfType.EVM_HOOK_STATE_VALUE, evmHookState));
             case WrapsMessageHistory wrapsMessageHistory ->

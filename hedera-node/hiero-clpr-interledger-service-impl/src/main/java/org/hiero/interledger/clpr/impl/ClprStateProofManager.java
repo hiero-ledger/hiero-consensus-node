@@ -27,6 +27,9 @@ import org.hiero.hapi.interledger.clpr.ClprSetLedgerConfigurationTransactionBody
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerId;
 import org.hiero.hapi.interledger.state.clpr.ClprLocalLedgerMetadata;
+import org.hiero.hapi.interledger.state.clpr.ClprMessageKey;
+import org.hiero.hapi.interledger.state.clpr.ClprMessageQueueMetadata;
+import org.hiero.hapi.interledger.state.clpr.ClprMessageValue;
 import org.hiero.interledger.clpr.ClprService;
 import org.hiero.interledger.clpr.impl.schemas.V0700ClprSchema;
 
@@ -191,6 +194,79 @@ public class ClprStateProofManager {
                 virtualMapState,
                 V0700ClprSchema.CLPR_LEDGER_CONFIGURATIONS_STATE_ID,
                 ClprLedgerId.PROTOBUF.toBytes(resolvedLedgerId));
+    }
+
+    /**
+     * Returns a state proof for the requested message queue metadata, or {@code null} if not found.
+     *
+     * @param ledgerId the ledger ID to query
+     * @return state proof containing the message queue metadata, or {@code null} if metadata not found
+     */
+    @Nullable
+    public StateProof getMessageQueueMetadata(@NonNull final ClprLedgerId ledgerId) {
+        requireNonNull(ledgerId);
+        final var snapshot = latestSnapshot().orElse(null);
+        if (snapshot == null) {
+            return null;
+        }
+
+        final var state = snapshot.state();
+        final var readableStates = state.getReadableStates(ClprService.NAME);
+        if (!readableStates.contains(V0700ClprSchema.CLPR_MESSAGE_QUEUE_METADATA_STATE_ID)) {
+            throw new IllegalStateException(
+                    "CLPR message queue metadata state not found - service may not be properly initialized");
+        }
+        if (!(state instanceof VirtualMapState virtualMapState)) {
+            throw new IllegalStateException("Unable to build Merkle proofs from a non-VirtualMap state");
+        }
+
+        return buildMerkleStateProof(
+                virtualMapState,
+                V0700ClprSchema.CLPR_MESSAGE_QUEUE_METADATA_STATE_ID,
+                ClprLedgerId.PROTOBUF.toBytes(ledgerId));
+    }
+
+    /**
+     * Returns the message queue metadata for the local ledger, or {@code null} if not found.
+     *
+     * <p> Retrieves metadata directly from the local state.
+     *
+     * @param ledgerId the ledger ID to query
+     * @return the message queue metadata, or {@code null} if not found
+     */
+    @Nullable
+    public ClprMessageQueueMetadata getLocalMessageQueueMetadata(@NonNull final ClprLedgerId ledgerId) {
+        requireNonNull(ledgerId);
+        final var snapshot = latestSnapshot().orElse(null);
+        if (snapshot == null) {
+            return null;
+        }
+        final var state = snapshot.state();
+        final var readableStates = state.getReadableStates(ClprService.NAME);
+        final ReadableKVState<ClprLedgerId, ClprMessageQueueMetadata> messageQueueMetadataReadableState =
+                readableStates.get(V0700ClprSchema.CLPR_MESSAGE_QUEUE_METADATA_STATE_ID);
+        return messageQueueMetadataReadableState.get(ledgerId);
+    }
+
+    /**
+     * Retrieves a specific message from the CLPR message queue, or {@code null} if not found.
+     *
+     * @param messageKey the key identifying the message to retrieve
+     * @return the message value, or {@code null} if the message does not exist or state is unavailable
+     */
+    @Nullable
+    public ClprMessageValue getMessage(@NonNull final ClprMessageKey messageKey) {
+        requireNonNull(messageKey);
+        final var snapshot = latestSnapshot().orElse(null);
+        if (snapshot == null) {
+            return null;
+        }
+
+        final var state = snapshot.state();
+        final var readableStates = state.getReadableStates(ClprService.NAME);
+        final ReadableKVState<ClprMessageKey, ClprMessageValue> messageQueueMetadataReadableState =
+                readableStates.get(V0700ClprSchema.CLPR_MESSAGES_STATE_ID);
+        return messageQueueMetadataReadableState.get(messageKey);
     }
 
     /**

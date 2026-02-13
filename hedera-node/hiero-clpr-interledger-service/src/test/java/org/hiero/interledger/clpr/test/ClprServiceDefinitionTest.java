@@ -25,6 +25,11 @@ class ClprServiceDefinitionTest {
                 .containsExactlyInAnyOrder(
                         new RpcMethodDefinition<>(
                                 "setLedgerConfiguration", Transaction.class, TransactionResponse.class),
-                        new RpcMethodDefinition<>("getLedgerConfiguration", Query.class, Response.class));
+                        new RpcMethodDefinition<>("getLedgerConfiguration", Query.class, Response.class),
+                        new RpcMethodDefinition<>(
+                                "updateMessageQueueMetadata", Transaction.class, TransactionResponse.class),
+                        new RpcMethodDefinition<>("getMessageQueueMetadata", Query.class, Response.class),
+                        new RpcMethodDefinition<>("processMessageBundle", Transaction.class, TransactionResponse.class),
+                        new RpcMethodDefinition<>("getMessageBundle", Query.class, Response.class));
     }
 }

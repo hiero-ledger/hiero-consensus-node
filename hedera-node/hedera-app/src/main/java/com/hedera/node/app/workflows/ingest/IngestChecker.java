@@ -554,7 +554,10 @@ public final class IngestChecker {
         final var payerKey = account.key();
         final var hederaConfig = configuration.getConfigData(HederaConfig.class);
         final var clprConfig = configuration.getConfigData(ClprConfig.class);
-        if (clprConfig.devModeEnabled() && txInfo.functionality() == HederaFunctionality.CLPR_SET_LEDGER_CONFIG) {
+        if (clprConfig.devModeEnabled()
+                && (txInfo.functionality() == HederaFunctionality.CLPR_SET_LEDGER_CONFIG
+                        || txInfo.functionality() == HederaFunctionality.CLPR_UPDATE_MESSAGE_QUEUE_METADATA
+                        || txInfo.functionality() == HederaFunctionality.CLPR_PROCESS_MESSAGE_BUNDLE)) {
             // DEMO/PROTOTYPE ONLY: Temporarily bypass payer signature enforcement for CLPR bootstrap
             // transactions while the final signing strategy is still under design. This MUST be removed
             // before production rollout.

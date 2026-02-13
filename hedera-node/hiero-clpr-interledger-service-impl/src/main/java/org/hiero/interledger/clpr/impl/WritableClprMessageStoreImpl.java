@@ -44,4 +44,16 @@ public class WritableClprMessageStoreImpl extends ReadableClprMessageStoreImpl i
         requireNonNull(clprMessageValue);
         writableMessageState.put(messageKey, clprMessageValue);
     }
+
+    /**
+     * Removes a CLPR message associated with the provided key.
+     *
+     * @param messageKey the unique key identifying the message
+     * @throws NullPointerException if {@code messageKey} is {@code null}
+     */
+    @Override
+    public void remove(@NonNull ClprMessageKey messageKey) {
+        requireNonNull(messageKey);
+        writableMessageState.remove(messageKey);
+    }
 }
