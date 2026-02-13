@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.throttling.hip1313;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.THROTTLE_OVERRIDES;
-import static com.hedera.services.bdd.junit.TestTags.INTEGRATION;
 import static com.hedera.services.bdd.junit.TestTags.SIMPLE_FEES;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
@@ -35,7 +34,6 @@ import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItemsValidator;
 import edu.umd.cs.findbugs.annotations.NonNull;
-
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
@@ -43,7 +41,6 @@ import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
-
 import org.hiero.hapi.support.fees.PiecewiseLinearCurve;
 import org.hiero.hapi.support.fees.PiecewiseLinearPoint;
 import org.junit.jupiter.api.BeforeAll;
@@ -133,7 +130,9 @@ public class Hip1313EnabledTest {
                         throttle.allow(1, entry.consensusTime());
                         final var fee = entry.txnRecord().getTransactionFee();
                         final var observedMultiplier = observedMultiplier(spec, fee, CRYPTO_CREATE_BASE_FEE);
-                        final var expectedMultiplier = getInterpolatedMultiplier(CRYPTO_TOPIC_CREATE_MULTIPLIER_MAP, utilizationBasisPointsBefore) / 1000.0;
+                        final var expectedMultiplier = getInterpolatedMultiplier(
+                                        CRYPTO_TOPIC_CREATE_MULTIPLIER_MAP, utilizationBasisPointsBefore)
+                                / 1000.0;
                         assertMultiplierAtLeastFour(observedMultiplier, "crypto create");
                         assertMultiplierMatchesExpectation(
                                 expectedMultiplier, observedMultiplier, utilizationBasisPointsBefore, "crypto create");
@@ -171,7 +170,7 @@ public class Hip1313EnabledTest {
                             topicThrottle.allow(1, entry.consensusTime());
                             final var observedMultiplier = observedMultiplier(spec, fee, TOPIC_CREATE_BASE_FEE);
                             final var expectedMultiplier = getInterpolatedMultiplier(
-                                    CRYPTO_TOPIC_CREATE_MULTIPLIER_MAP, utilizationBasisPointsBefore)
+                                            CRYPTO_TOPIC_CREATE_MULTIPLIER_MAP, utilizationBasisPointsBefore)
                                     / 1000.0;
                             assertMultiplierAtLeastFour(observedMultiplier, "topic create");
                             assertMultiplierMatchesExpectation(
@@ -185,7 +184,7 @@ public class Hip1313EnabledTest {
                             scheduleThrottle.allow(1, entry.consensusTime());
                             final var observedMultiplier = observedMultiplier(spec, fee, SCHEDULE_CREATE_BASE_FEE);
                             final var expectedMultiplier = getInterpolatedMultiplier(
-                                    SCHEDULE_CREATE_MULTIPLIER_MAP, utilizationBasisPointsBefore)
+                                            SCHEDULE_CREATE_MULTIPLIER_MAP, utilizationBasisPointsBefore)
                                     / 1000.0;
                             assertMultiplierMatchesExpectation(
                                     expectedMultiplier,
@@ -201,7 +200,8 @@ public class Hip1313EnabledTest {
                 }));
     }
 
-    public static long getInterpolatedMultiplier(final NavigableMap<Integer, Long> map, final int utilizationBasisPoints) {
+    public static long getInterpolatedMultiplier(
+            final NavigableMap<Integer, Long> map, final int utilizationBasisPoints) {
         return interpolatePiecewiseLinear(asPiecewiseLinearCurve(map), utilizationBasisPoints);
     }
 
