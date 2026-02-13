@@ -30,7 +30,6 @@ import static com.hedera.services.bdd.suites.HapiSuite.FEE_COLLECTOR;
 import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
 import static com.hedera.services.bdd.suites.HapiSuite.NODE;
 import static com.hedera.services.bdd.suites.HapiSuite.NODE_REWARD;
-import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.STAKING_REWARD;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
@@ -141,7 +140,7 @@ public class CryptoRecordsSanityCheckSuite {
                 cryptoCreate("test"),
                 newKeyNamed(NEW_KEY).type(KeyFactory.KeyType.SIMPLE),
                 takeBalanceSnapshots(FUNDING, NODE, STAKING_REWARD, NODE_REWARD, DEFAULT_PAYER, "test", FEE_COLLECTOR),
-                cryptoUpdate("test").key(NEW_KEY).via("txn").fee(ONE_HBAR).payingWith("test"),
+                cryptoUpdate("test").key(NEW_KEY).via("txn").fee(500_000L).payingWith("test"),
                 validateTransferListForBalances(
                         "txn",
                         List.of(FUNDING, NODE, STAKING_REWARD, NODE_REWARD, DEFAULT_PAYER, "test", FEE_COLLECTOR)),

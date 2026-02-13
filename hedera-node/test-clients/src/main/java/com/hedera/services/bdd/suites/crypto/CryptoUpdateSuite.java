@@ -231,7 +231,9 @@ public class CryptoUpdateSuite {
                         .expiring(expiration.get() + THREE_MONTHS_IN_SECONDS)
                         .blankMemo()
                         .via(baseTxn)),
-                getAccountInfo("canonicalAccount").hasMaxAutomaticAssociations(0),
+                getAccountInfo("canonicalAccount")
+                        .hasMaxAutomaticAssociations(0)
+                        .logged(),
                 cryptoUpdate("autoAssocTarget")
                         .payingWith("autoAssocTarget")
                         .blankMemo()
@@ -243,13 +245,17 @@ public class CryptoUpdateSuite {
                         .blankMemo()
                         .maxAutomaticAssociations(11)
                         .via(plusTenTxn),
-                getAccountInfo("autoAssocTarget").hasMaxAutomaticAssociations(11),
+                getAccountInfo("autoAssocTarget")
+                        .hasMaxAutomaticAssociations(11)
+                        .logged(),
                 cryptoUpdate("autoAssocTarget")
                         .payingWith("autoAssocTarget")
                         .blankMemo()
                         .maxAutomaticAssociations(5000)
                         .via(plusFiveKTxn),
-                getAccountInfo("autoAssocTarget").hasMaxAutomaticAssociations(5000),
+                getAccountInfo("autoAssocTarget")
+                        .hasMaxAutomaticAssociations(5000)
+                        .logged(),
                 cryptoUpdate("autoAssocTarget")
                         .payingWith("autoAssocTarget")
                         .blankMemo()
