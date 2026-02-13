@@ -113,7 +113,7 @@ jobs:
           gradle-version: ${{ inputs.gradle-version || 'wrapper' }}
 
       - name: Download Build Version
-        if: ${{ github.event_name != 'workflow_dispatch' }}
+        if: ${{ github.event_name == 'workflow_call' }}
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: version.txt
@@ -121,14 +121,14 @@ jobs:
       - name: Resolve Version
         id: resolve-version
         run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            VERSION="$(./gradlew showVersion --quiet 2>/dev/null | tr -d '[:space:]')"
-            echo "version=${VERSION}" >>"${GITHUB_OUTPUT}"
-            echo "Resolved version from Gradle: ${VERSION}"
-          else
+          if [[ "${{ github.event_name }}" == "workflow_call" ]]; then
             VERSION="${{ inputs.version }}"
             echo "version=${VERSION}" >>"${GITHUB_OUTPUT}"
             echo "Using provided version: ${VERSION}"
+          else
+            VERSION="$(./gradlew showVersion --quiet 2>/dev/null | tr -d '[:space:]')"
+            echo "version=${VERSION}" >>"${GITHUB_OUTPUT}"
+            echo "Resolved version from Gradle: ${VERSION}"
           fi
 
       - name: Build Yahcli Shadow JAR
