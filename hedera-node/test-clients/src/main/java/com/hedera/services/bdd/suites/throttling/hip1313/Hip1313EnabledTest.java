@@ -4,16 +4,21 @@ package com.hedera.services.bdd.suites.throttling.hip1313;
 import static com.hedera.services.bdd.junit.ContextRequirement.THROTTLE_OVERRIDES;
 import static com.hedera.services.bdd.junit.TestTags.SIMPLE_FEES;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
+import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFullPrefixesFor;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAutoCreatedAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.createTopic;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAirdrop;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenClaimAirdrop;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
+import static com.hedera.services.bdd.spec.transactions.token.HapiTokenClaimAirdrop.pendingAirdrop;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.allVisibleItems;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.createHollow;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingThrottles;
@@ -156,22 +161,27 @@ public class Hip1313EnabledTest {
     }
 
     @HapiTest
-    final Stream<DynamicTest> cannotUseAliasesInAirdrops() {
+    final Stream<DynamicTest> claimAirdropHollowCompletionUsesHighVolume() {
+        final var hollowReceiver = "hollowReceiver";
         return hapiTest(
-                newKeyNamed("alias"),
-                cryptoCreate("hvTotalCreate")
-                        .payingWith(CIVILIAN_PAYER)
-                        .hasPrecheck(OK)
-                        .via("createAccount"),
+                createHollow(1, i -> hollowReceiver),
                 tokenCreate("token").treasury(CIVILIAN_PAYER).initialSupply(1000L),
-                tokenAirdrop(TokenMovement.moving(10, "token").between(CIVILIAN_PAYER, "alias"))
+                cryptoUpdate(hollowReceiver)
+                        .sigMapPrefixes(uniqueWithFullPrefixesFor(hollowReceiver))
+                        .maxAutomaticAssociations(0),
+                tokenAirdrop(TokenMovement.moving(10, "token").between(CIVILIAN_PAYER, hollowReceiver))
                         .payingWith(CIVILIAN_PAYER)
                         .signedBy(CIVILIAN_PAYER)
+                        .via("pendingAirdrop"),
+                getAutoCreatedAccountBalance(hollowReceiver).hasTokenBalance("token", 0),
+                tokenClaimAirdrop(pendingAirdrop(CIVILIAN_PAYER, hollowReceiver, "token"))
+                        .payingWith(hollowReceiver)
+                        .sigMapPrefixes(uniqueWithFullPrefixesFor(hollowReceiver))
                         .withHighVolume()
-                        .via("autoCreation"),
-                getTxnRecord("autoCreation").andAllChildRecords().logged(),
-                // Apply high volume multiplier for crypto create only
-                validateChargedUsdWithChild("autoCreation", 0.1 + (0.051 * 4), 0.01));
+                        .via("claimAirdrop"),
+                getAutoCreatedAccountBalance(hollowReceiver).hasTokenBalance("token", 10),
+                getTxnRecord("claimAirdrop").andAllChildRecords().logged(),
+                validateChargedUsdWithChild("claimAirdrop", 0.001 * 4, 0.01));
     }
 
     @GenesisHapiTest
