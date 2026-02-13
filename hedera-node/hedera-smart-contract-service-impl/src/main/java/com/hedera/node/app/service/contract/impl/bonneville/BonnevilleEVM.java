@@ -475,6 +475,12 @@ class BEVM {
         return UI256.intern(x0,x1,x2,x3);
     }
 
+    private Wei popWei() {
+        long val0 = STK0[--_sp], val1 = STK1[_sp], val2 = STK2[_sp], val3 = STK3[_sp];
+        return Wei.wrap(UI256.intern(val0,val1,val2,val3));
+    }
+
+
     // -----------------------------------------------------------
     // Execute bytecodes until done
     BEVM run(boolean topLevel) {
@@ -609,13 +615,13 @@ class BEVM {
 
             case 0xA0, 0xA1, 0xA2, 0xA3, 0xA4 -> customLog(op-0xA0);
 
-            case 0xF0 -> create            (trace,"CREATE"  , false);
-            case 0xF1 -> customCall        (trace,"CUSTCALL");
-            case 0xF2 -> callCode          (trace,"CALL"    );
+            case 0xF0 -> create            (trace, false);
+            case 0xF1 -> customCall        (trace);
+            case 0xF2 -> callCode          (trace);
             case 0xF3 -> ret();
-            case 0xF4 -> customDelegateCall(trace,"DELEGATE");
-            case 0xF5 -> create            (trace,"CREATE2" , true );
-            case 0xFA -> customStaticCall  (trace,"STATIC"  );
+            case 0xF4 -> customDelegateCall(trace);
+            case 0xF5 -> create            (trace, true );
+            case 0xFA -> customStaticCall  (trace);
             case 0xFD -> revert();
             case 0xFF -> customSelfDestruct();
 
@@ -2008,22 +2014,18 @@ class BEVM {
         return null;
     }
 
-    private ExceptionalHaltReason create( SB trace, String str, boolean hasSalt ) {
+    private ExceptionalHaltReason create( SB trace, boolean hasSalt ) {
         // Nested create contract call; so print the post-trace before the
         // nested call, and reload the pre-trace state after call.
+        String str = hasSalt ? "CREATE2" : "CREATE";
         preTraceCall(trace,str);
         if( _sp < (hasSalt ? 4 : 3) ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
         if( _frame.isStatic() ) return ExceptionalHaltReason.ILLEGAL_STATE_CHANGE;
-        long val0 = STK0[--_sp], val1 = STK1[_sp], val2 = STK2[_sp], val3 = STK3[_sp];
-        Wei value = Wei.wrap(UI256.intern(val0,val1,val2,val3));
-
-        // Custom-only hook
         Address sender = hookSender();
+        Wei value = popWei();
         // Memory size for code and gas
         int off = popInt();
         int len = popInt();
-        int dstOff = 0;
-        int dstLen = 0;
         Bytes salt = hasSalt ? popBytes() : null;
 
         Code code = _bevm.getCodeUncached(_mem.asBytes(off,len));
@@ -2034,21 +2036,14 @@ class BEVM {
         long senderNonce = senderAccount.getNonce();
         senderAccount.incrementNonce(); // Post increment
 
-        Address contract;
-        if( hasSalt ) {
-            Bytes bytes = Bytes.concatenate(BonnevilleEVM.CREATE2_PREFIX, sender, salt, code.getCodeHash());
-            Bytes32 hash = org.hyperledger.besu.crypto.Hash.keccak256(bytes);
-            contract = Address.extract(hash);
-
-        } else {
-            contract = Address.contractAddress(sender, senderNonce);
-        }
-        assert contract != null;
-        Address recipient = contract;
-        isWarm(contract);       // Force contract address to be warmed up
+        Address recv_contract = hasSalt
+            ? saltContract(sender,salt,code)
+            : Address.contractAddress(sender, senderNonce);
+        assert recv_contract != null;
+        isWarm(recv_contract);  // Force contract address to be warmed up
 
         if( _frame.getWorldUpdater() instanceof ProxyWorldUpdater proxyUpdater )
-            proxyUpdater.setupInternalAliasedCreate(sender, contract);
+            proxyUpdater.setupInternalAliasedCreate(sender, recv_contract);
 
         // gas cost for making the contract
         long gas = _gasCalc.txCreateCost() + // 32000
@@ -2058,109 +2053,78 @@ class BEVM {
 
         return _abstractCall2(trace,str,
                               MessageFrame.Type.CONTRACT_CREATION,
-                              gas,
-                              _gas,
-                              false,
-                              recipient, contract, sender,
-                              value,
-                              Bytes.EMPTY,
+                              gas,         // Gas charged
+                              _gas,        // Child stipend
+                              false,       // Add passed-value stipend
+                              recv_contract, recv_contract, sender,
+                              value,       // Wei value passed along
+                              Bytes.EMPTY, // No passed outgoing data
                               code,
-                              false,
-                              dstOff, dstLen,
+                              false,       // Not static
+                              0, 0,        // No return data
                               _bevm._create);
     }
 
-    // Custom Delegate Call 6->1
-    private ExceptionalHaltReason customDelegateCall(SB trace, String str) {
-        preTraceCall(trace,str);
-        if( FrameUtils.isHookExecution(_frame) && isNotRedirectFromNativeEntity())
-            return ExceptionalHaltReason.INVALID_OPERATION;
-
-        // BasicCustomCall.executeChecked
-        if( _sp < 6 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
-        long stipend = popLong();
-        Address contract = popAddress();
-        var recipient = _frame.getRecipientAddress();
-        var sender    = _frame.getSenderAddress();
-
-        int srcOff = popInt();
-        int srcLen = popInt();
-        int dstOff = popInt();
-        int dstLen = popInt();
-
-        return _abstractCall(trace,str, stipend, recipient, contract, sender, Wei.ZERO,false,srcOff,srcLen,dstOff,dstLen,_frame.isStatic());
+    private Address saltContract( Address sender, Bytes salt, Code code ) {
+        Bytes bytes = Bytes.concatenate(BonnevilleEVM.CREATE2_PREFIX, sender, salt, code.getCodeHash());
+        Bytes32 hash = org.hyperledger.besu.crypto.Hash.keccak256(bytes);
+        return Address.extract(hash);
     }
 
     // Custom Delegate Call 6->1
-    private ExceptionalHaltReason customStaticCall(SB trace, String str) {
-        preTraceCall(trace,str);
-
+    private ExceptionalHaltReason customDelegateCall(SB trace) {
         // BasicCustomCall.executeChecked
         if( _sp < 6 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
+        if( FrameUtils.isHookExecution(_frame) && isNotRedirectFromNativeEntity())
+            return ExceptionalHaltReason.INVALID_OPERATION;
+        var recv   = _frame.getRecipientAddress();
+        var sender = _frame.getSenderAddress();
+        long stipend = popLong();
+        Address contract = popAddress();
+
+        return _abstractCall(trace, "DELEGATE", stipend, recv, contract, sender, Wei.ZERO, _frame.isStatic());
+    }
+
+    // Custom Delegate Call 6->1
+    private ExceptionalHaltReason customStaticCall(SB trace) {
+        // BasicCustomCall.executeChecked
+        if( _sp < 6 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
+        var sender = hookSender();
         long stipend = popLong();
         Address recv_contract = popAddress();
-        var sender = hookSender();
 
-        int srcOff = popInt();
-        int srcLen = popInt();
-        int dstOff = popInt();
-        int dstLen = popInt();
-
-        return _abstractCall(trace,str, stipend, recv_contract, recv_contract, sender, Wei.ZERO,false,srcOff,srcLen,dstOff,dstLen,true);
+        return _abstractCall(trace, "STATIC", stipend, recv_contract, recv_contract, sender, Wei.ZERO, true);
     }
 
     // Call Code - same as customCall except skips the custom mustBePresent check
-    private ExceptionalHaltReason callCode(SB trace, String str) {
-        // Nested create contract call; so print the post-trace before the
-        // nested call, and reload the pre-trace state after call.
-        preTraceCall(trace,str);
+    private ExceptionalHaltReason callCode(SB trace) {
+        if( _sp < 7 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
         if( FrameUtils.isHookExecution(_frame) && isNotRedirectFromNativeEntity())
             return ExceptionalHaltReason.INVALID_OPERATION;
-
-        if( _sp < 7 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
+        var recv_send = hookSender();
         long stipend = popLong();
         Address contract = popAddress();
-        long val0 = STK0[--_sp], val1 = STK1[_sp], val2 = STK2[_sp], val3 = STK3[_sp];
-        Wei value = Wei.wrap(UI256.intern(val0,val1,val2,val3));
-        boolean hasValue = (val0 | val1 | val2 | val3) != 0;
+        Wei value = popWei();
 
-        var recv_send = hookSender();
-
-        int srcOff = popInt();
-        int srcLen = popInt();
-        int dstOff = popInt();
-        int dstLen = popInt();
-
-        return _abstractCall(trace,str, stipend, recv_send, contract, recv_send, value,hasValue,srcOff,srcLen,dstOff,dstLen,_frame.isStatic());
+        return _abstractCall(trace, "CALL", stipend, recv_send, contract, recv_send, value, _frame.isStatic());
     }
 
     // CustomCallOperation
-    private ExceptionalHaltReason customCall(SB trace, String str) {
-        // Nested create contract call; so print the post-trace before the
-        // nested call, and reload the pre-trace state after call.
-        preTraceCall(trace,str);
-
+    private ExceptionalHaltReason customCall(SB trace) {
         if( _sp < 7 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
+        // child frame sender is this frames' recipient
+        var sender = hookSender();
         long stipend = popLong();
         Address recv_contract = popAddress();
-        long val0 = STK0[--_sp], val1 = STK1[_sp], val2 = STK2[_sp], val3 = STK3[_sp];
-        Wei value = Wei.wrap(UI256.intern(val0,val1,val2,val3));
-        boolean hasValue = (val0 | val1 | val2 | val3) != 0;
-        // yup, child frame sender is this frames' recipient
-        var sender = hookSender();
+        Wei value = popWei();
 
-        int srcOff = popInt();
-        int srcLen = popInt();
-        int dstOff = popInt();
-        int dstLen = popInt();
-
-        return _abstractCall(trace,str, stipend, recv_contract, recv_contract, sender, value,hasValue,srcOff,srcLen,dstOff,dstLen,_frame.isStatic());
+        return _abstractCall(trace, "CUSTCALL", stipend, recv_contract, recv_contract, sender, value, _frame.isStatic());
     }
 
     ///   Start a nested contract/call frame.  This code is shared by several
-    ///   callers, all of whom alter how <code>{reciever, contract,
-    ///   sender}</code> are chosen; other parameters are generally pulled from
-    ///   the stack or are static values.  Here <code>hook</code> means the
+    ///   callers, all of whom alter how <code>{reciever, contract, sender}
+    ///   </code> are chosen; other parameters are generally pulled from the
+    ///   stack or are static values.  Here <code>hook</code> means the
     ///   *hooked* current frame recipient - the recipient after checking for
     ///   Hedera hooks.  Also, <code>pop</code> means the value is popped from
     ///   the stack.
@@ -2184,15 +2148,20 @@ class BEVM {
     ///   @param recipient recipient
     ///   @param contract contract
     ///   @param sender sender
-    ///   @param value Money sent to the child contract
-    ///   @param hasValue Short-cut non-zero check of <code>value</code>
-    ///   @param srcOff Start  of data copied from <code>_mem</code> to pass to the child
-    ///   @param srcLen Length of data copied from <code>_mem</code> to pass to the child
-    ///   @param dstOff Start  of data returned from child and copied to <code>_mem</code>
-    ///   @param dstLen Start  of data returned from child and copied to <code>_mem</code>
+    ///   @param value passed Wei value
     ///   @param isStatic child is a static frame
     ///   @return null for non-halting return, or a {@see ExceptionHaltReason} otherwise.
-    private ExceptionalHaltReason _abstractCall(SB trace, String str, long stipend, Address recipient, Address contract, Address sender, Wei value, boolean hasValue, int srcOff, int srcLen, int dstOff, int dstLen, boolean isStatic ) {
+    private ExceptionalHaltReason _abstractCall(SB trace, String str, long stipend, Address recipient, Address contract, Address sender, Wei value, boolean isStatic ) {
+        // Nested create contract call; so print the post-trace before the
+        // nested call, and reload the pre-trace state after call.
+        preTraceCall(trace,str);
+
+        int srcOff = popInt();  // Outgoing data passed to child
+        int srcLen = popInt();
+        int dstOff = popInt();  // Incoming data received from child
+        int dstLen = popInt();
+
+        boolean hasValue = value.toUInt256() != UInt256.ZERO;
 
         if( mustBePresent(contract, hasValue) ) {
         //    FrameUtils.invalidAddressContext(_frame).set(to, InvalidAddressContext.InvalidAddressType.InvalidCallTarget);
