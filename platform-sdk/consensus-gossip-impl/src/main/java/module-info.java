@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import org.hiero.consensus.gossip.GossipModule;
 import org.hiero.consensus.gossip.impl.DefaultGossipModule;
-import org.hiero.consensus.gossip.impl.reconnect.ProtocolFactory;
+import org.hiero.consensus.gossip.impl.reconnect.ReconnectProtocolFactory;
 
 // SPDX-License-Identifier: Apache-2.0
 module org.hiero.consensus.gossip.impl {
@@ -51,5 +51,5 @@ module org.hiero.consensus.gossip.impl {
     provides GossipModule with
             DefaultGossipModule;
 
-    uses ProtocolFactory;
+    uses ReconnectProtocolFactory;
 }

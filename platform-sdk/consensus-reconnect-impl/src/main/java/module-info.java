@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 import com.swirlds.platform.reconnect.ReconnectModule;
-import org.hiero.consensus.gossip.impl.reconnect.ProtocolFactory;
+import org.hiero.consensus.gossip.impl.reconnect.ReconnectProtocolFactory;
 import org.hiero.consensus.reconnect.impl.DefaultReconnectModule;
-import org.hiero.consensus.reconnect.impl.ReconnectProtocolFactory;
+import org.hiero.consensus.reconnect.impl.ReconnectProtocolFactoryImpl;
 
 module org.hiero.consensus.reconnect.impl {
     requires transitive com.hedera.node.hapi;
@@ -43,6 +43,6 @@ module org.hiero.consensus.reconnect.impl {
 
     provides ReconnectModule with
             DefaultReconnectModule;
-    provides ProtocolFactory with
-            ReconnectProtocolFactory;
+    provides ReconnectProtocolFactory with
+            ReconnectProtocolFactoryImpl;
 }

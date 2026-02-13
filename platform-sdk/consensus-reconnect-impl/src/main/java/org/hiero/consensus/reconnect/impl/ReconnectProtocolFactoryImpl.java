@@ -14,7 +14,7 @@ import org.hiero.base.concurrent.BlockingResourceProvider;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.gossip.ReservedSignedStateResult;
 import org.hiero.consensus.gossip.impl.network.protocol.Protocol;
-import org.hiero.consensus.gossip.impl.reconnect.ProtocolFactory;
+import org.hiero.consensus.gossip.impl.reconnect.ReconnectProtocolFactory;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.reconnect.config.ReconnectConfig;
 import org.hiero.consensus.state.signed.ReservedSignedState;
@@ -22,7 +22,7 @@ import org.hiero.consensus.state.signed.ReservedSignedState;
 /**
  * Factory for creating the {@link ReconnectStateSyncProtocol}.
  */
-public class ReconnectProtocolFactory implements ProtocolFactory {
+public class ReconnectProtocolFactoryImpl implements ReconnectProtocolFactory {
 
     /**
      * {@inheritDoc}
