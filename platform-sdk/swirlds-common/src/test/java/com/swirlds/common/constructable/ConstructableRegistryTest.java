@@ -30,11 +30,7 @@ class ConstructableRegistryTest {
     public ConstructableRegistryTest() throws ConstructableRegistryException {
         mainReg = ConstructableRegistryFactory.createConstructableRegistry();
 
-        final long start = System.currentTimeMillis();
-        // find all RuntimeConstructable classes and register their constructors
         mainReg.registerConstructable(new ClassConstructorPair(ConstructableExample.class, ConstructableExample::new));
-        System.out.printf(
-                "Time taken to register all RuntimeConstructables: %dms\n", System.currentTimeMillis() - start);
         noArgsRegistry = mainReg.getRegistry(NoArgsConstructor.class);
     }
 

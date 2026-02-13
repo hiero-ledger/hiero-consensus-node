@@ -46,7 +46,6 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 @DisplayName("Serializable Stream Tests")
 public class SerializableStreamTests {
-    static final String PACKAGE_PREFIX = "com.swirlds.common.io";
     private static final int MAX_LENGTH = 1000;
     private static final int LENGTH_IN_BYTES = 4;
     private static final int CHECKSUM_IN_BYTES = 4;
