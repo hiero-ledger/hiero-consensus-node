@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.fees;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
@@ -203,5 +204,25 @@ class ChildFeeContextImplTest {
     @Test
     void delegatesAuthorizer() {
         assertSame(authorizer, subject.authorizer());
+    }
+
+    @Test
+    void returnsCorrectNumTxnBytes() {
+        final var signatureMapSize = 123;
+        subject = new ChildFeeContextImpl(
+                feeManager,
+                context,
+                SAMPLE_BODY,
+                PAYER_ID,
+                true,
+                authorizer,
+                storeFactory,
+                NOW,
+                verifier,
+                signatureMapSize,
+                HederaFunctionality.CRYPTO_TRANSFER);
+
+        final var expectedSize = TransactionBody.PROTOBUF.measureRecord(SAMPLE_BODY) + signatureMapSize;
+        assertEquals(expectedSize, subject.numTxnBytes());
     }
 }

@@ -344,6 +344,14 @@ public class PlatformWiring {
                 .platformMonitorWiring()
                 .getOutputWire()
                 .solderTo(components.gossipModule().platformStatusInputWire(), INJECT);
+        components
+                .platformMonitorWiring()
+                .getOutputWire()
+                .solderTo(
+                        components
+                                .latestCompleteStateNexusWiring()
+                                .getInputWire(LatestCompleteStateNexus::updatePlatformStatus),
+                        INJECT);
 
         solderNotifier(components);
 

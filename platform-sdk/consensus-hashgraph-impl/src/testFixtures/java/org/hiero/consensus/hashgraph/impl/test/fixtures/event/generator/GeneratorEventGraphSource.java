@@ -52,6 +52,7 @@ public class GeneratorEventGraphSource implements EventGraphSource {
     private final int maxOtherParents;
 
     private final GeneratorEventSigner eventSigner;
+    private final boolean populateNgen;
 
     /**
      * Creates a new graph generator.
@@ -62,6 +63,7 @@ public class GeneratorEventGraphSource implements EventGraphSource {
      * @param maxOtherParents the maximum number of other-parents an event can have
      * @param roster          the roster of network nodes
      * @param eventSigner     the signer used to produce event signatures
+     * @param populateNgen    whether to populate ngen values on generated events
      */
     GeneratorEventGraphSource(
             @NonNull final Configuration configuration,
@@ -69,7 +71,8 @@ public class GeneratorEventGraphSource implements EventGraphSource {
             final long seed,
             final int maxOtherParents,
             @NonNull final Roster roster,
-            @NonNull final GeneratorEventSigner eventSigner) {
+            @NonNull final GeneratorEventSigner eventSigner,
+            final boolean populateNgen) {
         this.maxOtherParents = maxOtherParents;
         this.random = Randotron.create(seed);
         this.latestEventPerNode = new EventDescriptor[roster.rosterEntries().size()];
@@ -77,6 +80,7 @@ public class GeneratorEventGraphSource implements EventGraphSource {
         this.consensus = new GeneratorConsensus(configuration, time, roster);
         this.hasher = new PbjStreamHasher();
         this.eventSigner = eventSigner;
+        this.populateNgen = populateNgen;
     }
 
     /**
@@ -140,10 +144,20 @@ public class GeneratorEventGraphSource implements EventGraphSource {
         hasher.hashUnsignedEvent(unsignedEvent);
 
         final PlatformEvent platformEvent = new PlatformEvent(unsignedEvent, eventSigner.signEvent(unsignedEvent));
-        platformEvent.signalPrehandleCompletion();
         consensus.updateConsensus(platformEvent);
-        latestEventPerNode[eventCreator] = platformEvent.getDescriptor().eventDescriptor();
-        return platformEvent;
+
+        // The event given to consensus will be modified by it with consensus information as some point. We do not want
+        // to modify the events that are returned to the caller, so the caller gets a separate copy of the event.
+        final PlatformEvent copy = platformEvent.copyGossipedData();
+        copy.signalPrehandleCompletion();
+
+        latestEventPerNode[eventCreator] = copy.getDescriptor().eventDescriptor();
+        if (populateNgen) {
+            // the event sent to consensus will have its nGen value populated, we should copy this value if the caller
+            // wants ngen values to be populated on the returned events
+            copy.setNGen(platformEvent.getNGen());
+        }
+        return copy;
     }
 
     @Override

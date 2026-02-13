@@ -23,7 +23,6 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.gossip.SyncProgress;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.monitoring.FallenBehindMonitor;
 
 /**
  * The goal of the GossipRpcShadowgraphSynchronizer is to compare graphs with a remote node, and update them so both
@@ -39,25 +38,9 @@ public class ShadowgraphSynchronizer {
     private final Shadowgraph shadowGraph;
 
     /**
-     * Number of member nodes in the network for this sync
-     */
-    protected final int numberOfNodes;
-
-    /**
      * All sync stats
      */
     protected final SyncMetrics syncMetrics;
-
-    /**
-     * Keeps track of the FallenBehind status of the local node
-     */
-    protected final FallenBehindMonitor fallenBehindMonitor;
-
-    /**
-     * Keeps track of how many events from each peer have been received, but haven't yet made it through the intake
-     * pipeline
-     */
-    protected final IntakeEventCounter intakeEventCounter;
 
     /**
      * Platform time
@@ -106,7 +89,6 @@ public class ShadowgraphSynchronizer {
      * @param time source of time
      * @param numberOfNodes number of nodes in the network
      * @param syncMetrics metrics for sync
-     * @param fallenBehindMonitor an instance of the fallenBehind Monitor which tracks if the node has fallen behind
      * @param intakeEventCounter used for tracking events in the intake pipeline per peer
      * @param syncLagHandler callback for reporting median sync lag
      */
@@ -116,16 +98,12 @@ public class ShadowgraphSynchronizer {
             @NonNull final Time time,
             final int numberOfNodes,
             @NonNull final SyncMetrics syncMetrics,
-            @NonNull final FallenBehindMonitor fallenBehindMonitor,
             @NonNull final IntakeEventCounter intakeEventCounter,
             @NonNull final Consumer<SyncProgress> syncLagHandler) {
 
         this.time = requireNonNull(time);
         this.shadowGraph = new Shadowgraph(metrics, numberOfNodes, intakeEventCounter);
-        this.numberOfNodes = numberOfNodes;
         this.syncMetrics = requireNonNull(syncMetrics);
-        this.fallenBehindMonitor = requireNonNull(fallenBehindMonitor);
-        this.intakeEventCounter = requireNonNull(intakeEventCounter);
 
         final SyncConfig syncConfig = configuration.getConfigData(SyncConfig.class);
         this.nonAncestorFilterThreshold = syncConfig.nonAncestorFilterThreshold();
