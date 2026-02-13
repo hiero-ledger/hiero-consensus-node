@@ -9,6 +9,7 @@ option java_multiple_files = true;
 
 import "google/protobuf/wrappers.proto";
 import "services/basic_types.proto";
+import "services/registered_service_endpoint.proto";
 
 /**
  * A transaction body to update an existing registered node in the network
@@ -73,5 +74,5 @@ message RegisteredNodeUpdateTransactionBody {
      * If set, this list MUST NOT contain more than `50` entries.<br/>
      * If set, this list SHALL _replace_ the previous list.
      */
-    repeated proto.RegisteredServiceEndpoint service_endpoint = 4;
+    repeated RegisteredServiceEndpoint service_endpoint = 4;
 }
