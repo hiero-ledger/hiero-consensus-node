@@ -281,16 +281,6 @@
           "extras": []
         },
         {
-          "name": "SystemDelete",
-          "baseFee": 0,
-          "extras": []
-        },
-        {
-          "name": "SystemUndelete",
-          "baseFee": 0,
-          "extras": []
-        },
-        {
           "name": "FileGetContents",
           "baseFee": 0,
           "extras": [
