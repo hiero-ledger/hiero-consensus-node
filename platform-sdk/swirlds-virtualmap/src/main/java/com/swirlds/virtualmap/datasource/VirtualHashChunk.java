@@ -127,7 +127,8 @@ public class VirtualHashChunk {
         }
 
         long path = 0;
-        byte[] hashes = null;
+        int dataRank = 0;
+        byte[] hashData = null;
 
         while (in.hasRemaining()) {
             final int field = in.readVarInt(false);
@@ -142,45 +143,42 @@ public class VirtualHashChunk {
                     throw new IllegalArgumentException("Wrong field type: " + field);
                 }
                 final int len = in.readVarInt(false);
-                hashes = new byte[len];
-                if (in.readBytes(hashes) != len) {
-                    throw new IllegalArgumentException("Failed to read " + len + " bytes");
+                final int singleHashLength = Cryptography.DEFAULT_DIGEST_TYPE.digestLength();
+                hashData = new byte[singleHashLength * getChunkSize(height)];
+                if (len == hashData.length) {
+                    dataRank = height;
+                    // Full chunk, read in one call
+                    if (in.readBytes(hashData) != len) {
+                        throw new IllegalArgumentException("Failed to read " + len + " bytes");
+                    }
+                } else {
+                    // Packed chunk, need to read hashes one by one and put them to the right
+                    // offsets in hashData. This process must be in sync with writeTo()
+                    final int numHashes = len / singleHashLength;
+                    // Check the length is a power of two
+                    if ((numHashes & (numHashes - 1)) != 0) {
+                        throw new IllegalArgumentException("Wrong hash data length: " + numHashes);
+                    }
+                    // Check hashData contains no more hashes than 2 ^ height
+                    if (numHashes > 1 << height) {
+                        throw new IllegalArgumentException(
+                                "Wrong hash data length / height: " + numHashes + " / " + height);
+                    }
+                    dataRank = 1;
+                    while ((1 << dataRank) < numHashes) {
+                        dataRank++;
+                    }
+                    assert (1 << dataRank) == numHashes;
+                    final int step = 1 << (height - dataRank);
+                    for (int i = 0; i < numHashes; i++) {
+                        final int dstOffset = i * singleHashLength * step;
+                        if (in.readBytes(hashData, dstOffset, singleHashLength) != singleHashLength) {
+                            throw new IllegalArgumentException("Failed to read hash chunk");
+                        }
+                    }
                 }
             } else {
                 throw new IllegalArgumentException("Unknown field: " + field);
-            }
-        }
-
-        if (hashes == null) {
-            throw new IllegalArgumentException("Missing hash data");
-        }
-
-        final int singleHashLength = Cryptography.DEFAULT_DIGEST_TYPE.digestLength();
-        final int numHashes = hashes.length / singleHashLength;
-        // Check the length is a power of two
-        if ((numHashes & (numHashes - 1)) != 0) {
-            throw new IllegalArgumentException("Wrong hash data length: " + numHashes);
-        }
-        // Check hashData contains no more hashes than 2 ^ height
-        if (numHashes > 1 << height) {
-            throw new IllegalArgumentException("Wrong hash data length / height: " + numHashes + " / " + height);
-        }
-        int dataRank = 1;
-        while ((1 << dataRank) < numHashes) {
-            dataRank++;
-        }
-        assert (1 << dataRank) == numHashes;
-
-        final byte[] hashData;
-        if (dataRank == height) {
-            hashData = hashes;
-        } else {
-            hashData = new byte[singleHashLength * getChunkSize(height)];
-            final int step = 1 << (height - dataRank);
-            for (int i = 0; i < numHashes; i++) {
-                final int srcOffset = i * singleHashLength;
-                final int dstOffset = i * singleHashLength * step;
-                System.arraycopy(hashes, srcOffset, hashData, dstOffset, singleHashLength);
             }
         }
 
@@ -209,9 +207,13 @@ public class VirtualHashChunk {
         final int serializedDataLength = singleHashLength * getChunkSize(dataRank);
         out.writeVarInt(serializedDataLength, false);
         if (dataRank == height) {
+            // Full chunk, write in one call
             assert serializedDataLength == hashData.length;
             out.writeBytes(hashData);
         } else {
+            // Some hashes at the lowest ranks are not set. To save disk space, write the
+            // hash data in a packed format. Only hashes at dataRank are written. This
+            // process must be in sync with parseFrom()
             final int chunkSize = getChunkSize(height);
             final int step = 1 << (height - dataRank);
             for (int i = 0; i < chunkSize; i += step) {
