@@ -114,7 +114,9 @@ public class CreatePrecompileSuite {
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(Map.of("contracts.throttle.throttleByGas", "false"));
+        testLifecycle.overrideInClass(Map.of(
+                "contracts.throttle.throttleByGas", "false",
+                "contracts.throttle.throttleByOpsDuration", "false"));
     }
 
     // TEST-001
