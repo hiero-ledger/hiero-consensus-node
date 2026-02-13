@@ -19,7 +19,7 @@ import org.hiero.consensus.state.signed.ReservedSignedState;
 /**
  * Factory for creating protocol instances. This is used to decouple the reconnect protocol creation.
  */
-public interface ProtocolFactory {
+public interface ReconnectProtocolFactory {
 
     /**
      * Creates a new protocol instance.
