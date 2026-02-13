@@ -8,7 +8,6 @@ import static com.hedera.services.bdd.spec.transactions.TxnUtils.asTransferList;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.txnToString;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.PLATFORM_NOT_ACTIVE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.PLATFORM_TRANSACTION_NOT_CREATED;
@@ -219,8 +218,7 @@ public abstract class HapiQueryOp<T extends HapiQueryOp<T>> extends HapiSpecOper
             // regardless of explicit answerOnlyRetryPrechecks configuration
             final boolean isTransientPlatformError = actualPrecheck == PLATFORM_NOT_ACTIVE
                     || actualPrecheck == PLATFORM_TRANSACTION_NOT_CREATED
-                    || actualPrecheck == BUSY
-                    || actualPrecheck == INSUFFICIENT_TX_FEE;
+                    || actualPrecheck == BUSY;
             // For transient platform errors, use a hard limit of 10 retries to avoid infinite loops
             // when no explicit retryLimits is set (which defaults to unlimited)
             final int maxTransientRetries = 10;
