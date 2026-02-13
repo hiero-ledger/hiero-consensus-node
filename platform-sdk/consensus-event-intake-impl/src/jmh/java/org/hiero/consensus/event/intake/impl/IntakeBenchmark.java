@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.event.intake.impl;
 
-import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RoundRosterPair;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.context.PlatformContext;
@@ -9,6 +8,9 @@ import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.component.framework.WiringConfig;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -53,20 +55,25 @@ import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
 public class IntakeBenchmark {
     /** The number of events to generate and process per benchmark invocation. */
     private static final int NUMBER_OF_EVENTS = 10_000;
+    /** The random seed used for deterministic event generation. */
+    private static final long SEED = 0;
+
     /** The number of nodes in the simulated network. */
     @Param({"4"})
     public int numNodes;
-
-    /** The random seed used for deterministic event generation. */
-    @Param({"0"})
-    public long seed;
 
     /** The number of threads in the {@link java.util.concurrent.ForkJoinPool} used by the wiring model. */
     @Param({"10"})
     public int numberOfThreads;
 
-    @Param({"RSA", "ED25519"})
+    @Param({"ED25519"})
     public SigningSchema signingSchema;
+
+    @Param({"0.0", "0.5"})
+    public double duplicateRate;
+
+    @Param({"1","100","1000"})
+    public int shuffleBatchSize;
 
     private PlatformContext platformContext;
     private List<PlatformEvent> events;
@@ -80,7 +87,6 @@ public class IntakeBenchmark {
      */
     @Setup(Level.Trial)
     public void beforeBenchmark() {
-        platformContext = TestPlatformContextBuilder.create().build();
         threadPool = ExecutorFactory.create("JMH", IntakeBenchmark::uncaughtException)
                 .createForkJoinPool(numberOfThreads);
     }
@@ -100,7 +106,8 @@ public class IntakeBenchmark {
      */
     @Setup(Level.Invocation)
     public void beforeInvocation() {
-        final RosterWithKeys rosterWithKeys = RandomRosterBuilder.create(new Random(seed))
+        platformContext = TestPlatformContextBuilder.create().build();
+        final RosterWithKeys rosterWithKeys = RandomRosterBuilder.create(new Random(SEED))
                 .withSize(numNodes)
                 .withRealKeysEnabled(true)
                 .withSigningSchema(signingSchema)
@@ -108,10 +115,11 @@ public class IntakeBenchmark {
         final GeneratorEventGraphSource generator = GeneratorEventGraphSourceBuilder.builder()
                 .rosterWithKeys(rosterWithKeys)
                 .maxOtherParents(1)
-                .seed(seed)
+                .seed(SEED)
                 .realSignatures(true)
                 .build();
-        events = generator.nextEvents(NUMBER_OF_EVENTS);
+        final List<PlatformEvent> uniqueEvents = generator.nextEvents(NUMBER_OF_EVENTS);
+        events = shuffleBatches(injectDuplicates(uniqueEvents));
 
         model = WiringModelBuilder.create(platformContext.getMetrics(), platformContext.getTime())
                 .enableJvmAnchor()
@@ -149,6 +157,13 @@ public class IntakeBenchmark {
     /*
     Results on a M1 Max MacBook Pro:
 
+    Benchmark               (duplicateRate)  (numNodes)  (numberOfThreads)  (shuffleBatchSize)  (signingSchema)   Mode  Cnt       Score       Error  Units
+    IntakeBenchmark.intake              0.0           4                 10                   1          ED25519  thrpt    3  147082.323 ± 65218.633  ops/s
+    IntakeBenchmark.intake              0.0           4                 10                 100          ED25519  thrpt    3  150490.768 ± 74712.088  ops/s
+    IntakeBenchmark.intake              0.0           4                 10                1000          ED25519  thrpt    3  152585.029 ± 14062.522  ops/s
+    IntakeBenchmark.intake              0.5           4                 10                   1          ED25519  thrpt    3  144408.659 ±  4639.713  ops/s
+    IntakeBenchmark.intake              0.5           4                 10                 100          ED25519  thrpt    3  146459.959 ± 12895.160  ops/s
+    IntakeBenchmark.intake              0.5           4                 10                1000          ED25519  thrpt    3  146133.726 ± 11340.480  ops/s
     */
     @Benchmark
     @BenchmarkMode(Mode.Throughput)
@@ -159,6 +174,47 @@ public class IntakeBenchmark {
             intake.unhashedEventsInputWire().put(event);
         }
         counter.waitForAllEvents(5);
+    }
+
+    /**
+     * Creates a new list that contains all unique events plus duplicate copies of randomly selected events. The
+     * number of duplicates is determined by the {@link #duplicateRate}: for example, a rate of 0.5 means that for
+     * every unique event, there is a 50% chance it will be immediately followed by a duplicate. The resulting list
+     * preserves the original order with duplicates interleaved.
+     *
+     * @param uniqueEvents the list of unique events to use as source
+     * @return a new list containing unique events with duplicates interleaved
+     */
+    private List<PlatformEvent> injectDuplicates(
+            @NonNull final List<PlatformEvent> uniqueEvents) {
+        final Random random = new Random(SEED);
+        if (duplicateRate <= 0.0) {
+            return uniqueEvents;
+        }
+        final List<PlatformEvent> result = new ArrayList<>();
+        for (final PlatformEvent event : uniqueEvents) {
+            result.add(event);
+            if (random.nextDouble() < duplicateRate) {
+                result.add(event);
+            }
+        }
+        return result;
+    }
+
+    private List<PlatformEvent> shuffleBatches(@NonNull final List<PlatformEvent> events) {
+        if (shuffleBatchSize <= 1) {
+            return events;
+        }
+        final List<PlatformEvent> result = new ArrayList<>(events.size());
+        final Random random = new Random(SEED);
+        for (int i = 0; i < events.size(); i += shuffleBatchSize) {
+            final int end = Math.min(i + shuffleBatchSize, events.size());
+            // shuffle the sublist in place
+            final List<PlatformEvent> batch = events.subList(i, end);
+            Collections.shuffle(batch, random);
+            result.addAll(batch);
+        }
+        return result;
     }
 
     private static void uncaughtException(final Thread t, final Throwable e) {
