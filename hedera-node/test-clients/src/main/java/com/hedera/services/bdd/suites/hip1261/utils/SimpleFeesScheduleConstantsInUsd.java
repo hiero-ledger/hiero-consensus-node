@@ -136,6 +136,7 @@ public class SimpleFeesScheduleConstantsInUsd {
 
     public static final double TOKEN_ASSOCIATE_BASE_FEE_USD = 0.0499;
     public static final long TOKEN_ASSOCIATE_INCLUDED_TOKENS = 1L;
+    public static final double TOKEN_ASSOCIATE_FEE = 0.05;
     public static final double TOKEN_ASSOCIATE_EXTRA_FEE_USD = 0.05;
 
     public static final double TOKEN_DISSOCIATE_BASE_FEE_USD = 0.0499;
