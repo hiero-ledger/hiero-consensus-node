@@ -35,7 +35,7 @@ public class DefaultStateHasher implements StateHasher {
     public ReservedSignedState hashState(@NonNull final StateWithHashComplexity stateWithHashComplexity) {
         final ReservedSignedState reservedSignedState = stateWithHashComplexity.reservedSignedState();
         final Instant start = Instant.now();
-        reservedSignedState.get().getState().getHash();
+        reservedSignedState.get().getState().computeHash();
         metrics.reportHashingTime(Duration.between(start, Instant.now()));
 
         return reservedSignedState;

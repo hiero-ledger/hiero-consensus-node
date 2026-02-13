@@ -145,8 +145,8 @@ public class ReconnectController implements Runnable {
                 platformCoordinator.clear();
                 logger.info(RECONNECT.getMarker(), "Queues have been cleared");
 
-                final State currentState = stateLifecycleManager.getMutableState();
-                currentState.getHash(); // hash the state
+                final State currentState = stateLifecycleManager.getLatestImmutableState();
+                currentState.computeHash();
                 int failedReconnectsInARow = 0;
                 do {
                     final AttemptReconnectResult result = attemptReconnect(currentState);

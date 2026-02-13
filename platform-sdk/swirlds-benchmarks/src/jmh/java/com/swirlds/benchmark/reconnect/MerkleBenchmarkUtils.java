@@ -46,12 +46,10 @@ public class MerkleBenchmarkUtils {
         System.out.println("desired: " + desiredTree);
 
         if (startingTree != null) {
-            // calculate hash
-            startingTree.getHash();
+            startingTree.computeHash();
         }
         if (desiredTree != null) {
-            // calculate hash
-            desiredTree.getHash();
+            desiredTree.computeHash();
         }
         return testSynchronization(
                 startingTree,
