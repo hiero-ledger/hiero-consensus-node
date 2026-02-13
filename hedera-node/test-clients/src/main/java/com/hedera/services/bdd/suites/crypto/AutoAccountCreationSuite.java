@@ -4,7 +4,6 @@ package com.hedera.services.bdd.suites.crypto;
 import static com.google.protobuf.ByteString.copyFromUtf8;
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccountString;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -158,7 +157,6 @@ public class AutoAccountCreationSuite {
     private static final String FT_XFER = "ftXfer";
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> aliasedPayerDoesntWork() {
         return hapiTest(
                 newKeyNamed(ALIAS),
@@ -400,7 +398,6 @@ public class AutoAccountCreationSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> canAutoCreateWithNftTransferToEvmAddress() {
         final var civilianBal = 10 * ONE_HBAR;
         final var nftTransfer = "multiNftTransfer";
@@ -662,7 +659,6 @@ public class AutoAccountCreationSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> noStakePeriodStartIfNotStakingToNode() {
         final var user = "user";
         final var contract = "contract";
@@ -679,7 +675,6 @@ public class AutoAccountCreationSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> hollowAccountCreationWithCryptoTransfer() {
         final var initialTokenSupply = 1000;
         final AtomicReference<TokenID> ftId = new AtomicReference<>();
@@ -927,7 +922,6 @@ public class AutoAccountCreationSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> autoAccountCreationWorksWhenUsingAliasOfDeletedAccount() {
         return hapiTest(
                 newKeyNamed(ALIAS),
@@ -1294,7 +1288,6 @@ public class AutoAccountCreationSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> transferHbarsToECDSAKey() {
 
         final AtomicReference<ByteString> evmAddress = new AtomicReference<>();
