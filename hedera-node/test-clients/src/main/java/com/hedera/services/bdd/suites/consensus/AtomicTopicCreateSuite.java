@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.consensus;
 
 import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFullPrefixesFor;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAliasedAccountInfo;
@@ -307,7 +306,6 @@ class AtomicTopicCreateSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> signingRequirementsEnforced() {
         long PAYER_BALANCE = 1_999_999_999L;
         final var contractWithAdminKey = "nonCryptoAccount";
@@ -638,7 +636,6 @@ class AtomicTopicCreateSuite {
 
     // TOPIC_RENEW_22
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> topicCreateWithContractWithAdminKeyForAutoRenewAccount() {
         final var contractWithAdminKey = "nonCryptoAccount";
         return hapiTest(

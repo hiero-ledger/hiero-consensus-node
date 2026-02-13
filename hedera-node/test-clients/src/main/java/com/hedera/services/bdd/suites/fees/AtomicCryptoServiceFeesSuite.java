@@ -3,7 +3,6 @@ package com.hedera.services.bdd.suites.fees;
 
 import static com.google.protobuf.ByteString.copyFromUtf8;
 import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.customizedHapiTest;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.keys.KeyShape.SIMPLE;
@@ -129,7 +128,6 @@ class AtomicCryptoServiceFeesSuite {
 
     @HapiTest
     @DisplayName("CryptoDeleteAllowance transaction has expected base fee")
-    @Tag(MATS)
     final Stream<DynamicTest> cryptoDeleteAllowanceBaseUSDFee() {
         final String token = "token";
         final String nft = "nft";
@@ -587,7 +585,6 @@ class AtomicCryptoServiceFeesSuite {
 
     @HapiTest
     @DisplayName("CryptoTransfer NFT transaction has expected base fee")
-    @Tag(MATS)
     final Stream<DynamicTest> cryptoNFTTransferBaseUSDFee() {
         final var nonFungibleToken = "nonFungibleToken";
         final var nftXferTxn = "nftXferTxn";

@@ -5,7 +5,6 @@ import static com.google.protobuf.ByteString.EMPTY;
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
 import static com.hedera.services.bdd.junit.ContextRequirement.FEE_SCHEDULE_OVERRIDES;
 import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asContract;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
@@ -547,7 +546,6 @@ class AtomicLeakyContractTestsSuite {
 
     @HapiTest
     @Order(8)
-    @Tag(MATS)
     final Stream<DynamicTest> autoAssociationSlotsAppearsInInfo() {
         final int maxAutoAssociations = 100;
         final String CONTRACT = "Multipurpose";
@@ -612,7 +610,6 @@ class AtomicLeakyContractTestsSuite {
 
     @HapiTest
     @Order(3)
-    @Tag(MATS)
     final Stream<DynamicTest> propagatesNestedCreations() {
         final var call = "callTxn";
         final var creation = "createTxn";

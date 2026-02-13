@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.hip991;
 
 import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.keys.ControlForKey.forKey;
@@ -1001,7 +1000,6 @@ class AtomicTopicCustomFeeSubmitMessageTest extends TopicCustomFeeBase {
         @HapiTest
         @DisplayName("SubmitMessage to a topic with a custom fee of 1 FT A and 1 HBAR and accept_all_custom_fees=true")
         // TOPIC_FEE_192/193
-        @Tag(MATS)
         final Stream<DynamicTest> submitMessageToTopicWithCustomFeesAndAcceptAllCustomFees() {
             final var collector = "collector";
             final var tokenA = "tokenA";

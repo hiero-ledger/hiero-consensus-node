@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.contract.fees;
 
 import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
@@ -82,7 +81,6 @@ class AtomicSmartContractServiceFeesTest {
     @HapiTest
     @DisplayName("Call a smart contract and assure proper fee charged")
     @Order(1)
-    @Tag(MATS)
     final Stream<DynamicTest> contractCallBaseUSDFee() {
         final var contract = "contractCall";
         return hapiTest(
@@ -100,7 +98,6 @@ class AtomicSmartContractServiceFeesTest {
     @LeakyHapiTest(overrides = "contracts.evm.ethTransaction.zeroHapiFees.enabled")
     @DisplayName("Do an ethereum transaction and assure proper fee charged")
     @Order(2)
-    @Tag(MATS)
     final Stream<DynamicTest> ethereumTransactionBaseUSDFee(
             @Account(tinybarBalance = ONE_HUNDRED_HBARS) final SpecAccount receiver) {
         final var ethCall = "ethCall";

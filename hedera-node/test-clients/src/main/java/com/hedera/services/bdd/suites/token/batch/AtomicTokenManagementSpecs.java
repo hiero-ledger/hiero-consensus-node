@@ -3,7 +3,6 @@ package com.hedera.services.bdd.suites.token.batch;
 
 import static com.google.protobuf.ByteString.copyFromUtf8;
 import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.keys.KeyShape.ED25519;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
@@ -136,7 +135,6 @@ class AtomicTokenManagementSpecs {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> aliasFormFailsForAllTokenOps() {
         final var PRIMARY = "primary";
         final var partyAlias = "partyAlias";
@@ -202,7 +200,6 @@ class AtomicTokenManagementSpecs {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> frozenTreasuryCannotBeMintedOrBurned() {
         return hapiTest(
                 newKeyNamed(SUPPLY_KEY),
@@ -230,7 +227,6 @@ class AtomicTokenManagementSpecs {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> revokedKYCTreasuryCannotBeMintedOrBurned() {
         return hapiTest(
                 newKeyNamed(SUPPLY_KEY),
@@ -258,7 +254,6 @@ class AtomicTokenManagementSpecs {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> burnTokenFailsDueToInsufficientTreasuryBalance() {
         final String BURN_TOKEN = "burn";
         final int TOTAL_SUPPLY = 100;
@@ -323,7 +318,6 @@ class AtomicTokenManagementSpecs {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> wipeAccountFailureCasesWork() {
         var unwipeableToken = "without";
         var wipeableToken = "with";
@@ -380,7 +374,6 @@ class AtomicTokenManagementSpecs {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> kycMgmtFailureCasesWork() {
         var withoutKycKey = "withoutKycKey";
         var withKycKey = "withKycKey";
@@ -441,7 +434,6 @@ class AtomicTokenManagementSpecs {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> freezeMgmtSuccessCasesWork() {
         var withPlusDefaultFalse = "withPlusDefaultFalse";
 
@@ -466,7 +458,6 @@ class AtomicTokenManagementSpecs {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> kycMgmtSuccessCasesWork() {
         var withKycKey = "withKycKey";
         var withoutKycKey = "withoutKycKey";
@@ -502,7 +493,6 @@ class AtomicTokenManagementSpecs {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> fungibleCommonMaxSupplyReachWork() {
         return hapiTest(
                 newKeyNamed(SUPPLY_KEY),
@@ -523,7 +513,6 @@ class AtomicTokenManagementSpecs {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> supplyMgmtFailureCasesWork() {
         return hapiTest(
                 newKeyNamed(SUPPLY_KEY),

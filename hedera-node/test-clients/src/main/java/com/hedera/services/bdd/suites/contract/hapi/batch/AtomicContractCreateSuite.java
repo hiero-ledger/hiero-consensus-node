@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.contract.hapi.batch;
 
 import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
 import static com.hedera.services.bdd.spec.assertions.AssertUtils.inOrder;
@@ -296,7 +295,6 @@ class AtomicContractCreateSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> createsVanillaContractAsExpectedWithOmittedAdminKey() {
         return hapiTest(
                 uploadInitCode(EMPTY_CONSTRUCTOR_CONTRACT),
@@ -318,7 +316,6 @@ class AtomicContractCreateSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> revertedTryExtCallHasNoSideEffects() {
         final var balance = 3_000;
         final int sendAmount = balance / 3;
@@ -549,7 +546,6 @@ class AtomicContractCreateSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> blockTimestampChangesWithinFewSeconds() {
         final var contract = "EmitBlockTimestamp";
         final var firstBlock = "firstBlock";
@@ -673,7 +669,6 @@ class AtomicContractCreateSuite {
                         .logged());
     }
 
-    @Tag(MATS)
     final Stream<DynamicTest> contractCreateShouldChargeTheSame() {
         final var createFeeWithMaxAutoAssoc = 10L;
         final var contract1 = "EmptyOne";

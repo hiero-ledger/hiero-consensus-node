@@ -208,7 +208,8 @@ tasks {
             getByName(taskName).group =
                 "hapi-test${if (taskName.endsWith(matsSuffix)) "-mats" else ""}"
             dependsOn(
-                if (taskName.contains("Crypto") && !taskName.contains("Serial"))
+                if ((taskName.contains("Crypto") || taskName.contains("AtomicBatch"))
+                    && !taskName.contains("Serial"))
                     "testSubprocessConcurrent"
                 else "testSubprocess"
             )

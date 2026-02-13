@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.fees;
 
 import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.createTopic;
@@ -91,7 +90,6 @@ class AtomicConsensusServiceFeesSuite {
 
     @HapiTest
     @DisplayName("Topic create with multiple custom fee base USD fee as expected")
-    @Tag(MATS)
     final Stream<DynamicTest> topicCreateWithMultipleCustomFee() {
         return hapiTest(flattened(
                 topicCreateSetup(),
@@ -114,7 +112,6 @@ class AtomicConsensusServiceFeesSuite {
 
     @HapiTest
     @DisplayName("Topic update base USD fee as expected")
-    @Tag(MATS)
     final Stream<DynamicTest> topicUpdateBaseUSDFee() {
         return hapiTest(
                 cryptoCreate(BATCH_OPERATOR),

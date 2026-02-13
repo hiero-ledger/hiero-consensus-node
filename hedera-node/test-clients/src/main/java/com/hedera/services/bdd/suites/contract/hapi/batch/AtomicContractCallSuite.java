@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.contract.hapi.batch;
 
 import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asContract;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asContractString;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -903,7 +902,6 @@ class AtomicContractCallSuite {
      */
     @SuppressWarnings("java:S5960")
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> erc721TokenUriAndHtsNftInfoTreatNonUtf8BytesDifferently() {
         final var contractAlternatives = "ErcAndHtsAlternatives";
         final AtomicReference<Address> nftAddr = new AtomicReference<>();
@@ -2245,7 +2243,6 @@ class AtomicContractCallSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> callStaticCallToLargeAddress() {
         final var txn = "txn";
         final var contract = "CallInConstructor";
@@ -2371,7 +2368,6 @@ class AtomicContractCallSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> contractCreateFollowedByContractCallNoncesExternalization() {
         final var contract = "NoncesExternalization";
         final var payer = "payer";

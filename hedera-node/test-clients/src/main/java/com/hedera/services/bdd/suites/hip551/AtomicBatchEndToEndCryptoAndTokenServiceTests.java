@@ -3,7 +3,6 @@ package com.hedera.services.bdd.suites.hip551;
 
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
 import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTokenInfo;
@@ -640,7 +639,6 @@ class AtomicBatchEndToEndCryptoAndTokenServiceTests {
 
         @HapiTest
         @DisplayName("Update Token Admin Key And Update Treasury Account Success in Atomic Batch")
-        @Tag(MATS)
         Stream<DynamicTest> updateTokenAdminKeyAndTreasuryAccountSuccessInAtomicBatch() {
 
             // update token inner transactions

@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.consensus;
 
 import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTopicInfo;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.asTopicId;
@@ -32,7 +31,6 @@ class AtomicTopicDeleteSuite {
     private static final String ATOMIC_BATCH = "atomicBatch";
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> idVariantsTreatedAsExpected() {
         return hapiTest(
                 cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS),
@@ -133,7 +131,6 @@ class AtomicTopicDeleteSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> feeAsExpected() {
         return hapiTest(
                 cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS),

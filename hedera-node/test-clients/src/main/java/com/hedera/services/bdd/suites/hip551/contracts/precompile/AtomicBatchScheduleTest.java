@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.hip551.contracts.precompile;
 
 import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.keys.KeyShape.CONTRACT;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getScheduleInfo;
@@ -75,7 +74,6 @@ class AtomicBatchScheduleTest {
      */
     @HapiTest
     @DisplayName("Atomic can successfully schedule a create fungible token operation")
-    @Tag(MATS)
     Stream<DynamicTest> atomicScheduledCreateToken(
             @NonNull @Contract(contract = "HIP756Contract", creationGas = 4_000_000L, isImmutable = true)
                     final SpecContract contract,

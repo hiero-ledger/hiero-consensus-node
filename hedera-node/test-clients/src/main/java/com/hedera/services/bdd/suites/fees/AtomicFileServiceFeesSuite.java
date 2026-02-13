@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.fees;
 
 import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
@@ -118,7 +117,6 @@ class AtomicFileServiceFeesSuite {
 
     @HapiTest
     @DisplayName("USD base fee as expected for file append transaction")
-    @Tag(MATS)
     final Stream<DynamicTest> fileAppendBaseUSDFee() {
         final var civilian = "NonExemptPayer";
 

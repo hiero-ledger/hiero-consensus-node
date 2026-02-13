@@ -3,7 +3,6 @@ package com.hedera.services.bdd.suites.file.batch;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.PERMISSION_OVERRIDES;
 import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getFileContents;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getFileInfo;
@@ -54,7 +53,6 @@ class AtomicFileUpdateSuite {
     private static final String BATCH_OPERATOR = "batchOperator";
 
     @LeakyHapiTest(requirement = PERMISSION_OVERRIDES)
-    @Tag(MATS)
     final Stream<DynamicTest> apiPermissionsChangeDynamically() {
         final var civilian = CIVILIAN;
         return hapiTest(

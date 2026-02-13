@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.file.batch;
 
 import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -86,7 +85,6 @@ class AtomicProtectedFilesUpdateSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> account2CanUpdateApiPermissions() {
         return specialAccountCanUpdateSpecialPropertyFile(GENESIS, API_PERMISSIONS, "createTopic", "1-*");
     }
@@ -165,7 +163,6 @@ class AtomicProtectedFilesUpdateSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> unauthorizedAccountCannotUpdateFeeSchedule() {
         return unauthorizedAccountCannotUpdateSpecialFile(FEE_SCHEDULE, NEW_CONTENTS);
     }

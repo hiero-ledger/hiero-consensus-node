@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.hip551.contracts;
 
 import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.changeFromSnapshot;
 import static com.hedera.services.bdd.spec.assertions.ContractInfoAsserts.contractWith;
@@ -98,7 +97,6 @@ class AtomicBatchContractSignatureValidationTest {
 
     @HapiTest
     @DisplayName("Validate internal call with value to account requiring receiver signature")
-    @Tag(MATS)
     final Stream<DynamicTest> internalCallWithValueToAccountWithReceiverSigRequired() {
         return hapiTest(
                 uploadInitCode(INTERNAL_CALLER_CONTRACT),

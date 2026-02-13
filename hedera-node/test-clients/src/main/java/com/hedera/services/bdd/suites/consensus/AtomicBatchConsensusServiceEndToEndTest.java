@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.consensus;
 
 import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTopicInfo;
@@ -695,7 +694,6 @@ class AtomicBatchConsensusServiceEndToEndTest {
         }
 
         @HapiTest
-        @Tag(MATS)
         Stream<DynamicTest> updateMutableTopicWithNewAdminKeyAndSubmitMessagesSuccessInBatch() {
 
             // submit message to topic inner transactions
@@ -1299,7 +1297,6 @@ class AtomicBatchConsensusServiceEndToEndTest {
     @DisplayName("Atomic Batch Consensus Service End-to-End Tests with Updates of Topics with Custom Fees")
     class AtomicBatchConsensusServiceWithCustomFeesUpdates {
         @HapiTest
-        @Tag(MATS)
         Stream<DynamicTest> submitMessagesToMultipleTopicsWithCustomFeesUpdatesSuccessInBatch() {
 
             // submit message to topic inner transactions

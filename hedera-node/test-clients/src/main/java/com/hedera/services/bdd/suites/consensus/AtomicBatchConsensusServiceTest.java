@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.consensus;
 
 import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.keys.ControlForKey.forKey;
 import static com.hedera.services.bdd.spec.keys.KeyShape.SIMPLE;
@@ -393,7 +392,6 @@ class AtomicBatchConsensusServiceTest {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> topicCreateWithContractWithAdminKeyForAutoRenewAccountSuccessInBatch() {
         final double BASE_FEE_BATCH_TRANSACTION = 0.001;
         long PAYER_BALANCE = 1_999_999_999L;
@@ -717,7 +715,6 @@ class AtomicBatchConsensusServiceTest {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> topicUpdateWithAutoRenewAccountAndNewAdminKeySignedByAllSuccessInBatch() {
         final double BASE_FEE_BATCH_TRANSACTION = 0.001;
         long PAYER_BALANCE = 199_999_999_999L;

@@ -4,7 +4,6 @@ package com.hedera.services.bdd.suites.hip869.batch;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
 import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.hedera.utils.NetworkUtils.endpointFor;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asDnsServiceEndpoint;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asServiceEndpoint;
@@ -267,7 +266,6 @@ class AtomicNodeUpdateTest {
     }
 
     @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
-    @Tag(MATS)
     final Stream<DynamicTest> updateMultipleFieldsWork() throws CertificateEncodingException {
         final var proxyWebEndpoint = toPbj(endpointFor("grpc.web.proxy.com", 123));
         final var updateOp = nodeUpdate("testNode")
