@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
+import com.swirlds.platform.reconnect.ReconnectModule;
 import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.event.intake.EventIntakeModule;
 import org.hiero.consensus.gossip.GossipModule;
-import org.hiero.consensus.gossip.impl.reconnect.ProtocolFactory;
 import org.hiero.consensus.hashgraph.HashgraphModule;
 import org.hiero.consensus.pces.PcesModule;
 
@@ -15,6 +15,7 @@ module com.swirlds.platform.core {
     uses HashgraphModule;
     uses PcesModule;
     uses GossipModule;
+    uses ReconnectModule;
 
     /* Public Package Exports. This list should remain alphabetized. */
     exports com.swirlds.platform;
@@ -55,9 +56,13 @@ module com.swirlds.platform.core {
             com.swirlds.config.impl,
             com.swirlds.common,
             com.hedera.node.test.clients;
+    exports com.swirlds.platform.event.branching to
+            org.hiero.consensus.reconnect.impl;
     exports com.swirlds.platform.event.preconsensus;
     exports com.swirlds.platform.reconnect;
     exports com.swirlds.platform.event;
+    exports com.swirlds.platform.state.nexus to
+            org.hiero.consensus.reconnect.impl;
     exports com.swirlds.platform.wiring;
     exports com.swirlds.platform.wiring.components;
     exports com.swirlds.platform.state.snapshot;
@@ -82,22 +87,20 @@ module com.swirlds.platform.core {
     requires transitive org.hiero.base.concurrent;
     requires transitive org.hiero.base.crypto;
     requires transitive org.hiero.base.utility;
-    requires transitive org.hiero.consensus.concurrent;
     requires transitive org.hiero.consensus.event.creator;
     requires transitive org.hiero.consensus.event.intake;
-    requires transitive org.hiero.consensus.gossip.impl;
     requires transitive org.hiero.consensus.gossip;
     requires transitive org.hiero.consensus.hashgraph;
     requires transitive org.hiero.consensus.metrics;
     requires transitive org.hiero.consensus.model;
     requires transitive org.hiero.consensus.pces;
-    requires transitive org.hiero.consensus.reconnect;
     requires transitive org.hiero.consensus.roster;
     requires transitive org.hiero.consensus.state;
     requires transitive org.hiero.consensus.utility;
     requires com.swirlds.config.extensions;
     requires com.swirlds.logging;
     requires com.swirlds.merkledb;
+    requires org.hiero.consensus.concurrent;
     requires org.hiero.consensus.pces.impl;
     requires org.hiero.consensus.platformstate;
     requires com.github.spotbugs.annotations;
@@ -111,6 +114,4 @@ module com.swirlds.platform.core {
 
     provides com.swirlds.config.api.ConfigurationExtension with
             com.swirlds.platform.config.PlatformConfigurationExtension;
-    provides ProtocolFactory with
-            com.swirlds.platform.reconnect.ReconnectProtocolFactory;
 }

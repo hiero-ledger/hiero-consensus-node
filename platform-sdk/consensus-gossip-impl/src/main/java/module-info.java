@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import org.hiero.consensus.gossip.GossipModule;
 import org.hiero.consensus.gossip.impl.DefaultGossipModule;
-import org.hiero.consensus.gossip.impl.reconnect.ProtocolFactory;
+import org.hiero.consensus.gossip.impl.reconnect.ReconnectProtocolFactory;
 
 // SPDX-License-Identifier: Apache-2.0
 module org.hiero.consensus.gossip.impl {
@@ -10,20 +10,20 @@ module org.hiero.consensus.gossip.impl {
     exports org.hiero.consensus.gossip.impl.gossip.shadowgraph to
             org.hiero.consensus.gossip.impl.test.fixtures;
     exports org.hiero.consensus.gossip.impl.gossip.sync to
-            com.swirlds.platform.core, // required by reconnect, will be fixed soon
-            org.hiero.consensus.gossip.impl.test.fixtures;
+            org.hiero.consensus.gossip.impl.test.fixtures,
+            org.hiero.consensus.reconnect.impl;
     exports org.hiero.consensus.gossip.impl.network to
-            com.swirlds.platform.core, // required by reconnect, will be fixed soon
-            org.hiero.consensus.gossip.impl.test.fixtures;
+            org.hiero.consensus.gossip.impl.test.fixtures,
+            org.hiero.consensus.reconnect.impl;
     exports org.hiero.consensus.gossip.impl.network.communication to
             org.hiero.consensus.gossip.impl.test.fixtures;
     exports org.hiero.consensus.gossip.impl.network.protocol to
-            com.swirlds.platform.core, // required by reconnect, will be fixed soon
-            org.hiero.consensus.gossip.impl.test.fixtures;
+            org.hiero.consensus.gossip.impl.test.fixtures,
+            org.hiero.consensus.reconnect.impl;
     exports org.hiero.consensus.gossip.impl.network.topology to
             org.hiero.consensus.gossip.impl.test.fixtures;
     exports org.hiero.consensus.gossip.impl.reconnect to
-            com.swirlds.platform.core; // required by reconnect, will be fixed soon
+            org.hiero.consensus.reconnect.impl;
 
     requires transitive com.hedera.node.hapi;
     requires transitive com.swirlds.base;
@@ -51,5 +51,5 @@ module org.hiero.consensus.gossip.impl {
     provides GossipModule with
             DefaultGossipModule;
 
-    uses ProtocolFactory;
+    uses ReconnectProtocolFactory;
 }

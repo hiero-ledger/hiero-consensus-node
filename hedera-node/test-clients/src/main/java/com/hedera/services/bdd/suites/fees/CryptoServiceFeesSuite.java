@@ -271,13 +271,13 @@ public class CryptoServiceFeesSuite {
                         .addTokenAllowance(OWNER, FUNGIBLE_TOKEN, SECOND_SPENDER, 200L)
                         .via("approveModifyTokenTxn")
                         .blankMemo(),
-                validateFees("approveModifyCryptoTxn", 0.04943, CRYPTO_APPROVE_ALLOWANCE_FEE),
+                validateFees("approveModifyTokenTxn", 0.04943, CRYPTO_APPROVE_ALLOWANCE_FEE),
                 cryptoApproveAllowance()
                         .payingWith(OWNER)
                         .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, ANOTHER_SPENDER, false, List.of())
                         .via("approveModifyNftTxn")
                         .blankMemo(),
-                validateFees("approveModifyCryptoTxn", 0.049375, CRYPTO_APPROVE_ALLOWANCE_FEE),
+                validateFees("approveModifyNftTxn", 0.049375, CRYPTO_APPROVE_ALLOWANCE_FEE),
                 getAccountDetails(OWNER)
                         .payingWith(GENESIS)
                         .has(accountDetailsWith()
