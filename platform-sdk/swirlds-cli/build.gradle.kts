@@ -5,6 +5,15 @@ plugins {
     id("org.hiero.gradle.feature.publish-maven-central")
 }
 
+testModuleInfo {
+    requires("com.swirlds.platform.core.test.fixtures")
+    requires("com.swirlds.common.test.fixtures")
+    requires("org.hiero.consensus.pcli")
+    requires("org.junit.jupiter.api")
+    requires("org.junit.jupiter.params")
+    requires("org.mockito")
+}
+
 tasks.jar {
     // Gradle fails to track 'configurations.runtimeClasspath' as an input to the task if it is
     // only used in the 'manifest.attributes'. Hence, we explicitly add it as input.

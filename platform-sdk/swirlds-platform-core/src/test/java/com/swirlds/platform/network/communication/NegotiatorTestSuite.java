@@ -2,11 +2,14 @@
 package com.swirlds.platform.network.communication;
 
 import com.swirlds.common.io.utility.IOConsumer;
-import com.swirlds.platform.network.NetworkProtocolException;
 import com.swirlds.platform.test.fixtures.communication.ReadWriteFakeConnection;
 import com.swirlds.platform.test.fixtures.communication.TestPeerProtocol;
 import java.io.IOException;
 import java.util.List;
+import org.hiero.consensus.gossip.impl.network.NetworkProtocolException;
+import org.hiero.consensus.gossip.impl.network.communication.NegotiationException;
+import org.hiero.consensus.gossip.impl.network.communication.NegotiationProtocols;
+import org.hiero.consensus.gossip.impl.network.communication.Negotiator;
 import org.junit.jupiter.api.Assertions;
 
 /**

@@ -24,6 +24,7 @@ import com.hedera.node.app.quiescence.QuiescedHeartbeat;
 import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
+import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.ReadableSingletonState;
@@ -142,6 +143,12 @@ class BlockOpeningTest {
         given(runningHashesState.get()).willReturn(RunningHashes.DEFAULT);
 
         subject = new BlockRecordManagerImpl(
-                configProvider, state, streamFileProducer, quiescenceController, quiescedHeartbeat, platform);
+                configProvider,
+                state,
+                streamFileProducer,
+                quiescenceController,
+                quiescedHeartbeat,
+                platform,
+                InitTrigger.RESTART);
     }
 }

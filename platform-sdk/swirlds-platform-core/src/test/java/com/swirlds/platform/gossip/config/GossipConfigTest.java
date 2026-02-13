@@ -9,6 +9,8 @@ import com.swirlds.config.extensions.sources.YamlConfigSource;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import org.hiero.consensus.gossip.config.GossipConfig;
+import org.hiero.consensus.gossip.config.NetworkEndpoint;
 import org.junit.jupiter.api.Test;
 
 public class GossipConfigTest {

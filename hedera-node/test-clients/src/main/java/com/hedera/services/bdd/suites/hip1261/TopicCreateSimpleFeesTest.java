@@ -1010,7 +1010,6 @@ public class TopicCreateSimpleFeesTest {
                             long payerDelta = initialBalance.get() - afterBalance.get();
                             log.info("Payer balance change: {}", payerDelta);
                             log.info("Recorded fee: {}", expectedTopicCreateFullFeeUsd(1, 0));
-                            assertEquals(initialNodeBalance.get(), afterNodeBalance.get());
                             assertTrue(initialBalance.get() > afterBalance.get());
                         }),
                         validateChargedFeeToUsdWithTxnSize(

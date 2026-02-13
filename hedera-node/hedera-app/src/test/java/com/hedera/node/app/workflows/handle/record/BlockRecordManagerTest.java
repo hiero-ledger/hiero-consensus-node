@@ -15,7 +15,6 @@ import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_LABEL;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.RUNNING_HASHES_STATE_ID;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.RUNNING_HASHES_STATE_LABEL;
-import static com.swirlds.platform.state.service.PlatformStateService.PLATFORM_STATE_SERVICE;
 import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.UNINITIALIZED_PLATFORM_STATE;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
@@ -45,6 +44,7 @@ import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
+import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.state.State;
 import com.swirlds.state.merkle.VirtualMapState;
@@ -129,7 +129,7 @@ final class BlockRecordManagerTest extends AppTestBase {
                 .withConfigValue("hedera.recordStream.sidecarMaxSizeMb", 256)
                 .withConfigValue("blockStream.streamMode", "BOTH")
                 .withService(new BlockRecordService())
-                .withService(PLATFORM_STATE_SERVICE)
+                .withService(new PlatformStateService())
                 .build();
 
         // Preload the specific state we want to test with
@@ -202,7 +202,8 @@ final class BlockRecordManagerTest extends AppTestBase {
                 producer,
                 quiescenceController,
                 quiescedHeartbeat,
-                platform)) {
+                platform,
+                InitTrigger.RESTART)) {
             if (!startMode.equals("GENESIS")) {
                 blockRecordManager.switchBlocksAt(FORCED_BLOCK_SWITCH_TIME);
             }
@@ -295,7 +296,8 @@ final class BlockRecordManagerTest extends AppTestBase {
                 producer,
                 quiescenceController,
                 quiescedHeartbeat,
-                platform)) {
+                platform,
+                InitTrigger.RESTART)) {
             blockRecordManager.switchBlocksAt(FORCED_BLOCK_SWITCH_TIME);
             // write a blocks & record files
             int transactionCount = 0;
@@ -448,7 +450,8 @@ final class BlockRecordManagerTest extends AppTestBase {
                 mock(BlockRecordStreamProducer.class),
                 quiescenceController,
                 quiescedHeartbeat,
-                platform);
+                platform,
+                InitTrigger.RESTART);
 
         final var result = subject.consTimeOfLastHandledTxn();
         Assertions.assertThat(result).isEqualTo(fromTimestamp(CONSENSUS_TIME));
@@ -465,7 +468,8 @@ final class BlockRecordManagerTest extends AppTestBase {
                 mock(BlockRecordStreamProducer.class),
                 quiescenceController,
                 quiescedHeartbeat,
-                platform);
+                platform,
+                InitTrigger.RESTART);
 
         final var result = subject.consTimeOfLastHandledTxn();
         Assertions.assertThat(result).isEqualTo(fromTimestamp(EPOCH));

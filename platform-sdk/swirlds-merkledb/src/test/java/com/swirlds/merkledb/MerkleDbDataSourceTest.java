@@ -166,12 +166,23 @@ class MerkleDbDataSourceTest {
         // 0 initial capacity
         assertThrows(IllegalStateException.class, () -> TestType.variable_variable
                 .dataType()
-                .createDataSource(CONFIGURATION, testDirectory.resolve("badInitialCapacityZero" + nextInt()), "badInitialZero", 0, false, false));
+                .createDataSource(
+                        CONFIGURATION,
+                        testDirectory.resolve("badInitialCapacityZero" + nextInt()),
+                        "badInitialZero",
+                        0,
+                        false,
+                        false));
         // negative initial capacity
         assertThrows(IllegalStateException.class, () -> TestType.variable_variable
                 .dataType()
                 .createDataSource(
-                        CONFIGURATION, testDirectory.resolve("badInitialCapacityNegative" + nextInt()), "badInitialNeg", -1, false, false));
+                        CONFIGURATION,
+                        testDirectory.resolve("badInitialCapacityNegative" + nextInt()),
+                        "badInitialNeg",
+                        -1,
+                        false,
+                        false));
     }
 
     @ParameterizedTest
@@ -870,7 +881,8 @@ class MerkleDbDataSourceTest {
     @EnumSource(TestType.class)
     void closeWhileFlushingTest(final TestType testType) throws IOException, InterruptedException {
         final Path dbPath = testDirectory.resolve("merkledb-closeWhileFlushingTest-" + testType);
-        final MerkleDbDataSource dataSource = testType.dataType().createDataSource(CONFIGURATION, dbPath, "vm", 1000, false, false);
+        final MerkleDbDataSource dataSource =
+                testType.dataType().createDataSource(CONFIGURATION, dbPath, "vm", 1000, false, false);
 
         final int count = 20;
         final List<Bytes> keys = new ArrayList<>(count);

@@ -10,11 +10,11 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.node.app.blocks.BlockStreamManager;
-import com.hedera.node.app.blocks.impl.ImmediateStateChangeListener;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.file.impl.FileServiceImpl;
+import com.hedera.node.app.services.ServicesRegistry;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
@@ -51,6 +51,9 @@ class SystemTransactionsTest {
     private ParentTxnFactory parentTxnFactory;
 
     @Mock
+    private ServicesRegistry servicesRegistry;
+
+    @Mock
     private FileServiceImpl fileService;
 
     @Mock(strictness = Mock.Strictness.LENIENT)
@@ -82,9 +85,6 @@ class SystemTransactionsTest {
 
     @Mock
     private StakePeriodChanges stakePeriodChanges;
-
-    @Mock
-    private ImmediateStateChangeListener immediateStateChangeListener;
 
     @Mock(strictness = Mock.Strictness.LENIENT)
     private EntityIdFactory entityIdFactory;
@@ -128,6 +128,7 @@ class SystemTransactionsTest {
                 configProvider,
                 dispatchProcessor,
                 appContext,
+                servicesRegistry,
                 blockRecordManager,
                 blockStreamManager,
                 exchangeRateManager,
@@ -183,6 +184,7 @@ class SystemTransactionsTest {
                 configProvider,
                 dispatchProcessor,
                 appContext,
+                servicesRegistry,
                 blockRecordManager,
                 blockStreamManager,
                 exchangeRateManager,
@@ -388,6 +390,7 @@ class SystemTransactionsTest {
                 configProvider,
                 dispatchProcessor,
                 appContext,
+                servicesRegistry,
                 blockRecordManager,
                 blockStreamManager,
                 exchangeRateManager,
@@ -428,6 +431,7 @@ class SystemTransactionsTest {
                 configProvider,
                 dispatchProcessor,
                 appContext,
+                servicesRegistry,
                 blockRecordManager,
                 blockStreamManager,
                 exchangeRateManager,

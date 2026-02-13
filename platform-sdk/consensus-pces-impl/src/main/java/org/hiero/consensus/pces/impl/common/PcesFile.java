@@ -4,7 +4,6 @@ package org.hiero.consensus.pces.impl.common;
 import static com.swirlds.base.formatting.StringFormattingUtils.parseSanitizedTimestamp;
 import static com.swirlds.base.formatting.StringFormattingUtils.sanitizeTimestamp;
 
-import com.swirlds.common.io.utility.RecycleBin;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -17,6 +16,7 @@ import java.time.format.DateTimeParseException;
 import java.util.Objects;
 import java.util.stream.Stream;
 import org.hiero.base.utility.NonCryptographicHashing;
+import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.pces.config.PcesFileWriterType;
 
 /**

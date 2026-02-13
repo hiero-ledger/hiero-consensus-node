@@ -47,7 +47,7 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.crypto.ConsensusCryptoUtils;
-import org.hiero.consensus.hashgraph.ConsensusConfig;
+import org.hiero.consensus.hashgraph.config.ConsensusConfig;
 import org.hiero.consensus.model.event.CesEvent;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
@@ -351,13 +351,10 @@ public class DefaultTransactionHandler implements TransactionHandler {
         final ReservedSignedState reservedSignedState;
         if (isBoundary || freezeRoundReceived) {
             if (freezeRoundReceived && !isBoundary) {
-                logger.error(
-                        EXCEPTION.getMarker(),
-                        """
+                logger.error(EXCEPTION.getMarker(), """
                                 The freeze round {} is not a boundary round. The freeze state will be saved to disk, \
                                 but the app may not have done some work that it needs to (like finishing a block). The \
-                                app must ensure that the freeze round is always a boundary round.""",
-                        consensusRound.getRoundNum());
+                                app must ensure that the freeze round is always a boundary round.""", consensusRound.getRoundNum());
             }
             handlerMetrics.setPhase(GETTING_STATE_TO_SIGN);
             stateLifecycleManager.copyMutableState();

@@ -2,7 +2,6 @@
 package com.swirlds.platform.test.fixtures.event.emitter;
 
 import com.hedera.hapi.node.state.roster.Roster;
-import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.test.fixtures.event.generator.GraphGenerator;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.HashMap;
@@ -10,6 +9,8 @@ import java.util.LinkedList;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Queue;
+import org.hiero.consensus.model.event.EventDescriptorWrapper;
+import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterUtils;
 
@@ -29,7 +30,7 @@ public abstract class BufferingEventEmitter extends AbstractEventEmitter {
      * The queue at index 0 corresponds to the source with node ID 0, and so on. Events are strongly ordered within
      * an individual queue.
      */
-    protected Map<NodeId, Queue<EventImpl>> events;
+    protected Map<NodeId, Queue<PlatformEvent>> events;
 
     /**
      * The number of events that are currently buffered by this generator.
@@ -52,7 +53,7 @@ public abstract class BufferingEventEmitter extends AbstractEventEmitter {
         while (events.get(nodeID).isEmpty()
                 && bufferedEvents < MAX_BUFFERED_EVENTS
                 && getCheckpoint() > numEventsGenerated) {
-            final EventImpl nextEvent = getGraphGenerator().generateEvent();
+            final PlatformEvent nextEvent = getGraphGenerator().generateEvent();
             numEventsGenerated++;
             events.get(nextEvent.getCreatorId()).add(nextEvent);
             bufferedEvents++;
@@ -82,24 +83,19 @@ public abstract class BufferingEventEmitter extends AbstractEventEmitter {
      */
     protected boolean isReadyToEmitEvent(@NonNull final NodeId nodeID) {
         Objects.requireNonNull(nodeID, "nodeID");
-        final EventImpl potentialEvent = events.get(nodeID).peek();
+        final PlatformEvent potentialEvent = events.get(nodeID).peek();
         if (potentialEvent == null) {
             return false;
         }
 
-        final EventImpl otherParent = potentialEvent.getOtherParent();
+        for (final EventDescriptorWrapper otherParent : potentialEvent.getOtherParents()) {
+            final NodeId otherNodeID = otherParent.creator();
 
-        if (otherParent == null) {
-            // There is no other parent, so no need to wait for it to be emitted
-            return true;
-        }
-
-        final NodeId otherNodeID = otherParent.getCreatorId();
-
-        for (final EventImpl event : events.get(otherNodeID)) {
-            if (event == otherParent) {
-                // Our other parent has not yet been emitted
-                return false;
+            for (final PlatformEvent event : events.get(otherNodeID)) {
+                if (event.getDescriptor().equals(otherParent)) {
+                    // Our other parent has not yet been emitted
+                    return false;
+                }
             }
         }
 

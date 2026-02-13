@@ -2,6 +2,7 @@
 module com.hedera.node.app {
     requires transitive com.hedera.cryptography.hints;
     requires transitive com.hedera.cryptography.wraps;
+    requires transitive com.hedera.node.app.hapi.fees;
     requires transitive com.hedera.node.app.hapi.utils;
     requires transitive com.hedera.node.app.service.addressbook.impl;
     requires transitive com.hedera.node.app.service.consensus.impl;
@@ -38,7 +39,6 @@ module com.hedera.node.app {
     requires transitive org.apache.logging.log4j;
     requires transitive org.hyperledger.besu.datatypes;
     requires transitive org.hyperledger.besu.evm;
-    requires com.hedera.node.app.hapi.fees;
     requires com.hedera.node.app.service.addressbook;
     requires com.hedera.node.app.service.consensus;
     requires com.hedera.node.app.service.contract;
@@ -67,7 +67,6 @@ module com.hedera.node.app {
     requires io.netty.transport;
     requires org.apache.commons.lang3;
     requires static transitive com.github.spotbugs.annotations;
-    requires static com.google.auto.service;
     requires static java.compiler;
 
     exports com.hedera.node.app;
@@ -127,7 +126,6 @@ module com.hedera.node.app {
     exports com.hedera.node.app.records.impl.producers;
     exports com.hedera.node.app.records.impl.producers.formats;
     exports com.hedera.node.app.grpc.impl.netty;
-    exports com.hedera.node.app.tss.schemas;
     exports com.hedera.node.app.blocks.schemas;
     exports com.hedera.node.app.records.schemas;
     exports com.hedera.node.app.hints.schemas;

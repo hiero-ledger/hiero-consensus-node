@@ -10,7 +10,6 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.platform.config.DefaultConfiguration;
-import com.swirlds.platform.consensus.SyntheticSnapshot;
 import com.swirlds.platform.state.PlatformStateAccessor;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
@@ -25,6 +24,7 @@ import com.swirlds.state.spi.WritableStates;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.concurrent.ExecutionException;
+import org.hiero.consensus.hashgraph.impl.consensus.SyntheticSnapshot;
 import org.hiero.consensus.roster.RosterStateId;
 import org.hiero.consensus.roster.WritableRosterStore;
 import picocli.CommandLine;
@@ -69,26 +69,23 @@ public class GenesisPlatformStateCommand extends AbstractCommand {
         System.out.printf("Reading from %s %n", statePath.toAbsolutePath());
         final DeserializedSignedState deserializedSignedState =
                 SignedStateFileReader.readState(statePath, platformContext, stateLifecycleManager);
-        try (final ReservedSignedState reservedSignedState = deserializedSignedState.reservedSignedState()) {
-            bulkUpdateOf(reservedSignedState.get().getState(), v -> {
-                System.out.printf("Replacing platform data %n");
-                v.setRound(PlatformStateAccessor.GENESIS_ROUND);
-                v.setSnapshot(SyntheticSnapshot.getGenesisSnapshot());
-            });
-            {
-                System.out.printf("Resetting the RosterService state %n");
-                final State state = reservedSignedState.get().getState();
-                final WritableStates writableStates = state.getWritableStates(RosterStateId.SERVICE_NAME);
-                final WritableRosterStore writableRosterStore = new WritableRosterStore(writableStates);
-                writableRosterStore.resetRosters();
-                ((CommittableWritableStates) writableStates).commit();
-            }
-            System.out.printf("Hashing state %n");
-            reservedSignedState.get().getState().getHash(); // calculate hash
-            System.out.printf("Writing modified state to %s %n", outputDir.toAbsolutePath());
-            writeSignedStateFilesToDirectory(
-                    platformContext, NO_NODE_ID, outputDir, reservedSignedState.get(), stateLifecycleManager);
-        }
+        final ReservedSignedState reservedSignedState = deserializedSignedState.reservedSignedState();
+        bulkUpdateOf(reservedSignedState.get().getState(), v -> {
+            System.out.printf("Replacing platform data %n");
+            v.setRound(PlatformStateAccessor.GENESIS_ROUND);
+            v.setSnapshot(SyntheticSnapshot.getGenesisSnapshot());
+        });
+        System.out.printf("Resetting the RosterService state %n");
+        final State state = reservedSignedState.get().getState();
+        final WritableStates writableStates = state.getWritableStates(RosterStateId.SERVICE_NAME);
+        final WritableRosterStore writableRosterStore = new WritableRosterStore(writableStates);
+        writableRosterStore.resetRosters();
+        ((CommittableWritableStates) writableStates).commit();
+        System.out.printf("Hashing state %n");
+        reservedSignedState.get().getState().getHash(); // calculate hash
+        System.out.printf("Writing modified state to %s %n", outputDir.toAbsolutePath());
+        writeSignedStateFilesToDirectory(
+                platformContext, NO_NODE_ID, outputDir, reservedSignedState, stateLifecycleManager);
 
         return 0;
     }

@@ -14,7 +14,7 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.filesystem.FileSystemManager;
-import com.swirlds.common.io.utility.RecycleBin;
+import com.swirlds.common.io.utility.RecycleBinImpl;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.builder.PlatformBuilder;
@@ -38,6 +38,7 @@ import java.util.Random;
 import java.util.concurrent.CopyOnWriteArrayList;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
@@ -100,8 +101,8 @@ public class ConsensusNodeManager {
 
         final Time time = Time.getCurrent();
         final FileSystemManager fileSystemManager = FileSystemManager.create(platformConfig);
-        final RecycleBin recycleBin =
-                RecycleBin.create(metrics, platformConfig, getStaticThreadManager(), time, fileSystemManager, selfId);
+        final RecycleBin recycleBin = RecycleBinImpl.create(
+                metrics, platformConfig, getStaticThreadManager(), time, fileSystemManager, selfId);
 
         final PlatformContext platformContext =
                 PlatformContext.create(platformConfig, Time.getCurrent(), metrics, fileSystemManager, recycleBin);
@@ -151,8 +152,8 @@ public class ConsensusNodeManager {
         // Wiring: Forward consensus rounds to registered listeners
         final PlatformComponents platformComponents = blocks.platformComponents();
         platformComponents
-                .consensusEngineWiring()
-                .consensusRoundsOutputWire()
+                .hashgraphModule()
+                .consensusRoundOutputWire()
                 .solderTo("dockerApp", "consensusRounds", this::notifyConsensusRoundListeners);
 
         platform = componentBuilder.build();
@@ -178,10 +179,10 @@ public class ConsensusNodeManager {
     /**
      * Notifies registered listeners about new consensus rounds.
      *
-     * @param rounds the list of consensus rounds to notify listeners about, must not be {@code null}
+     * @param round the consensus round to notify listeners about, must not be {@code null}
      */
-    private void notifyConsensusRoundListeners(@NonNull final List<ConsensusRound> rounds) {
-        consensusRoundListeners.forEach(listener -> listener.onConsensusRounds(rounds));
+    private void notifyConsensusRoundListeners(@NonNull final ConsensusRound round) {
+        consensusRoundListeners.forEach(listener -> listener.onConsensusRound(round));
     }
 
     /**

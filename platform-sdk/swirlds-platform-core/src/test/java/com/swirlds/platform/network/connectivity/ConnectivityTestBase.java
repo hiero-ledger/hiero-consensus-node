@@ -5,8 +5,6 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import com.swirlds.platform.network.SocketConfig;
-import com.swirlds.platform.network.SocketConfig_;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.net.ServerSocket;
@@ -14,6 +12,8 @@ import java.net.Socket;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import org.hiero.consensus.gossip.config.SocketConfig;
+import org.hiero.consensus.gossip.config.SocketConfig_;
 
 class ConnectivityTestBase {
 

@@ -74,8 +74,8 @@ class ReconnectHashListenerTest {
 
         final VirtualMapStatistics statistics = mock(VirtualMapStatistics.class);
         final int hashChunkHeight = ds.getHashChunkHeight();
-        final ReconnectHashLeafFlusher flusher = new ReconnectHashLeafFlusher(
-                ds, VIRTUAL_MAP_CONFIG.reconnectFlushInterval(), statistics);
+        final ReconnectHashLeafFlusher flusher =
+                new ReconnectHashLeafFlusher(ds, VIRTUAL_MAP_CONFIG.reconnectFlushInterval(), statistics);
 
         // 100 leaves would have firstLeafPath = 99, lastLeafPath = 198
         final int first = size - 1;

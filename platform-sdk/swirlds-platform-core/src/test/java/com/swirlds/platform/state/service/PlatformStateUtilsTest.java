@@ -214,7 +214,7 @@ class PlatformStateUtilsTest {
 
     @Test
     void testGetInfoString() {
-        final var infoString = getInfoString(state, 1);
+        final var infoString = getInfoString(state);
         System.out.println(infoString);
         assertThat(infoString)
                 .contains("Round:")

@@ -2,12 +2,12 @@
 package com.swirlds.platform.test.fixtures.communication.multithreaded;
 
 import com.swirlds.base.utility.Pair;
-import com.swirlds.platform.network.Connection;
 import com.swirlds.platform.test.fixtures.communication.TestPeerProtocol;
 import com.swirlds.platform.test.fixtures.sync.ConnectionFactory;
 import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.Callable;
+import org.hiero.consensus.gossip.impl.network.Connection;
 import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.Assertions;
 

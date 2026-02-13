@@ -109,7 +109,7 @@ defaults:
 jobs:
   commit-info:
     name: Get Commit Info
-    runs-on: hl-cn-citr-lin-sm
+    runs-on: hl-cn-default-lin-sm
     outputs:
       sha: ${{ steps.commit-info.outputs.sha }}
     steps:
@@ -225,6 +225,7 @@ jobs:
       enable-hapi-tests-smart-contract: "${{ inputs.enable-hapi-tests == 'true' }}"
       enable-hapi-tests-restart: "${{ inputs.enable-hapi-tests == 'true' }}"
       enable-hapi-tests-nd-reconnect: "${{ inputs.enable-hapi-tests == 'true' }}"
+      enable-hapi-tests-atomic-batch: "${{ inputs.enable-hapi-tests == 'true' }}"
       enable-network-log-capture: "true"
       mats-suffix: "MATS"
     secrets:
@@ -299,7 +300,7 @@ jobs:
 
   set-failure-mode:
     name: Set Failure Mode
-    runs-on: hl-cn-citr-lin-sm
+    runs-on: hl-cn-default-lin-sm
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
       failed-tests: ${{ steps.set-failure-mode.outputs.failed-tests }}

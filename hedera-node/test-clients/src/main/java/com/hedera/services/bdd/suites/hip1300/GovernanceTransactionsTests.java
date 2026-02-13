@@ -123,7 +123,9 @@ public class GovernanceTransactionsTests implements LifecycleTest {
         return hapiTest(
                 cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                 newKeyNamed(SUBMIT_KEY),
-                atomicBatch(innerTxn).payingWith(GENESIS).hasPrecheck(TRANSACTION_OVERSIZE));
+                atomicBatch(innerTxn.hasPrecheck(TRANSACTION_OVERSIZE))
+                        .payingWith(GENESIS)
+                        .hasPrecheck(TRANSACTION_OVERSIZE));
     }
 
     @HapiTest
@@ -139,7 +141,7 @@ public class GovernanceTransactionsTests implements LifecycleTest {
         return hapiTest(
                 cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                 newKeyNamed(SUBMIT_KEY),
-                atomicBatch(innerTxn).payingWith(PAYER).hasPrecheck(TRANSACTION_OVERSIZE));
+                atomicBatch(innerTxn.hasPrecheck(SUCCESS)).payingWith(PAYER).hasPrecheck(TRANSACTION_OVERSIZE));
     }
 
     @HapiTest
@@ -154,7 +156,9 @@ public class GovernanceTransactionsTests implements LifecycleTest {
 
         return hapiTest(
                 newKeyNamed(SUBMIT_KEY),
-                atomicBatch(innerTxn).payingWith(GENESIS).hasKnownStatus(SUCCESS));
+                atomicBatch(innerTxn.hasKnownStatus(SUCCESS))
+                        .payingWith(GENESIS)
+                        .hasKnownStatus(SUCCESS));
     }
 
     @HapiTest
@@ -254,7 +258,9 @@ public class GovernanceTransactionsTests implements LifecycleTest {
                 overriding("governanceTransactions.isEnabled", "false"),
                 cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                 newKeyNamed(SUBMIT_KEY),
-                atomicBatch(innerTxn).payingWith(GENESIS).hasPrecheck(TRANSACTION_OVERSIZE));
+                atomicBatch(innerTxn.hasPrecheck(TRANSACTION_OVERSIZE))
+                        .payingWith(GENESIS)
+                        .hasPrecheck(TRANSACTION_OVERSIZE));
     }
 
     @LeakyHapiTest(overrides = {"governanceTransactions.isEnabled"})
@@ -271,7 +277,9 @@ public class GovernanceTransactionsTests implements LifecycleTest {
                 overriding("governanceTransactions.isEnabled", "false"),
                 cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                 newKeyNamed(SUBMIT_KEY),
-                atomicBatch(innerTxn).payingWith(PAYER).hasPrecheck(TRANSACTION_OVERSIZE));
+                atomicBatch(innerTxn.hasPrecheck(TRANSACTION_OVERSIZE))
+                        .payingWith(PAYER)
+                        .hasPrecheck(TRANSACTION_OVERSIZE));
     }
 
     @LeakyHapiTest(overrides = {"governanceTransactions.isEnabled"})
@@ -287,7 +295,9 @@ public class GovernanceTransactionsTests implements LifecycleTest {
         return hapiTest(
                 overriding("governanceTransactions.isEnabled", "false"),
                 newKeyNamed(SUBMIT_KEY),
-                atomicBatch(innerTxn).payingWith(SYSTEM_ADMIN).hasPrecheck(TRANSACTION_OVERSIZE));
+                atomicBatch(innerTxn.hasPrecheck(TRANSACTION_OVERSIZE))
+                        .payingWith(SYSTEM_ADMIN)
+                        .hasPrecheck(TRANSACTION_OVERSIZE));
     }
 
     @LeakyHapiTest(overrides = {"governanceTransactions.isEnabled"})

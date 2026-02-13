@@ -10,7 +10,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Hashable;
-import org.hiero.consensus.hashgraph.ConsensusConfig;
+import org.hiero.consensus.hashgraph.config.ConsensusConfig;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.round.RoundCalculationUtils;
 

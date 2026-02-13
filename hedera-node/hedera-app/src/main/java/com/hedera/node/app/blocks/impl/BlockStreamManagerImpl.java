@@ -52,7 +52,7 @@ import com.hedera.node.app.quiescence.QuiescedHeartbeat;
 import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.app.quiescence.TctProbe;
 import com.hedera.node.app.records.impl.BlockRecordInfoUtils;
-import com.hedera.node.app.store.ReadableStoreFactory;
+import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
@@ -81,6 +81,7 @@ import java.nio.file.Paths;
 import java.security.MessageDigest;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
@@ -248,78 +249,81 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
     @Override
     public void init(@NonNull final State state, @Nullable final Bytes lastBlockHash) {
-        final var blockStreamInfo = state.getReadableStates(BlockStreamService.NAME)
-                .<BlockStreamInfo>getSingleton(BLOCK_STREAM_INFO_STATE_ID)
-                .get();
-        requireNonNull(blockStreamInfo);
+        final Bytes effectiveLastBlockHash;
+        if (lastBlockHash != null) {
+            effectiveLastBlockHash = lastBlockHash;
+            // (FUTURE) Adjust for non-genesis case of block stream cutover
+            this.previousBlockHashes =
+                    new IncrementalStreamingHasher(CommonUtils.sha384DigestOrThrow(), new ArrayList<>(), 0);
+        } else {
+            final var blockStreamInfo = state.getReadableStates(BlockStreamService.NAME)
+                    .<BlockStreamInfo>getSingleton(BLOCK_STREAM_INFO_STATE_ID)
+                    .get();
+            requireNonNull(blockStreamInfo);
 
-        // Most of the ingredients in the block hash are directly in the BlockStreamInfo
-        // Branch 1: lastBlockHash
-        final var prevBlockHash = blockStreamInfo.blockNumber() <= 0L
-                ? ZERO_BLOCK_HASH
-                : BlockRecordInfoUtils.blockHashByBlockNumber(
-                        blockStreamInfo.trailingBlockHashes(),
-                        blockStreamInfo.blockNumber() - 1,
-                        blockStreamInfo.blockNumber() - 1);
-        // Branch 2
-        final var prevBlocksIntermediateHashes = blockStreamInfo.intermediatePreviousBlockRootHashes().stream()
-                .map(Bytes::toByteArray)
-                .toList();
-        previousBlockHashes = new IncrementalStreamingHasher(
-                sha384DigestOrThrow(), prevBlocksIntermediateHashes, blockStreamInfo.intermediateBlockRootsLeafCount());
-        final var allPrevBlocksHash = Bytes.wrap(previousBlockHashes.computeRootHash());
+            // Most of the ingredients in the block hash are directly in the BlockStreamInfo
+            // Branch 1: lastBlockHash
+            final var prevBlockHash = blockStreamInfo.blockNumber() <= 0L
+                    ? ZERO_BLOCK_HASH
+                    : BlockRecordInfoUtils.blockHashByBlockNumber(
+                            blockStreamInfo.trailingBlockHashes(),
+                            blockStreamInfo.blockNumber() - 1,
+                            blockStreamInfo.blockNumber() - 1);
+            // Branch 2
+            final var prevBlocksIntermediateHashes = blockStreamInfo.intermediatePreviousBlockRootHashes().stream()
+                    .map(Bytes::toByteArray)
+                    .toList();
+            this.previousBlockHashes = new IncrementalStreamingHasher(
+                    sha384DigestOrThrow(),
+                    prevBlocksIntermediateHashes,
+                    blockStreamInfo.intermediateBlockRootsLeafCount());
+            final var allPrevBlocksHash = Bytes.wrap(previousBlockHashes.computeRootHash());
 
-        // Branch 3: Retrieve the previous block's starting state hash (not done right here, just part of the calculated
-        // last block hash below)
+            // Branch 3: Retrieve the previous block's starting state hash (not done right here, just part of the
+            // calculated
+            // last block hash below)
 
-        // We have to calculate the final hash of the previous block's state changes subtree because only the
-        // penultimate state hash is in the block stream info object (constructed from numPrecedingStateChangesItems and
-        // rightmostPrecedingStateChangesTreeHashes)
-        final var initialStateChangesHasher = new IncrementalStreamingHasher(
-                sha384DigestOrThrow(),
-                blockStreamInfo.rightmostPrecedingStateChangesTreeHashes().stream()
-                        .map(Bytes::toByteArray)
-                        .toList(),
-                blockStreamInfo.numPrecedingStateChangesItems());
+            // We have to calculate the final hash of the previous block's state changes subtree because only the
+            // penultimate state hash is in the block stream info object (constructed from numPrecedingStateChangesItems
+            // and
+            // rightmostPrecedingStateChangesTreeHashes)
+            final var initialStateChangesHasher = new IncrementalStreamingHasher(
+                    sha384DigestOrThrow(),
+                    blockStreamInfo.rightmostPrecedingStateChangesTreeHashes().stream()
+                            .map(Bytes::toByteArray)
+                            .toList(),
+                    blockStreamInfo.numPrecedingStateChangesItems());
 
-        // Reconstruct the final state change block item that would have been emitted by the previous block
-        final var lastBlockFinalStateChange = StateChange.newBuilder()
-                .stateId(STATE_ID_BLOCK_STREAM_INFO.protoOrdinal())
-                .singletonUpdate(SingletonUpdateChange.newBuilder()
-                        .blockStreamInfoValue(blockStreamInfo)
-                        .build())
-                .build();
-        final var lastStateChanges = BlockItem.newBuilder()
-                // The final state changes block item for the last block uses blockEndTime, which has to be the last
-                // state change time
-                .stateChanges(new StateChanges(blockStreamInfo.blockEndTime(), List.of(lastBlockFinalStateChange)))
-                .build();
-        final var lastStateChangesBytes =
-                BlockItem.PROTOBUF.toBytes(lastStateChanges).toByteArray();
-
-        // Add the final state change item's hash to the reconstructed state changes tree, and compute the final hash
-        initialStateChangesHasher.addLeaf(lastStateChangesBytes);
-        final var lastBlockFinalStateChangesHash = Bytes.wrap(initialStateChangesHasher.computeRootHash());
-
-        final var calculatedLastBlockHash = Optional.ofNullable(lastBlockHash)
-                .orElseGet(() -> BlockStreamManagerImpl.combine(
-                                prevBlockHash,
-                                allPrevBlocksHash,
-                                blockStreamInfo.startOfBlockStateHash(),
-                                blockStreamInfo.consensusHeaderRootHash(),
-                                blockStreamInfo.inputTreeRootHash(),
-                                blockStreamInfo.outputItemRootHash(),
-                                lastBlockFinalStateChangesHash,
-                                blockStreamInfo.traceDataRootHash(),
-                                blockStreamInfo.blockTime())
-                        .blockRootHash());
-        requireNonNull(calculatedLastBlockHash);
-        this.lastBlockHash = calculatedLastBlockHash;
-        log.info("Initialized block stream from state with last block hash {}", calculatedLastBlockHash.toHex());
-
-        // Only add the last hash if it's not the marker zero block hash
-        if (!Objects.equals(calculatedLastBlockHash, ZERO_BLOCK_HASH)) {
-            previousBlockHashes.addLeaf(calculatedLastBlockHash.toByteArray());
+            // Reconstruct the final state change block item that would have been emitted by the previous block
+            final var lastBlockFinalStateChange = StateChange.newBuilder()
+                    .stateId(STATE_ID_BLOCK_STREAM_INFO.protoOrdinal())
+                    .singletonUpdate(SingletonUpdateChange.newBuilder()
+                            .blockStreamInfoValue(blockStreamInfo)
+                            .build())
+                    .build();
+            final var lastStateChanges = BlockItem.newBuilder()
+                    // The final state changes block item for the last block uses blockEndTime, which has to be the last
+                    // state change time
+                    .stateChanges(new StateChanges(blockStreamInfo.blockEndTime(), List.of(lastBlockFinalStateChange)))
+                    .build();
+            initialStateChangesHasher.addLeaf(
+                    BlockItem.PROTOBUF.toBytes(lastStateChanges).toByteArray());
+            final var lastBlockFinalStateChangesHash = Bytes.wrap(initialStateChangesHasher.computeRootHash());
+            effectiveLastBlockHash = BlockStreamManagerImpl.combine(
+                            prevBlockHash,
+                            allPrevBlocksHash,
+                            blockStreamInfo.startOfBlockStateHash(),
+                            blockStreamInfo.consensusHeaderRootHash(),
+                            blockStreamInfo.inputTreeRootHash(),
+                            blockStreamInfo.outputItemRootHash(),
+                            lastBlockFinalStateChangesHash,
+                            blockStreamInfo.traceDataRootHash(),
+                            blockStreamInfo.blockTimeOrThrow())
+                    .blockRootHash();
+        }
+        this.lastBlockHash = effectiveLastBlockHash;
+        if (!Objects.equals(effectiveLastBlockHash, ZERO_BLOCK_HASH)) {
+            this.previousBlockHashes.addLeaf(effectiveLastBlockHash.toByteArray());
         }
     }
 
@@ -342,7 +346,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             blockTimestamp = asTimestamp(firstConsensusTimestampOf(round));
             lastUsedTime = asTimestamp(round.getConsensusTimestamp());
 
-            final var blockStreamInfo = blockStreamInfoFrom(state);
+            final var blockStreamInfo = blockStreamInfoFrom(state, ZERO_BLOCK_HASH.equals(lastBlockHash));
             pendingWork = classifyPendingWork(blockStreamInfo, version);
             lastTopLevelTime = asInstant(blockStreamInfo.lastHandleTimeOrElse(EPOCH));
             lastIntervalProcessTime = asInstant(blockStreamInfo.lastIntervalProcessTimeOrElse(EPOCH));
@@ -355,11 +359,10 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
             blockNumber = blockStreamInfo.blockNumber() + 1;
             if (hintsEnabled && !hasCheckedForPendingBlocks) {
-                final var hasBeenFrozen = requireNonNull(state.getReadableStates(PlatformStateService.NAME)
-                                .<PlatformState>getSingleton(V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID)
-                                .get())
-                        .hasLastFrozenTime();
-                if (hasBeenFrozen) {
+                final var platformState = state.getReadableStates(PlatformStateService.NAME)
+                        .<PlatformState>getSingleton(V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID)
+                        .get();
+                if (platformState != null && platformState.hasLastFrozenTime()) {
                     recoverPendingBlocks();
                 }
                 hasCheckedForPendingBlocks = true;
@@ -483,8 +486,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
     @Override
     public boolean endRound(@NonNull final MerkleNodeState state, final long roundNum) {
-        final var storeFactory = new ReadableStoreFactory(state);
-        final var platformStateStore = storeFactory.getStore(ReadablePlatformStateStore.class);
+        final var storeFactory = new ReadableStoreFactoryImpl(state);
+        final var platformStateStore = storeFactory.readableStore(ReadablePlatformStateStore.class);
         final long freezeRoundNumber = platformStateStore.getLatestFreezeRound();
         final boolean closesBlock = shouldCloseBlock(roundNum, freezeRoundNumber);
         if (closesBlock) {

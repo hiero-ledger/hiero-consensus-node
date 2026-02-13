@@ -74,7 +74,8 @@ class MerkleDbDataSourceMetricsTest {
                 Stream.empty(),
                 false);
 
-        // one 8 MB memory chunk
+        // one 8 MB memory chunk; this value may need to be adjusted if the default chunk height
+        // is changed
         assertMetricValue("ds_offheap_hashesIndexMb_" + TABLE_NAME, 8);
         assertNoMemoryForLeafAndKeyToPathLists();
 

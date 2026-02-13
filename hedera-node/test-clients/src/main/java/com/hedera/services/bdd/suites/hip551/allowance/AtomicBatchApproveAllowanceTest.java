@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.hip551.allowance;
 
-import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
+import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
 import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountDetailsAsserts.accountDetailsWith;
@@ -110,7 +110,7 @@ import org.junit.jupiter.api.Tag;
  * This class tests the behavior of atomic batch operations
  * involving approve allowance.
  */
-@Tag(CRYPTO)
+@Tag(ATOMIC_BATCH)
 @HapiTestLifecycle
 class AtomicBatchApproveAllowanceTest {
     private static final String OWNER = "owner";

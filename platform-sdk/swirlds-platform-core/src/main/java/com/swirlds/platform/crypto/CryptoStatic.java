@@ -4,15 +4,12 @@ package com.swirlds.platform.crypto;
 import static com.swirlds.logging.legacy.LogMarker.CERTIFICATES;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
-import static com.swirlds.platform.crypto.KeyCertPurpose.SIGNING;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
+import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.common.utility.CommonUtils;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.platform.Utilities;
-import com.swirlds.platform.config.BasicConfig;
 import com.swirlds.platform.config.PathsConfig;
-import com.swirlds.platform.network.PeerInfo;
 import com.swirlds.platform.system.SystemExitCode;
 import com.swirlds.platform.system.SystemExitUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -28,13 +25,13 @@ import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
 import java.security.SecureRandom;
 import java.security.Security;
-import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -54,7 +51,10 @@ import org.bouncycastle.operator.OperatorCreationException;
 import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
 import org.hiero.base.crypto.CryptographyException;
 import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
+import org.hiero.consensus.config.BasicConfig;
+import org.hiero.consensus.crypto.ConsensusCryptoUtils;
 import org.hiero.consensus.crypto.CryptoConstants;
+import org.hiero.consensus.exceptions.ThrowableUtilities;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 
@@ -206,37 +206,18 @@ public final class CryptoStatic {
     }
 
     /**
-     * Create a new trust store that is initially empty, but will later have all the members' key agreement public key
-     * certificates added to it.
-     *
-     * @return the empty KeyStore to be used as a trust store for TLS for syncs.
-     * @throws KeyStoreException if there is no provider that supports {@link CryptoConstants#KEYSTORE_TYPE}
-     */
-    static KeyStore createEmptyTrustStore() throws KeyStoreException {
-        final KeyStore trustStore;
-        try {
-            trustStore = KeyStore.getInstance(CryptoConstants.KEYSTORE_TYPE);
-            trustStore.load(null);
-        } catch (final CertificateException | IOException | NoSuchAlgorithmException e) {
-            // cannot be thrown when calling load(null)
-            throw new CryptographyException(e);
-        }
-        return trustStore;
-    }
-
-    /**
      * Loads all data from a .pfx file into a KeyStore
      *
      * @param file     the file to load from
      * @param password the encryption password
      * @return a KeyStore with all certificates and keys found in the file
-     * @throws KeyStoreException   if {@link #createEmptyTrustStore()} throws
+     * @throws KeyStoreException   if {@link ConsensusCryptoUtils#createEmptyTrustStore()} throws
      * @throws KeyLoadingException if the file is empty or another issue occurs while reading it
      */
     @NonNull
     public static KeyStore loadKeys(@NonNull final Path file, @NonNull final char[] password)
             throws KeyStoreException, KeyLoadingException {
-        final KeyStore store = createEmptyTrustStore();
+        final KeyStore store = ConsensusCryptoUtils.createEmptyTrustStore();
         try (final FileInputStream fis = new FileInputStream(file.toFile())) {
             store.load(fis, password);
             if (store.size() == 0) {
@@ -312,35 +293,17 @@ public final class CryptoStatic {
     }
 
     /**
-     * Return the nondeterministic secure random number generator stored in this Crypto instance. If it doesn't already
-     * exist, create it.
-     *
-     * @return the stored SecureRandom object
-     */
-    public static SecureRandom getNonDetRandom() {
-        final SecureRandom nonDetRandom;
-        try {
-            nonDetRandom = SecureRandom.getInstanceStrong();
-        } catch (final NoSuchAlgorithmException e) {
-            throw new CryptographyException(e, EXCEPTION);
-        }
-        // call nextBytes before setSeed, because some algorithms (like SHA1PRNG) become
-        // deterministic if you don't. This call might hang if the OS has too little entropy
-        // collected. Or it might be that nextBytes doesn't hang but getSeed does. The behavior is
-        // different for different choices of OS, Java version, and JDK library implementation.
-        nonDetRandom.nextBytes(new byte[1]);
-        return nonDetRandom;
-    }
-
-    /**
      * Create {@link KeysAndCerts} object for the given node id.
      *
      * @param configuration the current configuration
-     * @param localNode  the local node that need private keys loaded
+     * @param localNode     the local node that need private keys loaded
+     * @param rosterEntries roster entries of the active roster, used to provide certificates
      * @return keys and certificates for the requested node id
      */
     public static KeysAndCerts initNodeSecurity(
-            @NonNull final Configuration configuration, @NonNull final NodeId localNode) {
+            @NonNull final Configuration configuration,
+            @NonNull final NodeId localNode,
+            @NonNull final List<RosterEntry> rosterEntries) {
         Objects.requireNonNull(configuration, "configuration must not be null");
         Objects.requireNonNull(localNode, LOCAL_NODES_MUST_NOT_BE_NULL);
 
@@ -359,7 +322,7 @@ public final class CryptoStatic {
 
                 logger.debug(STARTUP.getMarker(), "About to start loading keys");
                 logger.debug(STARTUP.getMarker(), "Reading keys using the enhanced key loader");
-                keysAndCerts = EnhancedKeyStoreLoader.using(configuration, Set.of(localNode))
+                keysAndCerts = EnhancedKeyStoreLoader.using(configuration, Set.of(localNode), rosterEntries)
                         .migrate()
                         .scan()
                         .generate()
@@ -387,8 +350,8 @@ public final class CryptoStatic {
                 | KeyGeneratingException
                 | NoSuchProviderException e) {
             logger.error(EXCEPTION.getMarker(), "Exception while loading/generating keys", e);
-            if (Utilities.isRootCauseSuppliedType(e, NoSuchAlgorithmException.class)
-                    || Utilities.isRootCauseSuppliedType(e, NoSuchProviderException.class)) {
+            if (ThrowableUtilities.isRootCauseSuppliedType(e, NoSuchAlgorithmException.class)
+                    || ThrowableUtilities.isRootCauseSuppliedType(e, NoSuchProviderException.class)) {
                 CommonUtils.tellUserConsolePopup(
                         "ERROR",
                         "ERROR: This Java installation does not have the needed cryptography " + "providers installed");
@@ -410,23 +373,5 @@ public final class CryptoStatic {
         });
 
         return keysAndCerts.get(localNode);
-    }
-
-    /**
-     * Create a trust store that contains the public keys of all the members in the peer list
-     *
-     * @param peers all the peers in the network
-     * @return a trust store containing the public keys of all the members
-     * @throws KeyStoreException if there is no provider that supports {@link CryptoConstants#KEYSTORE_TYPE}
-     */
-    public static @NonNull KeyStore createPublicKeyStore(@NonNull final Collection<PeerInfo> peers)
-            throws KeyStoreException {
-        Objects.requireNonNull(peers);
-        final KeyStore store = CryptoStatic.createEmptyTrustStore();
-        for (final PeerInfo peer : peers) {
-            final Certificate sigCert = peer.signingCertificate();
-            store.setCertificateEntry(SIGNING.storeName(peer.nodeId()), sigCert);
-        }
-        return store;
     }
 }

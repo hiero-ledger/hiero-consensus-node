@@ -4,7 +4,6 @@ package com.hedera.statevalidation;
 import com.hedera.statevalidation.exporter.JsonExporter;
 import com.hedera.statevalidation.util.StateUtils;
 import com.swirlds.state.MerkleNodeState;
-import com.swirlds.virtualmap.VirtualMap;
 import java.io.File;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -65,8 +64,6 @@ public class ExportCommand implements Runnable {
         long start = System.currentTimeMillis();
         final MerkleNodeState state = StateUtils.getState();
         log.debug("State has been initialized in {} seconds.", (System.currentTimeMillis() - start) / 1000);
-
-        ((VirtualMap) state.getRoot()).getDataSource().stopAndDisableBackgroundCompaction();
 
         final JsonExporter exporter =
                 new JsonExporter(outputDir, state, serviceName, stateKey, firstLeafPath, lastLeafPath);

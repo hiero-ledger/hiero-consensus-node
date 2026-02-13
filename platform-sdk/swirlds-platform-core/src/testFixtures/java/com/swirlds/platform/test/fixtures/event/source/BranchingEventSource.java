@@ -2,11 +2,11 @@
 package com.swirlds.platform.test.fixtures.event.source;
 
 import com.swirlds.common.test.fixtures.TransactionGenerator;
-import com.swirlds.platform.internal.EventImpl;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Random;
+import org.hiero.consensus.model.event.PlatformEvent;
 
 /**
  * An AbstractEventSource that will periodically branch.
@@ -26,7 +26,7 @@ public class BranchingEventSource extends AbstractEventSource {
     /**
      * An collection of branches. Each branch contains a number of recent events on that branch.
      */
-    private List<LinkedList<EventImpl>> branches;
+    private List<LinkedList<PlatformEvent>> branches;
 
     /**
      * The index of the event that was last given out as the "latest" event.
@@ -108,15 +108,15 @@ public class BranchingEventSource extends AbstractEventSource {
     }
 
     @Override
-    public EventImpl getRecentEvent(final Random random, final int index) {
+    public PlatformEvent getRecentEvent(final Random random, final int index) {
         if (branches.isEmpty()) {
             return null;
         }
 
         currentBranch = random.nextInt(branches.size());
-        final LinkedList<EventImpl> events = branches.get(currentBranch);
+        final LinkedList<PlatformEvent> events = branches.get(currentBranch);
 
-        if (events.size() == 0) {
+        if (events.isEmpty()) {
             return null;
         }
 
@@ -155,18 +155,18 @@ public class BranchingEventSource extends AbstractEventSource {
     }
 
     @Override
-    public void setLatestEvent(final Random random, final EventImpl event) {
+    public void setLatestEvent(final Random random, final PlatformEvent event) {
         if (shouldBranch(random)) {
             branch(random);
         }
 
         // Make sure there is at least one branch
-        if (branches.size() == 0) {
+        if (branches.isEmpty()) {
             branches.add(new LinkedList<>());
             currentBranch = 0;
         }
 
-        final LinkedList<EventImpl> branch = branches.get(currentBranch);
+        final LinkedList<PlatformEvent> branch = branches.get(currentBranch);
         branch.addFirst(event);
 
         pruneEventList(branch);
@@ -177,7 +177,7 @@ public class BranchingEventSource extends AbstractEventSource {
      *
      * @return A list of all branches. Each branch is a list of events.
      */
-    public List<LinkedList<EventImpl>> getBranches() {
+    public List<LinkedList<PlatformEvent>> getBranches() {
         return branches;
     }
 }

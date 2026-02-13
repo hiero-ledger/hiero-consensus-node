@@ -30,7 +30,6 @@ import org.hiero.consensus.model.hashgraph.Round;
  * access to particular properties of the platform state.
  */
 public final class PlatformStateUtils {
-
     /**
      * @param state the state to extract value from
      * @param round the round to check
@@ -285,22 +284,18 @@ public final class PlatformStateUtils {
     /**
      * Generate a string that describes this state.
      *
-     * @param hashDepth the depth of the tree to visit and print
      */
     @NonNull
-    public static String getInfoString(@NonNull final State state, final int hashDepth) {
+    public static String getInfoString(@NonNull final State state) {
         final MerkleNodeState merkleNodeState = (MerkleNodeState) state;
-        return createInfoString(
-                        hashDepth,
-                        readablePlatformStateStore(state),
-                        merkleNodeState.getHash(),
-                        merkleNodeState.getRoot())
+        return createInfoString(readablePlatformStateStore(state), merkleNodeState.getHash())
                 .concat(merkleNodeState.getInfoJson());
     }
 
     private static PlatformStateAccessor readablePlatformStateStore(@NonNull final State state) {
         final ReadableStates readableStates = state.getReadableStates(NAME);
-        if (readableStates.isEmpty()) {
+        if (readableStates.isEmpty()
+                || readableStates.getSingleton(PLATFORM_STATE_STATE_ID).get() == null) {
             return new SnapshotPlatformStateAccessor(UNINITIALIZED_PLATFORM_STATE);
         }
         return new ReadablePlatformStateStore(readableStates);

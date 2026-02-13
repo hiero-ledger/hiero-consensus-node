@@ -30,7 +30,7 @@ permissions:
 jobs:
   prepare-tag-release:
     name: Prepare Release [Tag]
-    runs-on: hiero-network-node-linux-medium
+    runs-on: hl-cn-default-lin-sm
     if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') }}
     outputs:
       version: ${{ steps.tag.outputs.version }}
@@ -99,7 +99,7 @@ jobs:
 
   update-hedera-protobufs:
     name: Update Hedera Protobufs
-    runs-on: hiero-network-node-linux-medium
+    runs-on: hl-cn-default-lin-sm
     needs:
       - prepare-tag-release
     steps:
@@ -185,7 +185,7 @@ jobs:
 
   deploy-xts-ci-trigger:
     name: Trigger XTS CI Flow
-    runs-on: hiero-network-node-linux-medium
+    runs-on: hl-cn-default-lin-sm
     needs:
       - release-branch
     steps:
@@ -227,7 +227,7 @@ jobs:
 
   deploy-integration-ci-trigger:
     name: Trigger Deploy Integration Flow
-    runs-on: hiero-network-node-linux-medium
+    runs-on: hl-cn-default-lin-sm
     needs:
       - release-branch
     steps:
@@ -271,7 +271,7 @@ jobs:
 
   report-failures:
     name: Report Production Release Failures
-    runs-on: hiero-network-node-linux-medium
+    runs-on: hl-cn-default-lin-sm
     needs:
       - release-branch
       - deploy-xts-ci-trigger

@@ -5,14 +5,14 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
-import com.swirlds.common.merkle.synchronization.config.ReconnectConfig_;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.reconnect.ReconnectStateTeacherThrottle;
 import java.time.Instant;
 import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.reconnect.config.ReconnectConfig;
+import org.hiero.consensus.reconnect.config.ReconnectConfig_;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;

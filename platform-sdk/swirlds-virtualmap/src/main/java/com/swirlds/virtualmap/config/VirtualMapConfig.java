@@ -17,9 +17,10 @@ import com.swirlds.config.api.validation.annotation.Min;
  * @param numHashThreads
  * 		The number of threads to devote to hashing. If not set, defaults to the number of threads implied by
  *        {@code virtualMap.percentHashThreads} and {@link Runtime#availableProcessors()}.
- * @param virtualHasherChunkHeight
- *      The number of ranks minus one to handle in a single virtual hasher task. That is, when height is
- *      1, every task takes 2 inputs. Height 2 corresponds to tasks with 4 inputs. And so on.
+ * @param hashChunkHeight
+ *      Hash chunk height. The height is used to store hashes on disk in chunks rather than individually.
+ *      This config is also used by virtual hasher to create hashing tasks, so they are mostly aligned
+ *      with hash chunks on disk.
  * @param reconnectMode
  *      Reconnect mode. For the list of accepted values, see {@link VirtualMapReconnectMode}.
  * @param reconnectFlushInterval
@@ -46,11 +47,12 @@ import com.swirlds.config.api.validation.annotation.Min;
  *      and familyThrottleThreshold are set, familyThrottleThreshold is used, and familyThrottlePercent is
  *      ignored
  */
+// spotless:off
 @ConfigData("virtualMap")
 public record VirtualMapConfig(
         @Min(0) @Max(100) @ConfigProperty(defaultValue = "50.0") double percentHashThreads,
         @Min(-1) @ConfigProperty(defaultValue = "-1") int numHashThreads,
-        @Min(1) @Max(64) @ConfigProperty(defaultValue = "6") int virtualHasherChunkHeight,
+        @Min(1) @Max(64) @ConfigProperty(defaultValue = "6") int hashChunkHeight,
         @ConfigProperty(defaultValue = PUSH) String reconnectMode,
         @Min(0) @ConfigProperty(defaultValue = "500000") int reconnectFlushInterval,
         @Min(0) @Max(100) @ConfigProperty(defaultValue = "25.0") double percentCleanerThreads,
@@ -58,6 +60,8 @@ public record VirtualMapConfig(
         @Min(1) @ConfigProperty(defaultValue = "1200000000") long copyFlushCandidateThreshold,
         @Min(-1) @Max(100) @ConfigProperty(defaultValue = "10.0") double familyThrottlePercent,
         @Min(-1) @ConfigProperty(defaultValue = "-1") long familyThrottleThreshold) {
+
+    // spotless:on
 
     private static final double UNIT_FRACTION_PERCENT = 100.0;
 

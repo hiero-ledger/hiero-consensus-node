@@ -88,8 +88,8 @@ class MerkleDbDataSourceSnapshotMergeTest {
             throws IOException, InterruptedException {
         final Path storeDir = Files.createTempDirectory("createMergeSnapshotReadBackImpl");
         final String tableName = "mergeSnapshotReadBack";
-        final MerkleDbDataSource dataSource =
-                testType.dataType().createDataSource(CONFIGURATION, storeDir, tableName, COUNT, false, preferDiskBasedIndexes);
+        final MerkleDbDataSource dataSource = testType.dataType()
+                .createDataSource(CONFIGURATION, storeDir, tableName, COUNT, false, preferDiskBasedIndexes);
         final ExecutorService exec = Executors.newCachedThreadPool();
         try {
             // create some internal and leaf nodes in batches

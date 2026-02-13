@@ -2,7 +2,6 @@
 package org.hiero.consensus.pces.impl.common;
 
 import com.hedera.hapi.platform.event.GossipEvent;
-import com.swirlds.common.io.IOIterator;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.BufferedInputStream;
 import java.io.EOFException;
@@ -10,6 +9,7 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.NoSuchElementException;
 import org.hiero.base.io.streams.SerializableDataInputStream;
+import org.hiero.consensus.io.IOIterator;
 import org.hiero.consensus.model.event.PlatformEvent;
 
 /**

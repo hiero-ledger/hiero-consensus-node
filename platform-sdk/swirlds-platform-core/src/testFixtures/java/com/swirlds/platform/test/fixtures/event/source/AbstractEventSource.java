@@ -5,7 +5,6 @@ import static com.swirlds.platform.test.fixtures.event.EventUtils.integerPowerDi
 import static com.swirlds.platform.test.fixtures.event.EventUtils.staticDynamicValue;
 
 import com.swirlds.common.test.fixtures.TransactionGenerator;
-import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.test.fixtures.event.DynamicValue;
 import com.swirlds.platform.test.fixtures.event.DynamicValueGenerator;
 import com.swirlds.platform.test.fixtures.event.RandomEventUtils;
@@ -18,6 +17,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Random;
+import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
@@ -118,7 +118,7 @@ public abstract class AbstractEventSource implements EventSource {
      * Maintain the maximum size of a list of events by removing the last element (if needed). Utility method that is
      * useful for child classes.
      */
-    protected void pruneEventList(final LinkedList<EventImpl> events) {
+    protected void pruneEventList(final LinkedList<PlatformEvent> events) {
         if (events.size() > getRecentEventRetentionSize()) {
             events.removeLast();
         }
@@ -171,7 +171,7 @@ public abstract class AbstractEventSource implements EventSource {
      * {@inheritDoc}
      */
     @Override
-    public EventImpl generateEvent(
+    public PlatformEvent generateEvent(
             @NonNull final Random random,
             final long eventIndex,
             @NonNull final Collection<EventSource> otherParents,
@@ -179,11 +179,11 @@ public abstract class AbstractEventSource implements EventSource {
             final long birthRound) {
         Objects.requireNonNull(random);
         Objects.requireNonNull(timestamp);
-        final EventImpl event;
+        final PlatformEvent event;
 
-        final List<EventImpl> allParentEvents = new ArrayList<>(otherParents.size() + 1);
+        final List<PlatformEvent> allParentEvents = new ArrayList<>(otherParents.size() + 1);
 
-        final EventImpl latestSelfEvent = getLatestEvent(random);
+        final PlatformEvent latestSelfEvent = getLatestEvent(random);
         if (latestSelfEvent != null) {
             allParentEvents.add(latestSelfEvent);
         }
@@ -196,7 +196,7 @@ public abstract class AbstractEventSource implements EventSource {
                     getRequestedOtherParentAge(random, eventIndex),
                     // event index (event age) that the other node wants to provide as an other parent to this node
                     otherParent.getProvidedOtherParentAge(random, eventIndex));
-            final EventImpl otherParentEvent = otherParent.getRecentEvent(random, otherParentIndex);
+            final PlatformEvent otherParentEvent = otherParent.getRecentEvent(random, otherParentIndex);
             if (otherParentEvent != null) {
                 allParentEvents.add(otherParentEvent);
             }

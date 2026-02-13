@@ -2,7 +2,6 @@
 package com.swirlds.platform.test.fixtures.event;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.platform.internal.EventImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
@@ -25,13 +24,13 @@ public class RandomEventUtils {
      * Similar to randomEvent, but the timestamp used for the event's creation timestamp
      * is provided by an argument.
      */
-    public static EventImpl randomEventWithTimestamp(
+    public static PlatformEvent randomEventWithTimestamp(
             final Random random,
             final NodeId creatorId,
             final Instant timestamp,
             final long birthRound,
             final TransactionWrapper[] transactions,
-            final List<EventImpl> allParents,
+            final List<PlatformEvent> allParents,
             final boolean fakeHash) {
 
         final UnsignedEvent unsignedEvent = randomUnsignedEventWithTimestamp(
@@ -40,7 +39,7 @@ public class RandomEventUtils {
         final byte[] sig = new byte[SignatureType.RSA.signatureLength()];
         random.nextBytes(sig);
 
-        return new EventImpl(new PlatformEvent(unsignedEvent, Bytes.wrap(sig)), allParents);
+        return new PlatformEvent(unsignedEvent, Bytes.wrap(sig));
     }
 
     /**
@@ -53,7 +52,7 @@ public class RandomEventUtils {
             @NonNull final Instant timestamp,
             final long birthRound,
             @Nullable final TransactionWrapper[] transactions,
-            @NonNull final List<EventImpl> allParents,
+            @NonNull final List<PlatformEvent> allParents,
             final boolean fakeHash) {
         final List<Bytes> convertedTransactions = new ArrayList<>();
         if (transactions != null) {
@@ -64,7 +63,6 @@ public class RandomEventUtils {
         final UnsignedEvent unsignedEvent = new UnsignedEvent(
                 creatorId,
                 allParents.stream()
-                        .map(EventImpl::getBaseEvent)
                         .filter(e -> e.getHash() != null)
                         .map(PlatformEvent::getDescriptor)
                         .toList(),

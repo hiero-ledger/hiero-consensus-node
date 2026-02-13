@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.consensus;
 
-import static com.swirlds.platform.consensus.ConsensusTestArgs.DEFAULT_PLATFORM_CONTEXT;
 import static com.swirlds.platform.test.fixtures.event.EventUtils.areBirthRoundNumbersValid;
 import static com.swirlds.platform.test.fixtures.event.EventUtils.gatherOtherParentAges;
 import static com.swirlds.platform.test.fixtures.event.EventUtils.integerPowerDistribution;
@@ -15,7 +14,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.node.state.roster.Roster;
-import com.swirlds.platform.internal.EventImpl;
+import com.swirlds.common.context.PlatformContext;
+import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.platform.test.fixtures.event.DynamicValue;
 import com.swirlds.platform.test.fixtures.event.DynamicValueGenerator;
 import com.swirlds.platform.test.fixtures.event.emitter.EventEmitterBuilder;
@@ -34,6 +34,7 @@ import java.util.Random;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
+import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterUtils;
 import org.junit.jupiter.api.Disabled;
@@ -47,14 +48,17 @@ import org.junit.jupiter.api.Test;
 @DisplayName("Event Generator Tests")
 public class GraphGeneratorTests {
 
+    private static final PlatformContext DEFAULT_PLATFORM_CONTEXT =
+            TestPlatformContextBuilder.create().build();
+
     /**
      * Assert that two lists of events are distinct but equal objects.
      */
-    private void assertEventListEquality(final List<EventImpl> events1, final List<EventImpl> events2) {
+    private void assertEventListEquality(final List<PlatformEvent> events1, final List<PlatformEvent> events2) {
         assertEquals(events1.size(), events2.size());
         for (int index = 0; index < events1.size(); index++) {
-            final EventImpl event1 = events1.get(index);
-            final EventImpl event2 = events2.get(index);
+            final PlatformEvent event1 = events1.get(index);
+            final PlatformEvent event2 = events2.get(index);
 
             assertNotSame(event1, event2);
             assertEquals(event1, event2);
@@ -70,12 +74,12 @@ public class GraphGeneratorTests {
 
         generator.reset();
 
-        final List<EventImpl> events1 = generator.generateEvents(numberOfEvents);
+        final List<PlatformEvent> events1 = generator.generateEvents(numberOfEvents);
         assertEquals(numberOfEvents, events1.size());
 
         generator.reset();
 
-        final List<EventImpl> events2 = generator.generateEvents(numberOfEvents);
+        final List<PlatformEvent> events2 = generator.generateEvents(numberOfEvents);
         assertEquals(numberOfEvents, events2.size());
 
         assertEventListEquality(events1, events2);
@@ -92,10 +96,10 @@ public class GraphGeneratorTests {
 
         final int numberOfEvents = 1000;
 
-        final List<EventImpl> events1 = generator.generateEvents(numberOfEvents);
+        final List<PlatformEvent> events1 = generator.generateEvents(numberOfEvents);
         assertEquals(numberOfEvents, events1.size());
 
-        final List<EventImpl> events2 = generatorCopy.generateEvents(numberOfEvents);
+        final List<PlatformEvent> events2 = generatorCopy.generateEvents(numberOfEvents);
         assertEquals(numberOfEvents, events2.size());
 
         assertEventListEquality(events1, events2);
@@ -114,10 +118,10 @@ public class GraphGeneratorTests {
         generator.skip(numberOfEvents);
         final GraphGenerator generatorCopy = generator.copy();
 
-        final List<EventImpl> events1 = generator.generateEvents(numberOfEvents);
+        final List<PlatformEvent> events1 = generator.generateEvents(numberOfEvents);
         assertEquals(numberOfEvents, events1.size());
 
-        final List<EventImpl> events2 = generatorCopy.generateEvents(numberOfEvents);
+        final List<PlatformEvent> events2 = generatorCopy.generateEvents(numberOfEvents);
         assertEquals(numberOfEvents, events2.size());
 
         assertEventListEquality(events1, events2);
@@ -134,13 +138,13 @@ public class GraphGeneratorTests {
         final int numberOfEvents = 1000;
 
         generator.skip(numberOfEvents);
-        final List<EventImpl> events1 = generator.generateEvents(numberOfEvents);
+        final List<PlatformEvent> events1 = generator.generateEvents(numberOfEvents);
         assertEquals(numberOfEvents, events1.size());
 
         final GraphGenerator generatorCopy = generator.cleanCopy();
 
         generatorCopy.skip(numberOfEvents);
-        final List<EventImpl> events2 = generatorCopy.generateEvents(numberOfEvents);
+        final List<PlatformEvent> events2 = generatorCopy.generateEvents(numberOfEvents);
         assertEquals(numberOfEvents, events2.size());
 
         assertEventListEquality(events1, events2);
@@ -162,16 +166,15 @@ public class GraphGeneratorTests {
      * 		any value between 0.24 and 0.26.
      */
     protected void verifyExpectedOtherParentRatio(
-            final List<EventImpl> events, final NodeId nodeId, final double expectedRatio, final double tolerance) {
+            final List<PlatformEvent> events, final NodeId nodeId, final double expectedRatio, final double tolerance) {
 
         int count = 0;
-        for (final EventImpl event : events) {
+        for (final PlatformEvent event : events) {
             final NodeId otherParentId;
-            if (event.getBaseEvent().getOtherParents().isEmpty()) {
+            if (event.getOtherParents().isEmpty()) {
                 otherParentId = null;
             } else {
-                otherParentId =
-                        event.getBaseEvent().getOtherParents().getFirst().creator();
+                otherParentId = event.getOtherParents().getFirst().creator();
             }
 
             if (Objects.equals(otherParentId, nodeId)) {
@@ -199,10 +202,10 @@ public class GraphGeneratorTests {
      * 		any value between 0.24 and 0.26.
      */
     protected void verifyExpectedParentRatio(
-            final List<EventImpl> events, final NodeId nodeId, final double expectedRatio, final double tolerance) {
+            final List<PlatformEvent> events, final NodeId nodeId, final double expectedRatio, final double tolerance) {
 
         int count = 0;
-        for (final EventImpl event : events) {
+        for (final PlatformEvent event : events) {
             if (Objects.equals(event.getCreatorId(), nodeId)) {
                 count++;
             }
@@ -230,7 +233,7 @@ public class GraphGeneratorTests {
         generator.getSourceByIndex(2).setNewEventWeight(1.0);
         generator.getSourceByIndex(3).setNewEventWeight(1.0);
 
-        List<EventImpl> events = generator.generateEvents(1000);
+        List<PlatformEvent> events = generator.generateEvents(1000);
         verifyExpectedParentRatio(events, RosterUtils.getNodeId(roster, 0), 0.25, 0.05);
         verifyExpectedParentRatio(events, RosterUtils.getNodeId(roster, 1), 0.25, 0.05);
         verifyExpectedParentRatio(events, RosterUtils.getNodeId(roster, 2), 0.25, 0.05);
@@ -311,7 +314,7 @@ public class GraphGeneratorTests {
                 asList(1.0, 0.0, 1.0, 1.0),
                 asList(1.0, 1.0, 0.0, 1.0),
                 asList(1.0, 1.0, 1.0, 0.0)));
-        List<EventImpl> events = generator.generateEvents(1000);
+        List<PlatformEvent> events = generator.generateEvents(1000);
         verifyExpectedOtherParentRatio(events, RosterUtils.getNodeId(roster, 0), 0.25, 0.05);
         verifyExpectedOtherParentRatio(events, RosterUtils.getNodeId(roster, 1), 0.25, 0.05);
         verifyExpectedOtherParentRatio(events, RosterUtils.getNodeId(roster, 2), 0.25, 0.05);
@@ -414,7 +417,7 @@ public class GraphGeneratorTests {
      */
     public void validateEventOrder(final GraphGenerator generator) {
         System.out.println("Validate Event Order");
-        final List<EventImpl> events = generator.generateEvents(1000);
+        final List<PlatformEvent> events = generator.generateEvents(1000);
         assertTrue(areBirthRoundNumbersValid(events, generator.getNumberOfSources()));
         assertTrue(isEventOrderValid(events));
 
@@ -439,12 +442,12 @@ public class GraphGeneratorTests {
      * Ensure that the birth round monotonically advances
      */
     private void validateBirthRoundAdvancing(@NonNull final GraphGenerator generator) {
-        final List<EventImpl> events = generator.generateEvents(100);
+        final List<PlatformEvent> events = generator.generateEvents(100);
         final long firstEventBirthRound = events.get(0).getBirthRound();
         final long lastEventBirthRound = events.get(events.size() - 1).getBirthRound();
         long currentBirthRound = firstEventBirthRound;
         assertTrue(lastEventBirthRound > firstEventBirthRound);
-        for (final EventImpl event : events) {
+        for (final PlatformEvent event : events) {
             final long eventBirthRound = event.getBirthRound();
             assertTrue(eventBirthRound >= currentBirthRound);
             currentBirthRound = eventBirthRound;
@@ -497,12 +500,11 @@ public class GraphGeneratorTests {
                 new StandardEventSource(),
                 new BranchingEventSource().setBranchProbability(0.1).setMaximumBranchCount(2));
 
-        final List<EventImpl> events = generator.generateEvents(numberOfEvents);
+        final List<PlatformEvent> events = generator.generateEvents(numberOfEvents);
 
         final boolean multipleSelfParents = events.stream()
-                .map(EventImpl::getSelfParent)
+                .map(PlatformEvent::getSelfParent)
                 .filter(Objects::nonNull)
-                .map(EventImpl::getBaseHash)
                 .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()))
                 .values()
                 .stream()
@@ -612,7 +614,7 @@ public class GraphGeneratorTests {
                 new StandardEventSource(),
                 new StandardEventSource(),
                 new StandardEventSource());
-        List<EventImpl> events = generator.generateEvents(numberOfEvents);
+        List<PlatformEvent> events = generator.generateEvents(numberOfEvents);
         Map<Integer, Integer> eventAges = gatherOtherParentAges(events, null);
         assertAgeRatio(eventAges, 0, 0.95, 0.05);
         assertAgeRatio(eventAges, 1, 0.05 * 0.95, 0.05);
@@ -713,12 +715,12 @@ public class GraphGeneratorTests {
                 new StandardEventSource(),
                 new StandardEventSource());
         generator.setSimultaneousEventFraction(0.1);
-        final List<EventImpl> events = generator.generateEvents(numberOfEvents);
+        final List<PlatformEvent> events = generator.generateEvents(numberOfEvents);
 
         int repeatCount = 0;
         Instant previousTimestamp = null;
 
-        for (final EventImpl event : events) {
+        for (final PlatformEvent event : events) {
             final Instant timestamp = event.getTimeCreated();
             if (previousTimestamp != null && previousTimestamp.equals(timestamp)) {
                 repeatCount++;
@@ -757,8 +759,8 @@ public class GraphGeneratorTests {
         final NodeId removalNode = RosterUtils.getNodeId(generator.getRoster(), 0);
         generator.removeNode(removalNode);
 
-        final List<EventImpl> postRemovalEvents = generator.generateEvents(numberOfEvents / 2);
-        for (final EventImpl removalEvent : postRemovalEvents) {
+        final List<PlatformEvent> postRemovalEvents = generator.generateEvents(numberOfEvents / 2);
+        for (final PlatformEvent removalEvent : postRemovalEvents) {
             assertNotEquals(removalNode, removalEvent.getCreatorId());
         }
     }

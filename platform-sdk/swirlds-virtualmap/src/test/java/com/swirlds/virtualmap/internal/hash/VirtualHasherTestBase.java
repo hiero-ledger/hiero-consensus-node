@@ -28,7 +28,7 @@ import org.junit.jupiter.params.provider.Arguments;
 
 public class VirtualHasherTestBase extends VirtualTestBase {
 
-    protected static final int CHUNK_HEIGHT = VIRTUAL_MAP_CONFIG.virtualHasherChunkHeight();
+    protected static final int CHUNK_HEIGHT = VIRTUAL_MAP_CONFIG.hashChunkHeight();
 
     /**
      * Helper method for computing a list of {@link Arguments} of length {@code num}, each of which contains

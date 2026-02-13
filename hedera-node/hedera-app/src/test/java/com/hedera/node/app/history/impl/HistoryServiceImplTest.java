@@ -178,10 +178,10 @@ class HistoryServiceImplTest {
     }
 
     private void withLiveSubject() {
-        subject = new HistoryServiceImpl(NO_OP_METRICS, ForkJoinPool.commonPool(), appContext, library, DEFAULT_CONFIG);
+        subject = new HistoryServiceImpl(NO_OP_METRICS, ForkJoinPool.commonPool(), appContext, library);
     }
 
     private void withMockSubject() {
-        subject = new HistoryServiceImpl(component, DEFAULT_CONFIG);
+        subject = new HistoryServiceImpl(component);
     }
 }

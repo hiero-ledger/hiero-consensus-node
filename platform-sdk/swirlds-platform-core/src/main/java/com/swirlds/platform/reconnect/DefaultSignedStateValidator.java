@@ -7,14 +7,11 @@ import static com.swirlds.platform.state.service.PlatformStateUtils.getInfoStrin
 import static com.swirlds.platform.state.service.PlatformStateUtils.roundOf;
 
 import com.hedera.hapi.node.state.roster.Roster;
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.signed.SignedStateInvalidException;
 import com.swirlds.platform.state.signed.SignedStateValidationData;
 import com.swirlds.platform.state.signed.SignedStateValidator;
 import com.swirlds.state.State;
-import edu.umd.cs.findbugs.annotations.NonNull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -23,15 +20,6 @@ import org.apache.logging.log4j.Logger;
  */
 public class DefaultSignedStateValidator implements SignedStateValidator {
     private static final Logger logger = LogManager.getLogger(DefaultSignedStateValidator.class);
-
-    private final int hashDepth;
-
-    public DefaultSignedStateValidator(@NonNull final PlatformContext platformContext) {
-        hashDepth = platformContext
-                .getConfiguration()
-                .getConfigData(StateConfig.class)
-                .debugHashDepth();
-    }
 
     /**
      * {@inheritDoc}
@@ -59,15 +47,11 @@ public class DefaultSignedStateValidator implements SignedStateValidator {
         State state = signedState.getState();
         if (roundOf(state) < previousStateData.round()
                 || consensusTimestampOf(state).isBefore(previousStateData.consensusTimestamp())) {
-            logger.error(
-                    EXCEPTION.getMarker(),
-                    """
+            logger.error(EXCEPTION.getMarker(), """
                             State is too old. Failed reconnect state:
                             {}
                             Original reconnect state:
-                            {}""",
-                    getInfoString(state, hashDepth),
-                    previousStateData.getInfoString());
+                            {}""", getInfoString(state), previousStateData.getInfoString());
             throw new SignedStateInvalidException(("Received signed state is for a round smaller than or a "
                             + "consensus earlier than what we started with. Original round %d, received round %d. "
                             + "Original timestamp %s, received timestamp %s.")

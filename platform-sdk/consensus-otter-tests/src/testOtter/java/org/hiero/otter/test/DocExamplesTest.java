@@ -11,7 +11,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.List;
 import java.util.stream.Stream;
-import org.hiero.consensus.hashgraph.ConsensusConfig_;
+import org.hiero.consensus.hashgraph.config.ConsensusConfig_;
 import org.hiero.otter.fixtures.Capability;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;

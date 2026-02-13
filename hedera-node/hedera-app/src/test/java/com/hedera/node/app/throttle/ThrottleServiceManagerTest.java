@@ -118,7 +118,7 @@ class ThrottleServiceManagerTest {
                 gasThrottle,
                 bytesThrottle);
 
-        subject.init(state, MOCK_ENCODED_THROTTLE_DEFS);
+        subject.init(state, MOCK_ENCODED_THROTTLE_DEFS, false);
 
         inOrder.verify(ingestThrottle).applyGasConfig();
         inOrder.verify(backendThrottle).applyGasConfig();

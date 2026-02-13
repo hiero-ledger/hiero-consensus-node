@@ -68,7 +68,7 @@ public class Rehash {
     void validateMerkleTree(DeserializedSignedState deserializedSignedState, HashInfo hashInfo) {
 
         var infoStringFromState = getInfoString(
-                deserializedSignedState.reservedSignedState().get().getState(), HASH_DEPTH);
+                deserializedSignedState.reservedSignedState().get().getState());
 
         final var originalLines = Arrays.asList(hashInfo.content().split("\n")).getFirst();
         final var fullList = Arrays.asList(infoStringFromState.split("\n"));

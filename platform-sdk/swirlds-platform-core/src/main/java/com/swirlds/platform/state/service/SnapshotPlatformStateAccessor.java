@@ -12,6 +12,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import org.hiero.base.crypto.Hash;
+import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 
 /**
  * Provides access to a snapshot of the platform state.
@@ -82,6 +83,9 @@ public class SnapshotPlatformStateAccessor implements PlatformStateAccessor {
         requireNonNull(consensusSnapshot, "No minimum judge info found in state for round, snapshot is null");
         final var minimumJudgeInfos = consensusSnapshot.minimumJudgeInfoList();
         if (minimumJudgeInfos.isEmpty()) {
+            if (consensusSnapshot.round() == GENESIS_ROUND) {
+                return ConsensusConstants.ROUND_FIRST;
+            }
             throw new IllegalStateException(
                     "No minimum judge info found in state for round " + consensusSnapshot.round() + ", list is empty");
         }

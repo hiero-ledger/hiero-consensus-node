@@ -252,9 +252,14 @@ public class DataFileCompactor {
                             final DataFileWriter newFileWriter = currentWriter.get();
                             final BufferedData itemBytes = reader.readDataItem(fileOffset);
                             assert itemBytes != null;
-                            long newLocation = newFileWriter.storeDataItem(itemBytes);
-                            // update the index
-                            index.putIfEqual(path, dataLocation, newLocation);
+                            // Check if the index was changed while this thread was reading data. If
+                            // changed, there is no need to write the data as the following CAS call
+                            // would fail anyway
+                            if (index.get(path) == dataLocation) {
+                                long newLocation = newFileWriter.storeDataItem(itemBytes);
+                                // update the index
+                                index.putIfEqual(path, dataLocation, newLocation);
+                            }
                         } catch (final IOException z) {
                             logger.error(
                                     EXCEPTION.getMarker(),
@@ -467,17 +472,13 @@ public class DataFileCompactor {
             return false;
         }
 
-        final int filesCount = filesToCompact.size();
-        logger.info(MERKLE_DB.getMarker(), "[{}] Starting compaction", storeName);
-
-        final int targetCompactionLevel = getTargetCompactionLevel(filesToCompact, filesCount);
-
         final long start = System.currentTimeMillis();
-
+        final int filesCount = filesToCompact.size();
+        final int targetCompactionLevel = getTargetCompactionLevel(filesToCompact, filesCount);
         final long filesToCompactSize = getSizeOfFiles(filesToCompact);
-        logger.debug(
+        logger.info(
                 MERKLE_DB.getMarker(),
-                "[{}] Starting merging {} files / {}",
+                "[{}] Starting compaction {} files / {}",
                 storeName,
                 filesCount,
                 formatSizeBytes(filesToCompactSize));

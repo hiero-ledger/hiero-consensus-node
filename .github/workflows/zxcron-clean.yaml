@@ -11,7 +11,7 @@ on:
 
 jobs:
   performance-tests-start:
-    runs-on: hl-cn-citr-lin-sm
+    runs-on: hl-cn-default-lin-sm
 
     steps:
       - name: Harden the runner (Audit all outbound calls)

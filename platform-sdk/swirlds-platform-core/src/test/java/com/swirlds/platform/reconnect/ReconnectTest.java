@@ -10,16 +10,12 @@ import static org.mockito.Mockito.verify;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.base.time.Time;
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.WeightGenerators;
 import com.swirlds.common.test.fixtures.merkle.util.PairedStreams;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.platform.metrics.ReconnectMetrics;
-import com.swirlds.platform.network.Connection;
-import com.swirlds.platform.network.SocketConnection;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
@@ -37,6 +33,8 @@ import java.util.stream.IntStream;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
+import org.hiero.consensus.gossip.impl.network.Connection;
+import org.hiero.consensus.gossip.impl.network.SocketConnection;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.AfterAll;
@@ -60,9 +58,6 @@ final class ReconnectTest {
     // This test uses a threading pattern that is incompatible with gzip compression.
     private final Configuration configuration =
             new TestConfigBuilder().withValue("socket.gzipCompression", false).getOrCreateConfig();
-
-    private final PlatformContext platformContext =
-            TestPlatformContextBuilder.create().build();
 
     @BeforeAll
     static void setUp() throws ConstructableRegistryException {
@@ -127,7 +122,7 @@ final class ReconnectTest {
             final ReconnectStateLearner receiver = buildReceiver(
                     stateCopy,
                     new DummyConnection(
-                            platformContext, pairedStreams.getLearnerInput(), pairedStreams.getLearnerOutput()),
+                            configuration, pairedStreams.getLearnerInput(), pairedStreams.getLearnerOutput()),
                     reconnectMetrics,
                     stateLifecycleManager);
 
@@ -136,7 +131,7 @@ final class ReconnectTest {
                     signedState.reserve("test");
                     final ReconnectStateTeacher sender = buildSender(
                             new DummyConnection(
-                                    platformContext, pairedStreams.getTeacherInput(), pairedStreams.getTeacherOutput()),
+                                    configuration, pairedStreams.getTeacherInput(), pairedStreams.getTeacherOutput()),
                             signedState,
                             reconnectMetrics);
                     sender.execute();
@@ -160,14 +155,11 @@ final class ReconnectTest {
             final SocketConnection connection, final SignedState signedState, final ReconnectMetrics reconnectMetrics)
             throws IOException {
 
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().build();
-
         final NodeId selfId = NodeId.of(0);
         final NodeId otherId = NodeId.of(3);
         final long lastRoundReceived = 100;
         return new ReconnectStateTeacher(
-                platformContext,
+                configuration,
                 Time.getCurrent(),
                 getStaticThreadManager(),
                 connection,
@@ -186,7 +178,8 @@ final class ReconnectTest {
             final StateLifecycleManager stateLifecycleManager) {
 
         return new ReconnectStateLearner(
-                TestPlatformContextBuilder.create().build(),
+                configuration,
+                new NoOpMetrics(),
                 getStaticThreadManager(),
                 connection,
                 state,

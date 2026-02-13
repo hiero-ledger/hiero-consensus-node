@@ -28,6 +28,7 @@ import com.hedera.hapi.platform.event.EventDescriptor;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.blocks.BlockStreamManager;
+import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
 import com.hedera.node.app.blocks.impl.ImmediateStateChangeListener;
 import com.hedera.node.app.blocks.impl.streaming.BlockBufferService;
 import com.hedera.node.app.fees.ExchangeRateManager;
@@ -128,6 +129,9 @@ class HandleWorkflowTest {
 
     @Mock
     private ImmediateStateChangeListener immediateStateChangeListener;
+
+    @Mock
+    private BoundaryStateChangeListener boundaryStateChangeListener;
 
     @Mock
     private OpWorkflowMetrics opWorkflowMetrics;
@@ -505,6 +509,7 @@ class HandleWorkflowTest {
                 stakePeriodManager,
                 migrationStateChanges,
                 parentTxnFactory,
+                boundaryStateChangeListener,
                 immediateStateChangeListener,
                 scheduleService,
                 hintsService,

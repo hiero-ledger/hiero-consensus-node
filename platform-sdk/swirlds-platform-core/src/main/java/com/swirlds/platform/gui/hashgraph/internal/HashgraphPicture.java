@@ -10,7 +10,6 @@ import com.hedera.hapi.platform.event.GossipEvent;
 import com.swirlds.platform.gui.hashgraph.HashgraphGuiConstants;
 import com.swirlds.platform.gui.hashgraph.HashgraphGuiSource;
 import com.swirlds.platform.gui.hashgraph.HashgraphPictureOptions;
-import com.swirlds.platform.internal.EventImpl;
 import java.awt.AWTException;
 import java.awt.BasicStroke;
 import java.awt.Color;
@@ -35,6 +34,7 @@ import java.util.stream.Collectors;
 import javax.swing.JPanel;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.hashgraph.impl.EventImpl;
 import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterUtils;
@@ -236,13 +236,6 @@ public class HashgraphPicture extends JPanel {
         final FontMetrics fm = g.getFontMetrics();
         final int fa = fm.getMaxAscent();
         final int fd = fm.getMaxDescent();
-        final EventImpl e2 = event.getOtherParent() != null
-                        && RosterUtils.getIndex(
-                                        hashgraphSource.getRoster(),
-                                        event.getOtherParent().getCreatorId().id())
-                                != -1
-                ? event.getOtherParent()
-                : null;
         final Color color;
         if (selector.isSelected(event)) {
             color = Color.MAGENTA;

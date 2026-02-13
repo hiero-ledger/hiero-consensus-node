@@ -17,6 +17,7 @@ import com.swirlds.platform.test.fixtures.event.source.EventSourceFactory;
 public class EventEmitterBuilder {
     private long randomSeed = 0;
     private int numNodes = 4;
+    private int maxOtherParents = 1;
     private WeightGenerator weightGenerator = WeightGenerators.GAUSSIAN;
     private PlatformContext platformContext = null;
 
@@ -45,6 +46,17 @@ public class EventEmitterBuilder {
      */
     public EventEmitterBuilder setNumNodes(final int numNodes) {
         this.numNodes = numNodes;
+        return this;
+    }
+
+    /**
+     * Sets the maximum number of other-parents for the event emitter.
+     *
+     * @param maxOtherParents the maximum number of other-parents
+     * @return the builder instance
+     */
+    public EventEmitterBuilder setMaxOtherParents(final int maxOtherParents) {
+        this.maxOtherParents = maxOtherParents;
         return this;
     }
 
@@ -88,8 +100,8 @@ public class EventEmitterBuilder {
 
         final EventSourceFactory eventSourceFactory = new EventSourceFactory(numNodes);
 
-        final StandardGraphGenerator generator =
-                new StandardGraphGenerator(platformContext, randomSeed, eventSourceFactory.generateSources(), roster);
+        final StandardGraphGenerator generator = new StandardGraphGenerator(
+                platformContext, randomSeed, maxOtherParents, eventSourceFactory.generateSources(), roster);
         return new StandardEventEmitter(generator);
     }
 }

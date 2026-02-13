@@ -267,7 +267,7 @@ public final class VirtualHasher {
             }
             if (hashChunk == null) {
                 // Important: chunk preloader MUST return the same VirtualHashChunk object if
-                // called multiple times for a single chunk path
+                // called multiple times for a single chunk (any path in the chunk)
                 hashChunk = hashChunkPreloader.apply(chunkPath);
                 if (hashChunk == null) {
                     throw new RuntimeException("Failed to load hash chunk for path = " + chunkPath);
@@ -474,8 +474,8 @@ public final class VirtualHasher {
                 ? thread.getPool()
                 : getHashingPool(virtualMapConfig);
 
-        final ChunkHashTask rootTask = pool.invoke(ForkJoinTask.adapt(() ->
-                hashImpl(hashChunkPreloader, sortedDirtyLeaves, firstLeafPath, lastLeafPath, pool)));
+        final ChunkHashTask rootTask = pool.invoke(ForkJoinTask.adapt(
+                () -> hashImpl(hashChunkPreloader, sortedDirtyLeaves, firstLeafPath, lastLeafPath, pool)));
         if (rootTask != null) {
             try {
                 rootTask.join();
@@ -576,31 +576,31 @@ public final class VirtualHasher {
             VirtualLeafBytes<?> leaf = sortedDirtyLeaves.next();
             long curPath = leaf.path();
             // For the created leaf task, set the leaf as an input. Together with the parent task
-            // below it completes all task dependencies, so the task is executed
+            // below, it completes all task dependencies, so the task is executed
             final LeafHashTask leafTask = new LeafHashTask(pool, curPath, leaf);
 
             // The next step is to iterate over parent tasks, until an already created task
-            // is met (e.g. the root task). For every parent task, check all already created
-            // tasks at the same (parent) rank using "stack". This array contains the left
-            // most path to the right of the last task processed at the rank. All tasks at
-            // the rank between "stack" and the current parent are guaranteed to be clear,
-            // since dirty leaves are sorted in path order. All such tasks are set "null"
-            // input dependency, which is propagated to their parent (output) tasks.
+            // is met (e.g. the root task). For every parent task, check all nodes at the same
+            // (parent) rank using "stack". This array contains the left  most path to the right
+            // of the last task processed at the rank. All nodes at the rank between "stack"
+            // and the current parent are guaranteed to be clear, since dirty leaves are sorted
+            // in path order. For all these clear nodes, their parent tasks, if exist, are
+            // notified to have null input hashes at the corresponding paths. This reduces the
+            // number of dependencies in the parent tasks
             HashProducingTask curTask = leafTask;
             while (true) {
                 final int curRank = Path.getRank(curPath);
-                assert curRank > 0; // there is parent task
+                assert curRank > 0; // there must be a parent task
 
                 final long lastPathAtRank = stack[curRank];
-                // Stack path may be null, if this is the very first dirty leaf, or
-                // the first dirty leaf at the last leaf rank
+                // Stack path may be null (-1), if this is the very first dirty leaf, or
+                // the current leaf is the first dirty leaf at the last leaf rank
                 if (lastPathAtRank != INVALID_PATH) {
                     // Identify the parent task for the last path at stack
-                    final int lastTaskAtRankParentChunkHeight =
-                            getChunkHeightForInputRank(lastPathAtRank, curRank, firstLeafRank, lastLeafRank,
-                                    defaultChunkHeight);
-                    final long lastTaskAtRankParentPath = Path.getGrandParentPath(lastPathAtRank,
-                            lastTaskAtRankParentChunkHeight);
+                    final int lastTaskAtRankParentChunkHeight = getChunkHeightForInputRank(
+                            lastPathAtRank, curRank, firstLeafRank, lastLeafRank, defaultChunkHeight);
+                    final long lastTaskAtRankParentPath =
+                            Path.getGrandParentPath(lastPathAtRank, lastTaskAtRankParentChunkHeight);
                     final ChunkHashTask lastTaskAtRankParentTask = chunkTasks.get(lastTaskAtRankParentPath);
                     // The parent tank must exist, since it was created at the previous iteration
                     assert lastTaskAtRankParentTask != null;

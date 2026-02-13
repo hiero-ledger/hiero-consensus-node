@@ -6,7 +6,6 @@ import static java.util.Objects.requireNonNull;
 import com.swirlds.state.spi.WritableKVState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.util.Iterator;
 import java.util.Set;
 
 /**
@@ -90,15 +89,6 @@ public class WritableKVStateStack<K, V> implements WritableKVState<K, V> {
     @Override
     public void remove(@NonNull final K key) {
         getCurrent().remove(key);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    @NonNull
-    public Iterator<K> keys() {
-        return getCurrent().keys();
     }
 
     /**

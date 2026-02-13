@@ -50,6 +50,7 @@ import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.records.BlockRecordInfo;
 import com.hedera.node.app.spi.signatures.SignatureVerification;
 import com.hedera.node.app.spi.signatures.VerificationAssistant;
+import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.hedera.node.app.spi.throttle.ThrottleAdviser;
 import com.hedera.node.app.spi.workflows.DispatchOptions;
 import com.hedera.node.app.spi.workflows.HandleContext;
@@ -58,7 +59,7 @@ import com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
-import com.hedera.node.app.store.ReadableStoreFactory;
+import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.app.store.ServiceApiFactory;
 import com.hedera.node.app.store.StoreFactoryImpl;
 import com.hedera.node.app.store.WritableStoreFactory;
@@ -262,7 +263,7 @@ public class ChildDispatchFactory {
             @NonNull final ServiceScopeLookup serviceScopeLookup,
             @NonNull final ExchangeRateManager exchangeRateManager,
             @NonNull final TransactionDispatcher dispatcher) {
-        final var readableStoreFactory = new ReadableStoreFactory(childStack);
+        final var readableStoreFactory = new ReadableStoreFactoryImpl(childStack);
         final var writableEntityIdStore =
                 new WritableEntityIdStoreImpl(childStack.getWritableStates(EntityIdService.NAME));
         final var entityNumGenerator = new EntityNumGeneratorImpl(writableEntityIdStore);

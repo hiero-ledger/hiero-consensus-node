@@ -26,13 +26,10 @@ import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.exceptions.IllegalChildIndexException;
 import com.swirlds.common.merkle.impl.PartialBinaryMerkleInternal;
-import com.swirlds.common.merkle.route.MerkleRoute;
-import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.merkle.synchronization.stats.ReconnectMapStats;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
 import com.swirlds.common.merkle.synchronization.views.LearnerTreeView;
 import com.swirlds.common.merkle.synchronization.views.TeacherTreeView;
-import com.swirlds.common.merkle.utility.DebugIterationEndpoint;
 import com.swirlds.common.utility.Labeled;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
@@ -46,7 +43,6 @@ import com.swirlds.virtualmap.internal.RecordAccessor;
 import com.swirlds.virtualmap.internal.cache.VirtualNodeCache;
 import com.swirlds.virtualmap.internal.hash.VirtualHashListener;
 import com.swirlds.virtualmap.internal.hash.VirtualHasher;
-import com.swirlds.virtualmap.internal.merkle.VirtualInternalNode;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapStatistics;
 import com.swirlds.virtualmap.internal.pipeline.VirtualPipeline;
@@ -83,6 +79,7 @@ import org.hiero.base.constructable.ConstructableIgnored;
 import org.hiero.base.constructable.RuntimeConstructable;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
+import org.hiero.consensus.reconnect.config.ReconnectConfig;
 
 /**
  * A {@link MerkleInternal} node that virtualizes all of its children, such that the child nodes
@@ -146,7 +143,6 @@ import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
  * internal nodes. Indeed, you <strong>MUST NOT</strong> modify the tree structure directly, only
  * through the map-like methods.
  */
-@DebugIterationEndpoint
 @ConstructableIgnored
 public final class VirtualMap extends PartialBinaryMerkleInternal implements Labeled, MerkleInternal, VirtualRoot {
 
@@ -211,6 +207,22 @@ public final class VirtualMap extends PartialBinaryMerkleInternal implements Lab
      * going back to some first progenitor) share the exact same dataSource instance.
      */
     private VirtualDataSource dataSource;
+
+    /**
+     * The target path for an asynchronous snapshot operation. This field is {@code null} unless
+     * an async snapshot has been requested via {@link #createSnapshotAsync(Path)}.
+     * When set along with the {@link #snapshotFuture}, the snapshot will be written to this path during the flush operation.
+     * Set/read from multiple threads.
+     */
+    private final AtomicReference<Path> snapshotTargetPath = new AtomicReference<>();
+
+    /**
+     * A future that completes when an asynchronous snapshot operation finishes. This field is
+     * {@code null} unless an async snapshot has been requested via {@link #createSnapshotAsync(Path)}.
+     * The future is completed in {@link #flush()} after the snapshot is successfully written.
+     * Set/read from multiple threads.
+     */
+    private final AtomicReference<CompletableFuture<Void>> snapshotFuture = new AtomicReference<>();
 
     /**
      * A cache for virtual tree nodes. This cache is very specific for this use case. The elements
@@ -496,32 +508,7 @@ public final class VirtualMap extends PartialBinaryMerkleInternal implements Lab
      */
     @Override
     public <T extends MerkleNode> T getChild(final int index) {
-        if (isDestroyed()
-                || dataSource == null
-                || originalMap != null
-                || metadata == null
-                || metadata.getFirstLeafPath() == INVALID_PATH
-                || index > 1) {
-            return null;
-        }
-
-        final long path = index + 1L;
-        final T node;
-        if (path < metadata.getFirstLeafPath()) {
-            //noinspection unchecked
-            node = (T) VirtualInternalNode.getInternalNode(this, path);
-        } else if (path <= metadata.getLastLeafPath()) {
-            //noinspection unchecked
-            node = (T) VirtualInternalNode.getLeafNode(this, path);
-        } else {
-            // The index is out of bounds. Maybe we have a root node with one leaf and somebody has asked
-            // for the second leaf, in which case it would be null.
-            return null;
-        }
-
-        final MerkleRoute route = this.getRoute().extendRoute(index);
-        node.setRoute(route);
-        return node;
+        throw new UnsupportedOperationException("You cannot get the child of a VirtualMap directly with this API");
     }
 
     /**
@@ -545,8 +532,7 @@ public final class VirtualMap extends PartialBinaryMerkleInternal implements Lab
      */
     @Override
     public int getNumberOfChildren() {
-        // FUTURE WORK: This should return 0 once the VirtualMap is migrated
-        return 2;
+        return 0;
     }
 
     /**
@@ -940,6 +926,20 @@ public final class VirtualMap extends PartialBinaryMerkleInternal implements Lab
         cache.release();
         final long end = System.currentTimeMillis();
         flushed.set(true);
+
+        // If an async snapshot was requested via createSnapshotAsync(), write the snapshot
+        // to the target path and signal completion. This must happen after the cache flush
+        // completes, so the data source contains all relevant data.
+        final Path targetPath = snapshotTargetPath.get();
+        final CompletableFuture<Void> future = snapshotFuture.get();
+        if (targetPath != null && future != null) {
+            dataSourceBuilder.snapshot(targetPath, dataSource);
+            future.complete(null);
+
+            snapshotTargetPath.set(null);
+            snapshotFuture.set(null);
+        }
+
         flushLatch.countDown();
         statistics.recordFlush(end - start);
         logger.debug(
@@ -1281,10 +1281,8 @@ public final class VirtualMap extends PartialBinaryMerkleInternal implements Lab
         assert originalMap != null;
         // During reconnect we want to look up state from the original records
         final VirtualMapMetadata originalState = originalMap.getMetadata();
-        reconnectFlusher = new ReconnectHashLeafFlusher(
-                dataSource,
-                virtualMapConfig.reconnectFlushInterval(),
-                statistics);
+        reconnectFlusher =
+                new ReconnectHashLeafFlusher(dataSource, virtualMapConfig.reconnectFlushInterval(), statistics);
         nodeRemover = new ReconnectNodeRemover(
                 originalMap.getRecords(),
                 originalState.getFirstLeafPath(),
@@ -1570,6 +1568,25 @@ public final class VirtualMap extends PartialBinaryMerkleInternal implements Lab
                 dataSourceCopy.close();
             }
         }
+    }
+
+    /**
+     * Initiates an asynchronous snapshot creation for this virtual map. Unlike {@link #createSnapshot(Path)},
+     * this method does not block and instead returns a future that completes when the snapshot is written.
+     *
+     * <p>The snapshot will be created during the next flush operation. This method enables flushing
+     * via {@link #enableFlush()} to ensure the snapshot is written.
+     *
+     * @param outputDirectory the target directory where the snapshot will be written
+     * @return a {@link CompletableFuture} that completes when the snapshot has been successfully written
+     *         to the specified directory
+     */
+    public CompletableFuture<Void> createSnapshotAsync(final @NonNull Path outputDirectory) {
+        snapshotTargetPath.set(outputDirectory);
+        final CompletableFuture<Void> future = new CompletableFuture<>();
+        snapshotFuture.set(future);
+        enableFlush();
+        return future;
     }
 
     /**

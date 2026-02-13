@@ -2,7 +2,6 @@
 package com.swirlds.platform.gui.internal;
 
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.Consensus;
 import com.swirlds.platform.gui.components.PrePaintableJPanel;
 import com.swirlds.platform.gui.hashgraph.HashgraphGui;
 import com.swirlds.platform.gui.hashgraph.HashgraphGuiSource;
@@ -15,6 +14,7 @@ import java.awt.Rectangle;
 import javax.swing.JTabbedPane;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
+import org.hiero.consensus.hashgraph.impl.consensus.Consensus;
 import org.hiero.consensus.model.node.NodeId;
 
 /**

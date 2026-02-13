@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.sync;
 
-import com.swirlds.platform.internal.EventImpl;
 import org.hiero.base.crypto.Hash;
+import org.hiero.consensus.hashgraph.impl.EventImpl;
 
 /**
  * Utility types to define equality of events, sets of shadow events and hashes.

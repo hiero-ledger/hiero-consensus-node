@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.network.communication;
 
-import com.swirlds.platform.network.protocol.PeerProtocol;
 import com.swirlds.platform.test.fixtures.communication.TestPeerProtocol;
 import java.util.List;
 import java.util.stream.Stream;
+import org.hiero.consensus.gossip.impl.network.communication.NegotiationProtocols;
+import org.hiero.consensus.gossip.impl.network.protocol.PeerProtocol;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

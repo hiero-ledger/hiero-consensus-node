@@ -4,7 +4,6 @@ package com.hedera.services.bdd.suites.contract.fees;
 import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SIMPLE_FEES;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
-import static com.hedera.services.bdd.spec.transactions.HapiTxnOp.serializedSignedTxFrom;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.accountAllowanceHook;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.accountEvmHookStore;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
@@ -28,6 +27,8 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SOURCE_KEY;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedFeeFromBytesFor;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SIGNATURE_FEE_AFTER_MULTIPLIER;
 
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -39,7 +40,6 @@ import com.hedera.services.bdd.spec.dsl.annotations.Account;
 import com.hedera.services.bdd.spec.dsl.annotations.Contract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecAccount;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
-import com.hederahashgraph.api.proto.java.Transaction;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -109,8 +109,8 @@ public class SimpleSmartContractServiceFeesTest {
                         .signedBy(civilian.name(), "EmptyOne")
                         .via("deleteTxn"),
                 validateChargedUsd("createTxn", CONTRACT_CREATE_BASE_FEE),
-                validateChargedUsd("updateTxn", CONTRACT_UPDATE_BASE_FEE + SINGLE_SIGNATURE_COST),
-                validateChargedUsd("deleteTxn", CONTRACT_DELETE_BASE_FEE + SINGLE_SIGNATURE_COST));
+                validateChargedUsd("updateTxn", CONTRACT_UPDATE_BASE_FEE + SIGNATURE_FEE_AFTER_MULTIPLIER),
+                validateChargedUsd("deleteTxn", CONTRACT_DELETE_BASE_FEE + SIGNATURE_FEE_AFTER_MULTIPLIER));
     }
 
     @HapiTest
@@ -152,8 +152,6 @@ public class SimpleSmartContractServiceFeesTest {
     final Stream<DynamicTest> jumboEthTransactionBaseUSDFee() {
         final var payloadSize = 10 * 1024;
         final var jumboPayload = new byte[payloadSize];
-        // (ethData - includedBytes) * byteFee
-        final var expectedFeeFromBytes = (10480 - 6144) * SINGLE_BYTE_FEE;
         final var jumboGasUsed = 0.0054;
         return hapiTest(
                 overriding("contracts.evm.ethTransaction.zeroHapiFees.enabled", "false"),
@@ -170,15 +168,10 @@ public class SimpleSmartContractServiceFeesTest {
                         .via("ethCall"),
                 // Estimated base fee for EthereumCall is 0.0001 USD and is paid by the relayer account
                 withOpContext((spec, log) -> {
-                    final var txnBytes = spec.registry().getBytes("ethCall");
-                    final var transaction = Transaction.parseFrom(txnBytes);
-                    final var signedTxnBytes = serializedSignedTxFrom(transaction);
-                    final var nodeBytesOverage = Math.max(0, signedTxnBytes.length - NODE_INCLUDED_BYTES);
-                    final var nodeBytesFeeTotal = nodeBytesOverage * SINGLE_BYTE_FEE * (1 + NETWORK_MULTIPLIER);
+                    final var expectedFeeFromBytes = expectedFeeFromBytesFor(spec, log, "ethCall");
 
-                    final var totalExpected =
-                            jumboGasUsed + ETHEREUM_CALL_BASE_FEE + expectedFeeFromBytes + nodeBytesFeeTotal;
-                    final var withoutGasExpected = ETHEREUM_CALL_BASE_FEE + expectedFeeFromBytes + nodeBytesFeeTotal;
+                    final var totalExpected = jumboGasUsed + ETHEREUM_CALL_BASE_FEE + expectedFeeFromBytes;
+                    final var withoutGasExpected = ETHEREUM_CALL_BASE_FEE + expectedFeeFromBytes;
 
                     allRunFor(
                             spec,

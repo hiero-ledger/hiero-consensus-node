@@ -7,6 +7,7 @@ import com.hedera.node.app.config.ConfigProviderImpl;
 import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
 import com.hedera.node.app.spi.migrate.StartupNetworks;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -31,6 +32,7 @@ public interface ServiceMigrator {
      * @param startupNetworks The startup networks to use for the migrations
      * @param storeMetricsService The store metrics service to use for the migrations
      * @param configProvider The config provider to use for the migrations
+     * @param trigger The init trigger
      * @return The list of builders for state changes that occurred during the migrations
      */
     List<StateChanges.Builder> doMigrations(
@@ -42,5 +44,6 @@ public interface ServiceMigrator {
             @NonNull Configuration platformConfig,
             @NonNull StartupNetworks startupNetworks,
             @NonNull StoreMetricsServiceImpl storeMetricsService,
-            @NonNull ConfigProviderImpl configProvider);
+            @NonNull ConfigProviderImpl configProvider,
+            @NonNull InitTrigger trigger);
 }

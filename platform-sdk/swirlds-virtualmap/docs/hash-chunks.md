@@ -5,7 +5,7 @@
 Virtual maps are balanced binary trees, where all data is stored in leaves. Every node has two
 child nodes, except a tree that stores only one element - in this case the tree contains a
 root node with a single leaf, left child node. Every node in a virtual map can be uniquely
-identified using a path (long). Root node has path 0. For every node at path `N`, its left
+identified using a path (long). The root node has path 0. For every node at path `N`, its left
 child path is `2N+1`, and the right child path is `2N+2`.
 
 ## Virtual hashes
@@ -15,7 +15,7 @@ nodes, both leaves and internal. For leaves, leaf data is serialized to protobuf
 hashed as a byte array. For internal nodes, hashes are produced from their left and right
 child node hashes.
 
-Historically hashes are stored on disk by path. MerkleDb has a data collection for hashes,
+Historically, hashes are stored on disk by path. MerkleDb has a data collection for hashes,
 its index is mapping paths to hash record locations on disk (file + offset). Hash records
 contain a path and a hash. This approach has pros
 
@@ -50,7 +50,7 @@ the whole virtual tree.
 Chunks may also be identified by IDs. The root chunk at path 0 has ID 0. Chunk with ID 1 may be
 located at path 1 (chunk height 1), or path 3 (chunk height 2), or path 7 (chunk height 3), and
 so on. Chunk with ID 2 is a sibling of chunk with ID 1. If chunk height is 1, chunk with ID 3
-is at path 3. If chunk height is 2, chunk with ID 2 is at path 5. When chunk height is fixed,
+is at path 3. If chunk height is 2, chunk with ID 2 is at path 4. When chunk height is fixed,
 there is 1-1 mapping between chunk IDs and chunk paths.
 
 Chunk paths are handy during hashing. Chunk IDs are used in the node cache and in the data
@@ -180,7 +180,7 @@ There is something to be very careful about here. Given a chunk, there is no way
 a hash at a path is for that very path, or for some of its parents. This really depends on the
 current leaf range. If a hash was set for path `P`, which is not at the lowest chunk rank, it must
 never be queried for path `P*2+1`, which is a left child of `P`. The hash will be the same, but
-the end result will be wrong, since this is not the has for `P*2+1`.
+the end result will be wrong, since this is not the hash for `P*2+1`.
 
 What if a partial chunk was stored for one leaf range, and later the range increased, so the
 chunk now contains more hashes in the range? It may even become a complete chunk. In the example

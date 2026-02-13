@@ -10,17 +10,17 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.swirlds.base.test.fixtures.time.FakeTime;
-import com.swirlds.common.context.PlatformContext;
+import com.swirlds.base.time.Time;
 import com.swirlds.common.test.fixtures.Randotron;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import com.swirlds.platform.gossip.permits.SyncPermitProvider;
-import com.swirlds.platform.gossip.sync.config.SyncConfig_;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.hiero.consensus.gossip.config.SyncConfig_;
+import org.hiero.consensus.gossip.impl.gossip.permits.SyncPermitProvider;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.junit.jupiter.api.Test;
 
 class SyncPermitProviderTests {
@@ -46,11 +46,11 @@ class SyncPermitProviderTests {
     void capacityTest() {
         final Randotron randotron = Randotron.create();
 
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().build();
+        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
 
         final int permitCount = randotron.nextInt(10, 20);
-        final SyncPermitProvider permitProvider = new SyncPermitProvider(platformContext, permitCount);
+        final SyncPermitProvider permitProvider =
+                new SyncPermitProvider(configuration, new NoOpMetrics(), Time.getCurrent(), permitCount);
 
         for (int i = 0; i < permitCount; i++) {
             assertEquals(permitCount - i, countAvailablePermits(permitProvider));
@@ -119,12 +119,9 @@ class SyncPermitProviderTests {
                 .withValue(SyncConfig_.MINIMUM_HEALTHY_UNREVOKED_PERMIT_COUNT, minimumHealthyPermitCount)
                 .withValue(SyncConfig_.KEEP_SENDING_EVENTS_WHEN_UNHEALTHY, false)
                 .getOrCreateConfig();
-        final PlatformContext platformContext = TestPlatformContextBuilder.create()
-                .withConfiguration(configuration)
-                .withTime(time)
-                .build();
 
-        final SyncPermitProvider permitProvider = new SyncPermitProvider(platformContext, permitCount);
+        final SyncPermitProvider permitProvider =
+                new SyncPermitProvider(configuration, new NoOpMetrics(), time, permitCount);
 
         // Phase 1: System is healthy
         final Instant phase1End = startingTime.plus(Duration.ofSeconds(100));
@@ -253,9 +250,10 @@ class SyncPermitProviderTests {
     void waitForAllPermitsToBeReleasedTest() throws InterruptedException {
         final Randotron randotron = Randotron.create();
 
+        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
         final int permitCount = randotron.nextInt(10, 20);
         final SyncPermitProvider permitProvider =
-                new SyncPermitProvider(TestPlatformContextBuilder.create().build(), permitCount);
+                new SyncPermitProvider(configuration, new NoOpMetrics(), Time.getCurrent(), permitCount);
 
         for (int i = 0; i < permitCount; i++) {
             permitProvider.acquire();
@@ -296,12 +294,9 @@ class SyncPermitProviderTests {
                 .withValue(SyncConfig_.PERMITS_RETURNED_PER_SECOND, permitsReturnedPerSecond)
                 .withValue(SyncConfig_.MINIMUM_HEALTHY_UNREVOKED_PERMIT_COUNT, minimumHealthyPermitCount)
                 .getOrCreateConfig();
-        final PlatformContext platformContext = TestPlatformContextBuilder.create()
-                .withConfiguration(configuration)
-                .withTime(time)
-                .build();
 
-        final SyncPermitProvider permitProvider = new SyncPermitProvider(platformContext, permitCount);
+        final SyncPermitProvider permitProvider =
+                new SyncPermitProvider(configuration, new NoOpMetrics(), time, permitCount);
 
         assertEquals(permitCount, countAvailablePermits(permitProvider));
         permitProvider.revokeAll();

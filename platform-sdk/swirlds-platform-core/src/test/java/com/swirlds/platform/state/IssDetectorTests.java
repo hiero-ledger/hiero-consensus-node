@@ -4,6 +4,7 @@ package com.swirlds.platform.state;
 import static com.swirlds.platform.state.RoundHashValidatorTests.generateCatastrophicNodeHashes;
 import static com.swirlds.platform.state.RoundHashValidatorTests.generateRegularNodeHashes;
 import static com.swirlds.platform.state.iss.IssDetector.DO_NOT_IGNORE_ROUNDS;
+import static com.swirlds.platform.test.fixtures.PlatformTestUtils.createDefaultPlatformContext;
 import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomHash;
 import static org.hiero.base.utility.Threshold.MAJORITY;
 import static org.hiero.base.utility.Threshold.SUPER_MAJORITY;
@@ -28,7 +29,6 @@ import com.swirlds.platform.state.iss.IssDetector;
 import com.swirlds.platform.state.iss.internal.HashValidityStatus;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
-import com.swirlds.platform.test.fixtures.PlatformTest;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import com.swirlds.state.MerkleNodeState;
@@ -42,7 +42,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import org.hiero.base.crypto.Hash;
-import org.hiero.consensus.hashgraph.ConsensusConfig;
+import org.hiero.consensus.hashgraph.config.ConsensusConfig;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.notification.IssNotification;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
@@ -52,7 +52,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 @DisplayName("IssDetector Tests")
-class IssDetectorTests extends PlatformTest {
+class IssDetectorTests {
     private static final WeightGenerator WEIGHT_GENERATOR = GaussianWeightGenerator.withAverageNodeWeight(100, 50);
     private static final long GENESIS_LAST_FREEZE_ROUND = 0L;
 

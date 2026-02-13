@@ -2,9 +2,14 @@
 package com.hedera.node.app.hints.impl;
 
 import static com.hedera.hapi.node.state.hints.CRSStage.COMPLETED;
+import static com.hedera.hapi.node.state.hints.CRSStage.GATHERING_CONTRIBUTIONS;
+import static com.hedera.node.app.hints.schemas.V059HintsSchema.ACTIVE_HINTS_CONSTRUCTION_STATE_ID;
+import static com.hedera.node.app.hints.schemas.V059HintsSchema.NEXT_HINTS_CONSTRUCTION_STATE_ID;
+import static com.hedera.node.app.hints.schemas.V060HintsSchema.CRS_STATE_STATE_ID;
 import static java.util.Objects.requireNonNull;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.hedera.hapi.node.state.hints.CRSState;
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.node.app.hints.HintsLibrary;
@@ -17,8 +22,10 @@ import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.lifecycle.SchemaRegistry;
+import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
@@ -191,7 +198,33 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
     public void registerSchemas(@NonNull final SchemaRegistry registry) {
         requireNonNull(registry);
         registry.register(new V059HintsSchema());
-        registry.register(new V060HintsSchema(component.signingContext(), library));
+        registry.register(new V060HintsSchema(component.signingContext()));
+    }
+
+    @Override
+    public boolean doGenesisSetup(
+            @NonNull final WritableStates writableStates, @NonNull final Configuration configuration) {
+        requireNonNull(writableStates);
+        requireNonNull(configuration);
+        writableStates
+                .<HintsConstruction>getSingleton(ACTIVE_HINTS_CONSTRUCTION_STATE_ID)
+                .put(HintsConstruction.DEFAULT);
+        writableStates
+                .<HintsConstruction>getSingleton(NEXT_HINTS_CONSTRUCTION_STATE_ID)
+                .put(HintsConstruction.DEFAULT);
+        final var tssConfig = configuration.getConfigData(TssConfig.class);
+        final var crsState = writableStates.<CRSState>getSingleton(CRS_STATE_STATE_ID);
+        if (tssConfig.hintsEnabled()) {
+            final var initialCrs = library.newCrs(tssConfig.initialCrsParties());
+            crsState.put(CRSState.newBuilder()
+                    .stage(GATHERING_CONTRIBUTIONS)
+                    .nextContributingNodeId(0L)
+                    .crs(initialCrs)
+                    .build());
+        } else {
+            crsState.put(CRSState.DEFAULT);
+        }
+        return true;
     }
 
     @Override

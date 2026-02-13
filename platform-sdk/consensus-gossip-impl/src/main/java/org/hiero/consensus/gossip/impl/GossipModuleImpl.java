@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.gossip.impl;
 
-import com.google.auto.service.AutoService;
 import com.swirlds.component.framework.wires.input.InputWire;
 import com.swirlds.component.framework.wires.input.NoInput;
 import com.swirlds.component.framework.wires.output.OutputWire;
@@ -16,7 +15,6 @@ import org.hiero.consensus.model.status.PlatformStatus;
 /**
  * Default implementation of {@link GossipModule}.
  */
-@AutoService(GossipModule.class)
 public final class GossipModuleImpl implements GossipModule {
 
     /**

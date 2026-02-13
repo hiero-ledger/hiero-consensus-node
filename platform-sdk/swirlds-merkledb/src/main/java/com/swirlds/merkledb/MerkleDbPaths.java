@@ -37,11 +37,11 @@ public class MerkleDbPaths {
         this.storageDir = storageDir;
         metadataFile = storageDir.resolve("table_metadata.pbj");
         pathToDiskLocationInternalNodesFile = storageDir.resolve("pathToDiskLocationInternalNodes.ll");
-        idToDiskLocationHashChunksFile = storageDir.resolve("pathToDiskLocationHashChunks.ll");
+        idToDiskLocationHashChunksFile = storageDir.resolve("idToDiskLocationHashChunks.ll");
         pathToDiskLocationLeafNodesFile = storageDir.resolve("pathToDiskLocationLeafNodes.ll");
         hashStoreRamFile = storageDir.resolve("internalHashStoreRam.hl");
         hashStoreDiskDirectory = storageDir.resolve("internalHashStoreDisk");
-        hashChunkDirectory = storageDir.resolve("pathToHashChunk");
+        hashChunkDirectory = storageDir.resolve("idToHashChunk");
         keyToPathDirectory = storageDir.resolve("objectKeyToPath");
         pathToKeyValueDirectory = storageDir.resolve("pathToHashKeyValue");
     }

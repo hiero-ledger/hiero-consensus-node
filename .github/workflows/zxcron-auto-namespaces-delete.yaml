@@ -66,7 +66,7 @@ on:
 
 jobs:
   delete-selected-namespaces:
-    runs-on: hl-cn-citr-lin-sm
+    runs-on: hl-cn-default-lin-sm
     env:
       Dallas_n1: ${{ github.event_name == 'schedule' && 'true' || github.event.inputs.Dallas_n1 }}
       Dallas_n2: ${{ github.event_name == 'schedule' && 'true' || github.event.inputs.Dallas_n2 }}

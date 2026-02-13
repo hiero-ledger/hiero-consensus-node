@@ -4,12 +4,12 @@ package com.swirlds.platform.network.communication.multithreaded;
 import static org.awaitility.Awaitility.await;
 
 import com.swirlds.base.utility.Pair;
-import com.swirlds.platform.network.Connection;
 import com.swirlds.platform.test.fixtures.communication.TestPeerProtocol;
 import com.swirlds.platform.test.fixtures.communication.multithreaded.ExpiringConnection;
 import com.swirlds.platform.test.fixtures.communication.multithreaded.NegotiatorPair;
 import com.swirlds.platform.test.fixtures.sync.ConnectionFactory;
 import java.util.concurrent.TimeUnit;
+import org.hiero.consensus.gossip.impl.network.Connection;
 import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

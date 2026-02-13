@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.event.emitter;
 
-import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.test.fixtures.event.generator.GraphGenerator;
 import java.util.ArrayList;
 import java.util.List;
+import org.hiero.consensus.model.event.PlatformEvent;
 
 /**
  * Emits events from a graph created by a {@link GraphGenerator}.
@@ -16,7 +16,7 @@ public interface EventEmitter {
      *
      * @return an event
      */
-    EventImpl emitEvent();
+    PlatformEvent emitEvent();
 
     /**
      * Get the next sequence of events.
@@ -24,8 +24,8 @@ public interface EventEmitter {
      * @param numberOfEvents
      * 		The number of events to get.
      */
-    default List<EventImpl> emitEvents(final int numberOfEvents) {
-        final List<EventImpl> events = new ArrayList<>(numberOfEvents);
+    default List<PlatformEvent> emitEvents(final int numberOfEvents) {
+        final List<PlatformEvent> events = new ArrayList<>(numberOfEvents);
         for (int i = 0; i < numberOfEvents; i++) {
             events.add(emitEvent());
         }

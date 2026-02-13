@@ -7,8 +7,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
-import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
-import com.swirlds.common.merkle.synchronization.config.ReconnectConfig_;
 import com.swirlds.common.merkle.utility.SerializableLong;
 import com.swirlds.common.test.fixtures.merkle.dummy.BlockingInputStream;
 import com.swirlds.common.test.fixtures.merkle.dummy.BlockingOutputStream;
@@ -24,6 +22,8 @@ import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
 import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
+import org.hiero.consensus.reconnect.config.ReconnectConfig;
+import org.hiero.consensus.reconnect.config.ReconnectConfig_;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;

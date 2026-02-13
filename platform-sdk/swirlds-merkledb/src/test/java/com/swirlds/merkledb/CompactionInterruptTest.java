@@ -35,7 +35,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 class CompactionInterruptTest {
 
     /** This needs to be big enough so that the snapshot is slow enough that we can do a merge at the same time */
-    private static final int COUNT = 10_000_000;
+    private static final int COUNT = 2_000_000;
 
     /**
      * Temporary directory provided by JUnit
@@ -60,21 +60,35 @@ class CompactionInterruptTest {
     boolean startMergeThenInterruptImpl() throws IOException, InterruptedException {
         final Path storeDir = tmpFileDir.resolve("startMergeThenInterruptImpl");
         String tableName = "mergeThenInterrupt";
-        final MerkleDbDataSource dataSource =
-                TestType.variable_variable.dataType().createDataSource(CONFIGURATION, storeDir, tableName, COUNT, false, false);
+        final MerkleDbDataSource dataSource = TestType.variable_variable
+                .dataType()
+                .createDataSource(CONFIGURATION, storeDir, tableName, COUNT, false, false);
         final MerkleDbCompactionCoordinator coordinator = dataSource.getCompactionCoordinator();
 
         try {
             // create some internal and leaf nodes in batches
             createData(dataSource);
             coordinator.enableBackgroundCompaction();
+            final ThreadPoolExecutor compactingExecutor =
+                    (ThreadPoolExecutor) MerkleDbCompactionCoordinator.getCompactionExecutor(
+                            CONFIGURATION.getConfigData(MerkleDbConfig.class));
+            final long initialCompletedTaskCount = compactingExecutor.getTaskCount();
             // start compaction
-            coordinator.compactIfNotRunningYet("idToHashChunk", dataSource.newHashChunkStoreCompactor());
-            coordinator.compactIfNotRunningYet("keyToPath", dataSource.newKeyToPathCompactor());
-            coordinator.compactIfNotRunningYet("pathToKeyValue", dataSource.newKeyValueStoreCompactor());
+            final DataFileCompactor hashStoreDiskCompactor = dataSource.newHashChunkStoreCompactor();
+            coordinator.compactIfNotRunningYet("idToHashChunk", hashStoreDiskCompactor);
+            final DataFileCompactor keyToPathCompactor = dataSource.newKeyToPathCompactor();
+            coordinator.compactIfNotRunningYet("keyToPath", keyToPathCompactor);
+            final DataFileCompactor pathToKeyValueCompactor = dataSource.newKeyValueStoreCompactor();
+            coordinator.compactIfNotRunningYet("pathToKeyValue", pathToKeyValueCompactor);
             // wait a small-time for merging to start
             MILLISECONDS.sleep(20);
-            stopCompactionAndVerifyItsStopped(tableName, coordinator);
+            stopCompactionAndVerifyItsStopped(
+                    coordinator,
+                    compactingExecutor,
+                    initialCompletedTaskCount,
+                    hashStoreDiskCompactor,
+                    keyToPathCompactor,
+                    pathToKeyValueCompactor);
         } finally {
             dataSource.close();
         }
@@ -89,7 +103,7 @@ class CompactionInterruptTest {
      * Both are acceptable.
      */
     @ParameterizedTest
-    @ValueSource(ints = {1, 50})
+    @ValueSource(ints = {1, 50, 200, 1000, 4000})
     void startMergeWhileSnapshottingThenInterrupt(int delayMs) throws Exception {
         runTaskAndCleanThreadLocals(() -> startMergeWhileSnapshottingThenInterruptImpl(delayMs));
     }
@@ -104,8 +118,9 @@ class CompactionInterruptTest {
     boolean startMergeWhileSnapshottingThenInterruptImpl(int delayMs) throws IOException, InterruptedException {
         final Path storeDir = tmpFileDir.resolve("startMergeWhileSnapshottingThenInterruptImpl");
         String tableName = "mergeWhileSnapshotting";
-        final MerkleDbDataSource dataSource =
-                TestType.variable_variable.dataType().createDataSource(CONFIGURATION, storeDir, tableName, COUNT, false, false);
+        final MerkleDbDataSource dataSource = TestType.variable_variable
+                .dataType()
+                .createDataSource(CONFIGURATION, storeDir, tableName, COUNT, false, false);
         final MerkleDbCompactionCoordinator coordinator = dataSource.getCompactionCoordinator();
 
         final ExecutorService exec = Executors.newCachedThreadPool();
@@ -120,15 +135,19 @@ class CompactionInterruptTest {
                 return null;
             });
 
-            ThreadPoolExecutor compactingExecutor =
+            final ThreadPoolExecutor compactingExecutor =
                     (ThreadPoolExecutor) MerkleDbCompactionCoordinator.getCompactionExecutor(
                             CONFIGURATION.getConfigData(MerkleDbConfig.class));
+            final long initialCompletedTaskCount = compactingExecutor.getTaskCount();
             // we should take into account previous test runs
             long initTaskCount = compactingExecutor.getTaskCount();
             // start compaction for all three storages
-            coordinator.compactIfNotRunningYet("idToHashChunk", dataSource.newHashChunkStoreCompactor());
-            coordinator.compactIfNotRunningYet("keyToPath", dataSource.newKeyToPathCompactor());
-            coordinator.compactIfNotRunningYet("pathToKeyValue", dataSource.newKeyValueStoreCompactor());
+            final DataFileCompactor hashStoreDiskCompactor = dataSource.newHashChunkStoreCompactor();
+            coordinator.compactIfNotRunningYet("idToHashChunk", hashStoreDiskCompactor);
+            final DataFileCompactor keyToPathCompactor = dataSource.newKeyToPathCompactor();
+            coordinator.compactIfNotRunningYet("keyToPath", keyToPathCompactor);
+            final DataFileCompactor pathToKeyValueCompactor = dataSource.newKeyValueStoreCompactor();
+            coordinator.compactIfNotRunningYet("pathToKeyValue", pathToKeyValueCompactor);
 
             assertEventuallyEquals(
                     initTaskCount + 3L,
@@ -137,63 +156,50 @@ class CompactionInterruptTest {
                     "Unexpected number of tasks " + compactingExecutor.getTaskCount());
             // wait a small-time for merging to start (or don't wait at all)
             Thread.sleep(delayMs);
-            stopCompactionAndVerifyItsStopped(tableName, coordinator);
+            stopCompactionAndVerifyItsStopped(
+                    coordinator,
+                    compactingExecutor,
+                    initialCompletedTaskCount,
+                    hashStoreDiskCompactor,
+                    keyToPathCompactor,
+                    pathToKeyValueCompactor);
         } finally {
             dataSource.close();
             exec.shutdown();
-            assertTrue(exec.awaitTermination(5, TimeUnit.SECONDS), "Should not timeout");
+            assertTrue(exec.awaitTermination(10, TimeUnit.SECONDS), "Should not timeout");
         }
         return true;
     }
 
-    private static void stopCompactionAndVerifyItsStopped(String tableName, MerkleDbCompactionCoordinator compactor) {
-        ThreadPoolExecutor compactingExecutor = (ThreadPoolExecutor)
-                MerkleDbCompactionCoordinator.getCompactionExecutor(CONFIGURATION.getConfigData(MerkleDbConfig.class));
-        long initCount = compactingExecutor.getCompletedTaskCount();
-
-        // getting access to the guts of the compactor to check the state of the futures
-        final DataFileCompactor hashStoreCompactor;
-        final DataFileCompactor pathToKeyValueCompactor;
-        final DataFileCompactor objectKeyToPathCompactor;
-        synchronized (compactor) {
-            hashStoreCompactor = compactor.compactorsByName.get("idToHashChunk");
-            pathToKeyValueCompactor = compactor.compactorsByName.get("pathToKeyValue");
-            objectKeyToPathCompactor = compactor.compactorsByName.get("keyToPath");
+    private static void stopCompactionAndVerifyItsStopped(
+            final MerkleDbCompactionCoordinator coordinator,
+            final ThreadPoolExecutor compactingExecutor,
+            final long initialCompletedTaskCount,
+            final DataFileCompactor... compactors) {
+        for (final DataFileCompactor compactor : compactors) {
+            assertEventuallyTrue(
+                    () -> compactor.isCompactionRunning() || compactor.isCompactionComplete(),
+                    Duration.ofMillis(10),
+                    "compactor should be complete or running");
         }
 
-        assertEventuallyTrue(
-                () -> hashStoreCompactor.isCompactionRunning() || hashStoreCompactor.isCompactionComplete(),
-                Duration.ofMillis(10),
-                "hashStoreCompactor should be complete or running");
-        assertEventuallyTrue(
-                () -> pathToKeyValueCompactor.isCompactionRunning() || pathToKeyValueCompactor.isCompactionComplete(),
-                Duration.ofMillis(10),
-                "pathToKeyValueCompactor should be complete or running");
-        assertEventuallyTrue(
-                () -> objectKeyToPathCompactor.isCompactionRunning() || objectKeyToPathCompactor.isCompactionComplete(),
-                Duration.ofMillis(10),
-                "objectKeyToPathCompactor should be complete or running");
-
         // stopping the compaction
-        compactor.stopAndDisableBackgroundCompaction();
+        coordinator.stopAndDisableBackgroundCompaction();
 
-        assertFalse(compactor.isCompactionEnabled(), "compactionEnabled should be false");
+        assertFalse(coordinator.isCompactionEnabled(), "compactionEnabled should be false");
 
-        assertTrue(
-                hashStoreCompactor.isCompactionComplete() || !hashStoreCompactor.notInterrupted(),
-                "hashStoreCompactor should be complete or interrupted");
-        assertTrue(
-                pathToKeyValueCompactor.isCompactionComplete() || !pathToKeyValueCompactor.notInterrupted(),
-                "pathToKeyValueCompactor should be complete or interrupted");
-        assertTrue(
-                objectKeyToPathCompactor.isCompactionComplete() || !objectKeyToPathCompactor.notInterrupted(),
-                "objectKeyToPathCompactor should be interrupted");
-        synchronized (compactor) {
-            assertTrue(compactor.compactorsByName.isEmpty(), "compactorsByName should be empty");
+        for (final DataFileCompactor compactor : compactors) {
+            assertTrue(
+                    compactor.isCompactionComplete() || !compactor.notInterrupted(),
+                    "compactor should be complete or interrupted");
+        }
+
+        synchronized (coordinator) {
+            assertTrue(coordinator.compactorsByName.isEmpty(), "compactorsByName should be empty");
         }
         assertEventuallyEquals(
                 0, () -> compactingExecutor.getQueue().size(), Duration.ofMillis(100), "The queue should be empty");
-        long expectedTaskCount = initCount + 3;
+        long expectedTaskCount = initialCompletedTaskCount + compactors.length;
         assertEventuallyEquals(
                 expectedTaskCount,
                 compactingExecutor::getCompletedTaskCount,

@@ -77,6 +77,13 @@ public class RoleFreeBlockUnitSplit {
      */
     private final NavigableSet<Integer> stateChangeIndexes = new TreeSet<>();
     /**
+     * Indexes of event headers in the block.
+     *
+     * <p>Used to avoid mis-identifying a transaction as top-level based on a subsequent {@link StateChanges} item
+     * that actually belongs to a later event (e.g. an expiring schedule state change).</p>
+     */
+    private final NavigableSet<Integer> eventHeaderIndexes = new TreeSet<>();
+    /**
      * Map from index in the block to top-level transaction ID.
      */
     private final NavigableMap<Integer, TransactionID> topLevelIds = new TreeMap<>();
@@ -120,6 +127,8 @@ public class RoleFreeBlockUnitSplit {
                 if (hasEmptyOrKvOrNonReceiptQueueChanges(item.stateChangesOrThrow())) {
                     stateChangeIndexes.add(i);
                 }
+            } else if (item.hasEventHeader()) {
+                eventHeaderIndexes.add(i);
             } else if (item.hasSignedTransaction()) {
                 txIndexes.add(i);
             } else if (item.hasTransactionResult()) {
@@ -152,8 +161,15 @@ public class RoleFreeBlockUnitSplit {
                 if (nextStateChangeIndex != null) {
                     final int j = requireNonNull(txIndexes.lower(nextStateChangeIndex));
                     if (i == j) {
-                        final var txId = getParts.apply(i).transactionIdOrThrow();
-                        topLevelIds.put(i, txId);
+                        // Only treat this txn as top-level if there is no event boundary between it and the
+                        // following StateChanges item; otherwise, that StateChanges may belong to a later event.
+                        final boolean hasEventHeaderBetween = !eventHeaderIndexes
+                                .subSet(i, false, nextStateChangeIndex, false)
+                                .isEmpty();
+                        if (!hasEventHeaderBetween) {
+                            final var txId = getParts.apply(i).transactionIdOrThrow();
+                            topLevelIds.put(i, txId);
+                        }
                     }
                 } else {
                     try {
@@ -297,6 +313,7 @@ public class RoleFreeBlockUnitSplit {
 
     private void clear() {
         stateChangeIndexes.clear();
+        eventHeaderIndexes.clear();
         unitAssignments.clear();
         resultIndexes.clear();
         topLevelIds.clear();

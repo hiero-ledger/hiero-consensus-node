@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.junit.hedera.embedded;
 
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMetricsProvider;
+import static com.swirlds.platform.state.service.PlatformStateUtils.bulkUpdateOf;
 import static com.swirlds.platform.system.transaction.TransactionWrapperUtils.createAppPayloadWrapper;
 import static java.util.Objects.requireNonNull;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
@@ -59,6 +60,10 @@ class ConcurrentEmbeddedHedera extends AbstractEmbeddedHedera implements Embedde
     protected void handleRoundWith(@NonNull final byte[] serializedSignedTx) {
         final var round = platform.roundWith(serializedSignedTx);
         hedera.onPreHandle(round.iterator().next(), state, NOOP_STATE_SIG_CALLBACK);
+        bulkUpdateOf(state, v -> {
+            v.setRound(round.getRoundNum());
+            v.setConsensusTimestamp(round.getConsensusTimestamp());
+        });
         hedera.handleWorkflow().handleRound(state, round, NOOP_STATE_SIG_CALLBACK);
         hedera.onSealConsensusRound(round, state);
         notifyStateHashed(round.getRoundNum());

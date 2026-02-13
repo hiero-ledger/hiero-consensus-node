@@ -30,13 +30,14 @@ import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.fees.ExchangeRateInfo;
+import com.hedera.node.app.spi.fees.SimpleFeeContextUtil;
 import com.hedera.node.app.spi.records.RecordCache;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.InsufficientBalanceException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.node.app.spi.workflows.QueryHandler;
-import com.hedera.node.app.store.ReadableStoreFactory;
+import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.app.throttle.SynchronizedThrottleAccumulator;
 import com.hedera.node.app.throttle.ThrottleUsage;
 import com.hedera.node.app.util.ProtobufUtils;
@@ -185,7 +186,7 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                 }
 
                 final var state = wrappedState.get();
-                final var storeFactory = new ReadableStoreFactory(state);
+                final var storeFactory = new ReadableStoreFactoryImpl(state);
                 final var paymentRequired = handler.requiresNodePayment(responseType);
                 final var feeCalculator = feeManager.createFeeCalculator(function, consensusTime, storeFactory);
                 final QueryContext context;
@@ -220,7 +221,7 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                             ingestChecker.verifyReadyForTransactions();
 
                             // Get the account store for validations
-                            final var accountStore = storeFactory.getStore(ReadableAccountStore.class);
+                            final var accountStore = storeFactory.readableStore(ReadableAccountStore.class);
 
                             // 3.ii Validate CryptoTransfer (including sender signatures)
                             queryChecker.validateCryptoTransfer(
@@ -237,12 +238,13 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                             }
 
                             // 3.iv Calculate costs
-                            long queryFees = 0;
+                            long queryFees;
                             if (shouldUseSimpleFees(context)) {
                                 final var queryFeeTinyCents = requireNonNull(feeManager.getSimpleFeeCalculator())
-                                        .calculateQueryFee(context.query(), context);
+                                        .calculateQueryFee(
+                                                context.query(), SimpleFeeContextUtil.fromQueryContext(context));
                                 queryFees = tinycentsToTinybars(
-                                        queryFeeTinyCents,
+                                        queryFeeTinyCents.totalTinycents(),
                                         fromPbj(context.exchangeRateInfo().activeRate(consensusTime)));
                             } else {
                                 queryFees = handler.computeFees(context).totalFee();
@@ -297,12 +299,12 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
 
                 if (handler.needsAnswerOnlyCost(responseType)) {
                     // 6.i Estimate costs
-                    long queryFees = 0;
+                    long queryFees;
                     if (shouldUseSimpleFees(context)) {
                         final var queryFeeTinyCents = requireNonNull(feeManager.getSimpleFeeCalculator())
-                                .calculateQueryFee(context.query(), context);
+                                .calculateQueryFee(context.query(), SimpleFeeContextUtil.fromQueryContext(context));
                         queryFees = tinycentsToTinybars(
-                                queryFeeTinyCents,
+                                queryFeeTinyCents.totalTinycents(),
                                 fromPbj(context.exchangeRateInfo().activeRate(consensusTime)));
                     } else {
                         queryFees = handler.computeFees(context).totalFee();

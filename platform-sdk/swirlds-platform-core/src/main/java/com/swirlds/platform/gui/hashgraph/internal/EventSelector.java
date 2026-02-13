@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.gui.hashgraph.internal;
 
-import com.swirlds.platform.internal.EventImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
@@ -9,6 +8,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import org.hiero.consensus.hashgraph.impl.EventImpl;
 
 /**
  * This class is responsible for selecting events by clicking in the GUI.

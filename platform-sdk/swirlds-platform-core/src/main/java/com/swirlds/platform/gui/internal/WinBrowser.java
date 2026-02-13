@@ -6,7 +6,6 @@ import static com.swirlds.platform.gui.internal.BrowserWindowManager.getBrowserW
 import static com.swirlds.platform.gui.internal.BrowserWindowManager.showBrowserWindow;
 
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.Consensus;
 import com.swirlds.platform.gui.GuiConstants;
 import com.swirlds.platform.gui.GuiUtils;
 import com.swirlds.platform.gui.components.ScrollableJPanel;
@@ -34,6 +33,7 @@ import javax.swing.Timer;
 import javax.swing.WindowConstants;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.hashgraph.impl.consensus.Consensus;
 import org.hiero.consensus.model.node.NodeId;
 
 /**

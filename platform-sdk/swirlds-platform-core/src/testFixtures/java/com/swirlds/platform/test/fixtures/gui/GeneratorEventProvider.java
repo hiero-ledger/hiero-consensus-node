@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.gui;
 
-import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.test.fixtures.event.generator.GraphGenerator;
 import com.swirlds.platform.test.fixtures.event.source.EventSource;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -28,9 +27,7 @@ public class GeneratorEventProvider implements GuiEventProvider {
 
     @Override
     public @NonNull List<PlatformEvent> provideEvents(final int numberOfEvents) {
-        return graphGenerator.generateEvents(numberOfEvents).stream()
-                .map(EventImpl::getBaseEvent)
-                .toList();
+        return graphGenerator.generateEvents(numberOfEvents);
     }
 
     @Override

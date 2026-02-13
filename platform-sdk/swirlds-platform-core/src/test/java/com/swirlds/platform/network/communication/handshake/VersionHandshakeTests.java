@@ -6,12 +6,14 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.base.utility.Pair;
-import com.swirlds.platform.network.Connection;
-import com.swirlds.platform.network.protocol.ProtocolRunnable;
 import com.swirlds.platform.test.fixtures.sync.ConnectionFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
+import org.hiero.consensus.gossip.impl.network.Connection;
+import org.hiero.consensus.gossip.impl.network.communication.handshake.HandshakeException;
+import org.hiero.consensus.gossip.impl.network.communication.handshake.VersionCompareHandshake;
+import org.hiero.consensus.gossip.impl.network.protocol.ProtocolRunnable;
 import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;

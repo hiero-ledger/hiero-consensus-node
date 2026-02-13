@@ -9,7 +9,6 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.swirlds.common.io.IOIterator;
 import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.platform.test.fixtures.event.generator.StandardGraphGenerator;
@@ -25,6 +24,7 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Random;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
+import org.hiero.consensus.io.IOIterator;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.pces.config.PcesFileWriterType;
 import org.hiero.junit.extensions.ParamName;
@@ -92,7 +92,7 @@ class PcesReadWriteTests {
 
         final List<PlatformEvent> events = new ArrayList<>();
         for (int i = 0; i < numEvents; i++) {
-            events.add(generator.generateBaseEvent());
+            events.add(generator.generateEvent());
         }
 
         long upperBound = Long.MIN_VALUE;
@@ -149,7 +149,7 @@ class PcesReadWriteTests {
 
         final List<PlatformEvent> events = new ArrayList<>();
         for (int i = 0; i < numEvents; i++) {
-            events.add(generator.generateBaseEvent());
+            events.add(generator.generateEvent());
         }
 
         long upperBound = Long.MIN_VALUE;
@@ -236,7 +236,7 @@ class PcesReadWriteTests {
 
         final List<PlatformEvent> events = new ArrayList<>();
         for (int i = 0; i < numEvents; i++) {
-            events.add(generator.generateBaseEvent());
+            events.add(generator.generateEvent());
         }
 
         long upperBound = Long.MIN_VALUE;
@@ -310,7 +310,7 @@ class PcesReadWriteTests {
 
         final List<PlatformEvent> events = new ArrayList<>();
         for (int i = 0; i < numEvents; i++) {
-            events.add(generator.generateBaseEvent());
+            events.add(generator.generateEvent());
         }
 
         long upperBound = Long.MIN_VALUE;
@@ -379,7 +379,7 @@ class PcesReadWriteTests {
 
         final List<PlatformEvent> events = new ArrayList<>();
         for (int i = 0; i < numEvents; i++) {
-            events.add(generator.generateBaseEvent());
+            events.add(generator.generateEvent());
         }
 
         long lowerBound = Long.MAX_VALUE;
@@ -451,7 +451,7 @@ class PcesReadWriteTests {
 
         final List<PlatformEvent> events = new ArrayList<>();
         for (int i = 0; i < numEvents; i++) {
-            events.add(generator.generateBaseEvent());
+            events.add(generator.generateEvent());
         }
 
         long lowerBound = Long.MAX_VALUE;
@@ -523,7 +523,7 @@ class PcesReadWriteTests {
 
         final List<PlatformEvent> events = new ArrayList<>();
         for (int i = 0; i < numEvents; i++) {
-            events.add(generator.generateBaseEvent());
+            events.add(generator.generateEvent());
         }
 
         long lowerBound = Long.MAX_VALUE;

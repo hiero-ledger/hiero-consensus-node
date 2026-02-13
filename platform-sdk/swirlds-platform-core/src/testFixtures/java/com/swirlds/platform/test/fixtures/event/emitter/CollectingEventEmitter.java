@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.event.emitter;
 
-import com.swirlds.platform.internal.EventImpl;
 import java.util.LinkedList;
 import java.util.List;
+import org.hiero.consensus.model.event.PlatformEvent;
 
 /**
  * This event emitter wraps another event emitter. It emits the exact same events as the inner emitter,
@@ -12,7 +12,7 @@ import java.util.List;
 public class CollectingEventEmitter extends AbstractEventEmitter {
 
     /** All emitted events */
-    private final LinkedList<EventImpl> collectedEvents;
+    private final LinkedList<PlatformEvent> collectedEvents;
 
     private final EventEmitter emitter;
 
@@ -36,8 +36,8 @@ public class CollectingEventEmitter extends AbstractEventEmitter {
      * @return an event
      */
     @Override
-    public EventImpl emitEvent() {
-        final EventImpl event = emitter.emitEvent();
+    public PlatformEvent emitEvent() {
+        final PlatformEvent event = emitter.emitEvent();
         collectedEvents.add(event);
         numEventsEmitted++;
         return event;
@@ -46,7 +46,7 @@ public class CollectingEventEmitter extends AbstractEventEmitter {
     /**
      * Returns all collected events.
      */
-    public List<EventImpl> getCollectedEvents() {
+    public List<PlatformEvent> getCollectedEvents() {
         return new LinkedList<>(collectedEvents);
     }
 

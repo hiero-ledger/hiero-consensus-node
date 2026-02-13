@@ -111,6 +111,7 @@ open module com.hedera.node.test.clients {
     requires org.hiero.consensus.metrics;
     requires org.hiero.consensus.model;
     requires org.hiero.consensus.roster;
+    requires org.hiero.consensus.utility;
     requires com.esaulpaugh.headlong;
     requires com.fasterxml.jackson.annotation;
     requires com.fasterxml.jackson.core;

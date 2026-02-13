@@ -14,7 +14,7 @@ permissions:
 jobs:
   snyk:
     name: Snyk Monitor
-    runs-on: hiero-network-node-linux-large
+    runs-on: hl-cn-snyk-check-lin
 
     steps:
       - name: Harden Runner

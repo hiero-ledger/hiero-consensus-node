@@ -1,23 +1,18 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.network;
 
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
-import com.swirlds.config.api.Configuration;
-import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
+import com.swirlds.base.time.Time;
 import com.swirlds.platform.test.fixtures.sync.FakeConnection;
 import java.time.Duration;
 import javax.net.ssl.SSLException;
 import org.hiero.consensus.concurrent.utility.throttle.RateLimiter;
+import org.hiero.consensus.gossip.impl.network.Connection;
+import org.hiero.consensus.gossip.impl.network.NetworkUtils;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 class NetworkUtilsTest {
-    private final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
-    private final PlatformContext platformContext =
-            TestPlatformContextBuilder.create().withConfiguration(configuration).build();
-    private final RateLimiter socketExceptionRateLimiter =
-            new RateLimiter(platformContext.getTime(), Duration.ofMinutes(1));
+    private final RateLimiter socketExceptionRateLimiter = new RateLimiter(Time.getCurrent(), Duration.ofMinutes(1));
 
     @Test
     void handleNetworkExceptionTest() {

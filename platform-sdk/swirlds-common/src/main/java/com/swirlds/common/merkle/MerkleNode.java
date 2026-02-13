@@ -3,11 +3,9 @@ package com.swirlds.common.merkle;
 
 import com.swirlds.common.FastCopyable;
 import com.swirlds.common.Reservable;
+import com.swirlds.common.merkle.interfaces.HasMerkleRoute;
 import com.swirlds.common.merkle.interfaces.MerkleMigratable;
-import com.swirlds.common.merkle.interfaces.MerkleTraversable;
-import com.swirlds.common.merkle.iterators.MerkleIterator;
-import com.swirlds.common.merkle.route.MerkleRoute;
-import com.swirlds.common.merkle.route.MerkleRouteIterator;
+import com.swirlds.common.merkle.interfaces.MerkleType;
 import org.hiero.base.crypto.Hashable;
 import org.hiero.base.io.SerializableDet;
 
@@ -21,7 +19,7 @@ import org.hiero.base.io.SerializableDet;
  * </ul>
  */
 public interface MerkleNode
-        extends FastCopyable, Hashable, MerkleMigratable, MerkleTraversable, Reservable, SerializableDet {
+        extends FastCopyable, Hashable, MerkleMigratable, Reservable, SerializableDet, MerkleType, HasMerkleRoute {
 
     /**
      * {@inheritDoc}
@@ -36,21 +34,5 @@ public interface MerkleNode
     @Override
     default MerkleNode migrate(final int version) {
         return this;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    default MerkleNode getNodeAtRoute(final MerkleRoute route) {
-        return new MerkleRouteIterator(this, route).getLast();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    default <T extends MerkleNode> MerkleIterator<T> treeIterator() {
-        return new MerkleIterator<>(this);
     }
 }

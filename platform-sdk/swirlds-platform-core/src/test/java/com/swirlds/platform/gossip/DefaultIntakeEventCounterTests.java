@@ -11,6 +11,7 @@ import com.swirlds.platform.test.fixtures.addressbook.RandomRosterEntryBuilder;
 import java.util.ArrayList;
 import org.hiero.base.utility.test.fixtures.ResettableRandom;
 import org.hiero.consensus.event.IntakeEventCounter;
+import org.hiero.consensus.gossip.impl.gossip.DefaultIntakeEventCounter;
 import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;

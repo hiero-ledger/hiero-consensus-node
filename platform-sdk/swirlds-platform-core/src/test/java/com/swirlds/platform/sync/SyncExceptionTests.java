@@ -7,8 +7,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.swirlds.platform.gossip.SyncException;
-import com.swirlds.platform.network.Connection;
+import org.hiero.consensus.gossip.impl.gossip.SyncException;
+import org.hiero.consensus.gossip.impl.network.Connection;
 import org.junit.jupiter.api.Test;
 
 class SyncExceptionTests {

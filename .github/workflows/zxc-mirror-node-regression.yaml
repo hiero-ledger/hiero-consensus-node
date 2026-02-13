@@ -49,7 +49,7 @@ jobs:
   # Execute Mirror Node Regression Tests using specified version of hiero-consensus-node
   mirror-node-regression:
     name: ${{ inputs.custom-job-name || 'Standard' }}
-    runs-on: hl-cn-citr-lin-lg
+    runs-on: hl-cn-mn-regression-lin-lg
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
@@ -166,7 +166,7 @@ jobs:
 
   report-mirror-node-regression-status:
     name: ${{ inputs.custom-job-name || 'Standard' }} Slack Report
-    runs-on: hl-cn-citr-lin-sm
+    runs-on: hl-cn-mn-regression-lin-sm
     needs: mirror-node-regression
     permissions:
       id-token: write

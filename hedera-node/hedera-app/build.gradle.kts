@@ -9,7 +9,6 @@ description = "Hedera Application - Implementation"
 
 mainModuleInfo {
     annotationProcessor("dagger.compiler")
-    annotationProcessor("com.google.auto.service.processor")
 
     // This is needed to pick up and include the native libraries for the netty epoll transport
     runtimeOnly("io.netty.transport.epoll.linux.x86_64")
@@ -67,9 +66,13 @@ jmhModuleInfo {
     requires("com.swirlds.metrics.api")
     requires("com.swirlds.platform.core")
     requires("com.swirlds.state.api")
+    requires("com.hedera.pbj.grpc.helidon")
+    requires("com.hedera.pbj.grpc.helidon.config")
+    requires("io.helidon.common")
+    requires("io.helidon.webserver")
+    requires("org.hiero.consensus.model")
     requires("jmh.core")
     requires("org.hiero.base.crypto")
-    requires("org.hiero.consensus.model")
 }
 
 // Add all the libs dependencies into the jar manifest!
@@ -175,6 +178,8 @@ var updateDockerEnvTask =
         workingDir(layout.projectDirectory.dir("../docker"))
         commandLine("./update-env.sh", project.version)
     }
+
+dependencies { api(project(":config")) }
 
 tasks.register<Exec>("createDockerImage") {
     description = "Creates the docker image of the services based on the current version"

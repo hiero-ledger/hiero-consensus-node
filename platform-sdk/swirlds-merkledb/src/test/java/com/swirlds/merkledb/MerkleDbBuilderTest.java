@@ -9,16 +9,12 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
-import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.merkledb.config.MerkleDbConfig;
-import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
-import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import org.hiero.base.constructable.ConstructableRegistry;
-import org.hiero.base.crypto.Hash;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -29,7 +25,6 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 class MerkleDbBuilderTest {
 
-    private static final int MAPS_COUNT = 3;
     private static final long INITIAL_SIZE = 1_000_000;
 
     @BeforeAll
@@ -50,17 +45,6 @@ class MerkleDbBuilderTest {
     final MerkleDbDataSourceBuilder createDefaultBuilder() {
         final MerkleDbConfig merkleDbConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
         return new MerkleDbDataSourceBuilder(CONFIGURATION, INITIAL_SIZE, merkleDbConfig.hashesRamToDiskThreshold());
-    }
-
-    private void verify(final MerkleInternal stateRoot) {
-        for (int i = 0; i < MAPS_COUNT; i++) {
-            final VirtualMap vm = stateRoot.getChild(i);
-            final VirtualMapMetadata state = vm.getMetadata();
-            for (int path = 1; path <= state.getLastLeafPath(); path++) {
-                final Hash hash = vm.getRecords().findHash(path);
-                assertNotNull(hash);
-            }
-        }
     }
 
     @ParameterizedTest

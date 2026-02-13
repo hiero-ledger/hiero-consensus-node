@@ -8,13 +8,13 @@ import com.swirlds.config.api.ConfigProperty;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.sources.SimpleConfigSource;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import com.swirlds.platform.gossip.config.NetworkEndpoint;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.List;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
+import org.hiero.consensus.gossip.config.NetworkEndpoint;
 import org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -76,5 +76,6 @@ class ContainerNodeConfigurationTest {
      * Test configuration data record with various property types.
      */
     @ConfigData
-    public record TestConfigData(@ConfigProperty(defaultValue = "") List<NetworkEndpoint> myEndpointList) {}
+    public record TestConfigData(
+            @ConfigProperty(defaultValue = "") List<NetworkEndpoint> myEndpointList) {}
 }

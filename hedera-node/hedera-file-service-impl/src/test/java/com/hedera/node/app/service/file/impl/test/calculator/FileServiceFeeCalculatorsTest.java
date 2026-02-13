@@ -24,6 +24,7 @@ import com.hedera.hapi.node.file.SystemUndeleteTransactionBody;
 import com.hedera.hapi.node.state.file.File;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.fees.SimpleFeeCalculatorImpl;
 import com.hedera.node.app.service.file.ReadableFileStore;
 import com.hedera.node.app.service.file.impl.ReadableFileStoreImpl;
 import com.hedera.node.app.service.file.impl.calculator.FileAppendFeeCalculator;
@@ -36,7 +37,7 @@ import com.hedera.node.app.service.file.impl.calculator.FileSystemUndeleteFeeCal
 import com.hedera.node.app.service.file.impl.calculator.FileUpdateFeeCalculator;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
-import com.hedera.node.app.spi.fees.SimpleFeeCalculatorImpl;
+import com.hedera.node.app.spi.fees.SimpleFeeContextUtil;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -158,9 +159,9 @@ class FileServiceFeeCalculatorsTest {
                                         SystemDeleteTransactionBody.newBuilder().build())
                                 .build(),
                         1,
-                        100000L,
-                        50000000L,
-                        200000L),
+                        0,
+                        0,
+                        0),
                 new TestCase(
                         new FileSystemUndeleteFeeCalculator(),
                         TransactionBody.newBuilder()
@@ -168,9 +169,9 @@ class FileServiceFeeCalculatorsTest {
                                         .build())
                                 .build(),
                         1,
-                        100000L,
-                        50000000L,
-                        200000L));
+                        0,
+                        0,
+                        0));
     }
 
     @ParameterizedTest(name = "{index}: {0}")
@@ -179,7 +180,7 @@ class FileServiceFeeCalculatorsTest {
     void testFeeCalculators(TestCase testCase) {
         lenient().when(feeContext.numTxnSignatures()).thenReturn(testCase.numSignatures);
 
-        final var result = feeCalculator.calculateTxFee(testCase.body, feeContext);
+        final var result = feeCalculator.calculateTxFee(testCase.body, SimpleFeeContextUtil.fromFeeContext(feeContext));
 
         assertThat(result).isNotNull();
         assertThat(result.getNodeTotalTinycents()).isEqualTo(testCase.expectedNodeFee);
@@ -194,7 +195,8 @@ class FileServiceFeeCalculatorsTest {
         final var fileGetInfoFeeCalculator = new FileGetInfoFeeCalculator();
         final var feeResult = new FeeResult();
 
-        fileGetInfoFeeCalculator.accumulateNodePayment(query, mockQueryContext, feeResult, createTestFeeSchedule());
+        fileGetInfoFeeCalculator.accumulateNodePayment(
+                query, SimpleFeeContextUtil.fromQueryContext(mockQueryContext), feeResult, createTestFeeSchedule());
 
         assertThat(feeResult.getNodeTotalTinycents()).isEqualTo(0L);
         assertThat(feeResult.getNetworkTotalTinycents()).isEqualTo(0L);
@@ -218,7 +220,8 @@ class FileServiceFeeCalculatorsTest {
         final var fileGetContentsFeeCalculator = new FileGetContentsFeeCalculator();
         final var feeResult = new FeeResult();
 
-        fileGetContentsFeeCalculator.accumulateNodePayment(query, mockQueryContext, feeResult, createTestFeeSchedule());
+        fileGetContentsFeeCalculator.accumulateNodePayment(
+                query, SimpleFeeContextUtil.fromQueryContext(mockQueryContext), feeResult, createTestFeeSchedule());
 
         assertThat(feeResult.getNodeTotalTinycents()).isEqualTo(0L);
         assertThat(feeResult.getNetworkTotalTinycents()).isEqualTo(0L);

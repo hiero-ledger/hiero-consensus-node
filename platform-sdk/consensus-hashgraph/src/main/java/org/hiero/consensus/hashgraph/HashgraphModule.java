@@ -4,12 +4,15 @@ package org.hiero.consensus.hashgraph;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.base.time.Time;
+import com.swirlds.component.framework.component.InputWireLabel;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.wires.input.InputWire;
 import com.swirlds.component.framework.wires.output.OutputWire;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
+import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.node.NodeId;
@@ -40,7 +43,8 @@ public interface HashgraphModule {
             @NonNull Time time,
             @NonNull Roster roster,
             @NonNull NodeId selfId,
-            @NonNull FreezePeriodChecker freezeChecker);
+            @NonNull FreezePeriodChecker freezeChecker,
+            @Nullable EventPipelineTracker eventPipelineTracker);
 
     /**
      * The primary input wire of the Hashgraph module. This input wire accepts events to be added to the consensus
@@ -52,6 +56,7 @@ public interface HashgraphModule {
      * @see #preconsensusEventOutputWire()
      * @see #staleEventOutputWire()
      */
+    @InputWireLabel("persisted ordered events")
     @NonNull
     InputWire<PlatformEvent> eventInputWire();
 
@@ -85,6 +90,7 @@ public interface HashgraphModule {
      *
      * @return the platform status input wire
      */
+    @InputWireLabel("platform status")
     @NonNull
     InputWire<PlatformStatus> platformStatusInputWire();
 
@@ -94,6 +100,23 @@ public interface HashgraphModule {
      *
      * @return the consensus snapshot input wire
      */
+    @InputWireLabel("consensus snapshot")
     @NonNull
     InputWire<ConsensusSnapshot> consensusSnapshotInputWire();
+
+    /**
+     * Begin squelching input. While squelching is active, no new tasks will be added on any input wires.
+     * This is useful during reconnects to flush the system of events.
+     */
+    void startSquelching();
+
+    /**
+     * Stop squelching input. New tasks will once again be added on input wires.
+     */
+    void stopSquelching();
+
+    /**
+     * Flushes all tasks currently enqueue in input wires in the order of data flow.
+     */
+    void flush();
 }
