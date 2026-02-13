@@ -1061,6 +1061,7 @@ public final class VirtualMap extends PartialBinaryMerkleInternal implements Lab
      * @param value Hash value to set
      */
     private void setHashPrivate(@Nullable final Hash value) {
+        //        System.err.println("Set hash " + getFastCopyVersion() + ": " + value);
         hash.set(value);
     }
 

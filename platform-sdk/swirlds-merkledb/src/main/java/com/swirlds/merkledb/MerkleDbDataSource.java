@@ -360,7 +360,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                     idToDiskLocationHashChunks.updateValidRange(0, validLeafPathRange.getMaxValidKey());
                 }
                 hashChunkLoadedCallback = (dataLocation, hashData) -> {
-                    final VirtualHashChunk hashChunk = VirtualHashChunk.parseFrom(hashData);
+                    final VirtualHashChunk hashChunk = VirtualHashChunk.parseFrom(hashData, hashChunkHeight);
                     final long path = hashChunk.path();
                     // Old data files may contain entries with paths outside the current virtual node range
                     final long firstHashPath = com.swirlds.virtualmap.internal.Path.getRightChildPath(path);
@@ -543,7 +543,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                     }
                     chunk.setHashAtPath(path, hash);
                 }
-                hashChunkStore.put(chunkId, chunk::writeTo, chunk.getSizeInBytes());
+                hashChunkStore.put(chunkId, chunk::writeTo, chunk.getSerializedSizeInBytes());
             }
 
             hashChunkStore.endWriting();
@@ -877,7 +877,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
             }
         }
 
-        final VirtualHashChunk chunk = VirtualHashChunk.parseFrom(hashChunkStore.get(chunkId));
+        final VirtualHashChunk chunk = VirtualHashChunk.parseFrom(hashChunkStore.get(chunkId), hashChunkHeight);
         assert chunk != null;
         if (chunkId < hashChunkCacheThreshold) {
             assert hashChunkCache.get(chunkId) == null;
@@ -1220,7 +1220,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                 hashChunkCache.put(chunkId, chunk);
             } else {
                 try {
-                    hashChunkStore.put(chunkId, chunk::writeTo, chunk.getSizeInBytes());
+                    hashChunkStore.put(chunkId, chunk::writeTo, chunk.getSerializedSizeInBytes());
                 } catch (final IOException e) {
                     logger.error(EXCEPTION.getMarker(), "[{}] IOException writing hash chunks", tableName, e);
                     throw new UncheckedIOException(e);

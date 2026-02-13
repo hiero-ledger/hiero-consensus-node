@@ -32,39 +32,50 @@ public class VirtualHashChunkTest {
 
     @Test
     void createTest() {
-        assertThrows(IllegalArgumentException.class, () -> new VirtualHashChunk(0, 0, new byte[HASH_LENGTH]));
-        assertDoesNotThrow(() -> new VirtualHashChunk(0, 1, new byte[HASH_LENGTH * 2]));
-        assertDoesNotThrow(() -> new VirtualHashChunk(1, 1, new byte[HASH_LENGTH * 2]));
-        assertDoesNotThrow(() -> new VirtualHashChunk(5, 1, new byte[HASH_LENGTH * 2]));
+        assertThrows(IllegalArgumentException.class, () -> new VirtualHashChunk(0, 0, new byte[HASH_LENGTH], 2));
+        assertDoesNotThrow(() -> new VirtualHashChunk(0, 1, new byte[HASH_LENGTH * 2], 1));
+        assertDoesNotThrow(() -> new VirtualHashChunk(1, 1, new byte[HASH_LENGTH * 2], 1));
+        assertDoesNotThrow(() -> new VirtualHashChunk(5, 1, new byte[HASH_LENGTH * 2], 1));
         for (int h = 2; h < 6; h++) {
             final int height = h;
             final int chunkSize = VirtualHashChunk.getChunkSize(height);
             final byte[] hashData = new byte[HASH_LENGTH * chunkSize];
             // Check chunk path / chunk height
-            assertDoesNotThrow(() -> new VirtualHashChunk(0, height, hashData));
-            assertThrows(IllegalArgumentException.class, () -> new VirtualHashChunk(1, height, hashData));
-            assertDoesNotThrow(() -> new VirtualHashChunk(Path.getLeftGrandChildPath(0, height), height, hashData));
-            assertDoesNotThrow(() -> new VirtualHashChunk(Path.getRightGrandChildPath(0, height), height, hashData));
+            assertDoesNotThrow(() -> new VirtualHashChunk(0, height, hashData, height));
+            assertThrows(IllegalArgumentException.class, () -> new VirtualHashChunk(0, height, hashData, height + 1));
+            assertThrows(IllegalArgumentException.class, () -> new VirtualHashChunk(1, height, hashData, height));
+            assertDoesNotThrow(
+                    () -> new VirtualHashChunk(Path.getLeftGrandChildPath(0, height), height, hashData, height));
+            assertDoesNotThrow(
+                    () -> new VirtualHashChunk(Path.getLeftGrandChildPath(0, height), height, hashData, height - 1));
+            assertDoesNotThrow(
+                    () -> new VirtualHashChunk(Path.getRightGrandChildPath(0, height), height, hashData, height));
             assertThrows(
                     IllegalArgumentException.class,
-                    () -> new VirtualHashChunk(Path.getLeftGrandChildPath(0, height + 1), height, hashData));
+                    () -> new VirtualHashChunk(Path.getLeftGrandChildPath(0, height + 1), height, hashData, height));
         }
+        assertThrows(IllegalArgumentException.class, () -> new VirtualHashChunk(1, 1, new byte[HASH_LENGTH * 2], 2));
+        assertThrows(IllegalArgumentException.class, () -> new VirtualHashChunk(3, 1, new byte[HASH_LENGTH * 2], 2));
+        assertDoesNotThrow(() -> new VirtualHashChunk(3, 2, new byte[HASH_LENGTH * 4], 1));
+        assertDoesNotThrow(() -> new VirtualHashChunk(3, 2, new byte[HASH_LENGTH * 4], 2));
     }
 
     @Test
     void createDataLengthTest() {
         final int hashLen = Cryptography.DEFAULT_DIGEST_TYPE.digestLength();
-        assertThrows(IllegalArgumentException.class, () -> new VirtualHashChunk(0, 1, null));
+        assertThrows(IllegalArgumentException.class, () -> new VirtualHashChunk(0, 1, null, 1));
         for (int h = 2; h < 6; h++) {
             final int height = h;
-            assertThrows(IllegalArgumentException.class, () -> new VirtualHashChunk(0, height, null));
+            assertThrows(IllegalArgumentException.class, () -> new VirtualHashChunk(0, height, null, height));
             final int chunkSize = VirtualHashChunk.getChunkSize(height);
             final byte[] hashData = new byte[hashLen * chunkSize];
             final byte[] hashDataMinusOne = new byte[hashLen * chunkSize - 1];
             final byte[] hashDataPlusOne = new byte[hashLen * chunkSize + 1];
-            assertDoesNotThrow(() -> new VirtualHashChunk(0, height, hashData));
-            assertThrows(IllegalArgumentException.class, () -> new VirtualHashChunk(0, height, hashDataMinusOne));
-            assertThrows(IllegalArgumentException.class, () -> new VirtualHashChunk(0, height, hashDataPlusOne));
+            assertDoesNotThrow(() -> new VirtualHashChunk(0, height, hashData, height));
+            assertThrows(
+                    IllegalArgumentException.class, () -> new VirtualHashChunk(0, height, hashDataMinusOne, height));
+            assertThrows(
+                    IllegalArgumentException.class, () -> new VirtualHashChunk(0, height, hashDataPlusOne, height));
         }
     }
 
@@ -367,18 +378,47 @@ public class VirtualHashChunkTest {
             chunk.setHashAtPath(path, hash);
             assertEquals(hash, chunk.getHashAtIndex(i));
             assertEquals(hash, chunk.getHashAtPath(path));
-            final Hash hash2 = genRandomHash();
-            chunk.setHashAtIndex(i, hash2);
-            assertEquals(hash2, chunk.getHashAtIndex(i));
-            assertEquals(hash2, chunk.getHashAtPath(path));
         }
         assertThrows(IllegalArgumentException.class, () -> chunk.setHashAtPath(chunk.getPath(chunkSize), new Hash()));
+    }
+
+    @Test
+    void dataRankTest() {
+        final int height = 5;
+        final long chunkPath = Path.getLeftGrandChildPath(0, height);
+        final VirtualHashChunk chunk = new VirtualHashChunk(chunkPath, height);
+        assertEquals(1, chunk.dataRank());
+        chunk.setHashAtPath(Path.getLeftChildPath(chunkPath), genRandomHash());
+        assertEquals(1, chunk.dataRank());
+        chunk.setHashAtPath(Path.getLeftGrandChildPath(chunkPath, 2), genRandomHash());
+        assertEquals(2, chunk.dataRank());
+        chunk.setHashAtPath(Path.getRightChildPath(chunkPath), genRandomHash());
+        assertEquals(2, chunk.dataRank());
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {2, 3, 4, 5, 6})
+    void serializedLengthTest(final int height) {
+        final long chunkPath = 0;
+        final VirtualHashChunk chunk = new VirtualHashChunk(chunkPath, height);
+        assertEquals(1, chunk.dataRank()); // data rank == 1, this is 2 hashes
+        for (int i = 1; i <= height; i++) {
+            final long path = Path.getLeftGrandChildPath(chunkPath, i);
+            chunk.setHashAtPath(path, genRandomHash());
+            final int dataRank = chunk.dataRank();
+            assertEquals(i, dataRank);
+            final int numHashes = VirtualHashChunk.getChunkSize(dataRank);
+            final int serializedDataLen = HASH_LENGTH * numHashes;
+            assertEquals(
+                    1 + 8 + 1 + ProtoWriterTools.sizeOfVarInt32(serializedDataLen) + serializedDataLen,
+                    chunk.getSerializedSizeInBytes());
+        }
     }
 
     // Copy tests
 
     @ParameterizedTest
-    @ValueSource(ints = {1, 2, 3, 4, 5})
+    @ValueSource(ints = {1, 2, 3, 4, 5, 6})
     void copyTest(final int height) {
         final Random random = new Random();
         final int chunkSize = VirtualHashChunk.getChunkSize(height);
@@ -389,7 +429,8 @@ public class VirtualHashChunkTest {
         final Hash[] hashes = new Hash[chunkSize];
         for (int i = 0; i < chunkSize; i++) {
             hashes[i] = genRandomHash();
-            original.setHashAtIndex(i, hashes[i]);
+            final long path = original.getPath(i);
+            original.setHashAtPath(path, hashes[i]);
         }
 
         // Create a copy
@@ -466,8 +507,8 @@ public class VirtualHashChunkTest {
         final Hash originalHash2 =
                 new Hash("ORIG22222222222222222222222222222222222222222222".getBytes(StandardCharsets.UTF_8));
 
-        original.setHashAtIndex(0, originalHash1);
-        original.setHashAtIndex(1, originalHash2);
+        original.setHashAtPath(1, originalHash1);
+        original.setHashAtPath(2, originalHash2);
 
         // Create a copy
         final VirtualHashChunk copy = original.copy();
@@ -477,8 +518,8 @@ public class VirtualHashChunkTest {
                 new Hash("COPY11111111111111111111111111111111111111111111".getBytes(StandardCharsets.UTF_8));
         final Hash copyHash2 =
                 new Hash("COPY22222222222222222222222222222222222222222222".getBytes(StandardCharsets.UTF_8));
-        copy.setHashAtIndex(0, copyHash1);
-        copy.setHashAtIndex(1, copyHash2);
+        copy.setHashAtPath(1, copyHash1);
+        copy.setHashAtPath(2, copyHash2);
 
         // Verify original is unchanged
         assertEquals(originalHash1, original.getHashAtIndex(0));
@@ -535,11 +576,12 @@ public class VirtualHashChunkTest {
 
         // Populate with random hashes
         for (int i = 0; i < chunkSize; i++) {
-            original.setHashAtIndex(i, genRandomHash());
+            final long path = original.getPath(i);
+            original.setHashAtPath(path, genRandomHash());
         }
 
         // Serialize
-        final int sizeInBytes = original.getSizeInBytes();
+        final int sizeInBytes = original.getSerializedSizeInBytes();
         final byte[] buffer = new byte[sizeInBytes];
         final BufferedData out = BufferedData.wrap(buffer);
         original.writeTo(out);
@@ -549,7 +591,7 @@ public class VirtualHashChunkTest {
 
         // Deserialize
         final ReadableSequentialData in = BufferedData.wrap(buffer, 0, (int) out.position());
-        final VirtualHashChunk deserialized = VirtualHashChunk.parseFrom(in);
+        final VirtualHashChunk deserialized = VirtualHashChunk.parseFrom(in, height);
 
         // Verify all fields match
         assertNotNull(deserialized);
@@ -565,18 +607,19 @@ public class VirtualHashChunkTest {
 
     @Test
     void serializationEmptyChunkTest() {
+        final int height = 2;
         // Test serialization of a chunk with no hashes set (all zeros)
-        final VirtualHashChunk original = new VirtualHashChunk(0, 2);
+        final VirtualHashChunk original = new VirtualHashChunk(0, height);
 
         // Serialize
-        final int sizeInBytes = original.getSizeInBytes();
+        final int sizeInBytes = original.getSerializedSizeInBytes();
         final byte[] buffer = new byte[sizeInBytes];
         final BufferedData out = BufferedData.wrap(buffer);
         original.writeTo(out);
 
         // Deserialize
         final ReadableSequentialData in = BufferedData.wrap(buffer);
-        final VirtualHashChunk deserialized = VirtualHashChunk.parseFrom(in);
+        final VirtualHashChunk deserialized = VirtualHashChunk.parseFrom(in, height);
 
         // Verify
         assertNotNull(deserialized);
@@ -588,7 +631,7 @@ public class VirtualHashChunkTest {
     @Test
     void parseFromNullInputTest() {
         // Test that parseFrom returns null for null input
-        final VirtualHashChunk result = VirtualHashChunk.parseFrom(null);
+        final VirtualHashChunk result = VirtualHashChunk.parseFrom(null, 3);
         assertNull(result);
     }
 
@@ -599,7 +642,7 @@ public class VirtualHashChunkTest {
         final ReadableSequentialData in = BufferedData.wrap(emptyBuffer);
 
         // This should throw IllegalArgumentException because required fields are missing
-        assertThrows(IllegalArgumentException.class, () -> VirtualHashChunk.parseFrom(in));
+        assertThrows(IllegalArgumentException.class, () -> VirtualHashChunk.parseFrom(in, 4));
     }
 
     @Test
@@ -617,29 +660,7 @@ public class VirtualHashChunkTest {
         final ReadableSequentialData in = BufferedData.wrap(buffer, 0, (int) out.position());
 
         // Should throw IllegalArgumentException for wrong field type
-        assertThrows(IllegalArgumentException.class, () -> VirtualHashChunk.parseFrom(in));
-    }
-
-    @Test
-    void parseFromWrongFieldTypeHeightTest() {
-        // Test parsing with wrong wire type for height field
-        final byte[] buffer = new byte[100];
-        final WritableSequentialData out = BufferedData.wrap(buffer);
-
-        // Write path field correctly
-        ProtoWriterTools.writeTag(out, VirtualHashChunk.FIELD_HASHCHUNK_PATH);
-        out.writeLong(0);
-
-        // Write height field with wrong wire type (VARINT instead of FIXED32)
-        final int wrongTag = (VirtualHashChunk.FIELD_HASHCHUNK_HEIGHT.number() << ProtoParserTools.TAG_FIELD_OFFSET)
-                | ProtoConstants.WIRE_TYPE_VARINT_OR_ZIGZAG.ordinal();
-        out.writeVarInt(wrongTag, false);
-        out.writeVarInt(2, false);
-
-        final ReadableSequentialData in = BufferedData.wrap(buffer, 0, (int) out.position());
-
-        // Should throw IllegalArgumentException for wrong field type
-        assertThrows(IllegalArgumentException.class, () -> VirtualHashChunk.parseFrom(in));
+        assertThrows(IllegalArgumentException.class, () -> VirtualHashChunk.parseFrom(in, 3));
     }
 
     @Test
@@ -652,10 +673,6 @@ public class VirtualHashChunkTest {
         ProtoWriterTools.writeTag(out, VirtualHashChunk.FIELD_HASHCHUNK_PATH);
         out.writeLong(0);
 
-        // Write height field correctly
-        ProtoWriterTools.writeTag(out, VirtualHashChunk.FIELD_HASHCHUNK_HEIGHT);
-        out.writeInt(2);
-
         // Write hashData field with wrong wire type (FIXED64 instead of DELIMITED)
         final int wrongTag = (VirtualHashChunk.FIELD_HASHCHUNK_HASHDATA.number() << ProtoParserTools.TAG_FIELD_OFFSET)
                 | ProtoConstants.WIRE_TYPE_FIXED_64_BIT.ordinal();
@@ -664,7 +681,7 @@ public class VirtualHashChunkTest {
         final ReadableSequentialData in = BufferedData.wrap(buffer, 0, (int) out.position());
 
         // Should throw IllegalArgumentException for wrong field type
-        assertThrows(IllegalArgumentException.class, () -> VirtualHashChunk.parseFrom(in));
+        assertThrows(IllegalArgumentException.class, () -> VirtualHashChunk.parseFrom(in, 3));
     }
 
     @Test
@@ -682,7 +699,7 @@ public class VirtualHashChunkTest {
         final ReadableSequentialData in = BufferedData.wrap(buffer, 0, (int) out.position());
 
         // Should throw IllegalArgumentException for unknown field
-        assertThrows(IllegalArgumentException.class, () -> VirtualHashChunk.parseFrom(in));
+        assertThrows(IllegalArgumentException.class, () -> VirtualHashChunk.parseFrom(in, 3));
     }
 
     @Test
@@ -695,10 +712,6 @@ public class VirtualHashChunkTest {
         ProtoWriterTools.writeTag(out, VirtualHashChunk.FIELD_HASHCHUNK_PATH);
         out.writeLong(0);
 
-        // Write height field correctly
-        ProtoWriterTools.writeTag(out, VirtualHashChunk.FIELD_HASHCHUNK_HEIGHT);
-        out.writeInt(2);
-
         // Write hashData field tag and claim large length, but don't provide data
         ProtoWriterTools.writeTag(out, VirtualHashChunk.FIELD_HASHCHUNK_HASHDATA);
         out.writeVarInt(1000, false); // Claim 1000 bytes but buffer doesn't have them
@@ -706,7 +719,29 @@ public class VirtualHashChunkTest {
         final ReadableSequentialData in = BufferedData.wrap(buffer, 0, (int) out.position());
 
         // Should throw IllegalArgumentException for failed byte read
-        assertThrows(IllegalArgumentException.class, () -> VirtualHashChunk.parseFrom(in));
+        assertThrows(IllegalArgumentException.class, () -> VirtualHashChunk.parseFrom(in, 5));
+    }
+
+    @Test
+    void parseHashDataHeightMismatch() {
+        // Test parsing when hashData length exceeds available bytes
+        final byte[] buffer = new byte[500];
+        final WritableSequentialData out = BufferedData.wrap(buffer);
+
+        // Write path field correctly
+        ProtoWriterTools.writeTag(out, VirtualHashChunk.FIELD_HASHCHUNK_PATH);
+        out.writeLong(0);
+
+        // Write hashData field tag and claim large length, but don't provide data
+        ProtoWriterTools.writeTag(out, VirtualHashChunk.FIELD_HASHCHUNK_HASHDATA);
+        final int singleHashLength = Cryptography.DEFAULT_DIGEST_TYPE.digestLength();
+        out.writeVarInt(singleHashLength * 5, false);
+        out.writeBytes(new byte[singleHashLength * 5]);
+
+        final ReadableSequentialData in = BufferedData.wrap(buffer, 0, (int) out.position());
+
+        // Should throw IllegalArgumentException for hash data / data rank mismatch
+        assertThrows(IllegalArgumentException.class, () -> VirtualHashChunk.parseFrom(in, 2));
     }
 
     @Test
@@ -726,21 +761,19 @@ public class VirtualHashChunkTest {
         out.writeVarInt(hashData.length, false);
         out.writeBytes(hashData);
 
-        ProtoWriterTools.writeTag(out, VirtualHashChunk.FIELD_HASHCHUNK_HEIGHT);
-        out.writeInt(height);
-
         ProtoWriterTools.writeTag(out, VirtualHashChunk.FIELD_HASHCHUNK_PATH);
         out.writeLong(path);
 
         // Parse
         final ReadableSequentialData in = BufferedData.wrap(buffer, 0, (int) out.position());
-        final VirtualHashChunk chunk = VirtualHashChunk.parseFrom(in);
+        final VirtualHashChunk chunk = VirtualHashChunk.parseFrom(in, height);
 
         // Verify all fields were parsed correctly despite different order
         assertNotNull(chunk);
         assertEquals(path, chunk.path());
         assertEquals(height, chunk.height());
         assertArrayEquals(hashData, chunk.hashData());
+        assertEquals(height, chunk.dataRank());
     }
 
     // Calc hashes
@@ -861,7 +894,8 @@ public class VirtualHashChunkTest {
 
         for (int i = 0; i < chunkSize; i++) {
             final Hash hash = genRandomHash();
-            chunk.setHashAtIndex(i, hash);
+            final long path = chunk.getPath(i);
+            chunk.setHashAtPath(path, hash);
         }
 
         // Check that getHash() and calcHash() are equal

@@ -43,17 +43,34 @@ import org.hiero.base.crypto.Hash;
  * @param height Chunk height
  * @param hashData Chunk hashes
  */
-public record VirtualHashChunk(
-        long path, int height, @NonNull byte[] hashData) {
+public class VirtualHashChunk {
 
+    // Chunk path field
     public static final FieldDefinition FIELD_HASHCHUNK_PATH =
             new FieldDefinition("path", FieldType.FIXED64, false, true, false, 1);
-    public static final FieldDefinition FIELD_HASHCHUNK_HEIGHT =
-            new FieldDefinition("height", FieldType.FIXED32, false, true, false, 2);
+    // Chunk height is not serialized
+    // Hash data field
     public static final FieldDefinition FIELD_HASHCHUNK_HASHDATA =
             new FieldDefinition("hashData", FieldType.BYTES, false, false, false, 4);
+    // Data rank is not serialized
 
-    public VirtualHashChunk {
+    // Chunk path
+    private final long path;
+
+    // Chunk height. Equal to VirtualMapConfig.hashChunkHeight
+    private final int height;
+
+    // Hash data, always 1 << height hashes. However, some hashes at lowest ranks may be null, only
+    // hashes at ranks 1 to data rank are actually stored, all other hashes are not used. This
+    // lets save tons of space on disk when the chunk is serialized
+    @NonNull
+    private final byte[] hashData;
+
+    // The lowest rank, 1 to chunk height, where hashes are stored in this chunk
+    private int dataRank;
+
+    VirtualHashChunk(final long path, final int height, @NonNull final byte[] hashData, final int dataRank) {
+        this.path = path;
         if (height <= 0) {
             throw new IllegalArgumentException("Wrong chunk height: " + height);
         }
@@ -61,6 +78,7 @@ public record VirtualHashChunk(
         if (rank % height != 0) {
             throw new IllegalArgumentException("Wrong chunk rank/height: " + rank + "/" + height);
         }
+        this.height = height;
         if (hashData == null) {
             throw new IllegalArgumentException("Null hash data");
         }
@@ -68,29 +86,52 @@ public record VirtualHashChunk(
         final int dataLength = hashData.length;
         // Hash data length must always be hash length * chunk size, even if the number of hashes
         // is less than chunk size (partial chunks)
-        if (dataLength != Cryptography.DEFAULT_DIGEST_TYPE.digestLength() * chunkSize) {
+        final int singleHashLength = Cryptography.DEFAULT_DIGEST_TYPE.digestLength();
+        if (dataLength != singleHashLength * chunkSize) {
             throw new IllegalArgumentException("Wrong hash data length: " + dataLength);
         }
+        this.hashData = hashData;
+        if ((dataRank < 1) || (dataRank > height)) {
+            throw new IllegalArgumentException("Wrong data rank: " + dataRank);
+        }
+        this.dataRank = dataRank;
     }
 
     public VirtualHashChunk(final long path, final int height) {
-        this(path, height, new byte[getChunkSize(height) * Cryptography.DEFAULT_DIGEST_TYPE.digestLength()]);
+        this(path, height, new byte[getChunkSize(height) * Cryptography.DEFAULT_DIGEST_TYPE.digestLength()], 1);
     }
 
     public VirtualHashChunk copy() {
         final byte[] dataCopy = new byte[hashData.length];
         System.arraycopy(hashData, 0, dataCopy, 0, hashData.length);
-        return new VirtualHashChunk(path, height, dataCopy);
+        return new VirtualHashChunk(path, height, dataCopy, dataRank);
     }
 
-    public static VirtualHashChunk parseFrom(final ReadableSequentialData in) {
+    public long path() {
+        return path;
+    }
+
+    public int height() {
+        return height;
+    }
+
+    // For testing purposes only
+    byte[] hashData() {
+        return hashData;
+    }
+
+    // For testing purposes only
+    int dataRank() {
+        return dataRank;
+    }
+
+    public static VirtualHashChunk parseFrom(final ReadableSequentialData in, final int height) {
         if (in == null) {
             return null;
         }
 
         long path = 0;
-        int height = 0;
-        byte[] hashData = null;
+        byte[] hashes = null;
 
         while (in.hasRemaining()) {
             final int field = in.readVarInt(false);
@@ -100,18 +141,13 @@ public record VirtualHashChunk(
                     throw new IllegalArgumentException("Wrong field type: " + field);
                 }
                 path = in.readLong();
-            } else if (tag == FIELD_HASHCHUNK_HEIGHT.number()) {
-                if ((field & ProtoConstants.TAG_WIRE_TYPE_MASK) != ProtoConstants.WIRE_TYPE_FIXED_32_BIT.ordinal()) {
-                    throw new IllegalArgumentException("Wrong field type: " + field);
-                }
-                height = in.readInt();
             } else if (tag == FIELD_HASHCHUNK_HASHDATA.number()) {
                 if ((field & ProtoConstants.TAG_WIRE_TYPE_MASK) != ProtoConstants.WIRE_TYPE_DELIMITED.ordinal()) {
                     throw new IllegalArgumentException("Wrong field type: " + field);
                 }
                 final int len = in.readVarInt(false);
-                hashData = new byte[len];
-                if (in.readBytes(hashData) != len) {
+                hashes = new byte[len];
+                if (in.readBytes(hashes) != len) {
                     throw new IllegalArgumentException("Failed to read " + len + " bytes");
                 }
             } else {
@@ -119,20 +155,51 @@ public record VirtualHashChunk(
             }
         }
 
-        return new VirtualHashChunk(path, height, hashData);
+        if (hashes == null) {
+            throw new IllegalArgumentException("Missing hash data");
+        }
+
+        final int singleHashLength = Cryptography.DEFAULT_DIGEST_TYPE.digestLength();
+        final int numHashes = hashes.length / singleHashLength;
+        // Check the length is a power of two
+        if ((numHashes & (numHashes - 1)) != 0) {
+            throw new IllegalArgumentException("Wrong hash data length: " + numHashes);
+        }
+        // Check hashData contains no more hashes than 2 ^ height
+        if (numHashes > 1 << height) {
+            throw new IllegalArgumentException("Wrong hash data length / height: " + numHashes + " / " + height);
+        }
+        int dataRank = 1;
+        while ((1 << dataRank) < numHashes) {
+            dataRank++;
+        }
+        assert (1 << dataRank) == numHashes;
+
+        final byte[] hashData;
+        if (dataRank == height) {
+            hashData = hashes;
+        } else {
+            hashData = new byte[singleHashLength * getChunkSize(height)];
+            final int step = 1 << (height - dataRank);
+            for (int i = 0; i < numHashes; i++) {
+                final int srcOffset = i * singleHashLength;
+                final int dstOffset = i * singleHashLength * step;
+                System.arraycopy(hashes, srcOffset, hashData, dstOffset, singleHashLength);
+            }
+        }
+
+        return new VirtualHashChunk(path, height, hashData, dataRank);
     }
 
-    public int getSizeInBytes() {
+    public int getSerializedSizeInBytes() {
         int size = 0;
         size += ProtoWriterTools.sizeOfTag(FIELD_HASHCHUNK_PATH);
         // Path is FIXED64
         size += Long.BYTES;
-        // Height is always > 0
-        size += ProtoWriterTools.sizeOfTag(FIELD_HASHCHUNK_HEIGHT);
-        // Height is FIXED32
-        size += Integer.BYTES;
         // Hash data is never null
-        size += ProtoWriterTools.sizeOfDelimited(FIELD_HASHCHUNK_HASHDATA, hashData.length);
+        // Only 2 ^ dataRank hashes are serialized
+        final int singleHashLength = Cryptography.DEFAULT_DIGEST_TYPE.digestLength();
+        size += ProtoWriterTools.sizeOfDelimited(FIELD_HASHCHUNK_HASHDATA, singleHashLength * (1 << dataRank));
         return size;
     }
 
@@ -140,14 +207,23 @@ public record VirtualHashChunk(
         final long pos = out.position();
         ProtoWriterTools.writeTag(out, FIELD_HASHCHUNK_PATH);
         out.writeLong(path);
-        // Height is always > 0
-        ProtoWriterTools.writeTag(out, FIELD_HASHCHUNK_HEIGHT);
-        out.writeInt(height);
         // Hash data is never null
         ProtoWriterTools.writeTag(out, FIELD_HASHCHUNK_HASHDATA);
-        out.writeVarInt(hashData.length, false);
-        out.writeBytes(hashData);
-        assert out.position() == pos + getSizeInBytes();
+        final int singleHashLength = Cryptography.DEFAULT_DIGEST_TYPE.digestLength();
+        final int serializedDataLength = singleHashLength * getChunkSize(dataRank);
+        out.writeVarInt(serializedDataLength, false);
+        if (dataRank == height) {
+            assert serializedDataLength == hashData.length;
+            out.writeBytes(hashData);
+        } else {
+            final int chunkSize = getChunkSize(height);
+            final int step = 1 << (height - dataRank);
+            for (int i = 0; i < chunkSize; i += step) {
+                final int offset = i * singleHashLength;
+                out.writeBytes(hashData, offset, singleHashLength);
+            }
+        }
+        assert out.position() == pos + getSerializedSizeInBytes();
     }
 
     public static long pathToChunkPath(final long path, final int chunkHeight) {
@@ -365,7 +441,7 @@ public record VirtualHashChunk(
      * {@link IllegalArgumentException} is thrown.
      *
      * <p>This method must not be called in parallel for the same path. Typically, hashes
-     * in chunks are updated from virtual hasher tasks, every path is handled by a single
+     * in chunks are updated from virtual hasher tasks, every path handled by a single
      * hashing task.
      *
      * @param path Virtual path
@@ -374,6 +450,12 @@ public record VirtualHashChunk(
     public void setHashAtPath(final long path, final Hash hash) {
         final int index = getPathIndexInChunk(path, this.path, height);
         setHashImpl(index, hash);
+
+        final int chunkRank = Path.getRank(this.path);
+        final int pathRank = Path.getRank(path);
+        // No synchronization as setHashAtPath() should not be called in parallel for paths
+        // at different ranks
+        dataRank = Math.max(dataRank, pathRank - chunkRank);
     }
 
     /**
@@ -395,29 +477,13 @@ public record VirtualHashChunk(
     }
 
     /**
-     * Updates a hash at the given index. If the index is negative, or greater or equal to
-     * the size of the chunk, an {@link IllegalArgumentException} is thrown.
-     *
-     * <p>This method must not be called in parallel for the same index. Typically, hashes
-     * in chunks are updated from virtual hasher tasks, every path / index is handled by a
-     * single hashing task.
-     *
-     * @param index Hash index in the chunk
-     * @param hash Hash to set
-     */
-    public void setHashAtIndex(final int index, final Hash hash) {
-        if ((index < 0) || (index >= getChunkSize())) {
-            throw new IllegalArgumentException("Wrong hash index: " + index);
-        }
-        setHashImpl(index, hash);
-    }
-
-    /**
      * Returns a hash at a given index. If the index is negative or greater than the size of
      * the chunk, an {@link IllegalArgumentException} is thrown.
      *
      * <p>Since hashes are only stored at the last rank in the chunk, chunk size is
      * 2 ^ chunkHeight. Index 0 corresponds to the first path at the last rank in the chunk.
+     *
+     * <p>For testing purposes only.
      *
      * @param index the path index
      * @return the hash at the given path

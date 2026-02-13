@@ -75,7 +75,7 @@ public class ValidateInternalIndex {
                     printFileDataLocationError(log, "Missing entry on disk!", dfc, dataLocation);
                     return;
                 }
-                final VirtualHashChunk hashChunk = VirtualHashChunk.parseFrom(data);
+                final VirtualHashChunk hashChunk = VirtualHashChunk.parseFrom(data, hashChunkHeight);
                 assertNotNull(hashChunk);
                 final long expectedChunkPath = VirtualHashChunk.chunkIdToChunkPath(chunkId, hashChunkHeight);
                 assertEquals(expectedChunkPath, hashChunk.path(), "Wrong chunk path");
