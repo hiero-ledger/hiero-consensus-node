@@ -27,6 +27,7 @@ import "google/protobuf/wrappers.proto";
 import "services/basic_types.proto";
 import "services/exchange_rate.proto";
 import "services/state/addressbook/node.proto";
+import "services/state/addressbook/registered_node.proto";
 import "services/state/blockrecords/block_info.proto";
 import "services/state/blockrecords/running_hashes.proto";
 import "services/state/blockstream/block_stream_info.proto";
@@ -1112,9 +1113,9 @@ message MapChangeValue {
         com.hedera.hapi.node.state.history.WrapsMessageHistory wraps_message_history_value = 31;
 
         /**
-         * A registered node identifier.
+         * A registered node value.
          */
-        com.hedera.hapi.platform.state.NodeId registered_node_id_value = 32;
+        com.hedera.hapi.node.state.addressbook.RegisteredNode registered_node_value = 32;
     }
 }
 

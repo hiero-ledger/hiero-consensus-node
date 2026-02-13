@@ -318,7 +318,7 @@ public class ImmediateStateChangeListener implements StateChangeListener {
                         MapChangeValue.ValueChoiceOneOfType.WRAPS_MESSAGE_HISTORY_VALUE, wrapsMessageHistory));
             case RegisteredNode registeredNode ->
                 new MapChangeValue(
-                        new OneOf<>(MapChangeValue.ValueChoiceOneOfType.REGISTERED_NODE_ID_VALUE, registeredNode));
+                        new OneOf<>(MapChangeValue.ValueChoiceOneOfType.REGISTERED_NODE_VALUE, registeredNode));
             default ->
                 throw new IllegalStateException(
                         "Unexpected value: " + value.getClass().getSimpleName());
