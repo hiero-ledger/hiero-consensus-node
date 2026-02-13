@@ -47,6 +47,10 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MEMO_TOO_LONG;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.RECORD_NOT_FOUND;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_EXPIRED;
 import static org.hiero.base.utility.CommonUtils.hex;
+import static org.hiero.hapi.support.fees.Extra.HOOK_EXECUTION;
+import static org.hiero.hapi.support.fees.Extra.KEYS;
+import static org.hiero.hapi.support.fees.Extra.PROCESSING_BYTES;
+import static org.hiero.hapi.support.fees.Extra.SIGNATURES;
 import static org.hyperledger.besu.crypto.Hash.keccak256;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -110,7 +114,12 @@ public class CryptoCreateSimpleFeesTest {
                             .fee(ONE_HBAR)
                             .via("cryptoCreateTxn"),
                     validateChargedUsdWithinWithTxnSize(
-                            "cryptoCreateTxn", txnSize -> expectedCryptoCreateFullFeeUsd(1, 0, txnSize), 0.0001));
+                            "cryptoCreateTxn",
+                            txnSize -> expectedCryptoCreateFullFeeUsd(Map.of(
+                                    SIGNATURES, 1L,
+                                    KEYS, 0L,
+                                    PROCESSING_BYTES, (long) txnSize)),
+                            0.0001));
         }
 
         @HapiTest
@@ -126,7 +135,12 @@ public class CryptoCreateSimpleFeesTest {
                             .fee(ONE_HBAR)
                             .via("cryptoCreateTxn"),
                     validateChargedUsdWithinWithTxnSize(
-                            "cryptoCreateTxn", txnSize -> expectedCryptoCreateFullFeeUsd(1L, 1L, txnSize), 0.0001));
+                            "cryptoCreateTxn",
+                            txnSize -> expectedCryptoCreateFullFeeUsd(Map.of(
+                                    SIGNATURES, 1L,
+                                    KEYS, 1L,
+                                    PROCESSING_BYTES, (long) txnSize)),
+                            0.0001));
         }
 
         @HapiTest
@@ -148,7 +162,12 @@ public class CryptoCreateSimpleFeesTest {
                             .fee(ONE_HBAR)
                             .via("cryptoCreateTxn"),
                     validateChargedUsdWithinWithTxnSize(
-                            "cryptoCreateTxn", txnSize -> expectedCryptoCreateFullFeeUsd(2L, 2L, txnSize), 0.0001));
+                            "cryptoCreateTxn",
+                            txnSize -> expectedCryptoCreateFullFeeUsd(Map.of(
+                                    SIGNATURES, 2L,
+                                    KEYS, 2L,
+                                    PROCESSING_BYTES, (long) txnSize)),
+                            0.0001));
         }
 
         @HapiTest
@@ -174,7 +193,12 @@ public class CryptoCreateSimpleFeesTest {
                             .fee(ONE_HBAR)
                             .via("cryptoCreateTxn"),
                     validateChargedUsdWithinWithTxnSize(
-                            "cryptoCreateTxn", txnSize -> expectedCryptoCreateFullFeeUsd(3L, 4L, txnSize), 0.0001));
+                            "cryptoCreateTxn",
+                            txnSize -> expectedCryptoCreateFullFeeUsd(Map.of(
+                                    SIGNATURES, 3L,
+                                    KEYS, 4L,
+                                    PROCESSING_BYTES, (long) txnSize)),
+                            0.0001));
         }
 
         @HapiTest
@@ -192,7 +216,12 @@ public class CryptoCreateSimpleFeesTest {
                             .fee(ONE_HBAR)
                             .via("cryptoCreateTxn"),
                     validateChargedUsdWithinWithTxnSize(
-                            "cryptoCreateTxn", txnSize -> expectedCryptoCreateFullFeeUsd(2L, 2L, txnSize), 0.0001));
+                            "cryptoCreateTxn",
+                            txnSize -> expectedCryptoCreateFullFeeUsd(Map.of(
+                                    SIGNATURES, 2L,
+                                    KEYS, 2L,
+                                    PROCESSING_BYTES, (long) txnSize)),
+                            0.0001));
         }
 
         @HapiTest
@@ -209,7 +238,12 @@ public class CryptoCreateSimpleFeesTest {
                             .fee(ONE_HUNDRED_HBARS)
                             .via("cryptoCreateTxn"),
                     validateChargedUsdWithinWithTxnSize(
-                            "cryptoCreateTxn", txnSize -> expectedCryptoCreateFullFeeUsd(1L, 0L, 1L, txnSize), 0.0001));
+                            "cryptoCreateTxn",
+                            txnSize -> expectedCryptoCreateFullFeeUsd(Map.of(
+                                    SIGNATURES, 1L,
+                                    HOOK_EXECUTION, 1L,
+                                    PROCESSING_BYTES, (long) txnSize)),
+                            0.0001));
         }
 
         @HapiTest
@@ -228,7 +262,13 @@ public class CryptoCreateSimpleFeesTest {
                             .fee(ONE_HUNDRED_HBARS)
                             .via("cryptoCreateTxn"),
                     validateChargedUsdWithinWithTxnSize(
-                            "cryptoCreateTxn", txnSize -> expectedCryptoCreateFullFeeUsd(1L, 1L, 1L, txnSize), 0.0001));
+                            "cryptoCreateTxn",
+                            txnSize -> expectedCryptoCreateFullFeeUsd(Map.of(
+                                    SIGNATURES, 1L,
+                                    KEYS, 1L,
+                                    HOOK_EXECUTION, 1L,
+                                    PROCESSING_BYTES, (long) txnSize)),
+                            0.0001));
         }
 
         @HapiTest
@@ -257,7 +297,13 @@ public class CryptoCreateSimpleFeesTest {
                             .fee(ONE_HUNDRED_HBARS)
                             .via("cryptoCreateTxn"),
                     validateChargedUsdWithinWithTxnSize(
-                            "cryptoCreateTxn", txnSize -> expectedCryptoCreateFullFeeUsd(2L, 2L, 2L, txnSize), 0.0001));
+                            "cryptoCreateTxn",
+                            txnSize -> expectedCryptoCreateFullFeeUsd(Map.of(
+                                    SIGNATURES, 2L,
+                                    KEYS, 2L,
+                                    HOOK_EXECUTION, 2L,
+                                    PROCESSING_BYTES, (long) txnSize)),
+                            0.0001));
         }
 
         @HapiTest
@@ -305,7 +351,12 @@ public class CryptoCreateSimpleFeesTest {
                         allRunFor(spec, txn);
                     }),
                     validateChargedUsdWithinWithTxnSize(
-                            "cryptoCreateTxn", txnSize -> expectedCryptoCreateFullFeeUsd(1L, 1L, txnSize), 0.0001));
+                            "cryptoCreateTxn",
+                            txnSize -> expectedCryptoCreateFullFeeUsd(Map.of(
+                                    SIGNATURES, 1L,
+                                    KEYS, 1L,
+                                    PROCESSING_BYTES, (long) txnSize)),
+                            0.0001));
         }
     }
 
@@ -1245,8 +1296,11 @@ public class CryptoCreateSimpleFeesTest {
                                 "cryptoCreateTxn",
                                 initialBalance,
                                 afterBalance,
-                                txnSize -> expectedCryptoCreateFullFeeUsd(1L, 1L, txnSize),
-                                0.01));
+                                txnSize -> expectedCryptoCreateFullFeeUsd(Map.of(
+                                        SIGNATURES, 1L,
+                                        KEYS, 1L,
+                                        PROCESSING_BYTES, (long) txnSize)),
+                                0.0001));
             }
         }
 
@@ -1267,7 +1321,12 @@ public class CryptoCreateSimpleFeesTest {
                                 .fee(ONE_HBAR)
                                 .via("cryptoCreateTxn"),
                         validateChargedUsdWithinWithTxnSize(
-                                "cryptoCreateTxn", txnSize -> expectedCryptoCreateFullFeeUsd(1L, 1L, txnSize), 0.0001));
+                                "cryptoCreateTxn",
+                                txnSize -> expectedCryptoCreateFullFeeUsd(Map.of(
+                                        SIGNATURES, 1L,
+                                        KEYS, 1L,
+                                        PROCESSING_BYTES, (long) txnSize)),
+                                0.0001));
             }
 
             @HapiTest
@@ -1286,7 +1345,12 @@ public class CryptoCreateSimpleFeesTest {
                                 .fee(ONE_HBAR)
                                 .via("cryptoCreateTxn"),
                         validateChargedUsdWithinWithTxnSize(
-                                "cryptoCreateTxn", txnSize -> expectedCryptoCreateFullFeeUsd(1L, 1L, txnSize), 0.0001));
+                                "cryptoCreateTxn",
+                                txnSize -> expectedCryptoCreateFullFeeUsd(Map.of(
+                                        SIGNATURES, 1L,
+                                        KEYS, 1L,
+                                        PROCESSING_BYTES, (long) txnSize)),
+                                0.0001));
             }
 
             @HapiTest
@@ -1314,7 +1378,12 @@ public class CryptoCreateSimpleFeesTest {
                                 .fee(ONE_HBAR)
                                 .via("cryptoCreateTxn"),
                         validateChargedUsdWithinWithTxnSize(
-                                "cryptoCreateTxn", txnSize -> expectedCryptoCreateFullFeeUsd(2L, 2L, txnSize), 0.0001));
+                                "cryptoCreateTxn",
+                                txnSize -> expectedCryptoCreateFullFeeUsd(Map.of(
+                                        SIGNATURES, 2L,
+                                        KEYS, 2L,
+                                        PROCESSING_BYTES, (long) txnSize)),
+                                0.0001));
             }
         }
     }

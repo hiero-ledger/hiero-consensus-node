@@ -13,12 +13,12 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.submitModified;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.mod.ModificationUtils.withSuccessivelyVariedBodyIds;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.FeeParam.SIGNATURES;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.FeeParam.TXN_SIZE;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTopicDeleteFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdWithinWithTxnSize;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOPIC_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.UNAUTHORIZED;
+import static org.hiero.hapi.support.fees.Extra.PROCESSING_BYTES;
+import static org.hiero.hapi.support.fees.Extra.SIGNATURES;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
@@ -101,7 +101,8 @@ public class TopicDeleteSuite {
                     if ("true".equals(flag)) {
                         return validateChargedUsdWithinWithTxnSize(
                                 "topicDelete",
-                                txnSize -> expectedTopicDeleteFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                txnSize -> expectedTopicDeleteFullFeeUsd(
+                                        Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
                                 0.001);
                     } else {
                         return validateChargedUsd("topicDelete", 0.005);

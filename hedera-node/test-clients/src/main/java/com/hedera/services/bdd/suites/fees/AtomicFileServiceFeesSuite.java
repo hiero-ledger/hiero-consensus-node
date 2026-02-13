@@ -16,14 +16,14 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateInnerTxnChargedUsd;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.FeeParam.BYTES;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.FeeParam.KEYS;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.FeeParam.SIGNATURES;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.FeeParam.TXN_SIZE;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedFileAppendFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedFileCreateFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedFileDeleteFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateInnerChargedUsdWithinWithTxnSize;
+import static org.hiero.hapi.support.fees.Extra.KEYS;
+import static org.hiero.hapi.support.fees.Extra.PROCESSING_BYTES;
+import static org.hiero.hapi.support.fees.Extra.SIGNATURES;
+import static org.hiero.hapi.support.fees.Extra.STATE_BYTES;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.spec.keys.KeyShape;
@@ -75,10 +75,10 @@ class AtomicFileServiceFeesSuite {
                                 "fileCreateBasic",
                                 ATOMIC_BATCH,
                                 txnSize -> expectedFileCreateFullFeeUsd(Map.of(
-                                        SIGNATURES, 1,
-                                        KEYS, 1,
-                                        BYTES, 1000,
-                                        TXN_SIZE, txnSize)),
+                                        SIGNATURES, 1L,
+                                        KEYS, 1L,
+                                        STATE_BYTES, 1000L,
+                                        PROCESSING_BYTES, (long) txnSize)),
                                 0.001);
                     } else {
                         return validateInnerTxnChargedUsd("fileCreateBasic", ATOMIC_BATCH, BASE_FEE_FILE_CREATE, 5);
@@ -111,10 +111,10 @@ class AtomicFileServiceFeesSuite {
                                 "fileUpdateBasic",
                                 ATOMIC_BATCH,
                                 txnSize -> expectedFileCreateFullFeeUsd(Map.of(
-                                        SIGNATURES, 1,
-                                        KEYS, 1,
-                                        BYTES, 1000,
-                                        TXN_SIZE, txnSize)),
+                                        SIGNATURES, 1L,
+                                        KEYS, 1L,
+                                        STATE_BYTES, 1000L,
+                                        PROCESSING_BYTES, (long) txnSize)),
                                 0.001);
                     } else {
                         return validateInnerTxnChargedUsd("fileUpdateBasic", ATOMIC_BATCH, BASE_FEE_FILE_UPDATE, 5);
@@ -144,7 +144,8 @@ class AtomicFileServiceFeesSuite {
                         return validateInnerChargedUsdWithinWithTxnSize(
                                 "fileDeleteBasic",
                                 ATOMIC_BATCH,
-                                txnSize -> expectedFileDeleteFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                txnSize -> expectedFileDeleteFullFeeUsd(
+                                        Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
                                 0.001);
                     } else {
                         return validateInnerTxnChargedUsd("fileDeleteBasic", ATOMIC_BATCH, BASE_FEE_FILE_DELETE, 10);
@@ -192,9 +193,9 @@ class AtomicFileServiceFeesSuite {
                                 baseAppend,
                                 ATOMIC_BATCH,
                                 txnSize -> expectedFileAppendFullFeeUsd(Map.of(
-                                        SIGNATURES, 1,
-                                        BYTES, 1000,
-                                        TXN_SIZE, txnSize)),
+                                        SIGNATURES, 1L,
+                                        STATE_BYTES, 1000L,
+                                        PROCESSING_BYTES, (long) txnSize)),
                                 0.001);
                     } else {
                         return validateInnerTxnChargedUsd(baseAppend, ATOMIC_BATCH, BASE_FEE_FILE_APPEND, 5);

@@ -31,13 +31,13 @@ import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.FeeParam.SIGNATURES;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.FeeParam.TOKEN_TYPES;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.FeeParam.TXN_SIZE;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenMintNftFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdWithinWithTxnSize;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
+import static org.hiero.hapi.support.fees.Extra.PROCESSING_BYTES;
+import static org.hiero.hapi.support.fees.Extra.SIGNATURES;
+import static org.hiero.hapi.support.fees.Extra.TOKEN_TYPES;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.google.protobuf.ByteString;
@@ -103,9 +103,9 @@ public class AllBaseOpFeesSuite {
                                     validateChargedUsdWithinWithTxnSize(
                                             "moreSigsTxn",
                                             txnSize -> expectedTokenMintNftFullFeeUsd(Map.of(
-                                                    SIGNATURES, 1,
-                                                    TOKEN_TYPES, 1,
-                                                    TXN_SIZE, txnSize)),
+                                                    SIGNATURES, 10L,
+                                                    TOKEN_TYPES, 1L,
+                                                    PROCESSING_BYTES, (long) txnSize)),
                                             ALLOWED_DIFFERENCE_PERCENTAGE));
                         });
                     } else {

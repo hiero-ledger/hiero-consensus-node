@@ -33,9 +33,6 @@ import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
 import static com.hedera.services.bdd.suites.contract.hapi.ContractCallSuite.PAY_RECEIVABLE_CONTRACT;
 import static com.hedera.services.bdd.suites.crypto.AutoCreateUtils.createHollowAccountFrom;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.FeeParam.KEYS;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.FeeParam.SIGNATURES;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.FeeParam.TXN_SIZE;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTopicCreateFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateInnerChargedUsdWithinWithTxnSize;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.AUTORENEW_DURATION_NOT_IN_RANGE;
@@ -47,6 +44,9 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_RENEWA
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOPIC_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
+import static org.hiero.hapi.support.fees.Extra.KEYS;
+import static org.hiero.hapi.support.fees.Extra.PROCESSING_BYTES;
+import static org.hiero.hapi.support.fees.Extra.SIGNATURES;
 
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
@@ -224,7 +224,18 @@ class AtomicTopicCreateSuite {
                 getTopicInfo("noAdminKeyExplicitAutoRenewAccount")
                         .hasNoAdminKey()
                         .hasAutoRenewAccount("autoRenewAccount"),
-                validateInnerTxnChargedUsd("createTopic", ATOMIC_BATCH, expectedPriceUsd, 5.0));
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return validateInnerChargedUsdWithinWithTxnSize(
+                                "createTopic",
+                                ATOMIC_BATCH,
+                                txnSize -> expectedTopicCreateFullFeeUsd(
+                                        Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
+                                0.001);
+                    } else {
+                        return validateInnerTxnChargedUsd("createTopic", ATOMIC_BATCH, expectedPriceUsd, 5.0);
+                    }
+                }));
     }
 
     // TOPIC_RENEW_6 - Public topic
@@ -245,7 +256,18 @@ class AtomicTopicCreateSuite {
                 getTopicInfo("noAdminKeyExplicitAutoRenewAccount")
                         .hasNoAdminKey()
                         .hasAutoRenewAccount("autoRenewAccount"),
-                validateInnerTxnChargedUsd("createTopic", ATOMIC_BATCH, expectedPriceUsd, 5.0));
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return validateInnerChargedUsdWithinWithTxnSize(
+                                "createTopic",
+                                ATOMIC_BATCH,
+                                txnSize -> expectedTopicCreateFullFeeUsd(
+                                        Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
+                                0.001);
+                    } else {
+                        return validateInnerTxnChargedUsd("createTopic", ATOMIC_BATCH, expectedPriceUsd, 5.0);
+                    }
+                }));
     }
 
     // TOPIC_RENEW_6 - Private topic
@@ -274,9 +296,9 @@ class AtomicTopicCreateSuite {
                                 "createTopic",
                                 ATOMIC_BATCH,
                                 txnSize -> expectedTopicCreateFullFeeUsd(Map.of(
-                                        SIGNATURES, 1,
-                                        KEYS, 1,
-                                        TXN_SIZE, txnSize)),
+                                        SIGNATURES, 1L,
+                                        KEYS, 1L,
+                                        PROCESSING_BYTES, (long) txnSize)),
                                 0.001);
                     } else {
                         return validateInnerTxnChargedUsd("createTopic", ATOMIC_BATCH, expectedPriceUsd, 5.0);

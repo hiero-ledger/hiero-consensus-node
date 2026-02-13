@@ -58,11 +58,10 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
 import static com.hedera.services.bdd.suites.contract.leaky.LeakyContractTestsSuite.RECEIVER;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.FeeParam.SIGNATURES;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.FeeParam.TOKEN_TYPES;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenCreateNftFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenCreateNftWithCustomFeesFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenMintNftFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenNftUpdateFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenUpdateFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.AIRDROPS_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NODE_AND_NETWORK_BASE_FEE;
@@ -78,6 +77,8 @@ import static com.hederahashgraph.api.proto.java.TokenPauseStatus.Paused;
 import static com.hederahashgraph.api.proto.java.TokenPauseStatus.Unpaused;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
+import static org.hiero.hapi.support.fees.Extra.SIGNATURES;
+import static org.hiero.hapi.support.fees.Extra.TOKEN_TYPES;
 
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
@@ -637,8 +638,8 @@ public class TokenServiceFeesSuite {
                         expectedFee,
                         ALLOWED_DIFFERENCE_PERCENTAGE,
                         expectedTokenMintNftFullFeeUsd(Map.of(
-                                        SIGNATURES, 1,
-                                        TOKEN_TYPES, 1))
+                                        SIGNATURES, 1L,
+                                        TOKEN_TYPES, 10L))
                                 + PROCESSING_BYTES_FEE_USD * 117 * 10,
                         0.01));
     }
@@ -934,7 +935,11 @@ public class TokenServiceFeesSuite {
                         .fee(10 * ONE_HBAR)
                         .via(nftUpdateTxn),
                 safeValidateChargedUsdWithin(
-                        nftUpdateTxn, expectedNftUpdatePriceUsd, 0.01, expectedTokenUpdateFullFeeUsd(2, 0, 5), 0.01));
+                        nftUpdateTxn,
+                        expectedNftUpdatePriceUsd,
+                        0.01,
+                        expectedTokenNftUpdateFullFeeUsd(2, 5, 0),
+                        0.01));
     }
 
     @HapiTest

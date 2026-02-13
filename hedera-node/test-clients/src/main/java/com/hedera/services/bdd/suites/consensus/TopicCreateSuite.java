@@ -35,9 +35,6 @@ import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
 import static com.hedera.services.bdd.suites.contract.hapi.ContractCallSuite.PAY_RECEIVABLE_CONTRACT;
 import static com.hedera.services.bdd.suites.crypto.AutoCreateUtils.createHollowAccountFrom;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.FeeParam.KEYS;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.FeeParam.SIGNATURES;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.FeeParam.TXN_SIZE;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTopicCreateFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdWithinWithTxnSize;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.AUTORENEW_DURATION_NOT_IN_RANGE;
@@ -47,6 +44,9 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_RENEWA
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOPIC_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
+import static org.hiero.hapi.support.fees.Extra.KEYS;
+import static org.hiero.hapi.support.fees.Extra.PROCESSING_BYTES;
+import static org.hiero.hapi.support.fees.Extra.SIGNATURES;
 
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
@@ -189,10 +189,11 @@ public class TopicCreateSuite {
                     if ("true".equals(flag)) {
                         return validateChargedUsdWithinWithTxnSize(
                                 "createTopic",
-                                txnSize -> expectedTopicCreateFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                txnSize -> expectedTopicCreateFullFeeUsd(
+                                        Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
                                 0.001);
                     } else {
-                        return validateChargedUsd("createTopic", EXPECTED_PRICE_USD, 1.0);
+                        return validateChargedUsd("createTopic", EXPECTED_PRICE_USD, 5);
                     }
                 }));
     }
@@ -214,10 +215,11 @@ public class TopicCreateSuite {
                     if ("true".equals(flag)) {
                         return validateChargedUsdWithinWithTxnSize(
                                 "createTopic",
-                                txnSize -> expectedTopicCreateFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                txnSize -> expectedTopicCreateFullFeeUsd(
+                                        Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
                                 0.001);
                     } else {
-                        return validateChargedUsd("createTopic", EXPECTED_PRICE_USD, 1.0);
+                        return validateChargedUsd("createTopic", EXPECTED_PRICE_USD, 5);
                     }
                 }));
     }
@@ -242,12 +244,12 @@ public class TopicCreateSuite {
                         return validateChargedUsdWithinWithTxnSize(
                                 "createTopic",
                                 txnSize -> expectedTopicCreateFullFeeUsd(Map.of(
-                                        SIGNATURES, 1,
-                                        KEYS, 1,
-                                        TXN_SIZE, txnSize)),
+                                        SIGNATURES, 1L,
+                                        KEYS, 1L,
+                                        PROCESSING_BYTES, (long) txnSize)),
                                 0.001);
                     } else {
-                        return validateChargedUsd("createTopic", EXPECTED_PRICE_USD, 1.0);
+                        return validateChargedUsd("createTopic", EXPECTED_PRICE_USD, 10);
                     }
                 }));
     }

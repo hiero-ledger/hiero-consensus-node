@@ -59,9 +59,6 @@ import static com.hedera.services.bdd.suites.contract.leaky.LeakyContractTestsSu
 import static com.hedera.services.bdd.suites.contract.leaky.LeakyContractTestsSuite.ERC_20_CONTRACT;
 import static com.hedera.services.bdd.suites.contract.leaky.LeakyContractTestsSuite.TRANSFER_FROM;
 import static com.hedera.services.bdd.suites.contract.leaky.LeakyContractTestsSuite.TRANSFER_SIGNATURE;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.FeeParam.ALLOWANCES;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.FeeParam.SIGNATURES;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.FeeParam.TXN_SIZE;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedCryptoApproveAllowanceFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdWithinWithTxnSize;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateInnerChargedUsdWithinWithTxnSize;
@@ -90,6 +87,9 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_NOT_ASSO
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_WAS_DELETED;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
+import static org.hiero.hapi.support.fees.Extra.ALLOWANCES;
+import static org.hiero.hapi.support.fees.Extra.PROCESSING_BYTES;
+import static org.hiero.hapi.support.fees.Extra.SIGNATURES;
 
 import com.esaulpaugh.headlong.abi.Address;
 import com.google.protobuf.ByteString;
@@ -808,9 +808,9 @@ class AtomicBatchApproveAllowanceTest {
                         return validateChargedUsdWithinWithTxnSize(
                                 APPROVE_TXN,
                                 txnSize -> expectedCryptoApproveAllowanceFullFeeUsd(Map.of(
-                                        SIGNATURES, 2,
-                                        ALLOWANCES, 3,
-                                        TXN_SIZE, txnSize)),
+                                        SIGNATURES, 2L,
+                                        ALLOWANCES, 3L,
+                                        PROCESSING_BYTES, (long) txnSize)),
                                 0.001);
                     } else {
                         return validateChargedUsdWithin(APPROVE_TXN, 0.052_380, 0.01);
@@ -1357,9 +1357,9 @@ class AtomicBatchApproveAllowanceTest {
                                 BASE_APPROVE_TXN + "_1",
                                 batchTxn,
                                 txnSize -> expectedCryptoApproveAllowanceFullFeeUsd(Map.of(
-                                        SIGNATURES, 1,
-                                        ALLOWANCES, 1,
-                                        TXN_SIZE, txnSize)),
+                                        SIGNATURES, 1L,
+                                        ALLOWANCES, 1L,
+                                        PROCESSING_BYTES, (long) txnSize)),
                                 0.001);
                     } else {
                         return validateInnerTxnChargedUsd(BASE_APPROVE_TXN + "_1", batchTxn, 0.05, 0.01);
@@ -1371,9 +1371,9 @@ class AtomicBatchApproveAllowanceTest {
                                 BASE_APPROVE_TXN + "_2",
                                 batchTxn,
                                 txnSize -> expectedCryptoApproveAllowanceFullFeeUsd(Map.of(
-                                        SIGNATURES, 1,
-                                        ALLOWANCES, 2,
-                                        TXN_SIZE, txnSize)),
+                                        SIGNATURES, 1L,
+                                        ALLOWANCES, 2L,
+                                        PROCESSING_BYTES, (long) txnSize)),
                                 0.001);
                     } else {
                         return validateInnerTxnChargedUsd(BASE_APPROVE_TXN + "_2", batchTxn, 0.0505, 0.1);
@@ -1385,9 +1385,9 @@ class AtomicBatchApproveAllowanceTest {
                                 BASE_APPROVE_TXN + "_3",
                                 batchTxn,
                                 txnSize -> expectedCryptoApproveAllowanceFullFeeUsd(Map.of(
-                                        SIGNATURES, 1,
-                                        ALLOWANCES, 3,
-                                        TXN_SIZE, txnSize)),
+                                        SIGNATURES, 1L,
+                                        ALLOWANCES, 3L,
+                                        PROCESSING_BYTES, (long) txnSize)),
                                 0.001);
                     } else {
                         return validateInnerTxnChargedUsd(BASE_APPROVE_TXN + "_3", batchTxn, 0.0509, 0.1);
@@ -1454,9 +1454,9 @@ class AtomicBatchApproveAllowanceTest {
                                 BASE_APPROVE_TXN,
                                 batchTxn,
                                 txnSize -> expectedCryptoApproveAllowanceFullFeeUsd(Map.of(
-                                        SIGNATURES, 1,
-                                        ALLOWANCES, 1,
-                                        TXN_SIZE, txnSize)),
+                                        SIGNATURES, 1L,
+                                        ALLOWANCES, 1L,
+                                        PROCESSING_BYTES, (long) txnSize)),
                                 0.001);
                     } else {
                         return validateInnerTxnChargedUsd(BASE_APPROVE_TXN, batchTxn, 0.05, 0.01);
@@ -1468,9 +1468,9 @@ class AtomicBatchApproveAllowanceTest {
                                 APPROVE_TXN,
                                 batchTxn,
                                 txnSize -> expectedCryptoApproveAllowanceFullFeeUsd(Map.of(
-                                        SIGNATURES, 1,
-                                        ALLOWANCES, 3,
-                                        TXN_SIZE, txnSize)),
+                                        SIGNATURES, 1L,
+                                        ALLOWANCES, 3L,
+                                        PROCESSING_BYTES, (long) txnSize)),
                                 0.001);
                     } else {
                         return validateInnerTxnChargedUsd(APPROVE_TXN, batchTxn, 0.052_380, 0.01);

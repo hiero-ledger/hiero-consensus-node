@@ -28,8 +28,6 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.FeeParam.SIGNATURES;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.FeeParam.TXN_SIZE;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedAtomicBatchFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdWithinWithTxnSize;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
@@ -39,6 +37,8 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ALIAS_
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
+import static org.hiero.hapi.support.fees.Extra.PROCESSING_BYTES;
+import static org.hiero.hapi.support.fees.Extra.SIGNATURES;
 
 import com.google.protobuf.ByteString;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -109,7 +109,8 @@ class AtomicBatchAutoAccountCreationBasicTests {
                         if ("true".equals(flag)) {
                             return validateChargedUsdWithinWithTxnSize(
                                     "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(
+                                            Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
                                     0.001);
                         } else {
                             return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
@@ -180,7 +181,8 @@ class AtomicBatchAutoAccountCreationBasicTests {
                         if ("true".equals(flag)) {
                             return validateChargedUsdWithinWithTxnSize(
                                     "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(
+                                            Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
                                     0.001);
                         } else {
                             return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
@@ -260,7 +262,8 @@ class AtomicBatchAutoAccountCreationBasicTests {
                         if ("true".equals(flag)) {
                             return validateChargedUsdWithinWithTxnSize(
                                     batchTxnName,
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(
+                                            Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
                                     0.001);
                         } else {
                             return validateChargedUsd(batchTxnName, BASE_FEE_BATCH_TRANSACTION);
@@ -319,7 +322,8 @@ class AtomicBatchAutoAccountCreationBasicTests {
                         if ("true".equals(flag)) {
                             return validateChargedUsdWithinWithTxnSize(
                                     batchTxnName,
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(
+                                            Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
                                     0.001);
                         } else {
                             return validateChargedUsd(batchTxnName, BASE_FEE_BATCH_TRANSACTION);
@@ -399,7 +403,8 @@ class AtomicBatchAutoAccountCreationBasicTests {
                         if ("true".equals(flag)) {
                             return validateChargedUsdWithinWithTxnSize(
                                     batchTxnName,
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(
+                                            Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
                                     0.001);
                         } else {
                             return validateChargedUsd(batchTxnName, BASE_FEE_BATCH_TRANSACTION);
@@ -484,7 +489,8 @@ class AtomicBatchAutoAccountCreationBasicTests {
                         if ("true".equals(flag)) {
                             return validateChargedUsdWithinWithTxnSize(
                                     batchTxnName,
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(
+                                            Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
                                     0.001);
                         } else {
                             return validateChargedUsd(batchTxnName, BASE_FEE_BATCH_TRANSACTION);
@@ -569,7 +575,8 @@ class AtomicBatchAutoAccountCreationBasicTests {
                         if ("true".equals(flag)) {
                             return validateChargedUsdWithinWithTxnSize(
                                     "batchTxn_" + VALID_ALIAS_ECDSA,
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(
+                                            Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
                                     0.001);
                         } else {
                             return validateChargedUsd("batchTxn_" + VALID_ALIAS_ECDSA, BASE_FEE_BATCH_TRANSACTION);
@@ -644,7 +651,8 @@ class AtomicBatchAutoAccountCreationBasicTests {
                         if ("true".equals(flag)) {
                             return validateChargedUsdWithinWithTxnSize(
                                     "batchTxn_" + VALID_ALIAS_ECDSA,
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(
+                                            Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
                                     0.001);
                         } else {
                             return validateChargedUsd("batchTxn_" + VALID_ALIAS_ECDSA, BASE_FEE_BATCH_TRANSACTION);
@@ -719,7 +727,8 @@ class AtomicBatchAutoAccountCreationBasicTests {
                         if ("true".equals(flag)) {
                             return validateChargedUsdWithinWithTxnSize(
                                     "batchTxn_" + VALID_ALIAS_ECDSA,
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(
+                                            Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
                                     0.001);
                         } else {
                             return validateChargedUsd("batchTxn_" + VALID_ALIAS_ECDSA, BASE_FEE_BATCH_TRANSACTION);
@@ -794,7 +803,8 @@ class AtomicBatchAutoAccountCreationBasicTests {
                         if ("true".equals(flag)) {
                             return validateChargedUsdWithinWithTxnSize(
                                     "batchTxn_" + VALID_ALIAS_ECDSA,
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(
+                                            Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
                                     0.001);
                         } else {
                             return validateChargedUsd("batchTxn_" + VALID_ALIAS_ECDSA, BASE_FEE_BATCH_TRANSACTION);
@@ -883,7 +893,8 @@ class AtomicBatchAutoAccountCreationBasicTests {
                         if ("true".equals(flag)) {
                             return validateChargedUsdWithinWithTxnSize(
                                     "batchTxnAllAccounts",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(
+                                            Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
                                     0.001);
                         } else {
                             return validateChargedUsd("batchTxnAllAccounts", BASE_FEE_BATCH_TRANSACTION);
@@ -999,7 +1010,8 @@ class AtomicBatchAutoAccountCreationBasicTests {
                         if ("true".equals(flag)) {
                             return validateChargedUsdWithinWithTxnSize(
                                     "batchTxnAllAccounts",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(
+                                            Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
                                     0.001);
                         } else {
                             return validateChargedUsd("batchTxnAllAccounts", BASE_FEE_BATCH_TRANSACTION);
@@ -1123,7 +1135,8 @@ class AtomicBatchAutoAccountCreationBasicTests {
                         if ("true".equals(flag)) {
                             return validateChargedUsdWithinWithTxnSize(
                                     "batchTxnAllAccounts",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(
+                                            Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
                                     0.001);
                         } else {
                             return validateChargedUsd("batchTxnAllAccounts", BASE_FEE_BATCH_TRANSACTION);
@@ -1246,7 +1259,8 @@ class AtomicBatchAutoAccountCreationBasicTests {
                         if ("true".equals(flag)) {
                             return validateChargedUsdWithinWithTxnSize(
                                     "batchTxnAllAccounts",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(
+                                            Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
                                     0.001);
                         } else {
                             return validateChargedUsd("batchTxnAllAccounts", BASE_FEE_BATCH_TRANSACTION);
@@ -1340,7 +1354,8 @@ class AtomicBatchAutoAccountCreationBasicTests {
                         if ("true".equals(flag)) {
                             return validateChargedUsdWithinWithTxnSize(
                                     "batchTxnAllAccounts",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(
+                                            Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
                                     0.001);
                         } else {
                             return validateChargedUsd("batchTxnAllAccounts", BASE_FEE_BATCH_TRANSACTION);
@@ -1424,8 +1439,8 @@ class AtomicBatchAutoAccountCreationBasicTests {
                             if ("true".equals(flag)) {
                                 return validateChargedUsdWithinWithTxnSize(
                                         batchTxn,
-                                        txnSize ->
-                                                expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                        txnSize -> expectedAtomicBatchFullFeeUsd(
+                                                Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
                                         0.001);
                             } else {
                                 return validateChargedUsd(batchTxn, BASE_FEE_BATCH_TRANSACTION);
@@ -1501,8 +1516,8 @@ class AtomicBatchAutoAccountCreationBasicTests {
                             if ("true".equals(flag)) {
                                 return validateChargedUsdWithinWithTxnSize(
                                         batchTxn,
-                                        txnSize ->
-                                                expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                        txnSize -> expectedAtomicBatchFullFeeUsd(
+                                                Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
                                         0.001);
                             } else {
                                 return validateChargedUsd(batchTxn, BASE_FEE_BATCH_TRANSACTION);
@@ -1559,7 +1574,8 @@ class AtomicBatchAutoAccountCreationBasicTests {
                         if ("true".equals(flag)) {
                             return validateChargedUsdWithinWithTxnSize(
                                     "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(
+                                            Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
                                     0.001);
                         } else {
                             return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
@@ -1606,7 +1622,8 @@ class AtomicBatchAutoAccountCreationBasicTests {
                         if ("true".equals(flag)) {
                             return validateChargedUsdWithinWithTxnSize(
                                     "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(
+                                            Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
                                     0.001);
                         } else {
                             return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
@@ -1674,7 +1691,8 @@ class AtomicBatchAutoAccountCreationBasicTests {
                         if ("true".equals(flag)) {
                             return validateChargedUsdWithinWithTxnSize(
                                     "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                    txnSize -> expectedAtomicBatchFullFeeUsd(
+                                            Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
                                     0.001);
                         } else {
                             return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);

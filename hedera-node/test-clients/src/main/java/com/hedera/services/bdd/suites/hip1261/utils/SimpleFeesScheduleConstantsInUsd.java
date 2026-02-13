@@ -138,7 +138,7 @@ public class SimpleFeesScheduleConstantsInUsd {
 
     public static final double TOKEN_MINT_BASE_FEE_USD = 0.0009;
     public static final double TOKEN_MINT_NFT_BASE_FEE_USD = 0.019;
-    public static final long TOKEN_MINT_INCLUDED_NFT = 0L;
+    public static final long TOKEN_MINT_INCLUDED_NFT = 1L;
 
     public static final double TOKEN_BURN_BASE_FEE_USD = 0.0009;
 

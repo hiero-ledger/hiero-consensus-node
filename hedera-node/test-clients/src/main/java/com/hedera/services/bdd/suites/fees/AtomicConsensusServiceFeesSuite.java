@@ -18,9 +18,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateInnerTxnCha
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.FeeParam.BYTES;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.FeeParam.SIGNATURES;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.FeeParam.TXN_SIZE;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTopicCreateFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTopicCreateWithCustomFeeFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTopicDeleteFullFeeUsd;
@@ -28,6 +25,9 @@ import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.exp
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTopicUpdateFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateInnerChargedUsdWithinWithTxnSize;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
+import static org.hiero.hapi.support.fees.Extra.PROCESSING_BYTES;
+import static org.hiero.hapi.support.fees.Extra.SIGNATURES;
+import static org.hiero.hapi.support.fees.Extra.STATE_BYTES;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
@@ -84,7 +84,8 @@ class AtomicConsensusServiceFeesSuite {
                         return validateInnerChargedUsdWithinWithTxnSize(
                                 "topicCreate",
                                 ATOMIC_BATCH,
-                                txnSize -> expectedTopicCreateFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                txnSize -> expectedTopicCreateFullFeeUsd(
+                                        Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
                                 0.001);
                     } else {
                         return validateInnerTxnChargedUsd("topicCreate", ATOMIC_BATCH, BASE_FEE_TOPIC_CREATE, 6);
@@ -112,7 +113,7 @@ class AtomicConsensusServiceFeesSuite {
                                 "topicCreateWithCustomFee",
                                 ATOMIC_BATCH,
                                 txnSize -> expectedTopicCreateWithCustomFeeFullFeeUsd(
-                                        Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                        Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
                                 0.001);
                     } else {
                         return validateInnerTxnChargedUsd(
@@ -146,7 +147,7 @@ class AtomicConsensusServiceFeesSuite {
                                 "topicCreateWithMultipleCustomFees",
                                 ATOMIC_BATCH,
                                 txnSize -> expectedTopicCreateWithCustomFeeFullFeeUsd(
-                                        Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                        Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
                                 0.001);
                     } else {
                         return validateInnerTxnChargedUsd(
@@ -183,7 +184,8 @@ class AtomicConsensusServiceFeesSuite {
                         return validateInnerChargedUsdWithinWithTxnSize(
                                 "updateTopic",
                                 ATOMIC_BATCH,
-                                txnSize -> expectedTopicUpdateFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                txnSize -> expectedTopicUpdateFullFeeUsd(
+                                        Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
                                 0.001);
                     } else {
                         return validateInnerTxnChargedUsd("updateTopic", ATOMIC_BATCH, BASE_FEE_TOPIC_UPDATE, 10);
@@ -211,7 +213,8 @@ class AtomicConsensusServiceFeesSuite {
                         return validateInnerChargedUsdWithinWithTxnSize(
                                 "topicDelete",
                                 ATOMIC_BATCH,
-                                txnSize -> expectedTopicDeleteFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                txnSize -> expectedTopicDeleteFullFeeUsd(
+                                        Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
                                 0.001);
                     } else {
                         return validateInnerTxnChargedUsd("topicDelete", ATOMIC_BATCH, BASE_FEE_TOPIC_DELETE, 10);
@@ -245,9 +248,9 @@ class AtomicConsensusServiceFeesSuite {
                                 "submitMessage",
                                 ATOMIC_BATCH,
                                 txnSize -> expectedTopicSubmitMessageFullFeeUsd(Map.of(
-                                        SIGNATURES, 1,
-                                        BYTES, 100,
-                                        TXN_SIZE, txnSize)),
+                                        SIGNATURES, 1L,
+                                        STATE_BYTES, 100L,
+                                        PROCESSING_BYTES, (long) txnSize)),
                                 0.001);
                     } else {
                         return validateInnerTxnChargedUsd(

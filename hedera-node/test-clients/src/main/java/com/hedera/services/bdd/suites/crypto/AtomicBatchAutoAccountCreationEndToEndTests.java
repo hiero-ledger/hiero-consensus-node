@@ -31,8 +31,6 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.FeeParam.SIGNATURES;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.FeeParam.TXN_SIZE;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedAtomicBatchFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdWithinWithTxnSize;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.EXISTING_AUTOMATIC_ASSOCIATIONS_EXCEED_GIVEN_LIMIT;
@@ -45,6 +43,8 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NO_REMAINING_A
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
+import static org.hiero.hapi.support.fees.Extra.PROCESSING_BYTES;
+import static org.hiero.hapi.support.fees.Extra.SIGNATURES;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.google.protobuf.ByteString;
@@ -195,8 +195,8 @@ class AtomicBatchAutoAccountCreationEndToEndTests {
                             if ("true".equals(flag)) {
                                 return validateChargedUsdWithinWithTxnSize(
                                         "batchTxn",
-                                        txnSize ->
-                                                expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                        txnSize -> expectedAtomicBatchFullFeeUsd(
+                                                Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
                                         0.001);
                             } else {
                                 return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
@@ -400,8 +400,8 @@ class AtomicBatchAutoAccountCreationEndToEndTests {
                             if ("true".equals(flag)) {
                                 return validateChargedUsdWithinWithTxnSize(
                                         "batchTxn",
-                                        txnSize ->
-                                                expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1, TXN_SIZE, txnSize)),
+                                        txnSize -> expectedAtomicBatchFullFeeUsd(
+                                                Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
                                         0.001);
                             } else {
                                 return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
