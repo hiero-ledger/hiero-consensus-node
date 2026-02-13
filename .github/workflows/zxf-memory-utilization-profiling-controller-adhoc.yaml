@@ -31,7 +31,6 @@ on:
         type: string
         description: 'Add props to settings.txt, e.g. "state.saveStatePeriod, 300". Newline is "\n"'
 
-
 defaults:
   run:
     shell: bash
@@ -42,7 +41,7 @@ permissions:
   actions: write
   statuses: write
 
-
+jobs:
   run-single-node-tests:
     name: Single node tests
     steps:
