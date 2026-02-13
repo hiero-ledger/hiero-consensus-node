@@ -1,0 +1,124 @@
+# SPDX-License-Identifier: Apache-2.0
+name: "ZXF: [CITR] Adhoc - Single Day Longevity Test Controller"
+on:
+  workflow_dispatch:
+    inputs:
+      nlg-accounts: #'-R -c 32 -a 100000000 -T 1000 -n 100000 -S hot -p 50 -tt 1m
+        required: true
+        default: "100000"
+        description: "Number of Accounts and NFT tokens"
+        type: choice
+        options:
+          - "100"
+          - "1000"
+      nlg-time: #'-R -c 32 -a 100000000 -T 1000 -n 100000 -S hot -p 50 -tt 1m
+        required: true
+        default: "3"
+        description: "Test execution time options"
+        type: choice
+        options:
+          - "1"
+          - "20"
+          - "120"
+      add-app-props:
+        required: false
+        default: ""
+        type: string
+        description: 'Add props to application.properties, e.g. "blockStream.streamMode=RECORDS". Newline is "\n"'
+      add-settings:
+        required: false
+        default: ""
+        type: string
+        description: 'Add props to settings.txt, e.g. "state.saveStatePeriod, 300". Newline is "\n"'
+
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  contents: write
+  id-token: write
+  actions: write
+  statuses: write
+
+
+  run-single-node-tests:
+    name: Single node tests
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout BlockNode scripts
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          name: hiero-ledger/hiero-block-node
+          ref: master
+
+      - name: Setup Helm
+        uses: azure/setup-helm@b9e51907a09c216f16ebe8536097933489208112 # v4.3.0
+        with:
+          version: "v3.12.3" # helm version
+
+      - name: Install Task
+        uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
+        with:
+          version: 3.39.2
+
+      - name: Install KubeCtl
+        uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 # v4.0.0
+        with:
+          version: v1.33.0
+
+      # Set up kind; needed for configuring the solo environment
+      - name: Setup Kind
+        uses: helm/kind-action@a1b0e391336a6ee6713a0583f8c6240d70863de3 # v1.12.0
+        with:
+          install_only: true
+          node_image: kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30
+          version: v0.26.0
+          kubectl_version: v1.31.4
+          verbosity: 3
+          wait: 120s
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 20.18.0
+
+      - name: Install Solo
+        run: |
+          npm install -g "@hashgraph/solo@${{ inputs.solo-version || 'latest' }}"
+
+          # verify the installation
+          solo --version
+
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y docker.io net-tools iputils-ping node-typescript
+
+          #YQ
+          sudo snap install yq --classic
+
+      - name: Deploy K8S pod
+        run: |
+          ls -l 
+          cd hiero-block-node/tools-and-tests/scripts/solo-e2e-test
+          task up
+
+      - name: Report Kubernetes resources
+        run: |
+          kubectl -n solo-network describe nodes
+
+      - name: Run NLG test
+        if: false
+        run: |
+
+      - name: Publish logs
+        if: false
+        run: |
+
+
