@@ -221,12 +221,11 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
         }
 
         // Get the current throttle utilization
-        final int utilizationPercentage = feeContext.getHighVolumeThrottleUtilization(functionality);
+        final int utilizationPercentBasisPoints = feeContext.getHighVolumeThrottleUtilization(functionality);
 
         // Calculate the multiplier based on the pricing curve
         final long rawMultiplier = HighVolumePricingCalculator.calculateMultiplier(
-                serviceFeeDefinition.highVolumeRates(), utilizationPercentage);
-
+                serviceFeeDefinition.highVolumeRates(), utilizationPercentBasisPoints);
         result.applyMultiplier(rawMultiplier, HighVolumePricingCalculator.MULTIPLIER_SCALE);
     }
 
