@@ -196,7 +196,7 @@ public class PlatformWiring {
 
         components
                 .pcesModule()
-                .replayedEventsOutputWire()
+                .pcesEventsToReplay()
                 .solderTo(components.eventIntakeModule().unhashedEventsInputWire());
 
         final OutputWire<ConsensusRound> consensusRoundOutputWire =

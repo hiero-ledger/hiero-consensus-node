@@ -39,8 +39,6 @@ import com.swirlds.platform.state.signed.StateSignatureCollector;
 import com.swirlds.platform.state.snapshot.SavedStateInfo;
 import com.swirlds.platform.state.snapshot.SignedStateFilePath;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.system.status.actions.DoneReplayingEventsAction;
-import com.swirlds.platform.system.status.actions.StartedReplayingEventsAction;
 import com.swirlds.platform.wiring.PlatformComponents;
 import com.swirlds.platform.wiring.PlatformCoordinator;
 import com.swirlds.state.State;
@@ -59,8 +57,6 @@ import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 import org.hiero.consensus.concurrent.manager.AdHocThreadManager;
 import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.hashgraph.config.ConsensusConfig;
-import org.hiero.consensus.io.IOIterator;
-import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
@@ -312,7 +308,7 @@ public class SwirldsPlatform implements Platform {
         platformContext.getMetrics().start();
         platformCoordinator.start();
 
-        replayPreconsensusEvents();
+        platformComponents.pcesModule().replayPcesEvents(pcesReplayLowerBound, startingRound);
         platformCoordinator.startGossip();
     }
 
@@ -322,30 +318,6 @@ public class SwirldsPlatform implements Platform {
         platformContext.getRecycleBin().stop();
         platformCoordinator.stop();
         getMetricsProvider().removePlatformMetrics(selfId);
-    }
-
-    /**
-     * Replay preconsensus events.
-     */
-    private void replayPreconsensusEvents() {
-        platformCoordinator.submitStatusAction(new StartedReplayingEventsAction());
-
-        final IOIterator<PlatformEvent> iterator =
-                platformComponents.pcesModule().storedEvents(pcesReplayLowerBound, startingRound);
-
-        logger.info(STARTUP.getMarker(), "replaying preconsensus event stream starting at {}", pcesReplayLowerBound);
-
-        platformCoordinator.injectPcesReplayerIterator(iterator);
-
-        // We have to wait for all the PCES transactions to reach the ISS detector before telling it that PCES replay is
-        // done. The PCES replay will flush the intake pipeline, but we have to flush the hasher
-
-        // FUTURE WORK: These flushes can be done by the PCES replayer.
-        platformCoordinator.flushStateHasher();
-        platformCoordinator.signalEndOfPcesReplay();
-
-        platformCoordinator.submitStatusAction(
-                new DoneReplayingEventsAction(platformContext.getTime().now()));
     }
 
     /**

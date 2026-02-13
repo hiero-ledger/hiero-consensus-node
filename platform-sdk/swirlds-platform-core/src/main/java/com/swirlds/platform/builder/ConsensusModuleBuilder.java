@@ -23,6 +23,7 @@ import java.security.SecureRandom;
 import java.util.List;
 import java.util.Map;
 import java.util.ServiceLoader;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import org.hiero.base.concurrent.BlockingResourceProvider;
 import org.hiero.consensus.crypto.KeyGeneratingException;
@@ -40,6 +41,7 @@ import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.status.PlatformStatusAction;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.roster.RosterHistory;
@@ -169,6 +171,9 @@ public class ConsensusModuleBuilder {
         final Runnable flushIntake = () -> {};
         final Runnable flushTransactionHandling = () -> {};
         final Supplier<ReservedSignedState> latestImmutableStateSupplier = ReservedSignedState::createNullReservation;
+        final Consumer<PlatformStatusAction> statusActionConsumer = status -> {};
+        final Runnable stateHasherFlusher = () -> {};
+        final Runnable signalEndOfPcesReplay = () -> {};
         final EventPipelineTracker eventPipelineTracker = null;
 
         final PcesModule pcesModule = createPcesModule();
@@ -183,6 +188,9 @@ public class ConsensusModuleBuilder {
                 flushIntake,
                 flushTransactionHandling,
                 latestImmutableStateSupplier,
+                statusActionConsumer,
+                stateHasherFlusher,
+                signalEndOfPcesReplay,
                 eventPipelineTracker);
         return pcesModule;
     }

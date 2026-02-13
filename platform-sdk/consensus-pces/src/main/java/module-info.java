@@ -5,6 +5,7 @@ import org.hiero.consensus.pces.config.PcesConfigurationExtension;
 module org.hiero.consensus.pces {
     exports org.hiero.consensus.pces;
     exports org.hiero.consensus.pces.config;
+    exports org.hiero.consensus.pces.actions;
 
     requires transitive com.swirlds.base;
     requires transitive com.swirlds.component.framework;

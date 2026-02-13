@@ -11,18 +11,19 @@ import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
-import org.hiero.consensus.io.IOIterator;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.status.PlatformStatusAction;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 
 /**
- * Public interface of the pces module which is responsible for the preconsensus event stream (PCES).
- * It provides functionality to store all validated, ordered events and replay them.
+ * Public interface of the pces module which is responsible for the preconsensus event stream (PCES). It provides
+ * functionality to store all validated, ordered events and replay them.
  */
 public interface PcesModule {
 
@@ -31,6 +32,18 @@ public interface PcesModule {
      *
      * @param model the wiring model
      * @param configuration the configuration
+     * @param metrics the metrics system
+     * @param time the time source
+     * @param selfId the ID of this node
+     * @param recycleBin the recycle bin for deleting old PCES files
+     * @param startingRound the round from which to start replaying events
+     * @param flushIntake a {@link Runnable} that triggers flushing of the intake wires
+     * @param flushTransactionHandling a {@link Runnable} that triggers flushing of the transaction handling wires
+     * @param latestImmutableStateSupplier a supplier of the latest immutable state
+     * @param pipelineTracker an optional {@link EventPipelineTracker} for tracking events through the pipeline
+     * @param statusActionConsumer a consumer for {@link PlatformStatusAction}s to report status updates to the platform
+     * @param stateHasherFlusher a {@link Runnable} that triggers flushing of the state hasher
+     * @param signalEndOfPcesReplay a {@link Runnable} that signals the end of PCES replay to the ISS detector,
      */
     void initialize(
             @NonNull WiringModel model,
@@ -40,9 +53,12 @@ public interface PcesModule {
             @NonNull NodeId selfId,
             @NonNull RecycleBin recycleBin,
             long startingRound,
-            @NonNull final Runnable flushIntake,
-            @NonNull final Runnable flushTransactionHandling,
-            @NonNull final Supplier<ReservedSignedState> latestImmutableStateSupplier,
+            @NonNull Runnable flushIntake,
+            @NonNull Runnable flushTransactionHandling,
+            @NonNull Supplier<ReservedSignedState> latestImmutableStateSupplier,
+            @NonNull Consumer<PlatformStatusAction> statusActionConsumer,
+            @NonNull Runnable stateHasherFlusher,
+            @NonNull Runnable signalEndOfPcesReplay,
             @Nullable EventPipelineTracker pipelineTracker);
 
     /**
@@ -51,7 +67,7 @@ public interface PcesModule {
      * @return the {@link OutputWire} for replayed events
      */
     @NonNull
-    OutputWire<PlatformEvent> replayedEventsOutputWire();
+    OutputWire<PlatformEvent> pcesEventsToReplay();
 
     /**
      * {@link OutputWire} for events that have been durably written to the preconsensus event stream.
@@ -89,16 +105,6 @@ public interface PcesModule {
     InputWire<Long> minimumBirthRoundInputWire();
 
     /**
-     * {@link InputWire} for the iterator of events to replay from the preconsensus event stream.
-     *
-     * <p>This is a temporary wire that will be removed once the {@code PcesCoordinator} also moves into this module.
-     *
-     * @return the {@link InputWire} for the iterator of events to replay
-     */
-    @NonNull
-    InputWire<IOIterator<PlatformEvent>> eventsToReplayInputWire();
-
-    /**
      * {@link InputWire} for signaling a discontinuity in the preconsensus event stream.
      *
      * <p>This is a temporary wire that will be removed once the {@code PcesReplayer} also moves into this module.
@@ -110,21 +116,17 @@ public interface PcesModule {
     InputWire<Long> discontinuityInputWire();
 
     /**
-     * Get an iterator over stored events starting from a given birth round and round.
-     *
-     * <p>This is a temporary method that will be removed once the {@code PcesReplayer} also moves into this module.
-     *
-     * @param pcesReplayLowerBound the minimum birth round of events to return, events with lower birth rounds are not returned
-     * @param startingRound        the round from which to start returning events
-     * @return an iterator over stored events
-     */
-    @NonNull
-    IOIterator<PlatformEvent> storedEvents(final long pcesReplayLowerBound, final long startingRound);
-
-    /**
      * Flushes all events of the internal components.
      */
     void flush();
+
+    /**
+     * Replay preconsensus events from storage.
+     *
+     * @param pcesReplayLowerBound the minimum birth round of events to replay
+     * @param startingRound the round from which to start replaying events
+     */
+    void replayPcesEvents(long pcesReplayLowerBound, long startingRound);
 
     /**
      * Copy all PCES files with events that have a birth round greater than or equal to the given lower bound and

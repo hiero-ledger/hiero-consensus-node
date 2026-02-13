@@ -17,13 +17,14 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
-import org.hiero.consensus.io.IOIterator;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.status.PlatformStatusAction;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.pces.config.PcesConfig;
 import org.hiero.consensus.pces.config.PcesWiringConfig;
@@ -52,6 +53,9 @@ public class DefaultPcesModule implements PcesModule {
     @Nullable
     private PcesReplayerWiring pcesReplayerWiring;
 
+    @Nullable
+    private PcesCoordinator pcesCoordinator;
+
     /**
      * {@inheritDoc}
      */
@@ -67,6 +71,9 @@ public class DefaultPcesModule implements PcesModule {
             @NonNull final Runnable flushIntake,
             @NonNull final Runnable flushTransactionHandling,
             @NonNull final Supplier<ReservedSignedState> latestImmutableStateSupplier,
+            @NonNull final Consumer<PlatformStatusAction> statusActionConsumer,
+            @NonNull final Runnable stateHasherFlusher,
+            @NonNull final Runnable signalEndOfPcesReplay,
             @Nullable final EventPipelineTracker pipelineTracker) {
         //noinspection VariableNotUsedInsideIf
         if (pcesWriterWiring != null) {
@@ -120,6 +127,14 @@ public class DefaultPcesModule implements PcesModule {
                 latestImmutableStateSupplier,
                 () -> isLessThan(model.getUnhealthyDuration(), replayHealthThreshold));
         pcesReplayerWiring.bind(pcesReplayer);
+
+        this.pcesCoordinator = new PcesCoordinator(
+                time,
+                initialPcesFiles,
+                pcesReplayerWiring,
+                statusActionConsumer,
+                stateHasherFlusher,
+                signalEndOfPcesReplay);
     }
 
     /**
@@ -127,7 +142,7 @@ public class DefaultPcesModule implements PcesModule {
      */
     @Override
     @NonNull
-    public OutputWire<PlatformEvent> replayedEventsOutputWire() {
+    public OutputWire<PlatformEvent> pcesEventsToReplay() {
         return requireNonNull(pcesReplayerWiring, "Not initialized").eventOutput();
     }
 
@@ -174,15 +189,6 @@ public class DefaultPcesModule implements PcesModule {
      */
     @Override
     @NonNull
-    public InputWire<IOIterator<PlatformEvent>> eventsToReplayInputWire() {
-        return requireNonNull(pcesReplayerWiring, "Not initialized").pcesIteratorInputWire();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    @NonNull
     public InputWire<Long> discontinuityInputWire() {
         return requireNonNull(pcesWriterWiring, "Not initialized")
                 .getInputWire(InlinePcesWriter::registerDiscontinuity);
@@ -192,18 +198,16 @@ public class DefaultPcesModule implements PcesModule {
      * {@inheritDoc}
      */
     @Override
-    @NonNull
-    public IOIterator<PlatformEvent> storedEvents(final long pcesReplayLowerBound, final long startingRound) {
-        return requireNonNull(initialPcesFiles, "Not initialized")
-                .getEventIterator(pcesReplayLowerBound, startingRound);
+    public void flush() {
+        requireNonNull(pcesWriterWiring, "Not initialized").flush();
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    public void flush() {
-        requireNonNull(pcesWriterWiring, "Not initialized").flush();
+    public void replayPcesEvents(final long pcesReplayLowerBound, final long startingRound) {
+        requireNonNull(pcesCoordinator, "Not initialized").replayPcesEvents(pcesReplayLowerBound, startingRound);
     }
 
     /**
