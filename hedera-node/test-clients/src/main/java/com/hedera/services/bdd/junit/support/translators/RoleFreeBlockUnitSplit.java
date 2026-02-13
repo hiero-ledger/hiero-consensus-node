@@ -6,6 +6,11 @@ import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_HINTS
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_PREPROCESSING_VOTES;
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_PROOF_KEY_SETS;
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_PROOF_VOTES;
+import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_SCHEDULED_COUNTS;
+import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_SCHEDULED_ORDERS;
+import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_SCHEDULED_USAGES;
+import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_SCHEDULES_BY_ID;
+import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_SCHEDULE_ID_BY_EQUALITY;
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_TRANSACTION_RECEIPTS;
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_WRAPS_MESSAGE_HISTORIES;
 import static com.hedera.hapi.node.base.HederaFunctionality.ATOMIC_BATCH;
@@ -73,7 +78,12 @@ public class RoleFreeBlockUnitSplit {
             STATE_ID_CRS_PUBLICATIONS.protoOrdinal(),
             STATE_ID_PROOF_KEY_SETS.protoOrdinal(),
             STATE_ID_PROOF_VOTES.protoOrdinal(),
-            STATE_ID_WRAPS_MESSAGE_HISTORIES.protoOrdinal());
+            STATE_ID_WRAPS_MESSAGE_HISTORIES.protoOrdinal(),
+            STATE_ID_SCHEDULES_BY_ID.protoOrdinal(),
+            STATE_ID_SCHEDULED_COUNTS.protoOrdinal(),
+            STATE_ID_SCHEDULE_ID_BY_EQUALITY.protoOrdinal(),
+            STATE_ID_SCHEDULED_ORDERS.protoOrdinal(),
+            STATE_ID_SCHEDULED_USAGES.protoOrdinal());
 
     private static final Set<HederaFunctionality> TRIGGERING_OPS = EnumSet.of(SCHEDULE_CREATE, SCHEDULE_SIGN);
 
