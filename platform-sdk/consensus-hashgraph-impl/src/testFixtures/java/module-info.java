@@ -24,7 +24,7 @@ open module org.hiero.consensus.hashgraph.impl.test.fixtures {
     requires org.hiero.base.utility.test.fixtures;
     requires org.hiero.consensus.hashgraph.impl;
     requires org.hiero.consensus.metrics;
-    requires org.hiero.consensus.roster.test.fixtures;
+    requires transitive org.hiero.consensus.roster.test.fixtures;
     requires org.hiero.consensus.roster;
     requires java.desktop;
     requires org.apache.logging.log4j;
