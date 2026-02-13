@@ -395,8 +395,7 @@ public final class IngestChecker {
         // Reject transactions with highVolume=true if the feature is not enabled.
         // High volume entity creation HIP depends on simple fees to be enabled.
         if (txInfo.txBody().highVolume()
-                && (!feesConfig.simpleFeesEnabled() ||
-                !networkAdminConfig.highVolumeThrottlesEnabled())) {
+                && (!feesConfig.simpleFeesEnabled() || !networkAdminConfig.highVolumeThrottlesEnabled())) {
             throw new PreCheckException(NOT_SUPPORTED);
         }
         if (UNSUPPORTED_TRANSACTIONS.contains(function)) {

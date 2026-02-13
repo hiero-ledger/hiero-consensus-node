@@ -19,13 +19,12 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import java.time.Instant;
 import java.util.List;
 import java.util.function.IntSupplier;
 import java.util.function.Supplier;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * The application's strategy for creating a {@link ScheduleThrottle} to use at consensus.
@@ -120,9 +119,6 @@ public class AppThrottleFactory implements ScheduleThrottle.Factory {
         if (allThrottles.size() == snapshots.size()) {
             return allThrottles;
         }
-        log.info("Snapshot size {} does not match all throttles size {}, using normal throttles",
-                snapshots.size(),
-                allThrottles.size());
         final var normalThrottles = throttleAccumulator.allActiveThrottles();
         if (normalThrottles.size() == snapshots.size()) {
             return normalThrottles;
