@@ -118,7 +118,7 @@ public final class HighVolumePricingCalculator {
      * @param utilizationBasisPoints the utilization percentage (0 to 10,000)
      * @return the interpolated multiplier (scaled)
      */
-    private static long interpolatePiecewiseLinear(
+    public static long interpolatePiecewiseLinear(
             @NonNull final PiecewiseLinearCurve curve, final int utilizationBasisPoints) {
         final List<PiecewiseLinearPoint> points = curve.points();
         // If there is only one point, return that point's multiplier

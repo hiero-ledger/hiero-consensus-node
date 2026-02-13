@@ -279,6 +279,7 @@ public final class FeeManager {
         }
         final ServiceFeeDefinition serviceFeeDefinition = lookupServiceFee(simpleFeesSchedule, functionality);
         if (serviceFeeDefinition == null) {
+            logger.warn("No service fee definition found for {}", functionality);
             return HighVolumePricingCalculator.MULTIPLIER_SCALE;
         }
         return HighVolumePricingCalculator.calculateMultiplier(

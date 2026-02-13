@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.throttling.hip1313;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.THROTTLE_OVERRIDES;
+import static com.hedera.services.bdd.junit.TestTags.INTEGRATION;
 import static com.hedera.services.bdd.junit.TestTags.SIMPLE_FEES;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
@@ -20,9 +21,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.CIVILIAN_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
-import static org.hiero.hapi.fees.HighVolumePricingCalculator.MULTIPLIER_SCALE;
-import static org.hiero.hapi.fees.HighVolumePricingCalculator.UTILIZATION_SCALE;
-import static org.hiero.hapi.fees.HighVolumePricingCalculator.linearInterpolate;
+import static org.hiero.hapi.fees.HighVolumePricingCalculator.interpolatePiecewiseLinear;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -43,10 +42,14 @@ import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
+
+import org.hiero.hapi.support.fees.PiecewiseLinearCurve;
+import org.hiero.hapi.support.fees.PiecewiseLinearPoint;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
+@Tag(INTEGRATION)
 @Tag(SIMPLE_FEES)
 @HapiTestLifecycle
 public class Hip1313EnabledTest {
@@ -130,7 +133,7 @@ public class Hip1313EnabledTest {
                         throttle.allow(1, entry.consensusTime());
                         final var fee = entry.txnRecord().getTransactionFee();
                         final var observedMultiplier = observedMultiplier(spec, fee, CRYPTO_CREATE_BASE_FEE);
-                        final var expectedMultiplier = getInterpolatedMultiplier(utilizationBasisPointsBefore) / 1000.0;
+                        final var expectedMultiplier = getInterpolatedMultiplier(CRYPTO_TOPIC_CREATE_MULTIPLIER_MAP, utilizationBasisPointsBefore) / 1000.0;
                         assertMultiplierAtLeastFour(observedMultiplier, "crypto create");
                         assertMultiplierMatchesExpectation(
                                 expectedMultiplier, observedMultiplier, utilizationBasisPointsBefore, "crypto create");
@@ -198,52 +201,19 @@ public class Hip1313EnabledTest {
                 }));
     }
 
-    public static long getInterpolatedMultiplier(final int utilizationBasisPoints) {
-        return getInterpolatedMultiplier(CRYPTO_TOPIC_CREATE_MULTIPLIER_MAP, utilizationBasisPoints);
+    public static long getInterpolatedMultiplier(final NavigableMap<Integer, Long> map, final int utilizationBasisPoints) {
+        return interpolatePiecewiseLinear(asPiecewiseLinearCurve(map), utilizationBasisPoints);
     }
 
-    public static long getInterpolatedMultiplier(
-            @NonNull final NavigableMap<Integer, Long> map, final int utilizationBasisPoints) {
-        final int clampedUtilization = Math.max(0, Math.min(utilizationBasisPoints, UTILIZATION_SCALE));
-        final long maxMultiplier = Math.max(map.lastEntry().getValue(), MULTIPLIER_SCALE);
-
-        long rawMultiplier;
-        if (map.size() == 1) {
-            rawMultiplier = normalizeMultiplier(map.firstEntry().getValue());
-        } else {
-            Map.Entry<Integer, Long> lower = null;
-            Map.Entry<Integer, Long> upper = null;
-
-            for (final var entry : map.entrySet()) {
-                if (entry.getKey() <= clampedUtilization) {
-                    lower = entry;
-                }
-                if (entry.getKey() >= clampedUtilization && upper == null) {
-                    upper = entry;
-                }
-            }
-
-            if (lower == null) {
-                rawMultiplier = normalizeMultiplier(map.firstEntry().getValue());
-            } else if (upper == null) {
-                rawMultiplier = normalizeMultiplier(map.lastEntry().getValue());
-            } else if (lower.getKey().equals(upper.getKey())) {
-                rawMultiplier = normalizeMultiplier(upper.getValue());
-            } else {
-                rawMultiplier = linearInterpolate(
-                        lower.getKey(),
-                        normalizeMultiplier(lower.getValue()),
-                        upper.getKey(),
-                        normalizeMultiplier(upper.getValue()),
-                        clampedUtilization);
-            }
+    private static PiecewiseLinearCurve asPiecewiseLinearCurve(final NavigableMap<Integer, Long> map) {
+        final var builder = PiecewiseLinearCurve.newBuilder();
+        for (final var entry : map.entrySet()) {
+            builder.points(PiecewiseLinearPoint.newBuilder()
+                    .utilizationBasisPoints(entry.getKey())
+                    .multiplier(entry.getValue().intValue())
+                    .build());
         }
-
-        return Math.max(MULTIPLIER_SCALE, Math.min(rawMultiplier, maxMultiplier));
-    }
-
-    private static long normalizeMultiplier(final long multiplier) {
-        return Math.max(multiplier, MULTIPLIER_SCALE);
+        return builder.build();
     }
 
     private static void submitHighVolumeCryptoCreates(@NonNull final HapiSpec spec, final int numCreates) {
