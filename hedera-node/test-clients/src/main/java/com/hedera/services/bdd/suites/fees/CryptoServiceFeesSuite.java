@@ -67,8 +67,8 @@ public class CryptoServiceFeesSuite {
     private static final double BASE_FEE_CRYPTO_CREATE = 0.05;
     private static final double BASE_FEE_CRYPTO_DELETE = 0.005;
     private static final double BASE_FEE_CRYPTO_DELETE_ALLOWANCE = 0.05;
-    private static final double BASE_FEE_CRYPTO_UPDATE = 0.000214;
-    private static final double BASE_FEE_WITH_EXPIRY_CRYPTO_UPDATE = 0.00022;
+    private static final double BASE_FEE_CRYPTO_UPDATE = 0.000214952;
+    private static final double BASE_FEE_WITH_EXPIRY_CRYPTO_UPDATE = 0.000221485;
     private static final double BASE_FEE_HBAR_CRYPTO_TRANSFER = 0.0001;
     private static final double BASE_FEE_HTS_CRYPTO_TRANSFER = 0.001;
     private static final double BASE_FEE_NFT_CRYPTO_TRANSFER = 0.001;
@@ -269,13 +269,13 @@ public class CryptoServiceFeesSuite {
                         .addTokenAllowance(OWNER, FUNGIBLE_TOKEN, SECOND_SPENDER, 200L)
                         .via("approveModifyTokenTxn")
                         .blankMemo(),
-                validateFees("approveModifyCryptoTxn", 0.04943, CRYPTO_APPROVE_ALLOWANCE_FEE),
+                validateFees("approveModifyTokenTxn", 0.04943, CRYPTO_APPROVE_ALLOWANCE_FEE),
                 cryptoApproveAllowance()
                         .payingWith(OWNER)
                         .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, ANOTHER_SPENDER, false, List.of())
                         .via("approveModifyNftTxn")
                         .blankMemo(),
-                validateFees("approveModifyCryptoTxn", 0.049375, CRYPTO_APPROVE_ALLOWANCE_FEE),
+                validateFees("approveModifyNftTxn", 0.049375, CRYPTO_APPROVE_ALLOWANCE_FEE),
                 getAccountDetails(OWNER)
                         .payingWith(GENESIS)
                         .has(accountDetailsWith()
