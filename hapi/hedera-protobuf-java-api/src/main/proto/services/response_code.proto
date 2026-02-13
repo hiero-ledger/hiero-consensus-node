@@ -1772,6 +1772,16 @@ enum ResponseCodeEnum {
     INVALID_SERIALIZED_TX_MESSAGE_HASH_ALGORITHM = 401;
 
     /**
+    * A HAPI client cannot set the SignedTransaction#use_serialized_tx_message_hash_algorithm field.
+    */
+    CLPR_LEDGER_CONFIGURATION_NOT_AVAILABLE = 497;
+
+    /**
+     * The state proof is not valid for the given transaction.
+     */
+    CLPR_INVALID_STATE_PROOF = 498;
+
+    /**
      * A HookStore referenced a valid entity number but with the wrong entity type.
      */
     WRONG_HOOK_ENTITY_TYPE = 499;

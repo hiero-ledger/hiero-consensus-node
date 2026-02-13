@@ -49,6 +49,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
+import org.hiero.hapi.interledger.clpr.protoc.ClprSetLedgerConfigurationTransactionBody;
+import org.hiero.hapi.interledger.state.clpr.protoc.ClprLedgerConfiguration;
 
 public class HapiSpecRegistry {
     private final Map<String, Object> registry = new HashMap<>();
@@ -350,6 +352,32 @@ public class HapiSpecRegistry {
         put(name, meta.build());
         if (txn.hasExpirationTime()) {
             put(name, txn.getExpirationTime().getSeconds());
+        }
+    }
+
+    public ClprSetLedgerConfigurationTransactionBody getRemoteLedgerConfig(String ledgerId) {
+        return get(ledgerId, ClprSetLedgerConfigurationTransactionBody.class);
+    }
+
+    public void saveRemoteLedgerConfig(ClprSetLedgerConfigurationTransactionBody txBody) {
+        ClprSetLedgerConfigurationTransactionBody.Builder builder =
+                ClprSetLedgerConfigurationTransactionBody.newBuilder();
+        if (txBody.hasLedgerConfigurationProof()) {
+            // Extract configuration from state proof
+            final var stateProof = txBody.getLedgerConfigurationProof();
+            if (stateProof.getPathsCount() > 0 && stateProof.getPaths(0).hasStateItemLeaf()) {
+                try {
+                    // Parse the configuration from the leaf bytes
+                    final var stateItemBytes = stateProof.getPaths(0).getStateItemLeaf();
+                    final var ledgerConfig = ClprLedgerConfiguration.parseFrom(stateItemBytes.toByteArray());
+                    final var ledgerIdBytes =
+                            ledgerConfig.getLedgerId().getLedgerId().toByteArray();
+                    builder.setLedgerConfigurationProof(stateProof);
+                    put(ByteString.copyFrom(ledgerIdBytes).toStringUtf8(), builder.build());
+                } catch (com.google.protobuf.InvalidProtocolBufferException e) {
+                    // Skip if configuration cannot be parsed
+                }
+            }
         }
     }
 

@@ -168,6 +168,7 @@ import org.hiero.consensus.roster.ReadableRosterStore;
 import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.consensus.transaction.TransactionLimits;
 import org.hiero.consensus.transaction.TransactionPoolNexus;
+import org.hiero.interledger.clpr.impl.ClprServiceImpl;
 
 /*
  ****************        ****************************************************************************************
@@ -287,6 +288,11 @@ public final class Hedera
      * during the state migration phase in the later initialization phase.
      */
     private final BlockStreamService blockStreamService;
+
+    /**
+     * The CLPR service singleton, kept as a field here to avoid constructing twice
+     */
+    private final ClprServiceImpl clprServiceImpl;
 
     /**
      * The block hash signer factory.
@@ -538,6 +544,7 @@ public final class Hedera
                 bootstrapConfig.getConfigData(HederaConfig.class).throttleTransactionQueueSize(),
                 metrics,
                 instantSource);
+        clprServiceImpl = new ClprServiceImpl();
 
         // Register all service schema RuntimeConstructable factories before platform init
         Set.of(
@@ -559,7 +566,8 @@ public final class Hedera
                         networkServiceImpl,
                         addressBookServiceImpl,
                         rosterServiceImpl,
-                        platformStateService)
+                        platformStateService,
+                        clprServiceImpl)
                 .forEach(servicesRegistry::register);
         final var blockStreamsEnabled = isBlockStreamEnabled();
         stateRootSupplier = blockStreamsEnabled ? () -> withListeners(baseSupplier.get()) : baseSupplier;
@@ -652,9 +660,13 @@ public final class Hedera
                 .getConfigData(BlockStreamConfig.class)
                 .streamToBlockNodes();
         switch (platformStatus) {
-            case ACTIVE -> startGrpcServer();
+            case ACTIVE -> {
+                startGrpcServer();
+                daggerApp.clprEndpoint().start();
+            }
             case FREEZE_COMPLETE -> {
                 logger.info("Platform status is now FREEZE_COMPLETE");
+                daggerApp.clprEndpoint().stop();
                 shutdownGrpcServer();
                 closeRecordStreams();
                 if (streamToBlockNodes && isNotEmbedded()) {
@@ -664,6 +676,7 @@ public final class Hedera
             }
             case CATASTROPHIC_FAILURE -> {
                 logger.error("Platform status is now CATASTROPHIC_FAILURE");
+                daggerApp.clprEndpoint().stop();
                 shutdownGrpcServer();
                 if (streamToBlockNodes && isNotEmbedded()) {
                     logger.info("CATASTROPHIC_FAILURE - Shutting down connections to Block Nodes");
@@ -675,6 +688,7 @@ public final class Hedera
             }
             case REPLAYING_EVENTS, STARTING_UP, OBSERVING, RECONNECT_COMPLETE, CHECKING, FREEZING, BEHIND -> {
                 // Nothing to do here, just enumerate for completeness
+                daggerApp.clprEndpoint().stop();
             }
         }
     }
@@ -966,6 +980,7 @@ public final class Hedera
      */
     public void shutdown() {
         logger.info("Shutting down Hedera node");
+        daggerApp.clprEndpoint().stop();
         shutdownGrpcServer();
 
         if (daggerApp != null) {
@@ -1290,6 +1305,7 @@ public final class Hedera
                 .softwareVersion(version)
                 .self(networkInfo.selfNodeInfo())
                 .platform(platform)
+                .stateLifecycleManager(stateLifecycleManager)
                 .transactionPool(transactionPool)
                 .currentPlatformStatus(new CurrentPlatformStatusImpl(platform))
                 .servicesRegistry(servicesRegistry)

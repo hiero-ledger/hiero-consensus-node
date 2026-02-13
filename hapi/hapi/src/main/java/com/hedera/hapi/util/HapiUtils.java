@@ -193,11 +193,13 @@ public class HapiUtils {
             HederaFunctionality.TOKEN_GET_NFT_INFOS,
             HederaFunctionality.TOKEN_GET_ACCOUNT_NFT_INFOS,
             HederaFunctionality.NETWORK_GET_EXECUTION_TIME,
-            HederaFunctionality.GET_ACCOUNT_DETAILS);
+            HederaFunctionality.GET_ACCOUNT_DETAILS,
+            HederaFunctionality.CLPR_GET_LEDGER_CONFIG);
 
     public static HederaFunctionality functionOf(final TransactionBody txn) throws UnknownHederaFunctionality {
         return switch (txn.data().kind()) {
             case ATOMIC_BATCH -> HederaFunctionality.ATOMIC_BATCH;
+            case CLPR_SET_LEDGER_CONFIGURATION -> HederaFunctionality.CLPR_SET_LEDGER_CONFIG;
             case CONSENSUS_CREATE_TOPIC -> HederaFunctionality.CONSENSUS_CREATE_TOPIC;
             case CONSENSUS_UPDATE_TOPIC -> HederaFunctionality.CONSENSUS_UPDATE_TOPIC;
             case CONSENSUS_DELETE_TOPIC -> HederaFunctionality.CONSENSUS_DELETE_TOPIC;
@@ -271,6 +273,7 @@ public class HapiUtils {
             case TOKEN_GET_ACCOUNT_NFT_INFOS -> HederaFunctionality.TOKEN_GET_ACCOUNT_NFT_INFOS;
             case TOKEN_GET_NFT_INFOS -> HederaFunctionality.TOKEN_GET_NFT_INFOS;
             case ACCOUNT_DETAILS -> HederaFunctionality.GET_ACCOUNT_DETAILS;
+            case GET_CLPR_LEDGER_CONFIGURATION -> HederaFunctionality.CLPR_GET_LEDGER_CONFIG;
             case CONSENSUS_GET_TOPIC_INFO -> HederaFunctionality.CONSENSUS_GET_TOPIC_INFO;
             case CONTRACT_CALL_LOCAL -> HederaFunctionality.CONTRACT_CALL_LOCAL;
             case CONTRACT_GET_BYTECODE -> HederaFunctionality.CONTRACT_GET_BYTECODE;

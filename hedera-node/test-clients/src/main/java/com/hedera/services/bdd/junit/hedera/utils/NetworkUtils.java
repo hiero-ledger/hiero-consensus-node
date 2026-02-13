@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.junit.hedera.utils;
 
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromByteString;
+import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.gossipCaCertificateForNodeId;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.workingDirFor;
 import static com.hedera.services.bdd.suites.utils.sysfiles.BookEntryPojo.asOctets;
 import static java.util.Objects.requireNonNull;
@@ -15,23 +16,16 @@ import com.hedera.node.internal.network.Network;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.hedera.HederaNode;
 import com.hedera.services.bdd.junit.hedera.NodeMetadata;
+import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hederahashgraph.api.proto.java.ServiceEndpoint;
-import com.swirlds.platform.crypto.CryptoStatic;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;
-import java.security.KeyStoreException;
-import java.security.cert.CertificateEncodingException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
-import java.util.concurrent.ExecutionException;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
-import org.hiero.consensus.model.node.KeysAndCerts;
-import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Utility class for generating an address book configuration file.
@@ -77,22 +71,9 @@ public class NetworkUtils {
             @NonNull final Map<Long, Long> overrideWeights) {
         final List<com.hedera.node.internal.network.NodeMetadata> metadata = new ArrayList<>();
 
-        final Map<Long, Bytes> certsMap = new HashMap<>();
-        try {
-            final Map<NodeId, KeysAndCerts> kacMap = CryptoStatic.generateKeysAndCerts(
-                    nodes.stream().map(HederaNode::getNodeId).map(NodeId::of).toList());
-            for (final Entry<NodeId, KeysAndCerts> entry : kacMap.entrySet()) {
-                certsMap.put(
-                        entry.getKey().id(),
-                        Bytes.wrap(entry.getValue().sigCert().getEncoded()));
-            }
-        } catch (final ExecutionException | InterruptedException | KeyStoreException | CertificateEncodingException e) {
-            throw new IllegalStateException("Error generating keys and certs", e);
-        }
-
         for (final var hNode : nodes) {
             final Bytes localhost = fromByteString(asOctets("127.0.0.1"));
-            final Bytes cert = certsMap.get(hNode.getNodeId());
+            final Bytes cert = Bytes.wrap(gossipCaCertificateForNodeId(hNode.getNodeId()));
             final var rosterEntry = RosterEntry.newBuilder()
                     .nodeId(hNode.getNodeId())
                     .weight(overrideWeights.getOrDefault(hNode.getNodeId(), 1L))
@@ -107,12 +88,16 @@ public class NetworkUtils {
                                     .port(nextExternalGossipPort + ((int) hNode.getNodeId() * 2))
                                     .build()))
                     .build();
+            final var grpcPort = hNode.getGrpcPort();
+            final var serviceEndpoint = grpcPort > 0
+                    ? HapiPropertySource.asServiceEndpoint(hNode.getHost() + ":" + grpcPort)
+                    : rosterEntry.gossipEndpoint().getFirst();
             final var node = com.hedera.hapi.node.state.addressbook.Node.newBuilder()
                     .nodeId(hNode.getNodeId())
                     .accountId(hNode.getAccountId())
                     .description("node" + (hNode.getNodeId() + 1))
                     .gossipEndpoint(rosterEntry.gossipEndpoint())
-                    .serviceEndpoint(rosterEntry.gossipEndpoint().getFirst())
+                    .serviceEndpoint(serviceEndpoint)
                     .gossipCaCertificate(cert)
                     // The gRPC certificate hash is irrelevant for PR checks
                     .grpcCertificateHash(Bytes.EMPTY)
@@ -154,6 +139,7 @@ public class NetworkUtils {
             final int nextGossipPort,
             final int nextGossipTlsPort,
             final int nextPrometheusPort,
+            final int nextDebugPort,
             final long shard,
             final long realm) {
         requireNonNull(host);
@@ -172,6 +158,7 @@ public class NetworkUtils {
                 nextGossipPort + nodeId * 2,
                 nextGossipTlsPort + nodeId * 2,
                 nextPrometheusPort + nodeId,
+                nextDebugPort + nodeId,
                 workingDirFor(nodeId, scope));
     }
 
@@ -200,6 +187,7 @@ public class NetworkUtils {
             final int nextGossipPort,
             final int nextGossipTlsPort,
             final int nextPrometheusPort,
+            final int nextDebugPort,
             @NonNull final Path workingDir,
             final long shard,
             final long realm) {
@@ -220,6 +208,7 @@ public class NetworkUtils {
                 nextGossipPort + nodeId * 2,
                 nextGossipTlsPort + nodeId * 2,
                 nextPrometheusPort + nodeId,
+                nextDebugPort + nodeId,
                 workingDir);
     }
 

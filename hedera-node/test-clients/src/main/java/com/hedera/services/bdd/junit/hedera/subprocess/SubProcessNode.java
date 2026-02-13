@@ -11,11 +11,12 @@ import static com.hedera.services.bdd.junit.hedera.subprocess.NodeStatus.GrpcSta
 import static com.hedera.services.bdd.junit.hedera.subprocess.NodeStatus.GrpcStatus.NA;
 import static com.hedera.services.bdd.junit.hedera.subprocess.NodeStatus.GrpcStatus.UP;
 import static com.hedera.services.bdd.junit.hedera.subprocess.ProcessUtils.conditionFuture;
-import static com.hedera.services.bdd.junit.hedera.subprocess.ProcessUtils.destroyAnySubProcessNodeWithId;
+import static com.hedera.services.bdd.junit.hedera.subprocess.ProcessUtils.destroySubProcessNodeFor;
 import static com.hedera.services.bdd.junit.hedera.subprocess.ProcessUtils.startSubProcessNodeFrom;
 import static com.hedera.services.bdd.junit.hedera.subprocess.StatusLookupAttempt.newLogAttempt;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.ERROR_REDIRECT_FILE;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.OUTPUT_DIR;
+import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.syncPreGeneratedGossipKeys;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
 
@@ -30,8 +31,11 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.File;
 import java.io.IOException;
+import java.io.RandomAccessFile;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
+import java.nio.file.Path;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.Map;
@@ -70,6 +74,8 @@ public class SubProcessNode extends AbstractLocalNode<SubProcessNode> implements
      * How many retries to make between checking if a bind exception has been thrown in the logs.
      */
     private static final int BINDING_CHECK_INTERVAL = 10;
+
+    private static final String BIND_EXCEPTION_MARKER = "java.net.BindException";
 
     private final Pattern statusPattern;
     private final GrpcPinger grpcPinger;
@@ -214,7 +220,8 @@ public class SubProcessNode extends AbstractLocalNode<SubProcessNode> implements
             final int configVersion, @NonNull final Map<String, String> envOverrides) {
         assertStopped();
         assertWorkingDirInitialized();
-        destroyAnySubProcessNodeWithId(metadata.nodeId());
+        syncPreGeneratedGossipKeys(metadata.workingDirOrThrow(), metadata.nodeId());
+        destroySubProcessNodeFor(metadata);
         processHandle = startSubProcessNodeFrom(metadata, configVersion, envOverrides);
         return this;
     }
@@ -227,14 +234,17 @@ public class SubProcessNode extends AbstractLocalNode<SubProcessNode> implements
      * @param gossipPort the new gossip port
      * @param tlsGossipPort the new TLS gossip port
      * @param prometheusPort the new Prometheus port
+     * @param debugPort the new debug (JDWP) port
      */
     public void reassignPorts(
             final int grpcPort,
             final int grpcNodeOperatorPort,
             final int gossipPort,
             final int tlsGossipPort,
-            final int prometheusPort) {
-        metadata = metadata.withNewPorts(grpcPort, grpcNodeOperatorPort, gossipPort, tlsGossipPort, prometheusPort);
+            final int prometheusPort,
+            final int debugPort) {
+        metadata = metadata.withNewPorts(
+                grpcPort, grpcNodeOperatorPort, gossipPort, tlsGossipPort, prometheusPort, debugPort);
     }
 
     /**
@@ -254,9 +264,54 @@ public class SubProcessNode extends AbstractLocalNode<SubProcessNode> implements
         }
     }
 
+    public BindExceptionLogSnapshot bindExceptionLogSnapshot() {
+        return new BindExceptionLogSnapshot(
+                logSize(getExternalPath(SWIRLDS_LOG)), logSize(getExternalPath(APPLICATION_LOG)));
+    }
+
+    public boolean bindExceptionLoggedSince(@NonNull final BindExceptionLogSnapshot snapshot) {
+        requireNonNull(snapshot);
+        return logContainsSince(getExternalPath(SWIRLDS_LOG), snapshot.swirldsLogSize(), BIND_EXCEPTION_MARKER)
+                || logContainsSince(
+                        getExternalPath(APPLICATION_LOG), snapshot.applicationLogSize(), BIND_EXCEPTION_MARKER);
+    }
+
     private int numApplicationLogLinesWith(@NonNull final String text) {
-        try (var lines = Files.lines(getExternalPath(APPLICATION_LOG))) {
+        final var applicationLog = getExternalPath(APPLICATION_LOG);
+        if (!Files.exists(applicationLog)) {
+            return 0;
+        }
+        try (var lines = Files.lines(applicationLog)) {
             return (int) lines.filter(line -> line.contains(text)).count();
+        } catch (NoSuchFileException e) {
+            return 0;
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    private static long logSize(@NonNull final Path path) {
+        try {
+            return Files.exists(path) ? Files.size(path) : 0L;
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    private static boolean logContainsSince(@NonNull final Path path, final long offset, @NonNull final String text) {
+        if (!Files.exists(path)) {
+            return false;
+        }
+        try (var raf = new RandomAccessFile(path.toFile(), "r")) {
+            final long effectiveOffset = offset > raf.length() ? 0L : offset;
+            raf.seek(effectiveOffset);
+            String line;
+            while ((line = raf.readLine()) != null) {
+                if (line.contains(text)) {
+                    return true;
+                }
+            }
+            return false;
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -282,6 +337,8 @@ public class SubProcessNode extends AbstractLocalNode<SubProcessNode> implements
         YES,
         NO
     }
+
+    public record BindExceptionLogSnapshot(long swirldsLogSize, long applicationLogSize) {}
 
     private void triggerThreadDump() throws IOException {
         final var javaHome = System.getProperty("java.home");

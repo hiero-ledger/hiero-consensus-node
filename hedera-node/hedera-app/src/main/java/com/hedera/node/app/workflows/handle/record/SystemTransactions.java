@@ -73,6 +73,7 @@ import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.migrate.StartupNetworks;
 import com.hedera.node.app.spi.records.RecordSource;
 import com.hedera.node.app.spi.records.SelfNodeAccountIdManager;
+import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.hedera.node.app.spi.workflows.SystemContext;
 import com.hedera.node.app.state.HederaRecordCache;
 import com.hedera.node.app.state.recordcache.LegacyListRecordSource;
@@ -86,6 +87,7 @@ import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.BootstrapConfig;
+import com.hedera.node.config.data.ClprConfig;
 import com.hedera.node.config.data.ConsensusConfig;
 import com.hedera.node.config.data.FeesConfig;
 import com.hedera.node.config.data.FilesConfig;
@@ -96,6 +98,7 @@ import com.hedera.node.config.data.NodesConfig;
 import com.hedera.node.config.data.SchedulingConfig;
 import com.hedera.node.config.data.StakingConfig;
 import com.hedera.node.config.types.StreamMode;
+import com.hedera.node.internal.network.Network;
 import com.hedera.node.internal.network.NodeMetadata;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
@@ -114,8 +117,10 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.SortedMap;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -129,7 +134,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.platformstate.PlatformStateService;
 import org.hiero.consensus.roster.ReadableRosterStore;
+import org.hiero.hapi.interledger.state.clpr.ClprLedgerId;
 import org.hiero.hapi.support.fees.FeeSchedule;
+import org.hiero.interledger.clpr.ClprService;
+import org.hiero.interledger.clpr.ReadableClprLedgerConfigurationStore;
+import org.hiero.interledger.clpr.ReadableClprMetadataStore;
 
 /**
  * This class is responsible for storing the system accounts created during node startup, and then creating
@@ -411,6 +420,8 @@ public class SystemTransactions {
         final var nodeStakeUpdate = EndOfStakingPeriodUtils.newNodeStakeUpdate(
                 lastInstantOfPreviousPeriodFor(now), nodeStakes, stakingConfig, 0L, 0L, 0L, 0L);
         systemContext.dispatchAdmin(b -> b.memo(END_OF_PERIOD_MEMO).nodeStakeUpdate(nodeStakeUpdate));
+        // CLPR BOOTSTRAP
+        maybeDispatchClprBootstrap(systemContext, state);
     }
 
     /**
@@ -475,6 +486,8 @@ public class SystemTransactions {
                 adminConfig.upgradeNodeAdminKeysFile(),
                 SystemTransactions::parseNodeAdminKeys);
         autoNodeAdminKeyUpdates.tryIfPresent(adminConfig.upgradeSysFilesLoc(), systemContext);
+        // Ensure CLPR config reflects the post-upgrade roster and any updated CLPR configuration properties.
+        maybeDispatchClprBootstrap(systemContext, state);
     }
 
     /**
@@ -540,6 +553,130 @@ public class SystemTransactions {
                         .nodeContributions(contributions)
                         .historyProofVerificationKey(historyProofVerificationKey)
                         .build()));
+    }
+
+    /**
+     * Dispatches a synthetic CLPR ledger configuration when bootstrap conditions are met.
+     * <p>Non-obvious details that must stay deterministic:
+     * <ul>
+     *     <li>Payer is always the system-admin account so the synthetic transaction ID matches on every node.</li>
+     *     <li>Endpoints are included only when {@code publicizeNetworkAddresses} is true; they are sourced from
+     *     {@link Network} metadata when available, otherwise from the {@link ReadableNodeStore}.</li>
+     *     <li>Runs only if metadata is absent or the stored roster hash differs; when refreshing, the previous
+     *     ledgerId is reused so ledger identity is stable across restarts.</li>
+     * </ul>
+     */
+    private void maybeDispatchClprBootstrap(@NonNull final SystemContext systemContext, @NonNull final State state) {
+        final var storeFactory = new ReadableStoreFactoryImpl(state);
+        final ReadableRosterStore rosterStore;
+        final ReadableClprMetadataStore metadataStore;
+        ReadableClprLedgerConfigurationStore configStore = null;
+        try {
+            rosterStore = storeFactory.readableStore(ReadableRosterStore.class);
+            metadataStore = storeFactory.readableStore(ReadableClprMetadataStore.class);
+            configStore = storeFactory.readableStore(ReadableClprLedgerConfigurationStore.class);
+        } catch (final IllegalArgumentException e) {
+            return;
+        }
+        final var activeRoster = rosterStore.getActiveRoster();
+        final var rosterHash = rosterStore.getCurrentRosterHash();
+        if (activeRoster == null || rosterHash == null) {
+            return;
+        }
+        final var clprConfig = configProvider.getConfiguration().getConfigData(ClprConfig.class);
+        if (!clprConfig.clprEnabled()) {
+            return;
+        }
+        final var existingMetadata = metadataStore.get();
+        final var existingRosterHash = existingMetadata != null ? existingMetadata.rosterHash() : null;
+
+        final Network network = safeGetNetwork(storeFactory);
+        final ReadableNodeStore nodeStore = safeGetNodeStore(storeFactory);
+
+        final var includeServiceEndpoint = clprConfig.publicizeNetworkAddresses();
+        final Map<Long, ServiceEndpoint> endpointByNodeId;
+        final Map<Long, AccountID> accountIdByNodeId;
+        if (nodeStore != null) {
+            endpointByNodeId = includeServiceEndpoint
+                    ? nodeStore.keys().stream()
+                            .map(key -> nodeStore.get(key.number()))
+                            .filter(Objects::nonNull)
+                            .filter(node -> !node.serviceEndpoint().isEmpty())
+                            .collect(
+                                    HashMap::new,
+                                    (map, node) -> map.put(
+                                            node.nodeId(),
+                                            node.serviceEndpoint().getFirst()),
+                                    HashMap::putAll)
+                    : Map.of();
+            accountIdByNodeId = nodeStore.keys().stream()
+                    .map(key -> nodeStore.get(key.number()))
+                    .filter(Objects::nonNull)
+                    .collect(
+                            HashMap::new,
+                            (map, node) -> map.put(node.nodeId(), node.accountIdOrThrow()),
+                            HashMap::putAll);
+        } else {
+            endpointByNodeId = Map.of();
+            accountIdByNodeId = Map.of();
+        }
+        final Function<Long, ServiceEndpoint> endpointProvider =
+                includeServiceEndpoint ? endpointByNodeId::get : nodeId -> null;
+        final Function<Long, AccountID> accountIdProvider = accountIdByNodeId::get;
+
+        final Bytes ledgerId = existingMetadata != null && existingMetadata.ledgerId() != null
+                ? existingMetadata.ledgerId().ledgerId()
+                : rosterHash;
+
+        final var existingConfig = configStore != null
+                ? configStore.get(ClprLedgerId.newBuilder().ledgerId(ledgerId).build())
+                : null;
+        final var rosterChanged = existingRosterHash == null || !rosterHash.equals(existingRosterHash);
+        final var hasAdvertisedEndpoints = existingConfig != null
+                && existingConfig.endpoints().stream()
+                        .anyMatch(org.hiero.hapi.interledger.state.clpr.ClprEndpoint::hasEndpoint);
+        // Trigger regeneration when roster changes or when the stored config's endpoint visibility does not match the
+        // current publicize flag (so we add or strip endpoints accordingly).
+        final var endpointsMismatch =
+                existingConfig == null || (includeServiceEndpoint ? !hasAdvertisedEndpoints : hasAdvertisedEndpoints);
+        if (!rosterChanged && !endpointsMismatch) {
+            return;
+        }
+        final var systemAdminAccountId = idFactory.newAccountId(configProvider
+                .getConfiguration()
+                .getConfigData(AccountsConfig.class)
+                .systemAdmin());
+        if (!systemContext.hasDispatchesRemaining()) {
+            log.warn("CLPR bootstrap skipped; no dispatch capacity available in system context");
+            return;
+        }
+        final var dispatchTime = systemContext.now();
+        final var transactionBody = ClprService.buildLedgerConfigurationUpdateTransactionBody(
+                activeRoster,
+                systemAdminAccountId,
+                ledgerId,
+                dispatchTime,
+                includeServiceEndpoint,
+                endpointProvider,
+                accountIdProvider);
+        systemContext.dispatchCreation(
+                builder -> builder.clprSetLedgerConfiguration(transactionBody.clprSetLedgerConfigurationOrThrow()), 0L);
+    }
+
+    private Network safeGetNetwork(@NonNull final ReadableStoreFactory storeFactory) {
+        try {
+            return storeFactory.readableStore(Network.class);
+        } catch (final IllegalArgumentException e) {
+            return null;
+        }
+    }
+
+    private ReadableNodeStore safeGetNodeStore(@NonNull final ReadableStoreFactory storeFactory) {
+        try {
+            return storeFactory.readableStore(ReadableNodeStore.class);
+        } catch (final IllegalArgumentException e) {
+            return null;
+        }
     }
 
     /**

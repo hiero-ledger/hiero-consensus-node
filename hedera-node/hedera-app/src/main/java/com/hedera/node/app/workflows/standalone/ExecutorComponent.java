@@ -35,9 +35,11 @@ import com.hedera.node.app.workflows.standalone.impl.StandaloneModule;
 import com.hedera.node.app.workflows.standalone.impl.StandaloneNetworkInfo;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.State;
+import com.swirlds.state.StateLifecycleManager;
 import dagger.BindsInstance;
 import dagger.Component;
 import javax.inject.Singleton;
+import org.hiero.interledger.clpr.impl.ClprModule;
 
 /**
  * A component that provides DI for construction of {@link StandaloneDispatchFactory}, {@link StandaloneNetworkInfo}, and
@@ -54,7 +56,8 @@ import javax.inject.Singleton;
             HederaStateInjectionModule.class,
             ThrottleServiceModule.class,
             FacilityInitModule.class,
-            BlockStreamModule.class
+            BlockStreamModule.class,
+            ClprModule.class
         })
 public interface ExecutorComponent {
     @Component.Builder
@@ -109,6 +112,9 @@ public interface ExecutorComponent {
 
         @BindsInstance
         Builder selfNodeAccountIdManager(SelfNodeAccountIdManager selfNodeAccountIdManager);
+
+        @BindsInstance
+        Builder stateLifecycleManager(StateLifecycleManager stateLifecycleManager);
 
         ExecutorComponent build();
     }

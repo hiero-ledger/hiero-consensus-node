@@ -34,6 +34,11 @@ import org.junit.jupiter.api.Tag;
 @OrderedInIsolation
 public class NodeDeathReconnectBlockNodeSuite implements LifecycleTest {
 
+    /**
+     * Exercises shutdown and restart of a node while block node streaming remains stable.
+     *
+     * @return dynamic tests for the restart flow
+     */
     @HapiTest
     @HapiBlockNode(
             networkSize = 4,
