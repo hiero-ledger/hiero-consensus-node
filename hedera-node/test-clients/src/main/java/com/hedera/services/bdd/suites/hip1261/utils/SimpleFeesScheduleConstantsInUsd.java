@@ -105,6 +105,7 @@ public class SimpleFeesScheduleConstantsInUsd {
     /* ---------- Token service ---------- */
     public static final long TOKEN_CREATE_WITH_CUSTOM_FEE_USD = 1L;
 
+    public static final double TOKEN_CREATE_FEE = 1.0;
     public static final double TOKEN_CREATE_BASE_FEE_USD = 0.9999;
     public static final long TOKEN_CREATE_INCLUDED_KEYS = 1L;
 
