@@ -110,7 +110,7 @@ public final class BlockStreamUtils {
             case EXCHANGE_RATE_SET_VALUE -> singletonUpdateChange.exchangeRateSetValueOrThrow();
             case NETWORK_STAKING_REWARDS_VALUE -> singletonUpdateChange.networkStakingRewardsValueOrThrow();
             case NODE_REWARDS_VALUE -> singletonUpdateChange.nodeRewardsValueOrThrow();
-			// (FUTURE) Ideally we add proper CLPR proto de/serialization in the long term
+            // (FUTURE) Ideally we add proper CLPR proto de/serialization in the long term
             case BYTES_VALUE -> bytesValueSingletonFor(stateId, singletonUpdateChange);
             case STRING_VALUE -> new ProtoString(singletonUpdateChange.stringValueOrThrow());
             case RUNNING_HASHES_VALUE -> singletonUpdateChange.runningHashesValueOrThrow();
