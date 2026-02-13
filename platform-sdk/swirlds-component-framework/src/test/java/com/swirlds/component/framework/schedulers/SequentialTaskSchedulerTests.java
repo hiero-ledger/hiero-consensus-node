@@ -2020,14 +2020,14 @@ class SequentialTaskSchedulerTests implements SequentialTaskSchedulerAliveThread
         handlerA.executionControl().unblock();
         sleep(50);
         assertFalse(allWorkInserted.get());
-        assertEquals(10, counter.getCount()); // This one failed
+        assertEventuallyEquals(10, counter::getCount, "Tasks should get to 10"); // This one failed
 
         // Unblock (B). Work will flow forward and get blocked at C. We shouldn't be able to add additional items
         // since that would violate the global capacity.
         handlerB.executionControl().unblock();
         sleep(50);
         assertFalse(allWorkInserted.get());
-        assertEquals(10, counter.getCount());
+        assertEventuallyEquals(10, counter::getCount, "Tasks should remain at 10");
 
         // Unblock (C). The entire pipeline is now unblocked, and new things will be added.
         handlerC.executionControl().unblock();
