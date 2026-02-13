@@ -1177,7 +1177,7 @@ public class EthereumSuite {
         final var firstTxn = "firstCreateTxn";
         // RAW_BIG_INTEGER_WEIBAR has high bit _ON_: Negative in two's complement but positive in Ethereum
         final var RAW_BIG_INTEGER_WEIBAR =
-                new BigInteger(Bytes.fromHex("FFC7230489E80000").toByteArray());
+                new BigInteger(Bytes.fromHex("FAC7230489E80000").toByteArray());
         //             ^^^^ 10000000000000000000 wasn't enough to pay the tx fee, so changed the leading `8` to an `F`
         final var BIG_INTEGER_WEIBAR = new BigInteger("18070450532247928832"); // this is the actual value
         return hapiTest(
