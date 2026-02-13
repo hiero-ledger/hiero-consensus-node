@@ -20,8 +20,8 @@ module org.hiero.interledger.clpr.impl {
     requires org.hiero.base.crypto;
     requires org.hiero.consensus.concurrent;
     requires org.hiero.consensus.roster;
-    requires io.helidon.webclient.api;
     requires io.helidon.common.tls;
+    requires io.helidon.webclient.api;
     requires net.i2p.crypto.eddsa;
     requires org.apache.logging.log4j;
     requires static transitive com.github.spotbugs.annotations;
