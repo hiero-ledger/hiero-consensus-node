@@ -806,7 +806,8 @@ public class StateChangesValidator implements BlockStreamValidator {
                 }
                 case SINGLETON_UPDATE -> {
                     final var singletonState = writableStates.getSingleton(stateId);
-                    final var singleton = BlockStreamUtils.singletonPutFor(stateChange.singletonUpdateOrThrow());
+                    final var singleton =
+                            BlockStreamUtils.singletonPutFor(stateId, stateChange.singletonUpdateOrThrow());
                     singletonState.put(singleton);
                     stateChangesSummary.countSingletonPut(serviceName, stateId);
                     if (stateChange.stateId() == STATE_ID_LEDGER_ID.protoOrdinal()) {
