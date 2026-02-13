@@ -115,6 +115,8 @@ open module com.hedera.node.test.clients {
     requires org.hiero.consensus.platformstate;
     requires org.hiero.consensus.roster;
     requires org.hiero.consensus.utility;
+    requires org.hiero.interledger.clpr.impl;
+    requires org.hiero.interledger.clpr;
     requires com.esaulpaugh.headlong;
     requires com.fasterxml.jackson.annotation;
     requires com.fasterxml.jackson.core;
@@ -154,6 +156,4 @@ open module com.hedera.node.test.clients {
     requires static com.hedera.pbj.runtime;
     requires static com.github.spotbugs.annotations;
     requires static org.junit.platform.engine;
-    requires org.hiero.interledger.clpr;
-    requires org.hiero.interledger.clpr.impl;
 }
