@@ -67,6 +67,8 @@ dependencies.constraints {
     api("io.grpc:grpc-netty-shaded:$grpc") { because("io.grpc.netty.shaded") }
     api("com.esaulpaugh:headlong:13.3.0") { because("com.esaulpaugh.headlong") }
     api("info.picocli:picocli:4.7.7") { because("info.picocli") }
+    api("org.jfree:jfreechart:1.5.6") { because("org.jfree.jfreechart") }
+    api("org.jfree:org.jfree.pdf:2.0.1") { because("org.jfree.pdf") }
     api("io.github.classgraph:classgraph:4.8.179") { because("io.github.classgraph") }
     api("io.perfmark:perfmark-api:0.27.0") { because("io.perfmark") }
     api("io.prometheus:simpleclient:0.16.0") { because("simpleclient") }
