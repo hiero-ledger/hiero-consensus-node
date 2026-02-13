@@ -133,6 +133,7 @@ import org.junit.jupiter.api.Tag;
 @OrderedInIsolation
 @Tag(SMART_CONTRACT)
 public class TraceabilitySuite {
+
     private static final Logger log = LogManager.getLogger(TraceabilitySuite.class);
 
     private static final ByteString EMPTY = ByteStringUtils.wrapUnsafely(new byte[0]);
