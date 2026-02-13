@@ -599,11 +599,6 @@
           "name": "GetByKey",
           "baseFee": 0,
           "extras": []
-        },
-        {
-          "name": "UncheckedSubmit",
-          "baseFee": 0,
-          "extras": []
         }
       ]
     },

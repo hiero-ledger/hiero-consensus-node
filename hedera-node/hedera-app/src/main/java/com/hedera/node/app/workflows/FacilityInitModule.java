@@ -160,13 +160,6 @@ public interface FacilityInitModule {
     @Provides
     @ElementsIntoSet
     @Singleton
-    static Set<ServiceFeeCalculator> provideNetworkServiceFeeCalculators(NetworkServiceImpl networkService) {
-        return networkService.serviceFeeCalculators();
-    }
-
-    @Provides
-    @ElementsIntoSet
-    @Singleton
     static Set<QueryFeeCalculator> provideNetworkQueryFeeCalculators(NetworkServiceImpl networkService) {
         return networkService.queryFeeCalculators();
     }
