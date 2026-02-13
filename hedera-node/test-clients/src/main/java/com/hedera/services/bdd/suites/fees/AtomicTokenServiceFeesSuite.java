@@ -186,7 +186,7 @@ class AtomicTokenServiceFeesSuite {
         var nftSupplyKey = "nftSupplyKey";
         return hapiTest(flattened(
                 setUpTokensAndAllReceivers(),
-                cryptoCreate(BATCH_OPERATOR).balance(ONE_BILLION_HBARS),
+                cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS),
                 cryptoCreate(RECEIVER).balance(ONE_HUNDRED_HBARS).payingWith(BATCH_OPERATOR),
                 // do pending airdrop
                 newKeyNamed(nftSupplyKey),
@@ -1289,7 +1289,7 @@ class AtomicTokenServiceFeesSuite {
                 final int mintAmount, final List<Long> updateAmounts) {
             final var supplyKey = "supplyKey";
             return hapiTest(
-                    cryptoCreate(BATCH_OPERATOR).balance(ONE_BILLION_HBARS),
+                    cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS),
                     newKeyNamed(supplyKey),
                     cryptoCreate(OWNER)
                             .balance(ONE_HUNDRED_HBARS)
