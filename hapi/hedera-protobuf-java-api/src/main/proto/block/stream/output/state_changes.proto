@@ -489,6 +489,11 @@ enum StateIdentifier {
     STATE_ID_NODE_PAYMENTS = 55;
 
     /**
+    * A state identifier for registered nodes. Key/value state.
+    */
+    STATE_ID_REGISTERED_NODES = 56;
+
+    /**
      * A state identifier for the round receipts queue. Queue state.
      */
     STATE_ID_TRANSACTION_RECEIPTS = 126;
@@ -1105,6 +1110,11 @@ message MapChangeValue {
          * A WRAPS message history.
          */
         com.hedera.hapi.node.state.history.WrapsMessageHistory wraps_message_history_value = 31;
+
+        /**
+         * A registered node identifier.
+         */
+        com.hedera.hapi.platform.state.NodeId registered_node_id_value = 32;
     }
 }
 
