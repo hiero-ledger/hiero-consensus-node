@@ -108,7 +108,9 @@ jobs:
           sudo apt-get install -y docker.io net-tools iputils-ping node-typescript snapd
 
           #YQ
-          sudo snap install yq --classic
+          sudo add-apt-repository ppa:rmescandon/yq
+          sudo apt update
+          sudo apt install yq -y
 
       - name: Deploy K8S pod
         run: |
