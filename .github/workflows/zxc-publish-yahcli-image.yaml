@@ -1,12 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 name: "ZXC: Publish Yahcli Image"
 on:
-  # TODO: Remove push trigger before merging to main
-  push:
-    branches:
-      - "yahcli-build"
-    paths:
-      - ".github/workflows/zxc-publish-yahcli-image.yaml"  
   workflow_call:
     inputs:
       version:
