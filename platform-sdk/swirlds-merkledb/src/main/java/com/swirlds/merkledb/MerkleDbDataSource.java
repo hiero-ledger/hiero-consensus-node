@@ -320,7 +320,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         // Path to KV index capacity is the same as max virtual path
         final long kvIndexCapacity = maxPath;
         // ID to hash index capacity is the min chunk ID to cover all paths from 0 to maxPath
-        final long hashIndexCapacity = VirtualHashChunk.lastChunkIdForPaths(maxPath, hashChunkHeight);
+        final long hashIndexCapacity = VirtualHashChunk.lastChunkIdForPaths(maxPath, hashChunkHeight) + 1;
 
         // Hash chunk disk location index (chunk ID to disk location)
         final Path idToHashChunksFile = dbPaths.idToDiskLocationHashChunksFile;
