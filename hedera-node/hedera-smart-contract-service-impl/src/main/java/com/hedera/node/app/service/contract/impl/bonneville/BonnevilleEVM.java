@@ -204,9 +204,6 @@ class BEVM {
     //
     ContractID _contractId;
 
-    // Contract originator?
-    Address _originator;
-
 
     BEVM( BonnevilleEVM bevm, @NotNull Operation[] operations ) {
         _bevm = bevm;
@@ -270,8 +267,6 @@ class BEVM {
         _contractId = updater instanceof ProxyWorldUpdater proxy
             ? proxy.getHederaContractIdNotThrowing(_frame.getRecipientAddress())
             : null;
-
-        _originator = frame.getOriginatorAddress();
 
         // If top-level, use the top-level warm-address stack.
         // If NOT top-level, pass down the top-level stack.
@@ -1263,7 +1258,7 @@ class BEVM {
     private ExceptionalHaltReason origin() {
         var halt = useGas(_gasCalc.getBaseTierGasCost());
         if( halt!=null ) return halt;
-        return push(_originator);
+        return push(_frame.getOriginatorAddress());
     }
 
     // Push passed ETH value
