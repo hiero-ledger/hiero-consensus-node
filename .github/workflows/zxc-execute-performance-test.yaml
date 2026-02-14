@@ -154,7 +154,7 @@ jobs:
 
           #trim run-hcn-version
           echo "run-hcn-version=`echo ${{ inputs.ref }} | awk '{print $1}'`" >> "${GITHUB_OUTPUT}"
-          n="$(echo "${{ inputs.test-asset }}" | perl -ne 'print "$2\n" if /^(AdHocSD|AdHoc|SDPT|SDLT|MDLT)(\d+)$/')"
+          n="$(echo "${{ inputs.test-asset }}" | perl -ne 'print "$2\n" if /^(AdHocSD|AdHoc|SDPT|SDLT|MDLT|Dallas)(\d+)$/')"
           echo "namespace=${NAMESPACE_PREFIX}${n}" >> "${GITHUB_OUTPUT}"
 
       - name: Print parameters
