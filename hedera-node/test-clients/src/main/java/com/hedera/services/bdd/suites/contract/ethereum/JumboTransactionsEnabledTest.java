@@ -74,7 +74,6 @@ import org.junit.jupiter.api.Tag;
 @Tag(SMART_CONTRACT)
 @HapiTestLifecycle
 public class JumboTransactionsEnabledTest implements LifecycleTest {
-
     private static final String PAYER = "payer";
     private static final String RECEIVER = "receiver";
     private static final String CONTRACT_CALLDATA_SIZE = "CalldataSize";
@@ -130,6 +129,7 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
         final var tooBigPayload = new byte[130 * 1024 + 1];
 
         return hapiTest(
+                overriding("fees.simpleFeesEnabled", "false"),
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
                 cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS)),
                 cryptoCreate(PAYER).balance(ONE_MILLION_HBARS),
@@ -148,6 +148,7 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                         .markAsJumboTxn()
                         .type(EthTxData.EthTransactionType.EIP1559)
                         .gasLimit(1_000_000L)
+                        .hasPrecheck(TRANSACTION_OVERSIZE)
                         // gRPC request terminated immediately
                         .orUnavailableStatus(),
 
@@ -205,7 +206,6 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
             final var thresholdKey = "thresholdKey";
             final var aliasCreationTxn = "aliasCreation";
             final var ethereumCallTxn = "jumboTxnFromThresholdKeyAccount";
-            final var contract = CONTRACT_CALLDATA_SIZE;
             final var payload = new byte[127 * 1024];
 
             final AtomicReference<byte[]> rawPublicKey = new AtomicReference<>();
@@ -229,7 +229,8 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
 
                     // Create threshold key using SECP key and contract
                     newKeyNamed(thresholdKey)
-                            .shape(threshOf(1, PREDEFINED_SHAPE, CONTRACT).signedWith(sigs(cryptoKey, contract))),
+                            .shape(threshOf(1, PREDEFINED_SHAPE, CONTRACT)
+                                    .signedWith(sigs(cryptoKey, CONTRACT_CALLDATA_SIZE))),
 
                     // Update alias account to use threshold key
                     sourcing(() -> cryptoUpdate(
@@ -240,6 +241,7 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                     // Submit jumbo Ethereum txn, signed with SECP key
                     sourcing(() -> ethereumCall(CONTRACT_CALLDATA_SIZE, FUNCTION, payload)
                             .type(EthTxData.EthTransactionType.EIP1559)
+                            .fee(ONE_MILLION_HBARS)
                             .markAsJumboTxn()
                             .nonce(0)
                             .signingWith(cryptoKey)
@@ -342,6 +344,7 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                             .withOverriddenHederaFunctionality(HederaFunctionality.TokenAirdrop)
                             .type(EthTxData.EthTransactionType.EIP1559)
                             .gasLimit(1_000_000L)
+                            .hasPrecheck(TRANSACTION_OVERSIZE)
                             .orUnavailableStatus());
         }
 
@@ -526,13 +529,20 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                     overriding("jumboTransactions.maxBytesPerSec", String.valueOf(bytesPerSec)),
                     newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
                     cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS - 1)),
-                    jumboEthCall(CONTRACT_CALLDATA_SIZE, FUNCTION, payload).noLogging(),
+                    jumboEthCall(CONTRACT_CALLDATA_SIZE, FUNCTION, payload)
+                            .markAsJumboTxn()
+                            .fee(ONE_MILLION_HBARS)
+                            .noLogging(),
                     // Wait for the bytes throttle bucked to be emptied
                     sleepFor(1_000),
                     jumboEthCall(CONTRACT_CALLDATA_SIZE, FUNCTION, payload)
+                            .markAsJumboTxn()
+                            .fee(ONE_MILLION_HBARS)
                             .noLogging()
                             .deferStatusResolution(),
                     jumboEthCall(CONTRACT_CALLDATA_SIZE, FUNCTION, payload)
+                            .markAsJumboTxn()
+                            .fee(ONE_MILLION_HBARS)
                             .noLogging()
                             .hasPrecheck(BUSY));
         }

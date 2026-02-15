@@ -13,6 +13,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeUpdate;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewNode;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.safeValidateChargedUsdWithin;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
@@ -126,7 +127,7 @@ public class UpdateAccountEnabledTest {
                         .sigMapPrefixes(uniqueWithFullPrefixesFor("payer", "randomAccount", "testKey"))
                         .fee(ONE_HBAR)
                         .via("failedUpdateMultipleSigs"),
-                validateChargedUsdWithin("failedUpdateMultipleSigs", 0.0011276316, 3.0));
+                safeValidateChargedUsdWithin("failedUpdateMultipleSigs", 0.0011276316, 3.0, 0.0012, 1.0));
     }
 
     @EmbeddedHapiTest(NEEDS_STATE_ACCESS)

@@ -67,7 +67,9 @@ import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleCon
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.PROCESSING_BYTES_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SIGNATURE_FEE_AFTER_MULTIPLIER;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_ASSOCIATE_BASE_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_CREATE_BASE_FEE;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_CREATE_BASE_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_CREATE_WITH_CUSTOM_FEES_FEE;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_CREATE_WITH_CUSTOM_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_TRANSFER_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip904.TokenAirdropBase.setUpTokensAndAllReceivers;
@@ -426,10 +428,12 @@ public class TokenServiceFeesSuite {
     final Stream<DynamicTest> baseCreationsHaveExpectedPrices() {
         final var civilian = "NonExemptPayer";
 
-        final var expectedCommonNoCustomFeesPriceUsd = 1.00;
-        final var expectedUniqueNoCustomFeesPriceUsd = 1.00;
-        final var expectedCommonWithCustomFeesPriceUsd = 2.00;
-        final var expectedUniqueWithCustomFeesPriceUsd = 2.00;
+        final var expectedCommonNoCustomFeesPriceUsd = TOKEN_CREATE_BASE_FEE + 3 * SIGNATURE_FEE_AFTER_MULTIPLIER;
+        final var expectedUniqueNoCustomFeesPriceUsd = TOKEN_CREATE_BASE_FEE + 3 * SIGNATURE_FEE_AFTER_MULTIPLIER;
+        final var expectedCommonWithCustomFeesPriceUsd =
+                TOKEN_CREATE_WITH_CUSTOM_FEES_FEE + 3 * SIGNATURE_FEE_AFTER_MULTIPLIER;
+        final var expectedUniqueWithCustomFeesPriceUsd =
+                TOKEN_CREATE_WITH_CUSTOM_FEES_FEE + 3 * SIGNATURE_FEE_AFTER_MULTIPLIER;
 
         final var commonNoFees = "commonNoFees";
         final var commonWithFees = "commonWithFees";
@@ -825,7 +829,7 @@ public class TokenServiceFeesSuite {
     @HapiTest
     @Tag(MATS)
     final Stream<DynamicTest> updateNftChargedAsExpected() {
-        final var expectedNftUpdatePriceUsd = 0.001;
+        final var expectedNftUpdatePriceUsd = 0.001 + SIGNATURE_FEE_AFTER_MULTIPLIER;
         final var nftUpdateTxn = "nftUpdateTxn";
 
         return hapiTest(
@@ -986,7 +990,7 @@ public class TokenServiceFeesSuite {
 
     @HapiTest
     final Stream<DynamicTest> tokenUpdateNftsFeeChargedAsExpected() {
-        final var expectedTokenUpdateNfts = 0.001;
+        final var expectedTokenUpdateNfts = 0.001 + SIGNATURE_FEE_AFTER_MULTIPLIER;
 
         return hapiTest(
                 newKeyNamed(SUPPLY_KEY),

@@ -63,8 +63,6 @@ public class AllBaseOpFeesSuite {
 
     private static final String UNIQUE_TOKEN = "nftType";
 
-    private static final String BASE_TXN = "baseTxn";
-
     private static final double EXPECTED_NFT_MINT_PRICE_USD = 0.02;
 
     @HapiTest
@@ -97,7 +95,7 @@ public class AllBaseOpFeesSuite {
                                     spec,
                                     validateChargedUsdWithin(
                                             "moreSigsTxn",
-                                            expectedTokenMintNftFullFeeUsd(1, 1),
+                                            expectedTokenMintNftFullFeeUsd(numOfSigs, 1),
                                             ALLOWED_DIFFERENCE_PERCENTAGE));
                         });
                     } else {

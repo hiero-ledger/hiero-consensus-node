@@ -118,6 +118,8 @@ import static com.hedera.services.bdd.suites.HapiSuite.flattened;
 import static com.hedera.services.bdd.suites.contract.Utils.asAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.getNestedContractAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.idAsHeadlongAddress;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SCHEDULE_SIGN_FEE;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SIGNATURE_FEE_AFTER_MULTIPLIER;
 import static com.hedera.services.bdd.suites.hip423.LongTermScheduleUtils.CREATE_TXN;
 import static com.hedera.services.bdd.suites.hip423.LongTermScheduleUtils.NEW_SENDER_KEY;
 import static com.hedera.services.bdd.suites.hip423.LongTermScheduleUtils.ORIG_FILE;
@@ -1013,7 +1015,8 @@ public class RepeatableHip423Tests {
                         .sigMapPrefixes(uniqueWithFullPrefixesFor("receiver"))
                         .hasKnownStatusFrom(INVALID_SCHEDULE_ID)
                         .via("signTxn"),
-                validateChargedUsd("signTxn", 0.001));
+                // 0.001 for ScheduleSign base fee and 0.001 for extra signature from the receiver
+                validateChargedUsd("signTxn", SCHEDULE_SIGN_FEE + SIGNATURE_FEE_AFTER_MULTIPLIER));
     }
 
     @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
@@ -1334,13 +1337,15 @@ public class RepeatableHip423Tests {
 
     @LeakyRepeatableHapiTest(
             value = NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION,
-            overrides = {"scheduling.whitelist"})
+            overrides = {"scheduling.whitelist", "fees.simpleFeesEnabled"})
     @DisplayName("Schedules far in the future are more expensive")
     final Stream<DynamicTest> longerScheduleShouldCostMore() {
         final var firstFee = new AtomicLong();
         final var secondFee = new AtomicLong();
         final var thirdFee = new AtomicLong();
         return hapiTest(
+                // With simple fees enabled we no longer scale the fee by the schedule time
+                overriding("fees.simpleFeesEnabled", "false"),
                 cryptoCreate("payer").balance(ONE_HBAR),
                 cryptoCreate("account"),
                 scheduleCreate("payerOnly", cryptoTransfer(tinyBarsFromTo(DEFAULT_PAYER, "account", 1L)))
