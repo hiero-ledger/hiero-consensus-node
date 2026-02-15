@@ -234,7 +234,7 @@ public final class ChartGenerator {
             new Color(0x34, 0x98, 0xdb),
             new Color(0xf3, 0x9c, 0x12),
             new Color(0x9b, 0x59, 0xb6),
-            new Color(0x1a, 0xbc, 0x9c),
+            new Color(183, 188, 26),
         };
         final Color[] colors = new Color[count];
         System.arraycopy(base, 0, colors, 0, Math.min(base.length, count));
@@ -275,7 +275,6 @@ public final class ChartGenerator {
         return dataset;
     }
 
-    @NonNull
     private static void createChart(
             final PDFDocument doc,
             @NonNull final List<ParsedSeries> seriesList,
