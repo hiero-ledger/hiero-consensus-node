@@ -119,8 +119,6 @@ public final class ChartGenerator {
         drawTableFull(g2, seriesList, 0, 16, pageWidth, pageHeight - 16, small);
     }
 
-    // --- Data table rendering (full-page, >10 nodes) ---
-
     private static void drawTableFull(
             @NonNull final Graphics2D g2,
             @NonNull final List<ParsedSeries> seriesList,
@@ -131,11 +129,11 @@ public final class ChartGenerator {
             final boolean small) {
         final int maxLen = maxSteps(seriesList);
         final int nodeCount = seriesList.size();
-        final int rh = small ? ROW_HEIGHT_SMALL : ROW_HEIGHT;
+        final int rowHeight = small ? ROW_HEIGHT_SMALL : ROW_HEIGHT;
         final int stepColWidth = 30;
         final int nodeColWidth = small ? 55 : 70;
         final int tableX = x + 10;
-        int rowY = y + rh;
+        int rowY = y + rowHeight;
 
         // Background
         g2.setColor(new Color(252, 252, 252));
@@ -152,29 +150,14 @@ public final class ChartGenerator {
         }
 
         // Separator
-        rowY += rh;
+        rowY += rowHeight;
         g2.setColor(new Color(200, 200, 200));
         g2.drawLine(tableX, rowY - 3, tableX + stepColWidth + nodeCount * nodeColWidth, rowY - 3);
 
         // Data
         g2.setFont(small ? TABLE_FONT_SMALL : TABLE_FONT);
-        drawDataRows(g2, seriesList, maxLen, tableX, rowY, stepColWidth, nodeColWidth, y + pageHeight, rh);
-    }
+        final int maxY = y + pageHeight;
 
-    // --- Shared data row drawing ---
-
-    private static void drawDataRows(
-            @NonNull final Graphics2D g2,
-            @NonNull final List<ParsedSeries> seriesList,
-            final int maxLen,
-            final int tableX,
-            final int startY,
-            final int stepColWidth,
-            final int nodeColWidth,
-            final int maxY,
-            final int rowHeight) {
-        final int nodeCount = seriesList.size();
-        int rowY = startY;
         for (int i = 0; i < maxLen; i++) {
             rowY += rowHeight;
             if (rowY > maxY - 5) {
