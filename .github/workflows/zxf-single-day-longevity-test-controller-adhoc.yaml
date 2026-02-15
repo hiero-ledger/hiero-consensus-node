@@ -16,6 +16,9 @@ on:
           - AdHocSD9
           - MDLT3
           - MDLT4
+          - Dallas10
+          - Dallas11
+          - Dallas12
       ref:
         required: true
         default: "main"

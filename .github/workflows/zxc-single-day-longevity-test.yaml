@@ -312,6 +312,8 @@ jobs:
             NETWORK_OWNER="multi-day-longevity-test"
           elif [[ "${NAMESPACE_ALIAS}" =~ ^AdHocSD[0-9]+$ ]]; then
             NETWORK_OWNER="adhoc-single-day-test"
+          elif [[ "${NAMESPACE_ALIAS}" =~ ^Dallas[0-9]+$ ]]; then
+            NETWORK_OWNER="merge-queue-performance-test"
           else
             NETWORK_OWNER="adhoc-performance-test"
           fi
@@ -395,6 +397,8 @@ jobs:
             NETWORK_OWNER="multi-day-longevity-test"
           elif [[ "${NAMESPACE_ALIAS}" =~ ^AdHocSD[0-9]+$ ]]; then
             NETWORK_OWNER="adhoc-single-day-test"
+          elif [[ "${NAMESPACE_ALIAS}" =~ ^Dallas[0-9]+$ ]]; then
+            NETWORK_OWNER="merge-queue-performance-test"
           else
             NETWORK_OWNER="adhoc-performance-test"
           fi
