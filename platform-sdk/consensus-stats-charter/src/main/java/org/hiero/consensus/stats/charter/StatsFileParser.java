@@ -3,6 +3,7 @@ package org.hiero.consensus.stats.charter;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -21,12 +22,12 @@ public final class StatsFileParser {
      * Extracts values for the given metric from a CSV file.
      *
      * @param file   path to a MainNetStats CSV file
-     * @param metric the metric to extract
+     * @param index the column to extract
      * @return list of values per time-step ({@code null} entries for missing data)
      * @throws IOException if the file cannot be read
      */
     @NonNull
-    public static List<Double> parse(@NonNull final Path file, @NonNull final ParsedMetric metric) throws IOException {
+    public static List<Double> parseColumn(@NonNull final Path file, @NonNull final Integer index) throws IOException {
         final List<Double> values = new ArrayList<>();
         try (final var reader = Files.newBufferedReader(file)) {
             while (!reader.readLine().isBlank()) {
@@ -40,8 +41,8 @@ public final class StatsFileParser {
                 // this parsing logic will fail for those, we should add something to detect the case
                 // probably if the line is empty it means that next two will be headers
                 final String[] cols = line.split(",", -1);
-                if (metric.headerIndex() < cols.length && metric.headerIndex() != -1) {
-                    final String cell = cols[metric.headerIndex()].trim();
+                if (index < cols.length) {
+                    final String cell = cols[index].trim();
                     if (cell.isEmpty()) {
                         values.add(null);
                     } else {
@@ -64,49 +65,59 @@ public final class StatsFileParser {
      *
      * <p>Lines before the data header have the format {@code metricName:,description,}.
      *
-     * @param file path to a MainNetStats CSV file
      * @return list of parsed metrics with name, header index, and description
-     * @throws IOException if the file cannot be read
      */
     @NonNull
-    public static List<ParsedMetric> availableMetrics(@NonNull final Path file) throws IOException {
-        final Map<String, String> metrics = new HashMap<>();
-        try (final var reader = Files.newBufferedReader(file)) {
-            String line = reader.readLine();
-            while (!line.isBlank()) {
-                final int colonIdx = line.indexOf(':');
-                if (colonIdx > 0 && colonIdx < line.length() - 1) {
-                    final String name = line.substring(0, colonIdx).trim();
-                    // After "name:," the description follows, possibly ending with ","
-                    String rest = line.substring(colonIdx + 1);
-                    if (rest.startsWith(",")) {
-                        rest = rest.substring(1);
+    public static List<ParsableMetric> availableMetrics(@NonNull final Map<String, Path> files) {
+        final Map<String, String> metricsDescriptionsMap = new HashMap<>();
+        final Map<String, Map<String, Integer>> metricsColumnsInFile = new HashMap<>();
+        files.forEach((key, value) -> {
+            try (final var reader = Files.newBufferedReader(value)) {
+                String line = reader.readLine();
+                while (!line.isBlank()) {
+                    final int colonIdx = line.indexOf(':');
+                    if (colonIdx > 0 && colonIdx < line.length() - 1) {
+                        final String name = line.substring(0, colonIdx).trim();
+                        // After "name:," the description follows, possibly ending with ","
+                        String rest = line.substring(colonIdx + 1);
+                        if (rest.startsWith(",")) {
+                            rest = rest.substring(1);
+                        }
+                        if (rest.endsWith(",")) {
+                            rest = rest.substring(0, rest.length() - 1);
+                        }
+                        rest = rest.trim();
+                        if (!name.isEmpty() && !rest.isEmpty() && !name.equals("filename")) {
+                            metricsDescriptionsMap.putIfAbsent(name, rest);
+                        }
                     }
-                    if (rest.endsWith(",")) {
-                        rest = rest.substring(0, rest.length() - 1);
-                    }
-                    rest = rest.trim();
-                    if (!name.isEmpty() && !rest.isEmpty() && !name.equals("filename")) {
-                        metrics.put(name, rest);
+
+                    line = reader.readLine();
+                }
+
+                // now the next line we read will be the headers one:
+                reader.readLine(); // one for category
+                line = reader.readLine(); // one for name
+                final String[] headers = line.split(",", -1);
+
+                for (int i = 0; i < headers.length; i++) {
+                    if (!headers[i].isEmpty() && !headers[i].equals("filename")) {
+                        metricsColumnsInFile
+                                .computeIfAbsent(headers[i], s -> new HashMap<>())
+                                .put(key, i);
                     }
                 }
 
-                line = reader.readLine();
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
             }
+        });
 
-            // now the next line we read will be the headers one:
-            reader.readLine(); // one for category
-            line = reader.readLine(); // one for name
-            final String[] headers = line.split(",", -1);
-            final Map<String, Integer> headerIndex = new HashMap<>(headers.length);
-
-            for (int i = 0; i < headers.length; i++) {
-                headerIndex.put(headers[i], i);
-            }
-
-            return metrics.entrySet().stream()
-                    .map(e -> new ParsedMetric(e.getKey(), headerIndex.getOrDefault(e.getKey(), -1), e.getValue()))
-                    .toList();
-        }
+        return metricsColumnsInFile.entrySet().stream()
+                .map(e -> new ParsableMetric(
+                        e.getKey(),
+                        e.getValue(),
+                        metricsDescriptionsMap.getOrDefault(e.getKey(), "No description for metric: " + e.getKey())))
+                .toList();
     }
 }

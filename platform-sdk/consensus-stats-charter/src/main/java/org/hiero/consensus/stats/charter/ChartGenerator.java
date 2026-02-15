@@ -54,18 +54,19 @@ public final class ChartGenerator {
      * Creates a multi-metric PDF with pages per metric (sorted by name).
      */
     public static void generateMultiMetric(
-            @NonNull final List<ParsedMetric> metrics,
+            @NonNull final List<ParsableMetric> metrics,
             @NonNull Map<String, Path> csvFiles,
             @NonNull final Path pdfPath,
             final boolean forceTables,
             final boolean separateFiles) {
-        final List<ParsedMetric> sortedMetrics = new ArrayList<>(metrics);
+        final List<ParsableMetric> sortedMetrics = new ArrayList<>(metrics);
         sortedMetrics.sort(Comparator.comparing(p -> p.name().toLowerCase()));
 
         final PDFDocument global = !separateFiles ? new PDFDocument() : null;
         final Supplier<PDFDocument> docSupplier = () -> separateFiles ? new PDFDocument() : global;
-        final Function<ParsedMetric, String> nameSupplier = metric -> separateFiles ? metric.name() : "metrics";
-        final Stream<ParsedMetric> stream = separateFiles ? sortedMetrics.stream().parallel() : sortedMetrics.stream();
+        final Function<ParsableMetric, String> nameSupplier = metric -> separateFiles ? metric.name() : "metrics";
+        final Stream<ParsableMetric> stream =
+                separateFiles ? sortedMetrics.stream().parallel() : sortedMetrics.stream();
         stream.forEach(metric -> {
             try {
                 final PDFDocument doc = docSupplier.get();
@@ -73,8 +74,12 @@ public final class ChartGenerator {
                 for (final Map.Entry<String, Path> entry : csvFiles.entrySet()) {
                     final String nodeName = entry.getKey();
                     final Path csvFile = entry.getValue();
-                    final List<Double> allMetrics = StatsFileParser.parse(csvFile, metric);
-                    seriesList.add(new ParsedSeries(nodeName, allMetrics));
+                    if (metric.valueColumnInFile() != null
+                            && metric.valueColumnInFile().get(nodeName) != null) {
+                        final List<Double> values = StatsFileParser.parseColumn(
+                                csvFile, metric.valueColumnInFile().get(nodeName));
+                        seriesList.add(new ParsedSeries(nodeName, values));
+                    }
                 }
                 createChart(doc, seriesList, metric.name(), metric.description());
                 if (forceTables) {

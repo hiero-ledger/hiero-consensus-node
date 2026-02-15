@@ -76,22 +76,22 @@ public final class StatsCharter implements Callable<Integer> {
             System.out.printf("    %s:%s%n", f.getKey(), rootDir.relativize(f.getValue()));
         }
 
-        final List<ParsedMetric> allMetrics = StatsFileParser.availableMetrics(
-                csvFiles.values().stream().findAny().orElseThrow());
+        final List<ParsableMetric> allMetrics = StatsFileParser.availableMetrics(csvFiles);
         if (allMetrics.isEmpty()) {
             System.err.println("No metrics found");
             return 1;
         }
 
         // Filter to requested metrics, or use all
-        final List<ParsedMetric> selected;
+        final List<ParsableMetric> selected;
         if (metricNames != null && !metricNames.isEmpty()) {
             final Set<String> requested = Set.copyOf(metricNames);
             selected = allMetrics.stream()
                     .filter(m -> requested.contains(m.name()))
                     .toList();
             // Report any names that weren't found
-            final Set<String> found = selected.stream().map(ParsedMetric::name).collect(Collectors.toSet());
+            final Set<String> found =
+                    selected.stream().map(ParsableMetric::name).collect(Collectors.toSet());
             for (final String name : metricNames) {
                 if (!found.contains(name)) {
                     System.err.println("Warning: metric '" + name + "' not found, skipping.");
