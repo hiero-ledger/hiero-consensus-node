@@ -51,7 +51,7 @@ public final class ChartGenerator {
     private ChartGenerator() {}
 
     /**
-     * Creates a multi-metric PDF with pages per metric (sorted by name).
+     * Creates a multi-metric PDF with pages per metric (sorted by name) and a page with table values if indicated.
      */
     public static void generateMultiMetric(
             @NonNull final List<ParsableMetric> metrics,
@@ -66,24 +66,26 @@ public final class ChartGenerator {
         final Supplier<PDFDocument> docSupplier = () -> separateFiles ? new PDFDocument() : global;
         final Function<ParsableMetric, String> nameSupplier = metric -> separateFiles ? metric.name() : "metrics";
         final Stream<ParsableMetric> stream =
+                // speedup in case we can print multiple files per metric, we can use multithreading
                 separateFiles ? sortedMetrics.stream().parallel() : sortedMetrics.stream();
         stream.forEach(metric -> {
             try {
                 final PDFDocument doc = docSupplier.get();
-                List<ParsedSeries> seriesList = new ArrayList<>();
+                final List<ParsedSeries> seriesList = new ArrayList<>();
                 for (final Map.Entry<String, Path> entry : csvFiles.entrySet()) {
                     final String nodeName = entry.getKey();
                     final Path csvFile = entry.getValue();
-                    if (metric.seriesLocationPerFile() != null
-                            && metric.seriesLocationPerFile().get(nodeName) != null) {
-                        final List<Double> values = StatsFileParser.parseColumn(
-                                csvFile, metric.seriesLocationPerFile().get(nodeName));
+                    final Integer column = metric.seriesLocationPerFile().get(nodeName);
+                    if (column != null) {
+                        final List<Double> values = StatsFileParser.parseColumn(csvFile, column);
                         seriesList.add(new ParsedSeries(nodeName, values));
                     }
                 }
-                createChart(doc, seriesList, metric.name(), metric.description());
-                if (addValueTable) {
-                    addTableOnlyPage(doc, seriesList, metric.name());
+                if (!seriesList.isEmpty()) {
+                    addChartPage(doc, seriesList, metric.name(), metric.description());
+                    if (addValueTable) {
+                        addTablePage(doc, seriesList, metric.name());
+                    }
                 }
                 Files.write(pdfPath.resolve(nameSupplier.apply(metric)), doc.getPDFBytes());
             } catch (Exception e) {
@@ -92,13 +94,42 @@ public final class ChartGenerator {
         });
     }
 
-    private static void addChartOnlyPage(@NonNull final PDFDocument doc, @NonNull final JFreeChart chart) {
+    private static void addChartPage(
+            final PDFDocument doc,
+            @NonNull final List<ParsedSeries> seriesList,
+            @NonNull final String title,
+            @NonNull final String subtitle) {
+        final XYSeriesCollection dataset = buildDataset(seriesList);
+        final JFreeChart chart = ChartFactory.createXYLineChart(
+                title, "Step", "", dataset, PlotOrientation.VERTICAL, true, false, false);
+
+        if (!subtitle.isEmpty()) {
+            final TextTitle sub = new TextTitle(subtitle, new Font("SansSerif", Font.ITALIC, 10));
+            sub.setPaint(Color.DARK_GRAY);
+            chart.addSubtitle(sub);
+        }
+
+        final XYPlot plot = chart.getXYPlot();
+        plot.setBackgroundPaint(Color.WHITE);
+        plot.setDomainGridlinePaint(new Color(200, 200, 200));
+        plot.setRangeGridlinePaint(new Color(200, 200, 200));
+
+        final XYLineAndShapeRenderer renderer = new XYLineAndShapeRenderer(true, true);
+        for (int i = 0; i < dataset.getSeriesCount(); i++) {
+            final Color c = NODE_COLORS[i % NODE_COLORS.length];
+            renderer.setSeriesPaint(i, c);
+            renderer.setSeriesStroke(i, new BasicStroke(1.2f));
+            renderer.setSeriesShapesVisible(i, true);
+            renderer.setSeriesShape(i, new java.awt.geom.Ellipse2D.Double(-2, -2, 4, 4));
+        }
+        plot.setRenderer(renderer);
+
         final Page page = doc.createPage(new Rectangle(CHART_ONLY_WIDTH, CHART_ONLY_HEIGHT));
         final PDFGraphics2D g2 = page.getGraphics2D();
         chart.draw(g2, new Rectangle(CHART_ONLY_WIDTH, CHART_ONLY_HEIGHT));
     }
 
-    private static void addTableOnlyPage(
+    private static void addTablePage(
             @NonNull final PDFDocument doc, @NonNull final List<ParsedSeries> seriesList, @NonNull final String title) {
         final int nodeCount = seriesList.size();
         final boolean small = nodeCount > 20;
@@ -114,24 +145,12 @@ public final class ChartGenerator {
         // Title
         g2.setFont(new Font("SansSerif", Font.BOLD, 10));
         g2.setColor(Color.DARK_GRAY);
-        g2.drawString(title, 10, 12);
+        final int x = 10;
+        final int y = 12;
+        g2.drawString(title, x, y);
 
-        drawTableFull(g2, seriesList, 0, 16, pageWidth, pageHeight - 16, small);
-    }
-
-    private static void drawTableFull(
-            @NonNull final Graphics2D g2,
-            @NonNull final List<ParsedSeries> seriesList,
-            final int x,
-            final int y,
-            final int pageWidth,
-            final int pageHeight,
-            final boolean small) {
-        final int maxLen = maxSteps(seriesList);
-        final int nodeCount = seriesList.size();
         final int rowHeight = small ? ROW_HEIGHT_SMALL : ROW_HEIGHT;
         final int stepColWidth = 30;
-        final int nodeColWidth = small ? 55 : 70;
         final int tableX = x + 10;
         int rowY = y + rowHeight;
 
@@ -184,6 +203,23 @@ public final class ChartGenerator {
                 }
             }
         }
+    }
+
+    @NonNull
+    private static XYSeriesCollection buildDataset(@NonNull final List<ParsedSeries> seriesList) {
+        final XYSeriesCollection dataset = new XYSeriesCollection();
+        for (final ParsedSeries ms : seriesList) {
+            final XYSeries xySeries = new XYSeries(ms.nodeName());
+            final List<Double> vals = ms.values();
+            for (int i = 0; i < vals.size(); i++) {
+                final Double v = vals.get(i);
+                if (v != null) {
+                    xySeries.add(i, v);
+                }
+            }
+            dataset.addSeries(xySeries);
+        }
+        return dataset;
     }
 
     private static void drawRightAligned(
@@ -239,55 +275,5 @@ public final class ChartGenerator {
             maxLen = Math.max(maxLen, ms.values().size());
         }
         return maxLen;
-    }
-
-    @NonNull
-    private static XYSeriesCollection buildDataset(@NonNull final List<ParsedSeries> seriesList) {
-        final XYSeriesCollection dataset = new XYSeriesCollection();
-        for (final ParsedSeries ms : seriesList) {
-            final XYSeries xySeries = new XYSeries(ms.nodeName());
-            final List<Double> vals = ms.values();
-            for (int i = 0; i < vals.size(); i++) {
-                final Double v = vals.get(i);
-                if (v != null) {
-                    xySeries.add(i, v);
-                }
-            }
-            dataset.addSeries(xySeries);
-        }
-        return dataset;
-    }
-
-    private static void createChart(
-            final PDFDocument doc,
-            @NonNull final List<ParsedSeries> seriesList,
-            @NonNull final String title,
-            @NonNull final String subtitle) {
-        final XYSeriesCollection dataset = buildDataset(seriesList);
-        final JFreeChart chart = ChartFactory.createXYLineChart(
-                title, "Step", "", dataset, PlotOrientation.VERTICAL, true, false, false);
-
-        if (!subtitle.isEmpty()) {
-            final TextTitle sub = new TextTitle(subtitle, new Font("SansSerif", Font.ITALIC, 10));
-            sub.setPaint(Color.DARK_GRAY);
-            chart.addSubtitle(sub);
-        }
-
-        final XYPlot plot = chart.getXYPlot();
-        plot.setBackgroundPaint(Color.WHITE);
-        plot.setDomainGridlinePaint(new Color(200, 200, 200));
-        plot.setRangeGridlinePaint(new Color(200, 200, 200));
-
-        final XYLineAndShapeRenderer renderer = new XYLineAndShapeRenderer(true, true);
-        for (int i = 0; i < dataset.getSeriesCount(); i++) {
-            final Color c = NODE_COLORS[i % NODE_COLORS.length];
-            renderer.setSeriesPaint(i, c);
-            renderer.setSeriesStroke(i, new BasicStroke(1.2f));
-            renderer.setSeriesShapesVisible(i, true);
-            renderer.setSeriesShape(i, new java.awt.geom.Ellipse2D.Double(-2, -2, 4, 4));
-        }
-        plot.setRenderer(renderer);
-
-        addChartOnlyPage(doc, chart);
     }
 }
