@@ -57,7 +57,7 @@ public final class ChartGenerator {
             @NonNull final List<ParsableMetric> metrics,
             @NonNull Map<String, Path> csvFiles,
             @NonNull final Path pdfPath,
-            final boolean forceTables,
+            final boolean addValueTable,
             final boolean separateFiles) {
         final List<ParsableMetric> sortedMetrics = new ArrayList<>(metrics);
         sortedMetrics.sort(Comparator.comparing(p -> p.name().toLowerCase()));
@@ -74,15 +74,15 @@ public final class ChartGenerator {
                 for (final Map.Entry<String, Path> entry : csvFiles.entrySet()) {
                     final String nodeName = entry.getKey();
                     final Path csvFile = entry.getValue();
-                    if (metric.valueColumnInFile() != null
-                            && metric.valueColumnInFile().get(nodeName) != null) {
+                    if (metric.seriesLocationPerFile() != null
+                            && metric.seriesLocationPerFile().get(nodeName) != null) {
                         final List<Double> values = StatsFileParser.parseColumn(
-                                csvFile, metric.valueColumnInFile().get(nodeName));
+                                csvFile, metric.seriesLocationPerFile().get(nodeName));
                         seriesList.add(new ParsedSeries(nodeName, values));
                     }
                 }
                 createChart(doc, seriesList, metric.name(), metric.description());
-                if (forceTables) {
+                if (addValueTable) {
                     addTableOnlyPage(doc, seriesList, metric.name());
                 }
                 Files.write(pdfPath.resolve(nameSupplier.apply(metric)), doc.getPDFBytes());

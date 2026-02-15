@@ -6,5 +6,5 @@ import java.util.Map;
 
 public record ParsableMetric(
         @NonNull String name,
-        Map<String, Integer> valueColumnInFile,
+        Map<String, Integer> seriesLocationPerFile,
         @NonNull String description) {}

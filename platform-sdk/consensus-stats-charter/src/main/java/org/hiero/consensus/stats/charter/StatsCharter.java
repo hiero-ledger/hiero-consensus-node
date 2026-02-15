@@ -53,9 +53,9 @@ public final class StatsCharter implements Callable<Integer> {
     private String filePattern;
 
     @Option(
-            names = {"-t", "--force-tables"},
-            description = "Force generation of data tables even for large datasets.")
-    private boolean forceTables;
+            names = {"-t", "--add-value-tables"},
+            description = "Adds a page per metric with the value tables.")
+    private boolean addValueTables;
 
     public static void main(final String[] args) {
         final int exitCode = new CommandLine(new StatsCharter()).execute(args);
@@ -107,7 +107,7 @@ public final class StatsCharter implements Callable<Integer> {
 
         System.out.printf("  Metrics: %d%n%n", selected.size());
 
-        ChartGenerator.generateMultiMetric(selected, csvFiles, rootDir, forceTables, separateFiles);
+        ChartGenerator.generateMultiMetric(selected, csvFiles, rootDir, addValueTables, separateFiles);
 
         return 0;
     }
