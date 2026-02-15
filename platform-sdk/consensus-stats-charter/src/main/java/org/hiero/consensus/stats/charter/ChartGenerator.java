@@ -36,7 +36,7 @@ import org.jfree.pdf.Page;
 public final class ChartGenerator {
 
     /** 50 visually distinct colors generated via HSB, with the constant 6 first. */
-    private static final Color[] NODE_COLORS = generateColors(50);
+    private static final Color[] NODE_COLORS = generateColors();
 
     private static final int CHART_ONLY_WIDTH = 600;
     private static final int CHART_ONLY_HEIGHT = 400;
@@ -44,9 +44,10 @@ public final class ChartGenerator {
     private static final int ROW_HEIGHT = 13;
     private static final Font TABLE_FONT = new Font("Monospaced", Font.PLAIN, 9);
     private static final Font TABLE_HEADER_FONT = new Font("Monospaced", Font.BOLD, 9);
-    private static final Font TABLE_FONT_SMALL = new Font("Monospaced", Font.PLAIN, 7);
-    private static final Font TABLE_HEADER_FONT_SMALL = new Font("Monospaced", Font.BOLD, 7);
-    private static final int ROW_HEIGHT_SMALL = 10;
+    private static final Color SHADE_OF_WHITE = new Color(200, 200, 200);
+    private static final Color ANOTHER_SHADE_OF_WHITE = new Color(245, 245, 245);
+    private static final Color YET_ANOTHER_SHADE_OF_WHITE = new Color(252, 252, 252);
+    private static final int MAX_COLORS = 50;
 
     private ChartGenerator() {}
 
@@ -55,7 +56,7 @@ public final class ChartGenerator {
      */
     public static void generateMultiMetric(
             @NonNull final List<ParsableMetric> metrics,
-            @NonNull Map<String, Path> csvFiles,
+            @NonNull final Map<String, Path> csvFiles,
             @NonNull final Path pdfPath,
             final boolean addValueTable,
             final boolean separateFiles) {
@@ -95,7 +96,7 @@ public final class ChartGenerator {
     }
 
     private static void addChartPage(
-            final PDFDocument doc,
+            @NonNull final PDFDocument doc,
             @NonNull final List<ParsedSeries> seriesList,
             @NonNull final String title,
             @NonNull final String subtitle) {
@@ -111,8 +112,8 @@ public final class ChartGenerator {
 
         final XYPlot plot = chart.getXYPlot();
         plot.setBackgroundPaint(Color.WHITE);
-        plot.setDomainGridlinePaint(new Color(200, 200, 200));
-        plot.setRangeGridlinePaint(new Color(200, 200, 200));
+        plot.setDomainGridlinePaint(SHADE_OF_WHITE);
+        plot.setRangeGridlinePaint(SHADE_OF_WHITE);
 
         final XYLineAndShapeRenderer renderer = new XYLineAndShapeRenderer(true, true);
         for (int i = 0; i < dataset.getSeriesCount(); i++) {
@@ -132,11 +133,9 @@ public final class ChartGenerator {
     private static void addTablePage(
             @NonNull final PDFDocument doc, @NonNull final List<ParsedSeries> seriesList, @NonNull final String title) {
         final int nodeCount = seriesList.size();
-        final boolean small = nodeCount > 20;
-        final int rh = small ? ROW_HEIGHT_SMALL : ROW_HEIGHT;
         final int maxLen = maxSteps(seriesList);
-        final int pageHeight = (maxLen + 4) * rh + 30;
-        final int nodeColWidth = small ? 55 : 70;
+        final int pageHeight = (maxLen + 4) * ROW_HEIGHT + 30;
+        final int nodeColWidth = 70;
         final int pageWidth = 40 + nodeCount * nodeColWidth + 40;
 
         final Page page = doc.createPage(new Rectangle(pageWidth, pageHeight));
@@ -149,17 +148,17 @@ public final class ChartGenerator {
         final int y = 12;
         g2.drawString(title, x, y);
 
-        final int rowHeight = small ? ROW_HEIGHT_SMALL : ROW_HEIGHT;
+        final int rowHeight = ROW_HEIGHT;
         final int stepColWidth = 30;
         final int tableX = x + 10;
         int rowY = y + rowHeight;
 
         // Background
-        g2.setColor(new Color(252, 252, 252));
+        g2.setColor(YET_ANOTHER_SHADE_OF_WHITE);
         g2.fillRect(x, y, pageWidth, pageHeight);
 
         // Header
-        g2.setFont(small ? TABLE_HEADER_FONT_SMALL : TABLE_HEADER_FONT);
+        g2.setFont(TABLE_HEADER_FONT);
         g2.setColor(Color.DARK_GRAY);
         drawRightAligned(g2, "Step", tableX, rowY, stepColWidth);
         for (int n = 0; n < nodeCount; n++) {
@@ -170,11 +169,11 @@ public final class ChartGenerator {
 
         // Separator
         rowY += rowHeight;
-        g2.setColor(new Color(200, 200, 200));
+        g2.setColor(SHADE_OF_WHITE);
         g2.drawLine(tableX, rowY - 3, tableX + stepColWidth + nodeCount * nodeColWidth, rowY - 3);
 
         // Data
-        g2.setFont(small ? TABLE_FONT_SMALL : TABLE_FONT);
+        g2.setFont(TABLE_FONT);
         final int maxY = y + pageHeight;
 
         for (int i = 0; i < maxLen; i++) {
@@ -185,7 +184,7 @@ public final class ChartGenerator {
 
             // Alternating row background
             if (i % 2 == 0) {
-                g2.setColor(new Color(245, 245, 245));
+                g2.setColor(ANOTHER_SHADE_OF_WHITE);
                 g2.fillRect(tableX, rowY - rowHeight + 3, stepColWidth + nodeCount * nodeColWidth, rowHeight);
             }
 
@@ -242,10 +241,12 @@ public final class ChartGenerator {
         return String.format("%.6f", v);
     }
 
-    // --- Color generation ---
-
+    /**
+     * Deterministic Color generation
+     * @return an array of 50 colors
+     */
     @NonNull
-    private static Color[] generateColors(final int count) {
+    private static Color[] generateColors() {
         // Start with 6 hand-picked colors for small node counts
         final Color[] base = {
             new Color(0xe7, 0x4c, 0x3c),
@@ -255,10 +256,10 @@ public final class ChartGenerator {
             new Color(0x9b, 0x59, 0xb6),
             new Color(183, 188, 26),
         };
-        final Color[] colors = new Color[count];
-        System.arraycopy(base, 0, colors, 0, Math.min(base.length, count));
+        final Color[] colors = new Color[MAX_COLORS];
+        System.arraycopy(base, 0, colors, 0, base.length);
         // Generate remaining via evenly-spaced HSB hues
-        for (int i = base.length; i < count; i++) {
+        for (int i = base.length; i < MAX_COLORS; i++) {
             final float hue = (i * 0.618034f) % 1.0f; // golden ratio spacing
             final float sat = 0.65f + (i % 3) * 0.1f;
             final float bri = 0.75f + (i % 2) * 0.15f;
@@ -266,8 +267,6 @@ public final class ChartGenerator {
         }
         return colors;
     }
-
-    // --- Chart + data helpers ---
 
     private static int maxSteps(@NonNull final List<ParsedSeries> seriesList) {
         int maxLen = 0;
