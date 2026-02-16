@@ -244,7 +244,7 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                             .nonce(0)
                             .signingWith(cryptoKey)
                             .payingWith(RELAYER)
-                            .gasLimit(1_000_000L)
+                            .gasLimit(1_350_000L)
                             .via(ethereumCallTxn)),
                     getTxnRecord(ethereumCallTxn).logged());
         }
