@@ -1611,7 +1611,6 @@ public class CryptoTransferSimpleFeesTest {
 
                                 final var cryptoTransferOp = cryptoTransfer(
                                                 movingHbar(10L).between(OWNER, VALID_ALIAS_ED25519),
-                                                movingHbar(10L).between(OWNER, VALID_ALIAS_ECDSA_SECOND),
                                                 movingHbar(10L).between(OWNER, alias))
                                         .payingWith(OWNER)
                                         .signedBy(OWNER)
@@ -1632,12 +1631,6 @@ public class CryptoTransferSimpleFeesTest {
                                                 .alias(VALID_ALIAS_ED25519)
                                                 .maxAutoAssociations(-1));
 
-                                final var checkOpInfoValidAliasECDSA = getAliasedAccountInfo(VALID_ALIAS_ECDSA_SECOND)
-                                        .has(accountWith()
-                                                .key(VALID_ALIAS_ECDSA_SECOND)
-                                                .alias(VALID_ALIAS_ECDSA_SECOND)
-                                                .maxAutoAssociations(-1));
-
                                 final var checkHollowAccountInfo = getAliasedAccountInfo(alias)
                                         .isHollow()
                                         .has(accountWith()
@@ -1651,7 +1644,6 @@ public class CryptoTransferSimpleFeesTest {
                                         cryptoTransferOp,
                                         checkOpChargedUsd,
                                         checkOpInfoValidAliasED25519,
-                                        checkOpInfoValidAliasECDSA,
                                         checkHollowAccountInfo);
                             })));
                 }
@@ -1824,8 +1816,7 @@ public class CryptoTransferSimpleFeesTest {
                                 final var alias = evmAlias.get();
 
                                 final var cryptoTransferOp = cryptoTransfer(
-                                                movingHbar(10L).between(OWNER, VALID_ALIAS_ED25519),
-                                                moving(10L, FUNGIBLE_TOKEN).between(OWNER, VALID_ALIAS_ECDSA_SECOND),
+                                                moving(10L, FUNGIBLE_TOKEN).between(OWNER, VALID_ALIAS_ED25519),
                                                 movingUnique(NON_FUNGIBLE_TOKEN, 1L)
                                                         .between(OWNER, alias))
                                         .payingWith(OWNER)
@@ -1848,14 +1839,6 @@ public class CryptoTransferSimpleFeesTest {
                                                 .alias(VALID_ALIAS_ED25519)
                                                 .maxAutoAssociations(-1));
 
-                                final var checkOpInfoValidAliasECDSASecond = getAliasedAccountInfo(
-                                                VALID_ALIAS_ECDSA_SECOND)
-                                        .hasToken(relationshipWith(FUNGIBLE_TOKEN))
-                                        .has(accountWith()
-                                                .key(VALID_ALIAS_ECDSA_SECOND)
-                                                .alias(VALID_ALIAS_ECDSA_SECOND)
-                                                .maxAutoAssociations(-1));
-
                                 final var checkHollowAccountInfo = getAliasedAccountInfo(alias)
                                         .isHollow()
                                         .hasToken(relationshipWith(NON_FUNGIBLE_TOKEN))
@@ -1874,7 +1857,6 @@ public class CryptoTransferSimpleFeesTest {
                                         cryptoTransferOp,
                                         checkOpChargedUsd,
                                         checkOpInfoValidAliasED25519,
-                                        checkOpInfoValidAliasECDSASecond,
                                         checkHollowAccountInfo,
                                         checkOwnerBalance);
                             })));

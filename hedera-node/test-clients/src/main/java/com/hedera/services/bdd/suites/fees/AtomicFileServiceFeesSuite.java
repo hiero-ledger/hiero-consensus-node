@@ -38,14 +38,10 @@ import org.junit.jupiter.api.Tag;
 // we are wrapping the operations in an atomic batch to confirm the fees are the same
 @Tag(ATOMIC_BATCH)
 class AtomicFileServiceFeesSuite {
-
     private static final String MEMO = "Really quite something!";
     private static final String CIVILIAN = "civilian";
     private static final String KEY = "key";
     private static final double BASE_FEE_FILE_CREATE = 0.05;
-    private static final double BASE_FEE_FILE_UPDATE = 0.05;
-    private static final double BASE_FEE_FILE_DELETE = 0.007;
-    private static final double BASE_FEE_FILE_APPEND = 0.05;
     private static final String BATCH_OPERATOR = "batchOperator";
     private static final String ATOMIC_BATCH = "atomicBatch";
 
@@ -161,10 +157,6 @@ class AtomicFileServiceFeesSuite {
 
         final var baseAppend = "baseAppend";
         final var targetFile = "targetFile";
-        final var contentBuilder = new StringBuilder();
-        for (int i = 0; i < 1000; i++) {
-            contentBuilder.append("A");
-        }
         final var magicKey = "magicKey";
         final var magicWacl = "magicWacl";
 
@@ -180,7 +172,7 @@ class AtomicFileServiceFeesSuite {
                 atomicBatch(fileAppend(targetFile)
                                 .signedBy(magicKey)
                                 .blankMemo()
-                                .content(contentBuilder.toString())
+                                .content("A".repeat(1000))
                                 .payingWith(civilian)
                                 .via(baseAppend)
                                 .batchKey(BATCH_OPERATOR))

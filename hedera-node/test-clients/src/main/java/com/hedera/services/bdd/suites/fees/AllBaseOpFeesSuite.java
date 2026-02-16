@@ -24,8 +24,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertionsHold;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdForQueries;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
@@ -60,15 +58,12 @@ import org.junit.jupiter.api.Tag;
 @Tag(MATS)
 public class AllBaseOpFeesSuite {
     private static final String PAYER = "payer";
-    private static final double ALLOWED_DIFFERENCE_PERCENTAGE = 0.01;
 
     private static final String SUPPLY_KEY = "supplyKey";
 
     private static final String CIVILIAN_ACCT = "civilian";
 
     private static final String UNIQUE_TOKEN = "nftType";
-
-    private static final String BASE_TXN = "baseTxn";
 
     private static final double EXPECTED_NFT_MINT_PRICE_USD = 0.02;
 

@@ -381,6 +381,15 @@ public class ParentTxnFactory {
             if (congestionMultiplier > 1) {
                 baseBuilder.congestionMultiplier(congestionMultiplier);
             }
+            if (txnInfo.txBody().highVolume()) {
+                final var utilizationBasisPoints =
+                        throttleAdvisor.highVolumeThrottleUtilization(txnInfo.functionality());
+                final var highVolumeMultiplier = feeManager.highVolumeMultiplierFor(
+                        txnInfo.txBody(), txnInfo.functionality(), utilizationBasisPoints);
+                if (highVolumeMultiplier > 1) {
+                    baseBuilder.highVolumePricingMultiplier(highVolumeMultiplier);
+                }
+            }
         }
         return new RecordDispatch(
                 baseBuilder,
