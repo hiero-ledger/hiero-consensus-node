@@ -43,6 +43,8 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.emptyChildRecordsCheck;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateInnerTxnChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
@@ -806,7 +808,7 @@ class AtomicBatchApproveAllowanceTest {
                         return validateChargedUsdWithinWithTxnSize(
                                 APPROVE_TXN,
                                 txnSize -> expectedCryptoApproveAllowanceFullFeeUsd(Map.of(
-                                        SIGNATURES, 2L,
+                                        SIGNATURES, 1L,
                                         ALLOWANCES, 3L,
                                         PROCESSING_BYTES, (long) txnSize)),
                                 0.001);

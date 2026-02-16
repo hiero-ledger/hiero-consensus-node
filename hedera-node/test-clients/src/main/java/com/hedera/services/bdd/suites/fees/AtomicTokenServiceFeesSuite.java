@@ -41,7 +41,6 @@ import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movi
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateInnerTxnChargedUsd;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_BILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
@@ -73,7 +72,11 @@ import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.exp
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenUpdateFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateInnerChargedUsdWithinWithTxnSize;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.AIRDROPS_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.KEYS_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SIGNATURE_FEE_AFTER_MULTIPLIER;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_ASSOCIATE_BASE_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_CREATE_FEE;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_UPDATE_NFT_FEE;
 import static com.hedera.services.bdd.suites.hip904.TokenAirdropBase.setUpTokensAndAllReceivers;
 import static com.hedera.services.bdd.suites.utils.MiscEETUtils.metadata;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
@@ -699,7 +702,7 @@ class AtomicTokenServiceFeesSuite {
                 doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
                     if ("true".equals(flag)) {
                         return validateInnerChargedUsdWithinWithTxnSize(
-                                txnFor(uniqueNoFees),
+                                uniqueNoFees,
                                 ATOMIC_BATCH,
                                 txnSize -> expectedTokenCreateFullFeeUsd(Map.of(
                                         SIGNATURES, 1L,
@@ -708,7 +711,7 @@ class AtomicTokenServiceFeesSuite {
                                 0.1);
                     } else {
                         return validateInnerTxnChargedUsd(
-                                txnFor(uniqueNoFees), ATOMIC_BATCH, expectedUniqueNoCustomFeesPriceUsd, 1);
+                                uniqueNoFees, ATOMIC_BATCH, expectedUniqueNoCustomFeesPriceUsd, 1);
                     }
                 })));
     }
@@ -746,7 +749,7 @@ class AtomicTokenServiceFeesSuite {
                 doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
                     if ("true".equals(flag)) {
                         return validateInnerChargedUsdWithinWithTxnSize(
-                                txnFor(uniqueWithFees),
+                                "innerTxn",
                                 ATOMIC_BATCH,
                                 txnSize -> expectedTokenCreateWithCustomFullFeeUsd(Map.of(
                                         SIGNATURES, 1L,
@@ -755,7 +758,7 @@ class AtomicTokenServiceFeesSuite {
                                 0.1);
                     } else {
                         return validateInnerTxnChargedUsd(
-                                txnFor(uniqueWithFees), ATOMIC_BATCH, expectedUniqueWithCustomFeesPriceUsd, 1);
+                                "innerTxn", ATOMIC_BATCH, expectedUniqueWithCustomFeesPriceUsd, 1);
                     }
                 })));
     }
@@ -1418,8 +1421,8 @@ class AtomicTokenServiceFeesSuite {
                                 nftUpdateTxn,
                                 ATOMIC_BATCH,
                                 txnSize -> expectedTokenNftUpdateFullFeeUsd(Map.of(
-                                        SIGNATURES, 1L,
-                                        TOKEN_TYPES, 7L,
+                                        SIGNATURES, 2L,
+                                        TOKEN_TYPES, 1L,
                                         PROCESSING_BYTES, (long) txnSize)),
                                 0.1);
                     } else {
@@ -1543,6 +1546,7 @@ class AtomicTokenServiceFeesSuite {
     final Stream<DynamicTest> updateMultipleNftsFeeChargedAsExpected() {
         final var expectedFee = 5 * TOKEN_UPDATE_NFT_FEE + SIGNATURE_FEE_AFTER_MULTIPLIER;
         final var nftUpdateTxn = "nftUpdateTxn";
+        final var expectedNftUpdatePriceUsd = 0.001;
 
         return hapiTest(
                 cryptoCreate(BATCH_OPERATOR).balance(ONE_BILLION_HBARS),
@@ -1641,7 +1645,7 @@ class AtomicTokenServiceFeesSuite {
                                 "nftUpdateTxn",
                                 ATOMIC_BATCH,
                                 txnSize -> expectedTokenNftUpdateFullFeeUsd(Map.of(
-                                        SIGNATURES, 1L,
+                                        SIGNATURES, 2L,
                                         TOKEN_TYPES, 1L,
                                         PROCESSING_BYTES, (long) txnSize)),
                                 0.1);
