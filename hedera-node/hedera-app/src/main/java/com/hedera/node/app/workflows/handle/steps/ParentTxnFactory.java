@@ -385,10 +385,10 @@ public class ParentTxnFactory {
             if (congestionMultiplier > 1) {
                 baseBuilder.congestionMultiplier(congestionMultiplier);
             }
-            if (txnInfo.txBody().highVolume()) {
-                if (fees.highVolumeMultiplier() > 1) {
-                    baseBuilder.highVolumePricingMultiplier(fees.highVolumeMultiplier());
-                }
+        }
+        if (txnInfo.txBody().highVolume()) {
+            if (fees.highVolumeMultiplier() > 1) {
+                baseBuilder.highVolumePricingMultiplier(fees.highVolumeMultiplier());
             }
         }
         return new RecordDispatch(

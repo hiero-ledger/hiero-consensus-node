@@ -123,6 +123,16 @@ class HighVolumePricingCalculatorTest {
     class LinearInterpolationWithoutCurve {
 
         @Test
+        @DisplayName("Uses linear interpolation when pricing curve exists without piecewise points")
+        void linearInterpolationWhenPricingCurvePresentWithoutPiecewiseLinear() {
+            final var variableRate = VariableRateDefinition.newBuilder()
+                    .maxMultiplier(5000)
+                    .pricingCurve(PricingCurve.newBuilder().build())
+                    .build();
+            assertEquals(3000, HighVolumePricingCalculator.calculateMultiplier(variableRate, 5000));
+        }
+
+        @Test
         @DisplayName("Linear interpolation at 0% utilization")
         void linearInterpolationAt0Percent() {
             final var variableRate = createVariableRateWithLinearCurve(5000);

@@ -2,6 +2,7 @@
 package com.hedera.node.app.spi.fees;
 
 import static java.util.Objects.requireNonNull;
+import static org.hiero.hapi.fees.HighVolumePricingCalculator.MULTIPLIER_SCALE;
 
 import com.hederahashgraph.api.proto.java.FeeComponents;
 import com.hederahashgraph.api.proto.java.FeeData;
@@ -42,6 +43,17 @@ public record Fees(long nodeFee, long networkFee, long serviceFee, long highVolu
         if (nodeFee < 0) throw new IllegalArgumentException("Node fees must be non-negative");
         if (networkFee < 0) throw new IllegalArgumentException("Network fees must be non-negative");
         if (serviceFee < 0) throw new IllegalArgumentException("Service fees must be non-negative");
+    }
+
+    /**
+     * Creates fees with a default high-volume multiplier of {@code 1}.
+     *
+     * @param nodeFee the node fee in tinybars
+     * @param networkFee the network fee in tinybars
+     * @param serviceFee the service fee in tinybars
+     */
+    public Fees(final long nodeFee, final long networkFee, final long serviceFee) {
+        this(nodeFee, networkFee, serviceFee, 1L);
     }
 
     /**
@@ -138,7 +150,7 @@ public record Fees(long nodeFee, long networkFee, long serviceFee, long highVolu
      * @return the high volume multiplier
      */
     public long highVolumeMultiplier() {
-        return highVolumeMultiplier;
+        return highVolumeMultiplier/MULTIPLIER_SCALE;
     }
 
     /**

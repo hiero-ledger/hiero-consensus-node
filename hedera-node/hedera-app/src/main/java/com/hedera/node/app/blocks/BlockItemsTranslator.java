@@ -139,6 +139,7 @@ public class BlockItemsTranslator {
                 .parentConsensusTimestamp(result.parentConsensusTimestamp())
                 .scheduleRef(result.scheduleRef())
                 .transactionFee(result.transactionFeeCharged())
+                .highVolumePricingMultiplier(result.highVolumePricingMultiplier())
                 .transferList(result.transferList())
                 .tokenTransferLists(result.tokenTransferLists())
                 .automaticTokenAssociations(result.automaticTokenAssociations())
