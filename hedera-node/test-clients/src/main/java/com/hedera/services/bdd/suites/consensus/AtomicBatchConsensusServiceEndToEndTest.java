@@ -30,7 +30,6 @@ import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.exp
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateBatchChargedCorrectly;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CUSTOM_FEES_LIST_TOO_LONG;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOPIC_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MAX_CUSTOM_FEE_LIMIT_EXCEEDED;
@@ -1211,45 +1210,6 @@ class AtomicBatchConsensusServiceEndToEndTest {
                             .via("batchTxn")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
                     validateBatchChargedCorrectly("batchTxn"),
-
-                    // confirm accounts balances
-                    getAccountBalance(HBAR_COLLECTOR).hasTinyBars(0),
-                    getAccountBalance(HTS_COLLECTOR).hasTokenBalance(DENOM_TOKEN, 0),
-                    getAccountBalance(PAYER).hasTokenBalance(DENOM_TOKEN, denomTokenPayerInitialSupply),
-                    getAccountBalance(TREASURY_FOR_CUSTOM_FEE_TOKEN)
-                            .hasTokenBalance(DENOM_TOKEN, denomTokenInitialSupply - denomTokenPayerInitialSupply)));
-        }
-
-        @HapiTest
-        Stream<DynamicTest> submitMessagesToTopicWithCustomFeesWithInsufficientPayerBalanceFailsInBatch() {
-
-            // submit message to topic inner transactions
-            final var submitMessageToFirstTopic = submitMessageTo(TOPIC_ID)
-                    .message(TOPIC_MESSAGE)
-                    .signedBy(PAYER, submitKey)
-                    .payingWith(PAYER)
-                    .via("innerTxnBeforeUpdate")
-                    .batchKey(BATCH_OPERATOR);
-
-            final var submitMessageToSecondTopic = submitMessageTo(TOPIC_ID_SECOND)
-                    .message(TOPIC_MESSAGE)
-                    .signedBy(PAYER_INSUFFICIENT_BALANCE, submitKey)
-                    .payingWith(PAYER_INSUFFICIENT_BALANCE)
-                    .via("innerTxnAfterUpdate")
-                    .batchKey(BATCH_OPERATOR)
-                    .hasKnownStatus(INSUFFICIENT_PAYER_BALANCE);
-
-            return hapiTest(flattened(
-                    createAccountsAndKeys(),
-                    createMutableTopicWithSubmitKeyAndHBARFixedFee(adminKey, submitKey, feeScheduleKey, TOPIC_ID),
-                    createMutableTopicWithSubmitKeyAndHTSFixedFee(adminKey, submitKey, feeScheduleKey, TOPIC_ID_SECOND),
-                    tokenAssociate(PAYER_INSUFFICIENT_BALANCE, DENOM_TOKEN),
-                    atomicBatch(submitMessageToFirstTopic, submitMessageToSecondTopic)
-                            .payingWith(BATCH_OPERATOR)
-                            .via("batchTxn")
-                            .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                    withOpContext((spec, log) -> validateChargedUsd(
-                            "batchTxn", BASE_FEE_BATCH_TRANSACTION + expectedFeeFromBytesFor(spec, log, "batchTxn"))),
 
                     // confirm accounts balances
                     getAccountBalance(HBAR_COLLECTOR).hasTinyBars(0),

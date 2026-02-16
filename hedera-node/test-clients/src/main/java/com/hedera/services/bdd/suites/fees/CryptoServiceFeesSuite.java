@@ -73,8 +73,6 @@ public class CryptoServiceFeesSuite {
     private static final double BASE_FEE_HTS_CRYPTO_TRANSFER = 0.001;
     private static final double BASE_FEE_NFT_CRYPTO_TRANSFER = 0.001;
     private static final double BASE_FEE_CRYPTO_GET_ACCOUNT_RECORDS = 0.0001;
-    private static final double BASE_FEE_CRYPTO_APPROVE_ALLOWANCE = 0.05;
-    private static final double ALLOWANCE_EXTRA = 0.05;
 
     private static final String CIVILIAN = "civilian";
     private static final String FEES_ACCOUNT = "feesAccount";
@@ -224,25 +222,25 @@ public class CryptoServiceFeesSuite {
                         .addCryptoAllowance(OWNER, SPENDER, 100L)
                         .via("approve")
                         .blankMemo(),
-                validateChargedUsdWithin("approve", BASE_FEE_CRYPTO_APPROVE_ALLOWANCE, 0.01),
+                validateChargedUsdWithin("approve", 0.05, 0.01),
                 cryptoApproveAllowance()
                         .payingWith(OWNER)
                         .addTokenAllowance(OWNER, FUNGIBLE_TOKEN, SPENDER, 100L)
                         .via("approveTokenTxn")
                         .blankMemo(),
-                validateChargedUsdWithin("approveTokenTxn", BASE_FEE_CRYPTO_APPROVE_ALLOWANCE, 0.01),
+                validateFees("approveTokenTxn", 0.05012, CRYPTO_APPROVE_ALLOWANCE_FEE),
                 cryptoApproveAllowance()
                         .payingWith(OWNER)
                         .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, SPENDER, false, List.of(1L))
                         .via("approveNftTxn")
                         .blankMemo(),
-                validateChargedUsdWithin("approveNftTxn", BASE_FEE_CRYPTO_APPROVE_ALLOWANCE, 0.01),
+                validateFees("approveNftTxn", 0.050101, CRYPTO_APPROVE_ALLOWANCE_FEE),
                 cryptoApproveAllowance()
                         .payingWith(OWNER)
                         .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, ANOTHER_SPENDER, true, List.of())
                         .via("approveForAllNftTxn")
                         .blankMemo(),
-                validateChargedUsdWithin("approveForAllNftTxn", BASE_FEE_CRYPTO_APPROVE_ALLOWANCE, 0.01),
+                validateFees("approveForAllNftTxn", 0.05, CRYPTO_APPROVE_ALLOWANCE_FEE),
                 cryptoApproveAllowance()
                         .payingWith(OWNER)
                         .addCryptoAllowance(OWNER, SECOND_SPENDER, 100L)
@@ -300,7 +298,6 @@ public class CryptoServiceFeesSuite {
         final var plusFiveKAndOneTxn = "plusFiveKAndOneTxn";
         final var invalidNegativeTxn = "invalidNegativeTxn";
         final var validNegativeTxn = "validNegativeTxn";
-        final var allowedPercentDiff = 1.5;
         final var canonicalAccount = "canonicalAccount";
         final var payer = "payer";
         final var autoAssocTarget = "autoAssocTarget";

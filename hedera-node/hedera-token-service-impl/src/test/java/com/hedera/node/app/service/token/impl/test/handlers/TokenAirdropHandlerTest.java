@@ -22,6 +22,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mock.Strictness.LENIENT;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -31,6 +32,7 @@ import com.hedera.hapi.node.base.NftTransfer;
 import com.hedera.hapi.node.base.PendingAirdropId;
 import com.hedera.hapi.node.base.PendingAirdropValue;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
+import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenTransferList;
 import com.hedera.hapi.node.state.token.AccountPendingAirdrop;
@@ -381,8 +383,9 @@ class TokenAirdropHandlerTest extends CryptoTransferHandlerTestBase {
         var sigVerificationMock = mock(SignatureVerification.class);
         given(keyVerifier.verificationFor(any())).willReturn(sigVerificationMock);
         given(handleContext.keyVerifier()).willReturn(keyVerifier);
-        mockSimpleFeeCalculator();
         given(handleContext.feeCalculatorFactory()).willReturn(feeCalculatorFactory);
+        mockSimpleFeeCalculator();
+        mockLegacyFeeCalculator();
         given(handleContext.tryToChargePayer(anyLong())).willReturn(true);
 
         tokenAirdropHandler.handle(handleContext);
@@ -461,8 +464,9 @@ class TokenAirdropHandlerTest extends CryptoTransferHandlerTestBase {
         givenAirdropTxn(true, ownerId, TOKEN_AND_NFT_AIRDROP);
         given(handleContext.expiryValidator()).willReturn(expiryValidator);
         given(expiryValidator.expirationStatus(any(), anyBoolean(), anyLong())).willReturn(OK);
-        mockSimpleFeeCalculator();
         given(handleContext.feeCalculatorFactory()).willReturn(feeCalculatorFactory);
+        mockSimpleFeeCalculator();
+        mockLegacyFeeCalculator();
         given(handleContext.tryToChargePayer(anyLong())).willReturn(true);
         tokenAirdropHandler.handle(handleContext);
 
@@ -520,8 +524,9 @@ class TokenAirdropHandlerTest extends CryptoTransferHandlerTestBase {
         given(keyVerifier.verificationFor(any())).willReturn(sigVerificationMock);
         given(handleContext.keyVerifier()).willReturn(keyVerifier);
 
-        mockSimpleFeeCalculator();
         given(handleContext.feeCalculatorFactory()).willReturn(feeCalculatorFactory);
+        mockSimpleFeeCalculator();
+        mockLegacyFeeCalculator();
         given(handleContext.tryToChargePayer(anyLong())).willReturn(true);
 
         tokenAirdropHandler.handle(handleContext);
@@ -728,5 +733,10 @@ class TokenAirdropHandlerTest extends CryptoTransferHandlerTestBase {
         final var simpleFeeCalculatorMock = mock(SimpleFeeCalculator.class);
         given(handleContext.getSimpleFeeCalculator()).willReturn(simpleFeeCalculatorMock);
         given(handleContext.activeRate()).willReturn(exchangeRate);
+    }
+
+    private void mockLegacyFeeCalculator() {
+        lenient().when(feeCalculatorFactory.feeCalculator(SubType.DEFAULT)).thenReturn(feeCalculator);
+        lenient().when(feeCalculator.calculate()).thenReturn(new Fees(10, 10, 10));
     }
 }

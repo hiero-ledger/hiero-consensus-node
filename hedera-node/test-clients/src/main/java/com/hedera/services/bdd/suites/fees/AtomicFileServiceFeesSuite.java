@@ -13,16 +13,14 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileUpdate;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyListNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateInnerTxnChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedFeeFromBytesFor;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateInnerTxnFees;
-import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.FILE_APPEND_BASE_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.FILE_APPEND_BASE_FEE;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.FILE_CREATE_BASE_FEE;
-import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.FILE_DELETE_BASE_FEE_USD;
-import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.FILE_UPDATE_BASE_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.FILE_DELETE_BASE_FEE;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.spec.keys.KeyShape;
@@ -36,7 +34,6 @@ import org.junit.jupiter.api.Tag;
 // we are wrapping the operations in an atomic batch to confirm the fees are the same
 @Tag(ATOMIC_BATCH)
 class AtomicFileServiceFeesSuite {
-
     private static final String MEMO = "Really quite something!";
     private static final String CIVILIAN = "civilian";
     private static final String KEY = "key";
@@ -93,11 +90,14 @@ class AtomicFileServiceFeesSuite {
                         .via(ATOMIC_BATCH)
                         .signedByPayerAnd(BATCH_OPERATOR)
                         .payingWith(BATCH_OPERATOR),
-                withOpContext((spec, log) -> validateInnerTxnChargedUsd(
-                        "fileUpdateBasic",
-                        ATOMIC_BATCH,
-                        FILE_UPDATE_BASE_FEE_USD + expectedFeeFromBytesFor(spec, log, "fileUpdateBasic"),
-                        5)));
+                withOpContext((spec, log) -> allRunFor(
+                        spec,
+                        validateInnerTxnFees(
+                                "fileUpdateBasic",
+                                ATOMIC_BATCH,
+                                0.05,
+                                FILE_APPEND_BASE_FEE + expectedFeeFromBytesFor(spec, log, "fileUpdateBasic"),
+                                3))));
     }
 
     @HapiTest
@@ -117,7 +117,7 @@ class AtomicFileServiceFeesSuite {
                         .via(ATOMIC_BATCH)
                         .signedByPayerAnd(BATCH_OPERATOR)
                         .payingWith(BATCH_OPERATOR),
-                validateInnerTxnChargedUsd("fileDeleteBasic", ATOMIC_BATCH, FILE_DELETE_BASE_FEE_USD, 10));
+                validateInnerTxnFees("fileDeleteBasic", ATOMIC_BATCH, 0.00701, FILE_DELETE_BASE_FEE));
     }
 
     @HapiTest
@@ -128,10 +128,6 @@ class AtomicFileServiceFeesSuite {
 
         final var baseAppend = "baseAppend";
         final var targetFile = "targetFile";
-        final var contentBuilder = new StringBuilder();
-        for (int i = 0; i < 1000; i++) {
-            contentBuilder.append("A");
-        }
         final var magicKey = "magicKey";
         final var magicWacl = "magicWacl";
 
@@ -147,17 +143,20 @@ class AtomicFileServiceFeesSuite {
                 atomicBatch(fileAppend(targetFile)
                                 .signedBy(magicKey)
                                 .blankMemo()
-                                .content(contentBuilder.toString())
+                                .content("A".repeat(1000))
                                 .payingWith(civilian)
                                 .via(baseAppend)
                                 .batchKey(BATCH_OPERATOR))
                         .via(ATOMIC_BATCH)
                         .signedByPayerAnd(BATCH_OPERATOR)
                         .payingWith(BATCH_OPERATOR),
-                withOpContext((spec, log) -> validateInnerTxnChargedUsd(
-                        baseAppend,
-                        ATOMIC_BATCH,
-                        FILE_APPEND_BASE_FEE_USD + expectedFeeFromBytesFor(spec, log, baseAppend),
-                        5)));
+                withOpContext((spec, log) -> allRunFor(
+                        spec,
+                        validateInnerTxnFees(
+                                baseAppend,
+                                ATOMIC_BATCH,
+                                FILE_APPEND_BASE_FEE,
+                                FILE_APPEND_BASE_FEE + expectedFeeFromBytesFor(spec, log, baseAppend),
+                                5.0))));
     }
 }

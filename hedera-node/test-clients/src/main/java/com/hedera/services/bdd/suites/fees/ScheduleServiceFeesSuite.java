@@ -20,7 +20,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SCHEDULE_SIGN_FEE;
-import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SIGNATURE_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SIGNATURE_FEE_AFTER_MULTIPLIER;
 import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.OTHER_PAYER;
 import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.PAYING_SENDER;
 import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.RECEIVER;
@@ -105,9 +105,8 @@ public class ScheduleServiceFeesSuite {
                         BASE_FEE_SCHEDULE_SIGN,
                         3.0,
                         // base plus one extra signature
-                        SCHEDULE_SIGN_FEE + SIGNATURE_FEE_USD * 10,
-                        3.0),
-                // 0.0010999992
+                        SCHEDULE_SIGN_FEE + SIGNATURE_FEE_AFTER_MULTIPLIER,
+                        0.1),
                 validateChargedUsdWithin("canonicalDeletion", BASE_FEE_SCHEDULE_DELETE, 3.0),
                 validateChargedUsdWithin("canonicalContractCall", BASE_FEE_CONTRACT_CALL, 3.0),
                 validateChargedUsd("getScheduleInfoBasic", BASE_FEE_SCHEDULE_INFO));
