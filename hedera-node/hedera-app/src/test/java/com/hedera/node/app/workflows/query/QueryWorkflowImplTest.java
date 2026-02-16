@@ -19,6 +19,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.notNull;
@@ -30,6 +31,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.withSettings;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.QueryHeader;
@@ -91,6 +93,7 @@ import java.time.InstantSource;
 import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Stream;
+import org.hiero.hapi.fees.FeeResult;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -103,6 +106,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.quality.Strictness;
 import org.mockito.stubbing.Answer;
 
 @ExtendWith(MockitoExtension.class)
@@ -612,7 +616,7 @@ class QueryWorkflowImplTest extends AppTestBase {
                         .build());
         doThrow(new PreCheckException(INSUFFICIENT_TX_FEE))
                 .when(queryChecker)
-                .validateCryptoTransfer(eq(transactionInfo));
+                .validateCryptoTransfer(any(), eq(transactionInfo), any());
         final var responseBuffer = newEmptyBuffer();
 
         // when
@@ -709,6 +713,7 @@ class QueryWorkflowImplTest extends AppTestBase {
     @Test
     void testInvalidNodeFails() throws PreCheckException, ParseException {
         // given
+        when(handler.requiresNodePayment(ANSWER_ONLY)).thenReturn(true);
         doThrow(new PreCheckException(INVALID_NODE_ACCOUNT)).when(ingestChecker).verifyPlatformActive();
         final var responseBuffer = newEmptyBuffer();
 
@@ -847,7 +852,7 @@ class QueryWorkflowImplTest extends AppTestBase {
         when(handler.requiresNodePayment(ANSWER_ONLY)).thenReturn(true);
         doThrow(new PreCheckException(INSUFFICIENT_TX_FEE))
                 .when(queryChecker)
-                .validateCryptoTransfer(eq(transactionInfo));
+                .validateCryptoTransfer(any(), eq(transactionInfo), any());
         final var responseBuffer = newEmptyBuffer();
 
         // when
@@ -895,7 +900,7 @@ class QueryWorkflowImplTest extends AppTestBase {
         assertThat(header.responseType()).isEqualTo(ANSWER_ONLY);
         assertThat(header.cost()).isZero();
 
-        verify(submissionManager, never()).submit(any(), any());
+        verify(submissionManager, never()).submit(any(), any(), anyBoolean());
         verifyMetricsSent();
         verify(opWorkflowMetrics, never()).incrementThrottled(any());
     }
@@ -1035,7 +1040,7 @@ class QueryWorkflowImplTest extends AppTestBase {
         when(handler.requiresNodePayment(ANSWER_ONLY)).thenReturn(true);
         doThrow(new PreCheckException(PLATFORM_TRANSACTION_NOT_CREATED))
                 .when(submissionManager)
-                .submit(txBody, serializedPayment);
+                .submit(txBody, serializedPayment, false);
         given(handler.computeFees(any(QueryContext.class))).willReturn(new Fees(100L, 0L, 100L));
         final var responseBuffer = newEmptyBuffer();
         doAnswer(invocationOnMock -> {
@@ -1100,13 +1105,13 @@ class QueryWorkflowImplTest extends AppTestBase {
                             .build()));
         }
 
-        @Mock
+        @Mock(strictness = LENIENT)
         private QueryContext queryContext;
 
         @Mock
         private FeesConfig feesConfig;
 
-        @Mock
+        @Mock(strictness = LENIENT)
         private SimpleFeeCalculator simpleFeeCalculator;
 
         @Mock
@@ -1149,7 +1154,8 @@ class QueryWorkflowImplTest extends AppTestBase {
                     .runAllChecks(any(), any(), any(), any());
 
             given(feeManager.getSimpleFeeCalculator()).willReturn(simpleFeeCalculator);
-            given(simpleFeeCalculator.calculateQueryFee(query, queryContext)).willReturn(100000L);
+            final var result = new FeeResult(0, 100000L, 0);
+            given(simpleFeeCalculator.calculateQueryFee(eq(query), any())).willReturn(result);
 
             mockTopicGetInfoHandler(query, queryHeader, payment);
 
@@ -1224,7 +1230,8 @@ class QueryWorkflowImplTest extends AppTestBase {
                 .when(ingestChecker)
                 .runAllChecks(eq(state), eq(requestBuffer), eq(configuration), any());
 
-        final var getTopicInfoHandler = mock(ConsensusGetTopicInfoHandler.class);
+        final var getTopicInfoHandler =
+                mock(ConsensusGetTopicInfoHandler.class, withSettings().strictness(Strictness.LENIENT));
         when(getTopicInfoHandler.requiresNodePayment(any())).thenReturn(true);
         when(getTopicInfoHandler.requiresNodePayment(any())).thenReturn(true);
         when(getTopicInfoHandler.extractHeader(query)).thenReturn(queryHeader);

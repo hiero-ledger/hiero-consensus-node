@@ -100,7 +100,7 @@ message BlockStreamInfo {
      * This SHALL count the number of output block items that _precede_
      * the state change that updates this singleton.
      */
-    uint32 num_preceding_state_changes_items = 7;
+    uint64 num_preceding_state_changes_items = 7;
 
     /**
      * A concatenation of SHA2-384 hash values.<br/>

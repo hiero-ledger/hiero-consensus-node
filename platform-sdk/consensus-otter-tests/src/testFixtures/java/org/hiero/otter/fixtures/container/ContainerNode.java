@@ -2,7 +2,7 @@
 package org.hiero.otter.fixtures.container;
 
 import static java.util.Objects.requireNonNull;
-import static org.hiero.consensus.pces.PcesUtilities.getDatabaseDirectory;
+import static org.hiero.consensus.pces.impl.common.PcesUtilities.getDatabaseDirectory;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.CONTAINER_APP_WORKING_DIR;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.CONTAINER_CONTROL_PORT;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.HASHSTREAM_LOG_PATH;
@@ -642,8 +642,8 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
             switch (event.getEventCase()) {
                 case LOG_ENTRY -> resultsCollector.addLogEntry(ProtobufConverter.toPlatform(event.getLogEntry()));
                 case PLATFORM_STATUS_CHANGE -> handlePlatformChange(event);
-                case CONSENSUS_ROUNDS ->
-                    resultsCollector.addConsensusRounds(ProtobufConverter.toPbj(event.getConsensusRounds()));
+                case CONSENSUS_ROUND ->
+                    resultsCollector.addConsensusRound(ProtobufConverter.toPlatform(event.getConsensusRound()));
                 default -> log.warn("Received unexpected event: {}", event);
             }
         }

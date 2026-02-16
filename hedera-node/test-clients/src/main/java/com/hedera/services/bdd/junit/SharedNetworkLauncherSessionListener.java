@@ -19,10 +19,12 @@ import com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode;
 import com.hedera.services.bdd.junit.hedera.embedded.EmbeddedNetwork;
 import com.hedera.services.bdd.junit.hedera.subprocess.ProcessUtils;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
+import com.hedera.services.bdd.junit.support.validators.HighVolumePricingValidator;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.infrastructure.HapiClients;
 import com.hedera.services.bdd.spec.keys.RepeatableKeyGenerator;
 import com.hedera.services.bdd.spec.remote.RemoteNetworkFactory;
+import com.hedera.services.bdd.suites.validation.ConcurrentSubprocessValidationTest;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -34,9 +36,12 @@ import java.util.Set;
 import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.junit.platform.engine.TestExecutionResult;
+import org.junit.platform.engine.support.descriptor.ClassSource;
 import org.junit.platform.launcher.LauncherSession;
 import org.junit.platform.launcher.LauncherSessionListener;
 import org.junit.platform.launcher.TestExecutionListener;
+import org.junit.platform.launcher.TestIdentifier;
 import org.junit.platform.launcher.TestPlan;
 
 /**
@@ -85,10 +90,14 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
         }
 
         private Embedding embedding;
+        private boolean subprocessConcurrent;
 
         @Override
         public void testPlanExecutionStarted(@NonNull final TestPlan testPlan) {
             REPEATABLE_KEY_GENERATOR.set(new RepeatableKeyGenerator());
+
+            // Validate high-volume pricing curves before starting any tests
+            HighVolumePricingValidator.validateGenesisFeeSchedule();
 
             // Skip standard setup if any test in the plan uses HapiBlockNode
             if (hasAnnotatedTestNode(testPlan, Set.of(HapiBlockNode.class))) {
@@ -136,6 +145,29 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
                     onSubProcessReady.clear();
                 }
             }
+
+            // In subprocess concurrent mode, arm the validation latch so that
+            // ConcurrentSubprocessValidationTest blocks in @BeforeAll until
+            // every other test class has finished
+            subprocessConcurrent = Boolean.parseBoolean(System.getProperty("hapi.spec.subprocess.concurrent", "false"));
+            if (subprocessConcurrent) {
+                final int nonValidationClassCount = countNonValidationClasses(testPlan);
+                ConcurrentSubprocessValidationLatch.arm(nonValidationClassCount);
+            }
+        }
+
+        @Override
+        public void executionFinished(
+                @NonNull final TestIdentifier testIdentifier, @NonNull final TestExecutionResult testExecutionResult) {
+            if (!subprocessConcurrent) {
+                return;
+            }
+            testIdentifier.getSource().ifPresent(source -> {
+                if (source instanceof ClassSource classSource
+                        && !ConcurrentSubprocessValidationTest.class.getName().equals(classSource.getClassName())) {
+                    ConcurrentSubprocessValidationLatch.countDown();
+                }
+            });
         }
 
         @Override
@@ -214,6 +246,25 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
         private static void startSharedEmbedded(@NonNull final EmbeddedMode mode) {
             SHARED_NETWORK.set(EmbeddedNetwork.newSharedNetwork(mode));
             SHARED_NETWORK.get().start();
+        }
+
+        /**
+         * Counts the number of test class containers in the plan that are NOT the
+         * {@link ConcurrentSubprocessValidationTest}. Used to arm the validation latch.
+         */
+        private static int countNonValidationClasses(@NonNull final TestPlan testPlan) {
+            int count = 0;
+            final var validationClassName = ConcurrentSubprocessValidationTest.class.getName();
+            for (final var root : testPlan.getRoots()) {
+                for (final var descendant : testPlan.getDescendants(root)) {
+                    final var source = descendant.getSource().orElse(null);
+                    if (source instanceof ClassSource classSource
+                            && !validationClassName.equals(classSource.getClassName())) {
+                        count++;
+                    }
+                }
+            }
+            return count;
         }
 
         private static Embedding embeddingMode() {

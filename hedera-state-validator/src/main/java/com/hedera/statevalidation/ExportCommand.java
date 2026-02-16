@@ -3,9 +3,7 @@ package com.hedera.statevalidation;
 
 import com.hedera.statevalidation.exporter.JsonExporter;
 import com.hedera.statevalidation.util.StateUtils;
-import com.swirlds.platform.state.snapshot.DeserializedSignedState;
-import com.swirlds.state.MerkleNodeState;
-import com.swirlds.virtualmap.VirtualMap;
+import com.swirlds.state.merkle.VirtualMapState;
 import java.io.File;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -62,18 +60,10 @@ public class ExportCommand implements Runnable {
             throw new RuntimeException(outputDir.getAbsolutePath() + " is not a directory");
         }
 
-        final MerkleNodeState state;
         log.debug("Initializing the state...");
         long start = System.currentTimeMillis();
-        try {
-            final DeserializedSignedState deserializedSignedState = StateUtils.getDeserializedSignedState();
-            state = deserializedSignedState.reservedSignedState().get().getState();
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+        final VirtualMapState state = StateUtils.getDefaultState();
         log.debug("State has been initialized in {} seconds.", (System.currentTimeMillis() - start) / 1000);
-
-        ((VirtualMap) state.getRoot()).getDataSource().stopAndDisableBackgroundCompaction();
 
         final JsonExporter exporter =
                 new JsonExporter(outputDir, state, serviceName, stateKey, firstLeafPath, lastLeafPath);

@@ -8,8 +8,8 @@ import static com.hedera.services.bdd.junit.hedera.ExternalPath.DATA_CONFIG_DIR;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.LOG4J2_XML;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.junit.hedera.subprocess.ProcessUtils.awaitStatus;
-import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.classicMetadataFor;
-import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.configTxtForLocal;
+import static com.hedera.services.bdd.junit.hedera.utils.NetworkUtils.classicMetadataFor;
+import static com.hedera.services.bdd.junit.hedera.utils.NetworkUtils.generateNetworkConfig;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.CANDIDATE_ROSTER_JSON;
 import static com.hedera.services.bdd.spec.TargetNetworkType.SUBPROCESS_NETWORK;
 import static com.hedera.services.bdd.suites.utils.sysfiles.BookEntryPojo.asOctets;
@@ -36,8 +36,8 @@ import com.hedera.services.bdd.junit.hedera.HederaNode;
 import com.hedera.services.bdd.junit.hedera.NodeSelector;
 import com.hedera.services.bdd.junit.hedera.simulator.SimulatedBlockNodeServer;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNode.ReassignPorts;
+import com.hedera.services.bdd.junit.hedera.utils.NetworkUtils;
 import com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils;
-import com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.OnlyRoster;
 import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hedera.services.bdd.spec.TargetNetworkType;
 import com.hedera.services.bdd.spec.infrastructure.HapiClients;
@@ -100,8 +100,8 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
     private final AtomicReference<DeferredRun> ready = new AtomicReference<>();
 
     private long maxNodeId;
-    private String configTxt;
-    private final String genesisConfigTxt;
+    private Network network;
+    private final Network genesisNetwork;
     private final long shard;
     private final long realm;
 
@@ -177,8 +177,8 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
         this.realm = realm;
         this.maxNodeId =
                 Collections.max(nodes.stream().map(SubProcessNode::getNodeId).toList());
-        this.configTxt = configTxtForLocal(name(), nodes(), nextInternalGossipPort, nextExternalGossipPort);
-        this.genesisConfigTxt = configTxt;
+        this.network = generateNetworkConfig(nodes(), nextInternalGossipPort, nextExternalGossipPort);
+        this.genesisNetwork = network;
         this.postInitWorkingDirActions.add(this::configureApplicationProperties);
     }
 
@@ -215,7 +215,7 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
     @Override
     public void start() {
         nodes.forEach(node -> {
-            node.initWorkingDir(configTxt);
+            node.initWorkingDir(network);
             executePostInitWorkingDirActions(node);
             node.start();
         });
@@ -285,15 +285,6 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
     }
 
     /**
-     * Returns the genesis <i>config.txt</i> file for the network.
-     *
-     * @return the genesis <i>config.txt</i> file
-     */
-    public String genesisConfigTxt() {
-        return genesisConfigTxt;
-    }
-
-    /**
      * Updates the account id for the node with the given id.
      *
      * @param nodeId the node id
@@ -336,7 +327,7 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
                             nextPrometheusPort + nodeId);
         });
         final var weights = maybeLatestCandidateWeights();
-        configTxt = configTxtForLocal(networkName, nodes, nextInternalGossipPort, nextExternalGossipPort, weights);
+        network = NetworkUtils.generateNetworkConfig(nodes, nextInternalGossipPort, nextExternalGossipPort, weights);
         refreshOverrideNetworks(ReassignPorts.YES);
     }
 
@@ -359,8 +350,8 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
         final var node = getRequiredNode(selector);
         node.stopFuture();
         nodes.remove(node);
-        configTxt = configTxtForLocal(
-                networkName, nodes, nextInternalGossipPort, nextExternalGossipPort, latestCandidateWeights());
+        network = NetworkUtils.generateNetworkConfig(
+                nodes, nextInternalGossipPort, nextExternalGossipPort, latestCandidateWeights());
         refreshOverrideNetworks(ReassignPorts.NO);
     }
 
@@ -398,9 +389,9 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
             node.reassignNodeAccountIdFrom(accountId);
         }
         nodes.add(insertionPoint, node);
-        configTxt = configTxtForLocal(
-                networkName, nodes, nextInternalGossipPort, nextExternalGossipPort, latestCandidateWeights());
-        nodes.get(insertionPoint).initWorkingDir(configTxt);
+        network = NetworkUtils.generateNetworkConfig(
+                nodes, nextInternalGossipPort, nextExternalGossipPort, latestCandidateWeights());
+        nodes.get(insertionPoint).initWorkingDir(network);
         if (blockNodeMode.equals(BlockNodeMode.SIMULATOR)) {
             executePostInitWorkingDirActions(node);
         }
@@ -477,15 +468,15 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
 
     /**
      * Writes the override <i>config.txt</i> and <i>override-network.json</i> files for each node in the network,
-     * as implied by the current {@link SubProcessNetwork#configTxt} field. (Note the weights in this {@code configTxt}
+     * as implied by the current {@link SubProcessNetwork#network} field. (Note the weights in this {@code configTxt}
      * field are maintained in very brittle fashion by getting up-to-date values from {@code node0}'s
      * <i>candidate-roster.json</i> file during the {@link FakeNmt} operations that precede the upgrade; at some point
      * we should clean this up.)
      */
     private void refreshOverrideNetworks(@NonNull final ReassignPorts reassignPorts) {
-        log.info("Refreshing override networks for '{}' - \n{}", name(), configTxt);
+        log.info("Refreshing override networks for '{}' - \n{}", name(), network);
         nodes.forEach(node -> {
-            var overrideNetwork = WorkingDirUtils.networkFrom(configTxt, OnlyRoster.NO);
+            var overrideNetwork = network;
             if (overrideCustomizer != null) {
                 // Apply the override customizer to the network
                 overrideNetwork = overrideCustomizer.apply(overrideNetwork);

@@ -11,15 +11,14 @@ import com.swirlds.state.test.fixtures.MapWritableKVState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.NoSuchElementException;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
-import org.assertj.core.api.AssertionsForClassTypes;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -64,6 +63,41 @@ public class WritableKVStateBaseTest extends ReadableKVStateBaseTest {
             @NonNull final Map<ProtoBytes, ProtoBytes> map) {
         this.state = Mockito.spy(new MapWritableKVState<>(FRUIT_STATE_ID, FRUIT_STATE_LABEL, map));
         return state;
+    }
+
+    @Test
+    @DisplayName("Constructor with modifications and readCache works")
+    void testConstructorWithModificationsAndReadCache() {
+        final Map<ProtoBytes, ProtoBytes> modifications = new HashMap<>();
+        modifications.put(A_KEY, APPLE);
+        final ConcurrentMap<ProtoBytes, ProtoBytes> readCache = new ConcurrentHashMap<>();
+        readCache.put(B_KEY, BANANA);
+
+        final var customState = new WritableKVStateBase<>(FRUIT_STATE_ID, FRUIT_STATE_LABEL, modifications, readCache) {
+            @Override
+            protected void putIntoDataSource(@NonNull ProtoBytes key, @NonNull ProtoBytes value) {}
+
+            @Override
+            protected void removeFromDataSource(@NonNull ProtoBytes key) {}
+
+            @NonNull
+            @Override
+            public long sizeOfDataSource() {
+                return 0;
+            }
+
+            @Override
+            protected ProtoBytes readFromDataSource(@NonNull ProtoBytes key) {
+                return null;
+            }
+        };
+
+        assertThat(customState.getStateId()).isEqualTo(FRUIT_STATE_ID);
+        // modifications should be in the state
+        assertThat(customState.get(A_KEY)).isEqualTo(APPLE);
+        // readCache should be in the state
+        assertThat(customState.get(B_KEY)).isEqualTo(BANANA);
+        assertThat(customState.readKeys()).contains(B_KEY);
     }
 
     @Nested
@@ -483,100 +517,6 @@ public class WritableKVStateBaseTest extends ReadableKVStateBaseTest {
 
             // After a commit, the original value should have been removed
             assertThat(state.getOriginalValue(A_KEY)).isNull();
-        }
-    }
-
-    @Nested
-    @DisplayName("iterator")
-    final class IteratorTest {
-        @Test
-        @DisplayName("Iterator on an empty state returns false to `hasNext`")
-        void hasNextFalseOnEmptyState() {
-            // Empty out the state first
-            state.remove(A_KEY);
-            state.remove(B_KEY);
-            state.commit();
-            state.reset();
-
-            // OK, we have an empty state with an empty backend. So we can test this.
-            final var itr = state.keys();
-            assertThat(itr.hasNext()).isFalse();
-        }
-
-        @Test
-        @DisplayName("Iterator on an empty state throws exception on `next`")
-        void nextThrowsOnEmptyState() {
-            // Empty out the state first
-            state.remove(A_KEY);
-            state.remove(B_KEY);
-            state.commit();
-            state.reset();
-
-            // OK, we have an empty state with an empty backend. So we can test this.
-            final var itr = state.keys();
-            AssertionsForClassTypes.assertThatThrownBy(itr::next).isInstanceOf(NoSuchElementException.class);
-        }
-
-        @Test
-        @DisplayName("Iteration after `remove` and before `commit` includes modifications")
-        void testIterationAfterRemove() {
-            state.remove(B_KEY);
-            assertThat(state.keys()).toIterable().containsExactlyInAnyOrder(A_KEY);
-        }
-
-        @Test
-        @DisplayName("Iteration after `remove` and `commit` includes modifications")
-        void testIterationAfterRemoveAndCommit() {
-            state.remove(B_KEY);
-            state.commit();
-            assertThat(state.keys()).toIterable().contains(A_KEY);
-        }
-
-        @Test
-        @DisplayName("Iteration after `put` and before `commit` includes modifications")
-        void testIterationAfterPut() {
-            state.put(C_KEY, CHERRY);
-            assertThat(state.keys()).toIterable().contains(A_KEY, B_KEY, C_KEY);
-        }
-
-        @Test
-        @DisplayName("Iteration after `put` and `commit` includes modifications")
-        void testIterationAfterPutAndCommit() {
-            state.put(C_KEY, CHERRY);
-            state.commit();
-            assertThat(state.keys()).toIterable().contains(A_KEY, B_KEY, C_KEY);
-        }
-
-        @Test
-        @DisplayName("Iteration over keys with all modifications until the iteration concludes")
-        void iterateOverAllChanges() {
-            state.put(C_KEY, CHERRY);
-            state.put(D_KEY, DATE);
-            state.put(E_KEY, EGGPLANT);
-            state.put(F_KEY, FIG);
-            state.remove(A_KEY);
-            state.remove(E_KEY);
-            state.put(E_KEY, ELDERBERRY);
-            state.remove(F_KEY);
-
-            final var itr = state.keys();
-            final var foundKeys = new HashSet<ProtoBytes>();
-            for (int i = 0; i < 4; i++) {
-                assertThat(itr.hasNext()).isTrue();
-                foundKeys.add(itr.next());
-            }
-
-            assertThat(itr.hasNext()).isFalse();
-            assertThat(foundKeys).containsExactlyInAnyOrder(B_KEY, C_KEY, D_KEY, E_KEY);
-        }
-
-        @Test
-        @DisplayName("Changes made after the iterator is created are not considered")
-        void iterateAfterChangesAreMade() {
-            final var itr = state.keys();
-            state.put(C_KEY, CHERRY);
-            state.remove(A_KEY);
-            assertThat(itr).toIterable().containsExactlyInAnyOrder(A_KEY, B_KEY);
         }
     }
 

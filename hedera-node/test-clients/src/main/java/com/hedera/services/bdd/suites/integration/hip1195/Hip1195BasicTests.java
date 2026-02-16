@@ -9,6 +9,8 @@ import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.CONCURRENT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
+import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
+import static com.hedera.services.bdd.spec.keys.SigControl.SECP256K1_ON;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.accountAllowanceHook;
@@ -26,6 +28,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedHbarFee;
+import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewAccount;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewContract;
 import static com.hedera.services.bdd.spec.utilops.SidecarVerbs.GLOBAL_WATCHER;
@@ -34,8 +37,10 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.noOp;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withAddressOfKey;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
+import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
@@ -56,14 +61,18 @@ import static java.util.Objects.requireNonNull;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.esaulpaugh.headlong.abi.Address;
+import com.esaulpaugh.headlong.abi.Single;
+import com.esaulpaugh.headlong.abi.TupleType;
 import com.google.protobuf.ByteString;
 import com.hedera.hapi.node.base.HookEntityId;
 import com.hedera.hapi.node.base.HookId;
+import com.hedera.hapi.node.hooks.EvmHook;
 import com.hedera.hapi.node.hooks.EvmHookSpec;
 import com.hedera.hapi.node.hooks.HookCreationDetails;
 import com.hedera.hapi.node.hooks.HookExtensionPoint;
-import com.hedera.hapi.node.hooks.LambdaEvmHook;
 import com.hedera.hapi.node.state.hooks.EvmHookState;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.node.app.service.contract.ContractService;
@@ -73,13 +82,13 @@ import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.TargetEmbeddedMode;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.SpecOperation;
-import com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts;
 import com.hedera.services.bdd.spec.dsl.annotations.Contract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hedera.services.bdd.spec.utilops.EmbeddedVerbs;
 import com.hedera.services.bdd.spec.verification.traceability.SidecarWatcher;
 import com.hederahashgraph.api.proto.java.TokenSupplyType;
+import com.hederahashgraph.api.proto.java.TransactionRecord;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Map;
@@ -119,6 +128,12 @@ public class Hip1195BasicTests {
     @Contract(contract = "SelfDestructOpHook", creationGas = 5_000_000)
     static SpecContract SELF_DESTRUCT_HOOK;
 
+    @Contract(contract = "EmitSenderOrigin", creationGas = 500_000)
+    static SpecContract EMIT_SENDER_ORIGIN;
+
+    @Contract(contract = "AddressLogsHook", creationGas = 1_000_000)
+    static SpecContract ADDRESS_LOGS_HOOK;
+
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
         testLifecycle.overrideInClass(Map.of("hooks.hooksEnabled", "true"));
@@ -128,9 +143,58 @@ public class Hip1195BasicTests {
         testLifecycle.doAdhoc(FALSE_PRE_POST_ALLOWANCE_HOOK.getInfo());
         testLifecycle.doAdhoc(SELF_DESTRUCT_HOOK.getInfo());
         testLifecycle.doAdhoc(FALSE_TRUE_ALLOWANCE_HOOK.getInfo());
+        testLifecycle.doAdhoc(EMIT_SENDER_ORIGIN.getInfo());
+        testLifecycle.doAdhoc(ADDRESS_LOGS_HOOK.getInfo());
 
         testLifecycle.doAdhoc(withOpContext(
                 (spec, opLog) -> GLOBAL_WATCHER.set(new SidecarWatcher(spec.recordStreamsLoc(byNodeId(0))))));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> msgSenderUsesHookOwnerEvmAddress() {
+        final var addressTuple = TupleType.parse("(address)");
+        return hapiTest(
+                newKeyNamed("payerEcKey").shape(SECP256K1_ON),
+                newKeyNamed("ownerEcKey").shape(SECP256K1_ON),
+                cryptoCreate("payer")
+                        .balance(ONE_MILLION_HBARS)
+                        .key("payerEcKey")
+                        .withMatchingEvmAddress(),
+                cryptoCreate("owner")
+                        .key("ownerEcKey")
+                        .withMatchingEvmAddress()
+                        // This hook calls a EmitSenderOrigin.logNow() method to emit origin + sender addresses
+                        .withHooks(accountAllowanceHook(42L, ADDRESS_LOGS_HOOK.name())),
+                sourcingContextual(spec -> {
+                    final var target = EMIT_SENDER_ORIGIN.addressOn(spec.targetNetworkOrThrow());
+                    final var calldata = addressTuple.encode(Single.of(target));
+                    return cryptoTransfer(movingHbar(ONE_HBAR).between("owner", FUNDING))
+                            .withPreHookFor("owner", 42L, 250_000L, calldata)
+                            .payingWith("payer")
+                            .signedBy("payer")
+                            .via("txn");
+                }),
+                withAddressOfKey(
+                        "payerEcKey",
+                        payerAddress -> withAddressOfKey("ownerEcKey", ownerAddress -> getTxnRecord("txn")
+                                .andAllChildRecords()
+                                .exposingAllTo(records -> {
+                                    // We find the EmitSenderOrigin log event and extract the addresses for validation
+                                    final var hookExecutionRecord = records.stream()
+                                            .filter(TransactionRecord::hasContractCallResult)
+                                            .findAny()
+                                            .orElseThrow();
+                                    final var addressLog = hookExecutionRecord
+                                            .getContractCallResult()
+                                            .getLogInfo(0);
+                                    final var twoAddresses = TupleType.parse("(address,address)");
+                                    final var decoded = twoAddresses.decode(
+                                            addressLog.getData().toByteArray());
+                                    final var origin = (Address) decoded.get(0);
+                                    final var sender = (Address) decoded.get(1);
+                                    assertEquals(payerAddress, origin, "Origin address is not the same as the payer");
+                                    assertEquals(ownerAddress, sender, "Sender address is not the same as the owner");
+                                }))));
     }
 
     @HapiTest
@@ -279,8 +343,17 @@ public class Hip1195BasicTests {
                 cryptoCreate("receiverAccount").balance(ONE_HUNDRED_HBARS),
                 cryptoTransfer(TokenMovement.movingHbar(10 * ONE_HBAR).between("senderWithHook", "receiverAccount"))
                         .withPreHookFor("senderWithHook", 224L, HOOK_GAS_LIMIT, "")
-                        .payingWith("payer"),
-                getAccountBalance("receiverAccount").hasTinyBars(ONE_HUNDRED_HBARS + (10 * ONE_HBAR)));
+                        .payingWith("payer")
+                        .via("transferTxn"),
+                getAccountBalance("receiverAccount").hasTinyBars(ONE_HUNDRED_HBARS + (10 * ONE_HBAR)),
+                getTxnRecord("transferTxn").andAllChildRecords().exposingAllTo(txRecords -> {
+                    final var callTxRecord = txRecords.stream()
+                            .filter(TransactionRecord::hasContractCallResult)
+                            .findFirst();
+                    assertTrue(callTxRecord.isPresent());
+                    final var logs = callTxRecord.get().getContractCallResult().getLogInfoList();
+                    assertEquals(1, logs.size());
+                }));
     }
 
     @HapiTest
@@ -356,12 +429,12 @@ public class Hip1195BasicTests {
     @HapiTest
     final Stream<DynamicTest> cryptoCreateWithHooksFailureScenarios() {
         return hapiTest(
-                // 1) CryptoCreate with HookCreationDetails fails (lambda present but spec missing)
+                // 1) CryptoCreate with HookCreationDetails fails (EVM hook present but spec missing)
                 cryptoCreate("ccFail_missingSpec")
                         .withHook(spec -> HookCreationDetails.newBuilder()
                                 .hookId(500L)
                                 .extensionPoint(HookExtensionPoint.ACCOUNT_ALLOWANCE_HOOK)
-                                .lambdaEvmHook(LambdaEvmHook.newBuilder())
+                                .evmHook(EvmHook.newBuilder())
                                 .build())
                         .hasKnownStatus(INVALID_HOOK_CREATION_SPEC),
                 // 4) CryptoCreate with invalid hook contract_id (spec present but no contract_id set)
@@ -369,11 +442,11 @@ public class Hip1195BasicTests {
                         .withHook(spec -> HookCreationDetails.newBuilder()
                                 .hookId(501L)
                                 .extensionPoint(HookExtensionPoint.ACCOUNT_ALLOWANCE_HOOK)
-                                .lambdaEvmHook(LambdaEvmHook.newBuilder()
+                                .evmHook(EvmHook.newBuilder()
                                         .spec(EvmHookSpec.newBuilder().build()))
                                 .build())
                         .hasKnownStatus(INVALID_HOOK_CREATION_SPEC),
-                // 5) CryptoCreate without hook bytecode (no lambda set)
+                // 5) CryptoCreate without hook bytecode (no EVM hook set)
                 cryptoCreate("ccFail_noLambda")
                         .withHook(spec -> HookCreationDetails.newBuilder()
                                 .hookId(502L)
@@ -390,7 +463,7 @@ public class Hip1195BasicTests {
                         .withHook(spec -> HookCreationDetails.newBuilder()
                                 .hookId(504L)
                                 .extensionPoint(HookExtensionPoint.ACCOUNT_ALLOWANCE_HOOK)
-                                .lambdaEvmHook(LambdaEvmHook.newBuilder())
+                                .evmHook(EvmHook.newBuilder())
                                 .build())
                         .hasKnownStatus(INVALID_HOOK_CREATION_SPEC),
                 // 6) CryptoUpdate with invalid hook contract_id (spec present but no contract_id set)
@@ -398,7 +471,7 @@ public class Hip1195BasicTests {
                         .withHook(spec -> HookCreationDetails.newBuilder()
                                 .hookId(505L)
                                 .extensionPoint(HookExtensionPoint.ACCOUNT_ALLOWANCE_HOOK)
-                                .lambdaEvmHook(LambdaEvmHook.newBuilder()
+                                .evmHook(EvmHook.newBuilder()
                                         .spec(EvmHookSpec.newBuilder().build()))
                                 .build())
                         .hasKnownStatus(INVALID_HOOK_CREATION_SPEC),
@@ -407,10 +480,10 @@ public class Hip1195BasicTests {
                         .withHook(spec -> HookCreationDetails.newBuilder()
                                 .hookId(506L)
                                 .extensionPoint(HookExtensionPoint.ACCOUNT_ALLOWANCE_HOOK)
-                                .lambdaEvmHook(LambdaEvmHook.newBuilder())
+                                .evmHook(EvmHook.newBuilder())
                                 .build())
                         .hasKnownStatus(INVALID_HOOK_CREATION_SPEC),
-                // 7) CryptoUpdate without hook bytecode (no lambda set)
+                // 7) CryptoUpdate without hook bytecode (no hook set)
                 cryptoUpdate("acctWithHook")
                         .withHook(spec -> HookCreationDetails.newBuilder()
                                 .hookId(507L)
@@ -425,12 +498,12 @@ public class Hip1195BasicTests {
                 uploadInitCode("SimpleUpdate"),
                 uploadInitCode("CreateTrivial"),
 
-                // 1) ContractCreate with HookCreationDetails fails (lambda present but spec missing)
+                // 1) ContractCreate with HookCreationDetails fails (EVM hook present but spec missing)
                 contractCreate("SimpleUpdate")
                         .withHooks(spec -> HookCreationDetails.newBuilder()
                                 .hookId(520L)
                                 .extensionPoint(HookExtensionPoint.ACCOUNT_ALLOWANCE_HOOK)
-                                .lambdaEvmHook(LambdaEvmHook.newBuilder())
+                                .evmHook(EvmHook.newBuilder())
                                 .build())
                         .hasKnownStatus(INVALID_HOOK_CREATION_SPEC),
                 // 4) ContractCreate with invalid hook contract_id (spec present but no contract_id set)
@@ -438,11 +511,11 @@ public class Hip1195BasicTests {
                         .withHooks(spec -> HookCreationDetails.newBuilder()
                                 .hookId(521L)
                                 .extensionPoint(HookExtensionPoint.ACCOUNT_ALLOWANCE_HOOK)
-                                .lambdaEvmHook(LambdaEvmHook.newBuilder()
+                                .evmHook(EvmHook.newBuilder()
                                         .spec(EvmHookSpec.newBuilder().build()))
                                 .build())
                         .hasKnownStatus(INVALID_HOOK_CREATION_SPEC),
-                // 5) ContractCreate without hook bytecode (no lambda set)
+                // 5) ContractCreate without hook bytecode (no EVM hook set)
                 contractCreate("SimpleUpdate")
                         .withHooks(spec -> HookCreationDetails.newBuilder()
                                 .hookId(522L)
@@ -459,7 +532,7 @@ public class Hip1195BasicTests {
                         .withHooks(spec -> HookCreationDetails.newBuilder()
                                 .hookId(524L)
                                 .extensionPoint(HookExtensionPoint.ACCOUNT_ALLOWANCE_HOOK)
-                                .lambdaEvmHook(LambdaEvmHook.newBuilder())
+                                .evmHook(EvmHook.newBuilder())
                                 .build())
                         .hasKnownStatus(INVALID_HOOK_CREATION_SPEC),
                 // 6) ContractUpdate with invalid hook contract_id (spec present but no contract_id set)
@@ -467,7 +540,7 @@ public class Hip1195BasicTests {
                         .withHooks(spec -> HookCreationDetails.newBuilder()
                                 .hookId(525L)
                                 .extensionPoint(HookExtensionPoint.ACCOUNT_ALLOWANCE_HOOK)
-                                .lambdaEvmHook(LambdaEvmHook.newBuilder()
+                                .evmHook(EvmHook.newBuilder()
                                         .spec(EvmHookSpec.newBuilder().build()))
                                 .build())
                         .hasKnownStatus(INVALID_HOOK_CREATION_SPEC),
@@ -476,10 +549,10 @@ public class Hip1195BasicTests {
                         .withHooks(spec -> HookCreationDetails.newBuilder()
                                 .hookId(526L)
                                 .extensionPoint(HookExtensionPoint.ACCOUNT_ALLOWANCE_HOOK)
-                                .lambdaEvmHook(LambdaEvmHook.newBuilder())
+                                .evmHook(EvmHook.newBuilder())
                                 .build())
                         .hasKnownStatus(INVALID_HOOK_CREATION_SPEC),
-                // 7) ContractUpdate without hook bytecode (no lambda set)
+                // 7) ContractUpdate without hook bytecode (no EVM hook set)
                 contractUpdate("SimpleUpdate")
                         .withHooks(spec -> HookCreationDetails.newBuilder()
                                 .hookId(527L)
@@ -528,7 +601,7 @@ public class Hip1195BasicTests {
                         .via("txWithNonExistentHook"),
                 getTxnRecord("txWithNonExistentHook")
                         .andAllChildRecords()
-                        .hasChildRecords(TransactionRecordAsserts.recordWith().status(HOOK_NOT_FOUND)));
+                        .hasChildRecords(recordWith().status(HOOK_NOT_FOUND)));
     }
 
     @HapiTest
@@ -1112,7 +1185,7 @@ public class Hip1195BasicTests {
                         .via("failedTxn"),
                 getTxnRecord("failedTxn")
                         .andAllChildRecords()
-                        .hasChildRecords(TransactionRecordAsserts.recordWith().status(CONTRACT_REVERT_EXECUTED)),
+                        .hasChildRecords(recordWith().status(CONTRACT_REVERT_EXECUTED)),
                 cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, PAYER))
                         .withPrePostHookFor(PAYER, 124L, HOOK_GAS_LIMIT, "")
                         .payingWith(OWNER));
@@ -1173,8 +1246,8 @@ public class Hip1195BasicTests {
                         .via("failedTxn"),
                 getTxnRecord("failedTxn")
                         .andAllChildRecords()
-                        .hasChildRecords(TransactionRecordAsserts.recordWith()
-                                .contractCallResult(resultWith().error("INVALID_OPERATION")))
+                        .hasChildRecords(
+                                recordWith().contractCallResult(resultWith().error("INVALID_OPERATION")))
                         .logged());
     }
 

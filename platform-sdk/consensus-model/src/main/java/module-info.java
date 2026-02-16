@@ -6,7 +6,6 @@ module org.hiero.consensus.model {
     exports org.hiero.consensus.model.node;
     exports org.hiero.consensus.model.notification;
     exports org.hiero.consensus.model.quiescence;
-    exports org.hiero.consensus.model.roster;
     exports org.hiero.consensus.model.sequence;
     exports org.hiero.consensus.model.sequence.map;
     exports org.hiero.consensus.model.sequence.set;

@@ -7,12 +7,12 @@ import static com.swirlds.state.StateChangeListener.StateType.SINGLETON;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.merkle.MerkleNode;
-import com.swirlds.state.MerkleNodeState;
-import com.swirlds.state.MerkleProof;
 import com.swirlds.state.State;
 import com.swirlds.state.StateChangeListener;
+import com.swirlds.state.binary.MerkleProof;
+import com.swirlds.state.binary.QueueState;
 import com.swirlds.state.lifecycle.StateMetadata;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.EmptyReadableStates;
 import com.swirlds.state.spi.EmptyWritableStates;
 import com.swirlds.state.spi.KVChangeListener;
@@ -32,7 +32,9 @@ import com.swirlds.state.test.fixtures.MapReadableStates;
 import com.swirlds.state.test.fixtures.MapWritableKVState;
 import com.swirlds.state.test.fixtures.MapWritableStates;
 import com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -46,7 +48,7 @@ import org.hiero.base.crypto.Hash;
  * A useful test double for {@link State}. Works together with {@link MapReadableStates} and other fixtures.
  */
 @ConstructableIgnored
-public class FakeState implements MerkleNodeState {
+public class FakeState implements VirtualMapState {
 
     // Key is Service, value is Map of state name to HashMap or List or Object (depending on state type)
     private final Map<String, Map<Integer, Object>> states = new ConcurrentHashMap<>();
@@ -67,7 +69,12 @@ public class FakeState implements MerkleNodeState {
     }
 
     @Override
-    public MerkleNode getRoot() {
+    public boolean isImmutable() {
+        return false;
+    }
+
+    @Override
+    public VirtualMap getRoot() {
         return VirtualMapStateTestUtils.createTestState().getRoot();
     }
 
@@ -264,22 +271,17 @@ public class FakeState implements MerkleNodeState {
     }
 
     @Override
-    public @NonNull MerkleNodeState copy() {
+    public @NonNull VirtualMapState copy() {
         return this;
     }
 
     @Override
-    public void unregisterService(@NonNull final String serviceName) {
+    public long getKvPath(final int stateId, @NonNull final Bytes key) {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public long kvPath(final int stateId, @NonNull final Bytes key) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public long singletonPath(final int stateId) {
+    public long getSingletonPath(final int stateId) {
         throw new UnsupportedOperationException();
     }
 
@@ -294,12 +296,88 @@ public class FakeState implements MerkleNodeState {
     }
 
     @Override
-    public long queueElementPath(final int stateId, @NonNull final Bytes expectedValue) {
+    public long getQueueElementPath(final int stateId, @NonNull final Bytes expectedValue) {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public void initializeState(@NonNull final StateMetadata<?, ?> md) {
+    public @Nullable Bytes getKv(int stateId, @NonNull Bytes key) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public @Nullable Bytes getSingleton(int singletonId) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public QueueState getQueueState(int stateId) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public Bytes peekQueueHead(int stateId) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public Bytes peekQueueTail(int stateId) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public Bytes peekQueue(int stateId, int index) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public List<Bytes> getQueueAsList(int stateId) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void commitSingletons() {
         // do nothing
+    }
+
+    @Override
+    public void initializeState(@NonNull final StateMetadata<?, ?> md) {
+        throw new UnsupportedOperationException();
+    }
+
+    // --- New VirtualMapState mutation APIs (no-op implementations for test fixture) ---
+    @Override
+    public void updateSingleton(int stateId, @NonNull Bytes value) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void updateKv(int stateId, @NonNull Bytes key, @Nullable Bytes value) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void removeKv(int stateId, @NonNull Bytes key) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void pushQueue(int stateId, @NonNull Bytes value) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public Bytes popQueue(int stateId) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void removeSingleton(int stateId) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void removeQueue(int stateId) {
+        throw new UnsupportedOperationException();
     }
 }

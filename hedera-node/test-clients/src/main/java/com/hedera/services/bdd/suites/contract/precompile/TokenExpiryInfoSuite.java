@@ -111,13 +111,25 @@ public class TokenExpiryInfoSuite {
 
     @HapiTest
     @DisplayName("cannot update expiry metadata without authorization")
-    final Stream<DynamicTest> cannotUpdateWithoutAuthorization() {
+    final Stream<DynamicTest> cannotUpdateWithoutAuthorization(
+            @FungibleToken(name = "unauthorizedToken", useAutoRenewAccount = true)
+                    final SpecFungibleToken unauthorizedToken,
+            @Account final SpecAccount unauthorizedAutoRenewAccount) {
+        // Uses unauthorizedToken instead of mutableToken to avoid race condition with the WhenAuthorized
+        // nested class's @BeforeAll which authorizes mutableToken for the contract. Since tests within
+        // a class can run concurrently, using mutableToken here would cause flaky failures when the
+        // nested @BeforeAll runs before this test.
         return hapiTest(
                 // This function takes four arguments---a token address, an expiry second, an auto-renew account
                 // address, and an auto-renew period---and tries to update the token at that address with the given
                 // metadata; when expiry second is zero like here, it is ignored
                 tokenExpiryContract
-                        .call("updateExpiryInfoForToken", mutableToken, 0L, newAutoRenewAccount, MONTH_IN_SECONDS)
+                        .call(
+                                "updateExpiryInfoForToken",
+                                unauthorizedToken,
+                                0L,
+                                unauthorizedAutoRenewAccount,
+                                MONTH_IN_SECONDS)
                         .andAssert(txn -> txn.hasKnownStatuses(CONTRACT_REVERT_EXECUTED, INVALID_SIGNATURE)));
     }
 

@@ -4,7 +4,7 @@ package com.hedera.node.app.fees;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
 import static com.hedera.hapi.node.base.HederaFunctionality.FREEZE;
 import static com.hedera.hapi.node.base.HederaFunctionality.GET_ACCOUNT_DETAILS;
-import static com.hedera.hapi.node.base.HederaFunctionality.LAMBDA_S_STORE;
+import static com.hedera.hapi.node.base.HederaFunctionality.HOOK_STORE;
 import static com.hedera.hapi.node.base.HederaFunctionality.NETWORK_GET_EXECUTION_TIME;
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_GET_ACCOUNT_NFT_INFOS;
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_GET_NFT_INFOS;
@@ -13,6 +13,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.FEE_DIVISOR_FACTOR;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.hapi.fees.FeeScheduleUtils.isValid;
+import static org.hiero.hapi.fees.FeeScheduleUtils.lookupServiceFee;
 
 import com.hedera.hapi.node.base.CurrentAndNextFeeSchedule;
 import com.hedera.hapi.node.base.FeeComponents;
@@ -29,8 +30,7 @@ import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.fees.QueryFeeCalculator;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculator;
-import com.hedera.node.app.spi.fees.SimpleFeeCalculatorImpl;
-import com.hedera.node.app.store.ReadableStoreFactory;
+import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -47,6 +47,8 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.hapi.fees.HighVolumePricingCalculator;
+import org.hiero.hapi.support.fees.ServiceFeeDefinition;
 
 /**
  * Creates {@link FeeCalculator} instances based on the current fee schedule. Whenever the fee schedule is updated,
@@ -89,13 +91,21 @@ public final class FeeManager {
             .servicedata(DEFAULT_FEE_COMPONENTS)
             .build();
 
-    /** The current fee schedule, cached for speed. */
+    /**
+     * The current fee schedule, cached for speed.
+     */
     private Map<Entry, FeeData> currentFeeDataMap = Collections.emptyMap();
-    /** The next fee schedule, cached for speed. */
+    /**
+     * The next fee schedule, cached for speed.
+     */
     private Map<Entry, FeeData> nextFeeDataMap = Collections.emptyMap();
-    /** The expiration time of the "current" fee schedule, in consensus seconds since the epoch, cached for speed. */
+    /**
+     * The expiration time of the "current" fee schedule, in consensus seconds since the epoch, cached for speed.
+     */
     private long currentScheduleExpirationSeconds;
-    /** The exchange rate manager to use for the current rate */
+    /**
+     * The exchange rate manager to use for the current rate
+     */
     private final ExchangeRateManager exchangeRateManager;
 
     private final CongestionMultipliers congestionMultipliers;
@@ -190,11 +200,11 @@ public final class FeeManager {
                     org.hiero.hapi.support.fees.FeeSchedule.PROTOBUF.parse(bytes);
             if (isValid(schedule)) {
                 this.simpleFeesSchedule = schedule;
-                this.simpleFeeCalculator =
-                        new SimpleFeeCalculatorImpl(schedule, serviceFeeCalculators, queryFeeCalculators);
+                this.simpleFeeCalculator = new SimpleFeeCalculatorImpl(
+                        schedule, serviceFeeCalculators, queryFeeCalculators, congestionMultipliers);
                 return SUCCESS;
             } else {
-                logger.warn("Unable to validate fee schedule.");
+                logger.error("Unable to validate simple fee schedule.");
                 return ResponseCodeEnum.FEE_SCHEDULE_FILE_PART_UPLOADED;
             }
         } catch (final BufferUnderflowException | ParseException ex) {
@@ -221,8 +231,8 @@ public final class FeeManager {
             return NoOpFeeCalculator.INSTANCE;
         }
 
-        // LambdaSStore is charged based on the equivalent gas cost in an EVM transaction, so it inherits EthTx prices
-        functionality = functionality == LAMBDA_S_STORE ? CONTRACT_CALL : functionality;
+        // HookStore is charged based on the equivalent gas cost in an EVM transaction, so it inherits EVM prices
+        functionality = functionality == HOOK_STORE ? CONTRACT_CALL : functionality;
 
         // Determine which fee schedule to use, based on the consensus time
         // If it is not known, that is, if we have no fee data for that transaction, then we MUST NOT execute that
@@ -247,8 +257,33 @@ public final class FeeManager {
             @NonNull final TransactionBody body,
             @NonNull final HederaFunctionality functionality,
             @NonNull final ReadableStoreFactory storeFactory) {
-
         return congestionMultipliers.maxCurrentMultiplier(body, functionality, storeFactory);
+    }
+
+    /**
+     * Returns the high volume multiplier for the given transaction and current instantaneous utilization.
+     *
+     * @param transactionBody the transaction body
+     * @param functionality the functionality of the transaction
+     * @param utilizationBasisPoints the current utilization percentage in hundredths of one percent (0 to 10,000)
+     * @return the high volume multiplier
+     */
+    public long highVolumeMultiplierFor(
+            @NonNull final TransactionBody transactionBody,
+            @NonNull final HederaFunctionality functionality,
+            final int utilizationBasisPoints) {
+        if (!transactionBody.highVolume()
+                || !HighVolumePricingCalculator.HIGH_VOLUME_FUNCTIONS.contains(functionality)
+                || simpleFeesSchedule == null) {
+            return HighVolumePricingCalculator.MULTIPLIER_SCALE;
+        }
+        final ServiceFeeDefinition serviceFeeDefinition = lookupServiceFee(simpleFeesSchedule, functionality);
+        if (serviceFeeDefinition == null) {
+            logger.warn("No service fee definition found for {}", functionality);
+            return HighVolumePricingCalculator.MULTIPLIER_SCALE;
+        }
+        return HighVolumePricingCalculator.calculateMultiplier(
+                serviceFeeDefinition.highVolumeRates(), utilizationBasisPoints);
     }
 
     @NonNull
@@ -288,8 +323,10 @@ public final class FeeManager {
         }
         return result;
     }
+
     /**
      * Returns the gas price in tiny cents.
+     *
      * @param consensusTime the consensus time
      * @return the gas price in tiny cents
      */
@@ -301,7 +338,8 @@ public final class FeeManager {
                 / FEE_DIVISOR_FACTOR;
     }
 
-    /** Gets the current exchange rate manager.
+    /**
+     * Gets the current exchange rate manager.
      */
     @NonNull
     public ExchangeRateManager getExchangeRateManager() {
@@ -310,6 +348,7 @@ public final class FeeManager {
 
     /**
      * Used during {@link #update(Bytes)} to populate the fee data map based on the configuration.
+     *
      * @param feeDataMap The map to populate.
      * @param feeSchedule The fee schedule to use.
      */

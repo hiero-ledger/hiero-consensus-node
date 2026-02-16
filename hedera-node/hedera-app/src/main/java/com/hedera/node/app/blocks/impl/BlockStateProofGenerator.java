@@ -6,10 +6,8 @@ import com.hedera.hapi.block.stream.SiblingNode;
 import com.hedera.hapi.block.stream.StateProof;
 import com.hedera.hapi.block.stream.TssSignedBlockProof;
 import com.hedera.hapi.node.base.Timestamp;
-import com.hedera.hapi.node.state.blockstream.MerkleLeaf;
-import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.state.SiblingHash;
+import com.swirlds.state.binary.SiblingHash;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Arrays;
 import java.util.Map;
@@ -29,11 +27,11 @@ public class BlockStateProofGenerator {
     /**
      * The unsigned block sibling count includes the pending/unsigned block's timestamp
      */
-    public static final int UNSIGNED_BLOCK_SIBLING_COUNT = 5;
+    public static final int UNSIGNED_BLOCK_SIBLING_COUNT = BlockStreamManagerImpl.NUM_SIBLINGS_PER_BLOCK + 1;
     /**
      * The signed block sibling count doesn't include the signed block's timestamp
      */
-    public static final int SIGNED_BLOCK_SIBLING_COUNT = 4;
+    public static final int SIGNED_BLOCK_SIBLING_COUNT = BlockStreamManagerImpl.NUM_SIBLINGS_PER_BLOCK;
 
     /**
      * Each block's state proof consists of exactly three Merkle paths: the timestamp of the signed block,
@@ -94,9 +92,7 @@ public class BlockStateProofGenerator {
 
         // Merkle Path 1: construct the block timestamp path
         final var tsBytes = Timestamp.PROTOBUF.toBytes(latestSignedBlockTimestamp);
-        final var tsLeaf =
-                MerkleLeaf.newBuilder().blockConsensusTimestamp(tsBytes).build();
-        final var mp1 = MerklePath.newBuilder().leaf(tsLeaf).nextPathIndex(FINAL_MERKLE_PATH_INDEX);
+        final var mp1 = MerklePath.newBuilder().timestampLeaf(tsBytes).nextPathIndex(FINAL_MERKLE_PATH_INDEX);
 
         // Merkle Path 2: enumerate all sibling hashes for all remaining blocks
         MerklePath.Builder mp2 = MerklePath.newBuilder()
@@ -113,20 +109,20 @@ public class BlockStateProofGenerator {
             // Convert first four sibling hashes
             final var blockSiblings = Arrays.stream(
                             indirectProofBlocks.get(currentBlockNum).siblingHashes())
-                    .map(s -> new SiblingHash(!s.isFirst(), new Hash(s.siblingHash())))
+                    .map(s -> new SiblingHash(s.isFirst(), new Hash(s.siblingHash())))
                     .toList();
             // Copy into the sibling hashes array
             final var firstSiblingIndex = i * UNSIGNED_BLOCK_SIBLING_COUNT;
             for (int j = 0; j < blockSiblings.size(); j++) {
                 final var blockSibling = blockSiblings.get(j);
                 allSiblingHashes[firstSiblingIndex + j] = SiblingNode.newBuilder()
-                        .isLeft(!blockSibling.isRight())
+                        .isLeft(blockSibling.isLeft())
                         .hash(blockSibling.hash().getBytes())
                         .build();
             }
 
             // Convert this pending block's timestamp into a sibling hash
-            final var pbTsBytes = CommonUtils.noThrowSha384HashOf(Timestamp.PROTOBUF.toBytes(
+            final var pbTsBytes = BlockImplUtils.hashLeaf(Timestamp.PROTOBUF.toBytes(
                     indirectProofBlocks.get(currentBlockNum).blockTimestamp()));
             // Add to the sibling hashes array
             final var pendingBlockTimestampSiblingIndex = firstSiblingIndex + UNSIGNED_BLOCK_SIBLING_COUNT - 1;

@@ -1,16 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.merkle.synchronization.views;
 
-import com.swirlds.common.io.streams.MerkleDataInputStream;
-import com.swirlds.common.io.streams.MerkleDataOutputStream;
-import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.synchronization.LearningSynchronizer;
 import com.swirlds.common.merkle.synchronization.stats.ReconnectMapStats;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
-import java.util.Queue;
-import java.util.concurrent.atomic.AtomicReference;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.io.streams.SerializableDataInputStream;
@@ -21,10 +16,8 @@ import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
  * A "view" into a merkle tree (or subtree) used to perform a reconnect operation. This view is used to access
  * the tree by the learner.
  *
- * @param <T>
- * 		the type of an object which signifies a merkle node (T may or may not actually be a MerkleNode type)
  */
-public interface LearnerTreeView<T> extends LearnerExpectedLessonQueue<T>, LearnerInitializer<T>, TreeView<T> {
+public interface LearnerTreeView extends LearnerExpectedLessonQueue, TreeView {
 
     /**
      * For this tree view, start all required reconnect tasks in the given work group. Learning synchronizer
@@ -36,36 +29,18 @@ public interface LearnerTreeView<T> extends LearnerExpectedLessonQueue<T>, Learn
      * @param workGroup the work group to run teaching task(s) in
      * @param inputStream the input stream to read data from teacher
      * @param outputStream the output stream to write data to teacher
-     * @param rootsToReceive if custom tree views are encountered, they must be added to this queue
-     * @param reconstructedRoot the root node of the reconnected tree must be set here
      */
     void startLearnerTasks(
             final LearningSynchronizer learningSynchronizer,
             final StandardWorkGroup workGroup,
-            final MerkleDataInputStream inputStream,
-            final MerkleDataOutputStream outputStream,
-            final Queue<MerkleNode> rootsToReceive,
-            final AtomicReference<T> reconstructedRoot);
+            final SerializableDataInputStream inputStream,
+            final SerializableDataOutputStream outputStream);
 
     /**
      * Aborts the reconnect process on the learner side. It may be used to release resources, when
      * reconnect failed with an exception.
      */
     default void abort() {}
-
-    /**
-     * Check if this view represents the root of the state.
-     *
-     * @return true if this view represents the root of the state
-     */
-    boolean isRootOfState();
-
-    /**
-     * Get the root of the tree (or subtree).
-     *
-     * @return the root
-     */
-    T getOriginalRoot();
 
     /**
      * Set the child of an internal node.
@@ -81,7 +56,7 @@ public interface LearnerTreeView<T> extends LearnerExpectedLessonQueue<T>, Learn
      * @throws MerkleSynchronizationException
      * 		if the parent is not an internal node
      */
-    void setChild(T parent, int childIndex, T child);
+    void setChild(Long parent, int childIndex, Long child);
 
     /**
      * Get the child of a node.
@@ -94,31 +69,21 @@ public interface LearnerTreeView<T> extends LearnerExpectedLessonQueue<T>, Learn
      * @throws MerkleSynchronizationException
      * 		if the parent is a leaf or if the child index is invalid
      */
-    T getChild(T parent, int childIndex);
+    Long getChild(Long parent, int childIndex);
 
     /**
      * Get the hash of a node. If this view represents a tree that has null nodes within it, those nodes should cause
      * this method to return a {@link Cryptography#NULL_HASH null hash}.
      *
-     * @param node
-     * 		the node
+     * @param path
+     * 		the node path
      * @return the hash of the node
      */
-    Hash getNodeHash(T node);
-
-    /**
-     * Convert a merkle node that is the root of a subtree with a custom merkle view
-     * to the type used by this view.
-     *
-     * @param node
-     * 		the root of the tree or the root of a custom view subtree
-     * @return the same nude but with the type used by this view
-     */
-    T convertMerkleRootToViewType(MerkleNode node);
+    Hash getNodeHash(Long path);
 
     /**
      * Read a merkle leaf from the stream (as written by
-     * {@link TeacherTreeView#serializeLeaf(SerializableDataOutputStream, Object)}).
+     * {@link TeacherTreeView#serializeLeaf(SerializableDataOutputStream, Long)}).
      *
      * @param in
      * 		the input stream
@@ -126,11 +91,11 @@ public interface LearnerTreeView<T> extends LearnerExpectedLessonQueue<T>, Learn
      * @throws IOException
      * 		if a problem is encountered with the stream
      */
-    T deserializeLeaf(SerializableDataInputStream in) throws IOException;
+    Long deserializeLeaf(SerializableDataInputStream in) throws IOException;
 
     /**
      * Read a merkle internal from the stream (as written by
-     * {@link TeacherTreeView#serializeInternal(SerializableDataOutputStream, Object)}).
+     * {@link TeacherTreeView#serializeInternal(SerializableDataOutputStream, Long)}).
      *
      * @param in
      * 		the input stream
@@ -138,15 +103,7 @@ public interface LearnerTreeView<T> extends LearnerExpectedLessonQueue<T>, Learn
      * @throws IOException
      * 		if a problem is encountered with the stream
      */
-    T deserializeInternal(SerializableDataInputStream in) throws IOException;
-
-    /**
-     * Release a leaf node.
-     *
-     * @param node
-     * 		the node to release
-     */
-    void releaseNode(T node);
+    Long deserializeInternal(SerializableDataInputStream in) throws IOException;
 
     /**
      * Record metrics related to queries about children of a given parent during reconnect.
@@ -164,7 +121,7 @@ public interface LearnerTreeView<T> extends LearnerExpectedLessonQueue<T>, Learn
      */
     default void recordHashStats(
             @NonNull final ReconnectMapStats mapStats,
-            @NonNull final T parent,
+            @NonNull final Long parent,
             final int childIndex,
             final boolean nodeAlreadyPresent) {
         // no-op

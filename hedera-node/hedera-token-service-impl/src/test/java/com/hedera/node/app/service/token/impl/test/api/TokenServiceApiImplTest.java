@@ -216,7 +216,7 @@ class TokenServiceApiImplTest {
         final var accountId = AccountID.newBuilder().accountNum(12345).build();
         accountStore.put(Account.newBuilder().accountId(accountId).build());
 
-        final var e = assertThrows(HandleException.class, () -> subject.updateLambdaStorageSlots(accountId, 1, true));
+        final var e = assertThrows(HandleException.class, () -> subject.updateHookStorageSlots(accountId, 1, true));
         assertEquals(ResponseCodeEnum.WRONG_HOOK_ENTITY_TYPE, e.getStatus());
     }
 

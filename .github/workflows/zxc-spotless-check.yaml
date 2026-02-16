@@ -25,7 +25,7 @@ on:
         default: "20"
     secrets:
       access-token:
-        description: "The Github access token used to checkout the repository, submodules, and make GitHub API calls."
+        description: "The GitHub access token used to checkout the repository, submodules, and make GitHub API calls."
         required: true
       gradle-cache-username:
         description: "The username used to authenticate with the Gradle Build Cache Node."
@@ -59,7 +59,7 @@ env:
 jobs:
   spotless-check:
     name: "Spotless Check"
-    runs-on: hiero-network-node-linux-medium
+    runs-on: hl-cn-spotless-check-lin
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:

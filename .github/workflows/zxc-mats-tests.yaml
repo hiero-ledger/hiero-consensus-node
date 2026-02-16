@@ -33,6 +33,11 @@ on:
         type: string
         required: false
         default: "false"
+      enable-hapi-tests-crypto:
+        description: "HAPI Testing (Crypto) Enabled"
+        type: string
+        required: false
+        default: "false"
       enable-otter-tests:
         description: "Otter Tests Enabled"
         type: string
@@ -107,13 +112,36 @@ defaults:
     shell: bash
 
 jobs:
+  commit-info:
+    name: Get Commit Info
+    runs-on: hl-cn-default-lin-sm
+    outputs:
+      sha: ${{ steps.commit-info.outputs.sha }}
+    steps:
+      - name: Prepare Runner
+        id: prepare-runner
+        uses: pandaswhocode/initialize-github-job@ffb7446339e8e6007b942312ac95457d1a20b6cf # v1.0.4
+        with:
+          checkout: "true"
+          checkout-ref: "${{ inputs.ref }}"
+          checkout-fetch-depth: "1"
+          checkout-token: "${{ secrets.access-token }}"
+
+      - name: Get Commit Info
+        id: commit-info
+        run: |
+          COMMIT_SHA=$(git rev-parse HEAD)
+          echo "sha=${COMMIT_SHA}" | tee "${GITHUB_OUTPUT}"
+
   build:
     name: "${{ inputs.custom-job-label }} Compile Code"
     uses: ./.github/workflows/zxc-compile-application-code.yaml
+    needs:
+      - commit-info
     with:
       java-version: "21.0.6"
       java-distribution: "temurin"
-      ref: ${{ github.ref }}
+      ref: ${{ needs.commit-info.outputs.sha }}
     secrets:
       access-token: ${{ secrets.access-token }}
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
@@ -124,9 +152,10 @@ jobs:
     if: ${{ inputs.enable-dependency-check == 'true' }}
     uses: ./.github/workflows/zxc-dependency-module-check.yaml
     needs:
+      - commit-info
       - build
     with:
-      ref: ${{ github.ref }}
+      ref: ${{ needs.commit-info.outputs.sha }}
     secrets:
       access-token: ${{ secrets.access-token }}
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
@@ -137,9 +166,10 @@ jobs:
     if: ${{ inputs.enable-spotless-check == 'true' }}
     uses: ./.github/workflows/zxc-spotless-check.yaml
     needs:
+      - commit-info
       - build
     with:
-      ref: ${{ github.ref }}
+      ref: ${{ needs.commit-info.outputs.sha }}
     secrets:
       access-token: ${{ secrets.access-token }}
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
@@ -150,9 +180,10 @@ jobs:
     if: ${{ inputs.enable-unit-tests == 'true' }}
     uses: ./.github/workflows/zxc-execute-unit-tests.yaml
     needs:
+      - commit-info
       - build
     with:
-      ref: ${{ inputs.ref || '' }}
+      ref: ${{ needs.commit-info.outputs.sha || '' }}
       java-version: ${{ inputs.java-version || '21.0.6' }}
       java-distribution: ${{ inputs.java-distribution || 'temurin' }}
     secrets:
@@ -167,9 +198,10 @@ jobs:
     if: ${{ inputs.enable-integration-tests == 'true' }}
     uses: ./.github/workflows/zxc-execute-integration-tests.yaml
     needs:
+      - commit-info
       - build
     with:
-      ref: ${{ inputs.ref || '' }}
+      ref: ${{ needs.commit-info.outputs.sha || '' }}
       java-version: ${{ inputs.java-version || '21.0.6' }}
       java-distribution: ${{ inputs.java-distribution || 'temurin' }}
       enable-network-log-capture: "true"
@@ -183,20 +215,22 @@ jobs:
     if: ${{ inputs.enable-hapi-tests == 'true' }}
     uses: ./.github/workflows/zxc-execute-hapi-tests.yaml
     needs:
+      - commit-info
       - build
     with:
-      ref: ${{ inputs.ref || '' }}
+      ref: ${{ needs.commit-info.outputs.sha || '' }}
       java-version: ${{ inputs.java-version || '21.0.6' }}
       java-distribution: ${{ inputs.java-distribution || 'temurin' }}
       enable-hapi-tests-misc: "${{ inputs.enable-hapi-tests == 'true' }}"
       enable-hapi-tests-misc-records: "${{ inputs.enable-hapi-tests == 'true' }}"
-      enable-hapi-tests-crypto: "${{ inputs.enable-hapi-tests == 'true' }}"
+      enable-hapi-tests-crypto: "${{ inputs.enable-hapi-tests-crypto == 'true' }}"
       enable-hapi-tests-simplefees: "${{ inputs.enable-hapi-tests == 'true' }}"
       enable-hapi-tests-iss: "${{ inputs.enable-hapi-tests == 'true' }}"
       enable-hapi-tests-token: "${{ inputs.enable-hapi-tests == 'true' }}"
       enable-hapi-tests-smart-contract: "${{ inputs.enable-hapi-tests == 'true' }}"
       enable-hapi-tests-restart: "${{ inputs.enable-hapi-tests == 'true' }}"
       enable-hapi-tests-nd-reconnect: "${{ inputs.enable-hapi-tests == 'true' }}"
+      enable-hapi-tests-atomic-batch: "${{ inputs.enable-hapi-tests == 'true' }}"
       enable-network-log-capture: "true"
       mats-suffix: "MATS"
     secrets:
@@ -208,10 +242,11 @@ jobs:
     name: Otter Tests
     if: ${{ inputs.enable-otter-tests == 'true' }}
     needs:
+      - commit-info
       - build
     uses: ./.github/workflows/zxc-execute-otter-tests.yaml
     with:
-      ref: ${{ inputs.ref || '' }}
+      ref: ${{ needs.commit-info.outputs.sha || '' }}
       java-version: ${{ inputs.java-version || '21.0.6' }}
       java-distribution: ${{ inputs.java-distribution || 'temurin' }}
       enable-fast-otter-tests: ${{ inputs.enable-otter-tests == 'true' }}
@@ -225,10 +260,11 @@ jobs:
     name: Snyk Scan
     if: ${{ inputs.enable-snyk-scan == 'true' && !github.event.workflow_call.repository.fork }}
     needs:
+      - commit-info
       - build
     uses: ./.github/workflows/zxc-snyk-scan.yaml
     with:
-      ref: ${{ inputs.ref || '' }}
+      ref: ${{ needs.commit-info.outputs.sha || '' }}
       java-version: ${{ inputs.java-version || '21.0.6' }}
       java-distribution: ${{ inputs.java-distribution || 'temurin' }}
     secrets:
@@ -241,13 +277,15 @@ jobs:
     name: Gradle Determinism
     if: ${{ inputs.enable-gradle-determinism == 'true' && !github.event.workflow_call.repository.fork }}
     needs:
+      - commit-info
       - build
     uses: ./.github/workflows/zxc-verify-gradle-build-determinism.yaml
     with:
-      ref: ${{ inputs.ref || '' }}
+      ref: ${{ needs.commit-info.outputs.sha || '' }}
       java-version: ${{ inputs.java-version || '21.0.6' }}
       java-distribution: ${{ inputs.java-distribution || 'temurin' }}
     secrets:
+      github-token: ${{ secrets.access-token }}
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
       gradle-cache-password: ${{ secrets.gradle-cache-password }}
 
@@ -255,23 +293,26 @@ jobs:
     name: Docker Determinism
     if: ${{ inputs.enable-docker-determinism == 'true' && !github.event.workflow_call.repository.fork }}
     needs:
+      - commit-info
       - build
     uses: ./.github/workflows/zxc-verify-docker-build-determinism.yaml
     with:
-      ref: ${{ inputs.ref || '' }}
+      ref: ${{ needs.commit-info.outputs.sha || '' }}
       java-version: ${{ inputs.java-version || '21.0.6' }}
       java-distribution: ${{ inputs.java-distribution || 'temurin' }}
     secrets:
+      github-token: ${{ secrets.access-token }}
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
       gradle-cache-password: ${{ secrets.gradle-cache-password }}
 
   set-failure-mode:
     name: Set Failure Mode
-    runs-on: hl-cn-citr-lin-sm
+    runs-on: hl-cn-default-lin-sm
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
       failed-tests: ${{ steps.set-failure-mode.outputs.failed-tests }}
     needs:
+      - commit-info
       - build
       - dependency-check
       - spotless
@@ -291,6 +332,7 @@ jobs:
         id: set-failure-mode
         run: |
           job_statuses=(
+            ${{ needs.commit-info.result || 'skipped' }}
             ${{ needs.build.result || 'skipped' }}
             ${{ needs.dependency-check.result || 'skipped' }}
             ${{ needs.spotless.result || 'skipped' }}
@@ -301,6 +343,7 @@ jobs:
             ${{ needs.mats-snyk-scan.result || 'skipped' }}
           )
           job_failure_modes=(
+            ${{ needs.commit-info.outputs.failure-mode || 'none' }}
             ${{ needs.build.outputs.failure-mode || 'none' }}
             ${{ needs.dependency-check.outputs.failure-mode || 'none' }}
             ${{ needs.spotless.outputs.failure-mode || 'none' }}
@@ -311,6 +354,7 @@ jobs:
             ${{ needs.mats-snyk-scan.outputs.failure-mode || 'none' }}
           )
           job_names=(
+            "commit-info"
             "build"
             "dependency-check"
             "spotless"

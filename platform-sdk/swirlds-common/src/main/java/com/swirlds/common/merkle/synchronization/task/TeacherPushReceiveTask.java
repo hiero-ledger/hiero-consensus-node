@@ -14,11 +14,8 @@ import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
 
 /**
  * This class encapsulates all logic for the teacher's receiving task.
- *
- * @param <T>
- * 		the type of data used by the view to represent a node
  */
-public class TeacherPushReceiveTask<T> {
+public class TeacherPushReceiveTask {
 
     private static final Logger logger = LogManager.getLogger(TeacherPushReceiveTask.class);
 
@@ -26,7 +23,7 @@ public class TeacherPushReceiveTask<T> {
 
     private final StandardWorkGroup workGroup;
     private final AsyncInputStream<QueryResponse> in;
-    private final TeacherTreeView<T> view;
+    private final TeacherTreeView view;
     private final AtomicBoolean senderIsFinished;
 
     /**
@@ -44,7 +41,7 @@ public class TeacherPushReceiveTask<T> {
     public TeacherPushReceiveTask(
             final StandardWorkGroup workGroup,
             final AsyncInputStream<QueryResponse> in,
-            final TeacherTreeView<T> view,
+            final TeacherTreeView view,
             final AtomicBoolean senderIsFinished) {
         this.workGroup = workGroup;
         this.in = in;
@@ -64,7 +61,7 @@ public class TeacherPushReceiveTask<T> {
             while (!finished || responseExpected) {
                 if (responseExpected) {
                     final QueryResponse response = in.readAnticipatedMessage();
-                    final T node = view.getNodeForNextResponse();
+                    final long node = view.getNodeForNextResponse();
                     view.registerResponseForNode(node, response.doesLearnerHaveTheNode());
                 } else {
                     MILLISECONDS.sleep(1);

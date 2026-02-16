@@ -1,28 +1,27 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.signed;
 
-import static com.swirlds.common.merkle.utility.MerkleUtils.rehashTree;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
-import static com.swirlds.platform.state.service.PlatformStateUtils.creationSoftwareVersionOf;
-import static com.swirlds.platform.state.signed.ReservedSignedState.createNullReservation;
 import static com.swirlds.platform.state.snapshot.SignedStateFileReader.readState;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.creationSoftwareVersionOf;
+import static org.hiero.consensus.state.signed.ReservedSignedState.createNullReservation;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.util.HapiUtils;
+import com.hedera.pbj.runtime.ParseException;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.io.utility.RecycleBin;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.logging.legacy.payload.SavedStateLoadedPayload;
-import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.internal.SignedStateLoadingException;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.platform.state.snapshot.SavedStateInfo;
 import com.swirlds.platform.state.snapshot.SignedStateFilePath;
-import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.StateLifecycleManager;
+import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -33,7 +32,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.crypto.ConsensusCryptoUtils;
+import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.state.config.StateConfig;
+import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.state.signed.SignedState;
 
 /**
  * Utilities for loading and manipulating state files at startup time.
@@ -65,7 +68,7 @@ public final class StartupStateUtils {
             @NonNull final String swirldName,
             @NonNull final SemanticVersion currentSoftwareVersion,
             @NonNull final PlatformContext platformContext,
-            @NonNull final StateLifecycleManager stateLifecycleManager) {
+            @NonNull final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager) {
 
         final Configuration config = platformContext.getConfiguration();
         final StateConfig stateConfig = config.getConfigData(StateConfig.class);
@@ -98,7 +101,7 @@ public final class StartupStateUtils {
         requireNonNull(platformContext.getConfiguration());
         requireNonNull(initialSignedState);
 
-        final MerkleNodeState stateCopy = initialSignedState.getState().copy();
+        final VirtualMapState stateCopy = initialSignedState.getState().copy();
         final SignedState signedStateCopy = new SignedState(
                 platformContext.getConfiguration(),
                 ConsensusCryptoUtils::verifySignature,
@@ -109,14 +112,7 @@ public final class StartupStateUtils {
                 false);
         signedStateCopy.setSigSet(initialSignedState.getSigSet());
 
-        // FUTURE WORK: To support MerkleStateRoot in the testing apps we still need to use `digestTreeAsync` instead of
-        // just calling `initialSignedState.getState().getRoot().getHash()`. The latter option doesn't work for
-        // `MerkleStateRoot` as it doesn't cause hash recalculation. Once we get rid of `MerkleStateRoot` entirely,
-        // the following statement can be replaced. (see
-        // https://github.com/hiero-ledger/hiero-consensus-node/issues/19307)
-        final Hash hash = platformContext
-                .getMerkleCryptography()
-                .digestTreeSync(initialSignedState.getState().getRoot());
+        final Hash hash = initialSignedState.getState().getHash();
         return new HashedReservedSignedState(signedStateCopy.reserve("Copied initial state"), hash);
     }
 
@@ -153,7 +149,7 @@ public final class StartupStateUtils {
             @NonNull final SemanticVersion currentSoftwareVersion,
             @NonNull final List<SavedStateInfo> savedStateList,
             @NonNull final PlatformContext platformContext,
-            @NonNull final StateLifecycleManager stateLifecycleManager)
+            @NonNull final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager)
             throws SignedStateLoadingException {
 
         logger.info(STARTUP.getMarker(), "Loading latest state from disk.");
@@ -185,7 +181,7 @@ public final class StartupStateUtils {
             @NonNull final SemanticVersion currentSoftwareVersion,
             @NonNull final SavedStateInfo savedStateInfo,
             @NonNull final PlatformContext platformContext,
-            @NonNull final StateLifecycleManager stateLifecycleManager)
+            @NonNull final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager)
             throws SignedStateLoadingException {
 
         logger.info(STARTUP.getMarker(), "Loading signed state from disk: {}", savedStateInfo.stateDirectory());
@@ -195,7 +191,7 @@ public final class StartupStateUtils {
         try {
             deserializedSignedState =
                     readState(savedStateInfo.stateDirectory(), platformContext, stateLifecycleManager);
-        } catch (final IOException | UncheckedIOException e) {
+        } catch (final IOException | UncheckedIOException | ParseException e) {
             logger.error(EXCEPTION.getMarker(), "unable to load state file {}", savedStateInfo.stateDirectory(), e);
 
             final StateConfig stateConfig = configuration.getConfigData(StateConfig.class);
@@ -207,11 +203,11 @@ public final class StartupStateUtils {
             }
         }
 
-        final MerkleNodeState state =
+        final VirtualMapState state =
                 deserializedSignedState.reservedSignedState().get().getState();
 
         final Hash oldHash = deserializedSignedState.originalHash();
-        final Hash newHash = rehashTree(platformContext.getMerkleCryptography(), state.getRoot());
+        final Hash newHash = state.getHash();
 
         final SemanticVersion loadedVersion = creationSoftwareVersionOf(state);
 
@@ -271,12 +267,12 @@ public final class StartupStateUtils {
     public static HashedReservedSignedState loadInitialState(
             @NonNull final RecycleBin recycleBin,
             @NonNull final SemanticVersion softwareVersion,
-            @NonNull final Supplier<MerkleNodeState> stateRootSupplier,
+            @NonNull final Supplier<VirtualMapState> stateRootSupplier,
             @NonNull final String mainClassName,
             @NonNull final String swirldName,
             @NonNull final NodeId selfId,
             @NonNull final PlatformContext platformContext,
-            @NonNull final StateLifecycleManager stateLifecycleManager) {
+            @NonNull final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager) {
         final var loadedState = loadStateFile(
                 recycleBin, selfId, mainClassName, swirldName, softwareVersion, platformContext, stateLifecycleManager);
         try (loadedState) {

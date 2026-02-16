@@ -3,15 +3,8 @@ package com.swirlds.benchmark;
 
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
-import com.swirlds.virtualmap.VirtualValue;
-import java.io.IOException;
-import org.hiero.base.io.streams.SerializableDataInputStream;
-import org.hiero.base.io.streams.SerializableDataOutputStream;
 
 public class BenchmarkRecord extends BenchmarkValue {
-
-    static final long CLASS_ID = 0x1828f37a141L;
-    static final int VERSION = 1;
 
     private long path;
 
@@ -29,27 +22,6 @@ public class BenchmarkRecord extends BenchmarkValue {
         this.path = other.path;
     }
 
-    @Override
-    public long getClassId() {
-        return CLASS_ID;
-    }
-
-    @Override
-    public int getVersion() {
-        return VERSION;
-    }
-
-    @Override
-    public VirtualValue copy() {
-        return new BenchmarkRecord(this);
-    }
-
-    @Override
-    public void serialize(SerializableDataOutputStream outputStream) throws IOException {
-        outputStream.writeLong(path);
-        super.serialize(outputStream);
-    }
-
     public void serialize(final WritableSequentialData out) {
         out.writeLong(path);
         super.serialize(out);
@@ -58,13 +30,6 @@ public class BenchmarkRecord extends BenchmarkValue {
     public void deserialize(final ReadableSequentialData in) {
         path = in.readLong();
         super.deserialize(in);
-    }
-
-    @Override
-    public void deserialize(SerializableDataInputStream inputStream, int dataVersion) throws IOException {
-        assert dataVersion == getVersion() : "dataVersion=" + dataVersion + " != getVersion()=" + getVersion();
-        path = inputStream.readLong();
-        super.deserialize(inputStream, dataVersion);
     }
 
     @Override

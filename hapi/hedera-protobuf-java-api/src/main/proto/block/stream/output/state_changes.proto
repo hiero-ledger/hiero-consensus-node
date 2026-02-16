@@ -25,7 +25,6 @@ option java_multiple_files = true;
 
 import "google/protobuf/wrappers.proto";
 import "services/basic_types.proto";
-import "services/hook_types.proto";
 import "services/exchange_rate.proto";
 import "services/state/addressbook/node.proto";
 import "services/state/blockrecords/block_info.proto";
@@ -470,9 +469,9 @@ enum StateIdentifier {
     STATE_ID_EVM_HOOK_STATES = 51;
 
     /**
-     * A state identifier for lambda storage.
+     * A state identifier for EVM hook storage.
      */
-    STATE_ID_LAMBDA_STORAGE = 52;
+    STATE_ID_EVM_HOOK_STORAGE = 52;
 
     /**
      * A state identifier for account to node relation.
@@ -933,9 +932,9 @@ message MapChangeKey {
         proto.HookId hook_id_key = 23;
 
         /**
-         * A lambda storage slot key.
+         * An EVM hook's storage slot key.
          */
-        com.hedera.hapi.node.state.hooks.LambdaSlotKey lambda_slot_key = 24;
+        com.hedera.hapi.node.state.hooks.EvmHookSlotKey evm_hook_slot_key = 24;
     }
 }
 

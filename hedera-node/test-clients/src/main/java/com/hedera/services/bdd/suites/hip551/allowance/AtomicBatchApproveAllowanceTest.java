@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.hip551.allowance;
 
-import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
+import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountDetailsAsserts.accountDetailsWith;
 import static com.hedera.services.bdd.spec.assertions.AssertUtils.inOrder;
@@ -110,7 +109,7 @@ import org.junit.jupiter.api.Tag;
  * This class tests the behavior of atomic batch operations
  * involving approve allowance.
  */
-@Tag(CRYPTO)
+@Tag(ATOMIC_BATCH)
 @HapiTestLifecycle
 class AtomicBatchApproveAllowanceTest {
     private static final String OWNER = "owner";
@@ -145,7 +144,6 @@ class AtomicBatchApproveAllowanceTest {
      * @return hapi test
      */
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> transferErc20TokenFromContractWithApproval() {
         final var transferFromOtherContractWithSignaturesTxn = "transferFromOtherContractWithSignaturesTxn";
         final var nestedContract = "NestedERC20Contract";
@@ -263,7 +261,6 @@ class AtomicBatchApproveAllowanceTest {
      * @return hapi test
      */
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> cannotPayForAnyTransactionWithContractAccount() {
         final var cryptoAdminKey = "cryptoAdminKey";
         final var contract = "PayableConstructor";
@@ -993,17 +990,17 @@ class AtomicBatchApproveAllowanceTest {
                         .freezeKey(FREEZE_KEY)
                         .pauseKey(PAUSE_KEY)
                         .treasury(TOKEN_TREASURY),
+                tokenAssociate(OWNER, FUNGIBLE_TOKEN),
+                tokenAssociate(OWNER, NON_FUNGIBLE_TOKEN),
+                mintToken(
+                                NON_FUNGIBLE_TOKEN,
+                                List.of(
+                                        ByteString.copyFromUtf8("a"),
+                                        ByteString.copyFromUtf8("b"),
+                                        ByteString.copyFromUtf8("c")))
+                        .via(NFT_TOKEN_MINT_TXN),
+                mintToken(FUNGIBLE_TOKEN, 500L).via(FUNGIBLE_TOKEN_MINT_TXN),
                 atomicBatchDefaultOperator(
-                        tokenAssociate(OWNER, FUNGIBLE_TOKEN),
-                        tokenAssociate(OWNER, NON_FUNGIBLE_TOKEN),
-                        mintToken(
-                                        NON_FUNGIBLE_TOKEN,
-                                        List.of(
-                                                ByteString.copyFromUtf8("a"),
-                                                ByteString.copyFromUtf8("b"),
-                                                ByteString.copyFromUtf8("c")))
-                                .via(NFT_TOKEN_MINT_TXN),
-                        mintToken(FUNGIBLE_TOKEN, 500L).via(FUNGIBLE_TOKEN_MINT_TXN),
                         grantTokenKyc(FUNGIBLE_TOKEN, OWNER),
                         grantTokenKyc(NON_FUNGIBLE_TOKEN, OWNER),
                         cryptoTransfer(
@@ -1479,7 +1476,6 @@ class AtomicBatchApproveAllowanceTest {
      * @return hapi test
      */
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> cannotHaveMultipleAllowedSpendersForTheSameNftSerial() {
         return hapiTest(
                 newKeyNamed(SUPPLY_KEY),

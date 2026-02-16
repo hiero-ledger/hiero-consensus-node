@@ -2,8 +2,8 @@
 package com.swirlds.platform.wiring;
 
 import com.swirlds.component.framework.transformers.AdvancedTransformation;
-import com.swirlds.platform.state.signed.ReservedSignedState;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.consensus.state.signed.ReservedSignedState;
 
 /**
  * Manages reservations of a signed state when it needs to be passed to one or more input wires.

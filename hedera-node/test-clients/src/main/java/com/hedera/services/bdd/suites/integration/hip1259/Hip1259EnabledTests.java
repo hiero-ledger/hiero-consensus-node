@@ -617,10 +617,69 @@ public class Hip1259EnabledTests {
     }
 
     /**
+     * Verifies that when the network is down for multiple days (e.g., 3 days), only ONE fee distribution
+     * is triggered when the network comes back up, not one for each missed day.
+     * <p>
+     * This tests the behavior documented in the code: the system only checks if we're in a "later" period,
+     * not how many periods were skipped. All accumulated fees are distributed in a single transaction.
+     */
+    @Order(16)
+    @RepeatableHapiTest({NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION, NEEDS_STATE_ACCESS})
+    final Stream<DynamicTest> multiDayOutageOnlyTriggersOneDistribution() {
+        final AtomicLong initialFeeCollectionBalance = new AtomicLong(0);
+        final AtomicLong feeCollectionBalanceAfterOutage = new AtomicLong(0);
+        final AtomicReference<Instant> startConsensusTime = new AtomicReference<>();
+
+        return hapiTest(
+                cryptoTransfer(TokenMovement.movingHbar(ONE_MILLION_HBARS).between(GENESIS, NODE_REWARD)),
+                doingContextual(spec -> startConsensusTime.set(spec.consensusTime())),
+                // Validate that exactly ONE fee distribution happens after the multi-day outage
+                recordStreamMustIncludePassWithoutBackgroundTrafficFrom(
+                        selectedItems(
+                                feeDistributionValidator(1, List.of(3L, 800L, 801L, 98L)),
+                                1, // Expect exactly 1 fee distribution, not 3 (one per day)
+                                (spec, item) -> hasFeeDistribution(item, startConsensusTime)),
+                        Duration.ofSeconds(1)),
+                cryptoCreate(CIVILIAN_PAYER).balance(ONE_MILLION_HBARS),
+                waitUntilStartOfNextStakingPeriod(1),
+                cryptoTransfer(TokenMovement.movingHbar(ONE_HBAR).between(GENESIS, NODE_REWARD)),
+                // Generate some fees before the "outage"
+                fileCreate("testFile1")
+                        .contents("Test content before outage")
+                        .payingWith(CIVILIAN_PAYER)
+                        .via("feeTxn1"),
+                validateRecordContains("feeTxn1", FEE_COLLECTOR_ACCOUNT),
+                sleepForBlockPeriod(),
+                cryptoTransfer(TokenMovement.movingHbar(ONE_HBAR).between(GENESIS, NODE_REWARD)),
+                // Record fee collection balance before the "outage"
+                getAccountBalance(FEE_COLLECTOR).exposingBalanceTo(initialFeeCollectionBalance::set),
+                // Simulate a 3-day network outage by advancing virtual time
+                waitUntilStartOfNextStakingPeriod(1),
+                waitUntilStartOfNextStakingPeriod(1),
+                waitUntilStartOfNextStakingPeriod(1),
+                // Network comes back up - first transaction after outage
+                // This should trigger exactly ONE fee distribution, not three
+                cryptoCreate("afterOutage").payingWith(GENESIS),
+                doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted),
+                // Verify fee collection account was drained (fees were distributed)
+                getAccountBalance(FEE_COLLECTOR)
+                        .exposingBalanceTo(feeCollectionBalanceAfterOutage::set)
+                        .logged(),
+                doingContextual(spec -> {
+                    // Fee collection account should have been drained by the distribution
+                    assertTrue(
+                            feeCollectionBalanceAfterOutage.get() < initialFeeCollectionBalance.get(),
+                            "Fee collection account should have been drained after distribution. "
+                                    + "Before: " + initialFeeCollectionBalance.get()
+                                    + ", After: " + feeCollectionBalanceAfterOutage.get());
+                }));
+    }
+
+    /**
      * Verifies that fees accumulate correctly across multiple transactions within the same staking period.
      * Per HIP-1259: "Add the node fee to the corresponding entry in the NodePayments map"
      */
-    @Order(16)
+    @Order(17)
     @RepeatableHapiTest({NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION, NEEDS_STATE_ACCESS})
     final Stream<DynamicTest> feesAccumulateAcrossMultipleTransactions() {
         final AtomicLong initialFeeCollectionBalance = new AtomicLong(0);

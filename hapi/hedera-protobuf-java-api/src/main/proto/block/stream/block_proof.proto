@@ -18,9 +18,9 @@ option java_package = "com.hedera.hapi.block.stream.protoc";
 // <<<pbj.java_package = "com.hedera.hapi.block.stream">>> This comment is special code for setting PBJ Compiler java package
 option java_multiple_files = true;
 
-import "block/stream/record_file_item.proto";
-import "block/stream/chain_of_trust_proof.proto";
+import "block/stream/signed_record_file_proof.proto";
 import "block/stream/state_proof.proto";
+import "block/stream/tss_signed_block_proof.proto";
 
 /**
  * A cryptographic proof for the "Block Merkle Tree".
@@ -110,18 +110,6 @@ message BlockProof {
     uint64 block = 1;
 
     /**
-     * The hinTS key that this signature verifies under; a stream consumer should
-     * only use this key after first checking the chain of trust proof.
-     */
-    bytes verification_key = 2;
-
-    /**
-     * Proof the hinTS verification key is in the chain of trust extending
-     * from the network's ledger id.
-     */
-    ChainOfTrustProof verification_key_proof = 3;
-
-    /**
      * The proof contents verifying the block's merkle root hash.<br/>
      * This is a `oneof` field that MAY contain one several types of
      * proofs.
@@ -135,7 +123,7 @@ message BlockProof {
          * used when the current block is signed directly by the consensus
          * nodes with a TSS signature; otherwise it MUST be empty.
          */
-        TssSignedBlockProof signed_block_proof = 4;
+        TssSignedBlockProof signed_block_proof = 2;
 
         /**
          * A proof of the block merkle tree's contents. This proof SHALL
@@ -170,7 +158,7 @@ message BlockProof {
          * "secondary" root hash MUST then be verified using the value of
          * `block_signature`.
          */
-        StateProof block_state_proof = 5;
+        StateProof block_state_proof = 3;
 
         /**
          * A proof consisting of RSA signatures from consensus nodes.<br/>
@@ -180,38 +168,6 @@ message BlockProof {
          * individual RSA signatures from consensus nodes; otherwise it MUST be
          * empty.
          */
-        SignedRecordFileProof signed_record_file_proof = 6;
+        SignedRecordFileProof signed_record_file_proof = 4;
     }
-}
-
-/**
- * A hash of a "sibling" to an entry in a Merkle tree.
- *
- * When constructing a binary merkle tree, each internal node is a hash
- * constructed from the hash of two "descendant" nodes. Those two nodes
- * are "siblings" and the order (first, second) in which the two hash values
- * are combined affects the parent hash.<br/>
- * This may be used to reconstruct a portion of a merkle tree starting from
- * a node of interest up to the root of the tree.
- */
-message MerkleSiblingHash {
-    /**
-     * A flag for the position of this sibling.
-     * <p>
-     * If this is set then this sibling MUST be the first hash in the pair of
-     * sibling hashes of a binary merkle tree.<br/>
-     * If this is unset, then this sibling MUST be the second hash in the pair
-     * of sibling hashes of a binary merkle tree.
-     */
-    bool is_first = 1;
-
-    /**
-     * A byte array of a sibling hash.<br/>
-     * This is the hash for the sibling at this point in the merkle tree.
-     * <p>
-     * The algorithm for this hash SHALL match the algorithm for the block that
-     * contains this sibling.<br/>
-     * This SHALL contain the raw (e.g.) 384 bits (48 bytes) of the hash value.
-     */
-    bytes sibling_hash = 2;
 }

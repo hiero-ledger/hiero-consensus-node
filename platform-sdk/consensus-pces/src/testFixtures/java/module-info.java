@@ -1,7 +1,0 @@
-// SPDX-License-Identifier: Apache-2.0
-module org.hiero.consensus.pces.test.fixtures {
-    requires transitive org.hiero.consensus.pces;
-    requires org.hiero.base.utility;
-
-    exports org.hiero.consensus.pces.test.fixtures;
-}

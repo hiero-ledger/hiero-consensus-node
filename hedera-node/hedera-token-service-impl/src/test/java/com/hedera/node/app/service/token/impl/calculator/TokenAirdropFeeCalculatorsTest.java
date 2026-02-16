@@ -7,6 +7,7 @@ import static org.hiero.hapi.fees.FeeScheduleUtils.makeExtraIncluded;
 import static org.hiero.hapi.fees.FeeScheduleUtils.makeService;
 import static org.hiero.hapi.fees.FeeScheduleUtils.makeServiceFee;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.AccountAmount;
@@ -20,9 +21,12 @@ import com.hedera.hapi.node.token.TokenAirdropTransactionBody;
 import com.hedera.hapi.node.token.TokenCancelAirdropTransactionBody;
 import com.hedera.hapi.node.token.TokenClaimAirdropTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.fees.SimpleFeeCalculatorImpl;
+import com.hedera.node.app.fees.SimpleFeeContextImpl;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.SimpleFeeCalculatorImpl;
+import com.hedera.node.config.data.TokensConfig;
+import com.swirlds.config.api.Configuration;
 import java.util.List;
 import java.util.Set;
 import org.hiero.hapi.support.fees.Extra;
@@ -57,11 +61,17 @@ class TokenAirdropFeeCalculatorsTest {
                         new TokenAirdropFeeCalculator(),
                         new TokenClaimAirdropFeeCalculator(),
                         new TokenCancelAirdropFeeCalculator()));
+        when(feeContext.functionality()).thenReturn(HederaFunctionality.TOKEN_AIRDROP);
     }
 
     @Test
     @DisplayName("TokenAirdropFeeCalculator calculates correct fees")
     void tokenAirdropFeeCalculatorCalculatesCorrectFees() {
+        final var configMock = mock(Configuration.class);
+        final var tokenConfigMock = mock(TokensConfig.class);
+        when(tokenConfigMock.airdropsEnabled()).thenReturn(true);
+        when(configMock.getConfigData(TokensConfig.class)).thenReturn(tokenConfigMock);
+        when(feeContext.configuration()).thenReturn(configMock);
         lenient().when(feeContext.readableStore(ReadableTokenStore.class)).thenReturn(tokenStore);
         final var token = Token.newBuilder()
                 .tokenId(TOKEN_ID)
@@ -91,12 +101,12 @@ class TokenAirdropFeeCalculatorsTest {
                         .build())
                 .build();
 
-        final var result = feeCalculator.calculateTxFee(body, feeContext);
+        final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(feeContext, null));
 
         assertThat(result).isNotNull();
-        assertThat(result.node).isEqualTo(1000L);
-        assertThat(result.service).isEqualTo(9000100L);
-        assertThat(result.network).isEqualTo(2000L);
+        assertThat(result.getNodeTotalTinycents()).isEqualTo(1000L);
+        assertThat(result.getServiceTotalTinycents()).isEqualTo(9000100L);
+        assertThat(result.getNetworkTotalTinycents()).isEqualTo(2000L);
     }
 
     @Test
@@ -110,17 +120,22 @@ class TokenAirdropFeeCalculatorsTest {
                         TokenCancelAirdropTransactionBody.newBuilder().build())
                 .build();
 
-        final var result = feeCalculator.calculateTxFee(body, feeContext);
+        final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(feeContext, null));
 
         assertThat(result).isNotNull();
-        assertThat(result.node).isEqualTo(1000L);
-        assertThat(result.service).isEqualTo(199000000L);
-        assertThat(result.network).isEqualTo(2000L);
+        assertThat(result.getNodeTotalTinycents()).isEqualTo(1000L);
+        assertThat(result.getServiceTotalTinycents()).isEqualTo(199000000L);
+        assertThat(result.getNetworkTotalTinycents()).isEqualTo(2000L);
     }
 
     @Test
     @DisplayName("TokenClaimAirdropFeeCalculator calculates correct fees")
     void tokenClaimAirdropFeeCalculatorCalculatesCorrectFees() {
+        final var configMock = mock(Configuration.class);
+        final var tokenConfigMock = mock(TokensConfig.class);
+        when(tokenConfigMock.airdropsClaimEnabled()).thenReturn(true);
+        when(configMock.getConfigData(TokensConfig.class)).thenReturn(tokenConfigMock);
+        when(feeContext.configuration()).thenReturn(configMock);
         lenient().when(feeContext.readableStore(ReadableTokenStore.class)).thenReturn(tokenStore);
         lenient().when(feeContext.numTxnSignatures()).thenReturn(1);
 
@@ -128,12 +143,12 @@ class TokenAirdropFeeCalculatorsTest {
                 .tokenClaimAirdrop(TokenClaimAirdropTransactionBody.newBuilder().build())
                 .build();
 
-        final var result = feeCalculator.calculateTxFee(body, feeContext);
+        final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(feeContext, null));
 
         assertThat(result).isNotNull();
-        assertThat(result.node).isEqualTo(1000L);
-        assertThat(result.service).isEqualTo(299000000L);
-        assertThat(result.network).isEqualTo(2000L);
+        assertThat(result.getNodeTotalTinycents()).isEqualTo(1000L);
+        assertThat(result.getServiceTotalTinycents()).isEqualTo(299000000L);
+        assertThat(result.getNetworkTotalTinycents()).isEqualTo(2000L);
     }
 
     private static FeeSchedule createTestFeeSchedule() {
@@ -144,8 +159,7 @@ class TokenAirdropFeeCalculatorsTest {
                 .extras(
                         makeExtraDef(Extra.SIGNATURES, 1000000L),
                         makeExtraDef(Extra.KEYS, 100000000L),
-                        makeExtraDef(Extra.FUNGIBLE_TOKENS, 1000000L),
-                        makeExtraDef(Extra.NON_FUNGIBLE_TOKENS, 1000000L),
+                        makeExtraDef(Extra.TOKEN_TYPES, 1000000L),
                         makeExtraDef(Extra.TOKEN_TRANSFER_BASE, 9000000L),
                         makeExtraDef(Extra.AIRDROPS, 5000000L))
                 .services(makeService(
@@ -156,8 +170,7 @@ class TokenAirdropFeeCalculatorsTest {
                                 HederaFunctionality.CRYPTO_TRANSFER,
                                 100L,
                                 makeExtraIncluded(Extra.TOKEN_TRANSFER_BASE, 0),
-                                makeExtraIncluded(Extra.FUNGIBLE_TOKENS, 1),
-                                makeExtraIncluded(Extra.NON_FUNGIBLE_TOKENS, 1))))
+                                makeExtraIncluded(Extra.TOKEN_TYPES, 1))))
                 .build();
     }
 }

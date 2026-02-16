@@ -30,6 +30,7 @@ import org.hiero.block.api.BlockItemSet;
 import org.hiero.block.api.PublishStreamRequest;
 import org.hiero.block.api.PublishStreamRequest.EndStream;
 import org.hiero.block.api.PublishStreamResponse;
+import org.hiero.block.api.PublishStreamResponse.BehindPublisher;
 import org.hiero.block.api.PublishStreamResponse.BlockAcknowledgement;
 import org.hiero.block.api.PublishStreamResponse.EndOfStream;
 import org.hiero.block.api.PublishStreamResponse.ResendBlock;
@@ -64,6 +65,15 @@ public abstract class BlockNodeCommunicationTestBase {
                 .status(responseCode)
                 .build();
         return PublishStreamResponse.newBuilder().endStream(eos).build();
+    }
+
+    @NonNull
+    protected static PublishStreamResponse createBlockNodeBehindResponse(final long lastVerifiedBlock) {
+        final BehindPublisher nodeBehind =
+                BehindPublisher.newBuilder().blockNumber(lastVerifiedBlock).build();
+        return PublishStreamResponse.newBuilder()
+                .nodeBehindPublisher(nodeBehind)
+                .build();
     }
 
     @NonNull

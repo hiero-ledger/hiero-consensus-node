@@ -24,7 +24,7 @@ on:
         default: "20"
     secrets:
       access-token:
-        description: "The Github access token used to checkout the repository, submodules, and make GitHub API calls."
+        description: "The GitHub access token used to checkout the repository, submodules, and make GitHub API calls."
         required: true
       gradle-cache-username:
         description: "The username used to authenticate with the Gradle Build Cache Node."
@@ -58,7 +58,7 @@ env:
 jobs:
   dependency-module-check:
     name: "Dependency Module Check"
-    runs-on: hiero-network-node-linux-medium
+    runs-on: hl-cn-default-lin-md
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
@@ -80,7 +80,7 @@ jobs:
 
       - name: Gradle Dependency Scopes Check
         id: check-dependency-scopes
-        run: ${GRADLE_EXEC} checkAllModuleInfo validatePomFiles
+        run: ${GRADLE_EXEC} checkAllModuleInfo checkVersionConsistency validatePomFiles
 
       - name: Set Failure Mode Output
         id: set-failure-mode

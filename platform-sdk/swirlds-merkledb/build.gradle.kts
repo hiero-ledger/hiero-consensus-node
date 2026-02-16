@@ -23,10 +23,10 @@ jmhModuleInfo {
 }
 
 testModuleInfo {
-    requires("com.google.common")
     requires("com.swirlds.common.test.fixtures")
     requires("com.swirlds.config.extensions.test.fixtures")
     requires("com.swirlds.merkledb.test.fixtures")
+    requires("com.swirlds.virtualmap.test.fixtures")
     requires("org.apache.commons.lang3")
     requires("org.apache.logging.log4j.core")
     requires("org.hiero.base.utility.test.fixtures")

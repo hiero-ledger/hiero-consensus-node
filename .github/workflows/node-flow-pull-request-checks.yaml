@@ -35,6 +35,7 @@ jobs:
       enable-unit-tests: "true"
       enable-integration-tests: "true"
       enable-hapi-tests: "true"
+      enable-hapi-tests-crypto: "true"
       enable-otter-tests: "true"
       enable-gradle-determinism: "true"
       enable-docker-determinism: "true"
@@ -51,7 +52,7 @@ jobs:
 
   report-summary:
     name: Report PR Check Summary
-    runs-on: hiero-network-node-linux-medium
+    runs-on: hl-cn-default-lin-sm
     needs:
       - mats-pr-checks
     if: ${{ !cancelled() && always() }}

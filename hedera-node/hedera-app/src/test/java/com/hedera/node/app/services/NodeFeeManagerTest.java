@@ -1133,4 +1133,79 @@ class NodeFeeManagerTest {
         lenient().when(state.getWritableStates(EntityIdService.NAME)).thenReturn(writableStates);
         lenient().when(state.getReadableStates(EntityIdService.NAME)).thenReturn(readableStates);
     }
+
+    /**
+     * Tests that when the network is down for multiple days, only ONE fee distribution
+     * is triggered when the network comes back up, not one for each missed day.
+     * <p>
+     * This is the current expected behavior - the system only checks if we're in a "later" period,
+     * not how many periods were skipped.
+     */
+    @Test
+    void testDistributeFeesAfterMultiDayOutageOnlyDistributesOnce() {
+        // Simulate a 3-day outage: last distribution was 3 days ago
+        // With 1-minute staking periods for testing, 3 days = 3 * 24 * 60 = 4320 minutes = 4320 periods
+        final var threeDaysAgo = NOW.minusSeconds(3 * 24 * 60 * 60);
+        final var nodePayments = NodePayments.newBuilder()
+                .lastNodeFeeDistributionTime(asTimestamp(threeDaysAgo))
+                .payments(List.of(NodePayment.newBuilder()
+                        .nodeAccountId(NODE_ACCOUNT_ID_3)
+                        .fees(300L) // Accumulated over 3 days
+                        .build()))
+                .build();
+        givenSetupForDistribution(nodePayments, 1000L);
+
+        // First call - should distribute
+        final var result1 = subject.distributeFees(state, NOW, systemTransactions);
+        assertTrue(result1, "First distribution after multi-day outage should succeed");
+
+        // Verify distribution happened exactly once
+        verify(systemTransactions, times(1)).dispatchNodePayments(eq(state), eq(NOW), any());
+
+        // The lastNodeFeeDistributionTime should now be updated to NOW
+        // So a second call in the same period should NOT distribute again
+        final var result2 = subject.distributeFees(state, NOW, systemTransactions);
+        assertFalse(result2, "Second distribution in same period should not happen");
+
+        // Still only one dispatch
+        verify(systemTransactions, times(1)).dispatchNodePayments(any(), any(), any());
+    }
+
+    /**
+     * Tests that fees accumulated during a multi-day outage are distributed in a single transaction,
+     * not split across multiple days' worth of distributions.
+     */
+    @Test
+    void testMultiDayOutageFeesDistributedInSingleTransaction() {
+        // Last distribution was 3 days ago
+        final var threeDaysAgo = NOW.minusSeconds(3 * 24 * 60 * 60);
+        final var nodePayments = NodePayments.newBuilder()
+                .lastNodeFeeDistributionTime(asTimestamp(threeDaysAgo))
+                .payments(List.of(NodePayment.newBuilder()
+                        .nodeAccountId(NODE_ACCOUNT_ID_3)
+                        .fees(300L) // All fees accumulated during outage
+                        .build()))
+                .build();
+        givenSetupForDistribution(nodePayments, 1300L); // 300 node fees + 1000 network fees
+
+        // Load the payments from state into memory (simulates what happens at block start)
+        subject.onOpenBlock(state);
+
+        final var result = subject.distributeFees(state, NOW, systemTransactions);
+
+        assertTrue(result);
+        final var transferCaptor = ArgumentCaptor.forClass(TransferList.class);
+        verify(systemTransactions).dispatchNodePayments(eq(state), eq(NOW), transferCaptor.capture());
+
+        final var transfers = transferCaptor.getValue();
+        assertNotNull(transfers);
+
+        // Verify node 3 receives all 300 in one transaction
+        final var node3Transfer = transfers.accountAmounts().stream()
+                .filter(aa -> aa.accountID().accountNum() == 3L)
+                .findFirst()
+                .orElse(null);
+        assertNotNull(node3Transfer);
+        assertEquals(300L, node3Transfer.amount(), "All accumulated fees should be distributed in one transaction");
+    }
 }

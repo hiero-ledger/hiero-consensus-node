@@ -25,7 +25,7 @@ on:
         default: "20"
     secrets:
       access-token:
-        description: "The Github access token used to checkout the repository, submodules, and make GitHub API calls."
+        description: "The GitHub access token used to checkout the repository, submodules, and make GitHub API calls."
         required: true
       gradle-cache-username:
         description: "The username used to authenticate with the Gradle Build Cache Node."
@@ -62,7 +62,7 @@ env:
 jobs:
   snyk-checks:
     name: "Snyk Checks"
-    runs-on: hiero-network-node-linux-medium
+    runs-on: hl-cn-snyk-check-lin
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
@@ -84,26 +84,31 @@ jobs:
 
       - name: Setup Snyk
         id: setup-snyk
+        if: ${{ github.event.repository.private == false }}
         run: ${CG_EXEC} npm install -g snyk snyk-to-html @wcj/html-to-markdown-cli
 
       - name: Snyk Version
         id: snyk-version
+        if: ${{ github.event.repository.private == false }}
         run: snyk --version
 
       - name: Snyk Scan
         id: snyk-scan
+        if: ${{ github.event.repository.private == false }}
         env:
           SNYK_TOKEN: ${{ secrets.snyk-token }}
         run: ${CG_EXEC} snyk test --subProject=aggregation --configuration-matching=mainRuntimeClasspath --severity-threshold=high --policy-path=.snyk --json-file-output=snyk-test.json --org=hiero-consensus-node
 
       - name: Snyk Code
         id: snyk-code
+        if: ${{ github.event.repository.private == false }}
         env:
           SNYK_TOKEN: ${{ secrets.snyk-token }}
         run: ${CG_EXEC} snyk code test --severity-threshold=high --json-file-output=snyk-code.json --org=hiero-consensus-node
 
       - name: Publish Snyk Results
         id: publish-snyk-report
+        if: ${{ github.event.repository.private == false }}
         run: |
           if [[ -f "snyk-test.json" && -n "$(cat snyk-test.json | tr -d '[:space:]')" ]]; then
             snyk-to-html -i snyk-test.json -o snyk-test.html --summary
@@ -119,7 +124,7 @@ jobs:
 
       - name: Check Snyk Files
         id: check-snyk-files
-        if: ${{ always() }}
+        if: ${{ github.event.repository.private == false && always() }}
         run: |
           echo "::group::Snyk File List"
             ls -lah snyk* || true
@@ -151,7 +156,7 @@ jobs:
           failure_mode="none"
 
           has_failure() {
-            local arr=("@")
+            local arr=("$@")
             for status in "${arr[@]}"; do
               [[ "${status}" == "failure" ]] && return 0
             done

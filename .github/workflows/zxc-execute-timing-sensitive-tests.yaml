@@ -25,7 +25,7 @@ on:
         default: "20"
     secrets:
       access-token:
-        description: "The Github access token used to checkout the repository, submodules, and make GitHub API calls."
+        description: "The GitHub access token used to checkout the repository, submodules, and make GitHub API calls."
         required: true
       gradle-cache-username:
         description: "The username used to authenticate with the Gradle Build Cache Node."
@@ -59,7 +59,7 @@ env:
 jobs:
   execute-timing-sensitive-tests:
     name: "Timing Sensitive Tests"
-    runs-on: hiero-cn-timing-sensitive-linux
+    runs-on: hl-cn-timing-sensitive-lin
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
@@ -116,7 +116,7 @@ jobs:
           failure_mode="none"
 
           has_failure() {
-            local arr=("@")
+            local arr=("$@")
             for status in "${arr[@]}"; do
               [[ "${status}" == "failure" ]] && return 0
             done

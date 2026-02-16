@@ -171,7 +171,6 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
             }
         }
         validateTruePreCheck(key != null, KEY_NOT_PROVIDED);
-        // since pure evm hooks are being removed, just added validations for lambda evm hooks for now
         validateHookDuplicates(op.hookCreationDetails());
     }
 
@@ -466,7 +465,7 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
         if (!op.hookCreationDetails().isEmpty()) {
             builder.firstHookId(op.hookCreationDetails().getFirst().hookId());
             builder.numberHooksInUse(op.hookCreationDetails().size());
-            builder.numberLambdaStorageSlots(updatedSlots);
+            builder.numberEvmHookStorageSlots(updatedSlots);
         }
 
         // We do this separately because we want to let the protobuf object remain UNSET for the staked ID if neither

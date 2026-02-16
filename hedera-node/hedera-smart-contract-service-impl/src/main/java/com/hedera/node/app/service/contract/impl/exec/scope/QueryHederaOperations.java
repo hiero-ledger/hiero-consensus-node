@@ -191,7 +191,7 @@ public class QueryHederaOperations implements HederaOperations {
     }
 
     @Override
-    public void updateLambdaStorageSlots(@NonNull final AccountID accountId, final int netChangeInSlotsUsed) {
+    public void updateHookStorageSlots(@NonNull final AccountID accountId, final int netChangeInSlotsUsed) {
         throw new UnsupportedOperationException("Queries cannot update storage slots");
     }
 

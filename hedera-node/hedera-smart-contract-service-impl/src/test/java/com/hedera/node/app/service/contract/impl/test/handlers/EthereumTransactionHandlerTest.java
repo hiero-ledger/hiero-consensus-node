@@ -2,8 +2,15 @@
 package com.hedera.node.app.service.contract.impl.test.handlers;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.ETHEREUM_TRANSACTION;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.*;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.*;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CALLED_CONTRACT_ID;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_CONFIG;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.ETH_DATA_WITHOUT_TO_ADDRESS;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.ETH_DATA_WITH_TO_ADDRESS;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.HEVM_CREATION;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.RECEIVER_ADDRESS;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SENDER_ID;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SIGNER_NONCE;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SUCCESS_RESULT_WITH_SIGNER_NONCE;
 import static com.hedera.node.app.service.contract.impl.test.handlers.ContractCallHandlerTest.INTRINSIC_GAS_FOR_0_ARG_METHOD;
 import static com.hedera.node.app.spi.fixtures.Assertions.assertThrowsPreCheck;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.EMPTY_METADATA;
@@ -17,6 +24,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.contract.EthereumTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
@@ -348,7 +356,7 @@ class EthereumTransactionHandlerTest {
                 .willReturn(HydratedEthTxData.successFrom(ETH_DATA_WITH_TO_ADDRESS, false));
         given(ethereumSignatures.computeIfAbsent(ETH_DATA_WITH_TO_ADDRESS))
                 .willThrow(new IllegalStateException("Oops"));
-        assertThrowsPreCheck(() -> subject.preHandle(preHandleContext), INVALID_ETHEREUM_TRANSACTION);
+        assertThrowsPreCheck(() -> subject.preHandle(preHandleContext), ResponseCodeEnum.INVALID_ETHEREUM_TRANSACTION);
     }
 
     @Test
@@ -361,8 +369,8 @@ class EthereumTransactionHandlerTest {
         given(preHandleContext.createStore(ReadableFileStore.class)).willReturn(fileStore);
         given(preHandleContext.configuration()).willReturn(DEFAULT_CONFIG);
         given(callDataHydration.tryToHydrate(ethTxn, fileStore, 1001L))
-                .willReturn(HydratedEthTxData.failureFrom(INVALID_ETHEREUM_TRANSACTION));
-        assertThrowsPreCheck(() -> subject.preHandle(preHandleContext), INVALID_ETHEREUM_TRANSACTION);
+                .willReturn(HydratedEthTxData.failureFrom(ResponseCodeEnum.INVALID_ETHEREUM_TRANSACTION));
+        assertThrowsPreCheck(() -> subject.preHandle(preHandleContext), ResponseCodeEnum.INVALID_ETHEREUM_TRANSACTION);
         verifyNoInteractions(ethereumSignatures);
     }
 
@@ -423,7 +431,7 @@ class EthereumTransactionHandlerTest {
         assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
         PreCheckException exception =
                 assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
-        assertEquals(INVALID_ETHEREUM_TRANSACTION, exception.responseCode());
+        assertEquals(ResponseCodeEnum.INVALID_ETHEREUM_TRANSACTION, exception.responseCode());
     }
 
     @Test
@@ -436,7 +444,7 @@ class EthereumTransactionHandlerTest {
             given(ethTxDataReturned.to()).willReturn(new byte[20]);
             PreCheckException exception =
                     assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
-            assertEquals(INVALID_SOLIDITY_ADDRESS, exception.responseCode());
+            assertEquals(ResponseCodeEnum.INVALID_SOLIDITY_ADDRESS, exception.responseCode());
         }
     }
 
@@ -452,7 +460,7 @@ class EthereumTransactionHandlerTest {
             given(ethTxDataReturned.to()).willReturn(toAddress);
             PreCheckException exception =
                     assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
-            assertEquals(INVALID_CONTRACT_ID, exception.responseCode());
+            assertEquals(ResponseCodeEnum.INVALID_CONTRACT_ID, exception.responseCode());
         }
     }
 
@@ -470,7 +478,7 @@ class EthereumTransactionHandlerTest {
                     .willReturn(INTRINSIC_GAS_FOR_0_ARG_METHOD);
             PreCheckException exception =
                     assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
-            assertEquals(INSUFFICIENT_GAS, exception.responseCode());
+            assertEquals(ResponseCodeEnum.INSUFFICIENT_GAS, exception.responseCode());
         }
     }
 
@@ -486,7 +494,7 @@ class EthereumTransactionHandlerTest {
                     .willReturn(INTRINSIC_GAS_FOR_0_ARG_METHOD);
             PreCheckException exception =
                     assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
-            assertEquals(INSUFFICIENT_GAS, exception.responseCode());
+            assertEquals(ResponseCodeEnum.INSUFFICIENT_GAS, exception.responseCode());
         }
     }
 

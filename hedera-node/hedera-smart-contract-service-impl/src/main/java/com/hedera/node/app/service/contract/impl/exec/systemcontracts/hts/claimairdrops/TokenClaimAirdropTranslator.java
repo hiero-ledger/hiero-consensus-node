@@ -13,6 +13,7 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Cal
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.DispatchForResponseCodeHtsCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transfer.TransferEventLoggingUtils;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod.CallVia;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod.Category;
@@ -71,7 +72,8 @@ public class TokenClaimAirdropTranslator extends AbstractCallTranslator<HtsCallA
         return new DispatchForResponseCodeHtsCall(
                 attempt,
                 attempt.isSelector(CLAIM_AIRDROPS) ? bodyForClassic(attempt) : bodyForHRC(attempt),
-                TokenClaimAirdropTranslator::gasRequirement);
+                TokenClaimAirdropTranslator::gasRequirement,
+                TransferEventLoggingUtils::emitErcLogEventsFor);
     }
 
     public static long gasRequirement(
