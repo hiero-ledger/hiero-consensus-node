@@ -45,7 +45,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.state.State;
-import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.state.merkle.VirtualMapStateImpl;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.test.fixtures.FunctionReadableSingletonState;
 import com.swirlds.state.test.fixtures.MapReadableStates;
@@ -478,7 +478,7 @@ final class BlockRecordManagerTest extends AppTestBase {
 
     private static State simpleBlockInfoState(final BlockInfo blockInfo) {
         final var virtualMap = VirtualMapUtils.createVirtualMap();
-        return new VirtualMapState(virtualMap, new NoOpMetrics()) {
+        return new VirtualMapStateImpl(virtualMap, new NoOpMetrics()) {
             @NonNull
             @Override
             public ReadableStates getReadableStates(@NonNull final String serviceName) {

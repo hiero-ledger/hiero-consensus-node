@@ -63,7 +63,7 @@ public class ConsensusGetTopicInfoFeeCalculatorTest {
                 .extras(
                         makeExtraDef(Extra.SIGNATURES, 1000000L),
                         makeExtraDef(Extra.KEYS, 100000000L),
-                        makeExtraDef(Extra.BYTES, 110L))
+                        makeExtraDef(Extra.STATE_BYTES, 110L))
                 .services(makeService(
                         "Consensus",
                         makeServiceFee(

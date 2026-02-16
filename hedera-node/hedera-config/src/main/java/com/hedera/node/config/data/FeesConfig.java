@@ -20,7 +20,7 @@ public record FeesConfig(
         @ConfigProperty(defaultValue = "false") @NetworkProperty
         boolean simpleFeesEnabled,
 
-        @ConfigProperty(defaultValue = "false") @NetworkProperty
+        @ConfigProperty(defaultValue = "true") @NetworkProperty
         boolean createSimpleFeeSchedule,
 
         @ConfigProperty(defaultValue = "380") @NetworkProperty

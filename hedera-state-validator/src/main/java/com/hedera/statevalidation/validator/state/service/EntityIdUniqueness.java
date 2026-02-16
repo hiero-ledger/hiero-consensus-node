@@ -36,7 +36,7 @@ import com.hedera.pbj.runtime.ParseException;
 import com.hedera.statevalidation.report.SlackReportGenerator;
 import com.hedera.statevalidation.util.ParallelProcessingUtils;
 import com.hedera.statevalidation.util.StateUtils;
-import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.virtualmap.VirtualMap;
@@ -59,7 +59,7 @@ public class EntityIdUniqueness {
 
     @Test
     void validateEntityIds() throws InterruptedException, ExecutionException {
-        final MerkleNodeState<?> state = StateUtils.getDefaultState();
+        final VirtualMapState state = StateUtils.getDefaultState();
 
         final ReadableSingletonState<EntityNumber> entityIdSingleton =
                 state.getReadableStates(EntityIdService.NAME).getSingleton(ENTITY_ID_STATE_ID);
@@ -154,15 +154,15 @@ public class EntityIdUniqueness {
     @Test
     void validateIdCounts() throws InterruptedException, ExecutionException {
 
-        final MerkleNodeState servicesState = StateUtils.getDefaultState();
+        final VirtualMapState servicesState = StateUtils.getDefaultState();
         final AtomicLong pathCounter = new AtomicLong(0);
 
         final ReadableSingletonState<EntityCounts> entityIdSingleton =
                 servicesState.getReadableStates(EntityIdService.NAME).getSingleton(ENTITY_COUNTS_STATE_ID);
 
         final EntityCounts entityCounts = entityIdSingleton.get();
-        final VirtualMapMetadata metadata = ((VirtualMap) servicesState.getRoot()).getMetadata();
-        final VirtualMap vm = (VirtualMap) StateUtils.getDefaultState().getRoot();
+        final VirtualMapMetadata metadata = (servicesState.getRoot()).getMetadata();
+        final VirtualMap vm = StateUtils.getDefaultState().getRoot();
 
         final AtomicLong accountCount = new AtomicLong(0);
         final AtomicLong aliasesCount = new AtomicLong(0);

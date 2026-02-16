@@ -4,8 +4,6 @@ package com.swirlds.virtualmap.internal.reconnect;
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.virtualmap.VirtualKey;
-import com.swirlds.virtualmap.VirtualValue;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.Path;
 import com.swirlds.virtualmap.internal.RecordAccessor;
@@ -34,12 +32,8 @@ import org.apache.logging.log4j.Logger;
  * was originally located in the learner tree). Since the path is different, the leaf will not be actually
  * removed from disk.
  *
- * @param <K>
- * 		the type of the key
- * @param <V>
- * 		the type of the value
  */
-public class ReconnectNodeRemover<K extends VirtualKey, V extends VirtualValue> {
+public class ReconnectNodeRemover {
 
     private static final Logger logger = LogManager.getLogger(ReconnectNodeRemover.class);
 

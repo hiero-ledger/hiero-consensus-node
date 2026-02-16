@@ -28,7 +28,10 @@ import static org.mockito.Mockito.verify;
 
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.esaulpaugh.headlong.abi.TupleType;
+import com.hedera.hapi.node.base.AccountAmount;
+import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Key;
+import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason;
@@ -47,6 +50,7 @@ import com.hedera.node.app.service.contract.impl.test.TestHelpers;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallTestBase;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -218,6 +222,95 @@ class ClassicTransfersCallTest extends CallTestBase {
                 asBytesResult(
                         INT64_ENCODER.encode(Tuple.singleton((long) SPENDER_DOES_NOT_HAVE_ALLOWANCE.protoOrdinal()))),
                 result.output());
+    }
+
+    @Test
+    void gasRequirementReflectsHbarAutoCreations() {
+        final var shardNum = 0L;
+        final var realmNum = 0L;
+
+        final var aliasToCreate = Bytes.wrap("alias-to-create".getBytes());
+        final var existingAlias = Bytes.wrap("existing-alias".getBytes());
+
+        final var autoCreatedAccountId = AccountID.newBuilder()
+                .shardNum(shardNum)
+                .realmNum(realmNum)
+                .alias(aliasToCreate)
+                .build();
+
+        final var existingAccountWithAlias = AccountID.newBuilder()
+                .shardNum(shardNum)
+                .realmNum(realmNum)
+                .alias(existingAlias)
+                .build();
+
+        final var payerAccountId = AccountID.newBuilder()
+                .shardNum(shardNum)
+                .realmNum(realmNum)
+                .accountNum(1L)
+                .build();
+
+        // One positive HBAR transfer to a new alias (triggers lazy creation)
+        final var creditNewAlias = AccountAmount.newBuilder()
+                .accountID(autoCreatedAccountId)
+                .amount(10L)
+                .build();
+
+        // Another positive HBAR transfer to the same alias; should not increase lazy-creation count
+        final var anotherCreditSameAlias = AccountAmount.newBuilder()
+                .accountID(autoCreatedAccountId)
+                .amount(20L)
+                .build();
+
+        // Positive HBAR transfer to an existing alias (no lazy creation)
+        final var creditExistingAlias = AccountAmount.newBuilder()
+                .accountID(existingAccountWithAlias)
+                .amount(30L)
+                .build();
+
+        // Positive HBAR transfer to a non-aliased account (payer); condition true but no alias
+        final var creditPayerNoAlias =
+                AccountAmount.newBuilder().accountID(payerAccountId).amount(5L).build();
+
+        // Negative HBAR transfer from a non-aliased account (payer); not considered for lazy creation
+        final var debitPayer = AccountAmount.newBuilder()
+                .accountID(payerAccountId)
+                .amount(-65L)
+                .build();
+
+        final var transferList = TransferList.newBuilder()
+                .accountAmounts(
+                        creditNewAlias, anotherCreditSameAlias, creditExistingAlias, creditPayerNoAlias, debitPayer)
+                .build();
+
+        final var op = CryptoTransferTransactionBody.newBuilder()
+                .transfers(transferList)
+                .build();
+
+        // Only the aliasToCreate is missing, existingAlias is already mapped
+        given(readableAccountStore.getAccountIDByAlias(shardNum, realmNum, aliasToCreate))
+                .willReturn(null);
+        given(readableAccountStore.getAccountIDByAlias(shardNum, realmNum, existingAlias))
+                .willReturn(existingAccountWithAlias);
+
+        final long baseUnitAdjustTinyCentPrice = 0L; // No token transfers in this test
+        final long baseAdjustTinyCentsPrice = 10L;
+        final long baseNftTransferTinyCentsPrice = 0L; // No NFT transfers in this test
+        final long baseLazyCreationPrice = 1_000L;
+
+        final long result = ClassicTransfersCall.minimumTinycentPriceGiven(
+                op,
+                baseUnitAdjustTinyCentPrice,
+                baseAdjustTinyCentsPrice,
+                baseNftTransferTinyCentsPrice,
+                baseLazyCreationPrice,
+                readableAccountStore);
+
+        final long numTinyCentsAdjusts = 5L; // five AccountAmount entries in the HBAR TransferList
+        final long expected = numTinyCentsAdjusts * baseAdjustTinyCentsPrice
+                + baseLazyCreationPrice; // exactly one distinct missing alias
+
+        assertEquals(expected, result);
     }
 
     private static final TransactionBody PRETEND_TRANSFER = TransactionBody.newBuilder()
