@@ -45,6 +45,7 @@ import com.hedera.services.bdd.spec.dsl.entities.SpecFungibleToken;
 import com.hedera.services.bdd.spec.transactions.TxnVerbs;
 import com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer;
 import com.hederahashgraph.api.proto.java.AccountAmount;
+import com.hederahashgraph.api.proto.java.CryptoTransferTransactionBody;
 import com.hederahashgraph.api.proto.java.EvmHookCall;
 import com.hederahashgraph.api.proto.java.HookCall;
 import com.hederahashgraph.api.proto.java.TokenTransferList;
@@ -62,6 +63,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.LongUnaryOperator;
 import org.hiero.base.utility.CommonUtils;
 
 public class LambdaplexVerbs {
@@ -286,7 +288,36 @@ public class LambdaplexVerbs {
                 quantity,
                 feeBps * 100,
                 0,
-                0);
+                0,
+                null);
+    }
+
+    public SpecOperation placeTransformedLimitOrder(
+            @NonNull final SpecAccount account,
+            @NonNull final String b64Salt,
+            @NonNull final SpecFungibleToken specBaseToken,
+            @NonNull final SpecFungibleToken specQuoteToken,
+            @NonNull final Side side,
+            @NonNull final Instant expiry,
+            final int feeBps,
+            @NonNull final BigDecimal price,
+            @NonNull final BigDecimal quantity,
+            @Nullable final LongUnaryOperator expiryTransform) {
+        return placeOrderInternal(
+                account,
+                b64Salt,
+                specBaseToken,
+                specQuoteToken,
+                side,
+                OrderType.LIMIT,
+                null,
+                expiry,
+                price,
+                quantity,
+                feeBps * 100,
+                0,
+                0,
+                expiryTransform);
     }
 
     public SpecOperation placeStopLimitOrder(
@@ -318,7 +349,8 @@ public class LambdaplexVerbs {
                         .multiply(BigDecimal.valueOf(100_00))
                         .divide(price, HALF_UP)
                         .intValue(),
-                0);
+                0,
+                null);
     }
 
     public SpecOperation placeMarketOrder(
@@ -347,7 +379,8 @@ public class LambdaplexVerbs {
                 feeBps,
                 slippagePercentTolerance * 10_000,
                 // "Fill-or-kill" is encoded as a minimum fill percentage of 100% minus the slippage tolerance
-                timeInForce == TimeInForce.FOK ? 1_000_000 * (100 - slippagePercentTolerance) / 100 : 0);
+                timeInForce == TimeInForce.FOK ? 1_000_000 * (100 - slippagePercentTolerance) / 100 : 0,
+                null);
     }
 
     public SpecOperation placeStopMarketOrder(
@@ -376,7 +409,8 @@ public class LambdaplexVerbs {
                 quantity,
                 feeBps,
                 slippagePercentTolerance * 10_000,
-                fillOrKill ? 1_000_000 : 0);
+                fillOrKill ? 1_000_000 : 0,
+                null);
     }
 
     public HapiCryptoTransfer settleFills(
@@ -384,21 +418,30 @@ public class LambdaplexVerbs {
             @NonNull final SpecFungibleToken specQuoteToken,
             @NonNull final Fees fees,
             @NonNull final LambdaplexVerbs.FillParty... fillParties) {
-        return settleFillsInternal(specBaseToken, specQuoteToken, fees, fillParties);
+        return settleFillsInternal(specBaseToken, specQuoteToken, fees, null, fillParties);
     }
 
     public HapiCryptoTransfer settleFillsNoFees(
             @NonNull final SpecFungibleToken specBaseToken,
             @NonNull final SpecFungibleToken specQuoteToken,
             @NonNull final LambdaplexVerbs.FillParty... fillParties) {
-        return settleFillsInternal(specBaseToken, specQuoteToken, null, fillParties);
+        return settleFillsInternal(specBaseToken, specQuoteToken, null, null, fillParties);
+    }
+
+    public HapiCryptoTransfer settleTransformedFillsNoFees(
+            @NonNull final SpecFungibleToken specBaseToken,
+            @NonNull final SpecFungibleToken specQuoteToken,
+            @NonNull final Consumer<CryptoTransferTransactionBody.Builder> bodySpec,
+            @NonNull final LambdaplexVerbs.FillParty... fillParties) {
+        return settleFillsInternal(specBaseToken, specQuoteToken, null, null, fillParties);
     }
 
     private HapiCryptoTransfer settleFillsInternal(
             @NonNull final SpecFungibleToken specBaseToken,
             @NonNull final SpecFungibleToken specQuoteToken,
             @Nullable final Fees fees,
-            @NonNull final LambdaplexVerbs.FillParty... fillParties) {
+            @Nullable final Consumer<CryptoTransferTransactionBody.Builder> bodySpec,
+            @NonNull final FillParty... fillParties) {
         return TxnVerbs.cryptoTransfer((spec, builder) -> {
             final var baseToken = specBaseToken.tokenOrThrow(spec.targetNetworkOrThrow());
             final var quoteToken = specQuoteToken.tokenOrThrow(spec.targetNetworkOrThrow());
@@ -482,6 +525,9 @@ public class LambdaplexVerbs {
                                 .addAllTransfers(quoteAdjustments))
                         .build();
             }
+            if (bodySpec != null) {
+                bodySpec.accept(builder);
+            }
         });
     }
 
@@ -540,7 +586,8 @@ public class LambdaplexVerbs {
             @NonNull final BigDecimal quantity,
             final int feeCentiBps,
             final int priceDeviationCentiBps,
-            final int minFillCentiBps) {
+            final int minFillCentiBps,
+            @Nullable final LongUnaryOperator expiryTransform) {
         return sourcingContextual(spec -> {
             final var targetNetwork = spec.targetNetworkOrThrow();
             final var baseToken = specBaseToken.tokenOrThrow(targetNetwork);
@@ -577,12 +624,16 @@ public class LambdaplexVerbs {
                         BigInteger.valueOf(priceDeviationCentiBps),
                         BigInteger.valueOf(minFillCentiBps));
             }
+            long expirySecond = expiry.getEpochSecond();
+            if (expiryTransform != null) {
+                expirySecond = expiryTransform.applyAsLong(expirySecond);
+            }
             final var prefixKey = encodeOrderPrefixKey(
                     orderType,
                     stopDirection,
                     inToken.tokenIdOrThrow().tokenNum(),
                     outToken.tokenIdOrThrow().tokenNum(),
-                    expiry.getEpochSecond(),
+                    expirySecond,
                     feeCentiBps,
                     b64Salt);
             saltPrefixes.put(b64Salt, prefixKey);

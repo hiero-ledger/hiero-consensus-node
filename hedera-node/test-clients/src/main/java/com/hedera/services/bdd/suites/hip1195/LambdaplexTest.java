@@ -5,6 +5,7 @@ import static com.hedera.hapi.node.hooks.HookExtensionPoint.ACCOUNT_ALLOWANCE_HO
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asLongZeroAddress;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.tokenChangeFromSnapshot;
+import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
 import static com.hedera.services.bdd.spec.assertions.SomeFungibleTransfers.changingFungibleBalances;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.assertions.TransferListAsserts.includingHbarCredit;
@@ -14,6 +15,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertOwnerHasEvmHookSlotUsageChange;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordCurrentOwnerEvmHookSlotUsage;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.tokenBalanceSnapshot;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.THOUSAND_HBAR;
@@ -36,10 +38,12 @@ import com.hedera.services.bdd.spec.dsl.entities.SpecAccount;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecFungibleToken;
 import com.hedera.services.bdd.spec.dsl.utils.InitcodeTransform;
+import com.hedera.services.bdd.spec.queries.meta.HapiGetTxnRecord;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
@@ -86,7 +90,6 @@ import org.junit.jupiter.api.DynamicTest;
 @HapiTestLifecycle
 @OrderedInIsolation
 public class LambdaplexTest implements InitcodeTransform {
-
     private static final int HOOK_ID = 42;
     private static final int ZERO_BPS = 0;
     private static final int MAKER_BPS = 12;
@@ -712,6 +715,72 @@ public class LambdaplexTest implements InitcodeTransform {
                                 "Wrong SELL out token amount after batch fill: expected one apple, got " + bd)));
     }
 
+    @HapiTest
+    final Stream<DynamicTest> singleOrderSanityChecksAreEnforced() {
+        final var buySalt = randomB64Salt();
+        final var expiredSellSalt = randomB64Salt();
+        final var invalidPathSellSalt = randomB64Salt();
+        return hapiTest(
+                lv.placeMarketOrder(
+                        COUNTERPARTY,
+                        buySalt,
+                        HBAR,
+                        USDC,
+                        Side.BUY,
+                        distantExpiry(),
+                        TAKER_BPS,
+                        price(1.00),
+                        quantity(100),
+                        99,
+                        TimeInForce.IOC),
+                sourcingContextual(spec -> lv.placeTransformedLimitOrder(
+                        MARKET_MAKER,
+                        expiredSellSalt,
+                        HBAR,
+                        USDC,
+                        Side.SELL,
+                        distantExpiry(),
+                        ZERO_BPS,
+                        price(0.12),
+                        quantity(10),
+                        // Negate the expiry time
+                        s -> spec.consensusTime().getEpochSecond() - 60)),
+                lv.settleFillsNoFees(
+                                HBAR,
+                                USDC,
+                                makingSeller(MARKET_MAKER, quantity(10), price(0.12), expiredSellSalt),
+                                takingBuyer(COUNTERPARTY, quantity(10), price(0.12), buySalt))
+                        .via("expiredTx")
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
+                // require(block.timestamp < p.expiration(), "expired")
+                assertFirstError("expiredTx", "expired"),
+                lv.placeLimitOrder(
+                        MARKET_MAKER,
+                        invalidPathSellSalt,
+                        HBAR,
+                        HBAR,
+                        Side.SELL,
+                        distantExpiry(),
+                        ZERO_BPS,
+                        price(0.12),
+                        quantity(10)),
+                lv.settleFillsNoFees(
+                                HBAR,
+                                USDC,
+                                makingSeller(MARKET_MAKER, quantity(10), price(0.12), invalidPathSellSalt),
+                                takingBuyer(COUNTERPARTY, quantity(10), price(0.12), buySalt))
+                        .via("invalidPath")
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
+                // require(inTok != outTok, "invalid path")
+                assertFirstError("invalidPath", "invalid path"));
+    }
+
+    private static HapiGetTxnRecord assertFirstError(@NonNull final String tx, @NonNull final String message) {
+        return getTxnRecord(tx)
+                .andAllChildRecords()
+                .hasChildRecords(recordWith().contractCallResult(resultWith().error(asErrorReason(message))));
+    }
+
     private static BigDecimal averagePrice(final double d) {
         return BigDecimal.valueOf(d);
     }
@@ -764,5 +833,27 @@ public class LambdaplexTest implements InitcodeTransform {
 
     private static long usdcUnits(long usdc) {
         return usdc * USDC_SCALE;
+    }
+
+    private static String asErrorReason(@NonNull final String message) {
+        // 4-byte selector: keccak256("Error(string)")[:4]
+        final var selector = new byte[] {0x08, (byte) 0xc3, 0x79, (byte) 0xa0};
+        final var msgBytes = message.getBytes(StandardCharsets.UTF_8);
+        final int paddedLen = ((msgBytes.length + 31) / 32) * 32;
+        // selector (4) + offset (32) + length (32) + padded content
+        final var result = new byte[4 + 32 + 32 + paddedLen];
+        // selector
+        System.arraycopy(selector, 0, result, 0, 4);
+        // offset = 0x20
+        result[4 + 31] = 0x20;
+        // string length
+        result[4 + 32 + 31] = (byte) msgBytes.length;
+        // string content (already zero-padded by default)
+        System.arraycopy(msgBytes, 0, result, 4 + 64, msgBytes.length);
+        final var sb = new StringBuilder("0x");
+        for (byte b : result) {
+            sb.append(String.format("%02x", b & 0xFF));
+        }
+        return sb.toString();
     }
 }
