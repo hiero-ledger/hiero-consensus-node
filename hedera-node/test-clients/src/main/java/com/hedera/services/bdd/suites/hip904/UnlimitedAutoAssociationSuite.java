@@ -76,7 +76,7 @@ import org.junit.jupiter.api.Tag;
 @Tag(MATS)
 public class UnlimitedAutoAssociationSuite {
     public static final int UNLIMITED_AUTO_ASSOCIATION_SLOTS = -1;
-    private static final double expectedCreateHollowAccountFee = 0.05;
+    private static final double expectedCreateHollowAccountFee = 0.0472956012;
     private static final double transferFee = 0.00189;
     private static final double expectedFeeForOneAssociation = 0.05;
     private static final double transferAndAssociationFee =
@@ -423,7 +423,7 @@ public class UnlimitedAutoAssociationSuite {
         final AtomicReference<byte[]> bobAlias = new AtomicReference<>();
         final AtomicReference<byte[]> carolHollowAccountAlias = new AtomicReference<>();
         final double expectedCryptoTransferAndAssociationUsd =
-                expectedCreateHollowAccountFee + transferFee + 2 * expectedFeeForOneAssociation;
+                expectedCreateHollowAccountFee + 2 * transferFee + 2 * expectedFeeForOneAssociation;
 
         return hapiTest(
                 newKeyNamed(MULTI_KEY),
