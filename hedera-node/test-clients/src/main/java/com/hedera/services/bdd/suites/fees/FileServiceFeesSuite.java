@@ -18,9 +18,9 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
-import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.FILE_APPEND_BASE_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.FILE_APPEND_BASE_FEE;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.FILE_CREATE_BASE_FEE;
-import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.FILE_UPDATE_BASE_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.FILE_UPDATE_BASE_FEE;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.PROCESSING_BYTES_FEE_USD;
 
 import com.hedera.services.bdd.junit.HapiTest;
@@ -83,7 +83,7 @@ public class FileServiceFeesSuite {
                 safeValidateChargedUsd(
                         "fileUpdateBasic",
                         BASE_FEE_FILE_UPDATE,
-                        FILE_UPDATE_BASE_FEE_USD + 156 * PROCESSING_BYTES_FEE_USD * 10));
+                        FILE_UPDATE_BASE_FEE + 156 * PROCESSING_BYTES_FEE_USD * 10));
     }
 
     @HapiTest
@@ -128,9 +128,7 @@ public class FileServiceFeesSuite {
                         .payingWith(civilian)
                         .via(baseAppend),
                 safeValidateChargedUsd(
-                        baseAppend,
-                        BASE_FEE_FILE_APPEND,
-                        FILE_APPEND_BASE_FEE_USD + 100 * PROCESSING_BYTES_FEE_USD * 10));
+                        baseAppend, BASE_FEE_FILE_APPEND, FILE_APPEND_BASE_FEE + 100 * PROCESSING_BYTES_FEE_USD * 10));
     }
 
     @HapiTest

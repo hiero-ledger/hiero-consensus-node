@@ -69,9 +69,8 @@ import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleCon
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NODE_AND_NETWORK_BASE_FEE;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SIGNATURE_FEE_AFTER_MULTIPLIER;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_ASSOCIATE_BASE_FEE_USD;
-import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_CREATE_BASE_FEE;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_CREATE_BASE_FEE_USD;
-import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_CREATE_WITH_CUSTOM_FEES_FEE;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_CREATE_FEE;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_CREATE_WITH_CUSTOM_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_TRANSFER_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip904.TokenAirdropBase.setUpTokensAndAllReceivers;
@@ -430,12 +429,12 @@ public class TokenServiceFeesSuite {
     final Stream<DynamicTest> baseCreationsHaveExpectedPrices() {
         final var civilian = "NonExemptPayer";
 
-        final var expectedCommonNoCustomFeesPriceUsd = TOKEN_CREATE_BASE_FEE + 3 * SIGNATURE_FEE_AFTER_MULTIPLIER;
-        final var expectedUniqueNoCustomFeesPriceUsd = TOKEN_CREATE_BASE_FEE + 3 * SIGNATURE_FEE_AFTER_MULTIPLIER;
+        final var expectedCommonNoCustomFeesPriceUsd = TOKEN_CREATE_FEE + 3 * SIGNATURE_FEE_AFTER_MULTIPLIER;
+        final var expectedUniqueNoCustomFeesPriceUsd = TOKEN_CREATE_FEE + 3 * SIGNATURE_FEE_AFTER_MULTIPLIER;
         final var expectedCommonWithCustomFeesPriceUsd =
-                TOKEN_CREATE_WITH_CUSTOM_FEES_FEE + 3 * SIGNATURE_FEE_AFTER_MULTIPLIER;
+                TOKEN_CREATE_WITH_CUSTOM_FEE_USD + 3 * SIGNATURE_FEE_AFTER_MULTIPLIER;
         final var expectedUniqueWithCustomFeesPriceUsd =
-                TOKEN_CREATE_WITH_CUSTOM_FEES_FEE + 3 * SIGNATURE_FEE_AFTER_MULTIPLIER;
+                TOKEN_CREATE_WITH_CUSTOM_FEE_USD + 3 * SIGNATURE_FEE_AFTER_MULTIPLIER;
 
         final var commonNoFees = "commonNoFees";
         final var commonWithFees = "commonWithFees";
