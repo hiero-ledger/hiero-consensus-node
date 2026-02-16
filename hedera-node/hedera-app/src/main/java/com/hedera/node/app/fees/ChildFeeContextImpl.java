@@ -175,4 +175,9 @@ public class ChildFeeContextImpl implements FeeContext {
     public HederaFunctionality functionality() {
         return functionality;
     }
+
+    @Override
+    public int getHighVolumeThrottleUtilization(@NonNull HederaFunctionality functionality) {
+        return context.getHighVolumeThrottleUtilization(functionality);
+    }
 }

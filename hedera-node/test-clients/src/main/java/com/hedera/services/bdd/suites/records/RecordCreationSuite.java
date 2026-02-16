@@ -16,6 +16,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uncheckedSubmit;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
+import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
@@ -80,14 +81,32 @@ public class RecordCreationSuite {
                         .exposingFeesTo(feeObs)
                         .payingWith(PAYER),
                 doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-                    if ("true".equals(flag)) feeObs.set(new FeeObject(16666, 150000, 0));
-                    return cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1L))
-                            .memo(comfortingMemo)
-                            .fee(feeObs.get().networkFee() + feeObs.get().nodeFee())
-                            .payingWith(PAYER)
-                            .via(TXN_ID)
-                            .hasKnownStatus(INSUFFICIENT_TX_FEE)
-                            .logged();
+                    if ("true".equals(flag)) {
+                        feeObs.set(new FeeObject(16666, 150000, 0));
+                        // this wants the transaction to fail due to lack of funds, but should still pay the node and
+                        // network fee.
+                        // the problem is that the service fee is zero, so if they don't have enough for the whole thing
+                        // they don't
+                        // have enough for the node and network fee.  to fix this we make the transfer bigger
+                        // so the service fee is non zero, by including an extra account.
+                        return cryptoTransfer(
+                                        movingHbar(1L).between(GENESIS, FUNDING),
+                                        movingHbar(1L).between(GENESIS, TO_ACCOUNT))
+                                .memo(comfortingMemo)
+                                .fee(feeObs.get().networkFee() + feeObs.get().nodeFee())
+                                .payingWith(PAYER)
+                                .via(TXN_ID)
+                                .hasKnownStatus(INSUFFICIENT_TX_FEE)
+                                .logged();
+                    } else {
+                        return cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1L))
+                                .memo(comfortingMemo)
+                                .fee(feeObs.get().networkFee() + feeObs.get().nodeFee())
+                                .payingWith(PAYER)
+                                .via(TXN_ID)
+                                .hasKnownStatus(INSUFFICIENT_TX_FEE)
+                                .logged();
+                    }
                 }),
                 doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
                     if ("true".equals(flag)) feeObs.set(new FeeObject(16666, 150000, 0));

@@ -47,6 +47,7 @@ import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.hedera.node.app.spi.workflows.InsufficientBalanceException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.store.ReadableStoreFactoryImpl;
+import com.hedera.node.app.throttle.SynchronizedThrottleAccumulator;
 import com.hedera.node.app.validation.ExpiryValidation;
 import com.hedera.node.app.workflows.SolvencyPreCheck;
 import com.hedera.node.app.workflows.TransactionInfo;
@@ -96,6 +97,9 @@ class QueryCheckerTest extends AppTestBase {
     @Mock
     private IngestChecker ingestChecker;
 
+    @Mock
+    private SynchronizedThrottleAccumulator synchronizedThrottleAccumulator;
+
     private QueryChecker checker;
 
     @BeforeEach
@@ -107,7 +111,8 @@ class QueryCheckerTest extends AppTestBase {
                 expiryValidation,
                 feeManager,
                 dispatcher,
-                ingestChecker);
+                ingestChecker,
+                synchronizedThrottleAccumulator);
     }
 
     @AfterEach
@@ -127,10 +132,18 @@ class QueryCheckerTest extends AppTestBase {
                         expiryValidation,
                         feeManager,
                         dispatcher,
-                        ingestChecker))
+                        ingestChecker,
+                        synchronizedThrottleAccumulator))
                 .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> new QueryChecker(
-                        authorizer, null, solvencyPreCheck, expiryValidation, feeManager, dispatcher, ingestChecker))
+                        authorizer,
+                        null,
+                        solvencyPreCheck,
+                        expiryValidation,
+                        feeManager,
+                        dispatcher,
+                        ingestChecker,
+                        synchronizedThrottleAccumulator))
                 .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> new QueryChecker(
                         authorizer,
@@ -139,7 +152,8 @@ class QueryCheckerTest extends AppTestBase {
                         expiryValidation,
                         feeManager,
                         dispatcher,
-                        ingestChecker))
+                        ingestChecker,
+                        synchronizedThrottleAccumulator))
                 .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> new QueryChecker(
                         authorizer,
@@ -148,7 +162,8 @@ class QueryCheckerTest extends AppTestBase {
                         null,
                         feeManager,
                         dispatcher,
-                        ingestChecker))
+                        ingestChecker,
+                        synchronizedThrottleAccumulator))
                 .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> new QueryChecker(
                         authorizer,
@@ -157,7 +172,8 @@ class QueryCheckerTest extends AppTestBase {
                         expiryValidation,
                         null,
                         dispatcher,
-                        ingestChecker))
+                        ingestChecker,
+                        synchronizedThrottleAccumulator))
                 .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> new QueryChecker(
                         authorizer,
@@ -166,7 +182,8 @@ class QueryCheckerTest extends AppTestBase {
                         expiryValidation,
                         feeManager,
                         null,
-                        ingestChecker))
+                        ingestChecker,
+                        synchronizedThrottleAccumulator))
                 .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> new QueryChecker(
                         authorizer,
@@ -175,6 +192,17 @@ class QueryCheckerTest extends AppTestBase {
                         expiryValidation,
                         feeManager,
                         dispatcher,
+                        null,
+                        synchronizedThrottleAccumulator))
+                .isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> new QueryChecker(
+                        authorizer,
+                        cryptoTransferHandler,
+                        solvencyPreCheck,
+                        expiryValidation,
+                        feeManager,
+                        dispatcher,
+                        ingestChecker,
                         null))
                 .isInstanceOf(NullPointerException.class);
     }

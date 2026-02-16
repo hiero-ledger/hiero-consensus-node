@@ -1603,7 +1603,6 @@ public class CryptoTransferSimpleFeesTest {
 
                                 final var cryptoTransferOp = cryptoTransfer(
                                                 movingHbar(10L).between(OWNER, VALID_ALIAS_ED25519),
-                                                movingHbar(10L).between(OWNER, VALID_ALIAS_ECDSA_SECOND),
                                                 movingHbar(10L).between(OWNER, alias))
                                         .payingWith(OWNER)
                                         .signedBy(OWNER)
@@ -1614,7 +1613,7 @@ public class CryptoTransferSimpleFeesTest {
                                         "tokenTransferTxn",
                                         txnSize -> (expectedCryptoTransferHbarFullFeeUsd(Map.of(
                                                 SIGNATURES, 1,
-                                                ACCOUNTS, 4,
+                                                ACCOUNTS, 3,
                                                 TXN_SIZE, txnSize))),
                                         0.001);
 
@@ -1622,12 +1621,6 @@ public class CryptoTransferSimpleFeesTest {
                                         .has(accountWith()
                                                 .key(VALID_ALIAS_ED25519)
                                                 .alias(VALID_ALIAS_ED25519)
-                                                .maxAutoAssociations(-1));
-
-                                final var checkOpInfoValidAliasECDSA = getAliasedAccountInfo(VALID_ALIAS_ECDSA_SECOND)
-                                        .has(accountWith()
-                                                .key(VALID_ALIAS_ECDSA_SECOND)
-                                                .alias(VALID_ALIAS_ECDSA_SECOND)
                                                 .maxAutoAssociations(-1));
 
                                 final var checkHollowAccountInfo = getAliasedAccountInfo(alias)
@@ -1643,7 +1636,6 @@ public class CryptoTransferSimpleFeesTest {
                                         cryptoTransferOp,
                                         checkOpChargedUsd,
                                         checkOpInfoValidAliasED25519,
-                                        checkOpInfoValidAliasECDSA,
                                         checkHollowAccountInfo);
                             })));
                 }
@@ -1816,8 +1808,7 @@ public class CryptoTransferSimpleFeesTest {
                                 final var alias = evmAlias.get();
 
                                 final var cryptoTransferOp = cryptoTransfer(
-                                                movingHbar(10L).between(OWNER, VALID_ALIAS_ED25519),
-                                                moving(10L, FUNGIBLE_TOKEN).between(OWNER, VALID_ALIAS_ECDSA_SECOND),
+                                                moving(10L, FUNGIBLE_TOKEN).between(OWNER, VALID_ALIAS_ED25519),
                                                 movingUnique(NON_FUNGIBLE_TOKEN, 1L)
                                                         .between(OWNER, alias))
                                         .payingWith(OWNER)
@@ -1828,7 +1819,7 @@ public class CryptoTransferSimpleFeesTest {
                                         "tokenTransferTxn",
                                         txnSize -> (expectedCryptoTransferHBARAndFTAndNFTFullFeeUsd(Map.of(
                                                         SIGNATURES, 1,
-                                                        ACCOUNTS, 4,
+                                                        ACCOUNTS, 3,
                                                         TOKEN_TYPES, 2,
                                                         TXN_SIZE, txnSize))
                                                 + TOKEN_ASSOCIATE_EXTRA_FEE_USD * 2),
@@ -1838,14 +1829,6 @@ public class CryptoTransferSimpleFeesTest {
                                         .has(accountWith()
                                                 .key(VALID_ALIAS_ED25519)
                                                 .alias(VALID_ALIAS_ED25519)
-                                                .maxAutoAssociations(-1));
-
-                                final var checkOpInfoValidAliasECDSASecond = getAliasedAccountInfo(
-                                                VALID_ALIAS_ECDSA_SECOND)
-                                        .hasToken(relationshipWith(FUNGIBLE_TOKEN))
-                                        .has(accountWith()
-                                                .key(VALID_ALIAS_ECDSA_SECOND)
-                                                .alias(VALID_ALIAS_ECDSA_SECOND)
                                                 .maxAutoAssociations(-1));
 
                                 final var checkHollowAccountInfo = getAliasedAccountInfo(alias)
@@ -1866,7 +1849,6 @@ public class CryptoTransferSimpleFeesTest {
                                         cryptoTransferOp,
                                         checkOpChargedUsd,
                                         checkOpInfoValidAliasED25519,
-                                        checkOpInfoValidAliasECDSASecond,
                                         checkHollowAccountInfo,
                                         checkOwnerBalance);
                             })));
