@@ -26,7 +26,7 @@ import com.swirlds.platform.system.PlatformMonitor;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.system.status.StatusStateMachine;
 import com.swirlds.platform.system.status.actions.PlatformStatusAction;
-import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import org.hiero.consensus.event.creator.EventCreatorModule;
@@ -369,7 +369,7 @@ public record PlatformCoordinator(
         // if this is the case, we must make sure to send it to the writer directly
         this.putSignatureCollectorState(signedState.reserve("loading reconnect state into sig collector"));
 
-        final MerkleNodeState state = signedState.getState();
+        final State state = signedState.getState();
 
         final ConsensusSnapshot consensusSnapshot = Objects.requireNonNull(consensusSnapshotOf(state));
         this.consensusSnapshotOverride(consensusSnapshot);

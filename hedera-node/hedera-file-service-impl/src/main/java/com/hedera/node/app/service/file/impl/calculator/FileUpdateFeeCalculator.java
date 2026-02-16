@@ -2,8 +2,8 @@
 package com.hedera.node.app.service.file.impl.calculator;
 
 import static org.hiero.hapi.fees.FeeScheduleUtils.lookupServiceFee;
-import static org.hiero.hapi.support.fees.Extra.BYTES;
 import static org.hiero.hapi.support.fees.Extra.KEYS;
+import static org.hiero.hapi.support.fees.Extra.STATE_BYTES;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.transaction.TransactionBody;
@@ -32,7 +32,8 @@ public class FileUpdateFeeCalculator implements ServiceFeeCalculator {
         final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, HederaFunctionality.FILE_UPDATE);
         feeResult.setServiceBaseFeeTinycents(serviceDef.baseFee());
         addExtraFee(feeResult, serviceDef, KEYS, feeSchedule, keyCount);
-        addExtraFee(feeResult, serviceDef, BYTES, feeSchedule, op.contents().length());
+        addExtraFee(
+                feeResult, serviceDef, STATE_BYTES, feeSchedule, op.contents().length());
     }
 
     @Override

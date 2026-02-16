@@ -29,11 +29,12 @@ import com.swirlds.platform.system.SwirldMain;
 import com.swirlds.platform.system.state.notifications.NewRecoveredStateListener;
 import com.swirlds.platform.system.state.notifications.NewRecoveredStateNotification;
 import com.swirlds.platform.util.HederaUtils;
-import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.state.merkle.VirtualMapStateImpl;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -109,12 +110,12 @@ public final class EventRecoveryWorkflow {
 
         logger.info(STARTUP.getMarker(), "Loading state from {}", signedStateDir);
         // FUTURE-WORK: Follow Browser approach
-        final SwirldMain<? extends MerkleNodeState> hederaApp = HederaUtils.createHederaAppMain(platformContext);
+        final SwirldMain hederaApp = HederaUtils.createHederaAppMain(platformContext);
 
-        final StateLifecycleManager stateLifecycleManager = new StateLifecycleManagerImpl(
+        final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager = new StateLifecycleManagerImpl(
                 platformContext.getMetrics(),
                 platformContext.getTime(),
-                virtualMap -> new VirtualMapState(virtualMap, platformContext.getMetrics()),
+                virtualMap -> new VirtualMapStateImpl(virtualMap, platformContext.getMetrics()),
                 platformContext.getConfiguration());
 
         final DeserializedSignedState deserializedSignedState =
@@ -217,7 +218,7 @@ public final class EventRecoveryWorkflow {
     public static RecoveredState reapplyTransactions(
             @NonNull final PlatformContext platformContext,
             @NonNull final ReservedSignedState initialSignedState,
-            @NonNull final SwirldMain<? extends MerkleNodeState> appMain,
+            @NonNull final SwirldMain appMain,
             @NonNull final IOIterator<StreamedRound> roundIterator,
             final long finalRound,
             @NonNull final NodeId selfId,
@@ -233,7 +234,7 @@ public final class EventRecoveryWorkflow {
         final Configuration configuration = platformContext.getConfiguration();
 
         final ReservedSignedState workingSignedState = ensureMutableState(initialSignedState, configuration);
-        final MerkleNodeState initialState = workingSignedState.get().getState();
+        final VirtualMapState initialState = workingSignedState.get().getState();
         initialState.throwIfImmutable("initial state must be mutable");
 
         logger.info(STARTUP.getMarker(), "Initializing application state");
@@ -285,13 +286,13 @@ public final class EventRecoveryWorkflow {
     private static ReservedSignedState ensureMutableState(
             @NonNull final ReservedSignedState initialSignedState, @NonNull final Configuration configuration) {
         final SignedState signedState = initialSignedState.get();
-        final MerkleNodeState state = signedState.getState();
+        final VirtualMapState state = signedState.getState();
         if (!state.isHashed()) {
             return initialSignedState;
         }
 
         // Snapshot loading hashes the map, which freezes leaf mutations; copy to regain mutability.
-        final MerkleNodeState mutableState = state.copy();
+        final VirtualMapState mutableState = state.copy();
         final SignedState mutableSignedState = new SignedState(
                 configuration,
                 ConsensusCryptoUtils::verifySignature,
@@ -323,7 +324,7 @@ public final class EventRecoveryWorkflow {
         final Instant currentRoundTimestamp = getRoundTimestamp(round);
         final SignedState previousState = previousSignedState.get();
         previousState.getState().throwIfImmutable();
-        final MerkleNodeState newState = previousState.getState().copy();
+        final VirtualMapState newState = previousState.getState().copy();
         final PlatformEvent lastEvent = ((CesEvent) getLastEvent(round)).getPlatformEvent();
         final ConsensusConfig config = platformContext.getConfiguration().getConfigData(ConsensusConfig.class);
         new DefaultEventHasher().hashEvent(lastEvent);
@@ -412,9 +413,9 @@ public final class EventRecoveryWorkflow {
      * @param round          the current round
      */
     static void applyTransactions(
-            final ConsensusStateEventHandler<MerkleNodeState> consensusStateEventHandler,
-            final MerkleNodeState immutableState,
-            final MerkleNodeState mutableState,
+            final ConsensusStateEventHandler consensusStateEventHandler,
+            final VirtualMapState immutableState,
+            final VirtualMapState mutableState,
             final Round round) {
 
         mutableState.throwIfImmutable();

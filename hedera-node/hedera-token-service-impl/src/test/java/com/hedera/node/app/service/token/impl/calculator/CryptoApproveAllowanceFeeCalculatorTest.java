@@ -159,7 +159,7 @@ class CryptoApproveAllowanceFeeCalculatorTest {
                 .extras(
                         makeExtraDef(Extra.SIGNATURES, 1000000L),
                         makeExtraDef(Extra.ALLOWANCES, 500000000L),
-                        makeExtraDef(Extra.BYTES, 110000L))
+                        makeExtraDef(Extra.STATE_BYTES, 110000L))
                 .services(makeService(
                         "CryptoService",
                         makeServiceFee(

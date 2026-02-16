@@ -26,10 +26,10 @@ import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.util.BootstrapUtils;
 import com.swirlds.platform.wiring.PlatformComponents;
-import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.state.merkle.VirtualMapStateImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Random;
@@ -107,7 +107,7 @@ public class ConsensusNodeManager {
         final PlatformContext platformContext =
                 PlatformContext.create(platformConfig, Time.getCurrent(), metrics, fileSystemManager, recycleBin);
         final StateLifecycleManager stateLifecycleManager = new StateLifecycleManagerImpl(
-                metrics, time, virtualMap -> new VirtualMapState(virtualMap, metrics), platformConfig);
+                metrics, time, virtualMap -> new VirtualMapStateImpl(virtualMap, metrics), platformConfig);
 
         otterApp = new OtterApp(platformConfig, version);
 
@@ -121,7 +121,7 @@ public class ConsensusNodeManager {
                 platformContext,
                 stateLifecycleManager);
         final ReservedSignedState initialState = reservedState.state();
-        final MerkleNodeState state = initialState.get().getState();
+        final VirtualMapState state = initialState.get().getState();
 
         // Set active the roster
         final ReadablePlatformStateStore store =

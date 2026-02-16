@@ -29,18 +29,20 @@ import org.hiero.otter.fixtures.network.transactions.BenchmarkTransaction;
 import org.hiero.otter.fixtures.network.transactions.OtterTransaction;
 import org.hiero.otter.fixtures.specs.OtterSpecs;
 import org.hiero.otter.test.performance.benchmark.fixtures.BenchmarkServiceLogParser;
+import org.hiero.otter.test.performance.benchmark.fixtures.LoadThrottler;
 import org.hiero.otter.test.performance.benchmark.fixtures.MeasurementsCollector;
 
 /**
  * Performance benchmark test that measures consensus layer latency.
  */
-public class BenchmarkTest {
+@SuppressWarnings("NewClassNamingConvention")
+public class ConsensusLayerBenchmark {
 
-    private static final Logger log = LogManager.getLogger(BenchmarkTest.class);
+    private static final Logger log = LogManager.getLogger(ConsensusLayerBenchmark.class);
 
-    private static final AtomicLong NONCE_GENERATOR = new AtomicLong(0);
     private static final int WARMUP_COUNT = 1000;
-    private static final int TRANSACTION_COUNT = 10000;
+    private static final int TRANSACTION_COUNT = 1000;
+    private static final int INVOCATION_RATE_IN_SECONDS = 20;
     // Setup simulation with 4 nodes
     public static final int NUMBER_OF_NODES = 4;
 
@@ -54,9 +56,10 @@ public class BenchmarkTest {
      */
     @OtterTest
     @OtterSpecs(randomNodeIds = false)
-    void testBenchmarkLatency(@NonNull final TestEnvironment env) {
+    void benchmark(@NonNull final TestEnvironment env) {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
+        final AtomicLong nonceGenerator = new AtomicLong(0);
 
         // Enable the BenchmarkService
         network.withConfigValue("event.services", "org.hiero.otter.fixtures.app.services.benchmark.BenchmarkService");
@@ -81,20 +84,22 @@ public class BenchmarkTest {
         final List<Node> nodes = network.nodes();
         for (int i = 0; i < WARMUP_COUNT; i++) {
             final Node targetNode = nodes.get(i % nodes.size());
-            targetNode.submitTransaction(TransactionFactory.createEmptyTransaction(NONCE_GENERATOR.incrementAndGet()));
+            targetNode.submitTransaction(TransactionFactory.createEmptyTransaction(nonceGenerator.incrementAndGet()));
         }
 
         // Wait for warm-up to complete
         timeManager.waitFor(Duration.ofSeconds(5L));
         log.info("Warm-up phase complete");
 
-        // Submit benchmark transactions for measurement
-        log.info("Starting benchmark: submitting {} transactions for measurement...", TRANSACTION_COUNT);
-        for (int i = 0; i < TRANSACTION_COUNT; i++) {
-            final OtterTransaction tx = createBenchmarkTransaction(NONCE_GENERATOR.incrementAndGet(), Instant.now());
-            network.submitTransaction(tx);
-        }
+        log.info(
+                "Starting benchmark: Will take approximately: {}s submitting {} transactions for measurement at a rate of {} ops/s...",
+                TRANSACTION_COUNT / INVOCATION_RATE_IN_SECONDS,
+                TRANSACTION_COUNT,
+                INVOCATION_RATE_IN_SECONDS);
 
+        final LoadThrottler throttler = new LoadThrottler(
+                env, () -> createBenchmarkTransaction(nonceGenerator.incrementAndGet(), timeManager.now()));
+        throttler.submitWithRate(TRANSACTION_COUNT, INVOCATION_RATE_IN_SECONDS);
         // Wait for all transactions to be processed
         timeManager.waitFor(Duration.ofSeconds(10L));
         log.info("Benchmark transactions submitted, collecting results...");

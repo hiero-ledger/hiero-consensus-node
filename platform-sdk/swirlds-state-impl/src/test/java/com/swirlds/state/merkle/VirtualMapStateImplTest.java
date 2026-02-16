@@ -59,9 +59,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
-public class VirtualMapStateTest extends MerkleTestBase {
+public class VirtualMapStateImplTest extends MerkleTestBase {
 
-    private VirtualMapState virtualMapState;
+    private VirtualMapStateImpl virtualMapState;
 
     /**
      * Start with an empty Virtual Map State, but with the "fruit" map and metadata created and ready to

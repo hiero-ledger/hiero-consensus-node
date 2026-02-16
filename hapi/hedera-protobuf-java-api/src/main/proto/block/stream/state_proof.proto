@@ -28,7 +28,6 @@ option java_multiple_files = true;
 import "services/timestamp.proto";
 import "block/stream/record_file_item.proto";
 import "block/stream/tss_signed_block_proof.proto";
-import "services/state/blockstream/merkle_leaf.proto";
 
 message StateProof {
     /**
@@ -58,33 +57,21 @@ message StateProof {
  *
  * MerklePath represents a section of a merkle path from a leaf node to merkle
  * tree root. There are 3 kinds of merkle paths.
- * 1. Merkle paths starting from a leaf. For these the `leaf` field is set.
+ * 1. Merkle paths starting from a leaf. Depending on the byte content, one of
+ *    `timestampLeaf`, `stateItemLeaf`, or `blockItemLeaf` fields is set.
  * 2. Merkle paths starting from an internal node hash like for proving a
  *    block root hash. For these the `hash` field is set.
  * 3. Merkle paths in the middle between another merkle path and the root. For
- *    these neither `leaf` for `hash` fields are set.
+ *    these, none of the fields are set.
  * Merkle paths can only include sibling nodes for binary internal nodes. If
  * there is a unary node in the path a new MerklePath must be started.
  */
 message MerklePath {
 
-    oneof content {
-        /**
-         * Optional leaf, if this path starts from a leaf
-         */
-        com.hedera.hapi.node.state.blockstream.MerkleLeaf leaf = 1;
-
-        /**
-         * Optional hash content for a path with no leaf that hashes paths below
-         * it. Needed for cases like proving a block root hash from another block.
-         */
-        bytes hash = 2;
-    }
-
     /**
      * Array of sibling nodes ordered from bottom of tree to top
      */
-    repeated SiblingNode siblings = 3;
+    repeated SiblingNode siblings = 1;
 
     /**
      * The next parent path of this path going up the tree. Expressed as an index
@@ -92,7 +79,30 @@ message MerklePath {
      * in list etc. If this is the root path then the value is UINT32_MAX
      * (this is `-1` in Java; 0xFFFFFFFF).
      */
-    uint32 nextPathIndex = 4;
+    uint32 next_path_index = 2;
+
+    oneof content {
+        /**
+         * Optional hash content for a path with no leaf that hashes paths below
+         * it. Needed for cases like proving a block root hash from another block.
+         */
+        bytes hash = 3;
+
+        /**
+         * A {@code StateItem} leaf, if this path starts at a state item.
+         */
+        bytes state_item_leaf = 4;
+
+        /**
+         * A {@code BlockItem} leaf, if this path starts from a block item
+         */
+        bytes block_item_leaf = 5;
+
+        /**
+         * A {@code proto.Timestamp} Leaf, if this path starts from a timestamp
+         */
+        bytes timestamp_leaf = 6;
+    }
 }
 
 /**
@@ -111,7 +121,6 @@ message SiblingNode {
      */
     bytes hash = 2;
 }
-
 
 /**
  * A hash of a "sibling" to an entry in a Merkle tree.

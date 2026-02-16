@@ -33,10 +33,10 @@ import com.swirlds.platform.state.signed.HashedReservedSignedState;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.wiring.PlatformComponents;
-import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.state.merkle.VirtualMapStateImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -232,7 +232,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             final StateLifecycleManager stateLifecycleManager = new StateLifecycleManagerImpl(
                     metrics,
                     timeManager.time(),
-                    virtualMap -> new VirtualMapState(virtualMap, metrics),
+                    virtualMap -> new VirtualMapStateImpl(virtualMap, metrics),
                     currentConfiguration);
 
             model = WiringModelBuilder.create(platformContext.getMetrics(), timeManager.time())
@@ -253,7 +253,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                     stateLifecycleManager);
 
             final ReservedSignedState initialState = reservedState.state();
-            final MerkleNodeState state = initialState.get().getState();
+            final VirtualMapState state = initialState.get().getState();
 
             // Set the active roster
             final ReadablePlatformStateStore store =

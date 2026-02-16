@@ -20,10 +20,10 @@ import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.internal.network.PendingProof;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.system.state.notifications.StateHashedNotification;
-import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.MerkleProof;
 import com.swirlds.state.QueueState;
 import com.swirlds.state.lifecycle.StateMetadata;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableQueueState;
@@ -206,8 +206,8 @@ public class BlockStreamManagerWrapper {
         }
     }
 
-    // Minimal MerkleNodeState implementation
-    private static class BenchmarkState implements MerkleNodeState<VirtualMap> {
+    // Minimal VirtualMapState implementation
+    private static class BenchmarkState implements VirtualMapState {
         private Hash hash;
         private final AtomicReference<BlockStreamInfo> blockStreamInfoRef;
         private long blockNumber = 0;
@@ -217,7 +217,7 @@ public class BlockStreamManagerWrapper {
         }
 
         @Override
-        public @NonNull MerkleNodeState copy() {
+        public @NonNull VirtualMapState copy() {
             return this; // No-op for benchmark
         }
 
@@ -246,7 +246,7 @@ public class BlockStreamManagerWrapper {
                     .build());
         }
 
-        // MerkleNodeState required methods - minimal stub implementations for benchmarking
+        // VirtualMapState required methods - minimal stub implementations for benchmarking
         @Override
         public void commitSingletons() {
             // No-op for benchmark
@@ -449,7 +449,7 @@ public class BlockStreamManagerWrapper {
                         @Override
                         @SuppressWarnings("deprecation")
                         public @NonNull <T> ReadableSingletonState<T> getSingleton(int stateId) {
-                            return new ReadableSingletonState<T>() {
+                            return new ReadableSingletonState<>() {
                                 @Override
                                 @SuppressWarnings("deprecation")
                                 public @NonNull T get() {
@@ -628,7 +628,7 @@ public class BlockStreamManagerWrapper {
 
         @Override
         public @NonNull <T> WritableSingletonState<T> getSingleton(int stateId) {
-            return new WritableSingletonState<T>() {
+            return new WritableSingletonState<>() {
                 @Override
                 public @NonNull T get() {
                     // SIMULATE state read cost (VirtualMap.get() path traversal)

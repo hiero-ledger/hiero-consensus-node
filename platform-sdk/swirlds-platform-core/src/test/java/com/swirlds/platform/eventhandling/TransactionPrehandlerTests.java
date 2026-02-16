@@ -14,7 +14,7 @@ import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.nexus.SignedStateNexus;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
-import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.merkle.VirtualMapState;
 import java.time.Duration;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -47,7 +47,7 @@ class TransactionPrehandlerTests {
                 .close();
 
         final SignedState signedState = mock(SignedState.class);
-        final MerkleNodeState stateRoot = mock(MerkleNodeState.class);
+        final VirtualMapState stateRoot = mock(VirtualMapState.class);
         when(signedState.getState()).thenReturn(stateRoot);
 
         final SignedStateNexus latestImmutableStateNexus = mock(SignedStateNexus.class);

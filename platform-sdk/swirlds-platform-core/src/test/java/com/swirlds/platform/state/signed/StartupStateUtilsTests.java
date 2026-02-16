@@ -32,10 +32,11 @@ import com.swirlds.platform.internal.SignedStateLoadingException;
 import com.swirlds.platform.state.snapshot.SignedStateFilePath;
 import com.swirlds.platform.state.snapshot.StateToDiskReason;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
-import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.StateLifecycleManagerImpl;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.BufferedWriter;
 import java.io.IOException;
@@ -126,8 +127,8 @@ public class StartupStateUtilsTests {
         final SignedState signedState =
                 new RandomSignedStateGenerator(random).setRound(round).build();
 
-        final StateLifecycleManager stateLifecycleManager = createLifecycleManager();
-        final MerkleNodeState state = signedState.getState();
+        final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager = createLifecycleManager();
+        final VirtualMapState state = signedState.getState();
         stateLifecycleManager.initState(state);
         stateLifecycleManager.getMutableState().release();
         // hash the state
@@ -155,7 +156,7 @@ public class StartupStateUtilsTests {
         return signedState;
     }
 
-    private static StateLifecycleManager createLifecycleManager() {
+    private static StateLifecycleManager<VirtualMapState, VirtualMap> createLifecycleManager() {
         return new StateLifecycleManagerImpl(
                 new NoOpMetrics(), new FakeTime(), VirtualMapStateTestUtils::createTestStateWithVM, CONFIGURATION);
     }

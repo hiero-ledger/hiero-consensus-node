@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.test.performance.benchmark.fixtures;
 
+import com.swirlds.common.utility.InstantUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 /**
  * Calculates statistical metrics for benchmark measurements.
@@ -120,7 +120,7 @@ public final class StatisticsCalculator {
         final long durationInUs =
                 (firstSubmissionTime != null && lastHandleTime != null) ? lastHandleTime - firstSubmissionTime : 0;
         final double throughput =
-                (durationInUs > 0) ? ((double) total / TimeUnit.MICROSECONDS.toSeconds(durationInUs)) : 0;
+                (durationInUs > 0) ? ((double) total * InstantUtils.MICROS_IN_SECOND / durationInUs) : 0;
 
         return new Statistics(
                 sampleCount, total, invalid, average, stdDev, error, min, max, p50, p95, p99, durationInUs, throughput);

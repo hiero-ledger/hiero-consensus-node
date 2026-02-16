@@ -124,7 +124,7 @@ public class ConsensusSubmitMessageFeeCalculatorTest extends ConsensusTestBase {
                 .extras(
                         makeExtraDef(Extra.SIGNATURES, 1000000L),
                         makeExtraDef(Extra.KEYS, 100000000L),
-                        makeExtraDef(Extra.BYTES, 110L),
+                        makeExtraDef(Extra.STATE_BYTES, 110L),
                         makeExtraDef(Extra.CONSENSUS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE, 500000000))
                 .services(makeService(
                         "Consensus",

@@ -19,10 +19,10 @@ import com.swirlds.common.io.config.TemporaryFileConfig;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.platform.system.InitTrigger;
-import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StateDefinition;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.state.spi.WritableKVState;
@@ -187,7 +187,7 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
     @Nested
     @DisplayName("Migration Tests")
     class MigrationTest {
-        private MerkleNodeState merkleTree;
+        private VirtualMapState merkleTree;
         private SemanticVersion[] versions;
 
         @BeforeEach
@@ -670,6 +670,46 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
 
                 // And we should see that schemaV2Called is false because it was never called
                 assertThat(schemaV2Called).isFalse();
+            }
+
+            @Test
+            @DisplayName("State should be skipped if removed by later schema already in state")
+            void skipStateIfRemovedByLaterSchema() {
+                // Given a schema V1 that adds FRUIT_STATE_ID
+                final var schemaV1 = createV1Schema();
+                // And a schema V2 that removes FRUIT_STATE_ID
+                final var schemaV2 = new TestSchema(versions[2]) {
+                    @NonNull
+                    @Override
+                    public Set<Integer> statesToRemove() {
+                        return Set.of(FRUIT_STATE_ID);
+                    }
+                };
+
+                schemaRegistry.register(schemaV1);
+                schemaRegistry.register(schemaV2);
+
+                // When we migrate from versions[2] to versions[2]
+                // The registry will see that versions[2] is already in state.
+                // It should apply definitions for schemaV1 because versions[2] >= versions[1].
+                // BUT it should skip definitions for schemaV1 because schemaV2 (which is also already in state)
+                // removes FRUIT_STATE_ID.
+                schemaRegistry.migrate(
+                        merkleTree,
+                        versions[2],
+                        versions[2],
+                        config,
+                        config,
+                        new HashMap<>(),
+                        migrationStateChanges,
+                        startupNetworks,
+                        InitTrigger.RESTART);
+
+                // We expect that FRUIT_STATE_ID was NOT initialized in the merkleTree
+                // because it should have been skipped.
+                // If it wasn't skipped, it would have been initialized.
+                final var readableStates = merkleTree.getReadableStates(FIRST_SERVICE);
+                assertThat(readableStates.contains(FRUIT_STATE_ID)).isFalse();
             }
         }
     }

@@ -239,27 +239,28 @@ class FileServiceFeeCalculatorsTest {
                 .extras(
                         makeExtraDef(Extra.SIGNATURES, 1000000),
                         makeExtraDef(Extra.KEYS, 10000000),
-                        makeExtraDef(Extra.BYTES, 10))
+                        makeExtraDef(Extra.STATE_BYTES, 10))
                 .services(makeService(
                         "ScheduleService",
                         makeServiceFee(
                                 HederaFunctionality.FILE_CREATE,
                                 499000000,
                                 makeExtraIncluded(Extra.KEYS, 1),
-                                makeExtraIncluded(Extra.BYTES, 1000)),
+                                makeExtraIncluded(Extra.STATE_BYTES, 1000)),
                         makeServiceFee(
                                 HederaFunctionality.FILE_APPEND,
                                 499000000,
                                 makeExtraIncluded(Extra.KEYS, 1),
-                                makeExtraIncluded(Extra.BYTES, 1000)),
+                                makeExtraIncluded(Extra.STATE_BYTES, 1000)),
                         makeServiceFee(
                                 HederaFunctionality.FILE_UPDATE,
                                 499000000,
                                 makeExtraIncluded(Extra.KEYS, 1),
-                                makeExtraIncluded(Extra.BYTES, 1000)),
+                                makeExtraIncluded(Extra.STATE_BYTES, 1000)),
                         makeServiceFee(HederaFunctionality.FILE_DELETE, 69000000),
                         makeServiceFee(HederaFunctionality.FILE_GET_INFO, 6),
-                        makeServiceFee(HederaFunctionality.FILE_GET_CONTENTS, 7, makeExtraIncluded(Extra.BYTES, 1000)),
+                        makeServiceFee(
+                                HederaFunctionality.FILE_GET_CONTENTS, 7, makeExtraIncluded(Extra.STATE_BYTES, 1000)),
                         makeServiceFee(HederaFunctionality.SYSTEM_DELETE, 50000000),
                         makeServiceFee(HederaFunctionality.SYSTEM_UNDELETE, 50000000)))
                 .build();

@@ -66,6 +66,7 @@ timingSensitiveModuleInfo {
     requires("com.swirlds.common.test.fixtures")
     requires("com.swirlds.platform.core")
     requires("com.swirlds.platform.core.test.fixtures")
+    requires("com.swirlds.state.impl")
     requires("org.hiero.base.concurrent")
     requires("org.hiero.base.utility.test.fixtures")
     requires("org.assertj.core")

@@ -444,6 +444,7 @@ public class TokenCreateHandler extends BaseTokenHandler implements TransactionH
      */
     public static SubType tokenSubTypeFrom(final TokenType tokenType, boolean hasCustomFees) {
         return switch (tokenType) {
+            case UNRECOGNIZED -> throw new IllegalArgumentException("Unrecognized token type");
             case FUNGIBLE_COMMON ->
                 hasCustomFees ? SubType.TOKEN_FUNGIBLE_COMMON_WITH_CUSTOM_FEES : SubType.TOKEN_FUNGIBLE_COMMON;
             case NON_FUNGIBLE_UNIQUE ->

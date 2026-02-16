@@ -2,7 +2,6 @@
 package com.swirlds.platform.reconnect;
 
 import static com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils.createTestState;
-import static java.lang.Thread.sleep;
 import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomSignature;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -43,8 +42,9 @@ import com.swirlds.platform.system.status.actions.FallenBehindAction;
 import com.swirlds.platform.system.status.actions.ReconnectCompleteAction;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import com.swirlds.platform.wiring.PlatformCoordinator;
-import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.StateLifecycleManager;
+import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -86,16 +86,16 @@ class ReconnectControllerTest {
     private Roster roster;
     private Platform platform;
     private PlatformCoordinator platformCoordinator;
-    private StateLifecycleManager stateLifecycleManager;
+    private StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager;
     private SavedStateController savedStateController;
-    private ConsensusStateEventHandler<MerkleNodeState> consensusStateEventHandler;
+    private ConsensusStateEventHandler consensusStateEventHandler;
     private BlockingResourceProvider<ReservedSignedStateResult> stateProvider;
     private FallenBehindMonitor fallenBehindMonitor;
     private NodeId selfId;
 
     private SignedState testSignedState;
     private ReservedSignedState testReservedSignedState;
-    private MerkleNodeState testWorkingState;
+    private VirtualMapState testWorkingState;
     private SignedStateValidator signedStateValidator;
 
     @BeforeAll

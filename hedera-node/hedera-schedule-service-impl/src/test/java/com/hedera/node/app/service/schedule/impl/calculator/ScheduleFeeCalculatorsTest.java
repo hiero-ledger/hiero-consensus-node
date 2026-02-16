@@ -236,7 +236,7 @@ class ScheduleFeeCalculatorsTest {
                 .extras(
                         makeExtraDef(Extra.SIGNATURES, 1000000L),
                         makeExtraDef(Extra.KEYS, 10000000L),
-                        makeExtraDef(Extra.BYTES, 110L),
+                        makeExtraDef(Extra.STATE_BYTES, 110L),
                         makeExtraDef(Extra.SCHEDULE_CREATE_CONTRACT_CALL_BASE, 12345L))
                 .services(makeService(
                         "ScheduleService",

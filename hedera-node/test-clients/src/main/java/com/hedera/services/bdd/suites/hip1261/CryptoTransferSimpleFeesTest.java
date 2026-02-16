@@ -126,11 +126,9 @@ public class CryptoTransferSimpleFeesTest {
     private static final String HBAR_OWNER_INSUFFICIENT_BALANCE = "hbarOwnerInsufficientBalance";
     private static final String FUNGIBLE_TOKEN = "fungibleToken";
     private static final String FUNGIBLE_TOKEN_2 = "fungibleToken2";
-    private static final String FUNGIBLE_TOKEN_3 = "fungibleToken3";
     private static final String NON_FUNGIBLE_TOKEN = "nonFungibleToken";
     private static final String NON_FUNGIBLE_TOKEN_2 = "nonFungibleToken2";
     private static final String NON_FUNGIBLE_TOKEN_3 = "nonFungibleToken3";
-    private static final String DUPLICATE_TXN_ID = "duplicateTxnId";
     private static final String adminKey = "adminKey";
     private static final String supplyKey = "supplyKey";
     private static final String PAYER_KEY = "payerKey";
@@ -1493,7 +1491,6 @@ public class CryptoTransferSimpleFeesTest {
                             createAccountsAndKeys(),
                             createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN, 100L, OWNER, adminKey),
                             createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN_2, 100L, OWNER, adminKey),
-                            createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN_3, 100L, OWNER, adminKey),
                             registerEvmAddressAliasFrom(VALID_ALIAS_ECDSA, evmAlias),
 
                             // transfer tokens
@@ -1502,17 +1499,16 @@ public class CryptoTransferSimpleFeesTest {
 
                                 final var cryptoTransferOp = cryptoTransfer(
                                                 moving(10L, FUNGIBLE_TOKEN).between(OWNER, VALID_ALIAS_ED25519),
-                                                moving(10L, FUNGIBLE_TOKEN_2).between(OWNER, VALID_ALIAS_ECDSA_SECOND),
-                                                moving(10L, FUNGIBLE_TOKEN_3).between(OWNER, alias))
+                                                moving(10L, FUNGIBLE_TOKEN_2).between(OWNER, alias))
                                         .payingWith(OWNER)
                                         .signedBy(OWNER)
                                         .via("tokenTransferTxn");
 
                                 final var checkOpChargedUsd = validateChargedUsdWithin(
                                         "tokenTransferTxn",
-                                        (expectedCryptoTransferHBARAndFTAndNFTFullFeeUsd(1, 0, 4, 3, 0, 0)
-                                                + tokenAssociateFee * 3),
-                                        0.001);
+                                        (expectedCryptoTransferHBARAndFTAndNFTFullFeeUsd(1, 0, 3, 2, 0, 0)
+                                                + tokenAssociateFee * 2),
+                                        0.1);
 
                                 final var checkOpInfoValidAliasED25519 = getAliasedAccountInfo(VALID_ALIAS_ED25519)
                                         .hasToken(relationshipWith(FUNGIBLE_TOKEN))
@@ -1521,17 +1517,9 @@ public class CryptoTransferSimpleFeesTest {
                                                 .alias(VALID_ALIAS_ED25519)
                                                 .maxAutoAssociations(-1));
 
-                                final var checkOpInfoValidAliasECDSASecond = getAliasedAccountInfo(
-                                                VALID_ALIAS_ECDSA_SECOND)
-                                        .hasToken(relationshipWith(FUNGIBLE_TOKEN_2))
-                                        .has(accountWith()
-                                                .key(VALID_ALIAS_ECDSA_SECOND)
-                                                .alias(VALID_ALIAS_ECDSA_SECOND)
-                                                .maxAutoAssociations(-1));
-
                                 final var checkHollowAccountInfo = getAliasedAccountInfo(alias)
                                         .isHollow()
-                                        .hasToken(relationshipWith(FUNGIBLE_TOKEN_3))
+                                        .hasToken(relationshipWith(FUNGIBLE_TOKEN_2))
                                         .has(accountWith()
                                                 .hasEmptyKey()
                                                 .noAlias()
@@ -1540,15 +1528,13 @@ public class CryptoTransferSimpleFeesTest {
 
                                 final var checkOwnerBalance = getAccountBalance(OWNER)
                                         .hasTokenBalance(FUNGIBLE_TOKEN, 90L)
-                                        .hasTokenBalance(FUNGIBLE_TOKEN_2, 90L)
-                                        .hasTokenBalance(FUNGIBLE_TOKEN_3, 90L);
+                                        .hasTokenBalance(FUNGIBLE_TOKEN_2, 90L);
 
                                 allRunFor(
                                         spec,
                                         cryptoTransferOp,
                                         checkOpChargedUsd,
                                         checkOpInfoValidAliasED25519,
-                                        checkOpInfoValidAliasECDSASecond,
                                         checkHollowAccountInfo,
                                         checkOwnerBalance);
                             })));

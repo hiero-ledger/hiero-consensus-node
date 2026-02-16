@@ -12,6 +12,11 @@ on:
         required: false
         default: false
         type: boolean
+      dry-run-enabled:
+        description: "Perform Dry Run"
+        required: false
+        default: true
+        type: boolean
 
 defaults:
   run:
@@ -98,10 +103,13 @@ jobs:
           echo "Currently on branch: ${current_branch}"
 
       - name: Push Temporary Branch to Origin
-        run: git push --set-upstream origin "${{ steps.branch.outputs.name }}"
+        if: ${{ inputs.dry-run-enabled != true }}
+        run: |
+          echo "Pushing temporary branch to origin"
+          git push --set-upstream origin "${{ steps.branch.outputs.name }}"
 
       - name: Git-Semver Setup Action
-        uses: DJ-BBot/setup-git-semver@6bb4ebdd43599b4b1ce2db197bd364612128d175 # v1.0.6
+        uses: pandaswhocode/setup-git-semver@b820991c162d51f81f309c522b2b595d97d645eb # v1.0.8
 
       - name: Identify Current Version Number
         run: |
@@ -167,43 +175,52 @@ jobs:
             echo "No major or minor version bump detected. Skipping release branch creation."
           fi
 
+          # If this is an alpha flag we do not want to create a release branch
           if [[ "${ALPHA_FLAG}" == "true" ]]; then
             CREATE_RELEASE_BRANCH=false
+            echo "Alpha release detected. Skipping release branch creation."
+          fi
+
+          if [[ "${{ inputs.dry-run-enabled }}" == "true" ]]; then
+            CREATE_RELEASE_BRANCH=false
+            echo "Dry run enabled. Skipping release branch creation."
           fi
 
           # Create and push the release branch if CREATE_RELEASE_BRANCH is true
           if [[ "${CREATE_RELEASE_BRANCH}" == "true" ]]; then
-          echo "Check if the release branch already exists."
+            echo "Check if the release branch already exists."
             # Check if the branch exists remotely
-            if git rev-list -n 1 "origin/${release_branch}" >/dev/null 2>&1; then
-              echo "Release branch '${release_branch}' already exists. Skipping creation."
+            if git ls-remote --exit-code --heads origin "${release_branch}" >/dev/null 2>&1; then
+              echo "Release branch ${release_branch} already exists. Skipping creation."
             else
-              echo "Creating release branch: '${release_branch}'"
+              echo "Creating release branch: ${release_branch}"
               git checkout -b "${release_branch}"
               git push origin "${release_branch}"
             fi
-          else
-            echo "Release branch creation not required."
           fi
 
       - name: Apply Tag with Calculated Next Version
         run: |
           echo "Applying computed version tag"
-          git tag --annotate "v${{ steps.next-release.outputs.version }}" --message "v${{ steps.next-release.outputs.version }}"
-          echo "Applied tag v${{ steps.next-release.outputs.version }}"
-          current_version="$(git-semver latest)"
-          echo "Version Tag Applied: v${{ steps.next-release.outputs.version }}" >> ${GITHUB_STEP_SUMMARY}
-          echo "Current Official Version: ${current_version}" >> ${GITHUB_STEP_SUMMARY}
+          if [[ "${{ inputs.dry-run-enabled }}" == "true" ]]; then
+            echo "Dry run enabled, not applying tag v${{ steps.next-release.outputs.version }}"
+          else
+            git tag --sign --annotate "v${{ steps.next-release.outputs.version }}" --message "v${{ steps.next-release.outputs.version }}"
+            echo "Applied tag v${{ steps.next-release.outputs.version }}"
+            current_version="$(git-semver latest)"
+            echo "Version Tag Applied: v${{ steps.next-release.outputs.version }}" >> ${GITHUB_STEP_SUMMARY}
+            echo "Current Official Version: ${current_version}" >> ${GITHUB_STEP_SUMMARY}
+          fi
 
       - name: Push Release Tag to Remote
+        if: ${{ inputs.dry-run-enabled != true }}
         run: |
           echo "Pushing release tag to remote"
           git push origin tag "v${{ steps.next-release.outputs.version }}"
-          echo "Pushed new release tag to remote"
+          echo "Pushed new release tag v${{ steps.next-release.outputs.version }} to remote"
 
       - name: Create Release Notes with Markdown
         id: release
-        if: ${{ inputs.alpha-release != true }} # Skip step if alpha-release is true
         run: |
           echo git-semver log --markdown "${{ steps.next-release.outputs.version }}" > "RELEASE.md"
           git-semver log --markdown "${{ steps.next-release.outputs.version }}" > "RELEASE.md"
@@ -212,7 +229,8 @@ jobs:
 
       - name: Publish Release Notes
         uses: step-security/action-gh-release@868edcd064bf35267c4b218913c3d36d547086b4 # v2.2.2
-        if: ${{ inputs.alpha-release != true }} # Skip step if alpha-release is true
+        # Skip step if not alpha release or not dry run
+        if: ${{ inputs.alpha-release != true && inputs.dry-run-enabled != true }}
         with:
           name: v${{ steps.next-release.outputs.version }}
           tag_name: v${{ steps.next-release.outputs.version }}
@@ -221,7 +239,6 @@ jobs:
           body_path: "RELEASE.md"
 
       - name: Clean Up Release Notes
-        if: ${{ inputs.alpha-release != true }} # Skip step if alpha-release is true
         run: |
           echo "Removing the release notes file RELEASE.md"
           rm RELEASE.md
@@ -245,7 +262,7 @@ jobs:
           # Check if the branch is associated with a worktree and remove the worktree if it exists
           worktree_path="$(git worktree list | grep "${{ steps.branch.outputs.name }}" || true)"
 
-          if [ -n "${worktree_path}" ]; then
+          if [[ -n "${worktree_path}" ]]; then
             echo "Removing worktree at ${worktree_path}"
             git worktree remove "${worktree_path}"
           else
@@ -256,10 +273,13 @@ jobs:
         if: always()
         run: |
           echo "Deleting the temporary semantic release branch"
-          echo "Deleting local branch now:"
           git branch -d "${{ steps.branch.outputs.name }}"
           echo "Deleted Temporary Branch from Local Runner" >> ${GITHUB_STEP_SUMMARY}
 
-          echo "Deleting remote branch now:"
-          git push -d origin "${{ steps.branch.outputs.name }}"
-          echo "Deleted Temporary Branch from Remote" >> ${GITHUB_STEP_SUMMARY}
+          if [[ "${{ inputs.dry-run-enabled }}" == "true" ]]; then
+            echo "No remote branches to delete"
+          else
+            echo "Deleting remote branch now:"
+            git push -d origin "${{ steps.branch.outputs.name }}"
+            echo "Deleted Temporary Branch from Remote" >> ${GITHUB_STEP_SUMMARY}
+          fi

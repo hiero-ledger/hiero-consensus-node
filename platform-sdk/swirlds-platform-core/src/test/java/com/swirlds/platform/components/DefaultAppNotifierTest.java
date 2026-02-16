@@ -25,7 +25,7 @@ import com.swirlds.platform.system.state.notifications.NewSignedStateListener;
 import com.swirlds.platform.system.state.notifications.NewSignedStateNotification;
 import com.swirlds.platform.system.state.notifications.StateHashedListener;
 import com.swirlds.platform.system.state.notifications.StateHashedNotification;
-import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.merkle.VirtualMapState;
 import java.time.Instant;
 import java.util.List;
 import org.hiero.base.concurrent.futures.StandardFuture.CompletionCallback;
@@ -73,7 +73,7 @@ public class DefaultAppNotifierTest {
 
     @Test
     void testReconnectCompleteNotificationSent() {
-        final MerkleNodeState state = mock(MerkleNodeState.class);
+        final VirtualMapState state = mock(VirtualMapState.class);
         final ReconnectCompleteNotification notification =
                 new ReconnectCompleteNotification(100L, Instant.now(), state);
 
@@ -99,7 +99,7 @@ public class DefaultAppNotifierTest {
 
     @Test
     void testLatestCompleteStateNotificationSent() {
-        final MerkleNodeState state = mock(MerkleNodeState.class);
+        final VirtualMapState state = mock(VirtualMapState.class);
         final CompletionCallback<NotificationResult<NewSignedStateNotification>> cleanup =
                 mock(CompletionCallback.class);
         final NewSignedStateNotification signedStateNotification =

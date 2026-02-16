@@ -76,7 +76,7 @@ public class ReconnectStateTeacher {
      * @param selfId this node's ID
      * @param otherId the learner's ID
      * @param lastRoundReceived the round of the state
-     * @param signedState the state used for teaching; must be a signed VirtualMapState
+     * @param signedState the state used for teaching; must be a signed VirtualMapStateImpl
      * @param statistics reconnect metrics
      */
     public ReconnectStateTeacher(
@@ -105,10 +105,8 @@ public class ReconnectStateTeacher {
         signatures = signedState.getSigSet();
         signingWeight = signedState.getSigningWeight();
         roster = signedState.getRoster();
-        hash = signedState.getState().getHash();
-        if (!(signedState.getState() instanceof VirtualMapState virtualMapState)) {
-            throw new UnsupportedOperationException("Reconnects are only supported for VirtualMap states");
-        }
+        final VirtualMapState virtualMapState = signedState.getState();
+        hash = virtualMapState.getHash();
         final ReconnectConfig reconnectConfig = configuration.getConfigData(ReconnectConfig.class);
         // The teacher view will be closed by TeacherSynchronizer in reconnect() below
         teacherView = virtualMapState.getRoot().buildTeacherView(reconnectConfig);

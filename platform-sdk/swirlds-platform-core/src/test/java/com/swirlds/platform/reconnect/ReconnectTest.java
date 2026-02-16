@@ -18,10 +18,11 @@ import com.swirlds.platform.metrics.ReconnectMetrics;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
-import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.StateLifecycleManagerImpl;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils;
+import com.swirlds.virtualmap.VirtualMap;
 import java.io.IOException;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
@@ -104,8 +105,8 @@ final class ReconnectTest {
                 .withWeightGenerator((l, i) -> WeightGenerators.balancedNodeWeights(numNodes, weightPerNode * numNodes))
                 .build();
 
-        MerkleNodeState stateCopy = null;
-        StateLifecycleManager stateLifecycleManager = null;
+        VirtualMapState stateCopy = null;
+        StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager;
         try (final PairedStreams pairedStreams = new PairedStreams()) {
             final SignedState signedState = new RandomSignedStateGenerator()
                     .setRoster(roster)
@@ -172,10 +173,10 @@ final class ReconnectTest {
     }
 
     private ReconnectStateLearner buildReceiver(
-            final MerkleNodeState state,
+            final VirtualMapState state,
             final Connection connection,
             final ReconnectMetrics reconnectMetrics,
-            final StateLifecycleManager stateLifecycleManager) {
+            final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager) {
 
         return new ReconnectStateLearner(
                 configuration,

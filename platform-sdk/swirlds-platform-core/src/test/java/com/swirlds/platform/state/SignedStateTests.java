@@ -19,7 +19,7 @@ import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
-import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils;
 import com.swirlds.state.test.fixtures.merkle.VirtualMapUtils;
 import com.swirlds.virtualmap.VirtualMap;
@@ -45,7 +45,7 @@ class SignedStateTests {
     /**
      * Generate a signed state.
      */
-    private SignedState generateSignedState(final Random random, final MerkleNodeState state) {
+    private SignedState generateSignedState(final Random random, final VirtualMapState state) {
         return new RandomSignedStateGenerator(random).setState(state).build();
     }
 
@@ -60,13 +60,13 @@ class SignedStateTests {
      * @param reserveCallback this method is called when the State is reserved
      * @param releaseCallback this method is called when the State is released
      */
-    private MerkleNodeState buildMockState(
+    private VirtualMapState buildMockState(
             final Random random, final Runnable reserveCallback, final Runnable releaseCallback) {
         final var real = VirtualMapStateTestUtils.createTestState();
-        TestingAppStateInitializer.initConsensusModuleStates(real, CONFIGURATION);
+        TestingAppStateInitializer.initConsensusModuleStates(real);
         RosterStateUtils.setActiveRoster(
                 real, RandomRosterBuilder.create(random).build(), 0L);
-        final MerkleNodeState<VirtualMap> state = spy(real);
+        final VirtualMapState state = spy(real);
         final VirtualMap realRoot = state.getRoot();
         final VirtualMap rootSpy = spy(realRoot);
         when(state.getRoot()).thenReturn(rootSpy);
@@ -101,7 +101,7 @@ class SignedStateTests {
         final AtomicBoolean reserved = new AtomicBoolean(false);
         final AtomicBoolean released = new AtomicBoolean(false);
 
-        final MerkleNodeState state = buildMockState(
+        final VirtualMapState state = buildMockState(
                 random,
                 () -> {
                     assertFalse(reserved.get(), "should only be reserved once");
@@ -163,7 +163,7 @@ class SignedStateTests {
 
         final Thread mainThread = Thread.currentThread();
 
-        final MerkleNodeState state = buildMockState(
+        final VirtualMapState state = buildMockState(
                 random,
                 () -> {
                     assertFalse(reserved.get(), "should only be reserved once");
@@ -215,7 +215,7 @@ class SignedStateTests {
     void alternateConstructorReservationsTest() {
         final var virtualMap = VirtualMapUtils.createVirtualMap();
 
-        final MerkleNodeState state = spy(createTestStateWithVM(virtualMap));
+        final VirtualMapState state = spy(createTestStateWithVM(virtualMap));
         final PlatformStateModifier platformState = mock(PlatformStateModifier.class);
         TestingAppStateInitializer.initPlatformState(state);
         when(platformState.getRound()).thenReturn(0L);
@@ -237,7 +237,7 @@ class SignedStateTests {
     @DisplayName("Test Try Reserve")
     void tryReserveTest() {
         final Random random = new Random();
-        final MerkleNodeState state = VirtualMapStateTestUtils.createTestState();
+        final VirtualMapState state = VirtualMapStateTestUtils.createTestState();
         generateSignedState(random, state);
 
         assertEquals(

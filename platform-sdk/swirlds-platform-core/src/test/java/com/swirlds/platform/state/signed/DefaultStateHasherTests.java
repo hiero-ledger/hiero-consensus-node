@@ -10,7 +10,7 @@ import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.platform.eventhandling.StateWithHashComplexity;
 import com.swirlds.platform.state.hasher.DefaultStateHasher;
 import com.swirlds.platform.state.hasher.StateHasher;
-import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.merkle.VirtualMapState;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -29,10 +29,10 @@ public class DefaultStateHasherTests {
 
         // mock a state
         final SignedState signedState = mock(SignedState.class);
-        final MerkleNodeState merkleNodeState = mock(MerkleNodeState.class);
+        final VirtualMapState virtualMapState = mock(VirtualMapState.class);
         final ReservedSignedState reservedSignedState = mock(ReservedSignedState.class);
         when(reservedSignedState.get()).thenReturn(signedState);
-        when(signedState.getState()).thenReturn(merkleNodeState);
+        when(signedState.getState()).thenReturn(virtualMapState);
 
         // do the test
         final ReservedSignedState result = hasher.hashState(new StateWithHashComplexity(reservedSignedState, 1));

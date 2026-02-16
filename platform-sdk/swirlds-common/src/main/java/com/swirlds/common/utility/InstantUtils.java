@@ -7,7 +7,7 @@ import java.time.Instant;
 public class InstantUtils {
 
     public static final long MICROS_IN_SECOND = 1_000_000L;
-    public static final long MILLIS_IN_SECOND = 1_000L;
+    public static final long NANOS_IN_MICRO = 1_000L;
 
     private InstantUtils() {
         // Utility class
@@ -17,7 +17,7 @@ public class InstantUtils {
      * Converts an Instant to epoch microseconds.
      */
     public static long instantToMicros(@NonNull final Instant instant) {
-        return instant.getEpochSecond() * MICROS_IN_SECOND + instant.getNano() / MILLIS_IN_SECOND;
+        return instant.getEpochSecond() * MICROS_IN_SECOND + instant.getNano() / NANOS_IN_MICRO;
     }
 
     /**
@@ -26,7 +26,7 @@ public class InstantUtils {
     @NonNull
     public static Instant microsToInstant(final long micros) {
         final long seconds = micros / MICROS_IN_SECOND;
-        final int nanos = (int) ((micros % MICROS_IN_SECOND) * MILLIS_IN_SECOND);
+        final int nanos = (int) ((micros % MICROS_IN_SECOND) * NANOS_IN_MICRO);
         return Instant.ofEpochSecond(seconds, nanos);
     }
 }
