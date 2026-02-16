@@ -11,6 +11,7 @@ import static com.hedera.services.bdd.spec.keys.KeyShape.sigs;
 import static com.hedera.services.bdd.spec.keys.KeyShape.threshOf;
 import static com.hedera.services.bdd.spec.keys.SigControl.OFF;
 import static com.hedera.services.bdd.spec.keys.SigControl.ON;
+import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFullPrefixesFor;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.createTopic;
@@ -531,6 +532,7 @@ public class TopicSubmitMessageSimpleFeesTest {
                                 .message(message)
                                 .payingWith(PAYER)
                                 .signedBy(PAYER) // Missing submit key signature
+                                .sigMapPrefixes(uniqueWithFullPrefixesFor(PAYER))
                                 .fee(ONE_HUNDRED_HBARS)
                                 .via("submitMessageTxn")
                                 .hasKnownStatus(INVALID_SIGNATURE),
