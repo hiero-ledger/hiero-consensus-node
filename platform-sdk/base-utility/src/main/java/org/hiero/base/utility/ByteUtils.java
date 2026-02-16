@@ -247,7 +247,7 @@ public final class ByteUtils {
         return com.hedera.pbj.runtime.io.buffer.Bytes.wrap(padded);
     }
 
-    public static boolean isEmptyOrAllZeros(Bytes bytes) {
+    public static boolean isEmptyOrAllZeros(@NonNull final Bytes bytes) {
         for (long i = 0; i < bytes.length(); i++) {
             if (bytes.getByte(i) != 0x00) {
                 return false;
