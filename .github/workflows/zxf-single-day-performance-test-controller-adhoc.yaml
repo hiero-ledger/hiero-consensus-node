@@ -133,7 +133,7 @@ jobs:
     with:
       test-asset: "${{ inputs.test-asset }}"
       ref: "${{ inputs.ref || github.ref }}"
-      solo-version: "v0.55.0" #"${{ vars.ADHOC_SOLO_VERSION }}"
+      solo-version: "v0.56.0" #"${{ vars.ADHOC_SOLO_VERSION }}"
       nlg-accounts: "${{ inputs.nlg-accounts }}"
       nlg-time: "${{ inputs.nlg-time }}"
       add-app-props: "${{ inputs.add-app-props }}"
