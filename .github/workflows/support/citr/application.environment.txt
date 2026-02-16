@@ -1,1 +1,2 @@
 MALLOC_ARENA_MAX=4
+UseBonnevilleEVM=1
