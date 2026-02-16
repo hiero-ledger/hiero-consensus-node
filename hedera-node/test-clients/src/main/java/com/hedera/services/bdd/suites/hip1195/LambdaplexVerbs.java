@@ -26,6 +26,7 @@ import com.google.common.primitives.Longs;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HookEntityId;
 import com.hedera.hapi.node.base.HookId;
+import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.hooks.EvmHookMappingEntry;
 import com.hedera.hapi.node.state.contract.SlotValue;
 import com.hedera.hapi.node.state.hooks.EvmHookSlotKey;
@@ -35,6 +36,7 @@ import com.hedera.hapi.node.state.token.Token;
 import com.hedera.node.app.service.contract.ContractService;
 import com.hedera.node.app.service.token.TokenService;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.services.bdd.junit.hedera.HederaNetwork;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.dsl.entities.SpecAccount;
@@ -46,6 +48,7 @@ import com.hederahashgraph.api.proto.java.AccountAmount;
 import com.hederahashgraph.api.proto.java.EvmHookCall;
 import com.hederahashgraph.api.proto.java.HookCall;
 import com.hederahashgraph.api.proto.java.TokenTransferList;
+import com.hederahashgraph.api.proto.java.TransferList;
 import com.swirlds.base.utility.Pair;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -75,6 +78,22 @@ public class LambdaplexVerbs {
     private static final long BASE_GAS_LIMIT = 8_000L;
     private static final long DIRECT_PREFIX_GAS_INCREMENT = 20_000L;
     private static final Bytes PADDED_ZERO = leftPad32(Bytes.EMPTY);
+
+    // Sentinel for HBAR
+    public static final SpecFungibleToken HBAR = new SpecFungibleToken("<HBAR>") {
+        private static final Token HBAR_TOKEN = Token.newBuilder()
+                .tokenId(TokenID.DEFAULT)
+                .name("Hedera")
+                .symbol("HBAR")
+                .decimals(8)
+                .build();
+
+        @Override
+        public Token tokenOrThrow(@NonNull final HederaNetwork network) {
+            requireNonNull(network);
+            return HBAR_TOKEN;
+        }
+    };
 
     private final long hookId;
     private final String feeCollectorName;
@@ -442,13 +461,27 @@ public class LambdaplexVerbs {
                 }
             }
             final var registry = spec.registry();
-            builder.addTokenTransfers(TokenTransferList.newBuilder()
-                            .setToken(registry.getTokenID(specBaseToken.name()))
-                            .addAllTransfers(baseAdjustments))
-                    .addTokenTransfers(TokenTransferList.newBuilder()
-                            .setToken(registry.getTokenID(specQuoteToken.name()))
-                            .addAllTransfers(quoteAdjustments))
-                    .build();
+            if (specBaseToken == HBAR) {
+                builder.setTransfers(TransferList.newBuilder().addAllAccountAmounts(baseAdjustments))
+                        .addTokenTransfers(TokenTransferList.newBuilder()
+                                .setToken(registry.getTokenID(specQuoteToken.name()))
+                                .addAllTransfers(quoteAdjustments))
+                        .build();
+            } else if (specQuoteToken == HBAR) {
+                builder.addTokenTransfers(TokenTransferList.newBuilder()
+                                .setToken(registry.getTokenID(specBaseToken.name()))
+                                .addAllTransfers(baseAdjustments))
+                        .setTransfers(TransferList.newBuilder().addAllAccountAmounts(quoteAdjustments))
+                        .build();
+            } else {
+                builder.addTokenTransfers(TokenTransferList.newBuilder()
+                                .setToken(registry.getTokenID(specBaseToken.name()))
+                                .addAllTransfers(baseAdjustments))
+                        .addTokenTransfers(TokenTransferList.newBuilder()
+                                .setToken(registry.getTokenID(specQuoteToken.name()))
+                                .addAllTransfers(quoteAdjustments))
+                        .build();
+            }
         });
     }
 
@@ -520,7 +553,6 @@ public class LambdaplexVerbs {
             if (side == BUY) {
                 // User is debited quote token
                 outToken = quoteToken;
-
                 // And credited base token
                 inToken = baseToken;
                 detailValue = encodeOrderDetailValue(

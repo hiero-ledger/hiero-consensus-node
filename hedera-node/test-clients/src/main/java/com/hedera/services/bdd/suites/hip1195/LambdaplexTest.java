@@ -4,16 +4,21 @@ package com.hedera.services.bdd.suites.hip1195;
 import static com.hedera.hapi.node.hooks.HookExtensionPoint.ACCOUNT_ALLOWANCE_HOOK;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asLongZeroAddress;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
+import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.tokenChangeFromSnapshot;
 import static com.hedera.services.bdd.spec.assertions.SomeFungibleTransfers.changingFungibleBalances;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
+import static com.hedera.services.bdd.spec.assertions.TransferListAsserts.includingHbarCredit;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertOwnerHasEvmHookSlotUsageChange;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordCurrentOwnerEvmHookSlotUsage;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.tokenBalanceSnapshot;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.THOUSAND_HBAR;
 import static com.hedera.services.bdd.suites.hip1195.LambdaplexVerbs.FillParty.*;
+import static com.hedera.services.bdd.suites.hip1195.LambdaplexVerbs.HBAR;
 import static com.hedera.services.bdd.suites.hip1195.LambdaplexVerbs.inBaseUnits;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -175,6 +180,299 @@ public class LambdaplexTest implements InitcodeTransform {
                                 .between(BANANAS.treasury().name(), COUNTERPARTY.name()),
                         moving(usdcUnits(100), USDC.name())
                                 .between(USDC.treasury().name(), COUNTERPARTY.name())));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> hbarHtsFullFillOnMakerSpreadCrossNoFees() {
+        final var sellSalt = randomB64Salt();
+        final var buySalt = randomB64Salt();
+        final var makerOrdersBefore = new AtomicLong();
+        final var partyOrdersBefore = new AtomicLong();
+        return hapiTest(
+                recordCurrentOwnerEvmHookSlotUsage(MARKET_MAKER.name(), makerOrdersBefore::set),
+                recordCurrentOwnerEvmHookSlotUsage(PARTY.name(), partyOrdersBefore::set),
+                // Market maker places a limit order to sell up to 10 HBAR for $0.10 each, no fee tolerance
+                lv.placeLimitOrder(
+                        MARKET_MAKER,
+                        sellSalt,
+                        HBAR,
+                        USDC,
+                        Side.SELL,
+                        distantExpiry(),
+                        ZERO_BPS,
+                        price(0.10),
+                        quantity(10)),
+                // Second market maker places order to buy 10 HBAR for $0.10 each, no fee tolerance
+                lv.placeLimitOrder(
+                        PARTY, buySalt, HBAR, USDC, Side.BUY, distantExpiry(), ZERO_BPS, price(0.10), quantity(10)),
+                // Do a zero-fee settlement
+                lv.settleFillsNoFees(
+                        HBAR,
+                        USDC,
+                        makingSeller(MARKET_MAKER, quantity(10), price(0.10), sellSalt),
+                        takingBuyer(PARTY, quantity(10), averagePrice(0.10), buySalt)),
+                // Both party "out token" limits were fully executed, so hook removes the orders
+                assertOwnerHasEvmHookSlotUsageChange(MARKET_MAKER.name(), makerOrdersBefore, 0),
+                assertOwnerHasEvmHookSlotUsageChange(PARTY.name(), partyOrdersBefore, 0));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> htsHbarFullFillOnMakerSpreadCrossWithFees() {
+        final var sellSalt = randomB64Salt();
+        final var buySalt = randomB64Salt();
+        final var makerOrdersBefore = new AtomicLong();
+        final var partyOrdersBefore = new AtomicLong();
+        return hapiTest(
+                recordCurrentOwnerEvmHookSlotUsage(MARKET_MAKER.name(), makerOrdersBefore::set),
+                recordCurrentOwnerEvmHookSlotUsage(PARTY.name(), partyOrdersBefore::set),
+                // Market maker places a limit order w/ maker fee tolerance of 12 bps (0.12%)
+                lv.placeLimitOrder(
+                        MARKET_MAKER,
+                        sellSalt,
+                        APPLES,
+                        HBAR,
+                        Side.SELL,
+                        distantExpiry(),
+                        MAKER_BPS,
+                        price(12.00),
+                        quantity(3)),
+                // Second party places matching limit order w/ taker fee tolerance of 25 bps (0.25%)
+                lv.placeLimitOrder(
+                        PARTY, buySalt, APPLES, HBAR, Side.BUY, distantExpiry(), TAKER_BPS, price(12.00), quantity(3)),
+                lv.settleFills(
+                                APPLES,
+                                HBAR,
+                                FEES,
+                                makingSeller(MARKET_MAKER, quantity(3), price(12.00), sellSalt),
+                                takingBuyer(PARTY, quantity(3), averagePrice(12.00), buySalt))
+                        .via("fill"),
+                // Both party "out token" limits were fully executed, so hook removes the orders
+                assertOwnerHasEvmHookSlotUsageChange(MARKET_MAKER.name(), makerOrdersBefore, 0),
+                assertOwnerHasEvmHookSlotUsageChange(PARTY.name(), partyOrdersBefore, 0),
+                // Double-check fee transfers once
+                getTxnRecord("fill")
+                        .hasPriority(recordWith()
+                                .transfers(includingHbarCredit(
+                                        FEE_COLLECTOR.name(), inBaseUnits(quantity(36), 8) * MAKER_BPS / 10_000))
+                                .tokenTransfers(changingFungibleBalances()
+                                        .including(
+                                                APPLES.name(),
+                                                FEE_COLLECTOR.name(),
+                                                inBaseUnits(quantity(3), APPLES_DECIMALS) * TAKER_BPS / 10_000))));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> batchOrderHbarHtsFullFillsWithFeesOnMakerSpreadCross() {
+        final var makerSellSaltOne = randomB64Salt();
+        final var makerSellSaltTwo = randomB64Salt();
+        final var buySalt = randomB64Salt();
+        return hapiTest(
+                // Two sells, 1.5 at $0.5, 1.8 at $0.6 -> total cost is $1.5*0.5 + $1.8*0.6 = $2.28
+                // for an average price of $0.57 per HBAR
+                lv.placeLimitOrder(
+                        MARKET_MAKER,
+                        makerSellSaltOne,
+                        HBAR,
+                        USDC,
+                        Side.SELL,
+                        distantExpiry(),
+                        MAKER_BPS,
+                        price(0.50),
+                        quantity(1.5)),
+                lv.placeLimitOrder(
+                        MARKET_MAKER,
+                        makerSellSaltTwo,
+                        HBAR,
+                        USDC,
+                        Side.SELL,
+                        distantExpiry(),
+                        MAKER_BPS,
+                        price(0.60),
+                        quantity(1.8)),
+                // Buy 3.3 HBAR for $0.57 average price per
+                lv.placeLimitOrder(
+                        PARTY, buySalt, HBAR, USDC, Side.BUY, distantExpiry(), TAKER_BPS, price(0.57), quantity(3.3)),
+                lv.settleFills(
+                        HBAR,
+                        USDC,
+                        FEES,
+                        makingSeller(
+                                MARKET_MAKER, quantity(3.3), averagePrice(0.57), makerSellSaltOne, makerSellSaltTwo),
+                        takingBuyer(PARTY, quantity(3.3), price(0.57), buySalt)),
+                // All salts should be used up
+                lv.assertNoSuchOrder(MARKET_MAKER.name(), makerSellSaltOne),
+                lv.assertNoSuchOrder(MARKET_MAKER.name(), makerSellSaltTwo),
+                lv.assertNoSuchOrder(PARTY.name(), buySalt));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> htsHbarPartialThenPartialThenFullFillsWithAndWithoutFeesOnMakerSpreadCross() {
+        final var makerSalt = randomB64Salt();
+        final var sellSaltOne = randomB64Salt();
+        final var sellSaltTwo = randomB64Salt();
+        final var sellSaltThree = randomB64Salt();
+        return hapiTest(
+                tokenBalanceSnapshot(APPLES.name(), "BEFORE", MARKET_MAKER.name()),
+                // Buy up to 2 apples for 10 HBAR each
+                lv.placeLimitOrder(
+                        MARKET_MAKER,
+                        makerSalt,
+                        APPLES,
+                        HBAR,
+                        Side.BUY,
+                        distantExpiry(),
+                        MAKER_BPS,
+                        price(10),
+                        quantity(2)),
+                // Sell one apple for 9 HBAR, no fees
+                lv.placeLimitOrder(
+                        PARTY, sellSaltOne, APPLES, HBAR, Side.SELL, distantExpiry(), ZERO_BPS, price(9), quantity(1)),
+                lv.settleFillsNoFees(
+                        APPLES,
+                        HBAR,
+                        takingSeller(PARTY, quantity(1), averagePrice(9), sellSaltOne),
+                        makingBuyer(MARKET_MAKER, quantity(1), price(9), makerSalt)),
+                // Now still buying up to 11 HBAR worth of apples
+                lv.assertOrderAmount(
+                        MARKET_MAKER.name(),
+                        makerSalt,
+                        bd -> assertEquals(
+                                0,
+                                notional(11).compareTo(bd),
+                                "Wrong BUY out token amount after partial fill: expected 11 HBAR, got " + bd)),
+                // Sell half an apple for 5 HBAR, no fees
+                lv.placeLimitOrder(
+                        PARTY,
+                        sellSaltTwo,
+                        APPLES,
+                        HBAR,
+                        Side.SELL,
+                        distantExpiry(),
+                        ZERO_BPS,
+                        price(10),
+                        quantity(0.5)),
+                lv.settleFillsNoFees(
+                        APPLES,
+                        HBAR,
+                        takingSeller(PARTY, quantity(0.5), averagePrice(10), sellSaltTwo),
+                        makingBuyer(MARKET_MAKER, quantity(0.5), price(10), makerSalt)),
+                // Now still buying up to 6 HBAR worth of apples
+                lv.assertOrderAmount(
+                        MARKET_MAKER.name(),
+                        makerSalt,
+                        bd -> assertEquals(
+                                0,
+                                notional(6).compareTo(bd),
+                                "Wrong BUY out token amount after second partial fill: expected 6 HBAR, got " + bd)),
+                // Sell an entire apple for 6 HBAR, taker fees
+                lv.placeLimitOrder(
+                        COUNTERPARTY,
+                        sellSaltThree,
+                        APPLES,
+                        HBAR,
+                        Side.SELL,
+                        distantExpiry(),
+                        TAKER_BPS,
+                        price(6),
+                        quantity(1)),
+                lv.settleFills(
+                        APPLES,
+                        HBAR,
+                        FEES,
+                        takingSeller(COUNTERPARTY, quantity(1), averagePrice(6), sellSaltThree),
+                        makingBuyer(MARKET_MAKER, quantity(1), price(6), makerSalt)),
+                // Assert fees were only deducted from the final credit
+                getAccountBalance(MARKET_MAKER.name())
+                        .hasTokenBalance(
+                                APPLES.name(),
+                                tokenChangeFromSnapshot(
+                                        APPLES.name(),
+                                        "BEFORE",
+                                        BigDecimal.valueOf(1.5 + (1.0 - (1.0 * MAKER_BPS / 10_000)))
+                                                .movePointRight(APPLES_DECIMALS)
+                                                .longValueExact())));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> batchOrderHbarHtsFullFullPartialFillsWithFeesOnMakerSpreadCross() {
+        final var makerSellSaltOne = randomB64Salt();
+        final var makerSellSaltTwo = randomB64Salt();
+        final var makerSellSaltThree = randomB64Salt();
+        final var buySalt = randomB64Salt();
+        return hapiTest(
+                // Grid of sells, 1 at $1, 2 at $2, and 3 at $3
+                lv.placeLimitOrder(
+                        MARKET_MAKER,
+                        makerSellSaltOne,
+                        HBAR,
+                        USDC,
+                        Side.SELL,
+                        distantExpiry(),
+                        MAKER_BPS,
+                        price(3.00),
+                        quantity(3)),
+                lv.placeLimitOrder(
+                        MARKET_MAKER,
+                        makerSellSaltTwo,
+                        HBAR,
+                        USDC,
+                        Side.SELL,
+                        distantExpiry(),
+                        MAKER_BPS,
+                        price(2.00),
+                        quantity(2)),
+                lv.placeLimitOrder(
+                        MARKET_MAKER,
+                        makerSellSaltThree,
+                        HBAR,
+                        USDC,
+                        Side.SELL,
+                        distantExpiry(),
+                        MAKER_BPS,
+                        price(1.00),
+                        quantity(1)),
+                // Buy five HBAR for $2.20 per
+                lv.placeLimitOrder(
+                        PARTY, buySalt, HBAR, USDC, Side.BUY, distantExpiry(), TAKER_BPS, price(2.20), quantity(5)),
+                // If we let maker hook fill greedily starting at $3, then not enough
+                // in token is left to satisfy the remaining sell orders in the batch
+                lv.settleFills(
+                                HBAR,
+                                USDC,
+                                FEES,
+                                makingSeller(
+                                        MARKET_MAKER,
+                                        quantity(5),
+                                        averagePrice(2.20),
+                                        makerSellSaltOne,
+                                        makerSellSaltTwo,
+                                        makerSellSaltThree),
+                                takingBuyer(PARTY, quantity(5), price(2.20), buySalt))
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
+                lv.settleFills(
+                        HBAR,
+                        USDC,
+                        FEES,
+                        makingSeller(
+                                MARKET_MAKER,
+                                quantity(5),
+                                averagePrice(2.20),
+                                makerSellSaltThree,
+                                makerSellSaltTwo,
+                                makerSellSaltOne),
+                        takingBuyer(PARTY, quantity(5), price(2.20), buySalt)),
+                // Three salts should be used up
+                lv.assertNoSuchOrder(MARKET_MAKER.name(), makerSellSaltThree),
+                lv.assertNoSuchOrder(MARKET_MAKER.name(), makerSellSaltTwo),
+                lv.assertNoSuchOrder(PARTY.name(), buySalt),
+                // And one last HBAR should be left in the lowest-risk ask level
+                lv.assertOrderAmount(
+                        MARKET_MAKER.name(),
+                        makerSellSaltOne,
+                        bd -> assertEquals(
+                                0,
+                                notional(1.0).compareTo(bd),
+                                "Wrong SELL out token amount after batch fill: expected one HBAR, got " + bd)));
     }
 
     @HapiTest
@@ -389,19 +687,17 @@ public class LambdaplexTest implements InitcodeTransform {
                                 takingBuyer(PARTY, quantity(5), price(2.20), buySalt))
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
                 lv.settleFills(
-                                APPLES,
-                                USDC,
-                                FEES,
-                                makingSeller(
-                                        MARKET_MAKER,
-                                        quantity(5),
-                                        averagePrice(2.20),
-                                        makerSellSaltThree,
-                                        makerSellSaltTwo,
-                                        makerSellSaltOne),
-                                takingBuyer(PARTY, quantity(5), price(2.20), buySalt))
-                        .via("goodGreedyOrder"),
-                getTxnRecord("goodGreedyOrder").andAllChildRecords().logged(),
+                        APPLES,
+                        USDC,
+                        FEES,
+                        makingSeller(
+                                MARKET_MAKER,
+                                quantity(5),
+                                averagePrice(2.20),
+                                makerSellSaltThree,
+                                makerSellSaltTwo,
+                                makerSellSaltOne),
+                        takingBuyer(PARTY, quantity(5), price(2.20), buySalt)),
                 // Three salts should be used up
                 lv.assertNoSuchOrder(MARKET_MAKER.name(), makerSellSaltThree),
                 lv.assertNoSuchOrder(MARKET_MAKER.name(), makerSellSaltTwo),
