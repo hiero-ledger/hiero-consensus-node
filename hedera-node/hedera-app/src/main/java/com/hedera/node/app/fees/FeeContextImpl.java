@@ -17,6 +17,7 @@ import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculator;
 import com.hedera.node.app.spi.store.ReadableStoreFactory;
+import com.hedera.node.app.throttle.SynchronizedThrottleAccumulator;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.app.workflows.handle.DispatchHandleContext;
@@ -42,18 +43,20 @@ public class FeeContextImpl implements FeeContext {
     private final int numSignatures;
     private final TransactionDispatcher transactionDispatcher;
     private final HederaFunctionality function;
+    private final SynchronizedThrottleAccumulator frontendThrottle;
 
     /**
      * Constructor of {@code FeeContextImpl}
      *
-     * @param consensusTime         the approximation of consensus time used during ingest
-     * @param txInfo                the {@link TransactionInfo} of the transaction
-     * @param payerKey              the {@link Key} of the payer
-     * @param payerId               the {@link AccountID} of the payer
-     * @param feeManager            the {@link FeeManager} to generate a {@link FeeCalculator}
-     * @param storeFactory          the {@link ReadableStoreFactory} to create readable stores
-     * @param numSignatures         the number of signatures in the transaction
+     * @param consensusTime the approximation of consensus time used during ingest
+     * @param txInfo the {@link TransactionInfo} of the transaction
+     * @param payerKey the {@link Key} of the payer
+     * @param payerId the {@link AccountID} of the payer
+     * @param feeManager the {@link FeeManager} to generate a {@link FeeCalculator}
+     * @param storeFactory the {@link ReadableStoreFactory} to create readable stores
+     * @param numSignatures the number of signatures in the transaction
      * @param transactionDispatcher the {@link TransactionDispatcher} to dispatch child transactions
+     * @param frontendThrottle the {@link SynchronizedThrottleAccumulator} to get high volume throttle utilization
      */
     public FeeContextImpl(
             @NonNull final Instant consensusTime,
@@ -65,7 +68,8 @@ public class FeeContextImpl implements FeeContext {
             @NonNull final Configuration configuration,
             @NonNull final Authorizer authorizer,
             final int numSignatures,
-            final TransactionDispatcher transactionDispatcher) {
+            final TransactionDispatcher transactionDispatcher,
+            final SynchronizedThrottleAccumulator frontendThrottle) {
         this.consensusTime = consensusTime;
         this.txInfo = txInfo;
         this.payerKey = payerKey;
@@ -77,6 +81,7 @@ public class FeeContextImpl implements FeeContext {
         this.numSignatures = numSignatures;
         this.transactionDispatcher = transactionDispatcher;
         this.function = requireNonNull(txInfo.functionality());
+        this.frontendThrottle = requireNonNull(frontendThrottle);
     }
 
     @Override
@@ -187,5 +192,10 @@ public class FeeContextImpl implements FeeContext {
     @Override
     public HederaFunctionality functionality() {
         return function;
+    }
+
+    @Override
+    public int getHighVolumeThrottleUtilization(@NonNull HederaFunctionality functionality) {
+        return frontendThrottle.getHighVolumeThrottleUtilization(functionality);
     }
 }

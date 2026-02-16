@@ -27,3 +27,5 @@ timingSensitiveModuleInfo {
     requires("org.assertj.core")
     requires("org.junit.jupiter.api")
 }
+
+tasks.withType<Test>().configureEach { jvmArgs("--add-reads", "awaitility=java.management") }
