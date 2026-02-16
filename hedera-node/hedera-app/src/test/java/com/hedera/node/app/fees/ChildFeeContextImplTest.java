@@ -225,4 +225,12 @@ class ChildFeeContextImplTest {
         final var expectedSize = TransactionBody.PROTOBUF.measureRecord(SAMPLE_BODY) + signatureMapSize;
         assertEquals(expectedSize, subject.numTxnBytes());
     }
+
+    @Test
+    void delegatesHighVolumeThrottleUtilization() {
+        given(context.getHighVolumeThrottleUtilization(HederaFunctionality.CRYPTO_CREATE))
+                .willReturn(4_321);
+
+        assertEquals(4_321, subject.getHighVolumeThrottleUtilization(HederaFunctionality.CRYPTO_CREATE));
+    }
 }
