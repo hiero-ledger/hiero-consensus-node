@@ -22,6 +22,17 @@ import java.time.Duration;
  *                                           not a self event and is not an ancestor of a self event, we must know about
  *                                           the event for at least this amount of time before the event is eligible to
  *                                           be sent
+ * @param ancestorFilterThreshold            ignored if {@link #filterLikelyDuplicates} or
+ *                                           {@link BroadcastConfig#enableBroadcast()} is false. For each event that is
+ *                                           not a self event and is an ancestor of a self event, we must know about the
+ *                                           event for at least this amount of time before the event is eligible to be
+ *                                           sent. This is to help to reduce duplicate rate in when broadcast is
+ *                                           enabled
+ * @param selfFilterThreshold                ignored if {@link #filterLikelyDuplicates} or
+ *                                           {@link BroadcastConfig#enableBroadcast()} is false. For each event that is
+ *                                           a self event, we must know about the event for at least this amount of time
+ *                                           before the event is eligible to be sent. This is to help to reduce
+ *                                           duplicate rate in when broadcast is enabled
  * @param syncKeepalivePeriod                send a keepalive message every this many milliseconds when reading events
  *                                           during a sync
  * @param maxSyncTime                        the maximum amount of time to spend syncing with a peer, syncs that take
@@ -39,7 +50,9 @@ import java.time.Duration;
  *                                           currently ignored and assumed 0 for old style network sync, used only for
  *                                           rpc sync; current implementation is limited by
  *                                           {@link #rpcIdleDispatchPollTimeout} regarding worst-case frequency of
- *                                           synchronizations
+ *                                           synchronizations; please see
+ *                                           {@link BroadcastConfig#rpcSleepAfterSyncWhileBroadcasting()} for override
+ *                                           in case of broadcast running
  * @param rpcIdleWritePollTimeout            how long should gossip rpc mechanism wait between actions piggybacking on
  *                                           write threads if no events are ready to be sent; for example, ping logic is
  *                                           executed there and in case no other writes are performed, this determines
@@ -71,6 +84,8 @@ public record SyncConfig(
         @ConfigProperty(defaultValue = "true") boolean waitForEventsInIntake,
         @ConfigProperty(defaultValue = "true") boolean filterLikelyDuplicates,
         @ConfigProperty(defaultValue = "3s") Duration nonAncestorFilterThreshold,
+        @ConfigProperty(defaultValue = "250ms") Duration ancestorFilterThreshold,
+        @ConfigProperty(defaultValue = "1s") Duration selfFilterThreshold,
         @ConfigProperty(defaultValue = "500ms") Duration syncKeepalivePeriod,
         @ConfigProperty(defaultValue = "1m") Duration maxSyncTime,
         @ConfigProperty(defaultValue = "5000") int maxSyncEventCount,

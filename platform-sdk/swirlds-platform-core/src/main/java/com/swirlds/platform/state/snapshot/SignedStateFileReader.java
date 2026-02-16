@@ -14,8 +14,6 @@ import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.state.service.schemas.V0540RosterBaseSchema;
-import com.swirlds.platform.state.signed.SigSet;
-import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StateDefinition;
@@ -34,6 +32,8 @@ import org.hiero.consensus.crypto.ConsensusCryptoUtils;
 import org.hiero.consensus.platformstate.PlatformStateService;
 import org.hiero.consensus.platformstate.V0540PlatformStateSchema;
 import org.hiero.consensus.roster.RosterStateId;
+import org.hiero.consensus.state.signed.SigSet;
+import org.hiero.consensus.state.signed.SignedState;
 
 /**
  * Utility methods for reading a signed state from disk.
@@ -172,11 +172,11 @@ public final class SignedStateFileReader {
                 .sorted(Comparator.comparing(StateDefinition::stateKey))
                 .forEach(def -> {
                     final var md = new StateMetadata<>(name, def);
-                    if (def.singleton() || def.onDisk()) {
+                    if (def.singleton() || def.keyValue()) {
                         state.initializeState(md);
                     } else {
                         throw new IllegalStateException(
-                                "Only singletons and onDisk virtual maps are supported as stub states");
+                                "Only singletons and keyValue virtual maps are supported as stub states");
                     }
                 });
     }

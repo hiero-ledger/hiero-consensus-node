@@ -3,6 +3,8 @@ package com.swirlds.state;
 
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.state.binary.MerkleProof;
+import com.swirlds.state.binary.QueueState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
@@ -10,7 +12,6 @@ import org.hiero.base.crypto.Hash;
 
 /**
  * Represents a binary state with methods to access and manipulate singleton, key-value pairs, and queue states.
- *
  * IMPORTANT: This interface is used in other repositories, such as BlockNode
  */
 public interface BinaryState {

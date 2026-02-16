@@ -30,7 +30,6 @@ import com.swirlds.platform.builder.PlatformBuildingBlocks;
 import com.swirlds.platform.builder.PlatformComponentBuilder;
 import com.swirlds.platform.builder.internal.StaticPlatformBuilder;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
-import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.wiring.PlatformComponents;
 import com.swirlds.state.StateLifecycleManager;
@@ -50,6 +49,7 @@ import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.config.EventConfig;
+import org.hiero.consensus.gossip.GossipModule;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
@@ -59,6 +59,7 @@ import org.hiero.consensus.platformstate.PlatformStateService;
 import org.hiero.consensus.platformstate.ReadablePlatformStateStore;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterStateUtils;
+import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.test.fixtures.Randotron;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.NodeConfiguration;
@@ -85,6 +86,7 @@ import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
 import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;
 import org.hiero.otter.fixtures.turtle.gossip.SimulatedGossip;
 import org.hiero.otter.fixtures.turtle.gossip.SimulatedNetwork;
+import org.hiero.otter.fixtures.turtle.gossip.TurtleGossipModule;
 import org.hiero.otter.fixtures.turtle.logging.TurtleLogging;
 import org.hiero.otter.fixtures.util.OtterSavedStateUtils;
 
@@ -266,6 +268,9 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             this.executionLayer = new OtterExecutionLayer(
                     new Random(randotron.nextLong()), platformContext.getMetrics(), timeManager.time());
 
+            final SimulatedGossip gossip = network.getGossipInstance(selfId);
+            final GossipModule gossipModule = new TurtleGossipModule(gossip);
+
             final PlatformBuilder platformBuilder = PlatformBuilder.create(
                             OtterApp.APP_NAME,
                             OtterApp.SWIRLD_NAME,
@@ -281,15 +286,13 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                     .withKeysAndCerts(keysAndCerts)
                     .withExecutionLayer(executionLayer)
                     .withModel(model)
-                    .withSecureRandomSupplier(new SecureRandomBuilder(randotron.nextLong()));
+                    .withSecureRandomSupplier(new SecureRandomBuilder(randotron.nextLong()))
+                    .withGossipModule(gossipModule);
 
             final PlatformComponentBuilder platformComponentBuilder = platformBuilder.buildComponentBuilder();
             final PlatformBuildingBlocks platformBuildingBlocks = platformComponentBuilder.getBuildingBlocks();
 
-            final SimulatedGossip gossip = network.getGossipInstance(selfId);
             gossip.provideIntakeEventCounter(platformBuildingBlocks.intakeEventCounter());
-
-            platformComponentBuilder.withGossip(network.getGossipInstance(selfId));
 
             platformComponent = platformBuildingBlocks.platformComponents();
 
