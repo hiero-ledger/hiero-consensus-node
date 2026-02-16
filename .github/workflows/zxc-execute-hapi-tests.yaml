@@ -346,21 +346,22 @@ jobs:
         env:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
-        run: ${GRADLE_EXEC} hapiTestSimpleFees${{ inputs.mats-suffix || '' }} && ${GRADLE_EXEC} hapiEmbeddedSimpleFees${{ inputs.mats-suffix }}
+        # Simple Fees uses same task for PR and MATS (no MATS suffix)
+        run: ${GRADLE_EXEC} hapiTestSimpleFees --no-daemon && ${GRADLE_EXEC} hapiEmbeddedSimpleFees --no-daemon && ${GRADLE_EXEC} hapiTestSimpleFeesSerial --no-daemon
 
       - name: Publish HAPI Test (Simple Fees) Report
         uses: step-security/publish-unit-test-result-action@5d195d4dec0b9fa7b51a3dbc4298362a021247c7 # v2.20.4
         with:
           check_name: "Node: HAPI Test (Simple Fees) Results"
           json_thousands_separator: ","
-          junit_files: "**/test-clients/build/test-results/testSubprocess/TEST-*.xml"
+          junit_files: "**/test-clients/build/test-results/**/TEST-*.xml"
           comment_mode: errors # only comment if we could not find or parse the JUnit XML files
 
       - name: Upload HAPI Test (Simple Fees) Report Artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: HAPI Test (Simple Fees) Report
-          path: "**/test-clients/build/test-results/testSubprocess/TEST-*.xml"
+          path: "**/test-clients/build/test-results/**/TEST-*.xml"
           retention-days: 7
 
       - name: Upload HAPI Test (Simple Fees) Network Logs
