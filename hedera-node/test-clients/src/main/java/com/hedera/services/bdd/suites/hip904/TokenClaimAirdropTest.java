@@ -1193,9 +1193,6 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
                 cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS),
                 createFT(FUNGIBLE_TOKEN_1, OWNER, 1000L),
                 cryptoCreate(RECEIVER).balance(ONE_HUNDRED_HBARS),
-                tokenAirdrop(moving(1, FUNGIBLE_TOKEN_1).between(OWNER, RECEIVER))
-                        .payingWith(OWNER)
-                        .signedBy(OWNER),
                 tokenClaimAirdrop(pendingAirdrop(OWNER, RECEIVER, FUNGIBLE_TOKEN_1))
                         .payingWith(RECEIVER)
                         .hasPrecheck(NOT_SUPPORTED));
