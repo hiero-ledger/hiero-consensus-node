@@ -26,6 +26,7 @@ public class GeneratorEventGraphSourceBuilder {
     private Roster roster;
     private Integer numNodes;
     private boolean realSignatures = false;
+    private boolean populateNgen = false;
 
     /**
      * Creates a new builder instance.
@@ -112,6 +113,17 @@ public class GeneratorEventGraphSourceBuilder {
     }
 
     /**
+     * Sets whether to populate ngen values on generated events.
+     *
+     * @param populateNgen {@code true} to populate ngen values, {@code false} otherwise
+     * @return this builder
+     */
+    public GeneratorEventGraphSourceBuilder populateNgen(final boolean populateNgen) {
+        this.populateNgen = populateNgen;
+        return this;
+    }
+
+    /**
      * Enables or disables real cryptographic signatures for generated events. When enabled, a roster with real keys
      * will be generated and a {@link RealEventSigner} will be used. Cannot be combined with a user-supplied roster.
      *
@@ -156,7 +168,7 @@ public class GeneratorEventGraphSourceBuilder {
         }
 
         return new GeneratorEventGraphSource(
-                getConfiguration(), getTime(), getSeed(), getMaxOtherParents(), actualRoster, signer);
+                getConfiguration(), getTime(), getSeed(), getMaxOtherParents(), actualRoster, signer, populateNgen);
     }
 
     private Configuration getConfiguration() {

@@ -92,6 +92,9 @@ class HandleWorkflowTest {
     private HintsService hintsService;
 
     @Mock
+    private EventDescriptorWrapper wrapper;
+
+    @Mock
     private QuiescenceController quiescenceController;
 
     @Mock
@@ -211,6 +214,8 @@ class HandleWorkflowTest {
         final var eventFromMissingCreator = mock(ConsensusEvent.class);
         given(round.iterator())
                 .willReturn(List.of(eventFromMissingCreator, eventFromPresentCreator)
+                        .iterator())
+                .willReturn(List.of(eventFromMissingCreator, eventFromPresentCreator)
                         .iterator());
         given(eventFromPresentCreator.getCreatorId()).willReturn(presentCreatorId);
         given(eventFromMissingCreator.getCreatorId()).willReturn(missingCreatorId);
@@ -235,7 +240,10 @@ class HandleWorkflowTest {
 
     @Test
     void writesEachMigrationStateChangeWithBlockTimestamp() {
-        given(round.iterator()).willReturn(List.of(event).iterator());
+        given(round.iterator())
+                .willReturn(List.of(event).iterator())
+                .willReturn(List.of(event).iterator());
+        given(event.allParentsIterator()).willReturn(List.of(wrapper).iterator());
         given(event.getConsensusTimestamp()).willReturn(NOW);
         given(systemTransactions.firstReservedSystemTimeFor(any())).willReturn(NOW);
         final var firstBuilder = StateChanges.newBuilder().stateChanges(List.of(StateChange.DEFAULT));

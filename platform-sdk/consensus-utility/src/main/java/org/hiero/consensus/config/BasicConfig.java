@@ -3,10 +3,6 @@ package org.hiero.consensus.config;
 
 import com.swirlds.config.api.ConfigData;
 import com.swirlds.config.api.ConfigProperty;
-import com.swirlds.config.api.Configuration;
-import java.time.Duration;
-import java.util.List;
-import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Basic configuration data record. This record contains all general config properties that can not be defined for a
@@ -23,16 +19,9 @@ import org.hiero.consensus.model.node.NodeId;
  * @param jvmPauseDetectorSleepMs      period of JVMPauseDetectorThread sleeping in the unit of milliseconds
  * @param jvmPauseReportMs             log an error when JVMPauseDetectorThread detect a pause greater than this many
  *                                     milliseconds all peers
- * @param hangingThreadDuration        the length of time a gossip thread is allowed to wait when it is asked to
- *                                     shutdown. If a gossip thread takes longer than this period to shut down, then an
- *                                     error message is written to the log.
  */
 @ConfigData
 public record BasicConfig(
         @ConfigProperty(defaultValue = "true") boolean loadKeysFromPfxFiles,
         @ConfigProperty(defaultValue = "1000") int jvmPauseDetectorSleepMs,
-        @ConfigProperty(defaultValue = "1000") int jvmPauseReportMs,
-        @ConfigProperty(defaultValue = "60s") Duration hangingThreadDuration,
-
-        @ConfigProperty(defaultValue = Configuration.EMPTY_LIST)
-        List<NodeId> nodesToRun) {}
+        @ConfigProperty(defaultValue = "1000") int jvmPauseReportMs) {}
