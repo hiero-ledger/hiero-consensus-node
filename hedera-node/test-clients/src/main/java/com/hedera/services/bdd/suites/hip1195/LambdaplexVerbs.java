@@ -58,6 +58,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import org.hiero.base.utility.CommonUtils;
 
 public class LambdaplexVerbs {
@@ -71,7 +72,8 @@ public class LambdaplexVerbs {
     private static final byte STOP_LIMIT_GT = 4;
     private static final byte STOP_MARKET_GT = 5;
 
-    private static final long SWAP_GAS_LIMIT = 20_000L;
+    private static final long BASE_GAS_LIMIT = 8_000L;
+    private static final long DIRECT_PREFIX_GAS_INCREMENT = 20_000L;
     private static final Bytes PADDED_ZERO = leftPad32(Bytes.EMPTY);
 
     private final long hookId;
@@ -164,6 +166,7 @@ public class LambdaplexVerbs {
             @NonNull Side side,
             @NonNull BigDecimal debit,
             @NonNull BigDecimal credit,
+            long gasLimit,
             @NonNull String... b64Salts) {
         public FillParty {
             requireNonNull(account);
@@ -174,30 +177,64 @@ public class LambdaplexVerbs {
             requireNonNull(b64Salts);
         }
 
+        public Bytes toDirectPrefixes(Function<String, Bytes> prefixFn) {
+            Bytes result = Bytes.EMPTY;
+            for (String b64Salt : b64Salts) {
+                result = result.append(prefixFn.apply(b64Salt));
+            }
+            return result;
+        }
+
         public static FillParty makingSeller(
                 SpecAccount account, BigDecimal quantity, BigDecimal averagePrice, String... b64Salts) {
             // Seller debits base, credits quote
-            return new FillParty(account, MAKER, SELL, quantity.negate(), quantity.multiply(averagePrice), b64Salts);
+            return new FillParty(
+                    account,
+                    MAKER,
+                    SELL,
+                    quantity.negate(),
+                    quantity.multiply(averagePrice),
+                    BASE_GAS_LIMIT + DIRECT_PREFIX_GAS_INCREMENT * b64Salts.length,
+                    b64Salts);
         }
 
         public static FillParty takingSeller(
                 SpecAccount account, BigDecimal quantity, BigDecimal averagePrice, String... b64Salts) {
             // Seller debits base, credits quote
-            return new FillParty(account, TAKER, SELL, quantity.negate(), quantity.multiply(averagePrice), b64Salts);
+            return new FillParty(
+                    account,
+                    TAKER,
+                    SELL,
+                    quantity.negate(),
+                    quantity.multiply(averagePrice),
+                    BASE_GAS_LIMIT + DIRECT_PREFIX_GAS_INCREMENT * b64Salts.length,
+                    b64Salts);
         }
 
         public static FillParty takingBuyer(
                 SpecAccount account, BigDecimal quantity, BigDecimal averagePrice, String... b64Salts) {
             // Buyer debits quote, credits base
             return new FillParty(
-                    account, TAKER, BUY, quantity.multiply(averagePrice).negate(), quantity, b64Salts);
+                    account,
+                    TAKER,
+                    BUY,
+                    quantity.multiply(averagePrice).negate(),
+                    quantity,
+                    BASE_GAS_LIMIT + DIRECT_PREFIX_GAS_INCREMENT * b64Salts.length,
+                    b64Salts);
         }
 
         public static FillParty makingBuyer(
                 SpecAccount account, BigDecimal quantity, BigDecimal averagePrice, String... b64Salts) {
             // Buyer debits quote, credits base
             return new FillParty(
-                    account, MAKER, BUY, quantity.multiply(averagePrice).negate(), quantity, b64Salts);
+                    account,
+                    MAKER,
+                    BUY,
+                    quantity.multiply(averagePrice).negate(),
+                    quantity,
+                    BASE_GAS_LIMIT + DIRECT_PREFIX_GAS_INCREMENT * b64Salts.length,
+                    b64Salts);
         }
     }
 
@@ -338,7 +375,7 @@ public class LambdaplexVerbs {
         return settleFillsInternal(specBaseToken, specQuoteToken, null, fillParties);
     }
 
-    public HapiCryptoTransfer settleFillsInternal(
+    private HapiCryptoTransfer settleFillsInternal(
             @NonNull final SpecFungibleToken specBaseToken,
             @NonNull final SpecFungibleToken specQuoteToken,
             @Nullable final Fees fees,
@@ -350,7 +387,7 @@ public class LambdaplexVerbs {
             final List<AccountAmount> quoteAdjustments = new ArrayList<>();
             for (final var party : fillParties) {
                 final var partyId = spec.registry().getAccountID(party.account().name());
-                final var prefix = saltPrefixes.get(party.b64Salts()[0]);
+                final var data = party.toDirectPrefixes(saltPrefixes::get);
                 switch (party.side()) {
                     case BUY -> {
                         // Debiting quote token, crediting base token
@@ -358,8 +395,8 @@ public class LambdaplexVerbs {
                                 .setPreTxAllowanceHook(HookCall.newBuilder()
                                         .setHookId(hookId)
                                         .setEvmHookCall(EvmHookCall.newBuilder()
-                                                .setGasLimit(SWAP_GAS_LIMIT)
-                                                .setData(fromPbj(prefix))))
+                                                .setGasLimit(party.gasLimit())
+                                                .setData(fromPbj(data))))
                                 .setAmount(inBaseUnits(party.debit(), quoteToken.decimals()))
                                 .setAccountID(partyId)
                                 .build());
@@ -383,8 +420,8 @@ public class LambdaplexVerbs {
                                 .setPreTxAllowanceHook(HookCall.newBuilder()
                                         .setHookId(hookId)
                                         .setEvmHookCall(EvmHookCall.newBuilder()
-                                                .setGasLimit(SWAP_GAS_LIMIT)
-                                                .setData(fromPbj(prefix))))
+                                                .setGasLimit(party.gasLimit())
+                                                .setData(fromPbj(data))))
                                 .setAmount(LambdaplexVerbs.inBaseUnits(party.debit(), baseToken.decimals()))
                                 .setAccountID(partyId)
                                 .build());

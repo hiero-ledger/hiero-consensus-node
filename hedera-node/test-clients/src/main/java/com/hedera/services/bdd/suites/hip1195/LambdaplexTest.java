@@ -15,6 +15,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.THOUSAND_HBAR;
 import static com.hedera.services.bdd.suites.hip1195.LambdaplexVerbs.FillParty.*;
 import static com.hedera.services.bdd.suites.hip1195.LambdaplexVerbs.inBaseUnits;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.services.bdd.junit.HapiTest;
@@ -329,6 +330,90 @@ public class LambdaplexTest implements InitcodeTransform {
                                 notional(3.0).compareTo(bd),
                                 "Wrong BUY out token amount after second partial fill: expected $3.00, got " + bd)),
                 lv.assertNoSuchOrder(COUNTERPARTY.name(), counterpartySellSalt));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> batchOrderHtsHtsFullFullPartialFillsWithFeesOnMakerSpreadCross() {
+        final var makerSellSaltOne = randomB64Salt();
+        final var makerSellSaltTwo = randomB64Salt();
+        final var makerSellSaltThree = randomB64Salt();
+        final var buySalt = randomB64Salt();
+        return hapiTest(
+                // Grid of sells, 1 at $1, 2 at $2, and 3 at $3
+                lv.placeLimitOrder(
+                        MARKET_MAKER,
+                        makerSellSaltOne,
+                        APPLES,
+                        USDC,
+                        Side.SELL,
+                        distantExpiry(),
+                        MAKER_BPS,
+                        price(3.00),
+                        quantity(3)),
+                lv.placeLimitOrder(
+                        MARKET_MAKER,
+                        makerSellSaltTwo,
+                        APPLES,
+                        USDC,
+                        Side.SELL,
+                        distantExpiry(),
+                        MAKER_BPS,
+                        price(2.00),
+                        quantity(2)),
+                lv.placeLimitOrder(
+                        MARKET_MAKER,
+                        makerSellSaltThree,
+                        APPLES,
+                        USDC,
+                        Side.SELL,
+                        distantExpiry(),
+                        MAKER_BPS,
+                        price(1.00),
+                        quantity(1)),
+                // Buy five of them for $2.20 per
+                lv.placeLimitOrder(
+                        PARTY, buySalt, APPLES, USDC, Side.BUY, distantExpiry(), TAKER_BPS, price(2.20), quantity(5)),
+                // If we let maker hook fill greedily starting at $3, then not enough
+                // in token is left to satisfy the remaining sell orders in the batch
+                lv.settleFills(
+                                APPLES,
+                                USDC,
+                                FEES,
+                                makingSeller(
+                                        MARKET_MAKER,
+                                        quantity(5),
+                                        averagePrice(2.20),
+                                        makerSellSaltOne,
+                                        makerSellSaltTwo,
+                                        makerSellSaltThree),
+                                takingBuyer(PARTY, quantity(5), price(2.20), buySalt))
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
+                lv.settleFills(
+                                APPLES,
+                                USDC,
+                                FEES,
+                                makingSeller(
+                                        MARKET_MAKER,
+                                        quantity(5),
+                                        averagePrice(2.20),
+                                        makerSellSaltThree,
+                                        makerSellSaltTwo,
+                                        makerSellSaltOne),
+                                takingBuyer(PARTY, quantity(5), price(2.20), buySalt))
+                        .via("goodGreedyOrder"),
+                getTxnRecord("goodGreedyOrder").andAllChildRecords().logged(),
+                // Three salts should be used up
+                lv.assertNoSuchOrder(MARKET_MAKER.name(), makerSellSaltThree),
+                lv.assertNoSuchOrder(MARKET_MAKER.name(), makerSellSaltTwo),
+                lv.assertNoSuchOrder(PARTY.name(), buySalt),
+                // And one last apple should be left in the lowest-risk ask level
+                lv.assertOrderAmount(
+                        MARKET_MAKER.name(),
+                        makerSellSaltOne,
+                        bd -> assertEquals(
+                                0,
+                                notional(1.0).compareTo(bd),
+                                "Wrong SELL out token amount after batch fill: expected one apple, got " + bd)));
     }
 
     private static BigDecimal averagePrice(final double d) {
