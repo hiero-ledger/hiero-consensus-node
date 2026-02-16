@@ -18,7 +18,7 @@ module org.hiero.consensus.otter.docker.app {
     requires com.swirlds.virtualmap;
     requires org.hiero.consensus.concurrent;
     requires org.hiero.consensus.hashgraph;
-    requires org.hiero.consensus.metrics;
+    requires transitive org.hiero.consensus.metrics;
     requires org.hiero.consensus.platformstate;
     requires org.hiero.consensus.roster;
     requires org.hiero.consensus.state;
