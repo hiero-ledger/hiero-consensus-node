@@ -2,28 +2,26 @@
 package com.hedera.services.bdd.suites.hip1195;
 
 import static com.hedera.hapi.node.hooks.HookExtensionPoint.ACCOUNT_ALLOWANCE_HOOK;
-import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
-import static com.hedera.node.app.service.contract.impl.state.WritableEvmHookStore.minimalKey;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asLongZeroAddress;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.accountEvmHookStore;
+import static com.hedera.services.bdd.spec.assertions.SomeFungibleTransfers.changingFungibleBalances;
+import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertOwnerHasEvmHookSlotUsageChange;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordCurrentOwnerEvmHookSlotUsage;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.THOUSAND_HBAR;
-import static java.math.RoundingMode.HALF_UP;
-import static java.util.Objects.requireNonNull;
+import static com.hedera.services.bdd.suites.hip1195.LambdaplexVerbs.FillParty.*;
+import static com.hedera.services.bdd.suites.hip1195.LambdaplexVerbs.inBaseUnits;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.google.common.primitives.Ints;
-import com.google.common.primitives.Longs;
-import com.hedera.hapi.node.state.token.Token;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
+import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.HapiSpec;
-import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.dsl.annotations.Account;
 import com.hedera.services.bdd.spec.dsl.annotations.Contract;
 import com.hedera.services.bdd.spec.dsl.annotations.FungibleToken;
@@ -33,25 +31,15 @@ import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecFungibleToken;
 import com.hedera.services.bdd.spec.dsl.utils.InitcodeTransform;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
-import com.hedera.services.bdd.spec.transactions.TxnVerbs;
-import com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer;
-import com.hederahashgraph.api.proto.java.AccountAmount;
-import com.hederahashgraph.api.proto.java.EvmHookCall;
-import com.hederahashgraph.api.proto.java.HookCall;
-import com.hederahashgraph.api.proto.java.TokenTransferList;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.Base64;
-import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
-import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 
@@ -85,76 +73,21 @@ import org.junit.jupiter.api.DynamicTest;
  *   fill-or-kill semantics.</li>
  * </ul>
  * Stop orders are triggered by providing an oracle proof of a (sufficiently recent) price that hits the trigger.
+ * <p>
+ * Annotated as {@link OrderedInIsolation} because the mock Supra pull oracle is stateful (keeps the next expected
+ * {@code PriceInfo} in storage).
  */
 @HapiTestLifecycle
+@OrderedInIsolation
 public class LambdaplexTest implements InitcodeTransform {
-    // Order type constants
-    private static final byte LIMIT = 0;
-    private static final byte MARKET = 1;
-    // Stops that trigger on an oracle price less than or equal to the stop
-    private static final byte STOP_LIMIT_LT = 2;
-    private static final byte STOP_MARKET_LT = 3;
-    // Stops that trigger on an oracle price greater than or equal to the stop
-    private static final byte STOP_LIMIT_GT = 4;
-    private static final byte STOP_MARKET_GT = 5;
 
     private static final int HOOK_ID = 42;
+    private static final int ZERO_BPS = 0;
     private static final int MAKER_BPS = 12;
     private static final int TAKER_BPS = 25;
-    private static final long SWAP_GAS_LIMIT = 20_000L;
+    private static final Fees FEES = new Fees(MAKER_BPS, TAKER_BPS);
 
     private static final String REGISTRY_ADDRESS_TPL = "abcdabcdabcdabcdabcdabcdabcdabcdabcdabcd";
-
-    private enum Side {
-        BUY,
-        SELL
-    }
-
-    private enum OrderType {
-        MARKET,
-        LIMIT,
-        STOP_MARKET,
-        STOP_LIMIT
-    }
-
-    private enum StopDirection {
-        LT,
-        GT
-    }
-
-    private enum TimeInForce {
-        IOC,
-        GTC,
-        FOK
-    }
-
-    private record FillParty(
-            @NonNull SpecAccount account,
-            @NonNull Side side,
-            @NonNull BigDecimal debit,
-            @NonNull BigDecimal credit,
-            @NonNull String... b64Salts) {
-        private FillParty {
-            requireNonNull(account);
-            requireNonNull(side);
-            requireNonNull(debit);
-            requireNonNull(credit);
-            requireNonNull(b64Salts);
-        }
-
-        public static FillParty seller(
-                SpecAccount account, BigDecimal quantity, BigDecimal averagePrice, String... b64Salts) {
-            // Seller debits base, credits quote
-            return new FillParty(account, Side.SELL, quantity.negate(), quantity.multiply(averagePrice), b64Salts);
-        }
-
-        public static FillParty buyer(
-                SpecAccount account, BigDecimal quantity, BigDecimal averagePrice, String... b64Salts) {
-            // Buyer debits quote, credits base
-            return new FillParty(
-                    account, Side.BUY, quantity.multiply(averagePrice).negate(), quantity, b64Salts);
-        }
-    }
 
     private static final int APPLES_DECIMALS = 4;
     private static final int BANANAS_DECIMALS = 5;
@@ -199,7 +132,10 @@ public class LambdaplexTest implements InitcodeTransform {
             hooks = {@Hook(hookId = HOOK_ID, contract = "OrderFlowAllowance", extensionPoint = ACCOUNT_ALLOWANCE_HOOK)})
     static SpecAccount COUNTERPARTY;
 
-    private final Map<String, Bytes> saltPrefixes = new HashMap<>();
+    @Account(name = "feeCollector", maxAutoAssociations = 3)
+    static SpecAccount FEE_COLLECTOR;
+
+    private final LambdaplexVerbs lv = new LambdaplexVerbs(HOOK_ID, "feeCollector");
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
@@ -215,6 +151,7 @@ public class LambdaplexTest implements InitcodeTransform {
                 MARKET_MAKER.getInfo(),
                 PARTY.getInfo(),
                 COUNTERPARTY.getInfo(),
+                FEE_COLLECTOR.getInfo(),
                 // Initialize everyone's token balances
                 cryptoTransfer(
                         moving(applesUnits(1000), APPLES.name())
@@ -239,21 +176,51 @@ public class LambdaplexTest implements InitcodeTransform {
                                 .between(USDC.treasury().name(), COUNTERPARTY.name())));
     }
 
-    /**
-     * Creates a test that,
-     * <ol>
-     *   <li>Puts a standing limit SELL order for up to 3 apples at $1.99 each into the order flow; then</li>
-     *   <li>Puts a market BUY order for 2.5 apples with no more than 5% slippage from a $2 reference price; then</li>
-     *   <li>Submits a CryptoTransfer to settle the implied trade.</li>
-     * </ol>
-     */
     @HapiTest
-    final Stream<DynamicTest> singleFillLimitSellMarketBuy() {
+    final Stream<DynamicTest> htsHtsFullFillOnMakerSpreadCrossNoFees() {
         final var sellSalt = randomB64Salt();
         final var buySalt = randomB64Salt();
+        final var makerOrdersBefore = new AtomicLong();
+        final var partyOrdersBefore = new AtomicLong();
         return hapiTest(
-                // Market maker places a standing order to sell up to 3 apples for $1.99 each
-                placeLimitOrder(
+                recordCurrentOwnerEvmHookSlotUsage(MARKET_MAKER.name(), makerOrdersBefore::set),
+                recordCurrentOwnerEvmHookSlotUsage(PARTY.name(), partyOrdersBefore::set),
+                // Market maker places a limit order to sell up to 3 apples for $1.99 each, no fee tolerance
+                lv.placeLimitOrder(
+                        MARKET_MAKER,
+                        sellSalt,
+                        APPLES,
+                        USDC,
+                        Side.SELL,
+                        distantExpiry(),
+                        ZERO_BPS,
+                        price(1.99),
+                        quantity(3)),
+                // Second market maker places order to buy 3 apples for $2.00 each, no fee tolerance
+                lv.placeLimitOrder(
+                        PARTY, buySalt, APPLES, USDC, Side.BUY, distantExpiry(), ZERO_BPS, price(1.99), quantity(3)),
+                // Do a zero-fee settlement
+                lv.settleFillsNoFees(
+                        APPLES,
+                        USDC,
+                        makingSeller(MARKET_MAKER, quantity(3), price(1.99), sellSalt),
+                        takingBuyer(PARTY, quantity(3), averagePrice(1.99), buySalt)),
+                // Both party "out token" limits were fully executed, so hook removes the orders
+                assertOwnerHasEvmHookSlotUsageChange(MARKET_MAKER.name(), makerOrdersBefore, 0),
+                assertOwnerHasEvmHookSlotUsageChange(PARTY.name(), partyOrdersBefore, 0));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> htsHtsFullFillOnMakerSpreadCrossWithFees() {
+        final var sellSalt = randomB64Salt();
+        final var buySalt = randomB64Salt();
+        final var makerOrdersBefore = new AtomicLong();
+        final var partyOrdersBefore = new AtomicLong();
+        return hapiTest(
+                recordCurrentOwnerEvmHookSlotUsage(MARKET_MAKER.name(), makerOrdersBefore::set),
+                recordCurrentOwnerEvmHookSlotUsage(PARTY.name(), partyOrdersBefore::set),
+                // Market maker places a limit order w/ maker fee tolerance of 12 bps (0.12%)
+                lv.placeLimitOrder(
                         MARKET_MAKER,
                         sellSalt,
                         APPLES,
@@ -261,85 +228,107 @@ public class LambdaplexTest implements InitcodeTransform {
                         Side.SELL,
                         distantExpiry(),
                         MAKER_BPS,
-                        price(1.99),
-                        quantity(3)),
-                // Party places a market order to buy 2.5 apples with no more than 5% slippage from a $2 reference price
-                placeMarketOrder(
-                        PARTY,
-                        buySalt,
-                        APPLES,
-                        USDC,
-                        Side.BUY,
-                        iocExpiry(),
-                        TAKER_BPS,
                         price(2.00),
-                        quantity(2.5),
-                        5,
-                        TimeInForce.FOK),
-                // This is a match, so settle the implied trade
-                settleFills(
-                        APPLES,
-                        USDC,
-                        FillParty.seller(MARKET_MAKER, quantity(2.5), price(1.99), sellSalt),
-                        FillParty.buyer(PARTY, quantity(2.5), averagePrice(1.99), buySalt)));
+                        quantity(3)),
+                // Second party places matching limit order w/ taker fee tolerance of 25 bps (0.25%)
+                lv.placeLimitOrder(
+                        PARTY, buySalt, APPLES, USDC, Side.BUY, distantExpiry(), TAKER_BPS, price(2.00), quantity(3)),
+                lv.settleFills(
+                                APPLES,
+                                USDC,
+                                FEES,
+                                makingSeller(MARKET_MAKER, quantity(3), price(2.00), sellSalt),
+                                takingBuyer(PARTY, quantity(3), averagePrice(2.00), buySalt))
+                        .via("fill"),
+                // Both party "out token" limits were fully executed, so hook removes the orders
+                assertOwnerHasEvmHookSlotUsageChange(MARKET_MAKER.name(), makerOrdersBefore, 0),
+                assertOwnerHasEvmHookSlotUsageChange(PARTY.name(), partyOrdersBefore, 0),
+                // Double-check fee transfers once
+                getTxnRecord("fill")
+                        .hasPriority(recordWith()
+                                .tokenTransfers(changingFungibleBalances()
+                                        .including(
+                                                APPLES.name(),
+                                                FEE_COLLECTOR.name(),
+                                                inBaseUnits(quantity(3), APPLES_DECIMALS) * TAKER_BPS / 10_000)
+                                        .including(
+                                                USDC.name(),
+                                                FEE_COLLECTOR.name(),
+                                                inBaseUnits(quantity(6.00), USDC_DECIMALS) * MAKER_BPS / 10_000))));
     }
 
-    private HapiCryptoTransfer settleFills(
-            @NonNull final SpecFungibleToken specBaseToken,
-            @NonNull final SpecFungibleToken specQuoteToken,
-            @NonNull final FillParty... fillParties) {
-        return TxnVerbs.cryptoTransfer((spec, builder) -> {
-            final var baseToken = specBaseToken.tokenOrThrow(spec.targetNetworkOrThrow());
-            final var quoteToken = specQuoteToken.tokenOrThrow(spec.targetNetworkOrThrow());
-            final List<AccountAmount> baseAdjustments = new ArrayList<>();
-            final List<AccountAmount> quoteAdjustments = new ArrayList<>();
-            for (final var party : fillParties) {
-                final var partyId = spec.registry().getAccountID(party.account().name());
-                final var prefix = saltPrefixes.get(party.b64Salts()[0]);
-                switch (party.side()) {
-                    case BUY -> {
-                        // Debiting quote token, crediting base token
-                        quoteAdjustments.add(AccountAmount.newBuilder()
-                                .setPreTxAllowanceHook(HookCall.newBuilder()
-                                        .setHookId(HOOK_ID)
-                                        .setEvmHookCall(EvmHookCall.newBuilder()
-                                                .setGasLimit(SWAP_GAS_LIMIT)
-                                                .setData(fromPbj(prefix))))
-                                .setAmount(inBaseUnits(party.debit(), quoteToken.decimals()))
-                                .setAccountID(partyId)
-                                .build());
-                        baseAdjustments.add(AccountAmount.newBuilder()
-                                .setAmount(inBaseUnits(party.credit(), baseToken.decimals()))
-                                .setAccountID(partyId)
-                                .build());
-                    }
-                    case SELL -> {
-                        // Debiting base token, crediting quote token
-                        baseAdjustments.add(AccountAmount.newBuilder()
-                                .setPreTxAllowanceHook(HookCall.newBuilder()
-                                        .setHookId(HOOK_ID)
-                                        .setEvmHookCall(EvmHookCall.newBuilder()
-                                                .setGasLimit(SWAP_GAS_LIMIT)
-                                                .setData(fromPbj(prefix))))
-                                .setAmount(inBaseUnits(party.debit(), baseToken.decimals()))
-                                .setAccountID(partyId)
-                                .build());
-                        quoteAdjustments.add(AccountAmount.newBuilder()
-                                .setAmount(inBaseUnits(party.credit(), quoteToken.decimals()))
-                                .setAccountID(partyId)
-                                .build());
-                    }
-                }
-            }
-            final var registry = spec.registry();
-            builder.addTokenTransfers(TokenTransferList.newBuilder()
-                            .setToken(registry.getTokenID(specBaseToken.name()))
-                            .addAllTransfers(baseAdjustments))
-                    .addTokenTransfers(TokenTransferList.newBuilder()
-                            .setToken(registry.getTokenID(specQuoteToken.name()))
-                            .addAllTransfers(quoteAdjustments))
-                    .build();
-        });
+    @HapiTest
+    final Stream<DynamicTest> htsHtsPartialFillOnMakerSpreadCrossNoFeesThenFees() {
+        final var makerSellSalt = randomB64Salt();
+        final var counterpartySellSalt = randomB64Salt();
+        final var buySalt = randomB64Salt();
+        final var makerOrdersBefore = new AtomicLong();
+        final var partyOrdersBefore = new AtomicLong();
+        return hapiTest(
+                recordCurrentOwnerEvmHookSlotUsage(MARKET_MAKER.name(), makerOrdersBefore::set),
+                recordCurrentOwnerEvmHookSlotUsage(PARTY.name(), partyOrdersBefore::set),
+                // Max out token - 3 apples
+                lv.placeLimitOrder(
+                        MARKET_MAKER,
+                        makerSellSalt,
+                        APPLES,
+                        USDC,
+                        Side.SELL,
+                        distantExpiry(),
+                        ZERO_BPS,
+                        price(2.00),
+                        quantity(3)),
+                // Max out token - $12
+                lv.placeLimitOrder(
+                        PARTY, buySalt, APPLES, USDC, Side.BUY, distantExpiry(), MAKER_BPS, price(6.00), quantity(2)),
+                lv.assertOrderAmount(
+                        PARTY.name(),
+                        buySalt,
+                        bd -> assertEquals(
+                                0,
+                                notional(12.0).compareTo(bd),
+                                "Wrong BUY out token amount before partial fill: expected $12.00, got " + bd)),
+                lv.settleFillsNoFees(
+                        APPLES,
+                        USDC,
+                        makingSeller(MARKET_MAKER, quantity(3), price(2.00), makerSellSalt),
+                        takingBuyer(PARTY, quantity(3), averagePrice(2.00), buySalt)),
+                assertOwnerHasEvmHookSlotUsageChange(MARKET_MAKER.name(), makerOrdersBefore, 0),
+                assertOwnerHasEvmHookSlotUsageChange(PARTY.name(), makerOrdersBefore, 1),
+                // Amount should reduce by executed out amount ($6)
+                lv.assertOrderAmount(
+                        PARTY.name(),
+                        buySalt,
+                        bd -> assertEquals(
+                                0,
+                                notional(6.0).compareTo(bd),
+                                "Wrong BUY out token amount after partial fill: expected $6.00, got " + bd)),
+                // Now settle some more using a different counterparty and fees
+                lv.placeLimitOrder(
+                        COUNTERPARTY,
+                        counterpartySellSalt,
+                        APPLES,
+                        USDC,
+                        Side.SELL,
+                        distantExpiry(),
+                        TAKER_BPS,
+                        price(3.00),
+                        quantity(1)),
+                lv.settleFills(
+                        APPLES,
+                        USDC,
+                        FEES,
+                        takingSeller(COUNTERPARTY, quantity(1), averagePrice(3.00), counterpartySellSalt),
+                        makingBuyer(PARTY, quantity(1), price(3.00), buySalt)),
+                // Amount should again reduce by executed out amount ($3)
+                lv.assertOrderAmount(
+                        PARTY.name(),
+                        buySalt,
+                        bd -> assertEquals(
+                                0,
+                                notional(3.0).compareTo(bd),
+                                "Wrong BUY out token amount after second partial fill: expected $3.00, got " + bd)),
+                lv.assertNoSuchOrder(COUNTERPARTY.name(), counterpartySellSalt));
     }
 
     private static BigDecimal averagePrice(final double d) {
@@ -354,6 +343,10 @@ public class LambdaplexTest implements InitcodeTransform {
         return BigDecimal.valueOf(d);
     }
 
+    private static BigDecimal notional(final double d) {
+        return BigDecimal.valueOf(d);
+    }
+
     private static String randomB64Salt() {
         return Base64.getEncoder().encodeToString(TxnUtils.randomUtf8Bytes(7));
     }
@@ -364,240 +357,6 @@ public class LambdaplexTest implements InitcodeTransform {
 
     private static Instant distantExpiry() {
         return Instant.now().plus(Duration.ofDays(30));
-    }
-
-    private SpecOperation placeLimitOrder(
-            @NonNull final SpecAccount account,
-            @NonNull final String b64Salt,
-            @NonNull final SpecFungibleToken specBaseToken,
-            @NonNull final SpecFungibleToken specQuoteToken,
-            @NonNull final Side side,
-            @NonNull final Instant expiry,
-            final int feeBps,
-            @NonNull final BigDecimal price,
-            @NonNull final BigDecimal quantity) {
-        return placeOrderInternal(
-                account,
-                b64Salt,
-                specBaseToken,
-                specQuoteToken,
-                side,
-                OrderType.LIMIT,
-                null,
-                expiry,
-                price,
-                quantity,
-                feeBps,
-                0,
-                0);
-    }
-
-    private SpecOperation placeStopLimitOrder(
-            @NonNull final SpecAccount account,
-            @NonNull final String b64Salt,
-            @NonNull final SpecFungibleToken specBaseToken,
-            @NonNull final SpecFungibleToken specQuoteToken,
-            @NonNull final Side side,
-            @NonNull final Instant expiry,
-            final int feeBps,
-            @NonNull final BigDecimal price,
-            @NonNull final BigDecimal triggerPrice,
-            @NonNull final StopDirection stopDirection,
-            @NonNull final BigDecimal quantity) {
-        return placeOrderInternal(
-                account,
-                b64Salt,
-                specBaseToken,
-                specQuoteToken,
-                side,
-                OrderType.STOP_LIMIT,
-                stopDirection,
-                expiry,
-                price,
-                quantity,
-                feeBps,
-                // We reuse priceDeviationCentiBps to encode the trigger price as a percentage of the price
-                triggerPrice
-                        .multiply(BigDecimal.valueOf(100_00))
-                        .divide(price, HALF_UP)
-                        .intValue(),
-                0);
-    }
-
-    private SpecOperation placeMarketOrder(
-            @NonNull final SpecAccount account,
-            @NonNull final String b64Salt,
-            @NonNull final SpecFungibleToken specBaseToken,
-            @NonNull final SpecFungibleToken specQuoteToken,
-            @NonNull final Side side,
-            @NonNull final Instant expiry,
-            final int feeBps,
-            @NonNull final BigDecimal referencePrice,
-            @NonNull final BigDecimal quantity,
-            final int slippagePercentTolerance,
-            TimeInForce timeInForce) {
-        return placeOrderInternal(
-                account,
-                b64Salt,
-                specBaseToken,
-                specQuoteToken,
-                side,
-                OrderType.MARKET,
-                null,
-                expiry,
-                referencePrice,
-                quantity,
-                feeBps,
-                slippagePercentTolerance * 10_000,
-                // "Fill-or-kill" is encoded as a minimum fill percentage of 100% minus the slippage tolerance
-                timeInForce == TimeInForce.FOK ? 1_000_000 * (100 - slippagePercentTolerance) / 100 : 0);
-    }
-
-    private SpecOperation placeStopMarketOrder(
-            @NonNull final SpecAccount account,
-            @NonNull final String b64Salt,
-            @NonNull final SpecFungibleToken specBaseToken,
-            @NonNull final SpecFungibleToken specQuoteToken,
-            @NonNull final Side side,
-            @NonNull final Instant expiry,
-            final int feeBps,
-            @NonNull final BigDecimal stopPrice,
-            @NonNull final StopDirection stopDirection,
-            @NonNull final BigDecimal quantity,
-            final int slippagePercentTolerance,
-            boolean fillOrKill) {
-        return placeOrderInternal(
-                account,
-                b64Salt,
-                specBaseToken,
-                specQuoteToken,
-                side,
-                OrderType.STOP_MARKET,
-                stopDirection,
-                expiry,
-                stopPrice,
-                quantity,
-                feeBps,
-                slippagePercentTolerance * 10_000,
-                fillOrKill ? 1_000_000 : 0);
-    }
-
-    private SpecOperation placeOrderInternal(
-            @NonNull final SpecAccount account,
-            @NonNull final String b64Salt,
-            @NonNull final SpecFungibleToken specBaseToken,
-            @NonNull final SpecFungibleToken specQuoteToken,
-            @NonNull final Side side,
-            @NonNull final OrderType orderType,
-            @Nullable final StopDirection stopDirection,
-            @NonNull final Instant expiry,
-            @NonNull final BigDecimal price,
-            @NonNull final BigDecimal quantity,
-            final int feeCentiBps,
-            final int priceDeviationCentiBps,
-            final int minFillDeciBps) {
-        return sourcingContextual(spec -> {
-            final var targetNetwork = spec.targetNetworkOrThrow();
-            final var baseToken = specBaseToken.tokenOrThrow(targetNetwork);
-            final var quoteToken = specQuoteToken.tokenOrThrow(targetNetwork);
-            final var baseAmount = toBigInteger(quantity, baseToken.decimals());
-            final var quotePrice = Fraction.from(price, baseToken.decimals(), quoteToken.decimals());
-            final Token inputToken;
-            final Token outputToken;
-            final Bytes detailValue;
-            if (side == Side.BUY) {
-                // User is debited quote token
-                outputToken = quoteToken;
-                // And credited base token
-                inputToken = baseToken;
-                detailValue = encodeOrderDetailValue(
-                        // So storage mapping entry amount is in quote token units
-                        mulDiv(baseAmount, quotePrice.numerator(), quotePrice.denominator()),
-                        // With a price in base/quote terms
-                        quotePrice.biDenominator(),
-                        quotePrice.biNumerator(),
-                        BigInteger.valueOf(priceDeviationCentiBps),
-                        BigInteger.valueOf(minFillDeciBps));
-            } else {
-                // User is debited base token
-                outputToken = baseToken;
-                // And credited quote token
-                inputToken = quoteToken;
-                detailValue = encodeOrderDetailValue(
-                        // So storage mapping entry amount is in base token units
-                        baseAmount,
-                        // With a price in quote/base terms
-                        quotePrice.biNumerator(),
-                        quotePrice.biDenominator(),
-                        BigInteger.valueOf(priceDeviationCentiBps),
-                        BigInteger.valueOf(minFillDeciBps));
-            }
-            final var prefixKey = encodeOrderPrefixKey(
-                    orderType,
-                    stopDirection,
-                    inputToken.tokenIdOrThrow().tokenNum(),
-                    outputToken.tokenIdOrThrow().tokenNum(),
-                    expiry.getEpochSecond(),
-                    feeCentiBps,
-                    b64Salt);
-            saltPrefixes.put(b64Salt, prefixKey);
-            return accountEvmHookStore(account.name(), HOOK_ID)
-                    .putMappingEntryWithKey(Bytes.EMPTY, prefixKey, minimalKey(detailValue));
-        });
-    }
-
-    private Bytes encodeOrderPrefixKey(
-            @NonNull final OrderType type,
-            @Nullable final StopDirection stopDirection,
-            final long inputTokenId,
-            final long outputTokenId,
-            final long expiry,
-            final int feeBps,
-            @NonNull final String b64Salt) {
-        final byte[] prefix = new byte[32];
-        prefix[0] = asPrefixType(type, stopDirection);
-        int cursor = 2;
-        System.arraycopy(Longs.toByteArray(outputTokenId), 0, prefix, cursor, 8);
-        cursor += 8;
-        System.arraycopy(Longs.toByteArray(inputTokenId), 0, prefix, cursor, 8);
-        cursor += 8;
-        System.arraycopy(Longs.toByteArray(expiry), 4, prefix, cursor, 4);
-        cursor += 4;
-        System.arraycopy(Ints.toByteArray(feeBps), 1, prefix, cursor, 3);
-        cursor += 3;
-        System.arraycopy(Base64.getDecoder().decode(b64Salt), 0, prefix, cursor, 7);
-        return Bytes.wrap(prefix);
-    }
-
-    private Bytes encodeOrderDetailValue(
-            @NonNull final BigInteger quantity,
-            @NonNull final BigInteger numerator,
-            @NonNull final BigInteger denominator,
-            @NonNull final BigInteger deviationBps,
-            @NonNull final BigInteger minFillBps) {
-        final var encoded = quantity.shiftLeft(193)
-                .or(numerator.shiftLeft(130))
-                .or(denominator.shiftLeft(67))
-                .or(deviationBps.shiftLeft(43))
-                .or(minFillBps.shiftLeft(19));
-        return Bytes.wrap(requireNonNull(CommonUtils.unhex(String.format("%064x", encoded))));
-    }
-
-    private byte asPrefixType(@NonNull final OrderType type, @Nullable final StopDirection stopDirection) {
-        return switch (type) {
-            case LIMIT -> LIMIT;
-            case MARKET -> MARKET;
-            case STOP_LIMIT ->
-                switch (requireNonNull(stopDirection)) {
-                    case LT -> STOP_LIMIT_LT;
-                    case GT -> STOP_LIMIT_GT;
-                };
-            case STOP_MARKET ->
-                switch (requireNonNull(stopDirection)) {
-                    case LT -> STOP_MARKET_LT;
-                    case GT -> STOP_MARKET_GT;
-                };
-        };
     }
 
     // --- InitcodeTransform ---
@@ -614,35 +373,6 @@ public class LambdaplexTest implements InitcodeTransform {
         return initcode.replace(REGISTRY_ADDRESS_TPL, registryAddress);
     }
 
-    private record Fraction(long numerator, long denominator) {
-        /**
-         * Converts a decimal price (one whole input token costs {@code price} whole output tokens)
-         * into a fraction with both sides denominated in the base units of the respective tokens.
-         * @param price the user price in whole tokens
-         * @param inputTokenDecimals number of decimals for the input token
-         * @param outputTokenDecimals number of decimals for the output token
-         * @return the price as a fraction in least terms, denominated in base units
-         */
-        public static Fraction from(BigDecimal price, int inputTokenDecimals, int outputTokenDecimals) {
-            var numerator = toBigInteger(price, outputTokenDecimals);
-            var denominator = BigInteger.TEN.pow(inputTokenDecimals);
-            final var gcd = numerator.gcd(denominator);
-            if (!gcd.equals(BigInteger.ZERO)) {
-                numerator = numerator.divide(gcd);
-                denominator = denominator.divide(gcd);
-            }
-            return new Fraction(numerator.longValueExact(), denominator.longValueExact());
-        }
-
-        public BigInteger biNumerator() {
-            return BigInteger.valueOf(numerator);
-        }
-
-        public BigInteger biDenominator() {
-            return BigInteger.valueOf(denominator);
-        }
-    }
-
     private static long applesUnits(long apples) {
         return apples * APPLES_SCALE;
     }
@@ -653,20 +383,5 @@ public class LambdaplexTest implements InitcodeTransform {
 
     private static long usdcUnits(long usdc) {
         return usdc * USDC_SCALE;
-    }
-
-    private static long inBaseUnits(BigDecimal amount, int decimals) {
-        return toBigInteger(amount, decimals).longValueExact();
-    }
-
-    private static BigInteger toBigInteger(BigDecimal amount, int decimals) {
-        return amount.movePointRight(decimals).setScale(0, HALF_UP).toBigIntegerExact();
-    }
-
-    private static BigInteger mulDiv(BigInteger v, long n, long d) {
-        if (d == 0) {
-            throw new IllegalArgumentException("Denominator must be non-zero");
-        }
-        return v.multiply(BigInteger.valueOf(n)).divide(BigInteger.valueOf(d));
     }
 }
