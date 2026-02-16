@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.fees;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
@@ -22,7 +23,7 @@ import com.hedera.node.app.signature.AppKeyVerifier;
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.store.ReadableStoreFactory;
+import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
@@ -88,10 +89,30 @@ class ChildFeeContextImplTest {
     @BeforeEach
     void setUp() {
         subject = new ChildFeeContextImpl(
-                feeManager, context, SAMPLE_BODY, PAYER_ID, true, authorizer, storeFactory, NOW, verifier, 0);
+                feeManager,
+                context,
+                SAMPLE_BODY,
+                PAYER_ID,
+                true,
+                authorizer,
+                storeFactory,
+                NOW,
+                verifier,
+                0,
+                HederaFunctionality.CRYPTO_TRANSFER);
 
         subjectWithInnerTxn = new ChildFeeContextImpl(
-                feeManager, context, SAMPLE_BODY, PAYER_ID, false, authorizer, storeFactory, NOW, verifier, 0);
+                feeManager,
+                context,
+                SAMPLE_BODY,
+                PAYER_ID,
+                false,
+                authorizer,
+                storeFactory,
+                NOW,
+                verifier,
+                0,
+                HederaFunctionality.CRYPTO_TRANSFER);
     }
 
     @Test
@@ -155,14 +176,20 @@ class ChildFeeContextImplTest {
                 storeFactory,
                 NOW,
                 verifier,
-                0);
+                0,
+                HederaFunctionality.CRYPTO_TRANSFER);
         assertThrows(IllegalStateException.class, () -> subject.feeCalculatorFactory()
                 .feeCalculator(SubType.TOKEN_FUNGIBLE_COMMON_WITH_CUSTOM_FEES));
     }
 
     @Test
+    void returnsReadableStoreFactory() {
+        assertSame(storeFactory, subject.readableStoreFactory());
+    }
+
+    @Test
     void delegatesReadableStoreCreation() {
-        given(context.readableStore(ReadableAccountStore.class)).willReturn(readableAccountStore);
+        given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(readableAccountStore);
 
         assertSame(readableAccountStore, subject.readableStore(ReadableAccountStore.class));
     }
@@ -177,5 +204,33 @@ class ChildFeeContextImplTest {
     @Test
     void delegatesAuthorizer() {
         assertSame(authorizer, subject.authorizer());
+    }
+
+    @Test
+    void returnsCorrectNumTxnBytes() {
+        final var signatureMapSize = 123;
+        subject = new ChildFeeContextImpl(
+                feeManager,
+                context,
+                SAMPLE_BODY,
+                PAYER_ID,
+                true,
+                authorizer,
+                storeFactory,
+                NOW,
+                verifier,
+                signatureMapSize,
+                HederaFunctionality.CRYPTO_TRANSFER);
+
+        final var expectedSize = TransactionBody.PROTOBUF.measureRecord(SAMPLE_BODY) + signatureMapSize;
+        assertEquals(expectedSize, subject.numTxnBytes());
+    }
+
+    @Test
+    void delegatesHighVolumeThrottleUtilization() {
+        given(context.getHighVolumeThrottleUtilization(HederaFunctionality.CRYPTO_CREATE))
+                .willReturn(4_321);
+
+        assertEquals(4_321, subject.getHighVolumeThrottleUtilization(HederaFunctionality.CRYPTO_CREATE));
     }
 }

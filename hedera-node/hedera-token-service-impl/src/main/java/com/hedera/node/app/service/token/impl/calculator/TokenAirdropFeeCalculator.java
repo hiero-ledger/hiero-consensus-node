@@ -6,10 +6,9 @@ import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.spi.fees.FeeContext;
+import com.hedera.node.app.spi.fees.SimpleFeeContext;
 import com.hedera.node.config.data.TokensConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import org.hiero.hapi.fees.FeeResult;
 import org.hiero.hapi.support.fees.FeeSchedule;
 
@@ -18,11 +17,12 @@ public class TokenAirdropFeeCalculator extends CryptoTransferFeeCalculator {
     @Override
     public void accumulateServiceFee(
             @NonNull final TransactionBody txnBody,
-            @Nullable final FeeContext feeContext,
+            @NonNull final SimpleFeeContext simpleFeeContext,
             @NonNull final FeeResult feeResult,
             @NonNull final FeeSchedule feeSchedule) {
-        if (feeContext != null) {
-            final var tokenConfig = feeContext.configuration().getConfigData(TokensConfig.class);
+        if (simpleFeeContext.feeContext() != null) {
+            final var tokenConfig =
+                    simpleFeeContext.feeContext().configuration().getConfigData(TokensConfig.class);
             validateTrue(tokenConfig.airdropsEnabled(), NOT_SUPPORTED);
         }
         final var op = txnBody.tokenAirdropOrThrow();
@@ -35,7 +35,7 @@ public class TokenAirdropFeeCalculator extends CryptoTransferFeeCalculator {
                 .transactionID(txnBody.transactionID())
                 .build();
 
-        super.accumulateServiceFee(syntheticCryptoTransfer, feeContext, feeResult, feeSchedule);
+        super.accumulateServiceFee(syntheticCryptoTransfer, simpleFeeContext, feeResult, feeSchedule);
     }
 
     public TransactionBody.DataOneOfType getTransactionType() {

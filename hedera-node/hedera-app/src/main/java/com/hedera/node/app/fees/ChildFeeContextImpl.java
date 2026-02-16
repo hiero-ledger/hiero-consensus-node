@@ -5,6 +5,7 @@ import static com.hedera.hapi.util.HapiUtils.functionOf;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.transaction.ExchangeRate;
@@ -18,7 +19,7 @@ import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculator;
-import com.hedera.node.app.store.ReadableStoreFactory;
+import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -43,6 +44,7 @@ public class ChildFeeContextImpl implements FeeContext {
     private final AppKeyVerifier verifier;
 
     private final int signatureMapSize;
+    private final HederaFunctionality functionality;
 
     public ChildFeeContextImpl(
             @NonNull final FeeManager feeManager,
@@ -54,7 +56,8 @@ public class ChildFeeContextImpl implements FeeContext {
             @NonNull final ReadableStoreFactory storeFactory,
             @NonNull final Instant consensusNow,
             @Nullable final AppKeyVerifier verifier,
-            final int signatureMapSize) {
+            final int signatureMapSize,
+            @NonNull final HederaFunctionality functionality) {
         this.feeManager = requireNonNull(feeManager);
         this.context = requireNonNull(context);
         this.body = requireNonNull(body);
@@ -65,6 +68,7 @@ public class ChildFeeContextImpl implements FeeContext {
         this.consensusNow = requireNonNull(consensusNow);
         this.verifier = verifier;
         this.signatureMapSize = signatureMapSize;
+        this.functionality = requireNonNull(functionality);
     }
 
     @Override
@@ -107,8 +111,13 @@ public class ChildFeeContextImpl implements FeeContext {
     }
 
     @Override
+    public @NonNull ReadableStoreFactory readableStoreFactory() {
+        return storeFactory;
+    }
+
+    @Override
     public <T> @NonNull T readableStore(@NonNull final Class<T> storeInterface) {
-        return context.readableStore(storeInterface);
+        return storeFactory.readableStore(storeInterface);
     }
 
     @Override
@@ -128,7 +137,7 @@ public class ChildFeeContextImpl implements FeeContext {
 
     @Override
     public int numTxnBytes() {
-        return TransactionBody.PROTOBUF.measureRecord(body);
+        return TransactionBody.PROTOBUF.measureRecord(body) + signatureMapSize;
     }
 
     @Override
@@ -160,5 +169,15 @@ public class ChildFeeContextImpl implements FeeContext {
     @Override
     public long getGasPriceInTinycents() {
         return feeManager.getGasPriceInTinyCents(consensusNow);
+    }
+
+    @Override
+    public HederaFunctionality functionality() {
+        return functionality;
+    }
+
+    @Override
+    public int getHighVolumeThrottleUtilization(@NonNull HederaFunctionality functionality) {
+        return context.getHighVolumeThrottleUtilization(functionality);
     }
 }

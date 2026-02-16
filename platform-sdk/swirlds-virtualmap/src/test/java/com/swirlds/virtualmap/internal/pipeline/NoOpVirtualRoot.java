@@ -1,19 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.internal.pipeline;
 
-import com.swirlds.common.merkle.MerkleLeaf;
-import com.swirlds.common.merkle.impl.PartialMerkleLeaf;
+import com.swirlds.virtualmap.internal.AbstractVirtualRoot;
 import com.swirlds.virtualmap.internal.RecordAccessor;
-import java.io.IOException;
+import com.swirlds.virtualmap.internal.VirtualRoot;
 import org.hiero.base.constructable.ConstructableIgnored;
-import org.hiero.base.io.streams.SerializableDataInputStream;
-import org.hiero.base.io.streams.SerializableDataOutputStream;
 
 /**
  * A bare-bones implementation of {@link VirtualRoot} that doesn't do much of anything.
  */
 @ConstructableIgnored
-public final class NoOpVirtualRoot extends PartialMerkleLeaf implements VirtualRoot, MerkleLeaf {
+public final class NoOpVirtualRoot extends AbstractVirtualRoot implements VirtualRoot {
 
     /**
      * Transform this object into an immutable one.
@@ -26,12 +23,6 @@ public final class NoOpVirtualRoot extends PartialMerkleLeaf implements VirtualR
     public long getClassId() {
         return 0;
     }
-
-    @Override
-    public void serialize(final SerializableDataOutputStream out) throws IOException {}
-
-    @Override
-    public void deserialize(final SerializableDataInputStream in, final int version) throws IOException {}
 
     @Override
     public int getVersion() {

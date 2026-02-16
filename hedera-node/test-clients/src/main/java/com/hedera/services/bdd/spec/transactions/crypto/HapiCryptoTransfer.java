@@ -493,6 +493,7 @@ public class HapiCryptoTransfer extends HapiBaseTransfer<HapiCryptoTransfer> {
                                 explicitDef.get().accept(spec, b);
                             } else if (hbarOnlyProvider != MISSING_HBAR_ONLY_PROVIDER) {
                                 b.setTransfers(hbarOnlyProvider.apply(spec));
+                                injectAllowanceHooks(b, spec);
                             } else {
                                 final var xfers = transfersAllFor(spec);
                                 for (final TokenTransferList scopedXfers : xfers) {

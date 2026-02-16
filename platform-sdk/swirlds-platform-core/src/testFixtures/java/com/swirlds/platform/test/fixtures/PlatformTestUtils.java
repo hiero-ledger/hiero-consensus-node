@@ -10,9 +10,6 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.config.PathsConfig_;
-import com.swirlds.platform.test.fixtures.event.generator.StandardGraphGenerator;
-import com.swirlds.platform.test.fixtures.event.source.EventSource;
-import com.swirlds.platform.test.fixtures.event.source.StandardEventSource;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -28,6 +25,9 @@ import java.util.Map.Entry;
 import java.util.function.Function;
 import org.hiero.base.crypto.Signature;
 import org.hiero.consensus.crypto.PlatformSigner;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.StandardGraphGenerator;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.event.source.EventSource;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.event.source.StandardEventSource;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
@@ -115,7 +115,7 @@ public class PlatformTestUtils {
         final var signer = new PlatformSigner(keysAndCerts);
         for (int i = 0; i < numEvents; i++) {
             // Generate event with hash but fake signature
-            final PlatformEvent unsignedEvent = generator.generateBaseEvent();
+            final PlatformEvent unsignedEvent = generator.generateEvent();
 
             // Sign the ACTUAL hash
             final Signature signature =

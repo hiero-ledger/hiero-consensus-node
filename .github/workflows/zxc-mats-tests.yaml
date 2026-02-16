@@ -33,6 +33,11 @@ on:
         type: string
         required: false
         default: "false"
+      enable-hapi-tests-crypto:
+        description: "HAPI Testing (Crypto) Enabled"
+        type: string
+        required: false
+        default: "false"
       enable-otter-tests:
         description: "Otter Tests Enabled"
         type: string
@@ -109,7 +114,7 @@ defaults:
 jobs:
   commit-info:
     name: Get Commit Info
-    runs-on: hl-cn-citr-lin-sm
+    runs-on: hl-cn-default-lin-sm
     outputs:
       sha: ${{ steps.commit-info.outputs.sha }}
     steps:
@@ -218,7 +223,7 @@ jobs:
       java-distribution: ${{ inputs.java-distribution || 'temurin' }}
       enable-hapi-tests-misc: "${{ inputs.enable-hapi-tests == 'true' }}"
       enable-hapi-tests-misc-records: "${{ inputs.enable-hapi-tests == 'true' }}"
-      enable-hapi-tests-crypto: "${{ inputs.enable-hapi-tests == 'true' }}"
+      enable-hapi-tests-crypto: "${{ inputs.enable-hapi-tests-crypto == 'true' }}"
       enable-hapi-tests-simplefees: "${{ inputs.enable-hapi-tests == 'true' }}"
       enable-hapi-tests-iss: "${{ inputs.enable-hapi-tests == 'true' }}"
       enable-hapi-tests-token: "${{ inputs.enable-hapi-tests == 'true' }}"
@@ -280,6 +285,7 @@ jobs:
       java-version: ${{ inputs.java-version || '21.0.6' }}
       java-distribution: ${{ inputs.java-distribution || 'temurin' }}
     secrets:
+      github-token: ${{ secrets.access-token }}
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
       gradle-cache-password: ${{ secrets.gradle-cache-password }}
 
@@ -295,12 +301,13 @@ jobs:
       java-version: ${{ inputs.java-version || '21.0.6' }}
       java-distribution: ${{ inputs.java-distribution || 'temurin' }}
     secrets:
+      github-token: ${{ secrets.access-token }}
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
       gradle-cache-password: ${{ secrets.gradle-cache-password }}
 
   set-failure-mode:
     name: Set Failure Mode
-    runs-on: hl-cn-citr-lin-sm
+    runs-on: hl-cn-default-lin-sm
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
       failed-tests: ${{ steps.set-failure-mode.outputs.failed-tests }}

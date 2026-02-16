@@ -621,7 +621,7 @@ public class UtilVerbs {
         return new QueryModificationsOp(false, queryOpSupplier, modificationsFn);
     }
 
-    public static SourcedOp sourcing(Supplier<HapiSpecOperation> source) {
+    public static SourcedOp sourcing(Supplier<? extends SpecOperation> source) {
         return new SourcedOp(source);
     }
 
@@ -2087,6 +2087,28 @@ public class UtilVerbs {
         return validateChargedUsdWithin(txn, expectedUsd, allowedPercentDiff);
     }
 
+    public static CustomSpecAssert validateChargedAccount(String txn, String expectedAccount) {
+        return assertionsHold((spec, log) -> {
+            requireNonNull(spec);
+            requireNonNull(txn);
+            var subOp = getTxnRecord(txn);
+            allRunFor(spec, subOp);
+            final var rcd = subOp.getResponseRecord();
+            final var expectedAccountId = asId(expectedAccount, spec);
+            final var negativeAccountAmount = rcd.getTransferList().getAccountAmountsList().stream()
+                    .filter(aa -> aa.getAmount() < 0)
+                    .findFirst();
+            assertTrue(negativeAccountAmount.isPresent());
+            final var actualChargedAccountId = negativeAccountAmount.get().getAccountID();
+            assertEquals(
+                    actualChargedAccountId,
+                    expectedAccountId,
+                    String.format(
+                            "Charged account %s is different than expected: %s",
+                            actualChargedAccountId, expectedAccountId));
+        });
+    }
+
     public static CustomSpecAssert validateChargedFee(String txn, long expectedFee) {
         return assertionsHold((spec, assertLog) -> {
             final var actualFeeCharged = getChargedFee(spec, txn);
@@ -2108,6 +2130,31 @@ public class UtilVerbs {
                     String.format(
                             "%s: %s fee (%s) more than %.2f percent different than expected!",
                             name, sdec(actualUsdCharged, 4), txn, allowedPercentDiff));
+        });
+    }
+
+    public static SpecOperation safeValidateChargedUsd(String txnName, double oldPrice, double newPrice) {
+        return doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+            if ("true".equalsIgnoreCase(flag)) {
+                return validateChargedUsd(txnName, newPrice);
+            } else {
+                return validateChargedUsd(txnName, oldPrice);
+            }
+        });
+    }
+
+    public static SpecOperation safeValidateChargedUsdWithin(
+            String txnName,
+            double oldPrice,
+            double oldAllowedPercentDiff,
+            double newPrice,
+            double newAllowedPercentDiff) {
+        return doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+            if ("true".equalsIgnoreCase(flag)) {
+                return validateChargedUsdWithin(txnName, newPrice, newAllowedPercentDiff);
+            } else {
+                return validateChargedUsdWithin(txnName, oldPrice, oldAllowedPercentDiff);
+            }
         });
     }
 
@@ -2187,6 +2234,39 @@ public class UtilVerbs {
                     String.format(
                             "%s fee (%s) more than %.2f percent different than expected!",
                             sdec(actualUsdCharged, 4), txn, allowedPercentDiff));
+        });
+    }
+
+    public static CustomSpecAssert safeValidateInnerTxnChargedUsd(
+            String txn,
+            String parent,
+            double oldPrice,
+            double oldAllowedPercentDiff,
+            double newPrice,
+            double newAllowedPercentDiff) {
+        return assertionsHold((spec, assertLog) -> {
+            final var flag = spec.targetNetworkOrThrow().startupProperties().get("fees.simpleFeesEnabled");
+            if ("true".equalsIgnoreCase(flag)) {
+                final var effectivePercentDiff = Math.max(newAllowedPercentDiff, 1.0);
+                final var actualUsdCharged = getChargedUsedForInnerTxn(spec, parent, txn);
+                assertEquals(
+                        newPrice,
+                        actualUsdCharged,
+                        (effectivePercentDiff / 100.0) * newPrice,
+                        String.format(
+                                "%s fee (%s) more than %.2f percent different than expected!",
+                                sdec(actualUsdCharged, 4), txn, effectivePercentDiff));
+            } else {
+                final var effectivePercentDiff = Math.max(oldAllowedPercentDiff, 1.0);
+                final var actualUsdCharged = getChargedUsedForInnerTxn(spec, parent, txn);
+                assertEquals(
+                        oldPrice,
+                        actualUsdCharged,
+                        (effectivePercentDiff / 100.0) * oldPrice,
+                        String.format(
+                                "%s fee (%s) more than %.2f percent different than expected!",
+                                sdec(actualUsdCharged, 4), txn, effectivePercentDiff));
+            }
         });
     }
 
@@ -2767,7 +2847,16 @@ public class UtilVerbs {
     }
 
     public static Tuple accountAmountAlias(final byte[] alias, final Long amount) {
-        return Tuple.of(HapiParserUtil.asHeadlongAddress(alias), amount);
+        return Tuple.of(HapiParserUtil.asHeadlongAddress(alias), amount, false);
+    }
+
+    public static Tuple nftTransferToAlias(
+            @NonNull final AccountID sender, @NonNull final byte[] alias, final long serialNumber) {
+        return Tuple.of(
+                HapiParserUtil.asHeadlongAddress(asAddress(sender)),
+                HapiParserUtil.asHeadlongAddress(alias),
+                serialNumber,
+                false);
     }
 
     public static Tuple accountAmountAlias(final byte[] alias, final Long amount, final boolean isApproval) {

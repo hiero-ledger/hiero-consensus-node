@@ -2,6 +2,7 @@
 package com.swirlds.common.merkle.synchronization.config;
 
 import com.swirlds.config.api.ConfigurationBuilder;
+import org.hiero.consensus.reconnect.config.ReconnectConfig;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 

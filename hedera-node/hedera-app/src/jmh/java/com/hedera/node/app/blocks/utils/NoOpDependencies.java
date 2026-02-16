@@ -12,6 +12,7 @@ import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
 import com.hedera.node.app.quiescence.QuiescedHeartbeat;
 import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.app.spi.metrics.StoreMetricsService;
+import com.hedera.node.app.spi.store.StoreMetrics;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.converter.FunctionalitySetConverter;
@@ -33,7 +34,6 @@ import com.swirlds.metrics.api.MetricType;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.state.State;
-import com.swirlds.state.spi.metrics.StoreMetrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Collection;
 import java.util.Collections;
@@ -41,7 +41,6 @@ import java.util.concurrent.CompletableFuture;
 import org.hiero.base.crypto.Signature;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
-import org.jetbrains.annotations.NotNull;
 
 /**
  * No-op implementations of dependencies for benchmarking BlockStreamManagerImpl.
@@ -286,7 +285,7 @@ public final class NoOpDependencies {
 
         @Override
         @SuppressWarnings("unchecked")
-        public <T extends Metric> @NotNull T getOrCreate(final @NonNull MetricConfig<T, ?> config) {
+        public <T extends Metric> @NonNull T getOrCreate(final @NonNull MetricConfig<T, ?> config) {
             // Check if this is a Counter config and return a NoOpCounter
             if (config.getResultClass() == Counter.class) {
                 return (T) new NoOpCounter();
@@ -317,12 +316,7 @@ public final class NoOpDependencies {
 
     /** Creates a minimal ConfigProvider */
     public static ConfigProvider createBenchmarkConfigProvider() {
-        return new ConfigProvider() {
-            @Override
-            public @NonNull VersionedConfigImpl getConfiguration() {
-                return new VersionedConfigImpl(createBenchmarkConfiguration(), 1L);
-            }
-        };
+        return () -> new VersionedConfigImpl(createBenchmarkConfiguration(), 1L);
     }
 
     /** Creates a minimal Configuration with hardcoded values */

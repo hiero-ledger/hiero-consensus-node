@@ -4,7 +4,6 @@ package com.swirlds.benchmark;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.benchmark.reconnect.MerkleBenchmarkUtils;
 import com.swirlds.benchmark.reconnect.StateBuilder;
-import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.virtualmap.VirtualMap;
 import java.util.ArrayList;
 import java.util.List;
@@ -81,7 +80,7 @@ public class ReconnectBench extends VirtualMapBaseBench {
 
     private VirtualMap learnerMap;
 
-    private MerkleNode reconnectedMap;
+    private VirtualMap reconnectedMap;
 
     String benchmarkName() {
         return "ReconnectBench";

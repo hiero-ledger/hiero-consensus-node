@@ -79,7 +79,7 @@ env:
   GRAFANA_SYSADM_CHI: https://grafana.lat.ope.eng.hashgraph.io/d/rYdddlPWk/node-exporter-single-node?orgId=1&timezone=utc&var-datasource=P631E2BA859A814B3&var-job=performance-chicago-node-exporter
 
   #Release version from jFrog
-  NLG_VERSION: 0.11.1
+  NLG_VERSION: 0.13.0
 
   #Thresholds for performance
   #benchmarks
@@ -98,7 +98,7 @@ env:
 jobs:
   performance-tests-start:
     name: Start
-    runs-on: hl-cn-citr-lin-lg
+    runs-on: hl-cn-sdpt-lin-lg
     env:
       run_NLG_Test: NftTransferLoadTest
     outputs:
@@ -692,7 +692,7 @@ jobs:
 
   performance-NftTransferLoadTest-watch1:
     name: NFT Transfer Load Test
-    runs-on: hl-cn-citr-lin-lg
+    runs-on: hl-cn-sdpt-lin-lg
     needs:
       - performance-tests-start
     env:
@@ -873,7 +873,7 @@ jobs:
 
   performance-NftTransferLoadTest-report:
     name: NFT Transfer Load Test Report
-    runs-on: hl-cn-citr-lin-lg
+    runs-on: hl-cn-sdpt-lin-lg
     needs:
       - performance-tests-start
       - performance-NftTransferLoadTest-watch1
@@ -1199,7 +1199,7 @@ jobs:
 
   performance-post-test-validation:
     name: Consensus Node State Validator
-    runs-on: hl-cn-citr-lin-lg
+    runs-on: hl-cn-sdpt-lin-lg
     needs:
       - performance-tests-start
       - performance-SmartContractLoadTest
@@ -1316,7 +1316,7 @@ jobs:
   # Send this output back to the caller workflow
   single-day-performance-test-result:
     name: Calculate Result
-    runs-on: hl-cn-citr-lin-lg
+    runs-on: hl-cn-sdpt-lin-lg
     if: ${{ !cancelled() }}
     needs:
       - performance-NftTransferLoadTest-report
@@ -1403,7 +1403,7 @@ jobs:
 
   delete-namespace:
     name: Delete namespace
-    runs-on: hl-cn-citr-lin-lg
+    runs-on: hl-cn-sdpt-lin-lg
     needs:
       - performance-tests-start
       - single-day-performance-test-result
@@ -1452,7 +1452,7 @@ jobs:
 
   performance-report-to-rootly:
     name: Report Failures to Rootly
-    runs-on: hl-cn-citr-lin-sm
+    runs-on: hl-cn-sdpt-lin-sm
     needs:
       - performance-tests-start
       - performance-NftTransferLoadTest-watch1
@@ -1513,7 +1513,7 @@ jobs:
           echo "${{ steps.summary.outputs.summary }}" >> "${GITHUB_STEP_SUMMARY}"
 
   performance-report-to-slack:
-    runs-on: hl-cn-citr-lin-sm
+    runs-on: hl-cn-sdpt-lin-sm
     needs:
       - performance-NftTransferLoadTest-report
       - performance-HCSLoadTest

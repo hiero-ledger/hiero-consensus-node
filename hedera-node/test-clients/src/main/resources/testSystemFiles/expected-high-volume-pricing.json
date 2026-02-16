@@ -62,7 +62,7 @@
       "basePriceMills": 1000
     },
     {
-      "name": "LambdaSStore",
+      "name": "HookStore",
       "baseRate": 10,
       "maxTps": 50000,
       "basePriceMills": 5
@@ -99,4 +99,3 @@
     }
   ]
 }
-

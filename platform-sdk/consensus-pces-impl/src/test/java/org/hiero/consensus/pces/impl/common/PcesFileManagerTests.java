@@ -11,7 +11,6 @@ import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.utility.FileUtils;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContexts;
 import com.swirlds.config.api.Configuration;
 import java.io.IOException;
 import java.nio.file.Path;

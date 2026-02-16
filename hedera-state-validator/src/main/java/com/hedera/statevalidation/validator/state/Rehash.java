@@ -2,7 +2,7 @@
 package com.hedera.statevalidation.validator.state;
 
 import static com.hedera.statevalidation.util.ParallelProcessingUtils.VALIDATOR_FORK_JOIN_POOL;
-import static com.swirlds.platform.state.service.PlatformStateUtils.getInfoString;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.getInfoString;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.pbj.runtime.hashing.WritableMessageDigest;
@@ -34,15 +34,9 @@ public class Rehash {
 
     private static final Logger logger = LogManager.getLogger(Rehash.class);
 
-    /**
-     * This parameter defines how deep the hash tree should be traversed.
-     * Note that it doesn't go below the top level of VirtualMap even if the depth is set to a higher value.
-     */
-    public static final int HASH_DEPTH = 5;
-
     @Test
     void reHash(DeserializedSignedState deserializedSignedState) throws Exception {
-        final VirtualMap vm = (VirtualMap)
+        final VirtualMap vm =
                 deserializedSignedState.reservedSignedState().get().getState().getRoot();
         records = vm.getRecords();
 
@@ -68,7 +62,7 @@ public class Rehash {
     void validateMerkleTree(DeserializedSignedState deserializedSignedState, HashInfo hashInfo) {
 
         var infoStringFromState = getInfoString(
-                deserializedSignedState.reservedSignedState().get().getState(), HASH_DEPTH);
+                deserializedSignedState.reservedSignedState().get().getState());
 
         final var originalLines = Arrays.asList(hashInfo.content().split("\n")).getFirst();
         final var fullList = Arrays.asList(infoStringFromState.split("\n"));

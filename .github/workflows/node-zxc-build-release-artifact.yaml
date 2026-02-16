@@ -113,7 +113,7 @@ permissions:
 jobs:
   validate:
     name: Validate
-    runs-on: hiero-network-node-linux-large
+    runs-on: hl-cn-default-lin-md
     if: ${{ !github.event.workflow_call.repository.fork }}
     outputs:
       branch-name: ${{ steps.parameters.outputs.branch-name }}
@@ -245,7 +245,7 @@ jobs:
 
   build-artifact:
     name: Build Artifact
-    runs-on: hiero-network-node-linux-large
+    runs-on: hl-cn-default-lin-md
     needs:
       - validate
     steps:
@@ -406,7 +406,7 @@ jobs:
 
   local-node-images:
     name: Publish Local Node Images
-    runs-on: hiero-network-node-linux-large
+    runs-on: hl-cn-default-lin-lg
     needs:
       - validate
       - build-artifact
@@ -586,7 +586,7 @@ jobs:
 
   validate-production-image:
     name: Validate Production Image
-    runs-on: hiero-network-node-linux-large
+    runs-on: hl-cn-default-lin-md
     needs:
       - gcp-production-image
       - jfr-production-image
@@ -704,7 +704,7 @@ jobs:
 
   publish:
     name: Publish to ${{ inputs.version-policy == 'specified' && 'Maven Central' || 'GCP Registry' }}
-    runs-on: hiero-network-node-linux-large
+    runs-on: hl-cn-default-lin-lg
     outputs:
       create-release: ${{ steps.set-gh-release-flag.outputs.create-release }}
     needs:
@@ -927,7 +927,7 @@ jobs:
 
   send-notifications:
     name: Send Release Notifications
-    runs-on: hiero-network-node-linux-large
+    runs-on: hl-cn-default-lin-sm
     needs:
       - validate
       - local-node-images

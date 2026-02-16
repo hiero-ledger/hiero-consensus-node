@@ -149,4 +149,13 @@ message TransactionResult {
      * These fees SHALL be present in the full transfer list for the transaction.
      */
     repeated proto.AssessedCustomFee assessed_custom_fees = 12;
+
+
+    /**
+     * A high volume pricing multiplier.
+     * <p>
+     * This SHALL be the multiplier that is applied to the transaction
+     * fees charged for this transaction if the high volume flag is set.
+     */
+    uint64 high_volume_pricing_multiplier = 13;
 }

@@ -6,7 +6,6 @@ import static java.util.concurrent.TimeUnit.NANOSECONDS;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.common.io.exceptions.MerkleSerializationException;
-import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.merkle.synchronization.streams.AsyncOutputStream;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
 import com.swirlds.virtualmap.internal.Path;
@@ -17,6 +16,7 @@ import org.hiero.base.crypto.Hash;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
 import org.hiero.consensus.concurrent.utility.throttle.RateLimiter;
+import org.hiero.consensus.reconnect.config.ReconnectConfig;
 
 /**
  * A task running on the teacher side, which is responsible for processing requests from the
