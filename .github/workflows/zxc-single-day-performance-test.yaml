@@ -269,18 +269,10 @@ jobs:
       - name: Compile
         run: |
           cd "${{ github.workspace }}"/target_consensus_node
+          chmod a+rx ./gradlew
           ./gradlew clean assemble
           cd "${{ github.workspace }}"
 
-#      - name: Set hederahash sha value
-#        id: hederaHash
-#        run: |
-#          hederahash="$(git rev-parse HEAD)"
-#          echo "sha=${hederahash}" >> "${GITHUB_OUTPUT}"
-#          echo "hederahash=${hederahash}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
-
-#      - name: Compile
-#        run: ./gradlew clean assemble
 
       - name: Build Validator
         run: |
@@ -337,8 +329,6 @@ jobs:
           cp "${{ github.workspace }}"/.github/workflows/support/citr/init-containers-values7.yaml init-containers-values7.yaml
 
           # Update Taskfile values
-#          sed -i -e "s@%HOME%@${HOME}@g" -e "s@%SOLO_NAMESPACE%@${{ steps.set-namespace.outputs.namespace }}@g" \
-#          -e "s@%HEDERA_SERVICES_ROOT%@${curdir}@g" Taskfile.yml
 
           sed -i -e "s@%HOME%@${HOME}@g" -e "s@%SOLO_NAMESPACE%@${{ steps.set-namespace.outputs.namespace }}@g" \
           -e "s@%HEDERA_SERVICES_ROOT%@${curdir}/target_consensus_node@g" Taskfile.yml

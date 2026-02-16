@@ -240,18 +240,10 @@ jobs:
       - name: Compile
         run: |
           cd "${{ github.workspace }}"/target_consensus_node
+          chmod a+rx ./gradlew
           ./gradlew clean assemble
           cd "${{ github.workspace }}"
 
-      #      - name: Set hederahash sha value
-      #        id: hederaHash
-      #        run: |
-      #          hederahash="$(git rev-parse HEAD)"
-      #          echo "sha=${hederahash}" >> "${GITHUB_OUTPUT}"
-      #          echo "hederahash=${hederahash}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
-
-      #      - name: Compile
-      #        run: ./gradlew clean assemble
 
       - name: Build Validator
         run: |
