@@ -425,11 +425,11 @@ public class ContractMetrics {
             summary.gasPrice().ifPresent(newGasPrice -> {
                 this.gasPrice.set(newGasPrice);
             });
+            this.successfullyProcessedCodeDelegations.recordObservation(summary.successfullyProcessedCodeDelegations());
+            this.ignoredCodeDelegations.recordObservation(summary.ignoredCodeDelegations());
         }
 
         this.opsDurationMetrics.recordTxnTotalOpsDuration(summary.opsDurationUnitsConsumed());
-        this.successfullyProcessedCodeDelegations.recordObservation(summary.successfullyProcessedCodeDelegations());
-        this.ignoredCodeDelegations.recordObservation(summary.ignoredCodeDelegations());
     }
 
     public OpsDurationMetrics opsDurationMetrics() {

@@ -261,11 +261,11 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
     }
 
     private void recordProcessedTransactionToMetrics(
-            HederaEvmTransaction hevmTxn,
-            CallOutcome outcome,
-            long elapsedNanos,
-            long opsDurationUnitsConsumed,
-            CodeDelegationResult codeDelegationResult) {
+            @NonNull final HederaEvmTransaction hevmTxn,
+            @NonNull final CallOutcome outcome,
+            final long elapsedNanos,
+            final long opsDurationUnitsConsumed,
+            @NonNull final CodeDelegationResult codeDelegationResult) {
         contractMetrics.recordProcessedTransaction(new ContractMetrics.TransactionProcessingSummary(
                 elapsedNanos,
                 opsDurationUnitsConsumed,
