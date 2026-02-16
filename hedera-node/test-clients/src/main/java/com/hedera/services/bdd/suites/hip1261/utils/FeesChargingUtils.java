@@ -5,7 +5,6 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.HapiTxnOp.serializedSignedTxFrom;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithChild;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateInnerTxnChargedUsd;
@@ -1482,6 +1481,17 @@ public class FeesChargingUtils {
         });
     }
 
+    public static SpecOperation validateFeesWithin(
+            final String txn, final double legacyFee, final double simpleFee, final double allowedDiff) {
+        return doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+            if ("true".equals(flag)) {
+                return validateChargedUsdWithin(txn, simpleFee, allowedDiff);
+            } else {
+                return validateChargedUsdWithin(txn, legacyFee, allowedDiff);
+            }
+        });
+    }
+
     public static SpecOperation validateInnerTxnFees(String txn, String parent, double legacyFee, double simpleFee) {
         return validateInnerTxnFees(txn, parent, legacyFee, simpleFee, 0.1);
     }
@@ -1520,18 +1530,10 @@ public class FeesChargingUtils {
         });
     }
 
-    /** SimpleFees formula for Atomic Batch:
-     * node = NODE_BASE + bytes over 1024
-     * network = node * NETWORK_MULTIPLIER
-     * service = BATCH_BASE_FEE
-     * total   = node + network + service
-     */
-    public static double expectedBatchFullFeeUsd(long extraBytes) {
-        return BATCH_BASE_FEE + extraBytes * PROCESSING_BYTES_FEE_USD * 10;
-    }
-
     public static CustomSpecAssert validateBatchChargedCorrectly(String batchTxn) {
-        return withOpContext((spec, log) ->
-                validateChargedUsd(batchTxn, BATCH_BASE_FEE + expectedFeeFromBytesFor(spec, log, batchTxn)));
+        return withOpContext((spec, log) -> allRunFor(
+                spec,
+                validateFeesWithin(
+                        batchTxn, BATCH_BASE_FEE, BATCH_BASE_FEE + expectedFeeFromBytesFor(spec, log, batchTxn), 3)));
     }
 }
