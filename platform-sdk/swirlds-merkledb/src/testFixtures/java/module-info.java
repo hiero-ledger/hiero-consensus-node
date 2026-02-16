@@ -8,6 +8,8 @@ module com.swirlds.merkledb.test.fixtures {
     requires transitive com.swirlds.metrics.api;
     requires transitive com.swirlds.virtualmap;
     requires transitive org.hiero.base.crypto;
+    requires transitive org.hiero.base.utility;
+    requires com.swirlds.base;
     requires transitive org.apache.logging.log4j.core;
     requires com.swirlds.common.test.fixtures;
     requires com.swirlds.common;
@@ -17,7 +19,6 @@ module com.swirlds.merkledb.test.fixtures {
     requires org.hiero.consensus.model;
     requires java.management;
     requires jdk.management;
-    requires org.apache.logging.log4j;
     requires org.junit.jupiter.api;
     requires org.mockito;
 }

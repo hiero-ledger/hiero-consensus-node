@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.merkledb.test.fixtures.files;
+package com.swirlds.common.test.fixtures.logging;
 
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -32,11 +32,9 @@ public class MockAppender extends AbstractAppender {
     @Override
     public void append(final LogEvent event) {
         if (isStarted()) {
+            final String marker = event.getMarker() != null ? event.getMarker().getName() : "NO_MARKER";
             messages.add(String.format(
-                    "%s - %s - %s",
-                    event.getMarker().getName(),
-                    event.getLevel(),
-                    event.getMessage().getFormattedMessage()));
+                    "%s - %s - %s", marker, event.getLevel(), event.getMessage().getFormattedMessage()));
         }
     }
 
