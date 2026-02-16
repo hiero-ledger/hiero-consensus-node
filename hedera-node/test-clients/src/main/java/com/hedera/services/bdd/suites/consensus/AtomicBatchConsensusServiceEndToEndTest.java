@@ -130,17 +130,7 @@ class AtomicBatchConsensusServiceEndToEndTest {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-                        if ("true".equals(flag)) {
-                            return validateChargedUsdWithinWithTxnSize(
-                                    "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(
-                                            Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
-                                    0.001);
-                        } else {
-                            return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
-                        }
-                    }),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // confirm topic memo is updated
                     getTopicInfo(TOPIC_ID)
@@ -175,17 +165,7 @@ class AtomicBatchConsensusServiceEndToEndTest {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-                        if ("true".equals(flag)) {
-                            return validateChargedUsdWithinWithTxnSize(
-                                    "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(
-                                            Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
-                                    0.001);
-                        } else {
-                            return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
-                        }
-                    }),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // confirm topic is deleted
                     getTopicInfo(TOPIC_ID)
@@ -228,17 +208,7 @@ class AtomicBatchConsensusServiceEndToEndTest {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-                        if ("true".equals(flag)) {
-                            return validateChargedUsdWithinWithTxnSize(
-                                    "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(
-                                            Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
-                                    0.001);
-                        } else {
-                            return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
-                        }
-                    })));
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION)));
         }
 
         @HapiTest
@@ -276,17 +246,7 @@ class AtomicBatchConsensusServiceEndToEndTest {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-                        if ("true".equals(flag)) {
-                            return validateChargedUsdWithinWithTxnSize(
-                                    "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(
-                                            Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
-                                    0.001);
-                        } else {
-                            return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
-                        }
-                    })));
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION)));
         }
 
         @HapiTest
@@ -322,17 +282,7 @@ class AtomicBatchConsensusServiceEndToEndTest {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-                        if ("true".equals(flag)) {
-                            return validateChargedUsdWithinWithTxnSize(
-                                    "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(
-                                            Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
-                                    0.001);
-                        } else {
-                            return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
-                        }
-                    }),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // confirm topic is deleted
                     getTopicInfo(TOPIC_ID)
@@ -373,17 +323,7 @@ class AtomicBatchConsensusServiceEndToEndTest {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                    doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-                        if ("true".equals(flag)) {
-                            return validateChargedUsdWithinWithTxnSize(
-                                    "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(
-                                            Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
-                                    0.001);
-                        } else {
-                            return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
-                        }
-                    }),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // confirm topic is not deleted
                     getTxnRecord("innerTxnAfterDelete").logged(),
@@ -429,17 +369,7 @@ class AtomicBatchConsensusServiceEndToEndTest {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                    doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-                        if ("true".equals(flag)) {
-                            return validateChargedUsdWithinWithTxnSize(
-                                    "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(
-                                            Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
-                                    0.001);
-                        } else {
-                            return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
-                        }
-                    }),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // confirm topic is not deleted
                     getTopicInfo(TOPIC_ID)
@@ -483,17 +413,7 @@ class AtomicBatchConsensusServiceEndToEndTest {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                    doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-                        if ("true".equals(flag)) {
-                            return validateChargedUsdWithinWithTxnSize(
-                                    "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(
-                                            Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
-                                    0.001);
-                        } else {
-                            return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
-                        }
-                    }),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // confirm topic is not deleted
                     getTopicInfo(TOPIC_ID)
@@ -538,17 +458,7 @@ class AtomicBatchConsensusServiceEndToEndTest {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-                        if ("true".equals(flag)) {
-                            return validateChargedUsdWithinWithTxnSize(
-                                    "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(
-                                            Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
-                                    0.001);
-                        } else {
-                            return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
-                        }
-                    }),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // confirm topic is updated
                     getTopicInfo(TOPIC_ID)
@@ -596,17 +506,7 @@ class AtomicBatchConsensusServiceEndToEndTest {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-                        if ("true".equals(flag)) {
-                            return validateChargedUsdWithinWithTxnSize(
-                                    "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(
-                                            Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
-                                    0.001);
-                        } else {
-                            return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
-                        }
-                    }),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // confirm topic is updated
                     getTopicInfo(TOPIC_ID)
@@ -655,17 +555,7 @@ class AtomicBatchConsensusServiceEndToEndTest {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                    doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-                        if ("true".equals(flag)) {
-                            return validateChargedUsdWithinWithTxnSize(
-                                    "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(
-                                            Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
-                                    0.001);
-                        } else {
-                            return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
-                        }
-                    }),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // confirm topic is not updated
                     getTopicInfo(TOPIC_ID)
@@ -711,17 +601,7 @@ class AtomicBatchConsensusServiceEndToEndTest {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                    doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-                        if ("true".equals(flag)) {
-                            return validateChargedUsdWithinWithTxnSize(
-                                    "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(
-                                            Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
-                                    0.001);
-                        } else {
-                            return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
-                        }
-                    }),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // confirm topic is not updated
                     getTopicInfo(TOPIC_ID)
@@ -767,17 +647,7 @@ class AtomicBatchConsensusServiceEndToEndTest {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                    doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-                        if ("true".equals(flag)) {
-                            return validateChargedUsdWithinWithTxnSize(
-                                    "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(
-                                            Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
-                                    0.001);
-                        } else {
-                            return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
-                        }
-                    }),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // confirm topic is not updated
                     getTopicInfo(TOPIC_ID)
@@ -819,17 +689,7 @@ class AtomicBatchConsensusServiceEndToEndTest {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                    doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-                        if ("true".equals(flag)) {
-                            return validateChargedUsdWithinWithTxnSize(
-                                    "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(
-                                            Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
-                                    0.001);
-                        } else {
-                            return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
-                        }
-                    }),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // confirm topic is not updated
                     getTopicInfo(TOPIC_ID)
@@ -873,17 +733,7 @@ class AtomicBatchConsensusServiceEndToEndTest {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-                        if ("true".equals(flag)) {
-                            return validateChargedUsdWithinWithTxnSize(
-                                    "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(
-                                            Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
-                                    0.001);
-                        } else {
-                            return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
-                        }
-                    }),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // confirm topic is updated
                     getTopicInfo(TOPIC_ID)
@@ -927,17 +777,7 @@ class AtomicBatchConsensusServiceEndToEndTest {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                    doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-                        if ("true".equals(flag)) {
-                            return validateChargedUsdWithinWithTxnSize(
-                                    "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(
-                                            Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
-                                    0.001);
-                        } else {
-                            return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
-                        }
-                    }),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // confirm topic is not updated
                     getTopicInfo(TOPIC_ID)
@@ -981,17 +821,7 @@ class AtomicBatchConsensusServiceEndToEndTest {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                    doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-                        if ("true".equals(flag)) {
-                            return validateChargedUsdWithinWithTxnSize(
-                                    "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(
-                                            Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
-                                    0.001);
-                        } else {
-                            return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
-                        }
-                    }),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // confirm topic is not updated
                     getTopicInfo(TOPIC_ID)
@@ -1045,17 +875,7 @@ class AtomicBatchConsensusServiceEndToEndTest {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-                        if ("true".equals(flag)) {
-                            return validateChargedUsdWithinWithTxnSize(
-                                    "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(
-                                            Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
-                                    0.001);
-                        } else {
-                            return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
-                        }
-                    }),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // confirm topic is updated
                     getTopicInfo(TOPIC_ID)
@@ -1110,17 +930,7 @@ class AtomicBatchConsensusServiceEndToEndTest {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                    doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-                        if ("true".equals(flag)) {
-                            return validateChargedUsdWithinWithTxnSize(
-                                    "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(
-                                            Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
-                                    0.001);
-                        } else {
-                            return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
-                        }
-                    }),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // confirm topic is not updated
                     getTopicInfo(TOPIC_ID)
@@ -1163,17 +973,7 @@ class AtomicBatchConsensusServiceEndToEndTest {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-                        if ("true".equals(flag)) {
-                            return validateChargedUsdWithinWithTxnSize(
-                                    "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(
-                                            Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
-                                    0.001);
-                        } else {
-                            return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
-                        }
-                    }),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // confirm topic is updated
                     getTopicInfo(TOPIC_ID)
@@ -1227,17 +1027,7 @@ class AtomicBatchConsensusServiceEndToEndTest {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-                        if ("true".equals(flag)) {
-                            return validateChargedUsdWithinWithTxnSize(
-                                    "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(
-                                            Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
-                                    0.001);
-                        } else {
-                            return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
-                        }
-                    }),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // confirm topic is updated
                     getTopicInfo(TOPIC_ID)
@@ -1284,17 +1074,7 @@ class AtomicBatchConsensusServiceEndToEndTest {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-                        if ("true".equals(flag)) {
-                            return validateChargedUsdWithinWithTxnSize(
-                                    "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(
-                                            Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
-                                    0.001);
-                        } else {
-                            return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
-                        }
-                    }),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // confirm topic memo is updated
                     getTopicInfo(TOPIC_ID)
@@ -1340,17 +1120,7 @@ class AtomicBatchConsensusServiceEndToEndTest {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-                        if ("true".equals(flag)) {
-                            return validateChargedUsdWithinWithTxnSize(
-                                    "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(
-                                            Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
-                                    0.001);
-                        } else {
-                            return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
-                        }
-                    }),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // confirm topic memo is updated
                     getTopicInfo(TOPIC_ID)
@@ -1392,17 +1162,7 @@ class AtomicBatchConsensusServiceEndToEndTest {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-                        if ("true".equals(flag)) {
-                            return validateChargedUsdWithinWithTxnSize(
-                                    "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(
-                                            Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
-                                    0.001);
-                        } else {
-                            return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
-                        }
-                    }),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // confirm accounts balances
                     getAccountBalance(HBAR_COLLECTOR).hasTinyBars(HBAR_FEE),
@@ -1451,17 +1211,7 @@ class AtomicBatchConsensusServiceEndToEndTest {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                    doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-                        if ("true".equals(flag)) {
-                            return validateChargedUsdWithinWithTxnSize(
-                                    "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(
-                                            Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
-                                    0.001);
-                        } else {
-                            return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
-                        }
-                    }),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // confirm accounts balances
                     getAccountBalance(HBAR_COLLECTOR).hasTinyBars(0),
@@ -1499,17 +1249,7 @@ class AtomicBatchConsensusServiceEndToEndTest {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                    doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-                        if ("true".equals(flag)) {
-                            return validateChargedUsdWithinWithTxnSize(
-                                    "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(
-                                            Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
-                                    0.001);
-                        } else {
-                            return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
-                        }
-                    }),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // confirm accounts balances
                     getAccountBalance(HBAR_COLLECTOR).hasTinyBars(0),
@@ -1550,17 +1290,7 @@ class AtomicBatchConsensusServiceEndToEndTest {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                    doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-                        if ("true".equals(flag)) {
-                            return validateChargedUsdWithinWithTxnSize(
-                                    "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(
-                                            Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
-                                    0.001);
-                        } else {
-                            return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
-                        }
-                    }),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // confirm accounts balances
                     getAccountBalance(HBAR_COLLECTOR).hasTinyBars(0),
@@ -1629,17 +1359,7 @@ class AtomicBatchConsensusServiceEndToEndTest {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-                        if ("true".equals(flag)) {
-                            return validateChargedUsdWithinWithTxnSize(
-                                    "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(
-                                            Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
-                                    0.001);
-                        } else {
-                            return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
-                        }
-                    }),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // confirm topic is updated
                     getTopicInfo(TOPIC_ID)
@@ -1693,17 +1413,7 @@ class AtomicBatchConsensusServiceEndToEndTest {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-                        if ("true".equals(flag)) {
-                            return validateChargedUsdWithinWithTxnSize(
-                                    "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(
-                                            Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
-                                    0.001);
-                        } else {
-                            return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
-                        }
-                    }),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // confirm topic is updated
                     getTopicInfo(TOPIC_ID)
@@ -1757,17 +1467,7 @@ class AtomicBatchConsensusServiceEndToEndTest {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-                        if ("true".equals(flag)) {
-                            return validateChargedUsdWithinWithTxnSize(
-                                    "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(
-                                            Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
-                                    0.001);
-                        } else {
-                            return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
-                        }
-                    }),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // confirm topic is updated
                     getTopicInfo(TOPIC_ID_SECOND)
@@ -1821,17 +1521,7 @@ class AtomicBatchConsensusServiceEndToEndTest {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-                        if ("true".equals(flag)) {
-                            return validateChargedUsdWithinWithTxnSize(
-                                    "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(
-                                            Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
-                                    0.001);
-                        } else {
-                            return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
-                        }
-                    }),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // confirm topic is updated
                     getTopicInfo(TOPIC_ID)
@@ -1898,17 +1588,7 @@ class AtomicBatchConsensusServiceEndToEndTest {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-                        if ("true".equals(flag)) {
-                            return validateChargedUsdWithinWithTxnSize(
-                                    "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(
-                                            Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
-                                    0.001);
-                        } else {
-                            return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
-                        }
-                    }),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // confirm topic is updated
                     getTopicInfo(TOPIC_ID)
@@ -1962,17 +1642,7 @@ class AtomicBatchConsensusServiceEndToEndTest {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                    doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-                        if ("true".equals(flag)) {
-                            return validateChargedUsdWithinWithTxnSize(
-                                    "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(
-                                            Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
-                                    0.001);
-                        } else {
-                            return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
-                        }
-                    }),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // confirm topic is updated
                     getTopicInfo(TOPIC_ID)
@@ -2036,17 +1706,7 @@ class AtomicBatchConsensusServiceEndToEndTest {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                    doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-                        if ("true".equals(flag)) {
-                            return validateChargedUsdWithinWithTxnSize(
-                                    "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(
-                                            Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
-                                    0.001);
-                        } else {
-                            return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
-                        }
-                    }),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // confirm topic is updated
                     getTopicInfo(TOPIC_ID)
@@ -2094,17 +1754,7 @@ class AtomicBatchConsensusServiceEndToEndTest {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-                        if ("true".equals(flag)) {
-                            return validateChargedUsdWithinWithTxnSize(
-                                    "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(
-                                            Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
-                                    0.001);
-                        } else {
-                            return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
-                        }
-                    }),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // confirm topic is updated
                     getTopicInfo(TOPIC_ID)
@@ -2144,17 +1794,7 @@ class AtomicBatchConsensusServiceEndToEndTest {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-                        if ("true".equals(flag)) {
-                            return validateChargedUsdWithinWithTxnSize(
-                                    "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(
-                                            Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
-                                    0.001);
-                        } else {
-                            return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
-                        }
-                    }),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // confirm topic is updated
                     getTopicInfo(TOPIC_ID)
@@ -2206,17 +1846,7 @@ class AtomicBatchConsensusServiceEndToEndTest {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-                        if ("true".equals(flag)) {
-                            return validateChargedUsdWithinWithTxnSize(
-                                    "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(
-                                            Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
-                                    0.001);
-                        } else {
-                            return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
-                        }
-                    }),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // confirm topic is updated
                     getTopicInfo(TOPIC_ID)
@@ -2270,17 +1900,7 @@ class AtomicBatchConsensusServiceEndToEndTest {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-                        if ("true".equals(flag)) {
-                            return validateChargedUsdWithinWithTxnSize(
-                                    "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(
-                                            Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
-                                    0.001);
-                        } else {
-                            return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
-                        }
-                    }),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // confirm topic is updated
                     getTopicInfo(TOPIC_ID)
@@ -2344,17 +1964,7 @@ class AtomicBatchConsensusServiceEndToEndTest {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                    doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-                        if ("true".equals(flag)) {
-                            return validateChargedUsdWithinWithTxnSize(
-                                    "batchTxn",
-                                    txnSize -> expectedAtomicBatchFullFeeUsd(
-                                            Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
-                                    0.001);
-                        } else {
-                            return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
-                        }
-                    }),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // confirm topic is updated
                     getTopicInfo(TOPIC_ID)
@@ -2368,6 +1978,20 @@ class AtomicBatchConsensusServiceEndToEndTest {
                     // confirm collector accounts balances
                     getAccountBalance(HBAR_COLLECTOR).hasTinyBars(0)));
         }
+    }
+
+    private SpecOperation validateBatchFee(final String batchTxnName, final double legacyExpectedUsd) {
+        return doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+            if ("true".equals(flag)) {
+                return validateChargedUsdWithinWithTxnSize(
+                        batchTxnName,
+                        txnSize ->
+                                expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
+                        0.001);
+            } else {
+                return validateChargedUsd(batchTxnName, legacyExpectedUsd);
+            }
+        });
     }
 
     private HapiTopicCreate createImmutableTopicWithSubmitKey(String submitKey, String topicId) {

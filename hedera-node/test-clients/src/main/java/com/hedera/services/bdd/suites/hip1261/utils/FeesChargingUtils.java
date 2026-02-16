@@ -1093,7 +1093,7 @@ public class FeesChargingUtils {
 
         double serviceBaseFee = CONS_SUBMIT_MESSAGE_BASE_FEE_USD;
         if (includesCustomFee) {
-            serviceBaseFee = CONS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE_USD;
+            serviceBaseFee += CONS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE_USD;
         }
         final double serviceFee = serviceBaseFee + serviceBytesExtrasFee;
 
