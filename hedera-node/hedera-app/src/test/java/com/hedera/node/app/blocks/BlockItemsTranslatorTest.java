@@ -741,7 +741,10 @@ class BlockItemsTranslatorTest {
 
         final var actualRecord = BLOCK_ITEMS_TRANSLATOR.translateRecord(context, highVolumeResult, null);
         assertEquals(
-                EXPECTED_BASE_RECORD.copyBuilder().highVolumePricingMultiplier(4L).build(),
+                EXPECTED_BASE_RECORD
+                        .copyBuilder()
+                        .highVolumePricingMultiplier(4L)
+                        .build(),
                 actualRecord);
     }
 }

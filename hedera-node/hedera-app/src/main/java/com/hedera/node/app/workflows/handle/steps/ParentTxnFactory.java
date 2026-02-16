@@ -78,14 +78,12 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-
 import java.time.Instant;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 import javax.inject.Inject;
 import javax.inject.Singleton;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.transaction.ConsensusTransaction;
@@ -384,6 +382,15 @@ public class ParentTxnFactory {
                     txnInfo.txBody(), txnInfo.functionality(), storeFactory.asReadOnly());
             if (congestionMultiplier > 1) {
                 baseBuilder.congestionMultiplier(congestionMultiplier);
+            }
+            if (txnInfo.txBody().highVolume()) {
+                final var utilizationBasisPoints =
+                        throttleAdvisor.highVolumeThrottleUtilization(txnInfo.functionality());
+                final var highVolumeMultiplier = feeManager.highVolumeMultiplierFor(
+                        txnInfo.txBody(), txnInfo.functionality(), utilizationBasisPoints);
+                if (highVolumeMultiplier > 1) {
+                    baseBuilder.highVolumePricingMultiplier(highVolumeMultiplier);
+                }
             }
         }
         if (txnInfo.txBody().highVolume()) {

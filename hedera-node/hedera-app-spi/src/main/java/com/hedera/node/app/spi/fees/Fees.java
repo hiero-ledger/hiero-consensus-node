@@ -140,7 +140,8 @@ public record Fees(long nodeFee, long networkFee, long serviceFee, long highVolu
      */
     public Fees plus(@NonNull final Fees fees) {
         requireNonNull(fees);
-        return new Fees(nodeFee + fees.nodeFee(),
+        return new Fees(
+                nodeFee + fees.nodeFee(),
                 networkFee + fees.networkFee(),
                 serviceFee + fees.serviceFee(),
                 highVolumeMultiplier);
@@ -150,7 +151,7 @@ public record Fees(long nodeFee, long networkFee, long serviceFee, long highVolu
      * @return the high volume multiplier
      */
     public long highVolumeMultiplier() {
-        return highVolumeMultiplier/MULTIPLIER_SCALE;
+        return highVolumeMultiplier / MULTIPLIER_SCALE;
     }
 
     /**

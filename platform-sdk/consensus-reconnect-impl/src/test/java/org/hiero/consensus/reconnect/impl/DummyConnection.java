@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.reconnect;
+package org.hiero.consensus.reconnect.impl;
 
 import static org.mockito.Mockito.mock;
 

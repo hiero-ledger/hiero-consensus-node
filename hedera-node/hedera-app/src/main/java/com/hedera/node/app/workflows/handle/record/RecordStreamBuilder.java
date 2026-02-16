@@ -82,7 +82,6 @@ import com.hedera.pbj.runtime.OneOf;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
@@ -96,7 +95,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
-
 import org.hiero.base.crypto.DigestType;
 
 /**
@@ -115,34 +113,34 @@ import org.hiero.base.crypto.DigestType;
 @SuppressWarnings({"unused", "UnusedReturnValue"})
 public class RecordStreamBuilder
         implements StreamBuilder,
-        ConsensusCreateTopicStreamBuilder,
-        ConsensusSubmitMessageStreamBuilder,
-        CreateFileStreamBuilder,
-        CryptoCreateStreamBuilder,
-        CryptoTransferStreamBuilder,
-        ChildStreamBuilder,
-        PrngStreamBuilder,
-        ScheduleStreamBuilder,
-        TokenMintStreamBuilder,
-        TokenBurnStreamBuilder,
-        TokenCreateStreamBuilder,
-        ContractCreateStreamBuilder,
-        ContractCallStreamBuilder,
-        ContractUpdateStreamBuilder,
-        EthereumTransactionStreamBuilder,
-        CryptoDeleteStreamBuilder,
-        TokenUpdateStreamBuilder,
-        NodeStakeUpdateStreamBuilder,
-        FeeStreamBuilder,
-        ContractDeleteStreamBuilder,
-        GenesisAccountStreamBuilder,
-        ContractOperationStreamBuilder,
-        TokenAccountWipeStreamBuilder,
-        CryptoUpdateStreamBuilder,
-        NodeCreateStreamBuilder,
-        TokenAirdropStreamBuilder,
-        ReplayableFeeStreamBuilder,
-        HookDispatchStreamBuilder {
+                ConsensusCreateTopicStreamBuilder,
+                ConsensusSubmitMessageStreamBuilder,
+                CreateFileStreamBuilder,
+                CryptoCreateStreamBuilder,
+                CryptoTransferStreamBuilder,
+                ChildStreamBuilder,
+                PrngStreamBuilder,
+                ScheduleStreamBuilder,
+                TokenMintStreamBuilder,
+                TokenBurnStreamBuilder,
+                TokenCreateStreamBuilder,
+                ContractCreateStreamBuilder,
+                ContractCallStreamBuilder,
+                ContractUpdateStreamBuilder,
+                EthereumTransactionStreamBuilder,
+                CryptoDeleteStreamBuilder,
+                TokenUpdateStreamBuilder,
+                NodeStakeUpdateStreamBuilder,
+                FeeStreamBuilder,
+                ContractDeleteStreamBuilder,
+                GenesisAccountStreamBuilder,
+                ContractOperationStreamBuilder,
+                TokenAccountWipeStreamBuilder,
+                CryptoUpdateStreamBuilder,
+                NodeCreateStreamBuilder,
+                TokenAirdropStreamBuilder,
+                ReplayableFeeStreamBuilder,
+                HookDispatchStreamBuilder {
     private static final Comparator<TokenAssociation> TOKEN_ASSOCIATION_COMPARATOR =
             Comparator.<TokenAssociation>comparingLong(a -> a.tokenId().tokenNum())
                     .thenComparingLong(a -> a.accountIdOrThrow().accountNum());
@@ -229,6 +227,7 @@ public class RecordStreamBuilder
      * This is useful to set the first hookId on the account if the head is deleted
      */
     private Long nextHookId;
+
     private long highVolumePricingMultiplier;
 
     public RecordStreamBuilder(

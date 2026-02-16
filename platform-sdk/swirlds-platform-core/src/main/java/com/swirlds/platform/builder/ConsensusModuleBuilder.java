@@ -12,6 +12,7 @@ import com.swirlds.common.io.utility.SimpleRecycleBin;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
+import com.swirlds.platform.reconnect.ReconnectModule;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.state.merkle.VirtualMapState;
@@ -213,6 +214,7 @@ public class ConsensusModuleBuilder {
      * @return an instance of {@code GossipModule}
      * @throws IllegalStateException if no implementation is found
      */
+    @NonNull
     public static GossipModule createGossipModule() {
         return ServiceLoader.load(GossipModule.class)
                 .findFirst()
@@ -267,5 +269,18 @@ public class ConsensusModuleBuilder {
                 fallenBehindMonitor,
                 stateLifecycleManager);
         return gossipModule;
+    }
+
+    /**
+     * Create an instance of the {@link ReconnectModule} using {@link ServiceLoader}.
+     *
+     * @return an instance of {@code ReconnectModule}
+     * @throws IllegalStateException if no implementation is found
+     */
+    @NonNull
+    public static ReconnectModule createReconnectModule() {
+        return ServiceLoader.load(ReconnectModule.class)
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("No ReconnectModule implementation found!"));
     }
 }

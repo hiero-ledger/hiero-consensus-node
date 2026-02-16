@@ -269,8 +269,8 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                                     queryFees,
                                     cryptoTransferTxnFee);
 
-                            // 3.vi Submit payment to platform
-                            submissionManager.submit(txBody, txInfo.serializedSignedTxOrThrow());
+                            // 3.vi Submit payment to platform with priority=false vs network consensus and TSS txs
+                            submissionManager.submit(txBody, txInfo.serializedSignedTxOrThrow(), false);
                         }
                     } catch (Exception e) {
                         checkerResult.throttleUsages().forEach(ThrottleUsage::reclaimCapacity);
