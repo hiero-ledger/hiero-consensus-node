@@ -988,7 +988,7 @@ public class RecordStreamBuilder
     @NonNull
     @Override
     public StreamBuilder highVolumePricingMultiplier(long highVolumePricingMultiplier) {
-        // No-op
+        this.highVolumePricingMultiplier = highVolumePricingMultiplier;
         return this;
     }
 

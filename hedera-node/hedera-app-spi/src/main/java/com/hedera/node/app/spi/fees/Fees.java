@@ -24,9 +24,9 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  *                   This must be non-negative. The sum of node, network, and service fees must be less than
  *                   {@link Long#MAX_VALUE}.
  */
-public record Fees(long nodeFee, long networkFee, long serviceFee) {
+public record Fees(long nodeFee, long networkFee, long serviceFee, long highVolumeMultiplier) {
     /** A constant representing zero fees. */
-    public static final Fees FREE = new Fees(0, 0, 0);
+    public static final Fees FREE = new Fees(0, 0, 0, 1L);
     /**
      * A constant representing fees of 1 constant resource usage for each of the node, network, and service components.
      * This is useful when a fee is required, but the entity is not present in state to determine the actual fee.
@@ -60,7 +60,7 @@ public record Fees(long nodeFee, long networkFee, long serviceFee) {
      * @return this {@link Fees} with the service fee zeroed out
      */
     public Fees withoutServiceComponent() {
-        return new Fees(nodeFee, networkFee, 0);
+        return new Fees(nodeFee, networkFee, 0, highVolumeMultiplier);
     }
 
     /**
@@ -69,7 +69,7 @@ public record Fees(long nodeFee, long networkFee, long serviceFee) {
      * @return this {@link Fees} with the node fee replaced by the actually charged amount
      */
     public Fees withChargedNodeComponent(final long fee) {
-        return new Fees(fee, networkFee, serviceFee);
+        return new Fees(fee, networkFee, serviceFee, highVolumeMultiplier);
     }
 
     /**
@@ -77,7 +77,7 @@ public record Fees(long nodeFee, long networkFee, long serviceFee) {
      * @return this {@link Fees} with the node fee and network fee zeroed out
      */
     public Fees onlyServiceComponent() {
-        return new Fees(0, 0, serviceFee);
+        return new Fees(0, 0, serviceFee, highVolumeMultiplier);
     }
 
     /**
@@ -114,7 +114,11 @@ public record Fees(long nodeFee, long networkFee, long serviceFee) {
      * @return a pre-populated builder
      */
     public Builder copyBuilder() {
-        return new Builder().nodeFee(nodeFee).networkFee(networkFee).serviceFee(serviceFee);
+        return new Builder()
+                .nodeFee(nodeFee)
+                .networkFee(networkFee)
+                .serviceFee(serviceFee)
+                .highVolumeMultiplier(highVolumeMultiplier);
     }
 
     /**
@@ -124,7 +128,17 @@ public record Fees(long nodeFee, long networkFee, long serviceFee) {
      */
     public Fees plus(@NonNull final Fees fees) {
         requireNonNull(fees);
-        return new Fees(nodeFee + fees.nodeFee(), networkFee + fees.networkFee(), serviceFee + fees.serviceFee());
+        return new Fees(nodeFee + fees.nodeFee(),
+                networkFee + fees.networkFee(),
+                serviceFee + fees.serviceFee(),
+                highVolumeMultiplier);
+    }
+
+    /**
+     * @return the high volume multiplier
+     */
+    public long highVolumeMultiplier() {
+        return highVolumeMultiplier;
     }
 
     /**
@@ -134,6 +148,7 @@ public record Fees(long nodeFee, long networkFee, long serviceFee) {
         private long nodeFee;
         private long networkFee;
         private long serviceFee;
+        private long highVolumeMultiplier = 1L;
 
         /**
          * Set the node fee.
@@ -182,11 +197,21 @@ public record Fees(long nodeFee, long networkFee, long serviceFee) {
         }
 
         /**
+         * Set the high volume multiplier.
+         * @param highVolumeMultiplier The high volume multiplier
+         * @return this builder instance
+         */
+        public Builder highVolumeMultiplier(long highVolumeMultiplier) {
+            this.highVolumeMultiplier = highVolumeMultiplier;
+            return this;
+        }
+
+        /**
          * Build a {@link Fees} object from the data in this builder.
          * @return a {@link Fees} object
          */
         public Fees build() {
-            return new Fees(nodeFee, networkFee, serviceFee);
+            return new Fees(nodeFee, networkFee, serviceFee, highVolumeMultiplier);
         }
     }
 }

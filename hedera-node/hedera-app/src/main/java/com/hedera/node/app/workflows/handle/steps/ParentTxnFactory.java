@@ -78,12 +78,14 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+
 import java.time.Instant;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.transaction.ConsensusTransaction;
@@ -161,6 +163,7 @@ public class ParentTxnFactory {
 
     /**
      * Returns whether a {@link PreHandleResult} should be categorized as a node or user transaction.
+     *
      * @param preHandleResult the pre-handle result
      * @return the transaction category
      */
@@ -314,6 +317,7 @@ public class ParentTxnFactory {
 
     /**
      * Creates the root dispatch for the given parent transaction.
+     *
      * @param parentTxn the parent transaction
      * @param baseBuilder the base stream builder
      * @param keyVerifier the key verifier to use for the dispatch
@@ -382,12 +386,8 @@ public class ParentTxnFactory {
                 baseBuilder.congestionMultiplier(congestionMultiplier);
             }
             if (txnInfo.txBody().highVolume()) {
-                final var utilizationBasisPoints =
-                        throttleAdvisor.highVolumeThrottleUtilization(txnInfo.functionality());
-                final var highVolumeMultiplier = feeManager.highVolumeMultiplierFor(
-                        txnInfo.txBody(), txnInfo.functionality(), utilizationBasisPoints);
-                if (highVolumeMultiplier > 1) {
-                    baseBuilder.highVolumePricingMultiplier(highVolumeMultiplier);
+                if (fees.highVolumeMultiplier() > 1) {
+                    baseBuilder.highVolumePricingMultiplier(fees.highVolumeMultiplier());
                 }
             }
         }
@@ -419,6 +419,7 @@ public class ParentTxnFactory {
      * Creates a new root savepoint stack for the given state and transaction type, where genesis and
      * post-upgrade transactions have the maximum number of preceding records; and other transaction
      * types only support the number of preceding records specified in the network configuration.
+     *
      * @param state the state the stack is based on
      * @return the new root savepoint stack
      */
@@ -439,11 +440,11 @@ public class ParentTxnFactory {
      * Creates the {@link PreHandleResult} for a system transaction, which never has additional cryptographic
      * signatures that need to be verified; hence the pre-handle process is much simpler.
      *
-     * @param body                 the system transaction body
-     * @param payerId              the payer of the transaction
-     * @param config               the current configuration
+     * @param body the system transaction body
+     * @param payerId the payer of the transaction
+     * @param config the current configuration
      * @param readableStoreFactory the readable store factory
-     * @param type               the type of the transaction
+     * @param type the type of the transaction
      * @return the pre-handle result
      */
     private PreHandleResult preHandleSystemTransaction(

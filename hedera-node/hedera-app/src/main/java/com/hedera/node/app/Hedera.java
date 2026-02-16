@@ -91,7 +91,7 @@ import com.hedera.node.app.spi.migrate.StartupNetworks;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.state.recordcache.RecordCacheService;
 import com.hedera.node.app.store.ReadableStoreFactoryImpl;
-import com.hedera.node.app.throttle.AppThrottleFactory;
+import com.hedera.node.app.throttle.AppScheduleThrottleFactory;
 import com.hedera.node.app.throttle.CongestionThrottleService;
 import com.hedera.node.app.throttle.ThrottleAccumulator;
 import com.hedera.node.app.workflows.TransactionInfo;
@@ -507,7 +507,7 @@ public final class Hedera
                 configSupplier,
                 () -> daggerApp.networkInfo().selfNodeInfo(),
                 () -> this.metrics,
-                new AppThrottleFactory(
+                new AppScheduleThrottleFactory(
                         configSupplier,
                         () -> daggerApp.workingStateAccessor().getState(),
                         () -> daggerApp.throttleServiceManager().activeThrottleDefinitionsOrThrow(),

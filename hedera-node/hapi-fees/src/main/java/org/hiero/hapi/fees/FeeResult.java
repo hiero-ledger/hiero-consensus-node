@@ -20,6 +20,7 @@ public class FeeResult {
     private final List<FeeDetail> nodeExtrasDetails = new ArrayList<>();
     private long nodeTotal = 0;
     private int networkMultiplier = 0;
+    private long highVolumeMultiplier = 1L;
 
     public FeeResult() {}
 
@@ -27,6 +28,7 @@ public class FeeResult {
         this.serviceTotal = serviceTotal;
         this.nodeTotal = nodeTotal;
         this.networkMultiplier = networkMultiplier;
+        this.highVolumeMultiplier = 1L;
     }
 
     /**
@@ -88,6 +90,7 @@ public class FeeResult {
         if (rawMultiplier == scale) {
             return;
         }
+        highVolumeMultiplier = rawMultiplier;
         serviceBase = scaleAmount(serviceBase, rawMultiplier, scale);
         nodeBase = scaleAmount(nodeBase, rawMultiplier, scale);
         scaleFeeDetails(serviceExtrasDetails, rawMultiplier, scale);
@@ -187,6 +190,10 @@ public class FeeResult {
         return clampedMultiply(this.getNodeTotalTinycents(), this.networkMultiplier);
     }
 
+    public long getHighVolumeMultiplier() {
+        return highVolumeMultiplier;
+    }
+
     public void clearFees() {
         this.serviceExtrasDetails.clear();
         this.serviceBase = 0;
@@ -195,6 +202,7 @@ public class FeeResult {
         this.nodeBase = 0;
         this.nodeTotal = 0;
         this.networkMultiplier = 0;
+        this.highVolumeMultiplier = 1L;
     }
 
     /**
@@ -267,6 +275,7 @@ public class FeeResult {
                 + getNodeBaseFeeTinycents() + ", nodeDetails="
                 + getNodeExtraDetails() + ", networkMultiplier="
                 + getNetworkMultiplier() + ", networkFee="
+                + getNetworkTotalTinycents() + ", highVolumeMultiplier="
                 + getNetworkTotalTinycents() + '}';
     }
 }

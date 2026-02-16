@@ -4,6 +4,7 @@ package com.hedera.services.bdd.suites.throttling.hip1313;
 import static com.hedera.services.bdd.junit.ContextRequirement.THROTTLE_OVERRIDES;
 import static com.hedera.services.bdd.junit.TestTags.SIMPLE_FEES;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
+import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFullPrefixesFor;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAutoCreatedAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
@@ -180,7 +181,10 @@ public class Hip1313EnabledTest {
                         .withHighVolume()
                         .via("claimAirdrop"),
                 getAutoCreatedAccountBalance(hollowReceiver).hasTokenBalance("token", 10),
-                getTxnRecord("claimAirdrop").andAllChildRecords().logged(),
+                getTxnRecord("claimAirdrop")
+                        .andAllChildRecords()
+                        .has
+                        .logged(),
                 validateChargedUsdWithChild("claimAirdrop", 0.001 * 4, 0.01));
     }
 
