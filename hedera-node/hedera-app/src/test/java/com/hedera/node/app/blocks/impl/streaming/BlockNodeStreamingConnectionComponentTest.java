@@ -335,23 +335,21 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         block.addItem(item4);
         block.closeBlock();
 
-        // Set up latch to wait for END_OF_BLOCK to be recorded
-        final CountDownLatch endOfBlockLatch = new CountDownLatch(1);
+        // Single latch: wait for recordLatestBlockEndOfBlockSent (called in sendBlockEnd after sendRequest returns).
+        // That implies END_OF_BLOCK was already sent. Without this we race and may verify before the metric is
+        // recorded.
+        final CountDownLatch latestBlockEndSentLatch = new CountDownLatch(1);
         doAnswer(invocation -> {
-                    RequestOneOfType type = invocation.getArgument(0);
-                    if (type == RequestOneOfType.END_OF_BLOCK) {
-                        endOfBlockLatch.countDown();
-                    }
+                    latestBlockEndSentLatch.countDown();
                     return null;
                 })
                 .when(metrics)
-                .recordRequestSent(any(RequestOneOfType.class));
+                .recordLatestBlockEndOfBlockSent(anyLong());
 
         connection.updateConnectionState(ConnectionState.ACTIVE);
 
-        // Wait for the worker thread to send END_OF_BLOCK
-        assertThat(endOfBlockLatch.await(2, TimeUnit.SECONDS))
-                .as("Worker thread should send END_OF_BLOCK")
+        assertThat(latestBlockEndSentLatch.await(2, TimeUnit.SECONDS))
+                .as("Worker thread should record latest block end-of-block sent")
                 .isTrue();
 
         final ArgumentCaptor<PublishStreamRequest> requestCaptor = ArgumentCaptor.forClass(PublishStreamRequest.class);

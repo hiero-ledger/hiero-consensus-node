@@ -13,6 +13,7 @@ import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.configOf;
 import static java.util.Objects.requireNonNull;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.TransferList;
@@ -213,7 +214,8 @@ public class ClassicTransfersCall extends AbstractCall {
         return systemContractGasCalculator.gasRequirementWithTinycents(body, payerId, minimumTinycentPrice);
     }
 
-    private static long minimumTinycentPriceGiven(
+    @VisibleForTesting
+    public static long minimumTinycentPriceGiven(
             @NonNull final CryptoTransferTransactionBody op,
             final long baseUnitAdjustTinyCentPrice,
             final long baseAdjustTinyCentsPrice,
@@ -251,6 +253,17 @@ public class ClassicTransfersCall extends AbstractCall {
                     if (extantAccount == null) {
                         aliasesToLazyCreate.add(alias);
                     }
+                }
+            }
+        }
+        for (final var adjust : op.transfersOrElse(TransferList.DEFAULT).accountAmounts()) {
+            if (adjust.amount() > 0 && adjust.accountIDOrElse(AccountID.DEFAULT).hasAlias()) {
+                final var accountId = adjust.accountIDOrThrow();
+                final var alias = accountId.aliasOrThrow();
+                final var extantAccount =
+                        extantAccounts.getAccountIDByAlias(accountId.shardNum(), accountId.realmNum(), alias);
+                if (extantAccount == null) {
+                    aliasesToLazyCreate.add(alias);
                 }
             }
         }

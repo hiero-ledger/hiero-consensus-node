@@ -27,7 +27,7 @@ public class FileGetContentsFeeCalculator implements QueryFeeCalculator {
             final var fileStore = simpleFeeContext.queryContext().createStore(ReadableFileStore.class);
             final var op = query.fileGetContentsOrThrow();
             final var fileContents = fileStore.getFileLeaf(op.fileIDOrThrow()).contents();
-            addExtraFee(feeResult, serviceDef, Extra.BYTES, feeSchedule, fileContents.length());
+            addExtraFee(feeResult, serviceDef, Extra.STATE_BYTES, feeSchedule, fileContents.length());
         }
     }
 
