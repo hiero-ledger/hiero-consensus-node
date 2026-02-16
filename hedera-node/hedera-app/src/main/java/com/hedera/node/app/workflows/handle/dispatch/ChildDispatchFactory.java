@@ -16,6 +16,7 @@ import static com.hedera.node.app.workflows.prehandle.PreHandleResult.Status.SO_
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableSortedSet;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.hapi.fees.HighVolumePricingCalculator.MULTIPLIER_SCALE;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
@@ -318,7 +319,7 @@ public class ChildDispatchFactory {
         // A child transaction cannot be high volume
         final var isHighVolume = txnInfo.txBody().highVolume();
         if (isHighVolume) {
-            if (childFees.highVolumeMultiplier() > 1) {
+            if (childFees.highVolumeMultiplier() > MULTIPLIER_SCALE) {
                 builder.highVolumePricingMultiplier(childFees.highVolumeMultiplier());
             }
         }

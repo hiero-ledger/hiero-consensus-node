@@ -27,7 +27,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  */
 public record Fees(long nodeFee, long networkFee, long serviceFee, long highVolumeMultiplier) {
     /** A constant representing zero fees. */
-    public static final Fees FREE = new Fees(0, 0, 0, 1L);
+    public static final Fees FREE = new Fees(0, 0, 0, MULTIPLIER_SCALE);
     /**
      * A constant representing fees of 1 constant resource usage for each of the node, network, and service components.
      * This is useful when a fee is required, but the entity is not present in state to determine the actual fee.
@@ -53,7 +53,7 @@ public record Fees(long nodeFee, long networkFee, long serviceFee, long highVolu
      * @param serviceFee the service fee in tinybars
      */
     public Fees(final long nodeFee, final long networkFee, final long serviceFee) {
-        this(nodeFee, networkFee, serviceFee, 1L);
+        this(nodeFee, networkFee, serviceFee, MULTIPLIER_SCALE);
     }
 
     /**
@@ -151,7 +151,7 @@ public record Fees(long nodeFee, long networkFee, long serviceFee, long highVolu
      * @return the high volume multiplier
      */
     public long highVolumeMultiplier() {
-        return highVolumeMultiplier / MULTIPLIER_SCALE;
+        return highVolumeMultiplier;
     }
 
     /**
@@ -161,7 +161,7 @@ public record Fees(long nodeFee, long networkFee, long serviceFee, long highVolu
         private long nodeFee;
         private long networkFee;
         private long serviceFee;
-        private long highVolumeMultiplier = 1L;
+        private long highVolumeMultiplier = MULTIPLIER_SCALE;
 
         /**
          * Set the node fee.

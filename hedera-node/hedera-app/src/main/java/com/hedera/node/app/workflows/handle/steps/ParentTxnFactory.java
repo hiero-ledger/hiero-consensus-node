@@ -16,6 +16,7 @@ import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static java.util.Collections.emptySet;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.hapi.fees.HighVolumePricingCalculator.MULTIPLIER_SCALE;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Key;
@@ -383,18 +384,9 @@ public class ParentTxnFactory {
             if (congestionMultiplier > 1) {
                 baseBuilder.congestionMultiplier(congestionMultiplier);
             }
-            if (txnInfo.txBody().highVolume()) {
-                final var utilizationBasisPoints =
-                        throttleAdvisor.highVolumeThrottleUtilization(txnInfo.functionality());
-                final var highVolumeMultiplier = feeManager.highVolumeMultiplierFor(
-                        txnInfo.txBody(), txnInfo.functionality(), utilizationBasisPoints);
-                if (highVolumeMultiplier > 1) {
-                    baseBuilder.highVolumePricingMultiplier(highVolumeMultiplier);
-                }
-            }
         }
         if (txnInfo.txBody().highVolume()) {
-            if (fees.highVolumeMultiplier() > 1) {
+            if (fees.highVolumeMultiplier() > MULTIPLIER_SCALE) {
                 baseBuilder.highVolumePricingMultiplier(fees.highVolumeMultiplier());
             }
         }

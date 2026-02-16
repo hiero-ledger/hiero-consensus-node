@@ -210,7 +210,7 @@ class ChildFeeContextTest {
     @Test
     void returnsCorrectNumTxnBytes() {
         final var signatureMapSize = 123;
-        subject = new ChildFeeContextImpl(
+        subject = new ChildFeeContext(
                 feeManager,
                 context,
                 SAMPLE_BODY,

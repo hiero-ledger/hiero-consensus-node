@@ -340,11 +340,10 @@ public class Hip1313EnabledTest {
                                     10_000,
                                     LINEAR_CRYPTO_CREATE_MAX_MULTIPLIER,
                                     utilizationBasisPointsBefore);
-                            final long expectedMultiplier = Math.max(1L, expectedRawMultiplier / 1000L);
+                            final long expectedMultiplier = Math.max(1000L, expectedRawMultiplier);
                             // Proto default is 0 when field is not present; treat this as the default multiplier 1x.
                             final var actualMultiplier =
-                                    Math.max(1L, entry.txnRecord().getHighVolumePricingMultiplier());
-                            System.out.println("EXPECTED: " + expectedMultiplier + ", ACTUAL: " + actualMultiplier);
+                                    Math.max(1000L, entry.txnRecord().getHighVolumePricingMultiplier());
                             assertEquals(
                                     expectedMultiplier,
                                     actualMultiplier,
