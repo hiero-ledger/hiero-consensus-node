@@ -9,19 +9,40 @@ GRAFANA_CONTAINER="grafana"
 KEEP_DATA=false
 
 # Parse arguments
-METRICS_FILES=()
+METRICS_ARGS=()
 for arg in "$@"; do
   if [ "$arg" = "--keep-data" ]; then
     KEEP_DATA=true
   else
-    METRICS_FILES+=("$arg")
+    METRICS_ARGS+=("$arg")
   fi
 done
 
 # Default metrics files pattern if none provided
-if [ ${#METRICS_FILES[@]} -eq 0 ]; then
-  METRICS_FILES=(build/container/ConsensusLayerBenchmark/benchmark/node-*/data/stats/metrics.txt)
+if [ ${#METRICS_ARGS[@]} -eq 0 ]; then
+  METRICS_ARGS=(build/container/ConsensusLayerBenchmark/benchmark/node-*/data/stats/metrics.txt)
 fi
+
+# Expand arguments to actual files (handles directories, globs, and individual files)
+METRICS_FILES=()
+for arg in "${METRICS_ARGS[@]}"; do
+  if [ -d "$arg" ]; then
+    # If it's a directory, find all metrics*.txt files in it
+    while IFS= read -r -d '' file; do
+      METRICS_FILES+=("$file")
+    done < <(find "$arg" -maxdepth 1 -type f -name 'metrics*.txt' -print0)
+  elif [ -f "$arg" ]; then
+    # If it's a file, add it directly
+    METRICS_FILES+=("$arg")
+  else
+    # Try to expand as glob pattern
+    for file in $arg; do
+      if [ -f "$file" ]; then
+        METRICS_FILES+=("$file")
+      fi
+    done
+  fi
+done
 
 echo "Starting metrics visualization stack..."
 echo "Metrics files to import: ${#METRICS_FILES[@]}"
@@ -219,5 +240,11 @@ echo "  docker rm -f $VM_CONTAINER $GRAFANA_CONTAINER"
 echo "  docker volume rm victoria-metrics-data"
 echo ""
 echo "Usage:"
-echo "  ./start-grafana.sh [--keep-data] [metrics-files...]"
+echo "  ./start-grafana.sh [--keep-data] [paths...]"
 echo "  --keep-data: Keep existing data volume (append new metrics)"
+echo "  paths: Metrics files, directories, or glob patterns"
+echo ""
+echo "Examples:"
+echo "  ./start-grafana.sh ~/benchmark-results/*/stats/"
+echo "  ./start-grafana.sh ~/benchmark-results/20260216-*/stats/metrics-*.txt"
+echo "  ./start-grafana.sh --keep-data build/container/.../metrics.txt"
