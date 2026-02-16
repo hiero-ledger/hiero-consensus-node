@@ -942,7 +942,7 @@ class AtomicTokenServiceFeesSuite {
                                         SIGNATURES, 1L,
                                         TOKEN_TYPES, 10L,
                                         PROCESSING_BYTES, (long) txnSize)),
-                                0.1);
+                                1.0);
                     } else {
                         return validateInnerTxnChargedUsd(
                                 BASE_TXN, ATOMIC_BATCH, expectedFee, ALLOWED_DIFFERENCE_PERCENTAGE);

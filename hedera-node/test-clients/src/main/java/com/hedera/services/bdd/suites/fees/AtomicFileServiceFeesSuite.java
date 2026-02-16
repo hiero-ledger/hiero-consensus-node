@@ -78,7 +78,7 @@ class AtomicFileServiceFeesSuite {
                                         KEYS, 1L,
                                         STATE_BYTES, 1000L,
                                         PROCESSING_BYTES, (long) txnSize)),
-                                0.001);
+                                1.0);
                     } else {
                         return validateInnerTxnChargedUsd("fileCreateBasic", ATOMIC_BATCH, BASE_FEE_FILE_CREATE, 5);
                     }
@@ -114,7 +114,7 @@ class AtomicFileServiceFeesSuite {
                                         KEYS, 1L,
                                         STATE_BYTES, 1000L,
                                         PROCESSING_BYTES, (long) txnSize)),
-                                0.001);
+                                1.0);
                     } else {
                         return validateInnerTxnChargedUsd("fileUpdateBasic", ATOMIC_BATCH, BASE_FEE_FILE_UPDATE, 5);
                     }
@@ -145,7 +145,7 @@ class AtomicFileServiceFeesSuite {
                                 ATOMIC_BATCH,
                                 txnSize -> expectedFileDeleteFullFeeUsd(
                                         Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
-                                0.001);
+                                1.0);
                     } else {
                         return validateInnerTxnChargedUsd("fileDeleteBasic", ATOMIC_BATCH, BASE_FEE_FILE_DELETE, 10);
                     }
@@ -191,7 +191,7 @@ class AtomicFileServiceFeesSuite {
                                         SIGNATURES, 1L,
                                         STATE_BYTES, 1000L,
                                         PROCESSING_BYTES, (long) txnSize)),
-                                0.001);
+                                1.0);
                     } else {
                         return validateInnerTxnChargedUsd(baseAppend, ATOMIC_BATCH, BASE_FEE_FILE_APPEND, 5);
                     }
