@@ -195,7 +195,7 @@ public class IssueRegressionTests {
                 getTxnRecord("txnId2").logged());
     }
 
-    @HapiTest
+    @LeakyHapiTest
     @Tag(ONLY_SUBPROCESS)
     final Stream<DynamicTest> duplicatedTxnsSameTypeDifferentNodesDetected() {
         return customizedHapiTest(
@@ -273,7 +273,7 @@ public class IssueRegressionTests {
                 getTxnRecord("selfFinanced").logged());
     }
 
-    @HapiTest
+    @LeakyHapiTest
     final Stream<DynamicTest> transferAccountCannotBeDeleted() {
         return customizedHapiTest(
                 Map.of("memo.useSpecName", "false"),

@@ -87,6 +87,7 @@ import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 import static java.lang.Integer.parseInt;
 
 import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.spec.HapiSpecSetup;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hederahashgraph.api.proto.java.TokenFreezeStatus;
@@ -647,7 +648,7 @@ public class TokenCreateSpecs {
                                 .hasPrecheck(INVALID_TOKEN_INITIAL_SUPPLY));
     }
 
-    @HapiTest
+    @LeakyHapiTest
     final Stream<DynamicTest> onlyValidCustomFeeScheduleCanBeCreated() {
         final long negativeHtsFee = -100L;
         final String invalidEntityId = "1.2.786";
