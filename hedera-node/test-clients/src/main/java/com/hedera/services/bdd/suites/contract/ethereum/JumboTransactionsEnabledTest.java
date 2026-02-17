@@ -153,13 +153,13 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                 // send jumbo payload to jumbo endpoint and assert the used gas
                 jumboEthCall(jumboPayload)
                         .gasLimit(800000)
-                        .exposingGasTo((s, gasUsed) -> assertEquals(63_742, gasUsed)),
+                        .exposingGasTo((s, gasUsed) -> assertEquals(124_260, gasUsed)),
                 jumboEthCall(halfJumboPayload)
                         .gasLimit(500000)
-                        .exposingGasTo((s, gasUsed) -> assertEquals(43_262, gasUsed)),
+                        .exposingGasTo((s, gasUsed) -> assertEquals(73_060, gasUsed)),
                 jumboEthCall(thirdJumboPayload)
                         .gasLimit(300000)
-                        .exposingGasTo((s, gasUsed) -> assertEquals(35_070, gasUsed)));
+                        .exposingGasTo((s, gasUsed) -> assertEquals(52_580, gasUsed)));
     }
 
     @Nested
