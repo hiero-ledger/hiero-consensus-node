@@ -189,6 +189,7 @@ jobs:
           path: |
             hedera-node/test-clients/build/**/*.blk.gz
             hedera-node/test-clients/build/**/*.rcd.gz
+            hedera-node/test-clients/build/**/*.pb
             hedera-node/test-clients/build/**/*.pces
           retention-days: 7
 
@@ -253,6 +254,7 @@ jobs:
           path: |
             hedera-node/test-clients/build/**/*.blk.gz
             hedera-node/test-clients/build/**/*.rcd.gz
+            hedera-node/test-clients/build/**/*.pb
             hedera-node/test-clients/build/**/*.pces
           retention-days: 7
 
@@ -318,6 +320,7 @@ jobs:
           path: |
             hedera-node/test-clients/build/**/*.blk.gz
             hedera-node/test-clients/build/**/*.rcd.gz
+            hedera-node/test-clients/build/**/*.pb
             hedera-node/test-clients/build/**/*.pces
           retention-days: 7
 
@@ -382,6 +385,7 @@ jobs:
           path: |
             hedera-node/test-clients/build/**/*.blk.gz
             hedera-node/test-clients/build/**/*.rcd.gz
+            hedera-node/test-clients/build/**/*.pb
             hedera-node/test-clients/build/**/*.pces
           retention-days: 7
 
@@ -446,6 +450,7 @@ jobs:
           path: |
             hedera-node/test-clients/build/**/*.blk.gz
             hedera-node/test-clients/build/**/*.rcd.gz
+            hedera-node/test-clients/build/**/*.pb
             hedera-node/test-clients/build/**/*.pces
           retention-days: 7
 
@@ -510,6 +515,7 @@ jobs:
           path: |
             hedera-node/test-clients/build/**/*.blk.gz
             hedera-node/test-clients/build/**/*.rcd.gz
+            hedera-node/test-clients/build/**/*.pb
             hedera-node/test-clients/build/**/*.pces
           retention-days: 7
 
@@ -574,6 +580,7 @@ jobs:
           path: |
             hedera-node/test-clients/build/**/*.blk.gz
             hedera-node/test-clients/build/**/*.rcd.gz
+            hedera-node/test-clients/build/**/*.pb
             hedera-node/test-clients/build/**/*.pces
           retention-days: 7
 
@@ -638,6 +645,7 @@ jobs:
           path: |
             hedera-node/test-clients/build/**/*.blk.gz
             hedera-node/test-clients/build/**/*.rcd.gz
+            hedera-node/test-clients/build/**/*.pb
             hedera-node/test-clients/build/**/*.pces
           retention-days: 7
 
@@ -702,6 +710,7 @@ jobs:
           path: |
             hedera-node/test-clients/build/**/*.blk.gz
             hedera-node/test-clients/build/**/*.rcd.gz
+            hedera-node/test-clients/build/**/*.pb
             hedera-node/test-clients/build/**/*.pces
           retention-days: 7
 
@@ -766,6 +775,7 @@ jobs:
           path: |
             hedera-node/test-clients/build/**/*.blk.gz
             hedera-node/test-clients/build/**/*.rcd.gz
+            hedera-node/test-clients/build/**/*.pb
             hedera-node/test-clients/build/**/*.pces
           retention-days: 7`
 
@@ -828,6 +838,7 @@ jobs:
           path: |
             hedera-node/test-clients/build/**/*.blk.gz
             hedera-node/test-clients/build/**/*.rcd.gz
+            hedera-node/test-clients/build/**/*.pb
             hedera-node/test-clients/build/**/*.pces
           retention-days: 7
 
@@ -892,6 +903,7 @@ jobs:
           path: |
             hedera-node/test-clients/build/**/*.blk.gz
             hedera-node/test-clients/build/**/*.rcd.gz
+            hedera-node/test-clients/build/**/*.pb
             hedera-node/test-clients/build/**/*.pces
           retention-days: 7
 
