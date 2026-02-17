@@ -223,7 +223,7 @@ public class FrameBuilder {
         LOG.warn("XX FrameBuilder.finishedAsCall account  = {}", account);
         LOG.warn(
                 "XX FrameBuilder.finishedAsCall account clz = {}",
-                account.getClass().getName());
+                account != null ? account.getClass().getName() : null);
 
         final Code code;
         if (account != null) {

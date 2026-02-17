@@ -37,6 +37,7 @@ import com.hedera.node.app.service.contract.impl.exec.scope.ActiveContractVerifi
 import com.hedera.node.app.service.contract.impl.exec.scope.ActiveContractVerificationStrategy.UseTopLevelSigs;
 import com.hedera.node.app.service.contract.impl.exec.scope.HandleHederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
+import com.hedera.node.app.service.contract.impl.exec.utils.FrameBuilder;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.swirlds.state.spi.WritableKVState;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -48,6 +49,9 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.tuweni.bytes.Bytes;
 import org.apache.tuweni.units.bigints.UInt256;
 import org.hyperledger.besu.datatypes.Address;
@@ -503,25 +507,36 @@ public class DispatchingEvmFrameState implements EvmFrameState {
     public @Nullable Account getAccount(@NonNull final Address address) {
         return getMutableAccount(address);
     }
+    private static final Logger LOG = LogManager.getLogger(FrameBuilder.class);
+
 
     /**
      * {@inheritDoc}
      */
     @Override
     public @Nullable MutableAccount getMutableAccount(@NonNull final Address address) {
+        LOG.warn("getMutableAccount {}", address);
         final var number = maybeMissingNumberOf(address, nativeOperations);
         if (number == MISSING_ENTITY_NUMBER) {
+            LOG.warn("getMutableAccount {} : MISSING entity number", address);
+
             return null;
         }
         final AccountID accountID = entityIdFactory().newAccountId(number);
         final var account = nativeOperations.getAccount(accountID);
         if (account != null) {
+            LOG.warn("getMutableAccount {} : account != null. deleted? {}, expired? {}, isNotPrio? {}", address,
+                    account.deleted(), account.expiredAndPendingRemoval(), isNotPriority(address, account));
+
             if (account.deleted() || account.expiredAndPendingRemoval() || isNotPriority(address, account)) {
                 return null;
             }
             if (account.smartContract()) {
+                LOG.warn("getMutableAccount {} smart contract = true", address);
+
                 return new ProxyEvmContract(account.accountId(), this, codeFactory);
             } else {
+                LOG.warn("getMutableAccount {} smart contract = false", address);
                 return new ProxyEvmAccount(account, this);
             }
         }
