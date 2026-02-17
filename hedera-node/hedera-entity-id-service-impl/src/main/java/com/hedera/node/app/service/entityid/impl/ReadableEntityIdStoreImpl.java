@@ -10,7 +10,7 @@ import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.service.entityid.ReadableEntityIdStore;
-import com.hedera.node.app.service.entityid.impl.schemas.V0700EntityIdSchema;
+import com.hedera.node.app.service.entityid.impl.schemas.V0720EntityIdSchema;
 import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.state.spi.ReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -38,7 +38,7 @@ public class ReadableEntityIdStoreImpl implements ReadableEntityIdStore {
         requireNonNull(states);
         this.entityIdState = states.getSingleton(ENTITY_ID_STATE_ID);
         this.entityCountsState = states.getSingleton(ENTITY_COUNTS_STATE_ID);
-        this.nodeIdState = states.getSingleton(V0700EntityIdSchema.NODE_ID_STATE_ID);
+        this.nodeIdState = states.getSingleton(V0720EntityIdSchema.NODE_ID_STATE_ID);
     }
 
     /**

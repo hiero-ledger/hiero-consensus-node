@@ -10,9 +10,9 @@ import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema;
 import com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema;
+import com.hedera.node.app.service.entityid.impl.schemas.V0720EntityIdSchema;
 import com.hedera.node.config.data.HederaConfig;
 import com.swirlds.config.api.Configuration;
-import com.hedera.node.app.service.entityid.impl.schemas.V0700EntityIdSchema;
 import com.swirlds.state.lifecycle.SchemaRegistry;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -30,7 +30,7 @@ public class EntityIdServiceImpl extends EntityIdService {
     public void registerSchemas(@NonNull final SchemaRegistry registry) {
         registry.register(new V0490EntityIdSchema());
         registry.register(new V0590EntityIdSchema());
-        registry.register(new V0700EntityIdSchema());
+        registry.register(new V0720EntityIdSchema());
     }
 
     @Override

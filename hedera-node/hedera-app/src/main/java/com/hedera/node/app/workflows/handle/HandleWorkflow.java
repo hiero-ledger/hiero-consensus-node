@@ -589,7 +589,7 @@ public class HandleWorkflow {
             final var writableNodeStates = state.getWritableStates(AddressBookService.NAME);
             final var entityIdStore = new WritableEntityIdStoreImpl(writableEntityIdStates);
             final var nodeStore = new WritableNodeStore(writableNodeStates, entityIdStore);
-            doStreamingKVChanges(writableNodeStates, writableEntityIdStates, () -> {
+            doStreamingOnlyKvChanges(writableNodeStates, writableEntityIdStates, () -> {
                 final var nextNodeId = entityIdStore.peekAtNextNodeId();
                 for (int i = 0; i < nextNodeId; i++) {
                     final var node = nodeStore.get(i);

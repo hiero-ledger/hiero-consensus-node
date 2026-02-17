@@ -17,18 +17,18 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
 
 /**
- * Minor schema v0.68.0 that introduces a singleton to track the highest node ID ever used.
+ * Minor schema v0.72.0 that introduces a singleton to track the highest node ID ever used.
  */
-public class V0700EntityIdSchema extends Schema<SemanticVersion> {
+public class V0720EntityIdSchema extends Schema<SemanticVersion> {
 
     private static final SemanticVersion VERSION =
-            SemanticVersion.newBuilder().major(0).minor(70).patch(0).build();
+            SemanticVersion.newBuilder().major(0).minor(72).patch(0).build();
 
     public static final String NODE_ID_KEY = "NODE_ID";
     public static final int NODE_ID_STATE_ID = SingletonType.ENTITYIDSERVICE_I_NODE_ID.protoOrdinal();
     public static final String NODE_ID_STATE_LABEL = computeLabel(EntityIdService.NAME, NODE_ID_KEY);
 
-    public V0700EntityIdSchema() {
+    public V0720EntityIdSchema() {
         super(VERSION, SEMANTIC_VERSION_COMPARATOR);
     }
 
@@ -40,10 +40,12 @@ public class V0700EntityIdSchema extends Schema<SemanticVersion> {
 
     @Override
     public void migrate(@NonNull final MigrationContext ctx) {
-        final var highestNodeIdState = ctx.newStates().getSingleton(NODE_ID_STATE_ID);
-        final var entityCountsState = (EntityCounts)
-                ctx.previousStates().getSingleton(ENTITY_COUNTS_STATE_ID).get();
-        highestNodeIdState.put(
-                NodeId.newBuilder().id(entityCountsState.numNodes() - 1).build());
+        if (!ctx.isGenesis()) {
+            final var highestNodeIdState = ctx.newStates().getSingleton(NODE_ID_STATE_ID);
+            final var entityCountsState = (EntityCounts)
+                    ctx.previousStates().getSingleton(ENTITY_COUNTS_STATE_ID).get();
+            highestNodeIdState.put(
+                    NodeId.newBuilder().id(entityCountsState.numNodes() - 1).build());
+        }
     }
 }
