@@ -53,6 +53,7 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.store.ReadableStoreFactoryImpl;
+import com.hedera.node.app.throttle.SynchronizedThrottleAccumulator;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
@@ -98,6 +99,9 @@ class TokenFeeScheduleUpdateHandlerTest extends CryptoTokenHandlerTestBase {
 
     @Mock(strictness = Mock.Strictness.LENIENT)
     private ExpiryValidator expiryValidator;
+
+    @Mock
+    private SynchronizedThrottleAccumulator synchronizedThrottleAccumulator;
 
     @BeforeEach
     void setup() {
@@ -305,7 +309,8 @@ class TokenFeeScheduleUpdateHandlerTest extends CryptoTokenHandlerTestBase {
                 configuration,
                 null,
                 -1,
-                transactionDispatcher);
+                transactionDispatcher,
+                synchronizedThrottleAccumulator);
 
         final var calculateFees = subject.calculateFees(feeContext);
         assertEquals(calculateFees, Fees.FREE);
@@ -349,7 +354,8 @@ class TokenFeeScheduleUpdateHandlerTest extends CryptoTokenHandlerTestBase {
                 configuration,
                 null,
                 -1,
-                transactionDispatcher);
+                transactionDispatcher,
+                synchronizedThrottleAccumulator);
 
         Assertions.assertThatNoException().isThrownBy(() -> subject.calculateFees(feeContext));
     }

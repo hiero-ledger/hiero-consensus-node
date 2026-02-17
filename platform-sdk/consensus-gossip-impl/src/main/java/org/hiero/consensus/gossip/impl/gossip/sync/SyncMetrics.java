@@ -65,11 +65,6 @@ public class SyncMetrics {
             .withDescription("Incoming sync requests accepted per second");
     private final CountPerSecond acceptedSyncRequestsPerSec;
 
-    private static final CountPerSecond.Config OPPORTUNITIES_TO_INITIATE_SYNC_CONFIG = new CountPerSecond.Config(
-                    PLATFORM_CATEGORY, "opportunitiesToInitiateSync_per_sec")
-            .withDescription("Opportunities to initiate an outgoing sync per second");
-    private final CountPerSecond opportunitiesToInitiateSyncPerSec;
-
     private static final CountPerSecond.Config OUTGOING_SYNC_REQUESTS_CONFIG = new CountPerSecond.Config(
                     PLATFORM_CATEGORY, "outgoingSyncRequests_per_sec")
             .withDescription("Outgoing sync requests sent per second");
@@ -239,7 +234,6 @@ public class SyncMetrics {
 
         incomingSyncRequestsPerSec = new CountPerSecond(metrics, INCOMING_SYNC_REQUESTS_CONFIG);
         acceptedSyncRequestsPerSec = new CountPerSecond(metrics, ACCEPTED_SYNC_REQUESTS_CONFIG);
-        opportunitiesToInitiateSyncPerSec = new CountPerSecond(metrics, OPPORTUNITIES_TO_INITIATE_SYNC_CONFIG);
         outgoingSyncRequestsPerSec = new CountPerSecond(metrics, OUTGOING_SYNC_REQUESTS_CONFIG);
         syncsPerSec = new CountPerSecond(metrics, SYNCS_PER_SECOND_CONFIG);
         syncFilterTime = metrics.getOrCreate(SYNC_FILTER_TIME_CONFIG);
@@ -476,13 +470,6 @@ public class SyncMetrics {
      */
     public void acceptedSyncRequest() {
         acceptedSyncRequestsPerSec.count();
-    }
-
-    /**
-     * Indicate that there was an opportunity to sync with a peer. The protocol may or may not take the opportunity
-     */
-    public void opportunityToInitiateSync() {
-        opportunitiesToInitiateSyncPerSec.count();
     }
 
     /**

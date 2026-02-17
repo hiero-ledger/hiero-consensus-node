@@ -2123,15 +2123,14 @@ public class UtilVerbs {
     public static CustomSpecAssert validateChargedSimpleFees(
             String name, String txn, double expectedUsd, double allowedPercentDiff) {
         return assertionsHold((spec, assertLog) -> {
-            final var effectivePercentDiff = Math.max(allowedPercentDiff, 1.0);
             final var actualUsdCharged = getChargedUsed(spec, txn);
             assertEquals(
                     expectedUsd,
                     actualUsdCharged,
-                    (effectivePercentDiff / 100.0) * expectedUsd,
+                    (allowedPercentDiff / 100.0) * expectedUsd,
                     String.format(
                             "%s: %s fee (%s) more than %.2f percent different than expected!",
-                            name, sdec(actualUsdCharged, 4), txn, effectivePercentDiff));
+                            name, sdec(actualUsdCharged, 4), txn, allowedPercentDiff));
         });
     }
 
@@ -2202,44 +2201,41 @@ public class UtilVerbs {
     public static CustomSpecAssert validateChargedUsdWithChild(
             String txn, double expectedUsd, double allowedPercentDiff) {
         return assertionsHold((spec, assertLog) -> {
-            final var effectivePercentDiff = Math.max(allowedPercentDiff, 1.0);
             final var actualUsdCharged = getChargedUsdFromChild(spec, txn);
             assertEquals(
                     expectedUsd,
                     actualUsdCharged,
-                    (effectivePercentDiff / 100.0) * expectedUsd,
+                    (allowedPercentDiff / 100.0) * expectedUsd,
                     String.format(
                             "%s fee (%s) more than %.2f percent different than expected!",
-                            sdec(actualUsdCharged, 4), txn, effectivePercentDiff));
+                            sdec(actualUsdCharged, 4), txn, allowedPercentDiff));
         });
     }
 
     public static CustomSpecAssert validateChargedUsdWithin(String txn, double expectedUsd, double allowedPercentDiff) {
         return assertionsHold((spec, assertLog) -> {
-            final var effectivePercentDiff = Math.max(allowedPercentDiff, 1.0);
             final var actualUsdCharged = getChargedUsed(spec, txn);
             assertEquals(
                     expectedUsd,
                     actualUsdCharged,
-                    (effectivePercentDiff / 100.0) * expectedUsd,
+                    (allowedPercentDiff / 100.0) * expectedUsd,
                     String.format(
                             "%s fee (%s) more than %.2f percent different than expected!",
-                            sdec(actualUsdCharged, 4), txn, effectivePercentDiff));
+                            sdec(actualUsdCharged, 4), txn, allowedPercentDiff));
         });
     }
 
     public static CustomSpecAssert validateChargedUsdForQueries(
             String txn, double expectedUsd, double allowedPercentDiff) {
         return assertionsHold((spec, assertLog) -> {
-            final var effectivePercentDiff = Math.max(allowedPercentDiff, 1.0);
             final var actualUsdCharged = getChargedUsedQuery(spec, txn);
             assertEquals(
                     expectedUsd,
                     actualUsdCharged,
-                    (effectivePercentDiff / 100.0) * expectedUsd,
+                    (allowedPercentDiff / 100.0) * expectedUsd,
                     String.format(
                             "%s fee (%s) more than %.2f percent different than expected!",
-                            sdec(actualUsdCharged, 4), txn, effectivePercentDiff));
+                            sdec(actualUsdCharged, 4), txn, allowedPercentDiff));
         });
     }
 
@@ -2250,15 +2246,14 @@ public class UtilVerbs {
     public static CustomSpecAssert validateInnerTxnChargedUsd(
             String txn, String parent, double expectedUsd, double allowedPercentDiff) {
         return assertionsHold((spec, assertLog) -> {
-            final var effectivePercentDiff = Math.max(allowedPercentDiff, 1.0);
             final var actualUsdCharged = getChargedUsedForInnerTxn(spec, parent, txn);
             assertEquals(
                     expectedUsd,
                     actualUsdCharged,
-                    (effectivePercentDiff / 100.0) * expectedUsd,
+                    (allowedPercentDiff / 100.0) * expectedUsd,
                     String.format(
                             "%s fee (%s) more than %.2f percent different than expected!",
-                            sdec(actualUsdCharged, 4), txn, effectivePercentDiff));
+                            sdec(actualUsdCharged, 4), txn, allowedPercentDiff));
         });
     }
 
