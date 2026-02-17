@@ -4,6 +4,7 @@ package com.hedera.services.bdd.suites.hip1195;
 import static com.hedera.hapi.node.hooks.HookExtensionPoint.ACCOUNT_ALLOWANCE_HOOK;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asLongZeroAddress;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
+import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.changeFromSnapshot;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.tokenChangeFromSnapshot;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
 import static com.hedera.services.bdd.spec.assertions.SomeFungibleTransfers.changingFungibleBalances;
@@ -14,17 +15,22 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertOwnerHasEvmHookSlotUsageChange;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.balanceSnapshot;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordCurrentOwnerEvmHookSlotUsage;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.tokenBalanceSnapshot;
+import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.THOUSAND_HBAR;
 import static com.hedera.services.bdd.suites.hip1195.LambdaplexVerbs.FillParty.*;
 import static com.hedera.services.bdd.suites.hip1195.LambdaplexVerbs.HBAR;
 import static com.hedera.services.bdd.suites.hip1195.LambdaplexVerbs.inBaseUnits;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REVERTED_SUCCESS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.OrderedInIsolation;
@@ -40,6 +46,8 @@ import com.hedera.services.bdd.spec.dsl.entities.SpecFungibleToken;
 import com.hedera.services.bdd.spec.dsl.utils.InitcodeTransform;
 import com.hedera.services.bdd.spec.queries.meta.HapiGetTxnRecord;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
+import com.hederahashgraph.api.proto.java.AccountAmount;
+import com.hederahashgraph.api.proto.java.TokenTransferList;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -47,6 +55,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
@@ -217,6 +226,194 @@ public class LambdaplexTest implements InitcodeTransform {
                 // Both party "out token" limits were fully executed, so hook removes the orders
                 assertOwnerHasEvmHookSlotUsageChange(MARKET_MAKER.name(), makerOrdersBefore, 0),
                 assertOwnerHasEvmHookSlotUsageChange(PARTY.name(), partyOrdersBefore, 0));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> hbarHtsFullFillOnTakerSpreadCrossNoFeesOrSlippage() {
+        final var sellSalt = randomB64Salt();
+        final var buySalt = randomB64Salt();
+        return hapiTest(
+                balanceSnapshot("makerHbar", MARKET_MAKER.name()),
+                tokenBalanceSnapshot(USDC.name(), "makerUsdc", MARKET_MAKER.name()),
+                balanceSnapshot("takerHbar", PARTY.name()),
+                tokenBalanceSnapshot(USDC.name(), "takerUsdc", PARTY.name()),
+                // Market maker places a limit order to sell up to 10 HBAR for $0.10 each
+                lv.placeLimitOrder(
+                        MARKET_MAKER,
+                        sellSalt,
+                        HBAR,
+                        USDC,
+                        Side.SELL,
+                        distantExpiry(),
+                        ZERO_BPS,
+                        price(0.10),
+                        quantity(10)),
+                // Taker places market order to buy 10 HBAR for $0.10 each, no fee tolerance
+                lv.placeMarketOrder(
+                        PARTY,
+                        buySalt,
+                        HBAR,
+                        USDC,
+                        Side.BUY,
+                        iocExpiry(),
+                        ZERO_BPS,
+                        price(0.10),
+                        quantity(10),
+                        0,
+                        TimeInForce.IOC),
+                lv.settleFillsNoFees(
+                        HBAR,
+                        USDC,
+                        makingSeller(MARKET_MAKER, quantity(10), price(0.10), sellSalt),
+                        takingBuyer(PARTY, quantity(10), averagePrice(0.10), buySalt)),
+                lv.assertNoSuchOrder(MARKET_MAKER, sellSalt),
+                lv.assertNoSuchOrder(PARTY, buySalt),
+                getAccountBalance(MARKET_MAKER.name())
+                        .hasTinyBars(changeFromSnapshot("makerHbar", -10 * ONE_HBAR))
+                        .hasTokenBalance(
+                                USDC.name(),
+                                tokenChangeFromSnapshot(
+                                        USDC.name(), "makerUsdc", inBaseUnits(quantity(1), USDC_DECIMALS))),
+                getAccountBalance(PARTY.name())
+                        .hasTinyBars(changeFromSnapshot("takerHbar", 10 * ONE_HBAR))
+                        .hasTokenBalance(
+                                USDC.name(),
+                                tokenChangeFromSnapshot(
+                                        USDC.name(), "takerUsdc", inBaseUnits(quantity(-1), USDC_DECIMALS))));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> hbarHtsFullFillOnTakerSpreadWithFeesNoSlippage() {
+        final var sellSalt = randomB64Salt();
+        final var buySalt = randomB64Salt();
+        return hapiTest(
+                balanceSnapshot("makerHbar", MARKET_MAKER.name()),
+                tokenBalanceSnapshot(USDC.name(), "makerUsdc", MARKET_MAKER.name()),
+                balanceSnapshot("takerHbar", PARTY.name()),
+                tokenBalanceSnapshot(USDC.name(), "takerUsdc", PARTY.name()),
+                // Market maker places a limit order to sell up to 10 HBAR for $0.10 each
+                lv.placeLimitOrder(
+                        MARKET_MAKER,
+                        sellSalt,
+                        HBAR,
+                        USDC,
+                        Side.SELL,
+                        distantExpiry(),
+                        MAKER_BPS,
+                        price(0.10),
+                        quantity(10)),
+                lv.placeMarketOrder(
+                        PARTY,
+                        buySalt,
+                        HBAR,
+                        USDC,
+                        Side.BUY,
+                        iocExpiry(),
+                        TAKER_BPS,
+                        price(0.10),
+                        quantity(10),
+                        0,
+                        TimeInForce.IOC),
+                lv.settleFills(
+                        HBAR,
+                        USDC,
+                        FEES,
+                        makingSeller(MARKET_MAKER, quantity(10), price(0.10), sellSalt),
+                        takingBuyer(PARTY, quantity(10), averagePrice(0.10), buySalt)),
+                getAccountBalance(MARKET_MAKER.name())
+                        .hasTinyBars(changeFromSnapshot("makerHbar", -10 * ONE_HBAR))
+                        .hasTokenBalance(
+                                USDC.name(),
+                                tokenChangeFromSnapshot(
+                                        USDC.name(),
+                                        "makerUsdc",
+                                        inBaseUnits(quantity(1.0 - 1.0 * MAKER_BPS / 10_000), USDC_DECIMALS))),
+                getAccountBalance(PARTY.name())
+                        .hasTinyBars(
+                                changeFromSnapshot("takerHbar", (10 * ONE_HBAR - 10 * ONE_HBAR * TAKER_BPS / 10_000)))
+                        .hasTokenBalance(
+                                USDC.name(),
+                                tokenChangeFromSnapshot(
+                                        USDC.name(), "takerUsdc", inBaseUnits(quantity(-1), USDC_DECIMALS))));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> hbarHtsFullFillOnTakerSpreadCrossNoFeesInRangeSlippage() {
+        final var sellSalt = randomB64Salt();
+        final var buySalt = randomB64Salt();
+        return hapiTest(
+                balanceSnapshot("makerHbar", MARKET_MAKER.name()),
+                tokenBalanceSnapshot(USDC.name(), "makerUsdc", MARKET_MAKER.name()),
+                balanceSnapshot("takerHbar", PARTY.name()),
+                tokenBalanceSnapshot(USDC.name(), "takerUsdc", PARTY.name()),
+                // Market maker places a limit order to sell up to 10 HBAR for $0.11 each
+                lv.placeLimitOrder(
+                        MARKET_MAKER,
+                        sellSalt,
+                        HBAR,
+                        USDC,
+                        Side.SELL,
+                        distantExpiry(),
+                        ZERO_BPS,
+                        price(0.11),
+                        quantity(10)),
+                // Taker places market order to buy 10 HBAR for $0.10 each, slippage up to 10%
+                lv.placeMarketOrder(
+                        PARTY,
+                        buySalt,
+                        HBAR,
+                        USDC,
+                        Side.BUY,
+                        iocExpiry(),
+                        ZERO_BPS,
+                        price(0.10),
+                        quantity(10),
+                        10,
+                        TimeInForce.IOC),
+                // Characterize meaning of slippage; it reduces required inToken, but does not add a buffer to outToken
+                lv.settleFillsNoFees(
+                                HBAR,
+                                USDC,
+                                makingSeller(MARKET_MAKER, quantity(10), price(0.11), sellSalt),
+                                takingBuyer(PARTY, quantity(10), averagePrice(0.11), buySalt))
+                        .via("excessDebitTx")
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
+                // require(st.remaining == 0, "debit too high")
+                assertSecondError("excessDebitTx", "debit too high"),
+                lv.settleFillsNoFees(
+                                HBAR,
+                                USDC,
+                                makingSeller(MARKET_MAKER, quantity(8), price(0.12), sellSalt),
+                                takingBuyer(PARTY, quantity(8), averagePrice(0.12), buySalt))
+                        .via("excessSlippageTx")
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
+                // require(sumInAbs + st.feeTotal >= st.needTotal, "credit too low")
+                assertSecondError("excessSlippageTx", "credit too low"),
+                lv.settleFillsNoFees(
+                        HBAR,
+                        USDC,
+                        makingSeller(MARKET_MAKER, quantity(9), price(0.11), sellSalt),
+                        takingBuyer(PARTY, quantity(9), averagePrice(0.11), buySalt)),
+                lv.assertOrderAmount(
+                        MARKET_MAKER,
+                        sellSalt,
+                        bd -> assertEquals(
+                                0,
+                                notional(1).compareTo(bd),
+                                "Wrong SELL out token amount after slippage: expected 1 HBAR, got " + bd)),
+                lv.assertNoSuchOrder(PARTY, buySalt),
+                getAccountBalance(MARKET_MAKER.name())
+                        .hasTinyBars(changeFromSnapshot("makerHbar", -9 * ONE_HBAR))
+                        .hasTokenBalance(
+                                USDC.name(),
+                                tokenChangeFromSnapshot(
+                                        USDC.name(), "makerUsdc", inBaseUnits(quantity(0.99), USDC_DECIMALS))),
+                getAccountBalance(PARTY.name())
+                        .hasTinyBars(changeFromSnapshot("takerHbar", 9 * ONE_HBAR))
+                        .hasTokenBalance(
+                                USDC.name(),
+                                tokenChangeFromSnapshot(
+                                        USDC.name(), "takerUsdc", inBaseUnits(quantity(-0.99), USDC_DECIMALS))));
     }
 
     @HapiTest
@@ -720,6 +917,8 @@ public class LambdaplexTest implements InitcodeTransform {
         final var buySalt = randomB64Salt();
         final var expiredSellSalt = randomB64Salt();
         final var invalidPathSellSalt = randomB64Salt();
+        final var missingDetailsSellSalt = randomB64Salt();
+        final var validSellSalt = randomB64Salt();
         return hapiTest(
                 lv.placeMarketOrder(
                         COUNTERPARTY,
@@ -733,7 +932,7 @@ public class LambdaplexTest implements InitcodeTransform {
                         quantity(100),
                         99,
                         TimeInForce.IOC),
-                sourcingContextual(spec -> lv.placeTransformedLimitOrder(
+                sourcingContextual(spec -> lv.placeExpiryTransformedLimitOrder(
                         MARKET_MAKER,
                         expiredSellSalt,
                         HBAR,
@@ -769,16 +968,87 @@ public class LambdaplexTest implements InitcodeTransform {
                                 USDC,
                                 makingSeller(MARKET_MAKER, quantity(10), price(0.12), invalidPathSellSalt),
                                 takingBuyer(COUNTERPARTY, quantity(10), price(0.12), buySalt))
-                        .via("invalidPath")
+                        .via("invalidPathTx")
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
                 // require(inTok != outTok, "invalid path")
-                assertFirstError("invalidPath", "invalid path"));
+                assertFirstError("invalidPathTx", "invalid path"),
+                lv.placeDetailTransformedLimitOrder(
+                        MARKET_MAKER,
+                        missingDetailsSellSalt,
+                        HBAR,
+                        USDC,
+                        Side.SELL,
+                        distantExpiry(),
+                        ZERO_BPS,
+                        price(0.12),
+                        quantity(10),
+                        details -> Bytes.EMPTY),
+                lv.settleFillsNoFees(
+                                HBAR,
+                                USDC,
+                                makingSeller(MARKET_MAKER, quantity(10), price(0.12), missingDetailsSellSalt),
+                                takingBuyer(COUNTERPARTY, quantity(10), price(0.12), buySalt))
+                        .via("missingDetailsTx")
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
+                // require(dBytes != bytes32(0), "detail missing")
+                assertFirstError("missingDetailsTx", "detail missing"),
+                lv.placeLimitOrder(
+                        MARKET_MAKER,
+                        validSellSalt,
+                        HBAR,
+                        USDC,
+                        Side.SELL,
+                        distantExpiry(),
+                        ZERO_BPS,
+                        price(0.12),
+                        quantity(10)),
+                sourcingContextual(spec -> lv.settleTransformedFillsNoFees(
+                                HBAR,
+                                USDC,
+                                b -> b.addTokenTransfers(TokenTransferList.newBuilder()
+                                        .setToken(spec.registry().getTokenID(APPLES.name()))
+                                        .addAllTransfers(List.of(
+                                                AccountAmount.newBuilder()
+                                                        .setAmount(-1)
+                                                        .setAccountID(
+                                                                spec.registry().getAccountID(MARKET_MAKER.name()))
+                                                        .build(),
+                                                AccountAmount.newBuilder()
+                                                        .setAmount(1)
+                                                        .setAccountID(
+                                                                spec.registry().getAccountID(COUNTERPARTY.name()))
+                                                        .build()))
+                                        .build()),
+                                makingSeller(MARKET_MAKER, quantity(10), price(0.12), validSellSalt),
+                                takingBuyer(COUNTERPARTY, quantity(10), price(0.12), buySalt))
+                        .signedBy(DEFAULT_PAYER, MARKET_MAKER.name(), COUNTERPARTY.name())
+                        .via("foreignTokenTx")
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK)),
+                // revert("foreign")
+                assertFirstError("foreignTokenTx", "foreign"),
+                sourcingContextual(spec -> lv.settleFillsNoFees(
+                                HBAR,
+                                USDC,
+                                makingSeller(MARKET_MAKER, quantity(0), price(0.12), validSellSalt),
+                                takingBuyer(COUNTERPARTY, quantity(0), price(0.12), buySalt))
+                        .via("noFillTx")
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK)),
+                // revert("IOC: no fill")
+                assertSecondError("noFillTx", "IOC: no fill"));
     }
 
     private static HapiGetTxnRecord assertFirstError(@NonNull final String tx, @NonNull final String message) {
         return getTxnRecord(tx)
                 .andAllChildRecords()
                 .hasChildRecords(recordWith().contractCallResult(resultWith().error(asErrorReason(message))));
+    }
+
+    private static HapiGetTxnRecord assertSecondError(@NonNull final String tx, @NonNull final String message) {
+        return getTxnRecord(tx)
+                .andAllChildRecords()
+                .hasChildRecords(
+                        recordWith().status(REVERTED_SUCCESS),
+                        recordWith().contractCallResult(resultWith().error(asErrorReason(message))));
     }
 
     private static BigDecimal averagePrice(final double d) {
