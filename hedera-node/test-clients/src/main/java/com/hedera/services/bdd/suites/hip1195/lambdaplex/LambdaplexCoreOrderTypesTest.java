@@ -120,7 +120,7 @@ public class LambdaplexCoreOrderTypesTest implements InitcodeTransform {
     private static final long BANANAS_SCALE = 10L * 10L * 10L * 10L * 10L;
     private static final long USDC_SCALE = 10L * 10L * 10L * 10L * 10L * 10L;
 
-    @Contract(contract = "MockSupraRegistry", creationGas = 1_000_000L)
+    @Contract(contract = "MockSupraRegistry", creationGas = 2_000_000L)
     static SpecContract MOCK_SUPRA_REGISTRY;
 
     @Contract(
@@ -615,6 +615,195 @@ public class LambdaplexCoreOrderTypesTest implements InitcodeTransform {
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
                 // require(take * BIPS >= q * mfb, "min fill")
                 assertSecondError("minFillTx", "min fill"));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> hbarHtsSingleLimitOrderRevertsWhenFeeExceedsPermittedBps() {
+        final var makerSellSalt = randomB64Salt();
+        final var partyBuySalt = randomB64Salt();
+        return hapiTest(
+                // Give maker enough fee tolerance so maker-side validation passes.
+                lv.placeLimitOrder(
+                        MARKET_MAKER,
+                        makerSellSalt,
+                        HBAR,
+                        USDC,
+                        Side.SELL,
+                        distantExpiry(),
+                        100,
+                        price(0.10),
+                        quantity(10)),
+                // Zero fee tolerance on this single limit BUY should fail under taker fees.
+                lv.placeLimitOrder(
+                        PARTY,
+                        partyBuySalt,
+                        HBAR,
+                        USDC,
+                        Side.BUY,
+                        distantExpiry(),
+                        ZERO_BPS,
+                        price(0.10),
+                        quantity(10)),
+                lv.settleFills(
+                                HBAR,
+                                USDC,
+                                FEES,
+                                makingSeller(MARKET_MAKER, quantity(10), averagePrice(0.10), makerSellSalt),
+                                takingBuyer(PARTY, quantity(10), averagePrice(0.10), partyBuySalt))
+                        .via("singleLimitFeeTooHighTx")
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
+                // require(sumInAbs + st.feeTotal >= st.needTotal, "credit too low")
+                assertSecondError("singleLimitFeeTooHighTx", "credit too low"));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> hbarHtsSingleMarketOrderRevertsWhenFeeExceedsPermittedBps() {
+        final var makerSellSalt = randomB64Salt();
+        final var partyMarketBuySalt = randomB64Salt();
+        return hapiTest(
+                // Give maker enough fee tolerance so maker-side validation passes.
+                lv.placeLimitOrder(
+                        MARKET_MAKER,
+                        makerSellSalt,
+                        HBAR,
+                        USDC,
+                        Side.SELL,
+                        distantExpiry(),
+                        100,
+                        price(0.10),
+                        quantity(10)),
+                // Zero fee tolerance on this single market BUY should fail under taker fees.
+                lv.placeMarketOrder(
+                        PARTY,
+                        partyMarketBuySalt,
+                        HBAR,
+                        USDC,
+                        Side.BUY,
+                        iocExpiry(),
+                        ZERO_BPS,
+                        price(0.10),
+                        quantity(10),
+                        0,
+                        TimeInForce.IOC),
+                lv.settleFills(
+                                HBAR,
+                                USDC,
+                                FEES,
+                                makingSeller(MARKET_MAKER, quantity(10), averagePrice(0.10), makerSellSalt),
+                                takingBuyer(PARTY, quantity(10), averagePrice(0.10), partyMarketBuySalt))
+                        .via("singleMarketFeeTooHighTx")
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
+                // require(sumInAbs + st.feeTotal >= st.needTotal, "credit too low")
+                assertSecondError("singleMarketFeeTooHighTx", "credit too low"));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> hbarHtsMultipleLimitOrdersRevertWhenFeeExceedsPermittedBps() {
+        final var makerSellSalt = randomB64Salt();
+        final var partyBuySaltOne = randomB64Salt();
+        final var partyBuySaltTwo = randomB64Salt();
+        return hapiTest(
+                // Give maker enough fee tolerance so maker-side validation passes.
+                lv.placeLimitOrder(
+                        MARKET_MAKER,
+                        makerSellSalt,
+                        HBAR,
+                        USDC,
+                        Side.SELL,
+                        distantExpiry(),
+                        100,
+                        price(0.10),
+                        quantity(10)),
+                // Two zero-tolerance limit BUY orders in one batch invocation.
+                lv.placeLimitOrder(
+                        PARTY,
+                        partyBuySaltOne,
+                        HBAR,
+                        USDC,
+                        Side.BUY,
+                        distantExpiry(),
+                        ZERO_BPS,
+                        price(0.10),
+                        quantity(4)),
+                lv.placeLimitOrder(
+                        PARTY,
+                        partyBuySaltTwo,
+                        HBAR,
+                        USDC,
+                        Side.BUY,
+                        distantExpiry(),
+                        ZERO_BPS,
+                        price(0.10),
+                        quantity(6)),
+                lv.settleFills(
+                                HBAR,
+                                USDC,
+                                FEES,
+                                makingSeller(MARKET_MAKER, quantity(10), averagePrice(0.10), makerSellSalt),
+                                takingBuyer(PARTY, quantity(10), averagePrice(0.10), partyBuySaltOne, partyBuySaltTwo))
+                        .via("multiLimitFeeTooHighTx")
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
+                // require(sumInAbs + st.feeTotal >= st.needTotal, "credit too low")
+                assertSecondError("multiLimitFeeTooHighTx", "credit too low"));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> hbarHtsMultipleMarketOrdersRevertWhenFeeExceedsPermittedBps() {
+        final var makerSellSalt = randomB64Salt();
+        final var partyMarketBuySaltOne = randomB64Salt();
+        final var partyMarketBuySaltTwo = randomB64Salt();
+        return hapiTest(
+                // Give maker enough fee tolerance so maker-side validation passes.
+                lv.placeLimitOrder(
+                        MARKET_MAKER,
+                        makerSellSalt,
+                        HBAR,
+                        USDC,
+                        Side.SELL,
+                        distantExpiry(),
+                        100,
+                        price(0.10),
+                        quantity(10)),
+                // Two zero-tolerance market BUY orders in one batch invocation.
+                lv.placeMarketOrder(
+                        PARTY,
+                        partyMarketBuySaltOne,
+                        HBAR,
+                        USDC,
+                        Side.BUY,
+                        iocExpiry(),
+                        ZERO_BPS,
+                        price(0.10),
+                        quantity(4),
+                        0,
+                        TimeInForce.IOC),
+                lv.placeMarketOrder(
+                        PARTY,
+                        partyMarketBuySaltTwo,
+                        HBAR,
+                        USDC,
+                        Side.BUY,
+                        iocExpiry(),
+                        ZERO_BPS,
+                        price(0.10),
+                        quantity(6),
+                        0,
+                        TimeInForce.IOC),
+                lv.settleFills(
+                                HBAR,
+                                USDC,
+                                FEES,
+                                makingSeller(MARKET_MAKER, quantity(10), averagePrice(0.10), makerSellSalt),
+                                takingBuyer(
+                                        PARTY,
+                                        quantity(10),
+                                        averagePrice(0.10),
+                                        partyMarketBuySaltOne,
+                                        partyMarketBuySaltTwo))
+                        .via("multiMarketFeeTooHighTx")
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
+                // require(sumInAbs + st.feeTotal >= st.needTotal, "credit too low")
+                assertSecondError("multiMarketFeeTooHighTx", "credit too low"));
     }
 
     @HapiTest

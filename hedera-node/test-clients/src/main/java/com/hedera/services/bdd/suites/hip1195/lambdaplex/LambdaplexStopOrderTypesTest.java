@@ -121,7 +121,7 @@ public class LambdaplexStopOrderTypesTest implements InitcodeTransform {
 
     private static final Bytes MOCK_ORACLE_PROOF = Bytes.wrap(new byte[] {(byte) 0xa1, (byte) 0xb2, (byte) 0xc3});
 
-    @Contract(contract = "MockSupraRegistry", creationGas = 1_000_000L)
+    @Contract(contract = "MockSupraRegistry", creationGas = 2_000_000L)
     static SpecContract MOCK_SUPRA_REGISTRY;
 
     @Contract(
@@ -319,6 +319,7 @@ public class LambdaplexStopOrderTypesTest implements InitcodeTransform {
                         false),
                 lv.answerNextProofVerify(MOCK_SUPRA_REGISTRY, HBAR_USDC_PAIR_ID, price(11.0), 1),
                 lv.pokeWithOracleProof(PARTY, stopSellSalt, MOCK_ORACLE_PROOF),
+                lv.rebindSaltAfterStopConversion(stopSellSalt),
                 lv.assertOrderAmount(
                         PARTY,
                         stopSellSalt,
@@ -466,6 +467,7 @@ public class LambdaplexStopOrderTypesTest implements InitcodeTransform {
                         false),
                 lv.answerNextProofVerify(MOCK_SUPRA_REGISTRY, APPLES_USDC_PAIR_ID, price(2.10), 1),
                 lv.pokeWithOracleProof(PARTY, stopSellSalt, MOCK_ORACLE_PROOF),
+                lv.rebindSaltAfterStopConversion(stopSellSalt),
                 lv.assertOrderAmount(
                         PARTY,
                         stopSellSalt,
@@ -674,6 +676,7 @@ public class LambdaplexStopOrderTypesTest implements InitcodeTransform {
                         quantity(10)),
                 lv.answerNextProofVerify(MOCK_SUPRA_REGISTRY, HBAR_USDC_PAIR_ID, price(9.0), 1),
                 lv.pokeWithOracleProof(PARTY, stopSellSalt, MOCK_ORACLE_PROOF),
+                lv.rebindSaltAfterStopConversion(stopSellSalt),
                 lv.assertOrderAmount(
                         PARTY,
                         stopSellSalt,
@@ -889,6 +892,7 @@ public class LambdaplexStopOrderTypesTest implements InitcodeTransform {
                         quantity(3)),
                 lv.answerNextProofVerify(MOCK_SUPRA_REGISTRY, APPLES_USDC_PAIR_ID, price(2.10), 1),
                 lv.pokeWithOracleProof(PARTY, stopSellSalt, MOCK_ORACLE_PROOF),
+                lv.rebindSaltAfterStopConversion(stopSellSalt),
                 lv.assertOrderAmount(
                         PARTY,
                         stopSellSalt,

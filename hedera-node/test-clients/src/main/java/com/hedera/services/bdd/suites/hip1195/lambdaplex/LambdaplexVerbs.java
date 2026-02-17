@@ -88,9 +88,10 @@ public class LambdaplexVerbs {
     private static final byte STOP_MARKET_GT = 5;
 
     private static final long BASE_GAS_LIMIT = 8_000L;
-    private static final long DIRECT_PREFIX_GAS_INCREMENT = 20_000L;
+    private static final long DIRECT_PREFIX_GAS_INCREMENT = 40_000L;
     private static final long ORACLE_SETUP_GAS = 300_000L;
     public static final long ORACLE_HOOK_GAS = 300_000L;
+    private static final long ORACLE_GAS_PER_ADDITIONAL_STOP_LEG = 80_000L;
     private static final int ONE_HUNDRED_PERCENT_CENTI_BPS = 1_000_000;
     private static final Bytes PADDED_ZERO = leftPad32(Bytes.EMPTY);
 
@@ -419,6 +420,46 @@ public class LambdaplexVerbs {
         }
     }
 
+    public record OracleProofSpec(
+            @NonNull Bytes proof, @Nullable Long declaredLengthOverride, int truncateBytes) {
+        public OracleProofSpec {
+            requireNonNull(proof);
+            if (truncateBytes < 0 || truncateBytes > proof.length()) {
+                throw new IllegalArgumentException("truncateBytes must be in [0, proof.length]");
+            }
+            if (declaredLengthOverride != null && declaredLengthOverride < 0) {
+                throw new IllegalArgumentException("declaredLengthOverride cannot be negative");
+            }
+        }
+
+        public static OracleProofSpec exact(@NonNull final Bytes proof) {
+            return new OracleProofSpec(proof, null, 0);
+        }
+
+        public static OracleProofSpec withDeclaredLength(@NonNull final Bytes proof, final long declaredLength) {
+            return new OracleProofSpec(proof, declaredLength, 0);
+        }
+
+        public static OracleProofSpec truncated(@NonNull final Bytes proof, final int truncateBytes) {
+            return new OracleProofSpec(proof, null, truncateBytes);
+        }
+
+        private long declaredLength() {
+            return declaredLengthOverride == null ? proof.length() : declaredLengthOverride;
+        }
+
+        private Bytes encodedProof() {
+            return truncateBytes == 0 ? proof : proof.slice(0, proof.length() - truncateBytes);
+        }
+    }
+
+    public static long oracleHookGasForStopLegs(final int nStops) {
+        if (nStops <= 0) {
+            throw new IllegalArgumentException("nStops must be positive");
+        }
+        return ORACLE_HOOK_GAS + ORACLE_GAS_PER_ADDITIONAL_STOP_LEG * (nStops - 1L);
+    }
+
     private Bytes rawSlotKey(@NonNull final String b64Salt) {
         final var prefix = requireNonNull(saltPrefixes.get(b64Salt));
         return slotKeyOfMappingEntry(
@@ -643,26 +684,43 @@ public class LambdaplexVerbs {
                 null);
     }
 
+    public HapiCryptoTransfer settleFillsWithOracleProofsNoFees(
+            @NonNull final SpecFungibleToken specBaseToken,
+            @NonNull final SpecFungibleToken specQuoteToken,
+            @NonNull final Map<String, OracleProofSpec> proofBySalt,
+            @NonNull final LambdaplexVerbs.FillParty... fillParties) {
+        return settleFillsInternal(specBaseToken, specQuoteToken, null, null, null, false, proofBySalt, fillParties);
+    }
+
+    public HapiCryptoTransfer settleFillsWithOracleProofs(
+            @NonNull final SpecFungibleToken specBaseToken,
+            @NonNull final SpecFungibleToken specQuoteToken,
+            @NonNull final Fees fees,
+            @NonNull final Map<String, OracleProofSpec> proofBySalt,
+            @NonNull final LambdaplexVerbs.FillParty... fillParties) {
+        return settleFillsInternal(specBaseToken, specQuoteToken, fees, null, null, false, proofBySalt, fillParties);
+    }
+
     public HapiCryptoTransfer settleFills(
             @NonNull final SpecFungibleToken specBaseToken,
             @NonNull final SpecFungibleToken specQuoteToken,
             @NonNull final Fees fees,
             @NonNull final LambdaplexVerbs.FillParty... fillParties) {
-        return settleFillsInternal(specBaseToken, specQuoteToken, fees, null, null, false, fillParties);
+        return settleFillsInternal(specBaseToken, specQuoteToken, fees, null, null, false, null, fillParties);
     }
 
     public HapiCryptoTransfer settleFillsNoFees(
             @NonNull final SpecFungibleToken specBaseToken,
             @NonNull final SpecFungibleToken specQuoteToken,
             @NonNull final LambdaplexVerbs.FillParty... fillParties) {
-        return settleFillsInternal(specBaseToken, specQuoteToken, null, null, null, false, fillParties);
+        return settleFillsInternal(specBaseToken, specQuoteToken, null, null, null, false, null, fillParties);
     }
 
     public HapiCryptoTransfer settleUnmergedFillsNoFees(
             @NonNull final SpecFungibleToken specBaseToken,
             @NonNull final SpecFungibleToken specQuoteToken,
             @NonNull final LambdaplexVerbs.FillParty... fillParties) {
-        return settleFillsInternal(specBaseToken, specQuoteToken, null, null, null, true, fillParties);
+        return settleFillsInternal(specBaseToken, specQuoteToken, null, null, null, true, null, fillParties);
     }
 
     public HapiCryptoTransfer settleBodyTransformedFillsNoFees(
@@ -670,7 +728,7 @@ public class LambdaplexVerbs {
             @NonNull final SpecFungibleToken specQuoteToken,
             @NonNull final Consumer<CryptoTransferTransactionBody.Builder> bodySpec,
             @NonNull final LambdaplexVerbs.FillParty... fillParties) {
-        return settleFillsInternal(specBaseToken, specQuoteToken, null, bodySpec, null, false, fillParties);
+        return settleFillsInternal(specBaseToken, specQuoteToken, null, bodySpec, null, false, null, fillParties);
     }
 
     public HapiCryptoTransfer settleDataTransformedFillsNoFees(
@@ -678,7 +736,7 @@ public class LambdaplexVerbs {
             @NonNull final SpecFungibleToken specQuoteToken,
             @NonNull final UnaryOperator<Bytes> dataTransform,
             @NonNull final LambdaplexVerbs.FillParty... fillParties) {
-        return settleFillsInternal(specBaseToken, specQuoteToken, null, null, dataTransform, false, fillParties);
+        return settleFillsInternal(specBaseToken, specQuoteToken, null, null, dataTransform, false, null, fillParties);
     }
 
     public HapiCryptoTransfer settleDataTransformedFills(
@@ -687,7 +745,7 @@ public class LambdaplexVerbs {
             @NonNull final Fees fees,
             @NonNull final UnaryOperator<Bytes> dataTransform,
             @NonNull final LambdaplexVerbs.FillParty... fillParties) {
-        return settleFillsInternal(specBaseToken, specQuoteToken, fees, null, dataTransform, false, fillParties);
+        return settleFillsInternal(specBaseToken, specQuoteToken, fees, null, dataTransform, false, null, fillParties);
     }
 
     private HapiCryptoTransfer settleFillsInternal(
@@ -697,6 +755,7 @@ public class LambdaplexVerbs {
             @Nullable final Consumer<CryptoTransferTransactionBody.Builder> bodySpec,
             @Nullable final UnaryOperator<Bytes> dataTransform,
             final boolean skipAccountAmountsMerge,
+            @Nullable final Map<String, OracleProofSpec> proofBySalt,
             @NonNull final FillParty... fillParties) {
         return TxnVerbs.cryptoTransfer((spec, builder) -> {
             final var baseToken = specBaseToken.tokenOrThrow(spec.targetNetworkOrThrow());
@@ -705,10 +764,21 @@ public class LambdaplexVerbs {
             final List<AccountAmount> quoteAdjustments = new ArrayList<>();
             for (final var party : fillParties) {
                 final var partyId = spec.registry().getAccountID(party.account().name());
-                var data = party.toDirectPrefixes(saltPrefixes::get);
+                final Bytes dataWithPrefixes;
+                int stopLegCount = 0;
+                if (proofBySalt == null) {
+                    dataWithPrefixes = party.toDirectPrefixes(saltPrefixes::get);
+                } else {
+                    stopLegCount = countStopSalts(party.b64Salts());
+                    dataWithPrefixes = toDirectPrefixesWithOracleProofs(party.b64Salts(), proofBySalt);
+                }
+                var data = dataWithPrefixes;
                 if (dataTransform != null) {
                     data = dataTransform.apply(data);
                 }
+                final long effectiveGasLimit = stopLegCount > 0
+                        ? Math.max(party.gasLimit(), oracleHookGasForStopLegs(stopLegCount))
+                        : party.gasLimit();
                 switch (party.side()) {
                     case BUY -> {
                         // Debiting quote token, crediting base token
@@ -716,7 +786,7 @@ public class LambdaplexVerbs {
                                 .setPreTxAllowanceHook(HookCall.newBuilder()
                                         .setHookId(hookId)
                                         .setEvmHookCall(EvmHookCall.newBuilder()
-                                                .setGasLimit(party.gasLimit())
+                                                .setGasLimit(effectiveGasLimit)
                                                 .setData(fromPbj(data))))
                                 .setAmount(inBaseUnits(party.debit(), quoteToken.decimals()))
                                 .setAccountID(partyId)
@@ -741,7 +811,7 @@ public class LambdaplexVerbs {
                                 .setPreTxAllowanceHook(HookCall.newBuilder()
                                         .setHookId(hookId)
                                         .setEvmHookCall(EvmHookCall.newBuilder()
-                                                .setGasLimit(party.gasLimit())
+                                                .setGasLimit(effectiveGasLimit)
                                                 .setData(fromPbj(data))))
                                 .setAmount(LambdaplexVerbs.inBaseUnits(party.debit(), baseToken.decimals()))
                                 .setAccountID(partyId)
@@ -846,6 +916,16 @@ public class LambdaplexVerbs {
     }
 
     /**
+     * Returns a {@link SpecOperation} that enqueues a forced revert for the next proof verification call.
+     *
+     * <p>Unlike {@link #revertNextProofVerify(SpecContract)}, this does not clear any existing queued responses.</p>
+     */
+    public SpecOperation enqueueProofRevert(@NonNull final SpecContract registry) {
+        requireNonNull(registry);
+        return registry.call("enqueueRevert").gas(ORACLE_SETUP_GAS);
+    }
+
+    /**
      * Returns a {@link SpecOperation} that configures the {@code mockSupraRegistry} contract to return the
      * given price for the given pair ID on the next proof verification.
      * <p>
@@ -878,27 +958,71 @@ public class LambdaplexVerbs {
     }
 
     /**
+     * Returns a {@link SpecOperation} that enqueues a proof-verification response without clearing
+     * any existing queue.
+     */
+    public SpecOperation enqueueProofVerify(
+            @NonNull final SpecContract registry,
+            @NonNull final BigInteger pairId,
+            @NonNull final BigDecimal price,
+            final int pullAgeSeconds) {
+        requireNonNull(registry);
+        return sourcingContextual(spec -> {
+            final var timestamp = BigInteger.valueOf(spec.consensusTime().getEpochSecond())
+                    .subtract(BigInteger.valueOf(pullAgeSeconds));
+            return registry.call(
+                            "enqueuePriceInfo",
+                            pairId,
+                            price.unscaledValue(),
+                            timestamp,
+                            BigInteger.valueOf(price.scale()),
+                            BigInteger.ONE)
+                    .gas(ORACLE_SETUP_GAS);
+        });
+    }
+
+    /**
      * Returns a "poke" transfer with only a zero-balance HBAR transfer list carrying hook data with
      * {@code prefix || uint256(proof.length) || proof}.
      */
     public HapiCryptoTransfer pokeWithOracleProof(
             @NonNull final SpecAccount account, @NonNull final String b64Salt, @NonNull final Bytes proof) {
+        return pokeWithOracleProofs(account, Map.of(b64Salt, OracleProofSpec.exact(proof)));
+    }
+
+    /**
+     * Returns a "poke" transfer with only a zero-balance HBAR transfer list carrying batched hook data for
+     * each salt in insertion order:
+     * {@code prefix || [uint256(declaredProofLength) || encodedProof] for oracle-style orders}.
+     */
+    public HapiCryptoTransfer pokeWithOracleProofs(
+            @NonNull final SpecAccount account, @NonNull final Map<String, OracleProofSpec> proofBySalt) {
         requireNonNull(account);
-        requireNonNull(b64Salt);
-        requireNonNull(proof);
+        requireNonNull(proofBySalt);
+        if (proofBySalt.isEmpty()) {
+            throw new IllegalArgumentException("proofBySalt cannot be empty");
+        }
         return TxnVerbs.cryptoTransfer((spec, builder) -> {
             final var accountId = spec.registry().getAccountID(account.name());
-            final var prefix = requireNonNull(saltPrefixes.get(b64Salt));
-            final var proofLen =
-                    leftPad32(Bytes.wrap(BigInteger.valueOf(proof.length()).toByteArray()));
-            final var data = prefix.append(proofLen).append(proof);
-            saltPrefixes.put(b64Salt, convertedPokePrefix(prefix));
+            Bytes data = Bytes.EMPTY;
+            int stopLegs = 0;
+            for (final var entry : proofBySalt.entrySet()) {
+                final var b64Salt = requireNonNull(entry.getKey());
+                final var prefix = requireNonNull(saltPrefixes.get(b64Salt), "Unknown salt " + b64Salt);
+                data = data.append(prefix);
+                if (isOracleStylePrefix(prefix)) {
+                    stopLegs++;
+                    final var proofSpec = requireNonNull(entry.getValue(), "Missing proof spec for salt " + b64Salt);
+                    data = data.append(encodeProof(proofSpec));
+                }
+            }
+            final long gasLimit = stopLegs == 0 ? ORACLE_HOOK_GAS : oracleHookGasForStopLegs(stopLegs);
             builder.setTransfers(TransferList.newBuilder()
                     .addAccountAmounts(AccountAmount.newBuilder()
                             .setPreTxAllowanceHook(HookCall.newBuilder()
                                     .setHookId(hookId)
                                     .setEvmHookCall(EvmHookCall.newBuilder()
-                                            .setGasLimit(ORACLE_HOOK_GAS)
+                                            .setGasLimit(gasLimit)
                                             .setData(fromPbj(data))))
                             .setAmount(0)
                             .setAccountID(accountId)
@@ -913,11 +1037,52 @@ public class LambdaplexVerbs {
      * This updates only local test bookkeeping so subsequent assertions/settlements use the converted key.
      */
     public SpecOperation rebindSaltAfterStopConversion(@NonNull final String b64Salt) {
-        requireNonNull(b64Salt);
+        return rebindSaltsAfterStopConversion(b64Salt);
+    }
+
+    /**
+     * Rebinds each known stop-order salt to its converted key type after a trigger-and-convert path.
+     */
+    public SpecOperation rebindSaltsAfterStopConversion(@NonNull final String... b64Salts) {
+        requireNonNull(b64Salts);
+        if (b64Salts.length == 0) {
+            throw new IllegalArgumentException("At least one salt is required");
+        }
         return doingContextual(spec -> {
-            final var prefix = requireNonNull(saltPrefixes.get(b64Salt));
-            saltPrefixes.put(b64Salt, convertedPokePrefix(prefix));
+            for (final var b64Salt : b64Salts) {
+                final var prefix = requireNonNull(saltPrefixes.get(requireNonNull(b64Salt)));
+                saltPrefixes.put(b64Salt, convertedPokePrefix(prefix));
+            }
         });
+    }
+
+    private Bytes toDirectPrefixesWithOracleProofs(
+            @NonNull final String[] b64Salts, @NonNull final Map<String, OracleProofSpec> proofBySalt) {
+        requireNonNull(b64Salts);
+        requireNonNull(proofBySalt);
+        Bytes result = Bytes.EMPTY;
+        for (final var b64Salt : b64Salts) {
+            final var prefix = requireNonNull(saltPrefixes.get(requireNonNull(b64Salt)));
+            result = result.append(prefix);
+            if (isOracleStylePrefix(prefix)) {
+                final var proofSpec =
+                        requireNonNull(proofBySalt.get(b64Salt), "Missing oracle proof for stop salt " + b64Salt);
+                result = result.append(encodeProof(proofSpec));
+            }
+        }
+        return result;
+    }
+
+    private int countStopSalts(@NonNull final String[] b64Salts) {
+        requireNonNull(b64Salts);
+        int count = 0;
+        for (final var b64Salt : b64Salts) {
+            final var prefix = requireNonNull(saltPrefixes.get(requireNonNull(b64Salt)));
+            if (isOracleStylePrefix(prefix)) {
+                count++;
+            }
+        }
+        return count;
     }
 
     private static Bytes convertedPokePrefix(@NonNull final Bytes prefix) {
@@ -931,6 +1096,22 @@ public class LambdaplexVerbs {
             }
         }
         return Bytes.wrap(raw);
+    }
+
+    private static boolean isOracleStylePrefix(@NonNull final Bytes prefix) {
+        requireNonNull(prefix);
+        final byte orderType = prefix.getByte(0);
+        return orderType == STOP_LIMIT_LT
+                || orderType == STOP_MARKET_LT
+                || orderType == STOP_LIMIT_GT
+                || orderType == STOP_MARKET_GT;
+    }
+
+    private static Bytes encodeProof(@NonNull final OracleProofSpec proofSpec) {
+        requireNonNull(proofSpec);
+        final var declaredLengthWord = leftPad32(
+                Bytes.wrap(BigInteger.valueOf(proofSpec.declaredLength()).toByteArray()));
+        return declaredLengthWord.append(proofSpec.encodedProof());
     }
 
     private SpecOperation placeOrderInternal(

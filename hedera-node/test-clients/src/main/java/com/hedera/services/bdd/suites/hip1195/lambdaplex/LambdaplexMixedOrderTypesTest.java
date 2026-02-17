@@ -17,6 +17,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenFeeScheduleUpdate;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedHbarFee;
+import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedHtsFee;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fractionalFee;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fractionalFeeNetOfTransfers;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
@@ -51,11 +52,13 @@ import com.hedera.services.bdd.spec.dsl.entities.SpecFungibleToken;
 import com.hedera.services.bdd.spec.dsl.utils.InitcodeTransform;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
+import java.util.List;
 import java.util.Map;
 import java.util.OptionalLong;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 
 /**
@@ -112,7 +115,7 @@ public class LambdaplexMixedOrderTypesTest implements InitcodeTransform {
     private static final long BANANAS_SCALE = 10L * 10L * 10L * 10L * 10L;
     private static final long USDC_SCALE = 10L * 10L * 10L * 10L * 10L * 10L;
 
-    @Contract(contract = "MockSupraRegistry", creationGas = 1_000_000L)
+    @Contract(contract = "MockSupraRegistry", creationGas = 2_000_000L)
     static SpecContract MOCK_SUPRA_REGISTRY;
 
     @Contract(
@@ -558,7 +561,7 @@ public class LambdaplexMixedOrderTypesTest implements InitcodeTransform {
         final var buySalt = randomB64Salt();
         return hapiTest(
                 cryptoCreate("customFeeCollector"),
-                tokenAssociate("customFeeCollector", USDC.name()),
+                tokenAssociate("customFeeCollector", List.of(USDC.name(), BANANAS.name())),
                 lv.placeLimitOrder(
                         MARKET_MAKER,
                         sellSalt,
@@ -605,6 +608,16 @@ public class LambdaplexMixedOrderTypesTest implements InitcodeTransform {
                         .via("fractionalTx"),
                 // require(proposedTransfers.customFee.tokens.length == 0, "cf tokens present")
                 assertFirstError("fractionalTx", "cf tokens present"),
+                tokenFeeScheduleUpdate(USDC.name()).withCustom(fixedHtsFee(1L, BANANAS.name(), "customFeeCollector")),
+                lv.settleFillsNoFees(
+                                HBAR,
+                                USDC,
+                                makingSeller(MARKET_MAKER, quantity(10), price(0.10), sellSalt),
+                                takingBuyer(PARTY, quantity(10), averagePrice(0.10), buySalt))
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK)
+                        .via("fixedHtsTx"),
+                // require(proposedTransfers.customFee.tokens.length == 0, "cf tokens present")
+                assertFirstError("fixedHtsTx", "cf tokens present"),
                 tokenFeeScheduleUpdate(USDC.name()).withCustom(fixedHbarFee(1L, "customFeeCollector")),
                 lv.settleFillsNoFees(
                                 HBAR,
@@ -614,7 +627,9 @@ public class LambdaplexMixedOrderTypesTest implements InitcodeTransform {
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK)
                         .via("hbarFixedTx"),
                 // require(proposedTransfers.customFee.hbarAdjustments.length == 0, "cf hbar present")
-                assertFirstError("hbarFixedTx", "cf hbar present"));
+                assertFirstError("hbarFixedTx", "cf hbar present"),
+                // Restore baseline USDC fee schedule for subsequent tests in this class
+                tokenFeeScheduleUpdate(USDC.name()));
     }
 
     // --- InitcodeTransform ---
