@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.hip423;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.FEE_SCHEDULE_OVERRIDES;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
@@ -37,7 +36,6 @@ import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Tag;
 
 @HapiTestLifecycle
 public class ScheduleLongTermExecutionTest {
@@ -129,7 +127,6 @@ public class ScheduleLongTermExecutionTest {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> scheduleNodeCreateWorks() throws Exception {
         final var nodeAccount = "nodeAccount";
         return hapiTest(

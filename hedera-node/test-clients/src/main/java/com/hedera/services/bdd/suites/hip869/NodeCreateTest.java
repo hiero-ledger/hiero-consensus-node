@@ -4,7 +4,6 @@ package com.hedera.services.bdd.suites.hip869;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
 import static com.hedera.services.bdd.junit.EmbeddedReason.MUST_SKIP_INGEST;
 import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.hedera.utils.NetworkUtils.endpointFor;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFullPrefixesFor;
@@ -74,7 +73,6 @@ import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Tag;
 
 @HapiTestLifecycle
 public class NodeCreateTest {
@@ -312,7 +310,6 @@ public class NodeCreateTest {
      * @see <a href="https://github.com/hashgraph/hedera-improvement-proposal/blob/main/HIP/hip-869.md#specification">HIP-869</a>
      */
     @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
-    @Tag(MATS)
     final Stream<DynamicTest> allFieldsSetHappyCaseForIps() throws CertificateEncodingException {
         final var nodeAccount = "nodeAccount";
         final var nodeCreate = canonicalNodeCreate(nodeAccount)

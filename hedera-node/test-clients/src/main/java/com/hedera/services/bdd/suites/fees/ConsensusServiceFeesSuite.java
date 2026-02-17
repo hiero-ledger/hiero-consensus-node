@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.fees;
 
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.customizedHapiTest;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTopicInfo;
@@ -29,7 +28,6 @@ import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Tag;
 
 public class ConsensusServiceFeesSuite {
     private static final double BASE_FEE_TOPIC_CREATE = 0.01;
@@ -46,7 +44,6 @@ public class ConsensusServiceFeesSuite {
 
     @HapiTest
     @DisplayName("Topic create base USD fee as expected")
-    @Tag(MATS)
     final Stream<DynamicTest> topicCreateBaseUSDFee() {
         return hapiTest(
                 cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
@@ -111,7 +108,6 @@ public class ConsensusServiceFeesSuite {
 
     @HapiTest
     @DisplayName("Topic submit message base USD fee as expected and the fee scales as message bytes increase")
-    @Tag(MATS)
     final Stream<DynamicTest> topicSubmitMessageFeeScales() {
         final byte[] messageBytes100 = new byte[100];
         final byte[] messageBytes500 = new byte[500];

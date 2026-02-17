@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile.schedule;
 
-import static com.hedera.services.bdd.junit.TestTags.MATS;
+import static com.hedera.services.bdd.junit.TestTags.SERIAL;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.keys.KeyShape.CONTRACT;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getScheduleInfo;
@@ -34,6 +34,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
+@Tag(SERIAL)
 @HapiTestLifecycle
 public class ScheduleCreateTokenTest {
 
@@ -102,7 +103,6 @@ public class ScheduleCreateTokenTest {
 
     @HapiTest
     @DisplayName("Can successfully schedule a create non fungible token operation")
-    @Tag(MATS)
     public Stream<DynamicTest> scheduledCreateNonFungibleToken() {
         return hapiTest(withOpContext((spec, opLog) -> {
             final var scheduleAddress = new AtomicReference<Address>();
@@ -160,7 +160,6 @@ public class ScheduleCreateTokenTest {
     @HapiTest
     @DisplayName(
             "Can successfully schedule an update token operation to set treasury and auto renew account with a designated payer")
-    @Tag(MATS)
     public Stream<DynamicTest> scheduledUpdateTokenWithDesignatedPayer(
             @FungibleToken(initialSupply = 1000) SpecFungibleToken token) {
         return hapiTest(withOpContext((spec, opLog) -> {

@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.file;
 
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getFileContents;
@@ -21,7 +20,6 @@ import java.util.Arrays;
 import java.util.UUID;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Tag;
 
 public class FileAppendSuite {
     @HapiTest
@@ -34,7 +32,6 @@ public class FileAppendSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> getContentsIdVariantsTreatedAsExpected() {
         return defaultHapiSpec("getContentsIdVariantsTreatedAsExpected")
                 .given(fileCreate("file").contents("ABC"))
@@ -65,7 +62,6 @@ public class FileAppendSuite {
     }
 
     @LeakyHapiTest(overrides = {"files.maxSizeKb"})
-    @Tag(MATS)
     final Stream<DynamicTest> handleRejectsOversized() {
         byte[] BYTES_3K_MINUS1 = new byte[3 * 1024 - 1];
         Arrays.fill(BYTES_3K_MINUS1, (byte) 0xAB);

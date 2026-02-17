@@ -152,8 +152,9 @@ jobs:
         env:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
-        # Run each tasks in isolation because we dynamically reconfigure Log4j for each mode
-        run: ${GRADLE_EXEC} hapiTestMisc${{ inputs.mats-suffix }} --no-daemon && ${GRADLE_EXEC} hapiEmbeddedMisc${{ inputs.mats-suffix }} --no-daemon && ${GRADLE_EXEC} hapiRepeatableMisc${{ inputs.mats-suffix }} --no-daemon
+        # Run each task in isolation with clean builds because we dynamically reconfigure Log4j for each mode
+        # TODO Remove flags before merge in main
+        run: ${GRADLE_EXEC} hapiTestMisc --no-daemon --rerun-tasks --no-build-cache && ${GRADLE_EXEC} hapiTestMiscEmbedded --no-daemon --rerun-tasks --no-build-cache && ${GRADLE_EXEC} hapiTestMiscRepeatable --no-daemon --rerun-tasks --no-build-cache && ${GRADLE_EXEC} hapiTestMiscSerial --no-daemon --rerun-tasks --no-build-cache
 
       - name: Publish HAPI Test (Misc) Report
         uses: step-security/publish-unit-test-result-action@5d195d4dec0b9fa7b51a3dbc4298362a021247c7 # v2.20.4

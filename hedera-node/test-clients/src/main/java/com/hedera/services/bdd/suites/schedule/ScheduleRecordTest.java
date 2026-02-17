@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.schedule;
 
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.assertions.TransferListAsserts.exactParticipants;
@@ -58,7 +57,6 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Tag;
 
 public class ScheduleRecordTest {
 
@@ -102,7 +100,6 @@ public class ScheduleRecordTest {
     }
 
     @LeakyHapiTest(overrides = {"nodes.feeCollectionAccountEnabled"})
-    @Tag(MATS)
     final Stream<DynamicTest> canScheduleChunkedMessages() {
         String ofGeneralInterest = "Scotch";
         AtomicReference<TransactionID> initialTxnId = new AtomicReference<>();
@@ -205,7 +202,6 @@ public class ScheduleRecordTest {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> allRecordsAreQueryable() {
         return hapiTest(
                 cryptoCreate(PAYER),

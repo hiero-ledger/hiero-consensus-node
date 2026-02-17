@@ -5,6 +5,7 @@ import static com.hedera.hapi.node.hooks.HookExtensionPoint.ACCOUNT_ALLOWANCE_HO
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
 import static com.hedera.node.app.service.contract.impl.state.WritableEvmHookStore.minimalKey;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asLongZeroAddress;
+import static com.hedera.services.bdd.junit.TestTags.SERIAL;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.accountEvmHookStore;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
@@ -54,6 +55,7 @@ import java.util.stream.Stream;
 import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
 
 /**
  * Tests exercising the Lambdaplex protocol hook.
@@ -86,6 +88,7 @@ import org.junit.jupiter.api.DynamicTest;
  * </ul>
  * Stop orders are triggered by providing an oracle proof of a (sufficiently recent) price that hits the trigger.
  */
+@Tag(SERIAL)
 @HapiTestLifecycle
 public class LambdaplexTest implements InitcodeTransform {
     // Order type constants

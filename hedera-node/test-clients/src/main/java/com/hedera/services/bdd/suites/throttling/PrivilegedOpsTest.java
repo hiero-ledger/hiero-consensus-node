@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.throttling;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.THROTTLE_OVERRIDES;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
@@ -40,7 +39,6 @@ import java.util.function.Function;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Tag;
 
 public class PrivilegedOpsTest {
     private static final String ACCOUNT_88 = "88";
@@ -177,7 +175,6 @@ public class PrivilegedOpsTest {
     @LeakyHapiTest(
             requirement = {THROTTLE_OVERRIDES},
             throttles = "testSystemFiles/only-mint-allowed.json")
-    @Tag(MATS)
     final Stream<DynamicTest> systemAccountsAreNeverThrottled() {
         return hapiTest(flattened(
                 cryptoTransfer(tinyBarsFromTo(GENESIS, ADDRESS_BOOK_CONTROL, 1_000_000_000_000L))

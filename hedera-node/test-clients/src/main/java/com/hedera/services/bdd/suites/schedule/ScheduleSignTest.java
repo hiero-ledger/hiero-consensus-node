@@ -524,7 +524,7 @@ public class ScheduleSignTest {
                         .adminKey(adminKey));
     }
 
-    @HapiTest
+    @LeakyHapiTest
     @Tag(NOT_REPEATABLE)
     final Stream<DynamicTest> overlappingKeysTreatedAsExpected() {
         var keyGen = OverlappingKeyGenerator.withAtLeastOneOverlappingByte(2);

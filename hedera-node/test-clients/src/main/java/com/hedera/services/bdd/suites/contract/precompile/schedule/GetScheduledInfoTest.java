@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile.schedule;
 
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
@@ -46,7 +45,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Tag;
 
 public class GetScheduledInfoTest {
 
@@ -95,7 +93,6 @@ public class GetScheduledInfoTest {
 
     @HapiTest
     @DisplayName("Can get scheduled info for fungible create schedule")
-    @Tag(MATS)
     public Stream<DynamicTest> canGetScheduleInfoForFungibleCreateSchedule() {
         final var scheduleId = new AtomicReference<ScheduleID>();
         final var ledgerId = new AtomicReference<ByteString>();
@@ -172,7 +169,6 @@ public class GetScheduledInfoTest {
 
     @HapiTest
     @DisplayName("Can get scheduled info for nft create schedule")
-    @Tag(MATS)
     public Stream<DynamicTest> canGetScheduleInfoForNonFungibleCreateSchedule() {
         final var scheduleId = new AtomicReference<ScheduleID>();
         final var ledgerId = new AtomicReference<ByteString>();
