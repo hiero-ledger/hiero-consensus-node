@@ -9,6 +9,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.PENDING_NFT_AIRDROP_ALR
 import static com.hedera.hapi.util.HapiUtils.isHollow;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
 import static com.hedera.node.app.service.token.impl.handlers.transfer.AssociateTokenRecipientsStep.PLACEHOLDER_SYNTHETIC_ASSOCIATION;
+import static com.hedera.node.app.service.token.impl.handlers.transfer.AssociateTokenRecipientsStep.PLACEHOLDER_SYNTHETIC_ASSOCIATION_HV;
 import static com.hedera.node.app.service.token.impl.handlers.transfer.AssociateTokenRecipientsStep.associationFeeFor;
 import static com.hedera.node.app.service.token.impl.util.AirdropHandlerHelper.createAccountPendingAirdrop;
 import static com.hedera.node.app.service.token.impl.util.AirdropHandlerHelper.createFirstAccountPendingAirdrop;
@@ -22,6 +23,7 @@ import static com.hedera.node.app.spi.fees.util.FeeUtils.tinycentsToTinybars;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static java.lang.Math.toIntExact;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.hapi.fees.HighVolumePricingCalculator.HIGH_VOLUME_MULTIPLIER_SCALE;
 
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
@@ -62,6 +64,7 @@ import com.hedera.node.config.data.FeesConfig;
 import com.hedera.node.config.data.TokensConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
@@ -69,6 +72,7 @@ import java.util.LinkedList;
 import java.util.List;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.hapi.support.fees.Extra;
@@ -159,7 +163,7 @@ public class TokenAirdropHandler extends TransferExecutor implements Transaction
                 final var fungibleLists = separateFungibleTransfers(context, tokenId, xfers.transfers());
                 validateTrue(
                         pendingStore.sizeOfState()
-                                        + fungibleLists.pendingFungibleAmounts().size()
+                                + fungibleLists.pendingFungibleAmounts().size()
                                 <= tokensConfig.maxAllowedPendingAirdrops(),
                         MAX_ENTITIES_IN_PRICE_REGIME_HAVE_BEEN_CREATED);
                 // pureChecks validates there is only one debit, so findFirst should return one item
@@ -256,11 +260,10 @@ public class TokenAirdropHandler extends TransferExecutor implements Transaction
             case UNSET -> throw new IllegalStateException("Key kind cannot be UNSET");
             case CONTRACT_ID, ED25519, ECDSA_SECP256K1 -> true;
             case RSA_3072, ECDSA_384, DELEGATABLE_CONTRACT_ID -> false;
-            case THRESHOLD_KEY ->
-                key.thresholdKeyOrThrow().keysOrThrow().keys().stream()
-                                .filter(TokenAirdropHandler::canClaimAirdrop)
-                                .count()
-                        >= key.thresholdKeyOrThrow().threshold();
+            case THRESHOLD_KEY -> key.thresholdKeyOrThrow().keysOrThrow().keys().stream()
+                    .filter(TokenAirdropHandler::canClaimAirdrop)
+                    .count()
+                    >= key.thresholdKeyOrThrow().threshold();
             case KEY_LIST -> key.keyListOrThrow().keys().stream().allMatch(TokenAirdropHandler::canClaimAirdrop);
         };
     }
@@ -283,11 +286,10 @@ public class TokenAirdropHandler extends TransferExecutor implements Transaction
      * number of pending airdrops created.No extra association fee is charged because the airdrop fee includes
      * token association fee.
      *
-     * @param context             the {@link HandleContext} for the transaction
+     * @param context the {@link HandleContext} for the transaction
      * @param pendingAirdropsSize the number of pending airdrops created
      * @param numUnlimitedAssociationTransfers the number of unlimited association transfers
-     * @param existingPendingAirdropsCount
-     *  the number of pending airdrops that doesn't need to be charged for associations
+     * @param existingPendingAirdropsCount the number of pending airdrops that doesn't need to be charged for associations
      */
     private void chargeAirdropFee(
             final @NonNull HandleContext context,
@@ -295,21 +297,32 @@ public class TokenAirdropHandler extends TransferExecutor implements Transaction
             final int numUnlimitedAssociationTransfers,
             final int existingPendingAirdropsCount) {
         // calculate fee, including association fee for new pending airdrops
-        final var pendingAirdropFeeIncludingAssociationsFee =
-                airdropFeeForPendingAirdrop(context) * (pendingAirdropsSize - existingPendingAirdropsCount);
+        var pendingAirdropFeeIncludingAssociationsFee = 0L;
+        if (pendingAirdropsSize > existingPendingAirdropsCount) {
+            pendingAirdropFeeIncludingAssociationsFee = airdropFeeForPendingAirdrop(context) * (pendingAirdropsSize - existingPendingAirdropsCount);
+        }
         // calculate fee, without association fee for airdrops that already exist in the pending state
         // this is applicable only for fungible tokens
-        final var pendingAirdropFeeWithoutAssociationsFee =
-                airdropFeeForPendingAirdrop(context, false) * existingPendingAirdropsCount;
-        final var airdropFeeForUnlimitedAssociations = airdropFee(context) * numUnlimitedAssociationTransfers;
+        var pendingAirdropFeeWithoutAssociationsFee = 0L;
+        if (existingPendingAirdropsCount > 0) {
+            pendingAirdropFeeWithoutAssociationsFee = airdropFeeForPendingAirdrop(context, false) * existingPendingAirdropsCount;
+        }
+
+        var airdropFeeForUnlimitedAssociations = 0L;
+        if (numUnlimitedAssociationTransfers > 0) {
+            airdropFeeForUnlimitedAssociations = airdropFee(context) * numUnlimitedAssociationTransfers;
+        }
+//        final var highVolumeAssociationScalingDelta =
+//                associationHighVolumeScalingDelta(context) * numUnlimitedAssociationTransfers;
         final var totalFee = pendingAirdropFeeIncludingAssociationsFee
                 + airdropFeeForUnlimitedAssociations
+//                + highVolumeAssociationScalingDelta
                 + pendingAirdropFeeWithoutAssociationsFee;
         // There are three cases for the fee charged in an airdrop transaction
         // 1. If there are no pending airdrops created and token is explicitly associated, only the CryptoTransferFee is
         // charged
         // 2. If there are no pending airdrops created but the token is not explicitly associated. But it has unlimited
-        // max auto-associations set . Then we charge airdrop fee of $0.05 here and the triggered CryptoTransfer will
+        // max auto-associations set . Then we charge airdrop fee of $0.05 here and the synthetic TokenAssociate will
         // charge $0.05. So the total of $0.1
         // 3. If there are pending airdrops created, then we charge the airdrop fee of $0.1 per pending airdrop
         if (!context.tryToChargePayer(totalFee)) {
@@ -318,8 +331,34 @@ public class TokenAirdropHandler extends TransferExecutor implements Transaction
     }
 
     /**
+     * Returns the extra tinybar amount needed to scale the association component from 1x to the
+     * token-airdrop high-volume multiplier.
+     */
+    private long associationHighVolumeScalingDelta(@NonNull final HandleContext feeContext) {
+        final var context = (FeeContext) feeContext;
+        if (!feeContext.configuration().getConfigData(FeesConfig.class).simpleFeesEnabled()
+                || !feeContext.body().highVolume()) {
+            return 0L;
+        }
+
+        final var simpleFeeCalculator = context.getSimpleFeeCalculator();
+        final var rawMultiplier = simpleFeeCalculator.highVolumeRawMultiplier(context.body(), context);
+        if (rawMultiplier <= HIGH_VOLUME_MULTIPLIER_SCALE) {
+            return 0L;
+        }
+
+        final var associationFeeTinycents = simpleFeeCalculator.getExtraFee(Extra.TOKEN_ASSOCIATE);
+        final var scaledAssociationFeeTinycents = (associationFeeTinycents * rawMultiplier) / HIGH_VOLUME_MULTIPLIER_SCALE;
+        final var activeRate = fromPbj(context.activeRate());
+        final var associationFeeTinybars = tinycentsToTinybars(associationFeeTinycents, activeRate);
+        final var scaledAssociationFeeTinybars = tinycentsToTinybars(scaledAssociationFeeTinycents, activeRate);
+        return scaledAssociationFeeTinybars - associationFeeTinybars;
+    }
+
+    /**
      * Creates pending airdrops for all the assessed pending nft pending airdrops. This also adds
      * the pending airdrop created to the record.
+     *
      * @param nftLists the list of nft transfers
      * @param tokenId the token id
      * @param pendingStore the pending airdrop store
@@ -353,6 +392,7 @@ public class TokenAirdropHandler extends TransferExecutor implements Transaction
     /**
      * Adds the transfers that are not in pending state to the transfer list. Constructs the debit for the sender and
      * the credits for the receivers.
+     *
      * @param fungibleAmounts the fungible airdrop amounts
      * @param sender the sender account id
      * @param isApproval is approval
@@ -376,6 +416,7 @@ public class TokenAirdropHandler extends TransferExecutor implements Transaction
 
     /**
      * Creates pending airdrops from the assessed airdrop amounts.
+     *
      * @param fungibleAmounts the fungible airdrop amounts
      * @param tokenId the token id
      * @param senderId the sender account id
@@ -432,8 +473,8 @@ public class TokenAirdropHandler extends TransferExecutor implements Transaction
     }
 
     /**
-     *  Create new {@link AccountPendingAirdrop} and if the sender has already existing pending airdrops
-     *  link them together and update the account store and the pending airdrop store with the new values.
+     * Create new {@link AccountPendingAirdrop} and if the sender has already existing pending airdrops
+     * link them together and update the account store and the pending airdrop store with the new values.
      */
     private void updateNewPendingAirdrop(
             @NonNull final Account senderAccount,
@@ -484,6 +525,7 @@ public class TokenAirdropHandler extends TransferExecutor implements Transaction
     /**
      * Gets the airdrop fee for the token airdrop transaction when a pending airdrop is created. It will be
      * the sum of the association fee and the airdrop fee.
+     *
      * @param feeContext the fee context
      * @return the total airdrop fee (pending airdrop fee + association fee)
      */
@@ -494,6 +536,7 @@ public class TokenAirdropHandler extends TransferExecutor implements Transaction
     /**
      * Gets the airdrop fee for the token airdrop transaction when a pending airdrop is created. It will be
      * the sum of the association fee and the airdrop fee.
+     *
      * @param feeContext the fee context
      * @param includeAssociationFee if association fee should be added
      * @return the total airdrop fee (pending airdrop fee + association fee)
@@ -501,7 +544,7 @@ public class TokenAirdropHandler extends TransferExecutor implements Transaction
     private long airdropFeeForPendingAirdrop(@NonNull final HandleContext feeContext, boolean includeAssociationFee) {
         var airdropFee = airdropFee(feeContext);
         if (includeAssociationFee) {
-            final var associationFee = associationFeeFor(feeContext, PLACEHOLDER_SYNTHETIC_ASSOCIATION);
+            final var associationFee = associationFeeFor(feeContext, feeContext.body().highVolume() ? PLACEHOLDER_SYNTHETIC_ASSOCIATION_HV : PLACEHOLDER_SYNTHETIC_ASSOCIATION);
             airdropFee += associationFee;
         }
         return airdropFee;
@@ -510,6 +553,7 @@ public class TokenAirdropHandler extends TransferExecutor implements Transaction
     /**
      * Gets the fee for a token airdrop that results in a pending airdrop.
      * This fee is charged when a pending airdrop is created for the receiver.
+     *
      * @param feeContext the fee context
      * @return the fee for an airdrop that ends up in pending state
      */
@@ -517,8 +561,10 @@ public class TokenAirdropHandler extends TransferExecutor implements Transaction
         final var context = ((FeeContext) feeContext);
 
         if (feeContext.configuration().getConfigData(FeesConfig.class).simpleFeesEnabled()) {
-            // return airdrop extra fee if simple fees are enabled
-            final var airdropFee = context.getSimpleFeeCalculator().getExtraFee(Extra.AIRDROPS);
+            final var simpleFeeCalculator = context.getSimpleFeeCalculator();
+            var airdropFee = simpleFeeCalculator.getExtraFee(Extra.AIRDROPS);
+            final var highVolumeMultiplier = simpleFeeCalculator.highVolumeRawMultiplier(context.body(), context);
+            airdropFee = (airdropFee * highVolumeMultiplier) / HIGH_VOLUME_MULTIPLIER_SCALE;
             return tinycentsToTinybars(airdropFee, fromPbj(context.activeRate()));
         }
 
@@ -529,10 +575,10 @@ public class TokenAirdropHandler extends TransferExecutor implements Transaction
     }
 
     /**
-     *  Calculate the fees for the token airdrop transaction. Initially only the CryptoTransferFees is charged
-     *  for the token airdrop transaction. The fees are charged based on number of pending airdrops that
-     *  are created in the transaction. If there are no pending airdrops created, no extra fees is charged and
-     *  only the CryptoTransferFees is charged.
+     * Calculate the fees for the token airdrop transaction. Initially only the CryptoTransferFees is charged
+     * for the token airdrop transaction. The fees are charged based on number of pending airdrops that
+     * are created in the transaction. If there are no pending airdrops created, no extra fees is charged and
+     * only the CryptoTransferFees is charged.
      */
     @NonNull
     @Override
@@ -547,6 +593,7 @@ public class TokenAirdropHandler extends TransferExecutor implements Transaction
 
     /**
      * Calculates the CryptoTransfer fees by dispatching a synthetic CryptoTransfer transaction.
+     *
      * @param feeContext the fee context
      * @param tokenTransfers the token transfers
      * @return the fees
@@ -581,7 +628,7 @@ public class TokenAirdropHandler extends TransferExecutor implements Transaction
      * Persists a new {@link PendingAirdropId} with given {@link AccountPendingAirdrop} into the state.
      * If there is existing airdrop with the same id we add the value to the existing drop.
      *
-     * @param airdropId    - the airdropId to be persisted.
+     * @param airdropId - the airdropId to be persisted.
      * @param accountAirdrop - the account airdrop mapping for the given airdropId to be persisted.
      */
     public void update(

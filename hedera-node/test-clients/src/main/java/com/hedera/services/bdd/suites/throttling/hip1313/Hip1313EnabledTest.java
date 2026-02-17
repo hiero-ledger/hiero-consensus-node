@@ -194,9 +194,10 @@ public class Hip1313EnabledTest {
                 getAutoCreatedAccountBalance("alias").hasTokenBalance("token", 10),
                 getTxnRecord("autoCreation")
                         .andAllChildRecords()
-                        .exposingAllTo(records -> assertRecordHasHighVolumeMultiplier(records, "autoCreation"))
+                        .exposingAllTo(records -> assertRecordHasHighVolumeMultiplier(records, "autoCreation", 1000L))
                         .logged(),
-                validateChargedUsdWithChild("autoCreation", (0.1 * 4) + (0.051 * 4), 0.01));
+                validateChargedUsdWithChild("autoCreation", (0.05 * 4) + (0.001 * 4) +(0.1 * 4), 0.01)
+                );
     }
 
     @HapiTest
@@ -241,7 +242,7 @@ public class Hip1313EnabledTest {
                 getAutoCreatedAccountBalance(hollowReceiver).hasTokenBalance("token", 10),
                 getTxnRecord("claimAirdrop")
                         .andAllChildRecords()
-                        .exposingAllTo(records -> assertRecordHasHighVolumeMultiplier(records, "claimAirdrop"))
+                        .exposingAllTo(records -> assertRecordHasHighVolumeMultiplierGreaterThan(records, "claimAirdrop", 1000L))
                         .logged(),
                 validateChargedUsdWithChild("claimAirdrop", 0.001 * 4, 0.01));
     }
@@ -295,7 +296,7 @@ public class Hip1313EnabledTest {
                         .via("plainTransfer"),
                 getTxnRecord("plainTransfer")
                         .andAllChildRecords()
-                        .exposingAllTo(records -> assertRecordHasDefaultHighVolumeMultiplier(records, "plainTransfer"))
+                        .exposingAllTo(records -> assertRecordHasHighVolumeMultiplier(records, "plainTransfer", 1000L))
                         .logged(),
                 validateChargedUsdWithChild("plainTransfer", 0.0001, 0.01));
     }
@@ -500,8 +501,8 @@ public class Hip1313EnabledTest {
                         .via("defaultMultiplierCreateTxn"),
                 getTxnRecord("defaultMultiplierCreateTxn")
                         .andAllChildRecords()
-                        .exposingAllTo(records -> assertRecordHasDefaultHighVolumeMultiplier(
-                                records, "defaultMultiplierCreateTxn"))
+                        .exposingAllTo(records -> assertRecordHasHighVolumeMultiplier(
+                                records, "defaultMultiplierCreateTxn", 1000L))
                         .logged(),
                 withOpContext((spec, opLog) -> {
                     final var snapshot = originalSimpleFeeSchedule.get();
@@ -577,7 +578,7 @@ public class Hip1313EnabledTest {
 
     private static void assertMultiplierAtLeastFour(final double observedMultiplier, @NonNull final String operation) {
         assertTrue(
-                observedMultiplier >= 4,
+                observedMultiplier >= 4000,
                 "Observed " + operation + " multiplier should be >= 4, but was " + observedMultiplier);
     }
 
@@ -585,25 +586,25 @@ public class Hip1313EnabledTest {
             @NonNull final RecordStreamEntry entry, @NonNull final String operation) {
         final var multiplier = entry.txnRecord().getHighVolumePricingMultiplier();
         assertTrue(
-                multiplier >= 4L,
+                multiplier >= 4000L,
                 "Expected " + operation + " high-volume multiplier to be set (>4), but was " + multiplier);
     }
 
-    private static void assertRecordHasHighVolumeMultiplier(
-            @NonNull final List<TransactionRecord> records, @NonNull final String operation) {
+    private static void assertRecordHasHighVolumeMultiplierGreaterThan(
+            @NonNull final List<TransactionRecord> records, @NonNull final String operation, final long multiplier) {
         final var hasHighVolumeMultiplier =
-                records.stream().anyMatch(record -> record.getHighVolumePricingMultiplier() > 1000L);
+                records.stream().anyMatch(record -> record.getHighVolumePricingMultiplier() > multiplier);
         assertTrue(
                 hasHighVolumeMultiplier,
                 "Expected " + operation + " to include a record with high-volume multiplier set (>1)");
     }
 
-    private static void assertRecordHasDefaultHighVolumeMultiplier(
-            @NonNull final List<TransactionRecord> records, @NonNull final String operation) {
+    private static void assertRecordHasHighVolumeMultiplier(
+            @NonNull final List<TransactionRecord> records, @NonNull final String operation, final long multiplier) {
         final var hasDefaultMultiplier =
-                records.stream().anyMatch(record -> record.getHighVolumePricingMultiplier() == 1000L);
+                records.stream().anyMatch(record -> record.getHighVolumePricingMultiplier() == multiplier);
         final var hasBoostedMultiplier =
-                records.stream().anyMatch(record -> record.getHighVolumePricingMultiplier() > 1000L);
+                records.stream().anyMatch(record -> record.getHighVolumePricingMultiplier() > multiplier);
         assertTrue(
                 hasDefaultMultiplier,
                 "Expected " + operation + " to include a record with default high-volume multiplier (1x)");
