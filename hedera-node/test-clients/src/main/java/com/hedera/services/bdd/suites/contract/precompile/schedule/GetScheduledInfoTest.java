@@ -48,6 +48,10 @@ import org.junit.jupiter.api.DynamicTest;
 
 public class GetScheduledInfoTest {
 
+    // Use a high entity number to avoid collisions with sequentially assigned entity IDs
+    // from concurrently running tests, which could cause INVALID_SCHEDULE_ID instead of
+    // RECORD_NOT_FOUND when the colliding entity is not a matching token creation schedule
+    private static final long NON_EXISTENT_SCHEDULE_NUM = 999_999_999L;
     private static final String AUTO_RENEW_ACCOUNT = "autoRenewAccount";
     private static final String HTS_COLLECTOR = "denomFee";
     private static final String TOKEN_TREASURY = "treasury";
@@ -74,7 +78,8 @@ public class GetScheduledInfoTest {
     public Stream<DynamicTest> cannotGetScheduledInfoForNonExistentFungibleCreateSchedule() {
         return hapiTest(withOpContext((spec, log) -> {
             final var callOp = contract.call(
-                            GET_FUNGIBLE_CREATE_TOKEN_INFO, asHeadlongAddress(asSolidityAddress(spec, 1234)))
+                            GET_FUNGIBLE_CREATE_TOKEN_INFO,
+                            asHeadlongAddress(asSolidityAddress(spec, NON_EXISTENT_SCHEDULE_NUM)))
                     .andAssert(txn -> txn.hasKnownStatuses(CONTRACT_REVERT_EXECUTED, RECORD_NOT_FOUND));
             allRunFor(spec, callOp);
         }));
@@ -85,7 +90,8 @@ public class GetScheduledInfoTest {
     public Stream<DynamicTest> cannotGetScheduledInfoForNonExistentNonFungibleCreateSchedule() {
         return hapiTest(withOpContext((spec, log) -> {
             final var callOp = contract.call(
-                            GET_NON_FUNGIBLE_CREATE_TOKEN_INFO, asHeadlongAddress(asSolidityAddress(spec, 1234)))
+                            GET_NON_FUNGIBLE_CREATE_TOKEN_INFO,
+                            asHeadlongAddress(asSolidityAddress(spec, NON_EXISTENT_SCHEDULE_NUM)))
                     .andAssert(txn -> txn.hasKnownStatuses(CONTRACT_REVERT_EXECUTED, RECORD_NOT_FOUND));
             allRunFor(spec, callOp);
         }));
