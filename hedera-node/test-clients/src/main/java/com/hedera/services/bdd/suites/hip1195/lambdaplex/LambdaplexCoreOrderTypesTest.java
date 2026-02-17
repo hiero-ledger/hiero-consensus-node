@@ -417,6 +417,59 @@ public class LambdaplexCoreOrderTypesTest implements InitcodeTransform {
     }
 
     @HapiTest
+    final Stream<DynamicTest> hbarHtsMultipleLimitOrdersRevertWhenProposedCreditIsLessThanRequired() {
+        final var makerSellSaltOne = randomB64Salt();
+        final var makerSellSaltTwo = randomB64Salt();
+        final var partyBuySalt = randomB64Salt();
+        return hapiTest(
+                lv.placeLimitOrder(
+                        MARKET_MAKER,
+                        makerSellSaltOne,
+                        HBAR,
+                        USDC,
+                        Side.SELL,
+                        distantExpiry(),
+                        ZERO_BPS,
+                        price(0.10),
+                        quantity(3)),
+                lv.placeLimitOrder(
+                        MARKET_MAKER,
+                        makerSellSaltTwo,
+                        HBAR,
+                        USDC,
+                        Side.SELL,
+                        distantExpiry(),
+                        ZERO_BPS,
+                        price(0.10),
+                        quantity(2)),
+                lv.placeLimitOrder(
+                        PARTY,
+                        partyBuySalt,
+                        HBAR,
+                        USDC,
+                        Side.BUY,
+                        distantExpiry(),
+                        ZERO_BPS,
+                        price(0.10),
+                        quantity(20)),
+                // Combined maker fills need exactly 0.50 USDC for 5 HBAR at $0.10; proposing 0.495 must fail.
+                lv.settleFillsNoFees(
+                                HBAR,
+                                USDC,
+                                makingSeller(
+                                        MARKET_MAKER,
+                                        quantity(5),
+                                        averagePrice(0.099),
+                                        makerSellSaltOne,
+                                        makerSellSaltTwo),
+                                takingBuyer(PARTY, quantity(5), averagePrice(0.099), partyBuySalt))
+                        .via("multiLimitUnderCreditTx")
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
+                // require(sumInAbs + st.feeTotal >= st.needTotal, "credit too low")
+                assertFirstError("multiLimitUnderCreditTx", "credit too low"));
+    }
+
+    @HapiTest
     final Stream<DynamicTest> hbarHtsFullFillOnTakerSpreadWithFeesNoSlippage() {
         final var sellSalt = randomB64Salt();
         final var buySalt = randomB64Salt();

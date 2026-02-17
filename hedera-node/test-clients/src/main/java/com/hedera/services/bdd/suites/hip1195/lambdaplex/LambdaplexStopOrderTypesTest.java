@@ -1084,8 +1084,7 @@ public class LambdaplexStopOrderTypesTest implements InitcodeTransform {
                         bd -> assertEquals(
                                 0,
                                 notional(1).compareTo(bd),
-                                "Wrong STOP_LIMIT remainder after multi-leg conversion: expected 1 APPLES, got "
-                                        + bd)),
+                                "Wrong STOP_LIMIT remainder after multi-leg conversion: expected 1 APPLES, got " + bd)),
                 getTxnRecord("htsHtsMultiStopLimitPartialWithFees")
                         .hasPriority(recordWith()
                                 .tokenTransfers(changingFungibleBalances()
@@ -1097,6 +1096,181 @@ public class LambdaplexStopOrderTypesTest implements InitcodeTransform {
                                                 USDC.name(),
                                                 FEE_COLLECTOR.name(),
                                                 inBaseUnits(quantity(5.40), USDC_DECIMALS) * TAKER_BPS / 10_000))));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> multipleHbarHtsStopLimitGtTriggersToFullPlusPartialNoFees() {
+        final var makerBuySalt = randomB64Salt();
+        final var stopSellSaltA = randomB64Salt();
+        final var stopSellSaltB = randomB64Salt();
+        final var stopSellSaltC = randomB64Salt();
+        return hapiTest(
+                lv.placeLimitOrder(
+                        MARKET_MAKER,
+                        makerBuySalt,
+                        HBAR,
+                        USDC,
+                        Side.BUY,
+                        distantExpiry(),
+                        ZERO_BPS,
+                        price(0.09),
+                        quantity(3)),
+                lv.placeStopLimitOrder(
+                        PARTY,
+                        stopSellSaltA,
+                        HBAR,
+                        USDC,
+                        Side.SELL,
+                        distantExpiry(),
+                        ZERO_BPS,
+                        price(0.09),
+                        price(0.09),
+                        StopDirection.GT,
+                        quantity(1)),
+                lv.placeStopLimitOrder(
+                        PARTY,
+                        stopSellSaltB,
+                        HBAR,
+                        USDC,
+                        Side.SELL,
+                        distantExpiry(),
+                        ZERO_BPS,
+                        price(0.09),
+                        price(0.09),
+                        StopDirection.GT,
+                        quantity(1)),
+                lv.placeStopLimitOrder(
+                        PARTY,
+                        stopSellSaltC,
+                        HBAR,
+                        USDC,
+                        Side.SELL,
+                        distantExpiry(),
+                        ZERO_BPS,
+                        price(0.09),
+                        price(0.09),
+                        StopDirection.GT,
+                        quantity(2)),
+                lv.answerNextProofVerify(MOCK_SUPRA_REGISTRY, HBAR_USDC_PAIR_ID, price(11.5), 1),
+                lv.enqueueProofVerify(MOCK_SUPRA_REGISTRY, HBAR_USDC_PAIR_ID, price(11.5), 1),
+                lv.enqueueProofVerify(MOCK_SUPRA_REGISTRY, HBAR_USDC_PAIR_ID, price(11.5), 1),
+                lv.settleFillsWithOracleProofsNoFees(
+                        HBAR,
+                        USDC,
+                        Map.of(
+                                stopSellSaltA, LambdaplexVerbs.OracleProofSpec.exact(MOCK_ORACLE_PROOF),
+                                stopSellSaltB, LambdaplexVerbs.OracleProofSpec.exact(MOCK_ORACLE_PROOF),
+                                stopSellSaltC, LambdaplexVerbs.OracleProofSpec.exact(MOCK_ORACLE_PROOF)),
+                        makingBuyer(MARKET_MAKER, quantity(3), averagePrice(0.09), makerBuySalt),
+                        takingSeller(
+                                PARTY,
+                                leg(quantity(1), averagePrice(0.09), stopSellSaltA),
+                                leg(quantity(1), averagePrice(0.09), stopSellSaltB),
+                                leg(quantity(1), averagePrice(0.09), stopSellSaltC))),
+                lv.assertNoSuchOrder(MARKET_MAKER, makerBuySalt),
+                lv.assertNoSuchOrder(PARTY, stopSellSaltA),
+                lv.assertNoSuchOrder(PARTY, stopSellSaltB),
+                lv.rebindSaltAfterStopConversion(stopSellSaltC),
+                lv.assertOrderAmount(
+                        PARTY,
+                        stopSellSaltC,
+                        bd -> assertEquals(
+                                0,
+                                notional(1).compareTo(bd),
+                                "Wrong STOP_LIMIT remainder after multi-leg conversion: expected 1 HBAR, got " + bd)));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> multipleHbarHtsStopLimitLtTriggersToFullPlusPartialWithFees() {
+        final var makerBuySalt = randomB64Salt();
+        final var stopSellSaltA = randomB64Salt();
+        final var stopSellSaltB = randomB64Salt();
+        final var stopSellSaltC = randomB64Salt();
+        return hapiTest(
+                lv.placeLimitOrder(
+                        MARKET_MAKER,
+                        makerBuySalt,
+                        HBAR,
+                        USDC,
+                        Side.BUY,
+                        distantExpiry(),
+                        MAKER_BPS,
+                        price(0.09),
+                        quantity(3)),
+                lv.placeStopLimitOrder(
+                        PARTY,
+                        stopSellSaltA,
+                        HBAR,
+                        USDC,
+                        Side.SELL,
+                        distantExpiry(),
+                        TAKER_BPS,
+                        price(0.09),
+                        price(0.08),
+                        StopDirection.LT,
+                        quantity(1)),
+                lv.placeStopLimitOrder(
+                        PARTY,
+                        stopSellSaltB,
+                        HBAR,
+                        USDC,
+                        Side.SELL,
+                        distantExpiry(),
+                        TAKER_BPS,
+                        price(0.09),
+                        price(0.08),
+                        StopDirection.LT,
+                        quantity(1)),
+                lv.placeStopLimitOrder(
+                        PARTY,
+                        stopSellSaltC,
+                        HBAR,
+                        USDC,
+                        Side.SELL,
+                        distantExpiry(),
+                        TAKER_BPS,
+                        price(0.09),
+                        price(0.08),
+                        StopDirection.LT,
+                        quantity(2)),
+                lv.answerNextProofVerify(MOCK_SUPRA_REGISTRY, HBAR_USDC_PAIR_ID, price(9.0), 1),
+                lv.enqueueProofVerify(MOCK_SUPRA_REGISTRY, HBAR_USDC_PAIR_ID, price(9.0), 1),
+                lv.enqueueProofVerify(MOCK_SUPRA_REGISTRY, HBAR_USDC_PAIR_ID, price(9.0), 1),
+                lv.settleFillsWithOracleProofs(
+                                HBAR,
+                                USDC,
+                                FEES,
+                                Map.of(
+                                        stopSellSaltA, LambdaplexVerbs.OracleProofSpec.exact(MOCK_ORACLE_PROOF),
+                                        stopSellSaltB, LambdaplexVerbs.OracleProofSpec.exact(MOCK_ORACLE_PROOF),
+                                        stopSellSaltC, LambdaplexVerbs.OracleProofSpec.exact(MOCK_ORACLE_PROOF)),
+                                makingBuyer(MARKET_MAKER, quantity(3), averagePrice(0.09), makerBuySalt),
+                                takingSeller(
+                                        PARTY,
+                                        leg(quantity(1), averagePrice(0.09), stopSellSaltA),
+                                        leg(quantity(1), averagePrice(0.09), stopSellSaltB),
+                                        leg(quantity(1), averagePrice(0.09), stopSellSaltC)))
+                        .via("hbarHtsMultiStopLimitPartialWithFees"),
+                lv.assertNoSuchOrder(MARKET_MAKER, makerBuySalt),
+                lv.assertNoSuchOrder(PARTY, stopSellSaltA),
+                lv.assertNoSuchOrder(PARTY, stopSellSaltB),
+                lv.rebindSaltAfterStopConversion(stopSellSaltC),
+                lv.assertOrderAmount(
+                        PARTY,
+                        stopSellSaltC,
+                        bd -> assertEquals(
+                                0,
+                                notional(1).compareTo(bd),
+                                "Wrong STOP_LIMIT remainder after multi-leg conversion: expected 1 HBAR, got " + bd)),
+                getTxnRecord("hbarHtsMultiStopLimitPartialWithFees")
+                        .hasPriority(recordWith()
+                                .transfers(includingHbarCredit(
+                                        FEE_COLLECTOR.name(), inBaseUnits(quantity(3), 8) * MAKER_BPS / 10_000))
+                                .tokenTransfers(changingFungibleBalances()
+                                        .including(
+                                                USDC.name(),
+                                                FEE_COLLECTOR.name(),
+                                                inBaseUnits(quantity(0.27), USDC_DECIMALS) * TAKER_BPS / 10_000))));
     }
 
     @HapiTest

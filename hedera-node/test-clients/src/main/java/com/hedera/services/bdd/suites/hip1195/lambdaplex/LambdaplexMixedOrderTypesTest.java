@@ -23,7 +23,6 @@ import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fra
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUnique;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
-import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_CONTRACT_RECEIVER;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.THOUSAND_HBAR;
@@ -56,7 +55,6 @@ import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecFungibleToken;
 import com.hedera.services.bdd.spec.dsl.entities.SpecNonFungibleToken;
 import com.hedera.services.bdd.spec.dsl.utils.InitcodeTransform;
-import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hederahashgraph.api.proto.java.NftTransfer;
 import com.hederahashgraph.api.proto.java.TokenTransferList;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -643,15 +641,16 @@ public class LambdaplexMixedOrderTypesTest implements InitcodeTransform {
     @HapiTest
     final Stream<DynamicTest> nftTransfersNotAllowed(
             @NonFungibleToken(
-                    keys = {SUPPLY_KEY},
-                    numPreMints = 1)
-            SpecNonFungibleToken nonFungibleToken) {
+                            keys = {SUPPLY_KEY},
+                            numPreMints = 1)
+                    SpecNonFungibleToken nonFungibleToken) {
         final var sellSalt = randomB64Salt();
         final var buySalt = randomB64Salt();
         return hapiTest(
                 PARTY.associateTokens(nonFungibleToken),
                 MARKET_MAKER.associateTokens(nonFungibleToken),
-                cryptoTransfer(movingUnique(nonFungibleToken.name(), 1).between(nonFungibleToken.treasury().name(), PARTY.name())),
+                cryptoTransfer(movingUnique(nonFungibleToken.name(), 1)
+                        .between(nonFungibleToken.treasury().name(), PARTY.name())),
                 lv.placeLimitOrder(
                         MARKET_MAKER,
                         sellSalt,
@@ -678,12 +677,14 @@ public class LambdaplexMixedOrderTypesTest implements InitcodeTransform {
                                 HBAR,
                                 USDC,
                                 b -> b.addTokenTransfers(TokenTransferList.newBuilder()
-                                                .setToken(spec.registry().getTokenID(nonFungibleToken.name()))
-                                                .addNftTransfers(NftTransfer.newBuilder()
-                                                        .setSenderAccountID(spec.registry().getAccountID(PARTY.name()))
-                                                        .setReceiverAccountID(spec.registry().getAccountID(MARKET_MAKER.name()))
-                                                        .setSerialNumber(1)
-                                                        .build())
+                                        .setToken(spec.registry().getTokenID(nonFungibleToken.name()))
+                                        .addNftTransfers(NftTransfer.newBuilder()
+                                                .setSenderAccountID(
+                                                        spec.registry().getAccountID(PARTY.name()))
+                                                .setReceiverAccountID(
+                                                        spec.registry().getAccountID(MARKET_MAKER.name()))
+                                                .setSerialNumber(1)
+                                                .build())
                                         .build()),
                                 makingSeller(MARKET_MAKER, quantity(10), price(0.10), sellSalt),
                                 takingBuyer(PARTY, quantity(10), averagePrice(0.10), buySalt))
