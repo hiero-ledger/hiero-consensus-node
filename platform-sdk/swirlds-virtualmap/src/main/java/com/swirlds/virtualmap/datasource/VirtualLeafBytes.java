@@ -44,8 +44,6 @@ import java.util.Objects;
  */
 public class VirtualLeafBytes<V> {
 
-    public static final FieldDefinition FIELD_MERKLELEAF_STATEITEM =
-            new FieldDefinition("state_item", FieldType.MESSAGE, false, false, true, 3);
     public static final FieldDefinition FIELD_LEAFRECORD_PATH =
             new FieldDefinition("path", FieldType.FIXED64, false, true, false, 1);
     public static final FieldDefinition FIELD_LEAFRECORD_KEY =
@@ -250,19 +248,10 @@ public class VirtualLeafBytes<V> {
         out.writeByte((byte) 0x00);
 
         final Bytes kb = keyBytes();
-        final int keyLen = Math.toIntExact(kb.length());
-        int innerLen = ProtoWriterTools.sizeOfDelimited(FIELD_LEAFRECORD_KEY, keyLen);
-
         final Bytes vb = valueBytes();
-        if (vb != null) {
-            final int valueLen = Math.toIntExact(vb.length());
-            innerLen += ProtoWriterTools.sizeOfDelimited(FIELD_LEAFRECORD_VALUE, valueLen);
-        }
 
-        ProtoWriterTools.writeTag(out, FIELD_MERKLELEAF_STATEITEM);
-        out.writeVarInt(innerLen, false);
         ProtoWriterTools.writeTag(out, FIELD_LEAFRECORD_KEY);
-        out.writeVarInt(keyLen, false);
+        out.writeVarInt(Math.toIntExact(kb.length()), false);
         kb.writeTo(out);
         if (vb != null) {
             ProtoWriterTools.writeTag(out, FIELD_LEAFRECORD_VALUE);
