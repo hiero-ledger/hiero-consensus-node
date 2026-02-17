@@ -136,11 +136,6 @@ public class HintsPartialSignatureHandler implements TransactionHandler {
             // Should never throw, but if it does, we don't want to cache the result, so we catch and return null
             return hintsContext.validate(partialSignature.nodeId(), partialSignature.crs(), partialSignature.body());
         } catch (Exception e) {
-            log.debug(
-                    "Failed to validate partial signature for construction {} from node {}, treating as invalid",
-                    partialSignature.constructionId(),
-                    partialSignature.nodeId(),
-                    e);
             return null;
         }
     }
