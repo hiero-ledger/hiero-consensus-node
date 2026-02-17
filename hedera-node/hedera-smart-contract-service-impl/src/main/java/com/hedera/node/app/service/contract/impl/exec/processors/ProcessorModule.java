@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.processors;
 
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.ClprQueueSystemContract.CLPR_QUEUE_EVM_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.ExchangeRateSystemContract.EXCHANGE_RATE_SYSTEM_CONTRACT_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HasSystemContract.HAS_EVM_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HssSystemContract.HSS_EVM_ADDRESS;
@@ -10,6 +11,7 @@ import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.Prn
 import static java.util.Map.entry;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.ClprQueueSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.ExchangeRateSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HasSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HederaSystemContract;
@@ -30,7 +32,13 @@ import org.hyperledger.besu.evm.contractvalidation.MaxCodeSizeRule;
 import org.hyperledger.besu.evm.contractvalidation.PrefixCodeRule;
 import org.hyperledger.besu.evm.internal.EvmConfiguration;
 
-@Module(includes = {HtsTranslatorsModule.class, HasTranslatorsModule.class, HssTranslatorsModule.class})
+@Module(
+        includes = {
+            HtsTranslatorsModule.class,
+            HasTranslatorsModule.class,
+            HssTranslatorsModule.class,
+            ClprQueueTranslatorsModule.class
+        })
 public interface ProcessorModule {
     long INITIAL_CONTRACT_NONCE = 1L;
     boolean REQUIRE_CODE_DEPOSIT_TO_SUCCEED = true;
@@ -72,7 +80,8 @@ public interface ProcessorModule {
             @NonNull final ExchangeRateSystemContract exchangeRateSystemContract,
             @NonNull final PrngSystemContract prngSystemContract,
             @NonNull final HasSystemContract hasSystemContract,
-            @NonNull final HssSystemContract hssSystemContract) {
+            @NonNull final HssSystemContract hssSystemContract,
+            @NonNull final ClprQueueSystemContract clprQueueSystemContract) {
         return Map.ofEntries(
                 entry(Address.fromHexString(HTS_167_EVM_ADDRESS), requireNonNull(htsSystemContract)),
                 entry(Address.fromHexString(HTS_16C_EVM_ADDRESS), requireNonNull(htsSystemContract)),
@@ -81,6 +90,7 @@ public interface ProcessorModule {
                         requireNonNull(exchangeRateSystemContract)),
                 entry(Address.fromHexString(PRNG_PRECOMPILE_ADDRESS), requireNonNull(prngSystemContract)),
                 entry(Address.fromHexString(HAS_EVM_ADDRESS), requireNonNull(hasSystemContract)),
-                entry(Address.fromHexString(HSS_EVM_ADDRESS), requireNonNull(hssSystemContract)));
+                entry(Address.fromHexString(HSS_EVM_ADDRESS), requireNonNull(hssSystemContract)),
+                entry(Address.fromHexString(CLPR_QUEUE_EVM_ADDRESS), requireNonNull(clprQueueSystemContract)));
     }
 }

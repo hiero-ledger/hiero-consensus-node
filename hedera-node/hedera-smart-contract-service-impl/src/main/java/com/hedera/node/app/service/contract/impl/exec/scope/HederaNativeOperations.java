@@ -31,6 +31,7 @@ import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.SortedSet;
+import org.hiero.interledger.clpr.ReadableClprMessageQueueMetadataStore;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 
 /**
@@ -87,6 +88,15 @@ public interface HederaNativeOperations {
      */
     @NonNull
     WritableEvmHookStore writableEvmHookStore();
+
+    /**
+     * Returns the {@link ReadableClprMessageQueueMetadataStore} for this {@link HederaNativeOperations}.
+     *
+     * @return the readable CLPR message queue metadata store
+     */
+    default @NonNull ReadableClprMessageQueueMetadataStore readableClprMessageQueueMetadataStore() {
+        throw new UnsupportedOperationException("CLPR queue metadata store is unavailable in this context");
+    }
 
     /**
      * Returns the {@link Account} with the given contract id.

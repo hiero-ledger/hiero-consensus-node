@@ -15,7 +15,6 @@ import com.hedera.hapi.node.transaction.Response;
 import com.hedera.node.app.spi.workflows.FreeQueryHandler;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.QueryContext;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
 import org.hiero.hapi.interledger.clpr.ClprGetLedgerConfigurationQuery;
@@ -113,7 +112,7 @@ public class ClprGetLedgerConfigurationHandler extends FreeQueryHandler {
     private static ClprLedgerId resolveLedgerIdToQuery(
             @NonNull final ClprGetLedgerConfigurationQuery query, @NonNull final ClprLedgerId localLedgerId) {
         final var ledgerId = query.ledgerId();
-        if (ledgerId == null || ledgerId.ledgerId() == Bytes.EMPTY) {
+        if (ledgerId == null || ledgerId.ledgerId().length() == 0) {
             // A missing ledger id is valid as a query for this ledger's current configuration.
             return localLedgerId;
         }

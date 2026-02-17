@@ -10,9 +10,11 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.block.stream.StateProof;
+import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
@@ -260,6 +262,31 @@ public class ClprSetLedgerConfigurationHandlerTest extends ClprHandlerTestBase {
         assertThatCode(() -> subject.preHandle(preHandleContext))
                 .isInstanceOf(PreCheckException.class)
                 .hasMessageContaining(ResponseCodeEnum.CLPR_INVALID_STATE_PROOF.name());
+    }
+
+    @Test
+    public void preHandleAllowsNodeBootstrapWithInvalidProofInDevMode() {
+        final var nodeAccount = AccountID.newBuilder().accountNum(3L).build();
+        final var invalidProof = buildInvalidStateProof(localClprConfig);
+        final var txn = TransactionBody.newBuilder()
+                .transactionID(TransactionID.newBuilder()
+                        .accountID(nodeAccount)
+                        .transactionValidStart(
+                                Timestamp.newBuilder().seconds(1L).build())
+                        .build())
+                .clprSetLedgerConfiguration(ClprSetLedgerConfigurationTransactionBody.newBuilder()
+                        .ledgerConfigurationProof(invalidProof)
+                        .build())
+                .build();
+        given(stateProofManager.getLocalLedgerId()).willReturn(localClprLedgerId);
+        given(stateProofManager.isDevModeEnabled()).willReturn(true);
+        given(stateProofManager.readLedgerConfiguration(localClprLedgerId)).willReturn(null);
+        given(selfNodeInfo.accountId()).willReturn(nodeAccount);
+        given(networkInfo.addressBook()).willReturn(List.of(selfNodeInfo));
+        given(preHandleContext.body()).willReturn(txn);
+        given(preHandleContext.isUserTransaction()).willReturn(true);
+
+        assertThatCode(() -> subject.preHandle(preHandleContext)).doesNotThrowAnyException();
     }
 
     @Test
