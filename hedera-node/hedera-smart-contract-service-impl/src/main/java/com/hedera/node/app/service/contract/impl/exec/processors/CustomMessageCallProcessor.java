@@ -32,6 +32,8 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.evm.EVM;
@@ -57,6 +59,7 @@ import org.hyperledger.besu.evm.worldstate.CodeDelegationHelper;
  * and the core {@link MessageCallProcessor#process(MessageFrame, OperationTracer)} logic we inherit.
  */
 public class CustomMessageCallProcessor extends MessageCallProcessor {
+    private static final Logger LOG = LogManager.getLogger(CustomMessageCallProcessor.class);
 
     private record CustomMessageCallContext(
             @NonNull MessageFrame frame,
@@ -69,30 +72,45 @@ public class CustomMessageCallProcessor extends MessageCallProcessor {
             boolean transfersValue) {
 
         static CustomMessageCallContext create(MessageFrame frame, OperationTracer tracer) {
+            LOG.warn("XXX CustomMessageCallContext.create frame.getContractAddress = " + frame.getContractAddress());
             final Account contractAccount = frame.getWorldUpdater().get(frame.getContractAddress());
 
             final Address executableCodeAddress;
             final boolean isCodeDelegation;
             if (contractAccount != null) {
+                LOG.warn("XXX contractAccount is not null");
+
                 final var hasCodeDelegation = CodeDelegationHelper.hasCodeDelegation(contractAccount.getCode());
                 final var isEoa = contractAccount.getCode().isEmpty() || hasCodeDelegation;
                 final var isEligibleForHasRedirect =
                         HasSystemContract.isPayloadEligibleForHasProxyRedirect(frame.getInputData());
+                LOG.warn(
+                        "XXX contractAccount is not null hasCodeDelegation {}, isEoa {}, isEligibleForHasRedirect {}",
+                        hasCodeDelegation,
+                        isEoa,
+                        isEligibleForHasRedirect);
 
                 if (isEoa && isEligibleForHasRedirect) {
+                    LOG.warn("XXX HAS redirect");
+
                     // HAS proxy calls have priority, even if code delegation is set
                     // - this is a built-in redirect functionality, and it isn't considered code delegation.
                     executableCodeAddress = Address.fromHexString(HAS_EVM_ADDRESS);
                     isCodeDelegation = false;
                 } else if (hasCodeDelegation) {
+
                     executableCodeAddress = Address.wrap(
                             contractAccount.getCode().slice(CodeDelegationHelper.CODE_DELEGATION_PREFIX.size()));
+                    LOG.warn("XXX CODE DELEGATION to {}", executableCodeAddress);
+
                     isCodeDelegation = true;
                 } else {
                     executableCodeAddress = frame.getContractAddress();
                     isCodeDelegation = false;
                 }
             } else {
+                LOG.warn("XXX contractAccount is null");
+
                 // Call target account doesn't exist
                 executableCodeAddress = frame.getContractAddress();
                 isCodeDelegation = false;
@@ -348,6 +366,7 @@ public class CustomMessageCallProcessor extends MessageCallProcessor {
     }
 
     private void handleRegularCall(@NonNull final CustomMessageCallContext context) {
+        LOG.warn("XX handleRegularCall...");
         if (context.transfersValue) {
             doTransferValueOrHalt(context);
             if (alreadyHalted(context.frame)) {
@@ -365,6 +384,7 @@ public class CustomMessageCallProcessor extends MessageCallProcessor {
                             recordBuilderFor(context.frame).trackExplicitRewardSituation(contract.hederaId()));
         }
 
+        LOG.warn("XX handleRegularCall setting state to CODE_EXECUTING");
         context.frame.setState(MessageFrame.State.CODE_EXECUTING);
     }
 

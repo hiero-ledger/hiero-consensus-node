@@ -37,6 +37,8 @@ import java.util.HashMap;
 import java.util.Map;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.datatypes.Wei;
@@ -59,6 +61,8 @@ import org.hyperledger.besu.evm.worldstate.CodeDelegationHelper;
  */
 @Singleton
 public class FrameBuilder {
+    private static final Logger LOG = LogManager.getLogger(FrameBuilder.class);
+
     private static final int MAX_STACK_SIZE = 1024;
 
     /**
@@ -175,6 +179,7 @@ public class FrameBuilder {
             @NonNull final MessageFrame.Builder builder,
             @NonNull final HederaEvmTransaction transaction,
             final CodeFactory codeFactory) {
+        LOG.warn("XX FrameBuilder.finishedAsCreate");
         return builder.type(MessageFrame.Type.CONTRACT_CREATION)
                 .address(to)
                 .contract(to)
@@ -192,11 +197,15 @@ public class FrameBuilder {
             @NonNull final ContractsConfig config,
             @NonNull final CodeFactory codeFactory,
             @NonNull final GasCalculator gasCalculator) {
+        LOG.warn("XX FrameBuilder.finishedAsCall");
+
         final var contractId = transaction.contractIdOrThrow();
         final var contractMustBePresent = contractMustBePresent(config, featureFlags, contractId);
 
         // Handle deleted contracts
         if (contractDeleted(worldUpdater, contractId)) {
+            LOG.warn("XX FrameBuilder.finishedAsCall contract deleted = true");
+
             // if the contract has been deleted, throw an exception
             // unless the transaction permits missing contract byte code
             validateTrue(!contractMustBePresent || transaction.permitsMissingContract(), INVALID_ETHEREUM_TRANSACTION);
@@ -211,23 +220,39 @@ public class FrameBuilder {
         final var account = worldUpdater.getHederaAccount(contractId);
         final Code code;
         if (account != null) {
+            LOG.warn("XX FrameBuilder.finishedAsCall account is not null {}", account.getAddress());
+
             // Hedera account for contract is present, get the byte code
             final var accountCode = account.getCode();
 
             final var eligibleForCodeDelegation =
                     account.isRegularAccount() || account.isTokenFacade() || account.isScheduleTxnFacade();
+            LOG.warn(
+                    "XX FrameBuilder.finishedAsCall eligible? {} ; {} {} {} ; has cd? {}",
+                    eligibleForCodeDelegation,
+                    account.isRegularAccount(),
+                    account.isTokenFacade(),
+                    account.isScheduleTxnFacade(),
+                    CodeDelegationHelper.hasCodeDelegation(accountCode));
+
             if (CodeDelegationHelper.hasCodeDelegation(accountCode) && eligibleForCodeDelegation) {
                 // Resolve the target account of the delegation and use its code
                 final var targetAddress =
                         Address.wrap(accountCode.slice(CodeDelegationHelper.CODE_DELEGATION_PREFIX.size()));
+                LOG.warn("XX FrameBuilder.finishedAsCall delegating to {}", targetAddress);
 
                 final Account targetAccount = worldUpdater.getHederaAccount(targetAddress);
                 if (targetAccount == null || gasCalculator.isPrecompile(targetAddress)) {
+                    LOG.warn("XX FrameBuilder.finishedAsCall delegating to {} (code is empty!)", targetAddress);
+
                     code = CodeV0.EMPTY_CODE;
                 } else {
+                    LOG.warn("XX FrameBuilder.finishedAsCall delegating to {} (code non empty)", targetAddress);
                     code = codeFactory.createCode(targetAccount.getCode());
                 }
             } else {
+                LOG.warn("XX FrameBuilder.finishedAsCall NO DELEGATION");
+
                 // No delegation, so try to resolve the code of the smart contract.
                 if (!accountCode.isEmpty()) {
                     // A non-delegation code is there (it must be a regular smart contract), so just use it.
@@ -240,6 +265,8 @@ public class FrameBuilder {
                 }
             }
         } else {
+            LOG.warn("XX FrameBuilder.finishedAsCall account is null");
+
             // The target account doesn't exist. Verify that it's allowed, and if so, proceed with empty code.
 
             // Only do this check if the contract must be present

@@ -11,6 +11,7 @@ import org.hyperledger.besu.evm.account.MutableAccount;
  */
 public interface HederaEvmAccount extends MutableAccount {
     /**
+     *
      * Returns a native Hedera account representation of this account.
      *
      * @return the native Hedera account
