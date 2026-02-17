@@ -12,7 +12,9 @@ import com.hedera.node.app.service.contract.impl.state.HederaEvmAccount;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.token.records.CryptoCreateStreamBuilder;
 import java.math.BigInteger;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.datatypes.Address;
@@ -63,50 +65,50 @@ public record CodeDelegationProcessor(long chainId) {
             final WorldUpdater worldUpdater,
             final long lazyCreationGasAvailable,
             List<CodeDelegation> codeDelegations) {
-        final CodeDelegationResult result = new CodeDelegationResult(lazyCreationGasAvailable);
+        final CodeDelegationProcessingState state = new CodeDelegationProcessingState(lazyCreationGasAvailable);
 
         if (codeDelegations == null || codeDelegations.isEmpty()) {
-            return result;
+            return state.toResult();
         }
 
         // Get a new proxy world updater to handle state changes and records for code delegations.
         final ProxyWorldUpdater proxyWorldUpdater = (ProxyWorldUpdater) worldUpdater.updater();
-        codeDelegations.forEach(codeDelegation -> processCodeDelegation(proxyWorldUpdater, codeDelegation, result));
+        codeDelegations.forEach(codeDelegation -> processCodeDelegation(proxyWorldUpdater, codeDelegation, state));
         // Commit the changes for code delegations.
         proxyWorldUpdater.commit();
 
-        return result;
+        return state.toResult();
     }
 
     private void processCodeDelegation(
             final ProxyWorldUpdater proxyWorldUpdater,
             final CodeDelegation codeDelegation,
-            final CodeDelegationResult result) {
+            final CodeDelegationProcessingState state) {
         LOG.trace("Processing code delegation: {}", codeDelegation);
 
         if ((codeDelegation.getChainId() != 0) && (chainId != codeDelegation.getChainId())) {
-            result.reportIgnoredEntry(CodeDelegationResult.EntryIgnoreReason.ChainIdMismatch);
+            state.reportIgnoredEntry(CodeDelegationResult.EntryIgnoreReason.ChainIdMismatch);
             return;
         }
 
         if (codeDelegation.nonce() == MAX_NONCE) {
-            result.reportIgnoredEntry(CodeDelegationResult.EntryIgnoreReason.NonceMismatch);
+            state.reportIgnoredEntry(CodeDelegationResult.EntryIgnoreReason.NonceMismatch);
             return;
         }
 
         if (codeDelegation.getS().compareTo(HALF_CURVE_ORDER) > 0) {
-            result.reportIgnoredEntry(CodeDelegationResult.EntryIgnoreReason.Other);
+            state.reportIgnoredEntry(CodeDelegationResult.EntryIgnoreReason.Other);
             return;
         }
 
         if (codeDelegation.getYParity() >= MAX_Y_PARITY) {
-            result.reportIgnoredEntry(CodeDelegationResult.EntryIgnoreReason.Other);
+            state.reportIgnoredEntry(CodeDelegationResult.EntryIgnoreReason.Other);
             return;
         }
 
         final Optional<EthTxSigs> authorizer = EthTxSigs.extractAuthoritySignature(codeDelegation);
         if (authorizer.isEmpty()) {
-            result.reportIgnoredEntry(CodeDelegationResult.EntryIgnoreReason.Other);
+            state.reportIgnoredEntry(CodeDelegationResult.EntryIgnoreReason.Other);
             return;
         }
 
@@ -121,7 +123,7 @@ public record CodeDelegationProcessor(long chainId) {
         if (maybeAuthorityAccount.isEmpty()) {
             // only create an account if nonce is valid
             if (codeDelegation.nonce() != 0) {
-                result.reportIgnoredEntry(CodeDelegationResult.EntryIgnoreReason.NonceMismatch);
+                state.reportIgnoredEntry(CodeDelegationResult.EntryIgnoreReason.NonceMismatch);
                 return;
             }
 
@@ -129,55 +131,55 @@ public record CodeDelegationProcessor(long chainId) {
             // in the transaction intrinsic gas.
             // Here we're only charging the Hedera-specific lazy account creation cost.
             final var lazyCreationCost = proxyWorldUpdater.lazyCreationCostInGas(authorizerAddress);
-            if (result.remainingLazyCreationGasAvailable() >= lazyCreationCost) {
-                result.addHollowAccountCreationGasCharge(lazyCreationCost);
+            if (state.remainingLazyCreationGasAvailable() >= lazyCreationCost) {
+                state.addHollowAccountCreationGasCharge(lazyCreationCost);
             } else {
                 // Create failed record due to insufficient gas for lazy creation
                 final var failedRecord =
                         proxyWorldUpdater.createNewChildRecordBuilder(CryptoCreateStreamBuilder.class, CRYPTO_CREATE);
                 failedRecord.status(INSUFFICIENT_GAS);
-                result.reportIgnoredEntry(CodeDelegationResult.EntryIgnoreReason.InsufficientGasForLazyCreation);
+                state.reportIgnoredEntry(CodeDelegationResult.EntryIgnoreReason.InsufficientGasForLazyCreation);
                 return;
             }
 
             if (!proxyWorldUpdater.createAccountWithCodeDelegation(authorizerAddress, delegatedContractAddress)) {
-                result.reportIgnoredEntry(CodeDelegationResult.EntryIgnoreReason.Other);
+                state.reportIgnoredEntry(CodeDelegationResult.EntryIgnoreReason.Other);
                 return;
             }
 
             authority = proxyWorldUpdater.getAccount(authorizerAddress);
             if (authority == null) {
-                result.reportIgnoredEntry(CodeDelegationResult.EntryIgnoreReason.Other);
+                state.reportIgnoredEntry(CodeDelegationResult.EntryIgnoreReason.Other);
                 return;
             }
         } else {
             authority = maybeAuthorityAccount.get();
 
             if (!canSetCodeDelegation(authority)) {
-                result.reportIgnoredEntry(CodeDelegationResult.EntryIgnoreReason.AccountAlreadyHasCode);
+                state.reportIgnoredEntry(CodeDelegationResult.EntryIgnoreReason.AccountAlreadyHasCode);
                 return;
             }
 
             if (codeDelegation.nonce() != authority.getNonce()) {
-                result.reportIgnoredEntry(CodeDelegationResult.EntryIgnoreReason.NonceMismatch);
+                state.reportIgnoredEntry(CodeDelegationResult.EntryIgnoreReason.NonceMismatch);
                 return;
             }
 
             // Ensure that the account is a regular account
             if (!((HederaEvmAccount) authority).isRegularAccount()) {
-                result.reportIgnoredEntry(CodeDelegationResult.EntryIgnoreReason.Other);
+                state.reportIgnoredEntry(CodeDelegationResult.EntryIgnoreReason.Other);
                 return;
             }
 
             if (!proxyWorldUpdater.setAccountCodeDelegation(
                     ((HederaEvmAccount) authority).hederaId(), delegatedContractAddress)) {
-                result.reportIgnoredEntry(CodeDelegationResult.EntryIgnoreReason.Other);
+                state.reportIgnoredEntry(CodeDelegationResult.EntryIgnoreReason.Other);
                 return;
             }
-            result.incAuthorizationsEligibleForRefund();
+            state.incrementAuthorizationsEligibleForRefund();
         }
 
-        result.incSuccessfullyProcessedAuthorizations();
+        state.incrementSuccessfullyProcessedAuthorizations();
         authority.incrementNonce();
     }
 
@@ -189,5 +191,46 @@ public record CodeDelegationProcessor(long chainId) {
         return code != null
                 && code.size() == DELEGATED_CODE_SIZE
                 && code.slice(0, CODE_DELEGATION_PREFIX.size()).equals(CODE_DELEGATION_PREFIX);
+    }
+
+    private static class CodeDelegationProcessingState {
+        private long remainingLazyCreationGasAvailable;
+        private long totalLazyCreationGasCharged;
+        private int numAuthorizationsEligibleForRefund;
+        private int successfullyProcessedAuthorizations;
+        private final Map<CodeDelegationResult.EntryIgnoreReason, Integer> numIgnoredEntriesByReason = new HashMap<>();
+
+        CodeDelegationProcessingState(final long lazyCreationGasAvailable) {
+            this.remainingLazyCreationGasAvailable = lazyCreationGasAvailable;
+        }
+
+        void addHollowAccountCreationGasCharge(final long gas) {
+            this.remainingLazyCreationGasAvailable -= gas;
+            this.totalLazyCreationGasCharged += gas;
+        }
+
+        long remainingLazyCreationGasAvailable() {
+            return this.remainingLazyCreationGasAvailable;
+        }
+
+        void incrementAuthorizationsEligibleForRefund() {
+            this.numAuthorizationsEligibleForRefund += 1;
+        }
+
+        void reportIgnoredEntry(CodeDelegationResult.EntryIgnoreReason reason) {
+            this.numIgnoredEntriesByReason.compute(reason, (k, v) -> v == null ? 1 : v + 1);
+        }
+
+        void incrementSuccessfullyProcessedAuthorizations() {
+            this.successfullyProcessedAuthorizations += 1;
+        }
+
+        CodeDelegationResult toResult() {
+            return new CodeDelegationResult(
+                    totalLazyCreationGasCharged,
+                    numAuthorizationsEligibleForRefund,
+                    successfullyProcessedAuthorizations,
+                    numIgnoredEntriesByReason);
+        }
     }
 }

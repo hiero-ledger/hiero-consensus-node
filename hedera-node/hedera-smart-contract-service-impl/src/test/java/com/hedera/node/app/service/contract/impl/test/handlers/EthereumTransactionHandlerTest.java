@@ -18,7 +18,6 @@ import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.E
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.ETHEREUM_NONCE_INCREMENT_CALLBACK;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.notNull;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
@@ -273,7 +272,6 @@ class EthereumTransactionHandlerTest {
                 .willReturn(recordBuilder);
         given(callRecordBuilder.withCommonFieldsSetFrom(expectedOutcome, context, entityIdFactory))
                 .willReturn(callRecordBuilder);
-        given(codeDelegationProcessor.process(any(), anyLong(), any())).willReturn(codeDelegationResult);
 
         assertDoesNotThrow(() -> subject.handle(context));
     }
@@ -335,7 +333,6 @@ class EthereumTransactionHandlerTest {
         given(recordBuilder.ethereumHash(Bytes.wrap(ETH_DATA_WITHOUT_TO_ADDRESS.getEthereumHash())))
                 .willReturn(recordBuilder);
         givenSenderAccountWithNonce(SIGNER_NONCE);
-        given(codeDelegationProcessor.process(any(), anyLong(), any())).willReturn(codeDelegationResult);
 
         assertDoesNotThrow(() -> subject.handle(context));
     }
@@ -610,7 +607,6 @@ class EthereumTransactionHandlerTest {
         given(context.dispatchMetadata()).willReturn(dispatchMetadata);
         given(dispatchMetadata.getMetadata(ETHEREUM_NONCE_INCREMENT_CALLBACK, BiConsumer.class))
                 .willReturn(optionalCallback);
-        given(codeDelegationProcessor.process(any(), anyLong(), any())).willReturn(codeDelegationResult);
 
         // Execute the handler
         assertDoesNotThrow(() -> subject.handle(context));

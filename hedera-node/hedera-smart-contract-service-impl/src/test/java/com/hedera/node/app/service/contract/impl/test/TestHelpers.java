@@ -62,6 +62,7 @@ import com.hedera.hapi.streams.ContractActionType;
 import com.hedera.hapi.streams.ContractStateChanges;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.node.app.service.contract.impl.exec.TransactionProcessor;
+import com.hedera.node.app.service.contract.impl.exec.delegation.CodeDelegationResult;
 import com.hedera.node.app.service.contract.impl.exec.gas.GasCharges;
 import com.hedera.node.app.service.contract.impl.exec.gas.HederaGasCalculatorImpl;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
@@ -660,7 +661,7 @@ public class TestHelpers {
             null,
             null,
             null,
-            null);
+            CodeDelegationResult.empty());
 
     public static final StorageAccesses ONE_STORAGE_ACCESSES = new StorageAccesses(
             ContractID.newBuilder().contractNum(123L).build(),
@@ -1175,7 +1176,7 @@ public class TestHelpers {
                 actions,
                 null,
                 null,
-                null);
+                CodeDelegationResult.empty());
     }
 
     /**

@@ -235,7 +235,7 @@ class TransactionProcessorTest {
                         featureFlags,
                         EIP_1014_ADDRESS,
                         expectedToAddress,
-                        CHARGING_RESULT.intrinsicGas(),
+                        transaction.gasLimit() - CHARGING_RESULT.intrinsicGas(),
                         CODE_FACTORY,
                         GAS_CALCULATOR))
                 .willReturn(initialFrame);
@@ -292,7 +292,7 @@ class TransactionProcessorTest {
                         featureFlags,
                         EIP_1014_ADDRESS,
                         expectedToAddress,
-                        CHARGING_RESULT.intrinsicGas(),
+                        transaction.gasLimit() - CHARGING_RESULT.intrinsicGas(),
                         CODE_FACTORY,
                         GAS_CALCULATOR))
                 .willReturn(initialFrame);
@@ -351,7 +351,7 @@ class TransactionProcessorTest {
                         featureFlags,
                         EIP_1014_ADDRESS,
                         expectedToAddress,
-                        CHARGING_RESULT.intrinsicGas(),
+                        transaction.gasLimit() - CHARGING_RESULT.intrinsicGas(),
                         CODE_FACTORY,
                         GAS_CALCULATOR))
                 .willReturn(initialFrame);
@@ -467,7 +467,7 @@ class TransactionProcessorTest {
                         featureFlags,
                         EIP_1014_ADDRESS,
                         expectedToAddress,
-                        CHARGING_RESULT.intrinsicGas(),
+                        transaction.gasLimit() - CHARGING_RESULT.intrinsicGas(),
                         CODE_FACTORY,
                         GAS_CALCULATOR))
                 .willReturn(initialFrame);
@@ -502,7 +502,7 @@ class TransactionProcessorTest {
                         featureFlags,
                         EIP_1014_ADDRESS,
                         expectedToAddress,
-                        CHARGING_RESULT.intrinsicGas(),
+                        transaction.gasLimit() - CHARGING_RESULT.intrinsicGas(),
                         CODE_FACTORY,
                         GAS_CALCULATOR);
         inOrder.verify(frameRunner)
@@ -551,7 +551,7 @@ class TransactionProcessorTest {
                         featureFlags,
                         EIP_1014_ADDRESS,
                         NON_SYSTEM_LONG_ZERO_ADDRESS,
-                        NO_ALLOWANCE_CHARGING_RESULT.intrinsicGas(),
+                        transaction.gasLimit() - NO_ALLOWANCE_CHARGING_RESULT.intrinsicGas(),
                         CODE_FACTORY,
                         GAS_CALCULATOR))
                 .willReturn(initialFrame);
@@ -581,7 +581,7 @@ class TransactionProcessorTest {
                         featureFlags,
                         EIP_1014_ADDRESS,
                         NON_SYSTEM_LONG_ZERO_ADDRESS,
-                        NO_ALLOWANCE_CHARGING_RESULT.intrinsicGas(),
+                        transaction.gasLimit() - NO_ALLOWANCE_CHARGING_RESULT.intrinsicGas(),
                         CODE_FACTORY,
                         GAS_CALCULATOR);
         inOrder.verify(frameRunner)
@@ -627,7 +627,7 @@ class TransactionProcessorTest {
                         featureFlags,
                         EIP_1014_ADDRESS,
                         NON_SYSTEM_LONG_ZERO_ADDRESS,
-                        CHARGING_RESULT.intrinsicGas(),
+                        transaction.gasLimit() - CHARGING_RESULT.intrinsicGas(),
                         CODE_FACTORY,
                         GAS_CALCULATOR))
                 .willReturn(initialFrame);
@@ -656,7 +656,7 @@ class TransactionProcessorTest {
                         featureFlags,
                         EIP_1014_ADDRESS,
                         NON_SYSTEM_LONG_ZERO_ADDRESS,
-                        CHARGING_RESULT.intrinsicGas(),
+                        transaction.gasLimit() - CHARGING_RESULT.intrinsicGas(),
                         CODE_FACTORY,
                         GAS_CALCULATOR);
         inOrder.verify(frameRunner)
@@ -707,7 +707,7 @@ class TransactionProcessorTest {
                         featureFlags,
                         EIP_1014_ADDRESS,
                         NON_SYSTEM_LONG_ZERO_ADDRESS,
-                        CHARGING_RESULT.intrinsicGas(),
+                        transaction.gasLimit() - CHARGING_RESULT.intrinsicGas(),
                         CODE_FACTORY,
                         GAS_CALCULATOR))
                 .willReturn(initialFrame);
@@ -739,7 +739,7 @@ class TransactionProcessorTest {
                         featureFlags,
                         EIP_1014_ADDRESS,
                         NON_SYSTEM_LONG_ZERO_ADDRESS,
-                        CHARGING_RESULT.intrinsicGas(),
+                        transaction.gasLimit() - CHARGING_RESULT.intrinsicGas(),
                         CODE_FACTORY,
                         GAS_CALCULATOR);
         inOrder.verify(frameRunner)
@@ -787,7 +787,7 @@ class TransactionProcessorTest {
                         featureFlags,
                         EIP_1014_ADDRESS,
                         NON_SYSTEM_LONG_ZERO_ADDRESS,
-                        CHARGING_RESULT.intrinsicGas(),
+                        transaction.gasLimit() - CHARGING_RESULT.intrinsicGas(),
                         CODE_FACTORY,
                         GAS_CALCULATOR))
                 .willReturn(initialFrame);

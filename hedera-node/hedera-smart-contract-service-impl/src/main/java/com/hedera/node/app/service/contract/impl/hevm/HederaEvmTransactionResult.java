@@ -245,7 +245,7 @@ public record HederaEvmTransactionResult(
                 maybeActionsFrom(frame, tracer),
                 null,
                 null,
-                null);
+                CodeDelegationResult.empty());
     }
 
     /**
@@ -282,7 +282,7 @@ public record HederaEvmTransactionResult(
                 maybeActionsFrom(frame, tracer),
                 null,
                 txStorageUsage,
-                null);
+                CodeDelegationResult.empty());
     }
 
     /**
@@ -314,7 +314,7 @@ public record HederaEvmTransactionResult(
                 null,
                 null,
                 null,
-                null);
+                CodeDelegationResult.empty());
     }
 
     /**
@@ -346,7 +346,7 @@ public record HederaEvmTransactionResult(
                 null,
                 null,
                 null,
-                null);
+                CodeDelegationResult.empty());
     }
 
     /**
