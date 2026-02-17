@@ -1481,7 +1481,7 @@ public class LambdaplexCoreOrderTypesTest implements InitcodeTransform {
                         .via("mixedInTokenTx")
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
                 // require(inTok  == st.inToken,  "mixed inToken");
-                assertFirstError("mixedInTokenTx", "mixed inToken"));
+                assertSecondError("mixedInTokenTx", "mixed inToken"));
     }
 
     @HapiTest
