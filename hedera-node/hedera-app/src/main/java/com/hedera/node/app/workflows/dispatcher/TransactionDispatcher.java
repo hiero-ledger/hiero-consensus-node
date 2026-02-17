@@ -212,6 +212,9 @@ public class TransactionDispatcher {
             case HISTORY_PROOF_VOTE -> false;
             case CRS_PUBLICATION -> false;
             case LEDGER_ID_PUBLICATION -> false;
+            case REGISTERED_NODE_CREATE -> false;
+            case REGISTERED_NODE_UPDATE -> false;
+            case REGISTERED_NODE_DELETE -> false;
         };
     }
 
