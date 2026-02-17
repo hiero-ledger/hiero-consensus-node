@@ -3,7 +3,6 @@ package com.hedera.services.bdd.suites.hip1195.lambdaplex;
 
 import static com.hedera.hapi.node.hooks.HookExtensionPoint.ACCOUNT_ALLOWANCE_HOOK;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asLongZeroAddress;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.changeFromSnapshot;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.tokenChangeFromSnapshot;
@@ -54,7 +53,6 @@ import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Tag;
 
 /**
  * Tests exercising the Lambdaplex protocol hook, with an emphasis on stop orders. (Has some intentional mild
@@ -93,7 +91,6 @@ import org.junit.jupiter.api.Tag;
  */
 @HapiTestLifecycle
 @OrderedInIsolation
-@Tag(MATS)
 public class LambdaplexStopOrderTypesTest implements InitcodeTransform {
     private static final int HOOK_ID = 42;
     private static final int ZERO_BPS = 0;
