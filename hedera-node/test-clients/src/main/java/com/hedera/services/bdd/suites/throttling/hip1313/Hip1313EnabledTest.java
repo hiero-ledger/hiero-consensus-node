@@ -39,6 +39,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
 import static org.hiero.hapi.fees.HighVolumePricingCalculator.interpolatePiecewiseLinear;
 import static org.hiero.hapi.fees.HighVolumePricingCalculator.linearInterpolate;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -151,7 +152,8 @@ public class Hip1313EnabledTest {
                         .via("autoCreation"),
                 getTxnRecord("autoCreation")
                         .andAllChildRecords()
-                        .exposingAllTo(records -> assertAnyRecordHasHighVolumeMultiplier(records, "autoCreation"))
+                        .exposingAllTo(
+                                records -> assertOnlyChildRecordsHaveHighVolumeMultiplier(records, "autoCreation"))
                         .logged(),
                 // Apply high volume multiplier for crypto create only
                 validateChargedUsdWithChild("autoCreation", 0.0001 + (0.05 * 4), 0.01));
@@ -174,7 +176,7 @@ public class Hip1313EnabledTest {
                 getAutoCreatedAccountBalance("alias").hasTokenBalance("token", 10),
                 getTxnRecord("autoCreation")
                         .andAllChildRecords()
-                        .exposingAllTo(records -> assertAnyRecordHasHighVolumeMultiplier(records, "autoCreation"))
+                        .exposingAllTo(records -> assertAllRecordHasHighVolumeMultiplier(records, "autoCreation"))
                         .logged(),
                 // Apply high volume multiplier for crypto create only
                 validateChargedUsdWithChild("autoCreation", 0.1 + (0.051 * 4), 0.01));
@@ -202,9 +204,36 @@ public class Hip1313EnabledTest {
                 getAutoCreatedAccountBalance(hollowReceiver).hasTokenBalance("token", 10),
                 getTxnRecord("claimAirdrop")
                         .andAllChildRecords()
-                        .exposingAllTo(records -> assertAnyRecordHasHighVolumeMultiplier(records, "claimAirdrop"))
+                        .exposingAllTo(records -> assertAllRecordHasHighVolumeMultiplier(records, "claimAirdrop"))
                         .logged(),
                 validateChargedUsdWithChild("claimAirdrop", 0.001 * 4, 0.01));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> highVolumeFlagOnUnsupportedTxnIsIgnored() {
+        return hapiTest(
+                cryptoUpdate(CIVILIAN_PAYER)
+                        .memo("hip-1313-ignore")
+                        .withHighVolume()
+                        .via("highVolumeUpdate"),
+                getTxnRecord("highVolumeUpdate")
+                        .andAllChildRecords()
+                        .exposingAllTo(records -> assertNoRecordHasHighVolumeMultiplier(records, "highVolumeUpdate"))
+                        .logged());
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> cryptoTransferWithoutAutoCreationDoesNotApplyHighVolumePricing() {
+        return hapiTest(
+                cryptoCreate("existingReceiver").balance(ONE_HBAR),
+                cryptoTransfer(TokenMovement.movingHbar(ONE_HBAR).between(CIVILIAN_PAYER, "existingReceiver"))
+                        .payingWith(CIVILIAN_PAYER)
+                        .withHighVolume()
+                        .via("plainTransfer"),
+                getTxnRecord("plainTransfer")
+                        .andAllChildRecords()
+                        .exposingAllTo(records -> assertNoRecordHasHighVolumeMultiplier(records, "plainTransfer"))
+                        .logged());
     }
 
     @GenesisHapiTest
@@ -439,13 +468,38 @@ public class Hip1313EnabledTest {
                 "Expected " + operation + " high-volume multiplier to be set (>4), but was " + multiplier);
     }
 
-    private static void assertAnyRecordHasHighVolumeMultiplier(
+    private static void assertAllRecordHasHighVolumeMultiplier(
             @NonNull final List<TransactionRecord> records, @NonNull final String operation) {
         final var hasHighVolumeMultiplier =
-                records.stream().anyMatch(record -> record.getHighVolumePricingMultiplier() > 1L);
+                records.stream().allMatch(record -> record.getHighVolumePricingMultiplier() > 1000L);
         assertTrue(
                 hasHighVolumeMultiplier,
                 "Expected " + operation + " to include a record with high-volume multiplier set (>1)");
+    }
+
+    private static void assertNoRecordHasHighVolumeMultiplier(
+            @NonNull final List<TransactionRecord> records, @NonNull final String operation) {
+        final var hasHighVolumeMultiplier =
+                records.stream().anyMatch(record -> record.getHighVolumePricingMultiplier() > 1000L);
+        assertFalse(
+                hasHighVolumeMultiplier,
+                "Expected " + operation + " to have no record with high-volume multiplier set (>1)");
+    }
+
+    private static void assertOnlyChildRecordsHaveHighVolumeMultiplier(
+            @NonNull final List<TransactionRecord> records, @NonNull final String operation) {
+        final var hasChildMultiplier = records.stream()
+                .anyMatch(record ->
+                        record.getTransactionID().getNonce() > 0 && record.getHighVolumePricingMultiplier() > 1000L);
+        final var parentHasMultiplier = records.stream()
+                .anyMatch(record ->
+                        record.getTransactionID().getNonce() == 0 && record.getHighVolumePricingMultiplier() > 1000L);
+        assertTrue(
+                hasChildMultiplier,
+                "Expected " + operation + " to include a child record with high-volume multiplier set (>1)");
+        assertFalse(
+                parentHasMultiplier,
+                "Expected " + operation + " parent record to use default (non-high-volume) multiplier");
     }
 
     private static void assertMultiplierMatchesExpectation(
