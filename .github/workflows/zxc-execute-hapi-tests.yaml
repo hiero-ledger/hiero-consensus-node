@@ -156,7 +156,7 @@ jobs:
         run: ${GRADLE_EXEC} hapiTestMisc${{ inputs.mats-suffix }} --no-daemon && ${GRADLE_EXEC} hapiEmbeddedMisc${{ inputs.mats-suffix }} --no-daemon && ${GRADLE_EXEC} hapiRepeatableMisc${{ inputs.mats-suffix }} --no-daemon
 
       - name: Publish HAPI Test (Misc) Report
-        uses: step-security/publish-unit-test-result-action@5d195d4dec0b9fa7b51a3dbc4298362a021247c7 # v2.20.4
+        uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
         with:
           check_name: "Node: HAPI Test (Misc) Results"
           json_thousands_separator: ","
@@ -189,6 +189,7 @@ jobs:
           path: |
             hedera-node/test-clients/build/**/*.blk.gz
             hedera-node/test-clients/build/**/*.rcd.gz
+            hedera-node/test-clients/build/**/*.pb
             hedera-node/test-clients/build/**/*.pces
           retention-days: 7
 
@@ -220,7 +221,7 @@ jobs:
         run: ${GRADLE_EXEC} hapiTestMiscRecords${{ inputs.mats-suffix }}
 
       - name: Publish HAPI Test (Misc Records) Report
-        uses: step-security/publish-unit-test-result-action@5d195d4dec0b9fa7b51a3dbc4298362a021247c7 # v2.20.4
+        uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
         with:
           check_name: "Node: HAPI Test (Misc Records) Results"
           json_thousands_separator: ","
@@ -253,6 +254,7 @@ jobs:
           path: |
             hedera-node/test-clients/build/**/*.blk.gz
             hedera-node/test-clients/build/**/*.rcd.gz
+            hedera-node/test-clients/build/**/*.pb
             hedera-node/test-clients/build/**/*.pces
           retention-days: 7
 
@@ -285,7 +287,7 @@ jobs:
         run: ${GRADLE_EXEC} hapiTestCrypto --no-daemon && ${GRADLE_EXEC} hapiTestCryptoEmbedded --no-daemon && ${GRADLE_EXEC} hapiTestCryptoSerial --no-daemon
 
       - name: Publish HAPI Test (Crypto) Report
-        uses: step-security/publish-unit-test-result-action@5d195d4dec0b9fa7b51a3dbc4298362a021247c7 # v2.20.4
+        uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
         with:
           check_name: "Node: HAPI Test (Crypto) Results"
           json_thousands_separator: ","
@@ -318,6 +320,7 @@ jobs:
           path: |
             hedera-node/test-clients/build/**/*.blk.gz
             hedera-node/test-clients/build/**/*.rcd.gz
+            hedera-node/test-clients/build/**/*.pb
             hedera-node/test-clients/build/**/*.pces
           retention-days: 7
 
@@ -349,7 +352,7 @@ jobs:
         run: ${GRADLE_EXEC} hapiTestSimpleFees${{ inputs.mats-suffix || '' }} && ${GRADLE_EXEC} hapiEmbeddedSimpleFees${{ inputs.mats-suffix }}
 
       - name: Publish HAPI Test (Simple Fees) Report
-        uses: step-security/publish-unit-test-result-action@5d195d4dec0b9fa7b51a3dbc4298362a021247c7 # v2.20.4
+        uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
         with:
           check_name: "Node: HAPI Test (Simple Fees) Results"
           json_thousands_separator: ","
@@ -382,6 +385,7 @@ jobs:
           path: |
             hedera-node/test-clients/build/**/*.blk.gz
             hedera-node/test-clients/build/**/*.rcd.gz
+            hedera-node/test-clients/build/**/*.pb
             hedera-node/test-clients/build/**/*.pces
           retention-days: 7
 
@@ -413,7 +417,7 @@ jobs:
         run: ${GRADLE_EXEC} hapiTestToken --no-daemon && ${GRADLE_EXEC} hapiTestTokenSerial --no-daemon
 
       - name: Publish HAPI Test (Token) Report
-        uses: step-security/publish-unit-test-result-action@5d195d4dec0b9fa7b51a3dbc4298362a021247c7 # v2.20.4
+        uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
         with:
           check_name: "Node: HAPI Test (Token) Results"
           json_thousands_separator: ","
@@ -446,6 +450,7 @@ jobs:
           path: |
             hedera-node/test-clients/build/**/*.blk.gz
             hedera-node/test-clients/build/**/*.rcd.gz
+            hedera-node/test-clients/build/**/*.pb
             hedera-node/test-clients/build/**/*.pces
           retention-days: 7
 
@@ -477,7 +482,7 @@ jobs:
         run: ${GRADLE_EXEC} hapiTestSmartContract${{ inputs.mats-suffix || '' }}
 
       - name: Publish HAPI Test (Smart Contract) Report
-        uses: step-security/publish-unit-test-result-action@5d195d4dec0b9fa7b51a3dbc4298362a021247c7 # v2.20.4
+        uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
         with:
           check_name: "Node: HAPI Test (Smart Contract) Results"
           json_thousands_separator: ","
@@ -510,6 +515,7 @@ jobs:
           path: |
             hedera-node/test-clients/build/**/*.blk.gz
             hedera-node/test-clients/build/**/*.rcd.gz
+            hedera-node/test-clients/build/**/*.pb
             hedera-node/test-clients/build/**/*.pces
           retention-days: 7
 
@@ -541,7 +547,7 @@ jobs:
         run: ${GRADLE_EXEC} hapiTestTimeConsuming
 
       - name: Publish HAPI Test (Time Consuming) Report
-        uses: step-security/publish-unit-test-result-action@5d195d4dec0b9fa7b51a3dbc4298362a021247c7 # v2.20.4
+        uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
         with:
           check_name: "Node: HAPI Test (Time Consuming) Results"
           json_thousands_separator: ","
@@ -574,6 +580,7 @@ jobs:
           path: |
             hedera-node/test-clients/build/**/*.blk.gz
             hedera-node/test-clients/build/**/*.rcd.gz
+            hedera-node/test-clients/build/**/*.pb
             hedera-node/test-clients/build/**/*.pces
           retention-days: 7
 
@@ -605,7 +612,7 @@ jobs:
         run: ${GRADLE_EXEC} hapiTestRestart
 
       - name: Publish HAPI Test (Restart) Report
-        uses: step-security/publish-unit-test-result-action@5d195d4dec0b9fa7b51a3dbc4298362a021247c7 # v2.20.4
+        uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
         with:
           check_name: "Node: HAPI Test (Restart) Results"
           json_thousands_separator: ","
@@ -638,6 +645,7 @@ jobs:
           path: |
             hedera-node/test-clients/build/**/*.blk.gz
             hedera-node/test-clients/build/**/*.rcd.gz
+            hedera-node/test-clients/build/**/*.pb
             hedera-node/test-clients/build/**/*.pces
           retention-days: 7
 
@@ -669,7 +677,7 @@ jobs:
         run: ${GRADLE_EXEC} hapiTestNDReconnect
 
       - name: Publish HAPI Test (Node Death Reconnect) Report
-        uses: step-security/publish-unit-test-result-action@5d195d4dec0b9fa7b51a3dbc4298362a021247c7 # v2.20.4
+        uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
         with:
           check_name: "Node: HAPI Test (Node Death Reconnect) Results"
           json_thousands_separator: ","
@@ -702,6 +710,7 @@ jobs:
           path: |
             hedera-node/test-clients/build/**/*.blk.gz
             hedera-node/test-clients/build/**/*.rcd.gz
+            hedera-node/test-clients/build/**/*.pb
             hedera-node/test-clients/build/**/*.pces
           retention-days: 7
 
@@ -733,7 +742,7 @@ jobs:
         run: ${GRADLE_EXEC} hapiTestIss
 
       - name: Publish HAPI Test (ISS) Report
-        uses: step-security/publish-unit-test-result-action@5d195d4dec0b9fa7b51a3dbc4298362a021247c7 # v2.20.4
+        uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
         with:
           check_name: "Node: HAPI Test (ISS) Results"
           json_thousands_separator: ","
@@ -766,6 +775,7 @@ jobs:
           path: |
             hedera-node/test-clients/build/**/*.blk.gz
             hedera-node/test-clients/build/**/*.rcd.gz
+            hedera-node/test-clients/build/**/*.pb
             hedera-node/test-clients/build/**/*.pces
           retention-days: 7`
 
@@ -797,7 +807,7 @@ jobs:
         run: ${GRADLE_EXEC} hapiTestBlockNodeCommunication
 
       - name: Publish HAPI Test (Block Node Communication) Report
-        uses: step-security/publish-unit-test-result-action@5d195d4dec0b9fa7b51a3dbc4298362a021247c7 # v2.20.4
+        uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
         with:
           check_name: "Node: HAPI Test (Block Node Communication) Results"
           json_thousands_separator: ","
@@ -828,6 +838,7 @@ jobs:
           path: |
             hedera-node/test-clients/build/**/*.blk.gz
             hedera-node/test-clients/build/**/*.rcd.gz
+            hedera-node/test-clients/build/**/*.pb
             hedera-node/test-clients/build/**/*.pces
           retention-days: 7
 
@@ -859,7 +870,7 @@ jobs:
         run: ${GRADLE_EXEC} hapiTestAtomicBatch${{ inputs.mats-suffix || '' }}
 
       - name: Publish HAPI Test (Atomic Batch) Report
-        uses: step-security/publish-unit-test-result-action@5d195d4dec0b9fa7b51a3dbc4298362a021247c7 # v2.20.4
+        uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
         with:
           check_name: "Node: HAPI Test (Atomic Batch) Results"
           json_thousands_separator: ","
@@ -892,6 +903,7 @@ jobs:
           path: |
             hedera-node/test-clients/build/**/*.blk.gz
             hedera-node/test-clients/build/**/*.rcd.gz
+            hedera-node/test-clients/build/**/*.pb
             hedera-node/test-clients/build/**/*.pces
           retention-days: 7
 
