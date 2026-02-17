@@ -2116,36 +2116,38 @@ class BEVM {
         return _abstractCall(trace, "CUSTCALL", stipend, recv_contract, recv_contract, sender, value, _frame.isStatic());
     }
 
-    ///   Start a nested contract/call frame.  This code is shared by several
-    ///   callers, all of whom alter how <code>{reciever, contract, sender}
-    ///   </code> are chosen; other parameters are generally pulled from the
-    ///   stack or are static values.  Here <code>hook</code> means the
-    ///   *hooked* current frame recipient - the recipient after checking for
-    ///   Hedera hooks.  Also, <code>pop</code> means the value is popped from
-    ///   the stack.
-    ///
-    ///   | CallType | Recipient   | Contract | Sender       |
-    ///   |----------|-------------|----------|--------------|
-    ///   | Created  | constructed | =recip   | hook         |
-    ///   | Delegate | _frame.recip| pop      | _frame.recip |
-    ///   | Static   | pop         | =recip   | hook         |
-    ///   | Normal   | hook        | pop      | =recip       |
-    ///   | Custom   | pop         | =recip   | hook         |
-    ///
-    ///
-    ///   A non-halting return can still be a *failed* (or successful)
-    ///   call.  A halting return halts this current frame execution.
-    ///   A non-halting return pushes a boolean onto the stack.
-    ///
-    ///   @param trace Not-null to trace execution
-    ///   @param str Used for tracing
-    ///   @param stipend Used to compute minimum gas for the child frame
-    ///   @param recipient recipient
-    ///   @param contract contract
-    ///   @param sender sender
-    ///   @param value passed Wei value
-    ///   @param isStatic child is a static frame
-    ///   @return null for non-halting return, or a {@see ExceptionHaltReason} otherwise.
+    /**
+     *   Start a nested contract/call frame.  This code is shared by several
+     *   callers, all of whom alter how <code>{reciever, contract, sender}
+     *   </code> are chosen; other parameters are generally pulled from the
+     *   stack or are static values.  Here <code>hook</code> means the
+     *   *hooked* current frame recipient - the recipient after checking for
+     *   Hedera hooks.  Also, <code>pop</code> means the value is popped from
+     *   the stack.
+     *
+     *   | CallType | Recipient   | Contract | Sender       |
+     *   |----------|-------------|----------|--------------|
+     *   | Created  | constructed | =recip   | hook         |
+     *   | Delegate | _frame.recip| pop      | _frame.recip |
+     *   | Static   | pop         | =recip   | hook         |
+     *   | Normal   | hook        | pop      | =recip       |
+     *   | Custom   | pop         | =recip   | hook         |
+     *
+     *
+     *   A non-halting return can still be a *failed* (or successful)
+     *   call.  A halting return halts this current frame execution.
+     *   A non-halting return pushes a boolean onto the stack.
+     *
+     *   @param trace Not-null to trace execution
+     *   @param str Used for tracing
+     *   @param stipend Used to compute minimum gas for the child frame
+     *   @param recipient recipient
+     *   @param contract contract
+     *   @param sender sender
+     *   @param value passed Wei value
+     *   @param isStatic child is a static frame
+     *   @return null for non-halting return, or a {@see ExceptionHaltReason} otherwise.
+     */
     private ExceptionalHaltReason _abstractCall(SB trace, String str, long stipend, Address recipient, Address contract, Address sender, Wei value, boolean isStatic ) {
         // Nested create contract call; so print the post-trace before the
         // nested call, and reload the pre-trace state after call.
