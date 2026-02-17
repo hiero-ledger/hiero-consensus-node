@@ -491,7 +491,7 @@ enum StateIdentifier {
     /**
      * A state identifier for the highest node identifier allocated so far.
      */
-    HIGHEST_NODE_ID_STATE_ID = 56;
+    STATE_ID_HIGHEST_NODE_ID = 56;
 
     /**
      * A state identifier for the round receipts queue. Queue state.
