@@ -5,6 +5,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 /**
@@ -14,13 +15,22 @@ import org.apache.logging.log4j.Logger;
  * detect insecure configuration.
  */
 public final class KeystorePasswordPolicy {
+    private static final Logger logger = LogManager.getLogger(KeystorePasswordPolicy.class);
+
     private KeystorePasswordPolicy() {}
 
+    /** Recommended minimum passphrase length for keystore passwords. */
     private static final int MIN_LENGTH = 12;
 
-    public static void warnIfNonCompliant(
-            @NonNull final Logger logger, @NonNull final String configKey, @NonNull final String password) {
-        Objects.requireNonNull(logger, "logger must not be null");
+    /**
+     * Logs a warning if the provided keystore password does not meet the recommended policy.
+     *
+     * <p>This check is advisory only and does not reject non-compliant passwords.
+     *
+     * @param configKey the configuration key associated with the password value
+     * @param password the password to evaluate
+     */
+    public static void warnIfNonCompliant(@NonNull final String configKey, @NonNull final String password) {
         Objects.requireNonNull(configKey, "configKey must not be null");
         Objects.requireNonNull(password, "password must not be null");
 
@@ -36,6 +46,7 @@ public final class KeystorePasswordPolicy {
                 String.join(", ", issues));
     }
 
+    @NonNull
     private static List<String> issues(@NonNull final String password) {
         final List<String> issues = new ArrayList<>();
 
