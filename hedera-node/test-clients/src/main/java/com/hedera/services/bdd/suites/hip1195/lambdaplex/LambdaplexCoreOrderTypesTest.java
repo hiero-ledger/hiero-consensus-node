@@ -292,6 +292,131 @@ public class LambdaplexCoreOrderTypesTest implements InitcodeTransform {
     }
 
     @HapiTest
+    final Stream<DynamicTest> hbarHtsSingleLimitOrderRevertsWhenProposedDebitExceedsAuthorized() {
+        final var makerSellSalt = randomB64Salt();
+        final var partyBuySalt = randomB64Salt();
+        return hapiTest(
+                lv.placeLimitOrder(
+                        MARKET_MAKER,
+                        makerSellSalt,
+                        HBAR,
+                        USDC,
+                        Side.SELL,
+                        distantExpiry(),
+                        ZERO_BPS,
+                        price(0.10),
+                        quantity(10)),
+                lv.placeLimitOrder(
+                        PARTY,
+                        partyBuySalt,
+                        HBAR,
+                        USDC,
+                        Side.BUY,
+                        distantExpiry(),
+                        ZERO_BPS,
+                        price(0.10),
+                        quantity(20)),
+                lv.settleFillsNoFees(
+                                HBAR,
+                                USDC,
+                                makingSeller(MARKET_MAKER, quantity(11), averagePrice(0.10), makerSellSalt),
+                                takingBuyer(PARTY, quantity(11), averagePrice(0.10), partyBuySalt))
+                        .via("singleLimitExcessDebitTx")
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
+                // require(st.remaining == 0, "debit too high")
+                assertFirstError("singleLimitExcessDebitTx", "debit too high"));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> hbarHtsMultipleLimitOrdersRevertWhenProposedDebitExceedsTotalAuthorized() {
+        final var makerSellSaltOne = randomB64Salt();
+        final var makerSellSaltTwo = randomB64Salt();
+        final var partyBuySalt = randomB64Salt();
+        return hapiTest(
+                lv.placeLimitOrder(
+                        MARKET_MAKER,
+                        makerSellSaltOne,
+                        HBAR,
+                        USDC,
+                        Side.SELL,
+                        distantExpiry(),
+                        ZERO_BPS,
+                        price(0.10),
+                        quantity(3)),
+                lv.placeLimitOrder(
+                        MARKET_MAKER,
+                        makerSellSaltTwo,
+                        HBAR,
+                        USDC,
+                        Side.SELL,
+                        distantExpiry(),
+                        ZERO_BPS,
+                        price(0.10),
+                        quantity(2)),
+                lv.placeLimitOrder(
+                        PARTY,
+                        partyBuySalt,
+                        HBAR,
+                        USDC,
+                        Side.BUY,
+                        distantExpiry(),
+                        ZERO_BPS,
+                        price(0.10),
+                        quantity(20)),
+                lv.settleFillsNoFees(
+                                HBAR,
+                                USDC,
+                                makingSeller(
+                                        MARKET_MAKER,
+                                        quantity(6),
+                                        averagePrice(0.10),
+                                        makerSellSaltOne,
+                                        makerSellSaltTwo),
+                                takingBuyer(PARTY, quantity(6), averagePrice(0.10), partyBuySalt))
+                        .via("multiLimitExcessDebitTx")
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
+                // require(st.remaining == 0, "debit too high")
+                assertFirstError("multiLimitExcessDebitTx", "debit too high"));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> hbarHtsSingleLimitOrderRevertsWhenProposedCreditIsLessThanRequired() {
+        final var makerSellSalt = randomB64Salt();
+        final var partyBuySalt = randomB64Salt();
+        return hapiTest(
+                lv.placeLimitOrder(
+                        MARKET_MAKER,
+                        makerSellSalt,
+                        HBAR,
+                        USDC,
+                        Side.SELL,
+                        distantExpiry(),
+                        ZERO_BPS,
+                        price(0.10),
+                        quantity(10)),
+                lv.placeLimitOrder(
+                        PARTY,
+                        partyBuySalt,
+                        HBAR,
+                        USDC,
+                        Side.BUY,
+                        distantExpiry(),
+                        ZERO_BPS,
+                        price(0.10),
+                        quantity(20)),
+                // Maker needs exactly 1.00 USDC for 10 HBAR at the limit price; proposing 0.99 must fail.
+                lv.settleFillsNoFees(
+                                HBAR,
+                                USDC,
+                                makingSeller(MARKET_MAKER, quantity(10), averagePrice(0.099), makerSellSalt),
+                                takingBuyer(PARTY, quantity(10), averagePrice(0.099), partyBuySalt))
+                        .via("singleLimitUnderCreditTx")
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
+                // require(sumInAbs + st.feeTotal >= st.needTotal, "credit too low")
+                assertFirstError("singleLimitUnderCreditTx", "credit too low"));
+    }
+
+    @HapiTest
     final Stream<DynamicTest> hbarHtsFullFillOnTakerSpreadWithFeesNoSlippage() {
         final var sellSalt = randomB64Salt();
         final var buySalt = randomB64Salt();

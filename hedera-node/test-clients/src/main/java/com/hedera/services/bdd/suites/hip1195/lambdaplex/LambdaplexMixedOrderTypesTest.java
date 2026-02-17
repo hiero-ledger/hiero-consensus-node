@@ -21,6 +21,10 @@ import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fix
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fractionalFee;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fractionalFeeNetOfTransfers;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
+import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUnique;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
+import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_CONTRACT_RECEIVER;
+import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.THOUSAND_HBAR;
 import static com.hedera.services.bdd.suites.hip1195.lambdaplex.LambdaplexVerbs.FillParty.*;
@@ -46,10 +50,15 @@ import com.hedera.services.bdd.spec.dsl.annotations.Account;
 import com.hedera.services.bdd.spec.dsl.annotations.Contract;
 import com.hedera.services.bdd.spec.dsl.annotations.FungibleToken;
 import com.hedera.services.bdd.spec.dsl.annotations.Hook;
+import com.hedera.services.bdd.spec.dsl.annotations.NonFungibleToken;
 import com.hedera.services.bdd.spec.dsl.entities.SpecAccount;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecFungibleToken;
+import com.hedera.services.bdd.spec.dsl.entities.SpecNonFungibleToken;
 import com.hedera.services.bdd.spec.dsl.utils.InitcodeTransform;
+import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
+import com.hederahashgraph.api.proto.java.NftTransfer;
+import com.hederahashgraph.api.proto.java.TokenTransferList;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.util.List;
@@ -58,7 +67,6 @@ import java.util.OptionalLong;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 
 /**
@@ -630,6 +638,59 @@ public class LambdaplexMixedOrderTypesTest implements InitcodeTransform {
                 assertFirstError("hbarFixedTx", "cf hbar present"),
                 // Restore baseline USDC fee schedule for subsequent tests in this class
                 tokenFeeScheduleUpdate(USDC.name()));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> nftTransfersNotAllowed(
+            @NonFungibleToken(
+                    keys = {SUPPLY_KEY},
+                    numPreMints = 1)
+            SpecNonFungibleToken nonFungibleToken) {
+        final var sellSalt = randomB64Salt();
+        final var buySalt = randomB64Salt();
+        return hapiTest(
+                PARTY.associateTokens(nonFungibleToken),
+                MARKET_MAKER.associateTokens(nonFungibleToken),
+                cryptoTransfer(movingUnique(nonFungibleToken.name(), 1).between(nonFungibleToken.treasury().name(), PARTY.name())),
+                lv.placeLimitOrder(
+                        MARKET_MAKER,
+                        sellSalt,
+                        HBAR,
+                        USDC,
+                        Side.SELL,
+                        distantExpiry(),
+                        ZERO_BPS,
+                        price(0.10),
+                        quantity(10)),
+                lv.placeMarketOrder(
+                        PARTY,
+                        buySalt,
+                        HBAR,
+                        USDC,
+                        Side.BUY,
+                        iocExpiry(),
+                        ZERO_BPS,
+                        price(0.10),
+                        quantity(10),
+                        0,
+                        TimeInForce.IOC),
+                sourcingContextual(spec -> lv.settleBodyTransformedFillsNoFees(
+                                HBAR,
+                                USDC,
+                                b -> b.addTokenTransfers(TokenTransferList.newBuilder()
+                                                .setToken(spec.registry().getTokenID(nonFungibleToken.name()))
+                                                .addNftTransfers(NftTransfer.newBuilder()
+                                                        .setSenderAccountID(spec.registry().getAccountID(PARTY.name()))
+                                                        .setReceiverAccountID(spec.registry().getAccountID(MARKET_MAKER.name()))
+                                                        .setSerialNumber(1)
+                                                        .build())
+                                        .build()),
+                                makingSeller(MARKET_MAKER, quantity(10), price(0.10), sellSalt),
+                                takingBuyer(PARTY, quantity(10), averagePrice(0.10), buySalt))
+                        .signedBy(DEFAULT_PAYER, PARTY.name())
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK)
+                        .via("nftTransferTx")),
+                assertFirstError("nftTransferTx", "nft"));
     }
 
     // --- InitcodeTransform ---
