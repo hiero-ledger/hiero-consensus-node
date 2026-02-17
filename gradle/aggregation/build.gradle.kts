@@ -5,7 +5,8 @@ dependencies {
     // All other required modules of that product are automatically published as well.
     published(project(":app")) // products 'hedera-node' and 'platform-sdk'
     published(project(":hedera-protobuf-java-api")) // product 'hapi'
-    published(project(":openmetrics-httpserver")) // product 'hiero-observability'
+    published(project(":hiero-metrics")) // product 'hiero-observability'
+    published(project(":openmetrics-httpserver"))
 
     // examples that also contain tests we would like to run
     implementation(project(":swirlds-platform-base-example"))
