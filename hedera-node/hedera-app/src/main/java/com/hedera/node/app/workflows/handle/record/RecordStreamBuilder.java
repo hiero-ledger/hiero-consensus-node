@@ -9,6 +9,7 @@ import static com.hedera.node.app.state.logging.TransactionStateLogger.logEndTra
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptySet;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.hapi.fees.HighVolumePricingCalculator.HIGH_VOLUME_MULTIPLIER_SCALE;
 
 import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.trace.ContractSlotUsage;
@@ -298,7 +299,7 @@ public class RecordStreamBuilder
             newPendingAirdropRecords = new ArrayList<>(pendingAirdropRecords);
             newPendingAirdropRecords.sort(PENDING_AIRDROP_RECORD_COMPARATOR);
         }
-        if (highVolumePricingMultiplier > 1) {
+        if (highVolumePricingMultiplier > HIGH_VOLUME_MULTIPLIER_SCALE) {
             transactionRecordBuilder.highVolumePricingMultiplier(highVolumePricingMultiplier);
         }
 
@@ -409,7 +410,6 @@ public class RecordStreamBuilder
         transactionReceiptBuilder.topicSequenceNumber(0L);
         transactionRecordBuilder.alias(Bytes.EMPTY);
         transactionRecordBuilder.evmAddress(Bytes.EMPTY);
-        transactionRecordBuilder.highVolumePricingMultiplier(1L);
     }
 
     @Override

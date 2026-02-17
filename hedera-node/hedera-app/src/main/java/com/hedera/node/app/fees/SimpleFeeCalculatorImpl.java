@@ -226,7 +226,7 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
         // Calculate the multiplier based on the pricing curve
         final long rawMultiplier = HighVolumePricingCalculator.calculateMultiplier(
                 serviceFeeDefinition.highVolumeRates(), utilizationPercentBasisPoints);
-        result.applyMultiplier(rawMultiplier, HighVolumePricingCalculator.MULTIPLIER_SCALE);
+        result.applyMultiplier(rawMultiplier, HighVolumePricingCalculator.HIGH_VOLUME_MULTIPLIER_SCALE);
     }
 
     @Override

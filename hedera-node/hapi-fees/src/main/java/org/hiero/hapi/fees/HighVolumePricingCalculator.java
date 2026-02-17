@@ -47,11 +47,11 @@ import org.hiero.hapi.support.fees.VariableRateDefinition;
 public final class HighVolumePricingCalculator {
 
     /** The scale factor for utilization percentage (10,000 = 100%). */
-    public static final int UTILIZATION_SCALE = 10_000;
+    public static final int HIGH_VOLUME_UTILIZATION_SCALE = 10_000;
 
     /** The scale factor for multiplier values (1,000 = 1x). */
-    public static final long MULTIPLIER_SCALE = 1_000L;
-
+    public static final long HIGH_VOLUME_MULTIPLIER_SCALE = 1_000L;
+    /** The set of high-volume functions. */
     public static final Set<HederaFunctionality> HIGH_VOLUME_FUNCTIONS = Set.of(
             CRYPTO_CREATE,
             CONSENSUS_CREATE_TOPIC,
@@ -84,14 +84,14 @@ public final class HighVolumePricingCalculator {
             @Nullable final VariableRateDefinition variableRateDefinition, final int utilizationBasisPoints) {
         // If no variable rate definition, return base multiplier (1x = 1000 in scaled form)
         if (variableRateDefinition == null) {
-            return MULTIPLIER_SCALE;
+            return HIGH_VOLUME_MULTIPLIER_SCALE;
         }
 
-        final int maxMultiplier = Math.max(variableRateDefinition.maxMultiplier(), (int) MULTIPLIER_SCALE);
+        final int maxMultiplier = Math.max(variableRateDefinition.maxMultiplier(), (int) HIGH_VOLUME_MULTIPLIER_SCALE);
         final PricingCurve pricingCurve = variableRateDefinition.pricingCurve();
 
         // Clamp utilization to valid range
-        final int clampedUtilization = Math.max(0, Math.min(utilizationBasisPoints, UTILIZATION_SCALE));
+        final int clampedUtilization = Math.max(0, Math.min(utilizationBasisPoints, HIGH_VOLUME_UTILIZATION_SCALE));
 
         long rawMultiplier;
         if (pricingCurve == null
@@ -101,8 +101,12 @@ public final class HighVolumePricingCalculator {
                         .points()
                         .isEmpty()) {
             // No pricing curve specified - use linear interpolation between 1x (1000) and max_multiplier
-            rawMultiplier =
-                    linearInterpolate(0, (int) MULTIPLIER_SCALE, UTILIZATION_SCALE, maxMultiplier, clampedUtilization);
+            rawMultiplier = linearInterpolate(
+                    0,
+                    (int) HIGH_VOLUME_MULTIPLIER_SCALE,
+                    HIGH_VOLUME_UTILIZATION_SCALE,
+                    maxMultiplier,
+                    clampedUtilization);
         } else {
             // Use piecewise linear curve
             rawMultiplier =
@@ -110,7 +114,7 @@ public final class HighVolumePricingCalculator {
         }
 
         // Cap at max multiplier, enforce minimum multiplier
-        return Math.max(MULTIPLIER_SCALE, Math.min(rawMultiplier, maxMultiplier));
+        return Math.max(HIGH_VOLUME_MULTIPLIER_SCALE, Math.min(rawMultiplier, maxMultiplier));
     }
 
     /**
@@ -188,6 +192,6 @@ public final class HighVolumePricingCalculator {
      * Enforces the minimum multiplier of 1x (1,000 scaled).
      */
     private static long normalizeMultiplier(final long multiplier) {
-        return Math.max(multiplier, MULTIPLIER_SCALE);
+        return Math.max(multiplier, HIGH_VOLUME_MULTIPLIER_SCALE);
     }
 }

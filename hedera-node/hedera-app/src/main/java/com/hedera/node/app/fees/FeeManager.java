@@ -275,12 +275,12 @@ public final class FeeManager {
         if (!transactionBody.highVolume()
                 || !HighVolumePricingCalculator.HIGH_VOLUME_FUNCTIONS.contains(functionality)
                 || simpleFeesSchedule == null) {
-            return HighVolumePricingCalculator.MULTIPLIER_SCALE;
+            return HighVolumePricingCalculator.HIGH_VOLUME_MULTIPLIER_SCALE;
         }
         final ServiceFeeDefinition serviceFeeDefinition = lookupServiceFee(simpleFeesSchedule, functionality);
         if (serviceFeeDefinition == null) {
             logger.warn("No service fee definition found for {}", functionality);
-            return HighVolumePricingCalculator.MULTIPLIER_SCALE;
+            return HighVolumePricingCalculator.HIGH_VOLUME_MULTIPLIER_SCALE;
         }
         return HighVolumePricingCalculator.calculateMultiplier(
                 serviceFeeDefinition.highVolumeRates(), utilizationBasisPoints);

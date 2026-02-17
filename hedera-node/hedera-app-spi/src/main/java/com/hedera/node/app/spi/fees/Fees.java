@@ -2,7 +2,7 @@
 package com.hedera.node.app.spi.fees;
 
 import static java.util.Objects.requireNonNull;
-import static org.hiero.hapi.fees.HighVolumePricingCalculator.MULTIPLIER_SCALE;
+import static org.hiero.hapi.fees.HighVolumePricingCalculator.HIGH_VOLUME_MULTIPLIER_SCALE;
 
 import com.hederahashgraph.api.proto.java.FeeComponents;
 import com.hederahashgraph.api.proto.java.FeeData;
@@ -27,7 +27,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  */
 public record Fees(long nodeFee, long networkFee, long serviceFee, long highVolumeMultiplier) {
     /** A constant representing zero fees. */
-    public static final Fees FREE = new Fees(0, 0, 0, MULTIPLIER_SCALE);
+    public static final Fees FREE = new Fees(0, 0, 0, HIGH_VOLUME_MULTIPLIER_SCALE);
     /**
      * A constant representing fees of 1 constant resource usage for each of the node, network, and service components.
      * This is useful when a fee is required, but the entity is not present in state to determine the actual fee.
@@ -53,7 +53,7 @@ public record Fees(long nodeFee, long networkFee, long serviceFee, long highVolu
      * @param serviceFee the service fee in tinybars
      */
     public Fees(final long nodeFee, final long networkFee, final long serviceFee) {
-        this(nodeFee, networkFee, serviceFee, MULTIPLIER_SCALE);
+        this(nodeFee, networkFee, serviceFee, HIGH_VOLUME_MULTIPLIER_SCALE);
     }
 
     /**
@@ -161,7 +161,7 @@ public record Fees(long nodeFee, long networkFee, long serviceFee, long highVolu
         private long nodeFee;
         private long networkFee;
         private long serviceFee;
-        private long highVolumeMultiplier = MULTIPLIER_SCALE;
+        private long highVolumeMultiplier = HIGH_VOLUME_MULTIPLIER_SCALE;
 
         /**
          * Set the node fee.

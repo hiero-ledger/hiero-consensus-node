@@ -10,6 +10,7 @@ import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.bl
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.bloomForAll;
 import static com.hedera.node.app.service.token.api.ContractChangeSummary.NONCE_INFO_CONTRACT_ID_COMPARATOR;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.hapi.fees.HighVolumePricingCalculator.HIGH_VOLUME_MULTIPLIER_SCALE;
 
 import com.hedera.hapi.block.stream.output.TransactionOutput;
 import com.hedera.hapi.block.stream.output.TransactionResult;
@@ -139,12 +140,14 @@ public class BlockItemsTranslator {
                 .parentConsensusTimestamp(result.parentConsensusTimestamp())
                 .scheduleRef(result.scheduleRef())
                 .transactionFee(result.transactionFeeCharged())
-                .highVolumePricingMultiplier(result.highVolumePricingMultiplier())
                 .transferList(result.transferList())
                 .tokenTransferLists(result.tokenTransferLists())
                 .automaticTokenAssociations(result.automaticTokenAssociations())
                 .assessedCustomFees(result.assessedCustomFees())
                 .paidStakingRewards(result.paidStakingRewards());
+        if (result.highVolumePricingMultiplier() > HIGH_VOLUME_MULTIPLIER_SCALE) {
+            recordBuilder.highVolumePricingMultiplier(result.highVolumePricingMultiplier());
+        }
         final var function = context.functionality();
         switch (function) {
             case HOOK_DISPATCH,
