@@ -855,63 +855,6 @@ public class FeesChargingUtils {
         });
     }
 
-    public static HapiSpecOperation validateTxnFeeFromRecordToUsdWithTxnSize(
-            String txnId, IntToDoubleFunction expectedFeeUsd, double allowedPercentDifference) {
-        return withOpContext((spec, log) -> {
-            final int signedTxnSize = signedTxnSizeFor(spec, txnId);
-            final double expectedUsd = expectedFeeUsd.applyAsDouble(signedTxnSize);
-            allRunFor(spec, validateTxnFeeFromRecordToUsd(txnId, expectedUsd, allowedPercentDifference));
-        });
-    }
-
-    public static HapiSpecOperation validateTxnFeeFromRecordToUsd(
-            String txnId, double expectedUsd, double allowedPercentDifference) {
-        return withOpContext((spec, log) -> {
-            // Fetch record
-            final var subOp = getTxnRecord(txnId).assertingNothingAboutHashes();
-            allRunFor(spec, subOp);
-            final var record = subOp.getResponseRecord();
-
-            final var status = record.getReceipt().getStatus();
-            final long feeTinybars = record.getTransactionFee();
-
-            log.info("---- Record fee validation ----");
-            log.info("Txn status: {}", status);
-            log.info("Transaction fee (tinybars): {}", feeTinybars);
-
-            if (feeTinybars <= 0) {
-                throw new AssertionError("Record transactionFee was not positive: " + feeTinybars);
-            }
-
-            // Exchange rate from the same record
-            final var rate = record.getReceipt().getExchangeRate().getCurrentRate();
-            final long hbarEquiv = rate.getHbarEquiv();
-            final long centEquiv = rate.getCentEquiv();
-
-            // Convert tinybars to USD using the record rate
-            final double chargedUsd = (1.0 * feeTinybars) / ONE_HBAR / hbarEquiv * centEquiv / 100.0;
-
-            log.info("ExchangeRate current: hbarEquiv={}, centEquiv={}", hbarEquiv, centEquiv);
-            log.info("Charged USD  = {}", chargedUsd);
-            log.info("Expected USD = {}", expectedUsd);
-
-            final double diff = Math.abs(chargedUsd - expectedUsd);
-            final double pctDiff = (expectedUsd == 0.0)
-                    ? (chargedUsd == 0.0 ? 0.0 : Double.POSITIVE_INFINITY)
-                    : (diff / expectedUsd) * 100.0;
-
-            log.info("Fee difference: abs={} USD, pct={}%", diff, pctDiff);
-
-            assertEquals(
-                    expectedUsd,
-                    chargedUsd,
-                    (allowedPercentDifference / 100.0) * expectedUsd,
-                    String.format(
-                            "%s fee (%s) more than %.2f percent different than expected!",
-                            sdec(chargedUsd, 4), txnId, allowedPercentDifference));
-        });
-    }
-
     /**
      * Calculates the <em>bytes-dependent portion</em> of the node fee for a transaction.
      *

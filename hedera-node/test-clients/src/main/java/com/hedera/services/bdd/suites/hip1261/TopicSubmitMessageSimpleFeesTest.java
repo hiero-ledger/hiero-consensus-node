@@ -20,17 +20,19 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.deleteTopic;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.submitMessageTo;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
+import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTopicSubmitMessageFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTopicSubmitMessageNetworkFeeOnlyUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.signedTxnSizeFor;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedFeeToUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedFeeToUsdWithTxnSize;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdWithinWithTxnSize;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateTxnFeeFromRecordToUsdWithTxnSize;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_CHUNK_NUMBER;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_PAYER_SIGNATURE;
@@ -516,8 +518,6 @@ public class TopicSubmitMessageSimpleFeesTest {
             @HapiTest
             @DisplayName("SubmitMessage - missing submit key signature fails at handle - fee charged")
             final Stream<DynamicTest> submitMessageMissingSubmitKeySignatureFailsAtHandle() {
-                final AtomicLong initialBalance = new AtomicLong();
-                final AtomicLong afterBalance = new AtomicLong();
                 final String message = "test message";
 
                 return hapiTest(
@@ -528,7 +528,6 @@ public class TopicSubmitMessageSimpleFeesTest {
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
                                 .fee(ONE_HUNDRED_HBARS),
-                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
                         submitMessageTo(TOPIC)
                                 .message(message)
                                 .payingWith(PAYER)
@@ -537,14 +536,12 @@ public class TopicSubmitMessageSimpleFeesTest {
                                 .fee(ONE_HUNDRED_HBARS)
                                 .via("submitMessageTxn")
                                 .hasKnownStatus(INVALID_SIGNATURE),
-                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                        withOpContext((spec, log) -> {
-                            assertTrue(initialBalance.get() > afterBalance.get());
-                        }),
-                        validateTxnFeeFromRecordToUsdWithTxnSize(
-                                "submitMessageTxn",
-                                txnSize -> expectedTopicSubmitMessageFullFeeUsd(1L, message.length(), txnSize),
-                                1.0));
+                        withOpContext((spec, log) -> allRunFor(
+                                spec,
+                                validateChargedUsd(
+                                        "submitMessageTxn",
+                                        expectedTopicSubmitMessageFullFeeUsd(
+                                                1L, message.length(), signedTxnSizeFor(spec, "submitMessageTxn"))))));
             }
 
             @HapiTest
