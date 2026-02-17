@@ -1,4 +1,4 @@
-| Current File Name                                     | Current Workflow Name                                             | Future File Name | Future Workflow Name |
+|                   Current File Name                   |                       Current Workflow Name                       | Future File Name | Future Workflow Name |
 |-------------------------------------------------------|-------------------------------------------------------------------|------------------|----------------------|
 | # Cron                                                |                                                                   |                  |                      |
 | zxcron-extended-test-suite.yaml                       | ZXCron: [CITR] Extended Test Suite                                |                  |                      |
