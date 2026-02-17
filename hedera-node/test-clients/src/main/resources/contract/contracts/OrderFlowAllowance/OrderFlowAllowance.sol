@@ -211,7 +211,16 @@ contract OrderFlowAllowance is IHieroAccountAllowanceHook {
         // If nothing left to allocate…
         if (st.remaining == 0) {
             if (OrderType.isMarketStyle(ot)) {
-                // MARKET / STOP_MARKET: implicit IOC — cannot rest
+                // MARKET: implicit IOC — cannot rest.
+                // STOP_MARKET in poke mode can convert to MARKET after trigger verification.
+                if (poke && OrderType.isOracleStyle(ot)) {
+                    bytes32 marketKey = IocFokWriteback.setOrderType(prefixKey, uint8(OrderType.MARKET));
+                    if (marketKey != prefixKey) {
+                        delete orders_[prefixKey];
+                    }
+                    orders_[marketKey] = bytes32(d);
+                    return;
+                }
                 revert("IOC: no fill");
             }
 
@@ -227,7 +236,7 @@ contract OrderFlowAllowance is IHieroAccountAllowanceHook {
                     true            // convert STOP_* LIMIT -> LIMIT
                 );
             }
-            return; // LIMITs remain resting; STOP_LIMIT converted above if poke & triggered
+            return; // LIMITs remain resting; STOP_* may convert above in poke mode
         }
 
         // ---- Normal greedy allocation path (same as before) ----
@@ -371,7 +380,10 @@ contract OrderFlowAllowance is IHieroAccountAllowanceHook {
                     sumOut += amt;
                 }
             }
-            else {revert('hbar neither base nor quoted');}
+            else {
+                // Allow zero-balance hbar "poke" transfers for non-HBAR pairs.
+                require(hbarAdjustments[j].amount == 0, 'hbar neither base nor quoted');
+            }
         }
 
         return (sumOut, sumIn);

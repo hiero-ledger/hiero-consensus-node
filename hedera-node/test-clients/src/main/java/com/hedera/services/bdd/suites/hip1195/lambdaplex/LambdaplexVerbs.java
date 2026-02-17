@@ -67,6 +67,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -88,6 +89,8 @@ public class LambdaplexVerbs {
 
     private static final long BASE_GAS_LIMIT = 8_000L;
     private static final long DIRECT_PREFIX_GAS_INCREMENT = 20_000L;
+    private static final long ORACLE_SETUP_GAS = 300_000L;
+    public static final long ORACLE_HOOK_GAS = 300_000L;
     private static final Bytes PADDED_ZERO = leftPad32(Bytes.EMPTY);
 
     // Sentinel for HBAR
@@ -287,56 +290,131 @@ public class LambdaplexVerbs {
             return result;
         }
 
+        public FillParty withGasLimit(final long updatedGasLimit) {
+            return new FillParty(account, role, side, debit, credit, updatedGasLimit, b64Salts);
+        }
+
+        public record FillLeg(
+                @NonNull BigDecimal quantity,
+                @NonNull BigDecimal averagePrice,
+                @NonNull String b64Salt) {
+            public FillLeg {
+                requireNonNull(quantity);
+                requireNonNull(averagePrice);
+                requireNonNull(b64Salt);
+            }
+        }
+
+        public static FillLeg leg(
+                @NonNull final BigDecimal quantity,
+                @NonNull final BigDecimal averagePrice,
+                @NonNull final String b64Salt) {
+            return new FillLeg(quantity, averagePrice, b64Salt);
+        }
+
         public static FillParty makingSeller(
                 SpecAccount account, BigDecimal quantity, BigDecimal averagePrice, String... b64Salts) {
-            // Seller debits base, credits quote
-            return new FillParty(
-                    account,
-                    MAKER,
-                    SELL,
-                    quantity.negate(),
-                    quantity.multiply(averagePrice),
-                    BASE_GAS_LIMIT + DIRECT_PREFIX_GAS_INCREMENT * b64Salts.length,
-                    b64Salts);
+            return fromQuantityAndAveragePrice(account, MAKER, SELL, quantity, averagePrice, b64Salts);
+        }
+
+        public static FillParty makingSeller(final SpecAccount account, final FillLeg... legs) {
+            return fromLegs(account, MAKER, SELL, legs);
         }
 
         public static FillParty takingSeller(
                 SpecAccount account, BigDecimal quantity, BigDecimal averagePrice, String... b64Salts) {
-            // Seller debits base, credits quote
-            return new FillParty(
-                    account,
-                    TAKER,
-                    SELL,
-                    quantity.negate(),
-                    quantity.multiply(averagePrice),
-                    BASE_GAS_LIMIT + DIRECT_PREFIX_GAS_INCREMENT * b64Salts.length,
-                    b64Salts);
+            return fromQuantityAndAveragePrice(account, TAKER, SELL, quantity, averagePrice, b64Salts);
+        }
+
+        public static FillParty takingSeller(final SpecAccount account, final FillLeg... legs) {
+            return fromLegs(account, TAKER, SELL, legs);
         }
 
         public static FillParty takingBuyer(
                 SpecAccount account, BigDecimal quantity, BigDecimal averagePrice, String... b64Salts) {
-            // Buyer debits quote, credits base
-            return new FillParty(
-                    account,
-                    TAKER,
-                    BUY,
-                    quantity.multiply(averagePrice).negate(),
-                    quantity,
-                    BASE_GAS_LIMIT + DIRECT_PREFIX_GAS_INCREMENT * b64Salts.length,
-                    b64Salts);
+            return fromQuantityAndAveragePrice(account, TAKER, BUY, quantity, averagePrice, b64Salts);
+        }
+
+        public static FillParty takingBuyer(final SpecAccount account, final FillLeg... legs) {
+            return fromLegs(account, TAKER, BUY, legs);
         }
 
         public static FillParty makingBuyer(
                 SpecAccount account, BigDecimal quantity, BigDecimal averagePrice, String... b64Salts) {
-            // Buyer debits quote, credits base
-            return new FillParty(
-                    account,
-                    MAKER,
-                    BUY,
-                    quantity.multiply(averagePrice).negate(),
-                    quantity,
-                    BASE_GAS_LIMIT + DIRECT_PREFIX_GAS_INCREMENT * b64Salts.length,
-                    b64Salts);
+            return fromQuantityAndAveragePrice(account, MAKER, BUY, quantity, averagePrice, b64Salts);
+        }
+
+        public static FillParty makingBuyer(final SpecAccount account, final FillLeg... legs) {
+            return fromLegs(account, MAKER, BUY, legs);
+        }
+
+        private static FillParty fromLegs(
+                @NonNull final SpecAccount account,
+                @NonNull final Role role,
+                @NonNull final Side side,
+                @NonNull final FillLeg... legs) {
+            requireNonNull(legs);
+            if (legs.length == 0) {
+                throw new IllegalArgumentException("At least one leg is required");
+            }
+            var totalQuantity = BigDecimal.ZERO;
+            var totalNotional = BigDecimal.ZERO;
+            final var salts = new String[legs.length];
+            for (int i = 0; i < legs.length; i++) {
+                final var leg = requireNonNull(legs[i]);
+                totalQuantity = totalQuantity.add(leg.quantity());
+                totalNotional = totalNotional.add(leg.quantity().multiply(leg.averagePrice()));
+                salts[i] = leg.b64Salt();
+            }
+            return fromQuantityAndNotional(account, role, side, totalQuantity, totalNotional, salts);
+        }
+
+        private static FillParty fromQuantityAndAveragePrice(
+                @NonNull final SpecAccount account,
+                @NonNull final Role role,
+                @NonNull final Side side,
+                @NonNull final BigDecimal quantity,
+                @NonNull final BigDecimal averagePrice,
+                @NonNull final String... b64Salts) {
+            requireNonNull(quantity);
+            requireNonNull(averagePrice);
+            return fromQuantityAndNotional(account, role, side, quantity, quantity.multiply(averagePrice), b64Salts);
+        }
+
+        private static FillParty fromQuantityAndNotional(
+                @NonNull final SpecAccount account,
+                @NonNull final Role role,
+                @NonNull final Side side,
+                @NonNull final BigDecimal quantity,
+                @NonNull final BigDecimal notional,
+                @NonNull final String... b64Salts) {
+            requireNonNull(account);
+            requireNonNull(role);
+            requireNonNull(side);
+            requireNonNull(quantity);
+            requireNonNull(notional);
+            requireNonNull(b64Salts);
+            if (side == SELL) {
+                // Seller debits base, credits quote.
+                return new FillParty(
+                        account,
+                        role,
+                        side,
+                        quantity.negate(),
+                        notional,
+                        BASE_GAS_LIMIT + DIRECT_PREFIX_GAS_INCREMENT * b64Salts.length,
+                        b64Salts);
+            } else {
+                // Buyer debits quote, credits base.
+                return new FillParty(
+                        account,
+                        role,
+                        side,
+                        notional.negate(),
+                        quantity,
+                        BASE_GAS_LIMIT + DIRECT_PREFIX_GAS_INCREMENT * b64Salts.length,
+                        b64Salts);
+            }
         }
     }
 
@@ -595,6 +673,24 @@ public class LambdaplexVerbs {
         return settleFillsInternal(specBaseToken, specQuoteToken, null, null, dataTransform, fillParties);
     }
 
+    public HapiCryptoTransfer settleDataTransformedFills(
+            @NonNull final SpecFungibleToken specBaseToken,
+            @NonNull final SpecFungibleToken specQuoteToken,
+            @NonNull final Fees fees,
+            @NonNull final UnaryOperator<Bytes> dataTransform,
+            @NonNull final LambdaplexVerbs.FillParty... fillParties) {
+        return settleFillsInternal(specBaseToken, specQuoteToken, fees, null, dataTransform, fillParties);
+    }
+
+    public HapiCryptoTransfer settleBodyAndDataTransformedFillsNoFees(
+            @NonNull final SpecFungibleToken specBaseToken,
+            @NonNull final SpecFungibleToken specQuoteToken,
+            @NonNull final Consumer<CryptoTransferTransactionBody.Builder> bodySpec,
+            @NonNull final UnaryOperator<Bytes> dataTransform,
+            @NonNull final LambdaplexVerbs.FillParty... fillParties) {
+        return settleFillsInternal(specBaseToken, specQuoteToken, null, bodySpec, dataTransform, fillParties);
+    }
+
     private HapiCryptoTransfer settleFillsInternal(
             @NonNull final SpecFungibleToken specBaseToken,
             @NonNull final SpecFungibleToken specQuoteToken,
@@ -666,32 +762,74 @@ public class LambdaplexVerbs {
                     }
                 }
             }
+            final var mergedBaseAdjustments = mergedAdjustments(baseAdjustments);
+            final var mergedQuoteAdjustments = mergedAdjustments(quoteAdjustments);
             final var registry = spec.registry();
             if (specBaseToken == HBAR) {
-                builder.setTransfers(TransferList.newBuilder().addAllAccountAmounts(baseAdjustments))
+                builder.setTransfers(TransferList.newBuilder().addAllAccountAmounts(mergedBaseAdjustments))
                         .addTokenTransfers(TokenTransferList.newBuilder()
                                 .setToken(registry.getTokenID(specQuoteToken.name()))
-                                .addAllTransfers(quoteAdjustments))
+                                .addAllTransfers(mergedQuoteAdjustments))
                         .build();
             } else if (specQuoteToken == HBAR) {
                 builder.addTokenTransfers(TokenTransferList.newBuilder()
                                 .setToken(registry.getTokenID(specBaseToken.name()))
-                                .addAllTransfers(baseAdjustments))
-                        .setTransfers(TransferList.newBuilder().addAllAccountAmounts(quoteAdjustments))
+                                .addAllTransfers(mergedBaseAdjustments))
+                        .setTransfers(TransferList.newBuilder().addAllAccountAmounts(mergedQuoteAdjustments))
                         .build();
             } else {
                 builder.addTokenTransfers(TokenTransferList.newBuilder()
                                 .setToken(registry.getTokenID(specBaseToken.name()))
-                                .addAllTransfers(baseAdjustments))
+                                .addAllTransfers(mergedBaseAdjustments))
                         .addTokenTransfers(TokenTransferList.newBuilder()
                                 .setToken(registry.getTokenID(specQuoteToken.name()))
-                                .addAllTransfers(quoteAdjustments))
+                                .addAllTransfers(mergedQuoteAdjustments))
                         .build();
             }
             if (bodySpec != null) {
                 bodySpec.accept(builder);
             }
         });
+    }
+
+    private static List<AccountAmount> mergedAdjustments(@NonNull final List<AccountAmount> adjustments) {
+        requireNonNull(adjustments);
+        final Map<com.hederahashgraph.api.proto.java.AccountID, AccountAmount.Builder> mergedByAccount =
+                new LinkedHashMap<>();
+        for (final var adjustment : adjustments) {
+            final var accountId = adjustment.getAccountID();
+            var merged = mergedByAccount.get(accountId);
+            if (merged == null) {
+                mergedByAccount.put(accountId, adjustment.toBuilder());
+                continue;
+            }
+            merged.setAmount(Math.addExact(merged.getAmount(), adjustment.getAmount()));
+            if (adjustment.hasPreTxAllowanceHook()) {
+                if (merged.hasPreTxAllowanceHook()) {
+                    if (!merged.getPreTxAllowanceHook().equals(adjustment.getPreTxAllowanceHook())) {
+                        throw new IllegalArgumentException("Cannot merge differing pre-tx hooks for " + accountId);
+                    }
+                } else {
+                    merged.setPreTxAllowanceHook(adjustment.getPreTxAllowanceHook());
+                }
+            }
+            if (adjustment.hasPrePostTxAllowanceHook()) {
+                if (merged.hasPrePostTxAllowanceHook()) {
+                    if (!merged.getPrePostTxAllowanceHook().equals(adjustment.getPrePostTxAllowanceHook())) {
+                        throw new IllegalArgumentException("Cannot merge differing pre/post hooks for " + accountId);
+                    }
+                } else {
+                    merged.setPrePostTxAllowanceHook(adjustment.getPrePostTxAllowanceHook());
+                }
+            }
+        }
+        final List<AccountAmount> mergedAdjustments = new ArrayList<>();
+        for (final var merged : mergedByAccount.values()) {
+            if (merged.getAmount() != 0) {
+                mergedAdjustments.add(merged.build());
+            }
+        }
+        return mergedAdjustments;
     }
 
     /**
@@ -702,7 +840,7 @@ public class LambdaplexVerbs {
      */
     public SpecOperation revertNextProofVerify(@NonNull final SpecContract registry) {
         requireNonNull(registry);
-        return registry.call("mockNextRevert");
+        return registry.call("mockNextRevert").gas(ORACLE_SETUP_GAS);
     }
 
     /**
@@ -727,13 +865,57 @@ public class LambdaplexVerbs {
             final var timestamp = BigInteger.valueOf(spec.consensusTime().getEpochSecond())
                     .subtract(BigInteger.valueOf(pullAgeSeconds));
             return registry.call(
-                    "mockNextPriceInfo",
-                    pairId,
-                    price.unscaledValue(),
-                    timestamp,
-                    BigInteger.valueOf(price.scale()),
-                    BigInteger.ONE);
+                            "mockNextPriceInfo",
+                            pairId,
+                            price.unscaledValue(),
+                            timestamp,
+                            BigInteger.valueOf(price.scale()),
+                            BigInteger.ONE)
+                    .gas(ORACLE_SETUP_GAS);
         });
+    }
+
+    /**
+     * Returns a "poke" transfer with only a zero-balance HBAR transfer list carrying hook data with
+     * {@code prefix || uint256(proof.length) || proof}.
+     */
+    public HapiCryptoTransfer pokeWithOracleProof(
+            @NonNull final SpecAccount account, @NonNull final String b64Salt, @NonNull final Bytes proof) {
+        requireNonNull(account);
+        requireNonNull(b64Salt);
+        requireNonNull(proof);
+        return TxnVerbs.cryptoTransfer((spec, builder) -> {
+            final var accountId = spec.registry().getAccountID(account.name());
+            final var prefix = requireNonNull(saltPrefixes.get(b64Salt));
+            final var proofLen =
+                    leftPad32(Bytes.wrap(BigInteger.valueOf(proof.length()).toByteArray()));
+            final var data = prefix.append(proofLen).append(proof);
+            saltPrefixes.put(b64Salt, convertedPokePrefix(prefix));
+            builder.setTransfers(TransferList.newBuilder()
+                    .addAccountAmounts(AccountAmount.newBuilder()
+                            .setPreTxAllowanceHook(HookCall.newBuilder()
+                                    .setHookId(hookId)
+                                    .setEvmHookCall(EvmHookCall.newBuilder()
+                                            .setGasLimit(ORACLE_HOOK_GAS)
+                                            .setData(fromPbj(data))))
+                            .setAmount(0)
+                            .setAccountID(accountId)
+                            .build())
+                    .build());
+        });
+    }
+
+    private static Bytes convertedPokePrefix(@NonNull final Bytes prefix) {
+        requireNonNull(prefix);
+        final var raw = prefix.toByteArray();
+        switch (raw[0]) {
+            case STOP_LIMIT_LT, STOP_LIMIT_GT -> raw[0] = LIMIT;
+            case STOP_MARKET_LT, STOP_MARKET_GT -> raw[0] = MARKET;
+            default -> {
+                return prefix;
+            }
+        }
+        return Bytes.wrap(raw);
     }
 
     private SpecOperation placeOrderInternal(

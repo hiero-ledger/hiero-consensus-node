@@ -577,6 +577,47 @@ public class LambdaplexCoreOrderTypesTest implements InitcodeTransform {
     }
 
     @HapiTest
+    final Stream<DynamicTest> hbarHtsSingleMarketOrderRevertsWhenConfiguredMinFillIsNotMet() {
+        final var makerSellSalt = randomB64Salt();
+        final var takerBuySalt = randomB64Salt();
+        return hapiTest(
+                // Resting liquidity: 8 HBAR for $0.10 each.
+                lv.placeLimitOrder(
+                        MARKET_MAKER,
+                        makerSellSalt,
+                        HBAR,
+                        USDC,
+                        Side.SELL,
+                        distantExpiry(),
+                        ZERO_BPS,
+                        price(0.10),
+                        quantity(8)),
+                // Single MARKET order with FOK and 10% slippage. Here minFill is encoded as 90% (900_000 centi-bps).
+                lv.placeMarketOrder(
+                        PARTY,
+                        takerBuySalt,
+                        HBAR,
+                        USDC,
+                        Side.BUY,
+                        iocExpiry(),
+                        ZERO_BPS,
+                        price(0.10),
+                        quantity(10),
+                        10,
+                        TimeInForce.FOK),
+                // Only 80% fill (0.8 USDC out of 1.0 USDC max debit), so minFill should reject.
+                lv.settleFillsNoFees(
+                                HBAR,
+                                USDC,
+                                makingSeller(MARKET_MAKER, quantity(8), averagePrice(0.10), makerSellSalt),
+                                takingBuyer(PARTY, quantity(8), averagePrice(0.10), takerBuySalt))
+                        .via("minFillTx")
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
+                // require(take * BIPS >= q * mfb, "min fill")
+                assertSecondError("minFillTx", "min fill"));
+    }
+
+    @HapiTest
     final Stream<DynamicTest> htsHtsMarketFullFillNoFeesNoSlippageDeletesOrders() {
         final var makerBuySalt = randomB64Salt();
         final var marketSellSalt = randomB64Salt();
@@ -1385,6 +1426,118 @@ public class LambdaplexCoreOrderTypesTest implements InitcodeTransform {
                                 0,
                                 notional(1.0).compareTo(bd),
                                 "Wrong SELL out token amount after batch fill: expected one apple, got " + bd)));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> batchInvocationRejectsMixedInputTokens() {
+        final var makerBuyApplesSalt = randomB64Salt();
+        final var makerBuyBananasSalt = randomB64Salt();
+        final var partySellApplesSalt = randomB64Salt();
+        return hapiTest(
+                // Successful APPLES/USDC path baseline order.
+                lv.placeLimitOrder(
+                        MARKET_MAKER,
+                        makerBuyApplesSalt,
+                        APPLES,
+                        USDC,
+                        Side.BUY,
+                        distantExpiry(),
+                        ZERO_BPS,
+                        price(2.00),
+                        quantity(5)),
+                // Insert BANANAS/USDC into the same owner batch. For BUY orders this changes inToken (APPLES ->
+                // BANANAS)
+                // while keeping outToken (USDC) unchanged.
+                lv.placeLimitOrder(
+                        MARKET_MAKER,
+                        makerBuyBananasSalt,
+                        BANANAS,
+                        USDC,
+                        Side.BUY,
+                        distantExpiry(),
+                        ZERO_BPS,
+                        price(2.00),
+                        quantity(5)),
+                lv.placeLimitOrder(
+                        PARTY,
+                        partySellApplesSalt,
+                        APPLES,
+                        USDC,
+                        Side.SELL,
+                        distantExpiry(),
+                        ZERO_BPS,
+                        price(2.00),
+                        quantity(5)),
+                lv.settleFillsNoFees(
+                                APPLES,
+                                USDC,
+                                makingBuyer(
+                                        MARKET_MAKER,
+                                        quantity(5),
+                                        averagePrice(2.00),
+                                        makerBuyApplesSalt,
+                                        makerBuyBananasSalt),
+                                takingSeller(PARTY, quantity(5), averagePrice(2.00), partySellApplesSalt))
+                        .via("mixedInTokenTx")
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
+                // require(inTok  == st.inToken,  "mixed inToken");
+                assertFirstError("mixedInTokenTx", "mixed inToken"));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> batchInvocationRejectsMixedOutputTokens() {
+        final var makerSellApplesSalt = randomB64Salt();
+        final var makerSellBananasSalt = randomB64Salt();
+        final var partyBuyApplesSalt = randomB64Salt();
+        return hapiTest(
+                // Successful APPLES/USDC path baseline order.
+                lv.placeLimitOrder(
+                        MARKET_MAKER,
+                        makerSellApplesSalt,
+                        APPLES,
+                        USDC,
+                        Side.SELL,
+                        distantExpiry(),
+                        ZERO_BPS,
+                        price(2.00),
+                        quantity(5)),
+                // Insert BANANAS/USDC into the same owner batch. For SELL orders this changes outToken (APPLES ->
+                // BANANAS)
+                // while keeping inToken (USDC) unchanged.
+                lv.placeLimitOrder(
+                        MARKET_MAKER,
+                        makerSellBananasSalt,
+                        BANANAS,
+                        USDC,
+                        Side.SELL,
+                        distantExpiry(),
+                        ZERO_BPS,
+                        price(2.00),
+                        quantity(5)),
+                lv.placeLimitOrder(
+                        PARTY,
+                        partyBuyApplesSalt,
+                        APPLES,
+                        USDC,
+                        Side.BUY,
+                        distantExpiry(),
+                        ZERO_BPS,
+                        price(2.00),
+                        quantity(5)),
+                lv.settleFillsNoFees(
+                                APPLES,
+                                USDC,
+                                makingSeller(
+                                        MARKET_MAKER,
+                                        quantity(5),
+                                        averagePrice(2.00),
+                                        makerSellApplesSalt,
+                                        makerSellBananasSalt),
+                                takingBuyer(PARTY, quantity(5), averagePrice(2.00), partyBuyApplesSalt))
+                        .via("mixedOutTokenTx")
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
+                // require(outTok == st.outToken, "mixed outToken");
+                assertFirstError("mixedOutTokenTx", "mixed outToken"));
     }
 
     @HapiTest

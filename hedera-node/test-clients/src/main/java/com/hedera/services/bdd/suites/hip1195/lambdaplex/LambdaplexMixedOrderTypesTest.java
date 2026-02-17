@@ -4,11 +4,28 @@ package com.hedera.services.bdd.suites.hip1195.lambdaplex;
 import static com.hedera.hapi.node.hooks.HookExtensionPoint.ACCOUNT_ALLOWANCE_HOOK;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asLongZeroAddress;
 import static com.hedera.services.bdd.junit.TestTags.MATS;
+import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
+import static com.hedera.services.bdd.spec.assertions.SomeFungibleTransfers.changingFungibleBalances;
+import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
+import static com.hedera.services.bdd.spec.assertions.TransferListAsserts.includingHbarCredit;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.THOUSAND_HBAR;
+import static com.hedera.services.bdd.suites.hip1195.lambdaplex.LambdaplexVerbs.FillParty.*;
+import static com.hedera.services.bdd.suites.hip1195.lambdaplex.LambdaplexVerbs.HBAR;
+import static com.hedera.services.bdd.suites.hip1195.lambdaplex.LambdaplexVerbs.averagePrice;
+import static com.hedera.services.bdd.suites.hip1195.lambdaplex.LambdaplexVerbs.distantExpiry;
+import static com.hedera.services.bdd.suites.hip1195.lambdaplex.LambdaplexVerbs.inBaseUnits;
+import static com.hedera.services.bdd.suites.hip1195.lambdaplex.LambdaplexVerbs.notional;
+import static com.hedera.services.bdd.suites.hip1195.lambdaplex.LambdaplexVerbs.price;
+import static com.hedera.services.bdd.suites.hip1195.lambdaplex.LambdaplexVerbs.quantity;
+import static com.hedera.services.bdd.suites.hip1195.lambdaplex.LambdaplexVerbs.randomB64Salt;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
@@ -24,11 +41,13 @@ import com.hedera.services.bdd.spec.dsl.utils.InitcodeTransform;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.util.Map;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
 /**
- * Tests exercising the Lambdaplex protocol hook, with an emphasis on stop orders. (Has some intentional mild
+ * Tests exercising the Lambdaplex protocol hook, with an emphasis on mixed LIMIT and MARKET orders. (Has some intentional mild
  * duplication with other test classes in this package to keep each test class more self-contained.)
  * <p>
  * The entries in mapping zero of this hook represent orders (limit, market, stop limit, or stop market) on a
@@ -162,6 +181,354 @@ public class LambdaplexMixedOrderTypesTest implements InitcodeTransform {
                                 .between(BANANAS.treasury().name(), COUNTERPARTY.name()),
                         moving(usdcUnits(100), USDC.name())
                                 .between(USDC.treasury().name(), COUNTERPARTY.name())));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> batchOrderHbarHtsMixedLimitAndMarketFullFillNoFees() {
+        final var makerLimitSalt = randomB64Salt();
+        final var makerMarketSalt = randomB64Salt();
+        final var partyBuySalt = randomB64Salt();
+        return hapiTest(
+                lv.placeLimitOrder(
+                        MARKET_MAKER,
+                        makerLimitSalt,
+                        HBAR,
+                        USDC,
+                        Side.SELL,
+                        distantExpiry(),
+                        ZERO_BPS,
+                        price(0.50),
+                        quantity(1.2)),
+                lv.placeMarketOrder(
+                        MARKET_MAKER,
+                        makerMarketSalt,
+                        HBAR,
+                        USDC,
+                        Side.SELL,
+                        distantExpiry(),
+                        ZERO_BPS,
+                        price(0.60),
+                        quantity(1.8),
+                        0,
+                        TimeInForce.IOC),
+                lv.placeLimitOrder(
+                        PARTY,
+                        partyBuySalt,
+                        HBAR,
+                        USDC,
+                        Side.BUY,
+                        distantExpiry(),
+                        ZERO_BPS,
+                        price(0.56),
+                        quantity(3.0)),
+                lv.settleFillsNoFees(
+                        HBAR,
+                        USDC,
+                        makingSeller(
+                                MARKET_MAKER,
+                                leg(quantity(1.8), averagePrice(0.60), makerMarketSalt),
+                                leg(quantity(1.2), averagePrice(0.50), makerLimitSalt)),
+                        takingBuyer(PARTY, quantity(3.0), price(0.56), partyBuySalt)),
+                lv.assertNoSuchOrder(MARKET_MAKER.name(), makerMarketSalt),
+                lv.assertNoSuchOrder(MARKET_MAKER.name(), makerLimitSalt),
+                lv.assertNoSuchOrder(PARTY.name(), partyBuySalt));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> batchOrderHbarHtsMixedLimitAndMarketOrderingMatters() {
+        final var makerLimitSalt = randomB64Salt();
+        final var makerMarketSalt = randomB64Salt();
+        final var partyBuySalt = randomB64Salt();
+        return hapiTest(
+                lv.placeLimitOrder(
+                        MARKET_MAKER,
+                        makerLimitSalt,
+                        HBAR,
+                        USDC,
+                        Side.SELL,
+                        distantExpiry(),
+                        ZERO_BPS,
+                        price(1.00),
+                        quantity(2.0)),
+                lv.placeMarketOrder(
+                        MARKET_MAKER,
+                        makerMarketSalt,
+                        HBAR,
+                        USDC,
+                        Side.SELL,
+                        distantExpiry(),
+                        ZERO_BPS,
+                        price(1.00),
+                        quantity(1.0),
+                        0,
+                        TimeInForce.IOC),
+                lv.placeLimitOrder(
+                        PARTY,
+                        partyBuySalt,
+                        HBAR,
+                        USDC,
+                        Side.BUY,
+                        distantExpiry(),
+                        ZERO_BPS,
+                        price(1.00),
+                        quantity(2.0)),
+                lv.settleFillsNoFees(
+                                HBAR,
+                                USDC,
+                                makingSeller(
+                                        MARKET_MAKER,
+                                        quantity(2.0),
+                                        averagePrice(1.00),
+                                        makerLimitSalt,
+                                        makerMarketSalt),
+                                takingBuyer(PARTY, quantity(2.0), averagePrice(1.00), partyBuySalt))
+                        .via("badOrderingTx")
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
+                lv.settleFillsNoFees(
+                        HBAR,
+                        USDC,
+                        makingSeller(MARKET_MAKER, quantity(2.0), averagePrice(1.00), makerMarketSalt, makerLimitSalt),
+                        takingBuyer(PARTY, quantity(2.0), averagePrice(1.00), partyBuySalt)),
+                lv.assertNoSuchOrder(MARKET_MAKER.name(), makerMarketSalt),
+                lv.assertNoSuchOrder(PARTY.name(), partyBuySalt),
+                lv.assertOrderAmount(
+                        MARKET_MAKER.name(),
+                        makerLimitSalt,
+                        bd -> assertEquals(
+                                0,
+                                notional(1.0).compareTo(bd),
+                                "Wrong SELL out token amount after mixed batch fill: expected one HBAR, got " + bd)));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> batchOrderHbarHtsThreePartyMixedLimitAndMarketWithFees() {
+        final var makerLimitSalt = randomB64Salt();
+        final var makerMarketSalt = randomB64Salt();
+        final var partyMarketBuySalt = randomB64Salt();
+        final var counterpartyLimitBuySalt = randomB64Salt();
+        return hapiTest(
+                lv.placeLimitOrder(
+                        MARKET_MAKER,
+                        makerLimitSalt,
+                        HBAR,
+                        USDC,
+                        Side.SELL,
+                        distantExpiry(),
+                        MAKER_BPS,
+                        price(1.00),
+                        quantity(1.0)),
+                lv.placeMarketOrder(
+                        MARKET_MAKER,
+                        makerMarketSalt,
+                        HBAR,
+                        USDC,
+                        Side.SELL,
+                        distantExpiry(),
+                        MAKER_BPS,
+                        price(1.00),
+                        quantity(2.0),
+                        0,
+                        TimeInForce.IOC),
+                lv.placeMarketOrder(
+                        PARTY,
+                        partyMarketBuySalt,
+                        HBAR,
+                        USDC,
+                        Side.BUY,
+                        distantExpiry(),
+                        TAKER_BPS,
+                        price(1.00),
+                        quantity(1.5),
+                        0,
+                        TimeInForce.IOC),
+                lv.placeLimitOrder(
+                        COUNTERPARTY,
+                        counterpartyLimitBuySalt,
+                        HBAR,
+                        USDC,
+                        Side.BUY,
+                        distantExpiry(),
+                        TAKER_BPS,
+                        price(1.00),
+                        quantity(1.5)),
+                lv.settleFills(
+                                HBAR,
+                                USDC,
+                                FEES,
+                                makingSeller(
+                                        MARKET_MAKER,
+                                        leg(quantity(2.0), averagePrice(1.00), makerMarketSalt),
+                                        leg(quantity(1.0), averagePrice(1.00), makerLimitSalt)),
+                                takingBuyer(PARTY, quantity(1.5), averagePrice(1.00), partyMarketBuySalt),
+                                takingBuyer(COUNTERPARTY, quantity(1.5), averagePrice(1.00), counterpartyLimitBuySalt))
+                        .via("threePartyHbarHtsTx"),
+                lv.assertNoSuchOrder(MARKET_MAKER.name(), makerMarketSalt),
+                lv.assertNoSuchOrder(MARKET_MAKER.name(), makerLimitSalt),
+                lv.assertNoSuchOrder(PARTY.name(), partyMarketBuySalt),
+                lv.assertNoSuchOrder(COUNTERPARTY.name(), counterpartyLimitBuySalt),
+                getTxnRecord("threePartyHbarHtsTx")
+                        .hasPriority(recordWith()
+                                .transfers(includingHbarCredit(
+                                        FEE_COLLECTOR.name(), inBaseUnits(quantity(3.0), 8) * TAKER_BPS / 10_000))
+                                .tokenTransfers(changingFungibleBalances()
+                                        .including(
+                                                USDC.name(),
+                                                FEE_COLLECTOR.name(),
+                                                inBaseUnits(quantity(3.0), USDC_DECIMALS) * MAKER_BPS / 10_000))));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> batchOrderHtsHtsThreePartyMixedLimitAndMarketWithFees() {
+        final var makerLimitSalt = randomB64Salt();
+        final var makerMarketSalt = randomB64Salt();
+        final var partyMarketBuySalt = randomB64Salt();
+        final var counterpartyLimitBuySalt = randomB64Salt();
+        return hapiTest(
+                lv.placeLimitOrder(
+                        MARKET_MAKER,
+                        makerLimitSalt,
+                        APPLES,
+                        BANANAS,
+                        Side.SELL,
+                        distantExpiry(),
+                        MAKER_BPS,
+                        price(2.00),
+                        quantity(2.0)),
+                lv.placeMarketOrder(
+                        MARKET_MAKER,
+                        makerMarketSalt,
+                        APPLES,
+                        BANANAS,
+                        Side.SELL,
+                        distantExpiry(),
+                        MAKER_BPS,
+                        price(3.00),
+                        quantity(2.0),
+                        0,
+                        TimeInForce.IOC),
+                lv.placeMarketOrder(
+                        PARTY,
+                        partyMarketBuySalt,
+                        APPLES,
+                        BANANAS,
+                        Side.BUY,
+                        distantExpiry(),
+                        TAKER_BPS,
+                        price(2.50),
+                        quantity(1.5),
+                        0,
+                        TimeInForce.IOC),
+                lv.placeLimitOrder(
+                        COUNTERPARTY,
+                        counterpartyLimitBuySalt,
+                        APPLES,
+                        BANANAS,
+                        Side.BUY,
+                        distantExpiry(),
+                        TAKER_BPS,
+                        price(2.50),
+                        quantity(2.5)),
+                lv.settleFills(
+                                APPLES,
+                                BANANAS,
+                                FEES,
+                                makingSeller(
+                                        MARKET_MAKER,
+                                        leg(quantity(2.0), averagePrice(3.00), makerMarketSalt),
+                                        leg(quantity(2.0), averagePrice(2.00), makerLimitSalt)),
+                                takingBuyer(PARTY, quantity(1.5), averagePrice(2.50), partyMarketBuySalt),
+                                takingBuyer(COUNTERPARTY, quantity(2.5), averagePrice(2.50), counterpartyLimitBuySalt))
+                        .via("threePartyHtsHtsTx"),
+                lv.assertNoSuchOrder(MARKET_MAKER.name(), makerMarketSalt),
+                lv.assertNoSuchOrder(MARKET_MAKER.name(), makerLimitSalt),
+                lv.assertNoSuchOrder(PARTY.name(), partyMarketBuySalt),
+                lv.assertNoSuchOrder(COUNTERPARTY.name(), counterpartyLimitBuySalt),
+                getTxnRecord("threePartyHtsHtsTx")
+                        .hasPriority(recordWith()
+                                .tokenTransfers(changingFungibleBalances()
+                                        .including(
+                                                APPLES.name(),
+                                                FEE_COLLECTOR.name(),
+                                                inBaseUnits(quantity(1.5), APPLES_DECIMALS) * TAKER_BPS / 10_000
+                                                        + inBaseUnits(quantity(2.5), APPLES_DECIMALS)
+                                                                * TAKER_BPS
+                                                                / 10_000)
+                                        .including(
+                                                BANANAS.name(),
+                                                FEE_COLLECTOR.name(),
+                                                inBaseUnits(quantity(10.0), BANANAS_DECIMALS) * MAKER_BPS / 10_000))));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> batchOrderHbarHtsThreePartyMixedBuyerBatchPartialFillNoFees() {
+        final var makerLimitBuySalt = randomB64Salt();
+        final var makerMarketBuySalt = randomB64Salt();
+        final var partyLimitSellSalt = randomB64Salt();
+        final var counterpartyMarketSellSalt = randomB64Salt();
+        return hapiTest(
+                lv.placeLimitOrder(
+                        MARKET_MAKER,
+                        makerLimitBuySalt,
+                        HBAR,
+                        USDC,
+                        Side.BUY,
+                        distantExpiry(),
+                        ZERO_BPS,
+                        price(1.00),
+                        quantity(2.0)),
+                lv.placeMarketOrder(
+                        MARKET_MAKER,
+                        makerMarketBuySalt,
+                        HBAR,
+                        USDC,
+                        Side.BUY,
+                        distantExpiry(),
+                        ZERO_BPS,
+                        price(1.00),
+                        quantity(1.0),
+                        0,
+                        TimeInForce.IOC),
+                lv.placeLimitOrder(
+                        PARTY,
+                        partyLimitSellSalt,
+                        HBAR,
+                        USDC,
+                        Side.SELL,
+                        distantExpiry(),
+                        ZERO_BPS,
+                        price(1.00),
+                        quantity(1.0)),
+                lv.placeMarketOrder(
+                        COUNTERPARTY,
+                        counterpartyMarketSellSalt,
+                        HBAR,
+                        USDC,
+                        Side.SELL,
+                        distantExpiry(),
+                        ZERO_BPS,
+                        price(1.00),
+                        quantity(1.0),
+                        0,
+                        TimeInForce.IOC),
+                lv.settleFillsNoFees(
+                        HBAR,
+                        USDC,
+                        makingBuyer(
+                                MARKET_MAKER,
+                                leg(quantity(1.0), averagePrice(1.00), makerMarketBuySalt),
+                                leg(quantity(1.0), averagePrice(1.00), makerLimitBuySalt)),
+                        takingSeller(PARTY, quantity(1.0), averagePrice(1.00), partyLimitSellSalt),
+                        takingSeller(COUNTERPARTY, quantity(1.0), averagePrice(1.00), counterpartyMarketSellSalt)),
+                lv.assertNoSuchOrder(MARKET_MAKER.name(), makerMarketBuySalt),
+                lv.assertNoSuchOrder(PARTY.name(), partyLimitSellSalt),
+                lv.assertNoSuchOrder(COUNTERPARTY.name(), counterpartyMarketSellSalt),
+                lv.assertOrderAmount(
+                        MARKET_MAKER.name(),
+                        makerLimitBuySalt,
+                        bd -> assertEquals(
+                                0,
+                                notional(1.0).compareTo(bd),
+                                "Wrong BUY out token amount after mixed batch fill: expected $1.00, got " + bd)));
     }
 
     // --- InitcodeTransform ---
