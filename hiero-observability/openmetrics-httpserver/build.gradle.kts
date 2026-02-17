@@ -7,9 +7,8 @@ plugins {
 
 description = "Openmetrics HTTP Server for Hiero Metrics"
 
+// Remove below once https://github.com/hiero-ledger/hiero-gradle-conventions/pull/406 is integrated
 extraJavaModuleInfo {
-    module("io.prometheus:prometheus-metrics-core", "io.prometheus.metrics.core")
-    module("io.prometheus:prometheus-metrics-model", "io.prometheus.metrics.model")
     module(
         "io.prometheus:prometheus-metrics-exporter-httpserver",
         "io.prometheus.metrics.exporter.httpserver",
