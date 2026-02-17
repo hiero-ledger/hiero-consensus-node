@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.services.bdd.suites.hip1195;
+package com.hedera.services.bdd.suites.hip1195.lambdaplex;
 
 import static com.hedera.hapi.node.hooks.HookExtensionPoint.ACCOUNT_ALLOWANCE_HOOK;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asLongZeroAddress;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.changeFromSnapshot;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.tokenChangeFromSnapshot;
-import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
 import static com.hedera.services.bdd.spec.assertions.SomeFungibleTransfers.changingFungibleBalances;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.assertions.TransferListAsserts.includingHbarCredit;
@@ -23,11 +23,19 @@ import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.THOUSAND_HBAR;
-import static com.hedera.services.bdd.suites.hip1195.LambdaplexVerbs.FillParty.*;
-import static com.hedera.services.bdd.suites.hip1195.LambdaplexVerbs.HBAR;
-import static com.hedera.services.bdd.suites.hip1195.LambdaplexVerbs.inBaseUnits;
+import static com.hedera.services.bdd.suites.hip1195.lambdaplex.LambdaplexVerbs.FillParty.*;
+import static com.hedera.services.bdd.suites.hip1195.lambdaplex.LambdaplexVerbs.HBAR;
+import static com.hedera.services.bdd.suites.hip1195.lambdaplex.LambdaplexVerbs.assertFirstError;
+import static com.hedera.services.bdd.suites.hip1195.lambdaplex.LambdaplexVerbs.assertSecondError;
+import static com.hedera.services.bdd.suites.hip1195.lambdaplex.LambdaplexVerbs.averagePrice;
+import static com.hedera.services.bdd.suites.hip1195.lambdaplex.LambdaplexVerbs.distantExpiry;
+import static com.hedera.services.bdd.suites.hip1195.lambdaplex.LambdaplexVerbs.inBaseUnits;
+import static com.hedera.services.bdd.suites.hip1195.lambdaplex.LambdaplexVerbs.iocExpiry;
+import static com.hedera.services.bdd.suites.hip1195.lambdaplex.LambdaplexVerbs.notional;
+import static com.hedera.services.bdd.suites.hip1195.lambdaplex.LambdaplexVerbs.price;
+import static com.hedera.services.bdd.suites.hip1195.lambdaplex.LambdaplexVerbs.quantity;
+import static com.hedera.services.bdd.suites.hip1195.lambdaplex.LambdaplexVerbs.randomB64Salt;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REVERTED_SUCCESS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -44,27 +52,23 @@ import com.hedera.services.bdd.spec.dsl.entities.SpecAccount;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecFungibleToken;
 import com.hedera.services.bdd.spec.dsl.utils.InitcodeTransform;
-import com.hedera.services.bdd.spec.queries.meta.HapiGetTxnRecord;
-import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hederahashgraph.api.proto.java.AccountAmount;
 import com.hederahashgraph.api.proto.java.TokenTransferList;
 import com.hederahashgraph.api.proto.java.TransferList;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigDecimal;
 import java.math.BigInteger;
-import java.nio.charset.StandardCharsets;
-import java.time.Duration;
-import java.time.Instant;
-import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
 
 /**
- * Tests exercising the Lambdaplex protocol hook.
+ * Tests exercising the Lambdaplex protocol hook, focusing on the "core" limit and market order types.(Has some
+ * intentional mild duplication with {@link LambdaplexStopOrderTypesTest} to keep the test cases more self-contained.)
  * <p>
  * The entries in mapping zero of this hook represent orders (limit, market, stop limit, or stop market) on a
  * self-custodied spot exchange. Each mapping's key and value are packed bytes with a specific layout.
@@ -99,7 +103,8 @@ import org.junit.jupiter.api.DynamicTest;
  */
 @HapiTestLifecycle
 @OrderedInIsolation
-public class LambdaplexTest implements InitcodeTransform {
+@Tag(MATS)
+public class LambdaplexCoreOrderTypesTest implements InitcodeTransform {
     private static final int HOOK_ID = 42;
     private static final int ZERO_BPS = 0;
     private static final int MAKER_BPS = 12;
@@ -118,7 +123,10 @@ public class LambdaplexTest implements InitcodeTransform {
     @Contract(contract = "MockSupraRegistry", creationGas = 1_000_000L)
     static SpecContract MOCK_SUPRA_REGISTRY;
 
-    @Contract(contract = "OrderFlowAllowance", creationGas = 2_000_000L, initcodeTransform = LambdaplexTest.class)
+    @Contract(
+            contract = "OrderFlowAllowance",
+            creationGas = 2_000_000L,
+            initcodeTransform = LambdaplexCoreOrderTypesTest.class)
     static SpecContract LAMBDAPLEX_HOOK;
 
     @FungibleToken(initialSupply = 10_000 * APPLES_SCALE, decimals = APPLES_DECIMALS)
@@ -794,7 +802,7 @@ public class LambdaplexTest implements InitcodeTransform {
                         makingSeller(MARKET_MAKER, quantity(3), price(2.00), makerSellSalt),
                         takingBuyer(PARTY, quantity(3), averagePrice(2.00), buySalt)),
                 assertOwnerHasEvmHookSlotUsageChange(MARKET_MAKER.name(), makerOrdersBefore, 0),
-                assertOwnerHasEvmHookSlotUsageChange(PARTY.name(), makerOrdersBefore, 1),
+                assertOwnerHasEvmHookSlotUsageChange(PARTY.name(), partyOrdersBefore, 1),
                 // Amount should reduce by executed out amount ($6)
                 lv.assertOrderAmount(
                         PARTY.name(),
@@ -1100,48 +1108,6 @@ public class LambdaplexTest implements InitcodeTransform {
                 assertFirstError("truncatedTx", "args too short"));
     }
 
-    private static HapiGetTxnRecord assertFirstError(@NonNull final String tx, @NonNull final String message) {
-        return getTxnRecord(tx)
-                .andAllChildRecords()
-                .hasChildRecords(recordWith().contractCallResult(resultWith().error(asErrorReason(message))));
-    }
-
-    private static HapiGetTxnRecord assertSecondError(@NonNull final String tx, @NonNull final String message) {
-        return getTxnRecord(tx)
-                .andAllChildRecords()
-                .hasChildRecords(
-                        recordWith().status(REVERTED_SUCCESS),
-                        recordWith().contractCallResult(resultWith().error(asErrorReason(message))));
-    }
-
-    private static BigDecimal averagePrice(final double d) {
-        return BigDecimal.valueOf(d);
-    }
-
-    private static BigDecimal price(final double d) {
-        return BigDecimal.valueOf(d);
-    }
-
-    private static BigDecimal quantity(final double d) {
-        return BigDecimal.valueOf(d);
-    }
-
-    private static BigDecimal notional(final double d) {
-        return BigDecimal.valueOf(d);
-    }
-
-    private static String randomB64Salt() {
-        return Base64.getEncoder().encodeToString(TxnUtils.randomUtf8Bytes(7));
-    }
-
-    private static Instant iocExpiry() {
-        return Instant.now().plus(Duration.ofSeconds(30));
-    }
-
-    private static Instant distantExpiry() {
-        return Instant.now().plus(Duration.ofDays(30));
-    }
-
     // --- InitcodeTransform ---
     @Override
     public String transformHexed(@NonNull final HapiSpec spec, @NonNull final String initcode) {
@@ -1166,27 +1132,5 @@ public class LambdaplexTest implements InitcodeTransform {
 
     private static long usdcUnits(long usdc) {
         return usdc * USDC_SCALE;
-    }
-
-    private static String asErrorReason(@NonNull final String message) {
-        // 4-byte selector: keccak256("Error(string)")[:4]
-        final var selector = new byte[] {0x08, (byte) 0xc3, 0x79, (byte) 0xa0};
-        final var msgBytes = message.getBytes(StandardCharsets.UTF_8);
-        final int paddedLen = ((msgBytes.length + 31) / 32) * 32;
-        // selector (4) + offset (32) + length (32) + padded content
-        final var result = new byte[4 + 32 + 32 + paddedLen];
-        // selector
-        System.arraycopy(selector, 0, result, 0, 4);
-        // offset = 0x20
-        result[4 + 31] = 0x20;
-        // string length
-        result[4 + 32 + 31] = (byte) msgBytes.length;
-        // string content (already zero-padded by default)
-        System.arraycopy(msgBytes, 0, result, 4 + 64, msgBytes.length);
-        final var sb = new StringBuilder("0x");
-        for (byte b : result) {
-            sb.append(String.format("%02x", b & 0xFF));
-        }
-        return sb.toString();
     }
 }

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.services.bdd.suites.hip1195;
+package com.hedera.services.bdd.suites.hip1195.lambdaplex;
 
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
@@ -9,13 +9,17 @@ import static com.hedera.node.app.service.contract.impl.schemas.V065ContractSche
 import static com.hedera.node.app.service.contract.impl.schemas.V065ContractSchema.EVM_HOOK_STORAGE_STATE_ID;
 import static com.hedera.node.app.service.contract.impl.state.WritableEvmHookStore.minimalKey;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_ID;
+import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
+import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.accountEvmHookStore;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
-import static com.hedera.services.bdd.suites.hip1195.Role.MAKER;
-import static com.hedera.services.bdd.suites.hip1195.Role.TAKER;
-import static com.hedera.services.bdd.suites.hip1195.Side.BUY;
-import static com.hedera.services.bdd.suites.hip1195.Side.SELL;
+import static com.hedera.services.bdd.suites.hip1195.lambdaplex.Role.MAKER;
+import static com.hedera.services.bdd.suites.hip1195.lambdaplex.Role.TAKER;
+import static com.hedera.services.bdd.suites.hip1195.lambdaplex.Side.BUY;
+import static com.hedera.services.bdd.suites.hip1195.lambdaplex.Side.SELL;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REVERTED_SUCCESS;
 import static java.math.RoundingMode.HALF_UP;
 import static java.util.Objects.requireNonNull;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -42,6 +46,8 @@ import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.dsl.entities.SpecAccount;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecFungibleToken;
+import com.hedera.services.bdd.spec.queries.meta.HapiGetTxnRecord;
+import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.spec.transactions.TxnVerbs;
 import com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer;
 import com.hederahashgraph.api.proto.java.AccountAmount;
@@ -55,6 +61,8 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -114,6 +122,69 @@ public class LambdaplexVerbs {
 
     public static long inBaseUnits(BigDecimal amount, int decimals) {
         return toBigInteger(amount, decimals).longValueExact();
+    }
+
+    public static HapiGetTxnRecord assertFirstError(@NonNull final String tx, @NonNull final String message) {
+        return getTxnRecord(tx)
+                .andAllChildRecords()
+                .hasChildRecords(recordWith().contractCallResult(resultWith().error(asErrorReason(message))));
+    }
+
+    public static HapiGetTxnRecord assertSecondError(@NonNull final String tx, @NonNull final String message) {
+        return getTxnRecord(tx)
+                .andAllChildRecords()
+                .hasChildRecords(
+                        recordWith().status(REVERTED_SUCCESS),
+                        recordWith().contractCallResult(resultWith().error(asErrorReason(message))));
+    }
+
+    public static BigDecimal averagePrice(final double d) {
+        return BigDecimal.valueOf(d);
+    }
+
+    public static BigDecimal price(final double d) {
+        return BigDecimal.valueOf(d);
+    }
+
+    public static BigDecimal quantity(final double d) {
+        return BigDecimal.valueOf(d);
+    }
+
+    public static BigDecimal notional(final double d) {
+        return BigDecimal.valueOf(d);
+    }
+
+    public static String randomB64Salt() {
+        return Base64.getEncoder().encodeToString(TxnUtils.randomUtf8Bytes(7));
+    }
+
+    public static Instant iocExpiry() {
+        return Instant.now().plus(Duration.ofSeconds(30));
+    }
+
+    public static Instant distantExpiry() {
+        return Instant.now().plus(Duration.ofDays(30));
+    }
+
+    public static String asErrorReason(@NonNull final String message) {
+        // 4-byte selector: keccak256("Error(string)")[:4]
+        final var selector = new byte[] {0x08, (byte) 0xc3, 0x79, (byte) 0xa0};
+        final var msgBytes = message.getBytes(StandardCharsets.UTF_8);
+        final int paddedLen = ((msgBytes.length + 31) / 32) * 32;
+        // selector (4) + offset (32) + length (32) + padded content
+        final var result = new byte[4 + 32 + 32 + paddedLen];
+        System.arraycopy(selector, 0, result, 0, 4);
+        // offset = 0x20
+        result[4 + 31] = 0x20;
+        // string length
+        result[4 + 32 + 31] = (byte) msgBytes.length;
+        // string content (already zero-padded by default)
+        System.arraycopy(msgBytes, 0, result, 4 + 64, msgBytes.length);
+        final var sb = new StringBuilder("0x");
+        for (byte b : result) {
+            sb.append(String.format("%02x", b & 0xFF));
+        }
+        return sb.toString();
     }
 
     public SpecOperation assertNoSuchOrder(@NonNull final SpecAccount account, @NonNull final String b64Salt) {
