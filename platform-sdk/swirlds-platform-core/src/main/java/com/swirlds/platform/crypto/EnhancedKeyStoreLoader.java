@@ -61,6 +61,7 @@ import org.bouncycastle.util.io.pem.PemObject;
 import org.bouncycastle.util.io.pem.PemWriter;
 import org.hiero.base.crypto.KeystorePasswordPolicy;
 import org.hiero.base.crypto.config.CryptoConfig;
+import org.hiero.base.crypto.config.CryptoConfig_;
 import org.hiero.consensus.crypto.CertificateUtils;
 import org.hiero.consensus.crypto.CryptoConstants;
 import org.hiero.consensus.crypto.KeyCertPurpose;
@@ -239,7 +240,7 @@ public class EnhancedKeyStoreLoader {
             throw new IllegalArgumentException("keyStorePassphrase must not be null or blank");
         }
 
-        KeystorePasswordPolicy.warnIfNonCompliant(logger, "crypto.keystorePassword", keyStorePassphrase);
+        KeystorePasswordPolicy.warnIfNonCompliant(CryptoConfig_.KEYSTORE_PASSWORD, keyStorePassphrase);
 
         return new EnhancedKeyStoreLoader(
                 keyStoreDirectory, keyStorePassphrase.toCharArray(), localNodes, rosterEntries);

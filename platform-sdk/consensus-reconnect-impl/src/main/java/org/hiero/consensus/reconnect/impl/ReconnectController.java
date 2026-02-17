@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.reconnect;
+package org.hiero.consensus.reconnect.impl;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
@@ -70,7 +70,7 @@ public class ReconnectController implements Runnable {
     private final SignedStateValidator signedStateValidator;
     private final Platform platform;
     private final Configuration configuration;
-    private final PlatformCoordinator platformCoordinator;
+    private final ReconnectCoordinator reconnectCoordinator;
     private final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager;
     private final SavedStateController savedStateController;
     private final ConsensusStateEventHandler consensusStateEventHandler;
@@ -87,7 +87,7 @@ public class ReconnectController implements Runnable {
             @NonNull final Time time,
             @NonNull final Roster roster,
             @NonNull final Platform platform,
-            @NonNull final PlatformCoordinator platformCoordinator,
+            @NonNull final ReconnectCoordinator reconnectCoordinator,
             @NonNull final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager,
             @NonNull final SavedStateController savedStateController,
             @NonNull final ConsensusStateEventHandler consensusStateEventHandler,
@@ -96,7 +96,7 @@ public class ReconnectController implements Runnable {
             @NonNull final FallenBehindMonitor fallenBehindMonitor,
             @NonNull final SignedStateValidator signedStateValidator) {
         this.roster = requireNonNull(roster);
-        this.platformCoordinator = requireNonNull(platformCoordinator);
+        this.reconnectCoordinator = requireNonNull(reconnectCoordinator);
         this.peerReservedSignedStateResultProvider = requireNonNull(peerReservedSignedStateResultProvider);
         this.fallenBehindMonitor = requireNonNull(fallenBehindMonitor);
         this.signedStateValidator = requireNonNull(signedStateValidator);
@@ -137,12 +137,12 @@ public class ReconnectController implements Runnable {
             while (run.get()) {
                 fallenBehindMonitor.awaitFallenBehind(); // Block until the monitor notifies the node is behind
                 exitIf();
-                platformCoordinator.submitStatusAction(new FallenBehindAction());
+                reconnectCoordinator.submitStatusAction(new FallenBehindAction());
                 logger.info(RECONNECT.getMarker(), "Preparing for reconnect, stopping gossip");
-                platformCoordinator.pauseGossip();
+                reconnectCoordinator.pauseGossip();
                 fallenBehindMonitor.awaitGossipPaused();
                 logger.info(RECONNECT.getMarker(), "Preparing for reconnect, start clearing queues");
-                platformCoordinator.clear();
+                reconnectCoordinator.clear();
                 logger.info(RECONNECT.getMarker(), "Queues have been cleared");
 
                 final State currentState = stateLifecycleManager.getMutableState();
@@ -154,10 +154,10 @@ public class ReconnectController implements Runnable {
                         // reset the monitor to the initial state
                         fallenBehindMonitor.clear();
                         logger.info(RECONNECT.getMarker(), "Reconnect almost done resuming gossip");
-                        platformCoordinator.resumeGossip();
+                        reconnectCoordinator.resumeGossip();
                         break;
                     }
-                    platformCoordinator.clear();
+                    reconnectCoordinator.clear();
                     exitIfMaxRetriesOrWait(++failedReconnectsInARow, result.throwable());
                 } while (run.get());
             }
@@ -207,7 +207,7 @@ public class ReconnectController implements Runnable {
             logger.info(RECONNECT.getMarker(), "The state obtained from a peer was validated");
             loadState(result.reservedSignedState().get());
             // Notify any listeners that the reconnect has been completed
-            platformCoordinator.sendReconnectCompleteNotification(
+            reconnectCoordinator.sendReconnectCompleteNotification(
                     result.reservedSignedState().get());
             return AttemptReconnectResult.ok();
         } catch (final RuntimeException e) {
@@ -246,9 +246,9 @@ public class ReconnectController implements Runnable {
         stateLifecycleManager.initStateOnReconnect(state);
         // kick off transition to RECONNECT_COMPLETE before beginning to save the reconnect state to disk
         // this guarantees that the platform status will be RECONNECT_COMPLETE before the state is saved
-        platformCoordinator.submitStatusAction(new ReconnectCompleteAction(signedState.getRound()));
+        reconnectCoordinator.submitStatusAction(new ReconnectCompleteAction(signedState.getRound()));
         savedStateController.reconnectStateReceived(signedState.reserve("savedStateController.reconnectStateReceived"));
-        platformCoordinator.loadReconnectState(configuration, signedState);
+        reconnectCoordinator.loadReconnectState(configuration, signedState);
     }
 
     /**
