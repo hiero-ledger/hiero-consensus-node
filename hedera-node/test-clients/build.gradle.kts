@@ -508,7 +508,7 @@ val embeddedCryptoTasks = setOf("hapiTestCryptoEmbedded")
 
 val embeddedBaseTags =
     mapOf(
-        "hapiEmbeddedMisc" to "EMBEDDED&!(SIMPLE_FEES)",
+        "hapiEmbeddedMisc" to "EMBEDDED&!(SIMPLE_FEES|CRYPTO)",
         "hapiEmbeddedSimpleFees" to "EMBEDDED&SIMPLE_FEES",
         "hapiTestCryptoEmbedded" to "EMBEDDED&CRYPTO",
     )
@@ -625,7 +625,7 @@ tasks.register<Test>("testRepeatable") {
         includeTags(
             if (ciTagExpression.isBlank())
                 "none()|!(RESTART|ND_RECONNECT|UPGRADE|EMBEDDED|NOT_REPEATABLE|ONLY_SUBPROCESS|ISS)"
-            else "(${ciTagExpression}|STREAM_VALIDATION|LOG_VALIDATION)&!(INTEGRATION|ISS)"
+            else "(${ciTagExpression}|STREAM_VALIDATION|LOG_VALIDATION)&!(INTEGRATION|ISS|EMBEDDED)"
         )
     }
 
