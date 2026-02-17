@@ -94,7 +94,7 @@ public class ContractCallHandler extends AbstractContractTransactionHandler {
                 validateFalsePreCheck(ConstantUtils.ZERO_CONTRACT_ID.equals(contractId), INVALID_CONTRACT_ID);
             }
 
-            // TODO: Revisit baselineGas with Pectra support epic
+            // baselineCost is 0 for contract calls as neither access list nor EIP-7702 authorizations are supported
             final var gasRequirements = gasCalculator.transactionGasRequirements(
                     Bytes.wrap(op.functionParameters().toByteArray()), false, 0L);
             validateTruePreCheck(op.gas() >= gasRequirements.minimumGasUsed(), INSUFFICIENT_GAS);

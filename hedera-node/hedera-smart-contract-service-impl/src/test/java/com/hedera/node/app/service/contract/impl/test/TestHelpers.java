@@ -62,6 +62,7 @@ import com.hedera.hapi.streams.ContractActionType;
 import com.hedera.hapi.streams.ContractStateChanges;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.node.app.service.contract.impl.exec.TransactionProcessor;
+import com.hedera.node.app.service.contract.impl.exec.delegation.CodeDelegationResult;
 import com.hedera.node.app.service.contract.impl.exec.gas.GasCharges;
 import com.hedera.node.app.service.contract.impl.exec.gas.HederaGasCalculatorImpl;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
@@ -585,9 +586,7 @@ public class TestHelpers {
             ContractCreateTransactionBody.DEFAULT,
             null,
             null,
-            null,
-            0,
-            0);
+            null);
     public static final HederaEvmTransaction HEVM_Exception = new HederaEvmTransaction(
             SENDER_ID,
             null,
@@ -602,9 +601,7 @@ public class TestHelpers {
             null,
             null,
             new HandleException(ResponseCodeEnum.INVALID_CONTRACT_ID),
-            null,
-            0,
-            0);
+            null);
 
     public static final HederaEvmTransaction HEVM_OversizeException = new HederaEvmTransaction(
             SENDER_ID,
@@ -620,9 +617,7 @@ public class TestHelpers {
             null,
             null,
             new HandleException(ResponseCodeEnum.TRANSACTION_OVERSIZE),
-            null,
-            0,
-            0);
+            null);
 
     public static final HederaEvmTransactionResult SUCCESS_RESULT = explicitSuccessFrom(
             GAS_LIMIT / 2,
@@ -665,7 +660,8 @@ public class TestHelpers {
             null,
             null,
             null,
-            null);
+            null,
+            CodeDelegationResult.empty());
 
     public static final StorageAccesses ONE_STORAGE_ACCESSES = new StorageAccesses(
             ContractID.newBuilder().contractNum(123L).build(),
@@ -852,9 +848,7 @@ public class TestHelpers {
                 null,
                 null,
                 null,
-                null,
-                0,
-                0);
+                null);
     }
 
     public static HederaEvmTransaction wellKnownHapiCreate() {
@@ -885,9 +879,7 @@ public class TestHelpers {
                 ContractCreateTransactionBody.DEFAULT,
                 null,
                 null,
-                null,
-                0,
-                0);
+                null);
     }
 
     public static HederaEvmContext wellKnownContextWith(
@@ -1183,7 +1175,8 @@ public class TestHelpers {
                 null,
                 actions,
                 null,
-                null);
+                null,
+                CodeDelegationResult.empty());
     }
 
     /**

@@ -1,49 +1,27 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.delegation;
 
-import static org.hyperledger.besu.datatypes.CodeDelegation.PER_AUTH_BASE_COST;
+import java.util.HashMap;
+import java.util.Map;
 
-import java.util.Set;
-import org.hyperledger.besu.collections.trie.BytesTrieSet;
-import org.hyperledger.besu.datatypes.Address;
-
-/**
- * Class that contains the results when delegating EIP-7702 transaction.
- */
-public class CodeDelegationResult {
-    private long availableGas;
-    private final Set<Address> accessedDelegatorAddresses = new BytesTrieSet<>(Address.SIZE);
-    private long alreadyExistingDelegators = 0L;
-
-    public CodeDelegationResult(final long availableGas) {
-        this.availableGas = availableGas;
+public record CodeDelegationResult(
+        long totalLazyCreationGasCharged,
+        int numAuthorizationsEligibleForRefund,
+        int successfullyProcessedAuthorizations,
+        Map<EntryIgnoreReason, Integer> numIgnoredEntriesByReason) {
+    public enum EntryIgnoreReason {
+        ChainIdMismatch,
+        NonceMismatch,
+        AccountAlreadyHasCode,
+        InsufficientGasForLazyCreation,
+        Other
     }
 
-    public void addAccessedDelegatorAddress(final Address address) {
-        accessedDelegatorAddresses.add(address);
+    public static CodeDelegationResult empty() {
+        return new CodeDelegationResult(0, 0, 0, new HashMap<>());
     }
 
-    public void incrementAlreadyExistingDelegators() {
-        this.alreadyExistingDelegators += 1;
-    }
-
-    public Set<Address> accessedDelegatorAddresses() {
-        return accessedDelegatorAddresses;
-    }
-
-    public long alreadyExistingDelegators() {
-        return alreadyExistingDelegators;
-    }
-
-    public void deductGas(final long gasUsed) {
-        this.availableGas -= gasUsed;
-    }
-
-    public long getAvailableGas() {
-        return availableGas;
-    }
-
-    public long getRefund() {
-        return alreadyExistingDelegators * PER_AUTH_BASE_COST;
+    public int ignoredCodeDelegations() {
+        return this.numIgnoredEntriesByReason.values().stream().reduce(0, Integer::sum);
     }
 }

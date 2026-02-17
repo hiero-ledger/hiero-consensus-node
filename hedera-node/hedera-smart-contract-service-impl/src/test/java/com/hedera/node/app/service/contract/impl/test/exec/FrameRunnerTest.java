@@ -107,14 +107,7 @@ class FrameRunnerTest {
         given(frame.getGasRefund()).willReturn(nominalRefund);
 
         final var result = subject.runToCompletion(
-                GAS_LIMIT,
-                SENDER_ID,
-                frame,
-                tracer,
-                messageCallProcessor,
-                contractCreationProcessor,
-                CHARGING_RESULT,
-                0);
+                GAS_LIMIT, SENDER_ID, frame, tracer, messageCallProcessor, contractCreationProcessor, CHARGING_RESULT);
 
         inOrder.verify(tracer).traceOriginAction(frame);
         inOrder.verify(contractCreationProcessor).process(frame, tracer);
@@ -142,14 +135,7 @@ class FrameRunnerTest {
         given(entityIdFactory.newContractId(numberOfLongZero(NON_SYSTEM_LONG_ZERO_ADDRESS)))
                 .willReturn(contractId);
         final var result = subject.runToCompletion(
-                GAS_LIMIT,
-                SENDER_ID,
-                frame,
-                tracer,
-                messageCallProcessor,
-                contractCreationProcessor,
-                CHARGING_RESULT,
-                0);
+                GAS_LIMIT, SENDER_ID, frame, tracer, messageCallProcessor, contractCreationProcessor, CHARGING_RESULT);
 
         inOrder.verify(tracer).traceOriginAction(frame);
         assertEquals(EXPECTED_GAS_USED_NO_REFUNDS, result.gasUsed());
@@ -174,14 +160,7 @@ class FrameRunnerTest {
                 .willReturn(contractId);
 
         final var result = subject.runToCompletion(
-                GAS_LIMIT,
-                SENDER_ID,
-                frame,
-                tracer,
-                messageCallProcessor,
-                contractCreationProcessor,
-                CHARGING_RESULT,
-                0);
+                GAS_LIMIT, SENDER_ID, frame, tracer, messageCallProcessor, contractCreationProcessor, CHARGING_RESULT);
 
         inOrder.verify(tracer).traceOriginAction(frame);
         inOrder.verify(contractCreationProcessor).process(frame, tracer);
@@ -206,14 +185,7 @@ class FrameRunnerTest {
                 .willReturn(contractId);
 
         final var result = subject.runToCompletion(
-                GAS_LIMIT,
-                SENDER_ID,
-                frame,
-                tracer,
-                messageCallProcessor,
-                contractCreationProcessor,
-                CHARGING_RESULT,
-                0);
+                GAS_LIMIT, SENDER_ID, frame, tracer, messageCallProcessor, contractCreationProcessor, CHARGING_RESULT);
 
         inOrder.verify(tracer).traceOriginAction(frame);
         inOrder.verify(contractCreationProcessor).process(frame, tracer);
@@ -238,14 +210,7 @@ class FrameRunnerTest {
                 .willReturn(contractId);
 
         final var result = subject.runToCompletion(
-                GAS_LIMIT,
-                SENDER_ID,
-                frame,
-                tracer,
-                messageCallProcessor,
-                contractCreationProcessor,
-                CHARGING_RESULT,
-                0);
+                GAS_LIMIT, SENDER_ID, frame, tracer, messageCallProcessor, contractCreationProcessor, CHARGING_RESULT);
 
         inOrder.verify(tracer).traceOriginAction(frame);
         inOrder.verify(contractCreationProcessor).process(frame, tracer);
@@ -270,14 +235,7 @@ class FrameRunnerTest {
                 .willReturn(contractId);
 
         final var result = subject.runToCompletion(
-                GAS_LIMIT,
-                SENDER_ID,
-                frame,
-                tracer,
-                messageCallProcessor,
-                contractCreationProcessor,
-                CHARGING_RESULT,
-                0);
+                GAS_LIMIT, SENDER_ID, frame, tracer, messageCallProcessor, contractCreationProcessor, CHARGING_RESULT);
 
         inOrder.verify(tracer).traceOriginAction(frame);
         inOrder.verify(contractCreationProcessor).process(frame, tracer);
@@ -307,48 +265,12 @@ class FrameRunnerTest {
                 tracer,
                 messageCallProcessor,
                 contractCreationProcessor,
-                new GasCharges(INTRINSIC_GAS, minimumGasUsed, 0L),
-                0);
+                new GasCharges(INTRINSIC_GAS, minimumGasUsed, 0L));
 
         assertEquals(minimumGasUsed, result.gasUsed());
 
         assertSuccessExpectationsWith(
                 NON_SYSTEM_CONTRACT_ID, asEvmContractId(entityIdFactory, NON_SYSTEM_LONG_ZERO_ADDRESS), result);
-    }
-
-    @Test
-    void happyPathWithCodeDelegationRefund() {
-        final var codeDelegationRefund = 50_000L;
-        final var remainingGas = GAS_LIMIT / 2;
-        final var frameGasRefund = GAS_LIMIT / 8;
-        final var nominalGasUsed = GAS_LIMIT - remainingGas;
-        final var nominalRefund = frameGasRefund + codeDelegationRefund;
-        final var maxGasRefunded = nominalGasUsed / BESU_MAX_REFUND_QUOTIENT;
-        final var actualRefund = Math.min(maxGasRefunded, nominalRefund);
-        final var expectedGasUsed = nominalGasUsed - actualRefund;
-
-        givenBaseSuccessWith(NON_SYSTEM_LONG_ZERO_ADDRESS);
-        final var contractId = ContractID.newBuilder()
-                .contractNum(numberOfLongZero(NON_SYSTEM_LONG_ZERO_ADDRESS))
-                .build();
-        given(entityIdFactory.newContractIdWithEvmAddress(any())).willReturn(contractId);
-        given(entityIdFactory.newContractId(numberOfLongZero(NON_SYSTEM_LONG_ZERO_ADDRESS)))
-                .willReturn(contractId);
-
-        final var result = subject.runToCompletion(
-                GAS_LIMIT,
-                SENDER_ID,
-                frame,
-                tracer,
-                messageCallProcessor,
-                contractCreationProcessor,
-                CHARGING_RESULT,
-                codeDelegationRefund);
-
-        assertTrue(result.isSuccess());
-        assertEquals(expectedGasUsed, result.gasUsed());
-        assertEquals(List.of(BESU_LOG), result.logs());
-        assertEquals(NON_SYSTEM_CONTRACT_ID, result.recipientId());
     }
 
     private void assertSuccessExpectationsWith(

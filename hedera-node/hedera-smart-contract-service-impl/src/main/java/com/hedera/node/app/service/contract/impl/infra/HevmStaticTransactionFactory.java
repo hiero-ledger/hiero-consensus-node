@@ -75,9 +75,7 @@ public class HevmStaticTransactionFactory {
                 null,
                 null,
                 null,
-                null,
-                0,
-                0);
+                null);
     }
 
     /**
@@ -109,13 +107,11 @@ public class HevmStaticTransactionFactory {
                 null,
                 null,
                 exception,
-                null,
-                0,
-                0);
+                null);
     }
 
     private void assertValidCall(@NonNull final ContractCallLocalQuery body) {
-        // TODO: Revisit baselineGas with Pectra support epic
+        // baselineCost is 0 for contract calls as neither access list nor EIP-7702 authorizations are supported
         final var gasRequirements = gasCalculator.transactionGasRequirements(EMPTY, false, 0);
         validateTrue(body.gas() >= gasRequirements.minimumGasUsed(), INSUFFICIENT_GAS);
         validateTrue(body.gas() <= getMaxGasLimit(contractsConfig), MAX_GAS_LIMIT_EXCEEDED);

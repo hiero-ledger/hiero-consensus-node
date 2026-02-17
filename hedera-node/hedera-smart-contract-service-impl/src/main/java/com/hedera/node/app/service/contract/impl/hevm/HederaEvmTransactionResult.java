@@ -33,6 +33,7 @@ import com.hedera.hapi.streams.ContractAction;
 import com.hedera.hapi.streams.ContractActionType;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.node.app.service.contract.impl.exec.ActionSidecarContentTracer;
+import com.hedera.node.app.service.contract.impl.exec.delegation.CodeDelegationResult;
 import com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.state.RootProxyWorldUpdater;
@@ -62,7 +63,8 @@ public record HederaEvmTransactionResult(
         @Nullable ResponseCodeEnum finalStatus,
         @Nullable List<ContractAction> actions,
         @Nullable Long signerNonce,
-        @Nullable TxStorageUsage txStorageUsage) {
+        @Nullable TxStorageUsage txStorageUsage,
+        @Nullable CodeDelegationResult codeDelegationResult) {
     public HederaEvmTransactionResult {
         requireNonNull(senderId);
         requireNonNull(output);
@@ -242,7 +244,8 @@ public record HederaEvmTransactionResult(
                 null,
                 maybeActionsFrom(frame, tracer),
                 null,
-                null);
+                null,
+                CodeDelegationResult.empty());
     }
 
     /**
@@ -278,7 +281,8 @@ public record HederaEvmTransactionResult(
                 null,
                 maybeActionsFrom(frame, tracer),
                 null,
-                txStorageUsage);
+                txStorageUsage,
+                CodeDelegationResult.empty());
     }
 
     /**
@@ -309,7 +313,8 @@ public record HederaEvmTransactionResult(
                 null,
                 null,
                 null,
-                null);
+                null,
+                CodeDelegationResult.empty());
     }
 
     /**
@@ -340,7 +345,8 @@ public record HederaEvmTransactionResult(
                 reason,
                 null,
                 null,
-                null);
+                null,
+                CodeDelegationResult.empty());
     }
 
     /**
@@ -500,7 +506,8 @@ public record HederaEvmTransactionResult(
                 finalStatus,
                 actions,
                 signerNonce,
-                txStorageUsage);
+                txStorageUsage,
+                codeDelegationResult);
     }
 
     public HederaEvmTransactionResult withTxStorageUsage(@Nullable final TxStorageUsage txStorageUsage) {
@@ -518,6 +525,27 @@ public record HederaEvmTransactionResult(
                 finalStatus,
                 actions,
                 signerNonce,
-                txStorageUsage);
+                txStorageUsage,
+                codeDelegationResult);
+    }
+
+    public HederaEvmTransactionResult withCodeDelegationResult(
+            @Nullable final CodeDelegationResult codeDelegationResult) {
+        return new HederaEvmTransactionResult(
+                gasUsed,
+                gasPrice,
+                senderId,
+                recipientId,
+                recipientEvmAddress,
+                output,
+                haltReason,
+                revertReason,
+                logs,
+                evmLogs,
+                finalStatus,
+                actions,
+                signerNonce,
+                txStorageUsage,
+                codeDelegationResult);
     }
 }

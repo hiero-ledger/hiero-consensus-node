@@ -20,6 +20,7 @@ module com.hedera.node.app.service.token.impl {
     requires transitive javax.inject;
     requires transitive org.apache.commons.lang3;
     requires com.swirlds.base;
+    requires org.hiero.base.utility;
     requires org.hiero.consensus.metrics;
     requires com.github.spotbugs.annotations;
     requires com.google.common;

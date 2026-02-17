@@ -73,6 +73,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.charset.StandardCharsets;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import org.hiero.base.utility.ByteUtils;
 
 /**
  * This class contains all workflow-related functionality regarding {@link HederaFunctionality#CRYPTO_UPDATE}.
@@ -271,11 +272,12 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
                     - op.hookIdsToDelete().size()
                     + op.hookCreationDetails().size());
         }
-        if (op.delegationAddress().length() > 0) {
+
+        if (ByteUtils.isEmptyOrAllZeros(op.delegationAddress())) {
+            builder.delegationAddress(Bytes.EMPTY);
+        } else {
             // check for EVM address size is done in pureChecks
             builder.delegationAddress(op.delegationAddress());
-        } else {
-            builder.delegationAddress(Bytes.EMPTY);
         }
         return builder;
     }

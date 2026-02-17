@@ -18,10 +18,13 @@ import static com.hedera.services.bdd.suites.HapiSuite.RELAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.WEIBARS_IN_A_TINYBAR;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
 
+import com.esaulpaugh.headlong.abi.Address;
+import com.esaulpaugh.headlong.rlp.RLPEncoder;
 import com.esaulpaugh.headlong.util.Integers;
 import com.google.common.base.MoreObjects;
 import com.google.protobuf.ByteString;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
+import com.hedera.node.app.hapi.utils.ethereum.EthTxData.EthTransactionType;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.infrastructure.meta.ActionableContractCall;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
@@ -54,6 +57,8 @@ import java.util.function.Supplier;
 import org.bouncycastle.util.encoders.Hex;
 
 public class HapiEthereumCall extends HapiBaseCall<HapiEthereumCall> {
+    record AuthorizationListItem(Address target, Function<HapiSpec, Long> nonceFn, String privateKeyRef) {}
+
     private static final String CALL_DATA_FILE_NAME = "CallData";
     private List<String> otherSigs = Collections.emptyList();
     private Optional<String> details = Optional.empty();
@@ -81,8 +86,8 @@ public class HapiEthereumCall extends HapiBaseCall<HapiEthereumCall> {
     private Integer chainId = CHAIN_ID;
     private boolean wrongRecId;
     private boolean isJumboTxn = false;
-    private byte[] authorizationList = null;
     private byte[] signedBytes = null;
+    private List<AuthorizationListItem> authorizationListItems = new ArrayList<>();
 
     public HapiEthereumCall withExplicitParams(final Supplier<String> supplier) {
         explicitHexedParams = Optional.of(supplier);
@@ -349,6 +354,23 @@ public class HapiEthereumCall extends HapiBaseCall<HapiEthereumCall> {
         if (useSpecNonce) {
             nonce = spec.getNonce(privateKeyRef);
         }
+
+        byte[] authorizationList = null;
+        Object[] authorizationListRlp = null;
+        if (type == EthTransactionType.EIP7702 && authorizationListItems != null) {
+            authorizationListRlp = authorizationListItems.stream()
+                    .map(item -> {
+                        final var nonce = item.nonceFn().apply(spec);
+                        return Signing.signCodeDelegation(
+                                Integers.toBytes(chainId),
+                                item.target(),
+                                nonce,
+                                getEcdsaPrivateKeyFromSpec(spec, item.privateKeyRef()),
+                                false);
+                    })
+                    .toArray();
+            authorizationList = RLPEncoder.list(authorizationListRlp);
+        }
         final var ethTxData = new EthTxData(
                 null,
                 type,
@@ -363,8 +385,8 @@ public class HapiEthereumCall extends HapiBaseCall<HapiEthereumCall> {
                 callData,
                 new byte[] {},
                 null,
-                authorizationList,
-                new Object[] {},
+                type.equals(EthTransactionType.EIP7702) ? authorizationList : null,
+                type.equals(EthTransactionType.EIP7702) ? authorizationListRlp : new Object[] {},
                 0,
                 null,
                 null,
@@ -411,6 +433,9 @@ public class HapiEthereumCall extends HapiBaseCall<HapiEthereumCall> {
         if (actualPrecheck == OK) {
             spec.incrementNonce(privateKeyRef);
         }
+        authorizationListItems.forEach(authorizationListItem -> {
+            spec.incrementNonce(authorizationListItem.privateKeyRef());
+        });
         if (gasObserver.isPresent()) {
             doGasLookup(gas -> gasObserver.get().accept(actualStatus, gas), spec, txnSubmitted, false);
         }
@@ -481,8 +506,15 @@ public class HapiEthereumCall extends HapiBaseCall<HapiEthereumCall> {
         return this;
     }
 
-    public HapiEthereumCall withAuthorizationList(final byte[] authorizationList) {
-        this.authorizationList = authorizationList;
+    public HapiEthereumCall addSenderCodeDelegationWithSpecNonce(Address target) {
+        authorizationListItems.add(
+                new AuthorizationListItem(target, hapiSpec -> hapiSpec.getNonce(privateKeyRef) + 1, privateKeyRef));
+        return this;
+    }
+
+    public HapiEthereumCall addCodeDelegationWithSpecNonce(Address target, String privateKeyRef) {
+        authorizationListItems.add(
+                new AuthorizationListItem(target, hapiSpec -> hapiSpec.getNonce(privateKeyRef), privateKeyRef));
         return this;
     }
 }

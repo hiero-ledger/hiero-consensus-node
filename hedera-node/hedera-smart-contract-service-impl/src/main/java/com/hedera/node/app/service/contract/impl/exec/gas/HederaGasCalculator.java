@@ -21,23 +21,4 @@ public interface HederaGasCalculator extends GasCalculator {
      */
     GasCharges transactionGasRequirements(
             @NonNull final Bytes payload, final boolean isContractCreate, final long baselineCost);
-
-    /**
-     * Calculate gas requirements of the transaction.
-     * This method mirrors {{@link GasCalculator#transactionIntrinsicGasCost(Transaction, long)},
-     * but does not require a full Transaction object and uses
-     * {@link GasCalculator#transactionFloorCost(Bytes, long)} for `minimumGasUsed` calculation.
-     * This overloaded also takes into account the size of the authorization list for type 4 transactions.
-     *
-     * @param payload          the payload of the transaction
-     * @param isContractCreate is this call a 'contract creation'
-     * @param baselineCost     the gas used by access lists and code delegation authorizations
-     * @param authorizationListSize the number of entries in the authorization list for type 4 transactions
-     * @return The gas requirements of the transaction
-     */
-    GasCharges transactionGasRequirements(
-            @NonNull final Bytes payload,
-            final boolean isContractCreate,
-            final long baselineCost,
-            final long authorizationListSize);
 }

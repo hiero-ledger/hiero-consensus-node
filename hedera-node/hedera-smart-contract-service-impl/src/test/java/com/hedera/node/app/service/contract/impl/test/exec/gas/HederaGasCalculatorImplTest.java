@@ -74,25 +74,6 @@ class HederaGasCalculatorImplTest {
     }
 
     @Test
-    void transactionWithAuthorizationGasRequirements() {
-        final var payloadLength = 2048;
-        byte[] randomPayload = new byte[payloadLength];
-        ThreadLocalRandom.current().nextBytes(randomPayload);
-        final var zeros = IntStream.range(0, randomPayload.length)
-                .filter(idx -> randomPayload[idx] == 0)
-                .count();
-        // regular transaction
-        final var gasRequirements = subject.transactionGasRequirements(Bytes.of(randomPayload), false, 0L, 4L);
-        // Add cost for each authorization as defined by https://eips.ethereum.org/EIPS/eip-7702
-        assertEquals(
-                HederaGasCalculatorImpl.TX_BASE_COST
-                        + HederaGasCalculatorImpl.TX_DATA_ZERO_COST * zeros
-                        + HederaGasCalculatorImpl.ISTANBUL_TX_DATA_NON_ZERO_COST * (randomPayload.length - zeros)
-                        + HederaGasCalculatorImpl.INTRINSIC_DELEGATION_GAS_COST * 4L,
-                gasRequirements.intrinsicGas());
-    }
-
-    @Test
     void transactionGasRequirementsContractCreate() {
         final var payloadLength = 2048;
         byte[] randomPayload = new byte[payloadLength];

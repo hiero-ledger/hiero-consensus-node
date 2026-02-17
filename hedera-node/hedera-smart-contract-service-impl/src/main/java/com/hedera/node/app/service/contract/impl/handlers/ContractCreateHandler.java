@@ -83,7 +83,7 @@ public class ContractCreateHandler extends AbstractContractTransactionHandler {
             final var txn = context.body();
             final var op = txn.contractCreateInstanceOrThrow();
 
-            // TODO: Revisit baselineGas with Pectra support epic
+            // baselineCost is 0 for ContractCreate as neither access list nor EIP-7702 authorizations are supported
             final var gasRequirements = gasCalculator.transactionGasRequirements(Bytes.wrap(new byte[0]), true, 0L);
             validateTruePreCheck(op.gas() >= gasRequirements.minimumGasUsed(), INSUFFICIENT_GAS);
             validateHookDuplicates(op.hookCreationDetails());
