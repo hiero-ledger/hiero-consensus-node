@@ -274,7 +274,7 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
         }
 
         if (ByteUtils.isEmptyOrAllZeros(op.delegationAddress())) {
-            builder.delegationAddress(Bytes.EMPTY);
+//            builder.delegationAddress(Bytes.EMPTY);
         } else {
             // check for EVM address size is done in pureChecks
             builder.delegationAddress(op.delegationAddress());
