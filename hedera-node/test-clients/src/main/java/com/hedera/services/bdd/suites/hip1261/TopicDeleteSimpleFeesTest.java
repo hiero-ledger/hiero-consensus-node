@@ -18,7 +18,9 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.deleteTopic;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
+import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
@@ -26,6 +28,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTopicDeleteFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTopicDeleteNetworkFeeOnlyUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.signedTxnSizeFor;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedFeeToUsd;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_PAYER_SIGNATURE;
@@ -300,9 +303,6 @@ public class TopicDeleteSimpleFeesTest {
             @HapiTest
             @DisplayName("TopicDelete - missing admin key signature fails at handle - fee charged")
             final Stream<DynamicTest> topicDeleteMissingAdminKeySignatureFailsAtHandle() {
-                final AtomicLong initialBalance = new AtomicLong();
-                final AtomicLong afterBalance = new AtomicLong();
-
                 return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                         newKeyNamed(ADMIN_KEY),
@@ -311,23 +311,17 @@ public class TopicDeleteSimpleFeesTest {
                                 .payingWith(PAYER)
                                 .signedBy(PAYER, ADMIN_KEY)
                                 .fee(ONE_HUNDRED_HBARS),
-                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
                         deleteTopic(TOPIC)
                                 .payingWith(PAYER)
                                 .signedBy(PAYER) // Missing admin key signature
                                 .fee(ONE_HUNDRED_HBARS)
                                 .via("topicDeleteTxn")
                                 .hasKnownStatus(INVALID_SIGNATURE),
-                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                        withOpContext((spec, log) -> {
-                            assertTrue(initialBalance.get() > afterBalance.get());
-                        }),
-                        validateChargedFeeToUsd(
-                                "topicDeleteTxn",
-                                initialBalance,
-                                afterBalance,
-                                expectedTopicDeleteFullFeeUsd(1L),
-                                1.0));
+                        withOpContext((spec, log) -> allRunFor(
+                                spec,
+                                validateChargedUsd(
+                                        "topicDeleteTxn",
+                                        expectedTopicDeleteFullFeeUsd(1L, signedTxnSizeFor(spec, "topicDeleteTxn"))))));
             }
 
             @HapiTest
