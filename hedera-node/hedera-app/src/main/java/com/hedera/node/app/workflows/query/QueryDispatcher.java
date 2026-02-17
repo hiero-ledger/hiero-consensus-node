@@ -73,6 +73,8 @@ public class QueryDispatcher {
             case TOKEN_GET_NFT_INFOS -> handlers.tokenGetNftInfosHandler();
 
             case GET_CLPR_LEDGER_CONFIGURATION -> handlers.clprGetLedgerConfigurationHandler();
+            case GET_CLPR_MESSAGE_QUEUE_METADATA -> handlers.clprGetMessageQueueMetadataHandler();
+            case GET_CLPR_MESSAGES -> handlers.clprGetMessagesHandler();
 
             case UNSET -> throw new UnsupportedOperationException(QUERY_NOT_SET);
         };

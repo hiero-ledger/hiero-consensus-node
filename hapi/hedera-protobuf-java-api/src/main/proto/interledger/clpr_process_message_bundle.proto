@@ -1,0 +1,44 @@
+/**
+ * # Process CLPR Message Bundle Transaction
+ * Submits a `ClprMessageBundle` for processing by the CLPR transaction workflow.
+ *
+ * ### Keywords
+ * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+ * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+ * document are to be interpreted as described in
+ * [RFC2119](https://www.ietf.org/rfc/rfc2119) and clarified in
+ * [RFC8174](https://www.ietf.org/rfc/rfc8174).
+ */
+syntax = "proto3";
+
+package org.hiero.hapi.interledger.clpr;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "org.hiero.hapi.interledger.clpr.protoc";
+// <<<pbj.java_package = "org.hiero.hapi.interledger.clpr">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+import "interledger/state/clpr/clpr_message_queue.proto";
+
+
+/**
+ * Transaction body for processing a CLPR message bundle.
+ *
+ * This transaction contains a single `ClprMessageBundle` that the node
+ * SHOULD process as a unit. The bundle MAY contain multiple messages
+ * which are related or must be handled together to preserve ordering or
+ * atomicity semantics required by the CLPR protocol.
+ *
+ * Implementations MUST validate the bundle contents and MUST reject the
+ * transaction if the bundle is malformed, contains invalid messages, or
+ * violates protocol constraints.
+ */
+message ClprProcessMessageBundleTransactionBody {
+  /**
+   * The CLPR message bundle to be processed.
+   * <p>
+   * This field contains the messages that the transaction submits for
+   * processing.
+   */
+  org.hiero.hapi.interledger.state.clpr.ClprMessageBundle message_bundle = 1;
+}

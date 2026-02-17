@@ -4,6 +4,7 @@ package org.hiero.interledger.clpr.impl.test;
 import static org.hiero.interledger.clpr.impl.schemas.V0700ClprSchema.CLPR_MESSAGES_STATE_ID;
 import static org.hiero.interledger.clpr.impl.schemas.V0700ClprSchema.CLPR_MESSAGES_STATE_LABEL;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 import com.hedera.hapi.platform.state.StateKey;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -44,5 +45,32 @@ class ClprMessageStoreTest {
 
         writableStore.put(messageKey, messageValue);
         assertEquals(messageValue, readableStore.get(messageKey));
+    }
+
+    @Test
+    void removesMessages() {
+        final var backing = new HashMap<ClprMessageKey, ClprMessageValue>();
+        final Map<Integer, Object> mapOfStates = new HashMap<>();
+        final var state = new MapWritableKVState<>(CLPR_MESSAGES_STATE_ID, CLPR_MESSAGES_STATE_LABEL, backing);
+        mapOfStates.put(StateKey.KeyOneOfType.CLPRSERVICE_I_MESSAGES.protoOrdinal(), state);
+
+        final var writableStore = new WritableClprMessageStoreImpl(new MapWritableStates(mapOfStates));
+        final var readableStore = new ReadableClprMessageStoreImpl(new MapReadableStates(mapOfStates));
+
+        final var messageKey = ClprMessageKey.newBuilder()
+                .messageId(12)
+                .ledgerId(ClprLedgerId.DEFAULT)
+                .build();
+        final var messageValue = ClprMessageValue.newBuilder()
+                .payload(ClprMessagePayload.newBuilder()
+                        .message(ClprMessage.newBuilder()
+                                .messageData(Bytes.wrap("Delete me".getBytes()))
+                                .build())
+                        .build())
+                .build();
+
+        writableStore.put(messageKey, messageValue);
+        writableStore.remove(messageKey);
+        assertNull(readableStore.get(messageKey));
     }
 }

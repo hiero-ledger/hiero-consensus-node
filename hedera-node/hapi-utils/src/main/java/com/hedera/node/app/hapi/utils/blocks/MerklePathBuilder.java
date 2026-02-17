@@ -17,6 +17,7 @@ import com.swirlds.state.binary.SiblingHash;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.MessageDigest;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -73,6 +74,24 @@ public final class MerklePathBuilder {
         final var builder = new MerklePathBuilder();
         builder.setStateItemLeaf(merkleProof.stateItem());
         builder.setSiblingNodes(convertSiblingHashes(merkleProof.siblingHashes()));
+        // If the proof provides cached inner-parent hashes, use them only when the provided root hash
+        // matches the root hash implied by the leaf + sibling hashes. This preserves cryptographic
+        // correctness while still allowing detection of mismatched intermediate hashes during merges.
+        final var innerParentHashes = merkleProof.innerParentHashes();
+        if (innerParentHashes != null && !innerParentHashes.isEmpty()) {
+            final int expectedSize = builder.siblingNodes.size() + 1;
+            if (innerParentHashes.size() == expectedSize) {
+                final byte[] providedRoot =
+                        innerParentHashes.get(expectedSize - 1).copyToByteArray();
+                if (Arrays.equals(providedRoot, builder.rootHash)) {
+                    builder.innerNodeHashes.clear();
+                    for (final var hash : innerParentHashes) {
+                        builder.innerNodeHashes.add(hash.copyToByteArray());
+                    }
+                    builder.rootHash = providedRoot;
+                }
+            }
+        }
         return builder;
     }
 

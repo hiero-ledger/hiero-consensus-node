@@ -1772,6 +1772,26 @@ enum ResponseCodeEnum {
     INVALID_SERIALIZED_TX_MESSAGE_HASH_ALGORITHM = 401;
 
     /**
+     * The `ledger id` field is empty or invalid.
+     */
+    CLPR_INVALID_LEDGER_ID = 402;
+
+    /**
+     * Message queue for the remote ledger is not available.
+     */
+    CLPR_MESSAGE_QUEUE_NOT_AVAILABLE = 403;
+
+    /**
+     * Provided running hash is invalid.
+     */
+    CLPR_INVALID_RUNNING_HASH = 404;
+
+    /**
+     * Provided bundle contains misaligned message ids.
+     */
+    CLPR_INVALID_BUNDLE = 405;
+
+    /**
     * A HAPI client cannot set the SignedTransaction#use_serialized_tx_message_hash_algorithm field.
     */
     CLPR_LEDGER_CONFIGURATION_NOT_AVAILABLE = 497;

@@ -1,0 +1,80 @@
+/**
+ * # Get CLPR Messages
+ *
+ * ### Keywords
+ * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+ * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+ * document are to be interpreted as described in
+ * [RFC2119](https://www.ietf.org/rfc/rfc2119) and clarified in
+ * [RFC8174](https://www.ietf.org/rfc/rfc8174).
+ */
+syntax = "proto3";
+
+package org.hiero.hapi.interledger.clpr;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "org.hiero.hapi.interledger.clpr.protoc";
+// <<<pbj.java_package = "org.hiero.hapi.interledger.clpr">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+import "services/basic_types.proto";
+import "services/query_header.proto";
+import "services/response_header.proto";
+import "interledger/state/clpr/clpr_ledger.proto";
+import "interledger/state/clpr/clpr_message_queue.proto";
+
+/**
+ * A response to a `ClprGetMessagesQuery`.
+ *
+ * This MAY return a `ClprMessageBundle` containing up to the requested
+ * number of messages and constrained by the requested bundle length.
+ */
+message ClprGetMessagesQuery {
+  /**
+   * Standard information sent with every query operation.<br/>
+   * This includes the signed payment and what kind of response is requested
+   * (cost, state proof, both, or neither).
+   */
+  proto.QueryHeader header = 1;
+
+  /**
+   * The ledger id of the CLPR ledger from which messages are requested.
+   */
+  org.hiero.hapi.interledger.state.clpr.ClprLedgerId ledger_id = 2;
+
+  /**
+   * The maximum number of messages to return in the response.
+   * <p>
+   * Implementations MAY return fewer messages if fewer are available.
+   */
+  uint32 max_number_of_messages = 3;
+
+  /**
+   * The maximum bundle length in bytes allowed in the response.
+   */
+  uint64 max_bundle_bytes = 4;
+}
+
+/**
+ * A response to a `ClprGetMessagesQuery`.
+ *
+ * This MAY return a `ClprMessageBundle` containing up to the requested
+ * number of messages and constrained by the requested bundle length.
+ */
+message ClprGetMessagesResponse {
+  /**
+   * The standard response information for queries.
+   * <p>
+   * This includes the values requested in the `QueryHeader`
+   * (cost, state proof, both, or neither).
+   */
+  proto.ResponseHeader header = 1;
+
+  /**
+   * The message bundle containing the requested CLPR messages.
+   * <p>
+   * This field may be absent if there are no messages to return for the
+   * requested ledger or if the request could not be satisfied.
+   */
+  org.hiero.hapi.interledger.state.clpr.ClprMessageBundle message_bundle = 2;
+}

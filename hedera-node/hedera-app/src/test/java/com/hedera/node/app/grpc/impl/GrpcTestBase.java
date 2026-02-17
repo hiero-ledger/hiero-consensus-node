@@ -193,7 +193,13 @@ public abstract class GrpcTestBase extends TestBase {
 
         final var servicesRegistry = new ServicesRegistryImpl(ConstructableRegistry.getInstance(), configuration);
         servicesRegistry.register(testService);
-        final var config = createConfig(new TestSource().withNodeOperatorPortEnabled(withNodeOperatorPort));
+        final var testSource = new TestSource().withNodeOperatorPortEnabled(withNodeOperatorPort);
+        if (withNodeOperatorPort) {
+            // The operator port defaults to 50213, which may be occupied in developer environments (e.g. kubectl
+            // port-forward). Pick a free port so tests are hermetic.
+            testSource.withFreeNodeOperatorPort();
+        }
+        final var config = createConfig(testSource);
         this.grpcServer = new NettyGrpcServerManager(
                 () -> new VersionedConfigImpl(config, 1),
                 servicesRegistry,
@@ -313,6 +319,8 @@ public abstract class GrpcTestBase extends TestBase {
     protected static final class TestSource implements ConfigSource {
         private int port = 0;
         private int tlsPort = 0;
+        // Must always satisfy GrpcConfig's @Min(1) validation, even when operator port is disabled.
+        private int nodeOperatorPort = 50213;
         private int startRetries = 3;
         private int startRetryIntervalMs = 100;
         private boolean nodeOperatorPortEnabled = false;
@@ -329,6 +337,7 @@ public abstract class GrpcTestBase extends TestBase {
                     "grpc.port",
                     "grpc.tlsPort",
                     "grpc.nodeOperatorPortEnabled",
+                    "grpc.nodeOperatorPort",
                     "netty.startRetryIntervalMs",
                     "netty.startRetries");
         }
@@ -339,6 +348,7 @@ public abstract class GrpcTestBase extends TestBase {
             return switch (s) {
                 case "grpc.port" -> String.valueOf(port);
                 case "grpc.nodeOperatorPortEnabled" -> String.valueOf(nodeOperatorPortEnabled);
+                case "grpc.nodeOperatorPort" -> String.valueOf(nodeOperatorPort);
                 case "grpc.tlsPort" -> String.valueOf(tlsPort);
                 case "netty.startRetryIntervalMs" -> String.valueOf(startRetryIntervalMs);
                 case "netty.startRetries" -> String.valueOf(startRetries);
@@ -377,6 +387,18 @@ public abstract class GrpcTestBase extends TestBase {
             return this;
         }
 
+        public TestSource withNodeOperatorPort(final int value) {
+            this.nodeOperatorPort = value;
+            return this;
+        }
+
+        // Locates a free port on its own
+        public TestSource withFreeNodeOperatorPort() {
+            this.nodeOperatorPort = findFreePort();
+            Assumptions.assumeThat(this.nodeOperatorPort).isGreaterThan(0);
+            return this;
+        }
+
         // Locates a free port on its own
         public TestSource withFreePort() {
             this.port = findFreePort();
@@ -408,7 +430,7 @@ public abstract class GrpcTestBase extends TestBase {
 
         private int findFreePort() {
             for (int i = 1024; i < 10_000; i++) {
-                if (i != port && i != tlsPort && isPortFree(i)) {
+                if (i != port && i != tlsPort && i != nodeOperatorPort && isPortFree(i)) {
                     return i;
                 }
             }

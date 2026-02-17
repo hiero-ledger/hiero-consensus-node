@@ -49,4 +49,49 @@ service ClprService {
      * [ClprGetLedgerConfigurationResponse](#org.hiero.hapi.interledger.clpr.ClprGetLedgerConfigurationResponse)
      */
     rpc getLedgerConfiguration (proto.Query) returns (proto.Response);
+
+    /**
+     * Updates the metadata for a message queue associated with a remote ledger.
+     * <p>
+     * This transaction provides a state proof to verify the current status of the
+     * remote ledger's message queue metadata.
+     * <p>
+     * The request body MUST be a
+     * [ClprUpdateMessageQueueMetadataTransactionBody](#org.hiero.hapi.interledger.clpr.ClprUpdateMessageQueueMetadataTransactionBody)
+     */
+    rpc updateMessageQueueMetadata (proto.Transaction) returns (proto.TransactionResponse);
+
+    /**
+     * Retrieves the metadata for a message queue from a remote ledger.
+     * <p>
+     * The request body MUST be a
+     * [ClprGetMessageQueueMetadataQuery](#org.hiero.hapi.interledger.clpr.ClprGetMessageQueueMetadataQuery)<br/>
+     * The response body SHALL be a
+     * [ClprGetMessageQueueMetadataResponse](#org.hiero.hapi.interledger.clpr.ClprGetMessageQueueMetadataResponse)
+     */
+    rpc getMessageQueueMetadata (proto.Query) returns (proto.Response);
+
+    /**
+     * Processes a bundle of messages received from a remote ledger.
+     * <p>
+     * This transaction submits a bundle of messages to be executed or stored by
+     * this ledger.
+     * <p>
+     * The request body MUST be a
+     * [ClprProcessMessageBundleTransactionBody](#org.hiero.hapi.interledger.clpr.ClprProcessMessageBundleTransactionBody)
+     */
+    rpc processMessageBundle (proto.Transaction) returns (proto.TransactionResponse);
+
+    /**
+     * Retrieves a bundle of messages from a remote ledger's queue.
+     * <p>
+     * The query allows specifying limits on the number of messages and the
+     * total bundle length in bytes.
+     * <p>
+     * The request body MUST be a
+     * [ClprGetMessagesQuery](#org.hiero.hapi.interledger.clpr.ClprGetMessagesQuery)<br/>
+     * The response body SHALL be a
+     * [ClprGetMessagesResponse](#org.hiero.hapi.interledger.clpr.ClprGetMessagesResponse)
+     */
+    rpc getMessageBundle (proto.Query) returns (proto.Response);
 }

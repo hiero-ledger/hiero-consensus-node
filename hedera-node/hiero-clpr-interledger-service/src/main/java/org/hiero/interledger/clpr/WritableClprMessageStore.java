@@ -18,4 +18,11 @@ public interface WritableClprMessageStore extends ReadableClprMessageStore {
      * @param clprMessageValue the message content to be stored
      */
     void put(@NonNull ClprMessageKey messageKey, @NonNull ClprMessageValue clprMessageValue);
+
+    /**
+     * Removes a CLPR message associated with the provided key.
+     *
+     * @param messageKey the unique key identifying the message
+     */
+    void remove(@NonNull ClprMessageKey messageKey);
 }

@@ -44,6 +44,7 @@ module com.hedera.state.validator {
     requires org.hiero.consensus.platformstate;
     requires org.hiero.consensus.state;
     requires org.hiero.consensus.utility;
+    requires org.hiero.interledger.clpr.impl;
     requires com.fasterxml.jackson.databind;
     requires com.github.spotbugs.annotations;
     requires info.picocli;

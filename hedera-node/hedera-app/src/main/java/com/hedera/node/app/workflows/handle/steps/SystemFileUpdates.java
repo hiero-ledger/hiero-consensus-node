@@ -17,6 +17,7 @@ import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.throttle.ThrottleServiceManager;
 import com.hedera.node.app.util.FileUtilities;
 import com.hedera.node.config.data.BlockStreamConfig;
+import com.hedera.node.config.data.FeesConfig;
 import com.hedera.node.config.data.FilesConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.types.BlockStreamWriterMode;
@@ -153,14 +154,68 @@ public class SystemFileUpdates {
             @NonNull final Configuration configuration,
             @NonNull final ConfigType configType,
             @NonNull final State state) {
+        // Defensive preload: tests (and potentially operators) can flip `fees.simpleFeesEnabled` via a
+        // network properties override at runtime; if we don't already have a SimpleFeeCalculator, queries
+        // that use simple fees can NPE (e.g. QueryWorkflowImpl).
+        //
+        // Preloading prior to publishing the new configuration avoids a race where query threads observe
+        // `simpleFeesEnabled=true` before the FeeManager has been initialized with simple fee schedules.
+        if (feeManager.getSimpleFeeCalculator() == null) {
+            final var simpleFeesFileNum =
+                    configuration.getConfigData(FilesConfig.class).simpleFeesSchedules();
+            final var simpleFeesFileId = FileUtilities.createFileID(simpleFeesFileNum, configuration);
+            final var simpleFeesContents = FileUtilities.getFileContent(state, simpleFeesFileId);
+            if (!Bytes.EMPTY.equals(simpleFeesContents)) {
+                final var status = feeManager.updateSimpleFees(simpleFeesContents);
+                if (status != SUCCESS) {
+                    logger.error(
+                            "State file 0.0.{} did not contain parseable simple fee schedules ({})",
+                            simpleFeesFileNum,
+                            status);
+                }
+            }
+        }
         observePropertiesAndPermissions(state, configuration, (properties, permissions) -> {
             configProvider.update(properties, permissions);
+            // If simple fees are enabled via the new config but schedules failed to load above (missing file,
+            // parse failure, etc.), try once more using the post-update configuration.
+            final var newConfig = configProvider.getConfiguration();
+            if (simpleFeesEnabled(newConfig) && feeManager.getSimpleFeeCalculator() == null) {
+                final var simpleFeesFileNum =
+                        newConfig.getConfigData(FilesConfig.class).simpleFeesSchedules();
+                final var simpleFeesFileId = FileUtilities.createFileID(simpleFeesFileNum, newConfig);
+                final var simpleFeesContents = FileUtilities.getFileContent(state, simpleFeesFileId);
+                final var status = feeManager.updateSimpleFees(simpleFeesContents);
+                if (status != SUCCESS) {
+                    logger.error(
+                            "State file 0.0.{} did not contain parseable simple fee schedules ({})",
+                            simpleFeesFileNum,
+                            status);
+                }
+            }
             if (configType == ConfigType.NETWORK_PROPERTIES) {
                 logContentsOf("Network properties", properties);
             } else {
                 logContentsOf("API permissions", permissions);
             }
         });
+    }
+
+    /**
+     * Some unit tests build a minimal {@link Configuration} that doesn't register all config data types. In production,
+     * {@link FeesConfig} is always present, but in tests we need to degrade gracefully and treat simple fees as disabled.
+     */
+    private static boolean simpleFeesEnabled(@NonNull final Configuration configuration) {
+        try {
+            return configuration.getConfigData(FeesConfig.class).simpleFeesEnabled();
+        } catch (final IllegalArgumentException ignore) {
+            // FeesConfig isn't registered in this configuration; treat as disabled.
+            try {
+                return configuration.getValue("fees.simpleFeesEnabled", Boolean.class);
+            } catch (final RuntimeException ignored) {
+                return false;
+            }
+        }
     }
 
     private void logContentsOf(@NonNull final String configFileName, @NonNull final Bytes contents) {

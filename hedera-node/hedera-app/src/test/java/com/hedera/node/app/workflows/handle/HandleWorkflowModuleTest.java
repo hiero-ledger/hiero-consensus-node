@@ -78,9 +78,14 @@ import com.hedera.node.app.workflows.dispatcher.TransactionHandlers;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.List;
 import org.hiero.interledger.clpr.impl.handlers.ClprGetLedgerConfigurationHandler;
+import org.hiero.interledger.clpr.impl.handlers.ClprGetMessageQueueMetadataHandler;
+import org.hiero.interledger.clpr.impl.handlers.ClprGetMessagesHandler;
 import org.hiero.interledger.clpr.impl.handlers.ClprHandlers;
 import org.hiero.interledger.clpr.impl.handlers.ClprLedgerConfigurationHandlers;
+import org.hiero.interledger.clpr.impl.handlers.ClprMessageQueueHandlers;
+import org.hiero.interledger.clpr.impl.handlers.ClprProcessMessageBundleHandler;
 import org.hiero.interledger.clpr.impl.handlers.ClprSetLedgerConfigurationHandler;
+import org.hiero.interledger.clpr.impl.handlers.ClprUpdateMessageQueueMetadataHandler;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
@@ -288,6 +293,18 @@ class HandleWorkflowModuleTest {
     private ClprSetLedgerConfigurationHandler clprSetLedgerConfigurationHandler;
 
     @Mock
+    private ClprUpdateMessageQueueMetadataHandler clprUpdateMessageQueueMetadataHandler;
+
+    @Mock
+    private ClprGetMessageQueueMetadataHandler clprGetMessageQueueMetadataHandler;
+
+    @Mock
+    private ClprProcessMessageBundleHandler clprProcessMessageBundleHandler;
+
+    @Mock
+    private ClprGetMessagesHandler clprGetMessagesHandler;
+
+    @Mock
     private HintsKeyPublicationHandler keyPublicationHandler;
 
     @Mock
@@ -365,6 +382,11 @@ class HandleWorkflowModuleTest {
                 new HistoryHandlers(proofSignatureHandler, proofKeyPublicationHandler, proofVoteHandler);
         final var clprHandlers = new ClprLedgerConfigurationHandlers(
                 clprGetLedgerConfigurationHandler, clprSetLedgerConfigurationHandler);
+        final var clprMessageQueueHandlers = new ClprMessageQueueHandlers(
+                clprGetMessageQueueMetadataHandler,
+                clprGetMessagesHandler,
+                clprUpdateMessageQueueMetadataHandler,
+                clprProcessMessageBundleHandler);
         final var handlers = HandleWorkflowModule.provideTransactionHandlers(
                 networkAdminHandlers,
                 consensusHandlers,
@@ -376,7 +398,8 @@ class HandleWorkflowModuleTest {
                 addressBookHandlers,
                 hintsHandlers,
                 historyHandlers,
-                clprHandlers);
+                clprHandlers,
+                clprMessageQueueHandlers);
         assertInstanceOf(TransactionHandlers.class, handlers);
     }
 }

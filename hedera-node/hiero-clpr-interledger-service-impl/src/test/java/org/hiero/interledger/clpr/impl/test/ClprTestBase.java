@@ -3,6 +3,10 @@ package org.hiero.interledger.clpr.impl.test;
 
 import static org.hiero.interledger.clpr.impl.schemas.V0700ClprSchema.CLPR_LEDGER_CONFIGURATIONS_STATE_ID;
 import static org.hiero.interledger.clpr.impl.schemas.V0700ClprSchema.CLPR_LEDGER_CONFIGURATIONS_STATE_KEY;
+import static org.hiero.interledger.clpr.impl.schemas.V0700ClprSchema.CLPR_MESSAGES_STATE_ID;
+import static org.hiero.interledger.clpr.impl.schemas.V0700ClprSchema.CLPR_MESSAGES_STATE_LABEL;
+import static org.hiero.interledger.clpr.impl.schemas.V0700ClprSchema.CLPR_MESSAGE_QUEUE_METADATA_STATE_ID;
+import static org.hiero.interledger.clpr.impl.schemas.V0700ClprSchema.CLPR_MESSAGE_QUEUE_METADATA_STATE_LABEL;
 
 import com.hedera.hapi.block.stream.StateProof;
 import com.hedera.hapi.node.base.Timestamp;
@@ -34,10 +38,21 @@ import java.util.TreeMap;
 import org.hiero.hapi.interledger.state.clpr.ClprEndpoint;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerId;
+import org.hiero.hapi.interledger.state.clpr.ClprMessageKey;
+import org.hiero.hapi.interledger.state.clpr.ClprMessageQueueMetadata;
+import org.hiero.hapi.interledger.state.clpr.ClprMessageValue;
 import org.hiero.interledger.clpr.ReadableClprLedgerConfigurationStore;
+import org.hiero.interledger.clpr.ReadableClprMessageQueueMetadataStore;
+import org.hiero.interledger.clpr.ReadableClprMessageStore;
 import org.hiero.interledger.clpr.WritableClprLedgerConfigurationStore;
+import org.hiero.interledger.clpr.WritableClprMessageQueueMetadataStore;
+import org.hiero.interledger.clpr.WritableClprMessageStore;
 import org.hiero.interledger.clpr.impl.ReadableClprLedgerConfigurationStoreImpl;
+import org.hiero.interledger.clpr.impl.ReadableClprMessageQueueMetadataStoreImpl;
+import org.hiero.interledger.clpr.impl.ReadableClprMessageStoreImpl;
 import org.hiero.interledger.clpr.impl.WritableClprLedgerConfigurationStoreImpl;
+import org.hiero.interledger.clpr.impl.WritableClprMessageQueueMetadataStoreImpl;
+import org.hiero.interledger.clpr.impl.WritableClprMessageStoreImpl;
 import org.mockito.Mock;
 
 public class ClprTestBase {
@@ -52,8 +67,14 @@ public class ClprTestBase {
 
     // states declarations
     protected Map<ClprLedgerId, ClprLedgerConfiguration> configurationMap;
+    protected Map<ClprMessageKey, ClprMessageValue> messagesMap;
+    protected Map<ClprLedgerId, ClprMessageQueueMetadata> queueMetadataMap;
     protected MapWritableKVState<ClprLedgerId, ClprLedgerConfiguration> writableLedgerConfiguration;
     protected MapReadableKVState<ClprLedgerId, ClprLedgerConfiguration> readableLedgerConfiguration;
+    protected MapWritableKVState<ClprMessageKey, ClprMessageValue> writableMessages;
+    protected MapReadableKVState<ClprMessageKey, ClprMessageValue> readableMessages;
+    protected MapWritableKVState<ClprLedgerId, ClprMessageQueueMetadata> writableMessageQueueMetadata;
+    protected MapReadableKVState<ClprLedgerId, ClprMessageQueueMetadata> readableMessageQueueMetadata;
     protected Map<Integer, WritableKVState<?, ?>> writableStatesMap;
     protected ReadableStates states;
     protected WritableStates clprStates;
@@ -61,6 +82,10 @@ public class ClprTestBase {
     // stores declarations
     protected ReadableClprLedgerConfigurationStore readableLedgerConfigStore;
     protected WritableClprLedgerConfigurationStore writableLedgerConfigStore;
+    protected ReadableClprMessageStore readableClprMessageStore;
+    protected WritableClprMessageStore writableClprMessageStore;
+    protected ReadableClprMessageQueueMetadataStore readableClprMessageQueueMetadataStore;
+    protected WritableClprMessageQueueMetadataStore writableClprMessageQueueMetadataStore;
 
     @Mock(strictness = Mock.Strictness.LENIENT)
     protected ReadableHistoryStore readableHistoryStore;
@@ -70,16 +95,31 @@ public class ClprTestBase {
 
     protected void setupStates() {
         configurationMap = new LinkedHashMap<>(0);
+        messagesMap = new LinkedHashMap<>(0);
+        queueMetadataMap = new LinkedHashMap<>(0);
         writableLedgerConfiguration = new MapWritableKVState<>(
                 CLPR_LEDGER_CONFIGURATIONS_STATE_ID, CLPR_LEDGER_CONFIGURATIONS_STATE_KEY, configurationMap);
         readableLedgerConfiguration = new MapReadableKVState<>(
                 CLPR_LEDGER_CONFIGURATIONS_STATE_ID, CLPR_LEDGER_CONFIGURATIONS_STATE_KEY, configurationMap);
+        writableMessages = new MapWritableKVState<>(CLPR_MESSAGES_STATE_ID, CLPR_MESSAGES_STATE_LABEL, messagesMap);
+        readableMessages = new MapReadableKVState<>(CLPR_MESSAGES_STATE_ID, CLPR_MESSAGES_STATE_LABEL, messagesMap);
+        writableMessageQueueMetadata = new MapWritableKVState<>(
+                CLPR_MESSAGE_QUEUE_METADATA_STATE_ID, CLPR_MESSAGE_QUEUE_METADATA_STATE_LABEL, queueMetadataMap);
+        readableMessageQueueMetadata = new MapReadableKVState<>(
+                CLPR_MESSAGE_QUEUE_METADATA_STATE_ID, CLPR_MESSAGE_QUEUE_METADATA_STATE_LABEL, queueMetadataMap);
         writableStatesMap = new TreeMap<>();
         writableStatesMap.put(CLPR_LEDGER_CONFIGURATIONS_STATE_ID, writableLedgerConfiguration);
+        writableStatesMap.put(CLPR_MESSAGES_STATE_ID, writableMessages);
+        writableStatesMap.put(CLPR_MESSAGE_QUEUE_METADATA_STATE_ID, writableMessageQueueMetadata);
+
         clprStates = new MapWritableStates(writableStatesMap);
         states = new MapReadableStates(writableStatesMap);
         readableLedgerConfigStore = new ReadableClprLedgerConfigurationStoreImpl(states);
         writableLedgerConfigStore = new WritableClprLedgerConfigurationStoreImpl(clprStates);
+        readableClprMessageStore = new ReadableClprMessageStoreImpl(states);
+        writableClprMessageStore = new WritableClprMessageStoreImpl(clprStates);
+        readableClprMessageQueueMetadataStore = new ReadableClprMessageQueueMetadataStoreImpl(states);
+        writableClprMessageQueueMetadataStore = new WritableClprMessageQueueMetadataStoreImpl(clprStates);
     }
 
     private void setupScenario() {

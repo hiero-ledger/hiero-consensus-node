@@ -31,6 +31,7 @@ public class V0700ClprSchema extends Schema<SemanticVersion> {
             StateKey.KeyOneOfType.CLPRSERVICE_I_MESSAGE_QUEUE_METADATA.toString();
     public static final int CLPR_MESSAGE_QUEUE_METADATA_STATE_ID =
             StateKey.KeyOneOfType.CLPRSERVICE_I_MESSAGE_QUEUE_METADATA.protoOrdinal();
+    private static final long MAX_MESSAGE_QUEUE_METADATA = 50_000L;
 
     // Messages state
     public static final String CLPR_MESSAGES_STATE_LABEL = StateKey.KeyOneOfType.CLPRSERVICE_I_MESSAGES.toString();

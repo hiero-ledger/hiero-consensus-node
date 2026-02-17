@@ -41,9 +41,14 @@ import net.i2p.crypto.eddsa.EdDSAPrivateKey;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.hapi.interledger.clpr.ClprGetLedgerConfigurationQuery;
+import org.hiero.hapi.interledger.clpr.ClprGetMessageQueueMetadataQuery;
+import org.hiero.hapi.interledger.clpr.ClprGetMessagesQuery;
+import org.hiero.hapi.interledger.clpr.ClprProcessMessageBundleTransactionBody;
 import org.hiero.hapi.interledger.clpr.ClprServiceInterface;
 import org.hiero.hapi.interledger.clpr.ClprSetLedgerConfigurationTransactionBody;
+import org.hiero.hapi.interledger.clpr.ClprUpdateMessageQueueMetadataTransactionBody;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerId;
+import org.hiero.hapi.interledger.state.clpr.ClprMessageBundle;
 import org.hiero.interledger.clpr.client.ClprClient;
 
 /**
@@ -107,10 +112,21 @@ public class ClprClientImpl implements ClprClient {
         signer = DevTransactionSignerHolder.signer();
     }
 
+    /**
+     * Constructs a ClprClientImpl instance with the specified CLPR service client.
+     *
+     * @param clprServiceClient the CLPR service client
+     */
     ClprClientImpl(@NonNull final ClprServiceInterface.ClprServiceClient clprServiceClient) {
         this(clprServiceClient, DevTransactionSignerHolder.signer());
     }
 
+    /**
+     * Constructs a ClprClientImpl instance with the specified CLPR service client and transaction signer.
+     *
+     * @param clprServiceClient the CLPR service client
+     * @param signer the transaction signer
+     */
     ClprClientImpl(
             @NonNull final ClprServiceInterface.ClprServiceClient clprServiceClient,
             @NonNull final TransactionSigner signer) {
@@ -162,6 +178,11 @@ public class ClprClientImpl implements ClprClient {
      * transaction, signs it (using a dev-mode key when available), and synchronously invokes the
      * gRPC method. Any exception is converted into {@link ResponseCodeEnum#FAIL_INVALID} so callers
      * can retry without crashing the endpoint loop.
+     *
+     * @param payerAccountId the ID of the account paying for the transaction
+     * @param nodeAccountId the ID of the node to which the transaction is submitted
+     * @param ledgerConfigurationProof the state proof of the ledger configuration
+     * @return the response code from the node
      */
     @Override
     public @NonNull ResponseCodeEnum setConfiguration(
@@ -196,6 +217,159 @@ public class ClprClientImpl implements ClprClient {
             log.error("CLPR client failed to submit configuration for payer {}", payerAccountId, e);
             return ResponseCodeEnum.FAIL_INVALID;
         }
+    }
+
+    /**
+     * Builds and submits a CLPR update-message-queue-metadata transaction. The method fabricates a PBJ
+     * transaction, signs it (using a dev-mode key when available), and synchronously invokes the
+     * gRPC method. Any exception is converted into {@link ResponseCodeEnum#FAIL_INVALID}.
+     *
+     * @param payerAccountId the ID of the account paying for the transaction
+     * @param nodeAccountId the ID of the node to which the transaction is submitted
+     * @param ledgerId the ID of the ledger
+     * @param messageQueueMetadataProof the state proof of the message queue metadata
+     * @return the response code from the node
+     */
+    @Override
+    public @NonNull ResponseCodeEnum updateMessageQueueMetadata(
+            @NonNull AccountID payerAccountId,
+            @NonNull AccountID nodeAccountId,
+            @NonNull ClprLedgerId ledgerId,
+            @NonNull StateProof messageQueueMetadataProof) {
+        try {
+            final var txnBody = TransactionBody.newBuilder()
+                    .transactionID(newTransactionId(payerAccountId))
+                    .clprUpdateMessageQueueMetadata(ClprUpdateMessageQueueMetadataTransactionBody.newBuilder()
+                            .ledgerId(ledgerId)
+                            .messageQueueMetadataProof(messageQueueMetadataProof)
+                            .build())
+                    .transactionFee(1L)
+                    .transactionValidDuration(com.hedera.hapi.node.base.Duration.newBuilder()
+                            .seconds(120)
+                            .build())
+                    .nodeAccountID(nodeAccountId)
+                    .build();
+            final var bodyBytes = TransactionBody.PROTOBUF.toBytes(txnBody);
+            final var signatureMap = signer.sign(txnBody);
+            final var signedTransaction = SignedTransaction.newBuilder()
+                    .bodyBytes(bodyBytes)
+                    .sigMap(signatureMap)
+                    .build();
+            final var transaction = Transaction.newBuilder()
+                    .signedTransactionBytes(SignedTransaction.PROTOBUF.toBytes(signedTransaction))
+                    .build();
+            final var response = clprServiceClient.updateMessageQueueMetadata(transaction);
+            return response.nodeTransactionPrecheckCode();
+        } catch (final Exception e) {
+            log.error(
+                    "CLPR client failed to submit message queue metadata for payer {} and ledger {}",
+                    payerAccountId,
+                    ledgerId,
+                    e);
+            return ResponseCodeEnum.FAIL_INVALID;
+        }
+    }
+
+    /**
+     * Retrieves the message queue metadata state proof for a given ledger.
+     *
+     * <p>This method queries the CLPR service for the message queue metadata
+     * associated with the specified ledger and returns the cryptographic state
+     * proof if available.
+     *
+     * @param ledgerId the ID of the ledger to query
+     * @return the state proof containing the message queue metadata, or {@code null}
+     *         if the metadata is not available or the ledger does not exist
+     */
+    @Override
+    public @Nullable StateProof getMessageQueueMetadata(@NonNull ClprLedgerId ledgerId) {
+        // create query payload with header and specified ledger id
+        final var queryBody = ClprGetMessageQueueMetadataQuery.newBuilder()
+                .header(QueryHeader.newBuilder().build())
+                .ledgerId(ledgerId)
+                .build();
+
+        final var queryTxn =
+                Query.newBuilder().getClprMessageQueueMetadata(queryBody).build();
+        final var response = clprServiceClient.getMessageQueueMetadata(queryTxn);
+        if (response.hasClprMessageQueueMetadata()) {
+            return response.clprMessageQueueMetadata().messageQueueMetadataProof();
+        }
+        return null;
+    }
+
+    /**
+     * Submits a CLPR process-message-bundle transaction.
+     *
+     * @param payerAccountId the ID of the account paying for the transaction
+     * @param nodeAccountId the ID of the node to which the transaction is submitted
+     * @param ledgerId the ID of the ledger
+     * @param messageBundle the bundle of messages to process
+     * @return the response code from the node
+     */
+    @Override
+    public @NonNull ResponseCodeEnum submitProcessMessageBundleTxn(
+            @NonNull AccountID payerAccountId,
+            @NonNull AccountID nodeAccountId,
+            @NonNull ClprLedgerId ledgerId,
+            @NonNull ClprMessageBundle messageBundle) {
+        try {
+            final var txnBody = TransactionBody.newBuilder()
+                    .transactionID(newTransactionId(payerAccountId))
+                    .clprProcessMessageBundle(ClprProcessMessageBundleTransactionBody.newBuilder()
+                            .messageBundle(messageBundle)
+                            .build())
+                    .transactionFee(1L)
+                    .transactionValidDuration(com.hedera.hapi.node.base.Duration.newBuilder()
+                            .seconds(120)
+                            .build())
+                    .nodeAccountID(nodeAccountId)
+                    .build();
+            final var bodyBytes = TransactionBody.PROTOBUF.toBytes(txnBody);
+            final var signatureMap = signer.sign(txnBody);
+            final var signedTransaction = SignedTransaction.newBuilder()
+                    .bodyBytes(bodyBytes)
+                    .sigMap(signatureMap)
+                    .build();
+            final var transaction = Transaction.newBuilder()
+                    .signedTransactionBytes(SignedTransaction.PROTOBUF.toBytes(signedTransaction))
+                    .build();
+            final var response = clprServiceClient.processMessageBundle(transaction);
+            return response.nodeTransactionPrecheckCode();
+        } catch (final Exception e) {
+            log.error(
+                    "CLPR client failed to submit message bundle for payer {} and ledger {}",
+                    payerAccountId,
+                    ledgerId,
+                    e);
+            return ResponseCodeEnum.FAIL_INVALID;
+        }
+    }
+
+    /**
+     * Retrieves a bundle of messages from the ledger.
+     *
+     * @param ledgerId the ID of the ledger
+     * @param maxNumMsg the maximum number of messages to retrieve
+     * @param maxNumBytes the maximum number of bytes to retrieve
+     * @return the bundle of messages, or null if not available
+     */
+    @Override
+    public @Nullable ClprMessageBundle getMessages(@NonNull ClprLedgerId ledgerId, int maxNumMsg, int maxNumBytes) {
+        // create query payload with header and specified ledger id
+        final var queryBody = ClprGetMessagesQuery.newBuilder()
+                .header(QueryHeader.newBuilder().build())
+                .ledgerId(ledgerId)
+                .maxBundleBytes(maxNumBytes)
+                .maxNumberOfMessages(maxNumMsg)
+                .build();
+
+        final var queryTxn = Query.newBuilder().getClprMessages(queryBody).build();
+        final var response = clprServiceClient.getMessageBundle(queryTxn);
+        if (response.hasClprMessages()) {
+            return response.clprMessages().messageBundle();
+        }
+        return null;
     }
 
     @Override

@@ -216,10 +216,19 @@ public final class StateProofBuilder {
             final var prunedNewPath = newPath.pruneFromRoot(matchLength + 1);
             final var prunedExistingPath = merklePathBuilder.pruneFromRoot(matchLength + 1);
 
-            final byte[] expectedInnerNodeHash = HashUtils.joinHashes(
-                    HashUtils.newMessageDigest(), prunedExistingPath.getRootHash(), prunedNewPath.getRootHash());
+            final boolean treePathIsLeftBranch = !treeBranchSibling.isLeft();
+            final byte[] expectedInnerNodeHash = treePathIsLeftBranch
+                    ? HashUtils.joinHashes(
+                            HashUtils.newMessageDigest(), prunedExistingPath.getRootHash(), prunedNewPath.getRootHash())
+                    : HashUtils.joinHashes(
+                            HashUtils.newMessageDigest(),
+                            prunedNewPath.getRootHash(),
+                            prunedExistingPath.getRootHash());
 
-            if (!hashesEqual(expectedInnerNodeHash, merklePathBuilder.getInnerNodeHash(treeBranchIndex + 1))) {
+            final var treeInnerNodeHash = merklePathBuilder.getInnerNodeHash(treeBranchIndex + 1);
+            final var newInnerNodeHash = newPath.getInnerNodeHash(newPathBranchIndex + 1);
+            if (!hashesEqual(expectedInnerNodeHash, treeInnerNodeHash)
+                    || !hashesEqual(expectedInnerNodeHash, newInnerNodeHash)) {
                 throw new IllegalStateException("Incompatible inner node hashes for branching at match point");
             }
 
@@ -227,7 +236,6 @@ public final class StateProofBuilder {
             final var prunedNewNode = new MPTreeNode(prunedNewPath);
 
             this.merklePathBuilder = treePrefix;
-            final boolean treePathIsLeftBranch = !treeBranchSibling.isLeft();
             if (treePathIsLeftBranch) {
                 leftBranch = prunedExistingNode;
                 rightBranch = prunedNewNode;
