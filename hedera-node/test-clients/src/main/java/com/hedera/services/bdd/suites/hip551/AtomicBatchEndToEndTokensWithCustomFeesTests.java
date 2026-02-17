@@ -27,6 +27,7 @@ import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movi
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_BILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateBatchChargedCorrectly;
@@ -57,7 +58,6 @@ import org.junit.jupiter.api.Tag;
 
 @Tag(ATOMIC_BATCH)
 public class AtomicBatchEndToEndTokensWithCustomFeesTests {
-    private static final double BASE_FEE_BATCH_TRANSACTION = 0.001;
     private static final long HBAR_FEE = 1L;
     private static final long HTS_FEE = 1L;
     private static final String FT_WITH_HBAR_FIXED_FEE = "ftWithHbarFixedFee";
@@ -2383,7 +2383,7 @@ public class AtomicBatchEndToEndTokensWithCustomFeesTests {
 
     private List<SpecOperation> createAccountsAndKeys() {
         return List.of(
-                cryptoCreate(BATCH_OPERATOR).balance(ONE_HBAR),
+                cryptoCreate(BATCH_OPERATOR).balance(ONE_HUNDRED_HBARS),
                 cryptoCreate(OWNER).balance(ONE_BILLION_HBARS),
                 cryptoCreate(NEW_TREASURY_WITH_UNLIMITED_AUTO_ASSOCIATIONS)
                         .balance(ONE_MILLION_HBARS)

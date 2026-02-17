@@ -51,7 +51,6 @@ import org.junit.jupiter.api.Tag;
 
 @Tag(ATOMIC_BATCH)
 class AtomicBatchEndToEndCryptoAndTokenServiceTests {
-    private static final double BASE_FEE_BATCH_TRANSACTION = 0.001;
     private static final String FT_FOR_END_TO_END = "ftForEndToEnd";
     private static final String NFT_FOR_END_TO_END = "nftForEndToEnd";
     private static final String OWNER = "owner";

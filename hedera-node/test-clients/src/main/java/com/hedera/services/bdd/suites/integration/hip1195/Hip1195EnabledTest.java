@@ -236,7 +236,7 @@ public class Hip1195EnabledTest {
         final AtomicReference<byte[]> payerMirror = new AtomicReference<>();
         return hapiTest(
                 newKeyNamed("supplyKey"),
-                cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(PAYER),
                 cryptoCreate(OWNER).withHooks(accountAllowanceHook(123L, STATIC_CALL_HOOK.name())),
                 tokenCreate("token")
                         .treasury(PAYER)
@@ -287,12 +287,10 @@ public class Hip1195EnabledTest {
                                 accountAllowanceHook(123L, TRUE_ALLOWANCE_HOOK.name()),
                                 accountAllowanceHook(124L, TRUE_ALLOWANCE_HOOK.name()),
                                 accountAllowanceHook(125L, TRUE_PRE_POST_ALLOWANCE_HOOK.name()),
-                                accountAllowanceHook(126L, TRUE_PRE_POST_ALLOWANCE_HOOK.name()))
-                        .signedBy(DEFAULT_PAYER),
+                                accountAllowanceHook(126L, TRUE_PRE_POST_ALLOWANCE_HOOK.name())),
                 cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
                         .withPreHookFor(OWNER, 124L, 15000000000000L, "")
                         .payingWith(PAYER)
-                        .signedBy(PAYER)
                         .fee(15000 * ONE_HBAR)
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK)
                         .via("payerTxnGasLimitExceeded"),
@@ -300,16 +298,13 @@ public class Hip1195EnabledTest {
                         .withPreHookFor(OWNER, 124L, 15000000000000L, "")
                         .fee(15000 * ONE_HBAR)
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK)
-                        .signedBy(DEFAULT_PAYER)
                         .via("defaultPayerMaxGasLimitExceededTxn"),
                 getTxnRecord("payerTxnGasLimitExceeded")
                         .andAllChildRecords()
-                        .hasChildRecords(recordWith().status(MAX_GAS_LIMIT_EXCEEDED))
-                        .logged(),
+                        .hasChildRecords(recordWith().status(MAX_GAS_LIMIT_EXCEEDED)),
                 getTxnRecord("defaultPayerMaxGasLimitExceededTxn")
                         .andAllChildRecords()
-                        .hasChildRecords(recordWith().status(MAX_GAS_LIMIT_EXCEEDED))
-                        .logged());
+                        .hasChildRecords(recordWith().status(MAX_GAS_LIMIT_EXCEEDED)));
     }
 
     @HapiTest
@@ -638,9 +633,7 @@ public class Hip1195EnabledTest {
                 cryptoCreate(alice)
                         .withHooks(accountAllowanceHook(123L, FALSE_ALLOWANCE_HOOK.name()))
                         .balance(10 * ONE_HUNDRED_HBARS),
-                cryptoCreate(amelie)
-                        .withHooks(accountAllowanceHook(124L, TRUE_ALLOWANCE_HOOK.name()))
-                        .balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(amelie).withHooks(accountAllowanceHook(124L, TRUE_ALLOWANCE_HOOK.name())),
                 cryptoCreate(usdcTreasury),
                 cryptoCreate(usdcCollector),
                 cryptoCreate(westWindTreasury),
@@ -661,9 +654,9 @@ public class Hip1195EnabledTest {
                 tokenAssociate(amelie, List.of(westWindArt, usdc)),
                 tokenAssociate(alice, List.of(westWindArt, usdc)),
                 mintToken(westWindArt, List.of(copyFromUtf8("test"))),
-                cryptoTransfer(moving(200, usdc).between(usdcTreasury, alice)).fee(ONE_HUNDRED_HBARS),
+                cryptoTransfer(moving(200, usdc).between(usdcTreasury, alice)).fee(ONE_HBAR),
                 cryptoTransfer(movingUnique(westWindArt, 1L).between(westWindTreasury, amelie))
-                        .fee(ONE_HUNDRED_HBARS)
+                        .fee(ONE_HBAR)
                         .via(txnFromTreasury),
                 cryptoTransfer(
                                 movingUnique(westWindArt, 1L).between(amelie, alice),
@@ -673,7 +666,7 @@ public class Hip1195EnabledTest {
                         .signedBy(amelie, alice)
                         .payingWith(amelie)
                         .via(txnFromAmelie)
-                        .fee(ONE_HUNDRED_HBARS),
+                        .fee(ONE_HBAR),
                 getTxnRecord(txnFromAmelie).logged()
                 // manually check the proposed transfers in logs
                 );
@@ -1307,7 +1300,6 @@ public class Hip1195EnabledTest {
                         .withPrePostHookFor("owner6", 6L, 25_000L, "")
                         .payingWith(PAYER)
                         .signedBy(PAYER)
-                        .fee(THOUSAND_HBAR)
                         .hasKnownStatus(TOO_MANY_HOOK_INVOCATIONS));
     }
 

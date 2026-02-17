@@ -60,7 +60,6 @@ import org.junit.jupiter.api.Tag;
 
 @Tag(ATOMIC_BATCH)
 class AtomicBatchEndToEndConsensusAndTokenServiceTests {
-    private static final double BASE_FEE_BATCH_TRANSACTION = 0.001;
     private static final long HBAR_FEE = 1L;
     private static final String FT_FOR_END_TO_END = "ftForEndToEnd";
     private static final String FT_FOR_TOKEN_KYC = "ftForTokenKyc";
@@ -1698,7 +1697,7 @@ class AtomicBatchEndToEndConsensusAndTokenServiceTests {
 
     private List<SpecOperation> createAccountsAndKeys() {
         return List.of(
-                cryptoCreate(BATCH_OPERATOR).balance(ONE_HBAR),
+                cryptoCreate(BATCH_OPERATOR).balance(ONE_HUNDRED_HBARS),
                 cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                 cryptoCreate(PAYER_INSUFFICIENT_BALANCE).balance(0L),
                 cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS),

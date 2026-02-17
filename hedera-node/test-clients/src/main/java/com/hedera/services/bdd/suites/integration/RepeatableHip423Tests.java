@@ -97,7 +97,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepForSeconds;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.uploadScheduledContractPrices;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilStartOfNextStakingPeriod;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withStatus;
@@ -118,6 +117,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.flattened;
 import static com.hedera.services.bdd.suites.contract.Utils.asAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.getNestedContractAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.idAsHeadlongAddress;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateFees;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SCHEDULE_SIGN_FEE;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SIGNATURE_FEE_AFTER_MULTIPLIER;
 import static com.hedera.services.bdd.suites.hip423.LongTermScheduleUtils.CREATE_TXN;
@@ -1015,8 +1015,7 @@ public class RepeatableHip423Tests {
                         .sigMapPrefixes(uniqueWithFullPrefixesFor("receiver"))
                         .hasKnownStatusFrom(INVALID_SCHEDULE_ID)
                         .via("signTxn"),
-                // 0.001 for ScheduleSign base fee and 0.001 for extra signature from the receiver
-                validateChargedUsd("signTxn", SCHEDULE_SIGN_FEE + SIGNATURE_FEE_AFTER_MULTIPLIER));
+                validateFees("signTxn", 0.001, SCHEDULE_SIGN_FEE + SIGNATURE_FEE_AFTER_MULTIPLIER));
     }
 
     @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
@@ -1337,15 +1336,13 @@ public class RepeatableHip423Tests {
 
     @LeakyRepeatableHapiTest(
             value = NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION,
-            overrides = {"scheduling.whitelist", "fees.simpleFeesEnabled"})
+            overrides = {"scheduling.whitelist"})
     @DisplayName("Schedules far in the future are more expensive")
     final Stream<DynamicTest> longerScheduleShouldCostMore() {
         final var firstFee = new AtomicLong();
         final var secondFee = new AtomicLong();
         final var thirdFee = new AtomicLong();
         return hapiTest(
-                // With simple fees enabled we no longer scale the fee by the schedule time
-                overriding("fees.simpleFeesEnabled", "false"),
                 cryptoCreate("payer").balance(ONE_HBAR),
                 cryptoCreate("account"),
                 scheduleCreate("payerOnly", cryptoTransfer(tinyBarsFromTo(DEFAULT_PAYER, "account", 1L)))
@@ -1364,8 +1361,13 @@ public class RepeatableHip423Tests {
                 getTxnRecord("second").exposingTo(record -> secondFee.set(record.getTransactionFee())),
                 getTxnRecord("third").exposingTo(record -> thirdFee.set(record.getTransactionFee())),
                 withOpContext((spec, log) -> {
-                    assertEquals(firstFee.get(), secondFee.get());
-                    assertTrue(secondFee.get() < thirdFee.get());
+                    if (spec.simpleFeesEnabled()) {
+                        assertEquals(firstFee.get(), secondFee.get());
+                        assertEquals(secondFee.get(), thirdFee.get());
+                    } else {
+                        assertEquals(firstFee.get(), secondFee.get());
+                        assertTrue(secondFee.get() < thirdFee.get());
+                    }
                 }));
     }
 
