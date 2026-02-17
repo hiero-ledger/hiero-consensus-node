@@ -1336,15 +1336,13 @@ public class RepeatableHip423Tests {
 
     @LeakyRepeatableHapiTest(
             value = NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION,
-            overrides = {"scheduling.whitelist", "fees.simpleFeesEnabled"})
+            overrides = {"scheduling.whitelist"})
     @DisplayName("Schedules far in the future are more expensive")
     final Stream<DynamicTest> longerScheduleShouldCostMore() {
         final var firstFee = new AtomicLong();
         final var secondFee = new AtomicLong();
         final var thirdFee = new AtomicLong();
         return hapiTest(
-                // With simple fees enabled we no longer scale the fee by the schedule time
-                overriding("fees.simpleFeesEnabled", "false"),
                 cryptoCreate("payer").balance(ONE_HBAR),
                 cryptoCreate("account"),
                 scheduleCreate("payerOnly", cryptoTransfer(tinyBarsFromTo(DEFAULT_PAYER, "account", 1L)))
@@ -1363,8 +1361,13 @@ public class RepeatableHip423Tests {
                 getTxnRecord("second").exposingTo(record -> secondFee.set(record.getTransactionFee())),
                 getTxnRecord("third").exposingTo(record -> thirdFee.set(record.getTransactionFee())),
                 withOpContext((spec, log) -> {
-                    assertEquals(firstFee.get(), secondFee.get());
-                    assertTrue(secondFee.get() < thirdFee.get());
+                    if (spec.simpleFeesEnabled()) {
+                        assertEquals(firstFee.get(), secondFee.get());
+                        assertEquals(secondFee.get(), thirdFee.get());
+                    } else {
+                        assertEquals(firstFee.get(), secondFee.get());
+                        assertTrue(secondFee.get() < thirdFee.get());
+                    }
                 }));
     }
 
