@@ -762,8 +762,10 @@ public class LambdaplexVerbs {
                     }
                 }
             }
-            final var mergedBaseAdjustments = skipAccountAmountsMerge ? baseAdjustments : mergedAdjustments(baseAdjustments);
-            final var mergedQuoteAdjustments = skipAccountAmountsMerge ? quoteAdjustments : mergedAdjustments(quoteAdjustments);
+            final var mergedBaseAdjustments =
+                    skipAccountAmountsMerge ? baseAdjustments : mergedAdjustments(baseAdjustments);
+            final var mergedQuoteAdjustments =
+                    skipAccountAmountsMerge ? quoteAdjustments : mergedAdjustments(quoteAdjustments);
             final var registry = spec.registry();
             if (specBaseToken == HBAR) {
                 builder.setTransfers(TransferList.newBuilder().addAllAccountAmounts(mergedBaseAdjustments))

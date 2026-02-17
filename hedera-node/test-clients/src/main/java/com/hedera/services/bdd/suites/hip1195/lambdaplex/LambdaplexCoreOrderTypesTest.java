@@ -1541,6 +1541,60 @@ public class LambdaplexCoreOrderTypesTest implements InitcodeTransform {
     }
 
     @HapiTest
+    final Stream<DynamicTest> batchInvocationRejectsDataLengthNotMultipleOf32() {
+        final var makerSellSaltOne = randomB64Salt();
+        final var makerSellSaltTwo = randomB64Salt();
+        final var partyBuySalt = randomB64Salt();
+        return hapiTest(
+                lv.placeLimitOrder(
+                        MARKET_MAKER,
+                        makerSellSaltOne,
+                        APPLES,
+                        USDC,
+                        Side.SELL,
+                        distantExpiry(),
+                        ZERO_BPS,
+                        price(2.00),
+                        quantity(2)),
+                lv.placeLimitOrder(
+                        MARKET_MAKER,
+                        makerSellSaltTwo,
+                        APPLES,
+                        USDC,
+                        Side.SELL,
+                        distantExpiry(),
+                        ZERO_BPS,
+                        price(2.00),
+                        quantity(2)),
+                lv.placeLimitOrder(
+                        PARTY,
+                        partyBuySalt,
+                        APPLES,
+                        USDC,
+                        Side.BUY,
+                        distantExpiry(),
+                        ZERO_BPS,
+                        price(2.00),
+                        quantity(4)),
+                // Make each hook payload non-32-byte-aligned (e.g. 64 -> 65 for maker; 32 -> 33 for taker).
+                lv.settleDataTransformedFillsNoFees(
+                                APPLES,
+                                USDC,
+                                data -> data.append(Bytes.wrap(new byte[] {(byte) 0xff})),
+                                makingSeller(
+                                        MARKET_MAKER,
+                                        quantity(4),
+                                        averagePrice(2.00),
+                                        makerSellSaltOne,
+                                        makerSellSaltTwo),
+                                takingBuyer(PARTY, quantity(4), averagePrice(2.00), partyBuySalt))
+                        .via("misalignedDataTx")
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
+                // _loadBytes32(): require(data.length >= offset + 32, "bytes32 oob")
+                assertFirstError("misalignedDataTx", "bytes32 oob"));
+    }
+
+    @HapiTest
     final Stream<DynamicTest> singleOrderSanityChecksAreEnforced() {
         final var buySalt = randomB64Salt();
         final var expiredSellSalt = randomB64Salt();

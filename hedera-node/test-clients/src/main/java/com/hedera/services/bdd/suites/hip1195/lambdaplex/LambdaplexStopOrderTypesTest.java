@@ -22,6 +22,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.THOUSAND_HBAR;
 import static com.hedera.services.bdd.suites.hip1195.lambdaplex.LambdaplexVerbs.FillParty.makingBuyer;
 import static com.hedera.services.bdd.suites.hip1195.lambdaplex.LambdaplexVerbs.FillParty.takingSeller;
 import static com.hedera.services.bdd.suites.hip1195.lambdaplex.LambdaplexVerbs.HBAR;
+import static com.hedera.services.bdd.suites.hip1195.lambdaplex.LambdaplexVerbs.assertFirstError;
 import static com.hedera.services.bdd.suites.hip1195.lambdaplex.LambdaplexVerbs.averagePrice;
 import static com.hedera.services.bdd.suites.hip1195.lambdaplex.LambdaplexVerbs.distantExpiry;
 import static com.hedera.services.bdd.suites.hip1195.lambdaplex.LambdaplexVerbs.inBaseUnits;
@@ -29,6 +30,7 @@ import static com.hedera.services.bdd.suites.hip1195.lambdaplex.LambdaplexVerbs.
 import static com.hedera.services.bdd.suites.hip1195.lambdaplex.LambdaplexVerbs.price;
 import static com.hedera.services.bdd.suites.hip1195.lambdaplex.LambdaplexVerbs.quantity;
 import static com.hedera.services.bdd.suites.hip1195.lambdaplex.LambdaplexVerbs.randomB64Salt;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -110,6 +112,7 @@ public class LambdaplexStopOrderTypesTest implements InitcodeTransform {
     private static final BigInteger APPLES_USDC_PAIR_ID = BigInteger.ONE;
     private static final BigInteger BANANAS_USDC_PAIR_ID = BigInteger.TWO;
     private static final BigInteger HBAR_USDC_PAIR_ID = BigInteger.valueOf(3L);
+    private static final BigInteger UNSUPPORTED_PAIR_ID = BigInteger.valueOf(999L);
 
     private static final byte STOP_LIMIT_LT = 2;
     private static final byte STOP_MARKET_LT = 3;
@@ -912,6 +915,240 @@ public class LambdaplexStopOrderTypesTest implements InitcodeTransform {
                 lv.assertNoSuchOrder(PARTY, stopSellSalt));
     }
 
+    @HapiTest
+    final Stream<DynamicTest> failsIfOracleRegistryDoesNotSupportPair() {
+        final var stopSellSalt = randomB64Salt();
+        return hapiTest(
+                lv.placeStopMarketOrder(
+                        PARTY,
+                        stopSellSalt,
+                        HBAR,
+                        USDC,
+                        Side.SELL,
+                        distantExpiry(),
+                        ZERO_BPS,
+                        price(0.10),
+                        StopDirection.GT,
+                        quantity(10),
+                        10,
+                        false),
+                lv.answerNextProofVerify(MOCK_SUPRA_REGISTRY, UNSUPPORTED_PAIR_ID, price(11.0), 1),
+                lv.pokeWithOracleProof(PARTY, stopSellSalt, MOCK_ORACLE_PROOF)
+                        .via("unsupportedPairTx")
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
+                assertFirstError("unsupportedPairTx", "oracle: wrong pair"));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> failsOnMissingOracleProofLength() {
+        final var makerBuySalt = randomB64Salt();
+        final var stopSellSalt = randomB64Salt();
+        return hapiTest(
+                lv.placeLimitOrder(
+                        MARKET_MAKER,
+                        makerBuySalt,
+                        HBAR,
+                        USDC,
+                        Side.BUY,
+                        distantExpiry(),
+                        ZERO_BPS,
+                        price(0.09),
+                        quantity(1)),
+                lv.placeStopMarketOrder(
+                        PARTY,
+                        stopSellSalt,
+                        HBAR,
+                        USDC,
+                        Side.SELL,
+                        distantExpiry(),
+                        ZERO_BPS,
+                        price(0.10),
+                        StopDirection.GT,
+                        quantity(1),
+                        10,
+                        false),
+                lv.answerNextProofVerify(MOCK_SUPRA_REGISTRY, HBAR_USDC_PAIR_ID, price(11.0), 1),
+                lv.settleDataTransformedFillsNoFees(
+                                HBAR,
+                                USDC,
+                                LambdaplexStopOrderTypesTest::withMissingProofLengthIfStop,
+                                makingBuyer(MARKET_MAKER, quantity(1), averagePrice(0.09), makerBuySalt),
+                                takingSeller(PARTY, quantity(1), averagePrice(0.09), stopSellSalt)
+                                        .withGasLimit(LambdaplexVerbs.ORACLE_HOOK_GAS))
+                        .via("missingProofLenTx")
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
+                assertFirstError("missingProofLenTx", "len oob"),
+                lv.assertOrderAmount(
+                        PARTY,
+                        stopSellSalt,
+                        bd -> assertEquals(
+                                0, notional(1).compareTo(bd), "Order should remain open after malformed proof")));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> failsOnExcessiveOracleProofLength() {
+        final var makerBuySalt = randomB64Salt();
+        final var stopSellSalt = randomB64Salt();
+        return hapiTest(
+                lv.placeLimitOrder(
+                        MARKET_MAKER,
+                        makerBuySalt,
+                        HBAR,
+                        USDC,
+                        Side.BUY,
+                        distantExpiry(),
+                        ZERO_BPS,
+                        price(0.09),
+                        quantity(1)),
+                lv.placeStopMarketOrder(
+                        PARTY,
+                        stopSellSalt,
+                        HBAR,
+                        USDC,
+                        Side.SELL,
+                        distantExpiry(),
+                        ZERO_BPS,
+                        price(0.10),
+                        StopDirection.GT,
+                        quantity(1),
+                        10,
+                        false),
+                lv.answerNextProofVerify(MOCK_SUPRA_REGISTRY, HBAR_USDC_PAIR_ID, price(11.0), 1),
+                lv.settleDataTransformedFillsNoFees(
+                                HBAR,
+                                USDC,
+                                LambdaplexStopOrderTypesTest::withExcessiveProofLengthIfStop,
+                                makingBuyer(MARKET_MAKER, quantity(1), averagePrice(0.09), makerBuySalt),
+                                takingSeller(PARTY, quantity(1), averagePrice(0.09), stopSellSalt)
+                                        .withGasLimit(LambdaplexVerbs.ORACLE_HOOK_GAS))
+                        .via("excessiveProofLenTx")
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
+                assertFirstError("excessiveProofLenTx", "proof oob"),
+                lv.assertOrderAmount(
+                        PARTY,
+                        stopSellSalt,
+                        bd -> assertEquals(
+                                0, notional(1).compareTo(bd), "Order should remain open after malformed proof")));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> failsOnTruncatedOracleProof() {
+        final var makerBuySalt = randomB64Salt();
+        final var stopSellSalt = randomB64Salt();
+        return hapiTest(
+                lv.placeLimitOrder(
+                        MARKET_MAKER,
+                        makerBuySalt,
+                        HBAR,
+                        USDC,
+                        Side.BUY,
+                        distantExpiry(),
+                        ZERO_BPS,
+                        price(0.09),
+                        quantity(1)),
+                lv.placeStopMarketOrder(
+                        PARTY,
+                        stopSellSalt,
+                        HBAR,
+                        USDC,
+                        Side.SELL,
+                        distantExpiry(),
+                        ZERO_BPS,
+                        price(0.10),
+                        StopDirection.GT,
+                        quantity(1),
+                        10,
+                        false),
+                lv.answerNextProofVerify(MOCK_SUPRA_REGISTRY, HBAR_USDC_PAIR_ID, price(11.0), 1),
+                lv.settleDataTransformedFillsNoFees(
+                                HBAR,
+                                USDC,
+                                LambdaplexStopOrderTypesTest::withTruncatedProofIfStop,
+                                makingBuyer(MARKET_MAKER, quantity(1), averagePrice(0.09), makerBuySalt),
+                                takingSeller(PARTY, quantity(1), averagePrice(0.09), stopSellSalt)
+                                        .withGasLimit(LambdaplexVerbs.ORACLE_HOOK_GAS))
+                        .via("truncatedProofTx")
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
+                assertFirstError("truncatedProofTx", "proof oob"),
+                lv.assertOrderAmount(
+                        PARTY,
+                        stopSellSalt,
+                        bd -> assertEquals(
+                                0, notional(1).compareTo(bd), "Order should remain open after malformed proof")));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> failsOnStaleOracleTimestamp() {
+        final var stopSellSalt = randomB64Salt();
+        return hapiTest(
+                lv.placeStopMarketOrder(
+                        PARTY,
+                        stopSellSalt,
+                        HBAR,
+                        USDC,
+                        Side.SELL,
+                        distantExpiry(),
+                        ZERO_BPS,
+                        price(0.10),
+                        StopDirection.GT,
+                        quantity(10),
+                        10,
+                        false),
+                lv.answerNextProofVerify(MOCK_SUPRA_REGISTRY, HBAR_USDC_PAIR_ID, price(11.0), 61),
+                lv.pokeWithOracleProof(PARTY, stopSellSalt, MOCK_ORACLE_PROOF)
+                        .via("staleOracleTx")
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
+                assertFirstError("staleOracleTx", "oracle: stale"));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> failsToTriggerLtStopIfOrderPriceAboveOracle() {
+        final var stopSellSalt = randomB64Salt();
+        return hapiTest(
+                lv.placeStopMarketOrder(
+                        PARTY,
+                        stopSellSalt,
+                        HBAR,
+                        USDC,
+                        Side.SELL,
+                        distantExpiry(),
+                        ZERO_BPS,
+                        price(0.11),
+                        StopDirection.LT,
+                        quantity(10),
+                        10,
+                        false),
+                lv.answerNextProofVerify(MOCK_SUPRA_REGISTRY, HBAR_USDC_PAIR_ID, price(10.0), 1),
+                lv.pokeWithOracleProof(PARTY, stopSellSalt, MOCK_ORACLE_PROOF)
+                        .via("ltNotTriggeredTx")
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
+                assertFirstError("ltNotTriggeredTx", "op > tr"));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> failsToTriggerGtStopIfOrderPriceBelowOracle() {
+        final var stopSellSalt = randomB64Salt();
+        return hapiTest(
+                lv.placeStopMarketOrder(
+                        PARTY,
+                        stopSellSalt,
+                        HBAR,
+                        USDC,
+                        Side.SELL,
+                        distantExpiry(),
+                        ZERO_BPS,
+                        price(0.09),
+                        StopDirection.GT,
+                        quantity(10),
+                        10,
+                        false),
+                lv.answerNextProofVerify(MOCK_SUPRA_REGISTRY, HBAR_USDC_PAIR_ID, price(10.0), 1),
+                lv.pokeWithOracleProof(PARTY, stopSellSalt, MOCK_ORACLE_PROOF)
+                        .via("gtNotTriggeredTx")
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
+                assertFirstError("gtNotTriggeredTx", "op < tr"));
+    }
+
     // --- InitcodeTransform ---
     @Override
     public String transformHexed(@NonNull final HapiSpec spec, @NonNull final String initcode) {
@@ -928,13 +1165,42 @@ public class LambdaplexStopOrderTypesTest implements InitcodeTransform {
 
     private static Bytes withProofIfStop(@NonNull final Bytes data) {
         final byte orderType = data.getByte(0);
-        if (orderType == STOP_LIMIT_LT
-                || orderType == STOP_MARKET_LT
-                || orderType == STOP_LIMIT_GT
-                || orderType == STOP_MARKET_GT) {
+        if (isStopOrderType(orderType)) {
             return data.append(uint256Word(MOCK_ORACLE_PROOF.length())).append(MOCK_ORACLE_PROOF);
         }
         return data;
+    }
+
+    private static Bytes withMissingProofLengthIfStop(@NonNull final Bytes data) {
+        final byte orderType = data.getByte(0);
+        if (isStopOrderType(orderType)) {
+            return data.append(MOCK_ORACLE_PROOF);
+        }
+        return data;
+    }
+
+    private static Bytes withExcessiveProofLengthIfStop(@NonNull final Bytes data) {
+        final byte orderType = data.getByte(0);
+        if (isStopOrderType(orderType)) {
+            return data.append(uint256Word(MOCK_ORACLE_PROOF.length() + 64L)).append(MOCK_ORACLE_PROOF);
+        }
+        return data;
+    }
+
+    private static Bytes withTruncatedProofIfStop(@NonNull final Bytes data) {
+        final byte orderType = data.getByte(0);
+        if (isStopOrderType(orderType)) {
+            final var truncatedProof = MOCK_ORACLE_PROOF.slice(0, MOCK_ORACLE_PROOF.length() - 1);
+            return data.append(uint256Word(MOCK_ORACLE_PROOF.length())).append(truncatedProof);
+        }
+        return data;
+    }
+
+    private static boolean isStopOrderType(final byte orderType) {
+        return orderType == STOP_LIMIT_LT
+                || orderType == STOP_MARKET_LT
+                || orderType == STOP_LIMIT_GT
+                || orderType == STOP_MARKET_GT;
     }
 
     private static Bytes uint256Word(final long value) {

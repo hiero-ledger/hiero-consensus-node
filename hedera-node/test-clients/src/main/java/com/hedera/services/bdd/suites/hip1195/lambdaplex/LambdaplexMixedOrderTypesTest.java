@@ -8,16 +8,27 @@ import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.SomeFungibleTransfers.changingFungibleBalances;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.assertions.TransferListAsserts.includingHbarCredit;
+import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.ADMIN_KEY;
+import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.FEE_SCHEDULE_KEY;
+import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.SUPPLY_KEY;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenFeeScheduleUpdate;
+import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedHbarFee;
+import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fractionalFee;
+import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fractionalFeeNetOfTransfers;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.THOUSAND_HBAR;
 import static com.hedera.services.bdd.suites.hip1195.lambdaplex.LambdaplexVerbs.FillParty.*;
 import static com.hedera.services.bdd.suites.hip1195.lambdaplex.LambdaplexVerbs.HBAR;
+import static com.hedera.services.bdd.suites.hip1195.lambdaplex.LambdaplexVerbs.assertFirstError;
 import static com.hedera.services.bdd.suites.hip1195.lambdaplex.LambdaplexVerbs.averagePrice;
 import static com.hedera.services.bdd.suites.hip1195.lambdaplex.LambdaplexVerbs.distantExpiry;
 import static com.hedera.services.bdd.suites.hip1195.lambdaplex.LambdaplexVerbs.inBaseUnits;
+import static com.hedera.services.bdd.suites.hip1195.lambdaplex.LambdaplexVerbs.iocExpiry;
 import static com.hedera.services.bdd.suites.hip1195.lambdaplex.LambdaplexVerbs.notional;
 import static com.hedera.services.bdd.suites.hip1195.lambdaplex.LambdaplexVerbs.price;
 import static com.hedera.services.bdd.suites.hip1195.lambdaplex.LambdaplexVerbs.quantity;
@@ -41,6 +52,7 @@ import com.hedera.services.bdd.spec.dsl.utils.InitcodeTransform;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.util.Map;
+import java.util.OptionalLong;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
@@ -109,13 +121,22 @@ public class LambdaplexMixedOrderTypesTest implements InitcodeTransform {
             initcodeTransform = LambdaplexMixedOrderTypesTest.class)
     static SpecContract LAMBDAPLEX_HOOK;
 
-    @FungibleToken(initialSupply = 10_000 * APPLES_SCALE, decimals = APPLES_DECIMALS)
+    @FungibleToken(
+            initialSupply = 10_000 * APPLES_SCALE,
+            decimals = APPLES_DECIMALS,
+            keys = {ADMIN_KEY, SUPPLY_KEY, FEE_SCHEDULE_KEY})
     static SpecFungibleToken APPLES;
 
-    @FungibleToken(initialSupply = 10_000 * BANANAS_SCALE, decimals = BANANAS_DECIMALS)
+    @FungibleToken(
+            initialSupply = 10_000 * BANANAS_SCALE,
+            decimals = BANANAS_DECIMALS,
+            keys = {ADMIN_KEY, SUPPLY_KEY, FEE_SCHEDULE_KEY})
     static SpecFungibleToken BANANAS;
 
-    @FungibleToken(initialSupply = 10_000 * USDC_SCALE, decimals = USDC_DECIMALS)
+    @FungibleToken(
+            initialSupply = 10_000 * USDC_SCALE,
+            decimals = USDC_DECIMALS,
+            keys = {ADMIN_KEY, SUPPLY_KEY, FEE_SCHEDULE_KEY})
     static SpecFungibleToken USDC;
 
     @Account(
@@ -529,6 +550,71 @@ public class LambdaplexMixedOrderTypesTest implements InitcodeTransform {
                                 0,
                                 notional(1.0).compareTo(bd),
                                 "Wrong BUY out token amount after mixed batch fill: expected $1.00, got " + bd)));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> customFeesNotAllowed() {
+        final var sellSalt = randomB64Salt();
+        final var buySalt = randomB64Salt();
+        return hapiTest(
+                cryptoCreate("customFeeCollector"),
+                tokenAssociate("customFeeCollector", USDC.name()),
+                lv.placeLimitOrder(
+                        MARKET_MAKER,
+                        sellSalt,
+                        HBAR,
+                        USDC,
+                        Side.SELL,
+                        distantExpiry(),
+                        ZERO_BPS,
+                        price(0.10),
+                        quantity(10)),
+                // Taker places market order to buy 10 HBAR for $0.10 each, no fee tolerance
+                lv.placeMarketOrder(
+                        PARTY,
+                        buySalt,
+                        HBAR,
+                        USDC,
+                        Side.BUY,
+                        iocExpiry(),
+                        ZERO_BPS,
+                        price(0.10),
+                        quantity(10),
+                        0,
+                        TimeInForce.IOC),
+                tokenFeeScheduleUpdate(USDC.name())
+                        .withCustom(
+                                fractionalFeeNetOfTransfers(1L, 10L, 1L, OptionalLong.of(100L), "customFeeCollector")),
+                lv.settleFillsNoFees(
+                                HBAR,
+                                USDC,
+                                makingSeller(MARKET_MAKER, quantity(10), price(0.10), sellSalt),
+                                takingBuyer(PARTY, quantity(10), averagePrice(0.10), buySalt))
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK)
+                        .via("netOfTransfersFractionalTx"),
+                // require(proposedTransfers.customFee.tokens.length == 0, "cf tokens present")
+                assertFirstError("netOfTransfersFractionalTx", "cf tokens present"),
+                tokenFeeScheduleUpdate(USDC.name())
+                        .withCustom(fractionalFee(1L, 10L, 1L, OptionalLong.of(100L), "customFeeCollector")),
+                lv.settleFillsNoFees(
+                                HBAR,
+                                USDC,
+                                makingSeller(MARKET_MAKER, quantity(10), price(0.10), sellSalt),
+                                takingBuyer(PARTY, quantity(10), averagePrice(0.10), buySalt))
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK)
+                        .via("fractionalTx"),
+                // require(proposedTransfers.customFee.tokens.length == 0, "cf tokens present")
+                assertFirstError("fractionalTx", "cf tokens present"),
+                tokenFeeScheduleUpdate(USDC.name()).withCustom(fixedHbarFee(1L, "customFeeCollector")),
+                lv.settleFillsNoFees(
+                                HBAR,
+                                USDC,
+                                makingSeller(MARKET_MAKER, quantity(10), price(0.10), sellSalt),
+                                takingBuyer(PARTY, quantity(10), averagePrice(0.10), buySalt))
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK)
+                        .via("hbarFixedTx"),
+                // require(proposedTransfers.customFee.hbarAdjustments.length == 0, "cf hbar present")
+                assertFirstError("hbarFixedTx", "cf hbar present"));
     }
 
     // --- InitcodeTransform ---
