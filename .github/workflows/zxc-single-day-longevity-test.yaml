@@ -89,13 +89,6 @@ jobs:
         with:
           ref: ${{ inputs.ref }}
 
-      - name: Checkout target CN Code #temp: remove after unit-test
-        run: |
-          git clone https://"${{ secrets.GH_ACCESS_TOKEN }}"@github.com/cliffclick/hiero-consensus-node.git target_consensus_node
-          cd target_consensus_node
-          git checkout cliffclick_bevm
-          cd "${{ github.workspace }}"
-
       - name: Check Test Asset
         id: set-k8s-cluster
         run: |
@@ -232,18 +225,14 @@ jobs:
           echo "JOB_URL=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
 
       - name: Set hederahash sha value
-        id: hederaHash
+        id: hederahash
         run: |
-          hederahash=`git -C target_consensus_node rev-parse HEAD`
+          hederahash="$(git rev-parse HEAD)"
+          echo "sha=${hederahash}" >> "${GITHUB_OUTPUT}"
           echo "hederahash=${hederahash}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
 
       - name: Compile
-        run: |
-          cd "${{ github.workspace }}"/target_consensus_node
-          chmod a+rx ./gradlew
-          ./gradlew clean assemble
-          cd "${{ github.workspace }}"
-
+        run: ./gradlew clean assemble
 
       - name: Build Validator
         run: |
@@ -300,11 +289,8 @@ jobs:
           cp "${{ github.workspace }}"/.github/workflows/support/citr/init-containers-values7.yaml init-containers-values7.yaml
 
           # Update Taskfile values
-          #sed -i -e "s@%HOME%@${HOME}@g" -e "s@%SOLO_NAMESPACE%@${{ steps.set-namespace.outputs.namespace }}@g" \
-          #          -e "s@%HEDERA_SERVICES_ROOT%@${curdir}@g" Taskfile.yml
-               
           sed -i -e "s@%HOME%@${HOME}@g" -e "s@%SOLO_NAMESPACE%@${{ steps.set-namespace.outputs.namespace }}@g" \
-               -e "s@%HEDERA_SERVICES_ROOT%@${curdir}/target_consensus_node@g" Taskfile.yml
+          -e "s@%HEDERA_SERVICES_ROOT%@${curdir}@g" Taskfile.yml
 
           # Update Init Containers values
           NETWORK_ID="$(echo "${{ steps.set-namespace.outputs.namespace }}" | perl -pne '~s/^.*[^\d](\d+)$/$1/g')"
