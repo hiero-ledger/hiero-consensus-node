@@ -226,19 +226,19 @@ public class CryptoServiceFeesSuite {
                         .addTokenAllowance(OWNER, FUNGIBLE_TOKEN, SPENDER, 100L)
                         .via("approveTokenTxn")
                         .blankMemo(),
-                validateChargedUsdWithin("approveTokenTxn", 0.05012, 0.01),
+                validateFees("approveTokenTxn", 0.05012, CRYPTO_APPROVE_ALLOWANCE_FEE),
                 cryptoApproveAllowance()
                         .payingWith(OWNER)
                         .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, SPENDER, false, List.of(1L))
                         .via("approveNftTxn")
                         .blankMemo(),
-                validateChargedUsdWithin("approveNftTxn", 0.050101, 0.01),
+                validateFees("approveNftTxn", 0.050101, CRYPTO_APPROVE_ALLOWANCE_FEE),
                 cryptoApproveAllowance()
                         .payingWith(OWNER)
                         .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, ANOTHER_SPENDER, true, List.of())
                         .via("approveForAllNftTxn")
                         .blankMemo(),
-                validateChargedUsdWithin("approveForAllNftTxn", 0.05, 0.01),
+                validateFees("approveForAllNftTxn", 0.05, CRYPTO_APPROVE_ALLOWANCE_FEE),
                 cryptoApproveAllowance()
                         .payingWith(OWNER)
                         .addCryptoAllowance(OWNER, SECOND_SPENDER, 100L)
@@ -295,7 +295,6 @@ public class CryptoServiceFeesSuite {
         final var plusFiveKAndOneTxn = "plusFiveKAndOneTxn";
         final var invalidNegativeTxn = "invalidNegativeTxn";
         final var validNegativeTxn = "validNegativeTxn";
-        final var allowedPercentDiff = 1.5;
         final var canonicalAccount = "canonicalAccount";
         final var payer = "payer";
         final var autoAssocTarget = "autoAssocTarget";
