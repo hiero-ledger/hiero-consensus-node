@@ -301,6 +301,52 @@ public class LambdaplexStopOrderTypesTest implements InitcodeTransform {
     }
 
     @HapiTest
+    final Stream<DynamicTest> hbarHtsSingleStopMarketOrderRevertsWhenConfiguredMinFillIsNotMet() {
+        final var makerBuySalt = randomB64Salt();
+        final var stopSellSalt = randomB64Salt();
+        return hapiTest(
+                // Resting liquidity: 8 HBAR bid at $0.09 each.
+                lv.placeLimitOrder(
+                        MARKET_MAKER,
+                        makerBuySalt,
+                        HBAR,
+                        USDC,
+                        Side.BUY,
+                        distantExpiry(),
+                        ZERO_BPS,
+                        price(0.09),
+                        quantity(8)),
+                // Single STOP_MARKET order with fill-or-kill enabled, so minFill is 100%.
+                lv.placeStopMarketOrder(
+                        PARTY,
+                        stopSellSalt,
+                        HBAR,
+                        USDC,
+                        Side.SELL,
+                        distantExpiry(),
+                        ZERO_BPS,
+                        price(0.10),
+                        StopDirection.GT,
+                        quantity(10),
+                        10,
+                        true),
+                // Trigger the stop via oracle proof in the settle path.
+                lv.answerNextProofVerify(MOCK_SUPRA_REGISTRY, HBAR_USDC_PAIR_ID, price(11.0), 1),
+                // Only 80% fill (8/10 HBAR), so minFill should reject.
+                lv.settleDataTransformedFillsNoFees(
+                                HBAR,
+                                USDC,
+                                LambdaplexStopOrderTypesTest::withProofIfStop,
+                                makingBuyer(MARKET_MAKER, quantity(8), averagePrice(0.09), makerBuySalt),
+                                takingSeller(PARTY, quantity(8), averagePrice(0.09), stopSellSalt)
+                                        .withGasLimit(LambdaplexVerbs.ORACLE_HOOK_GAS))
+                        .via("stopMinFillTx")
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
+                // require(take * BIPS >= q * mfb, "min fill")
+                assertFirstError("stopMinFillTx", "min fill"));
+    }
+
+    @HapiTest
     final Stream<DynamicTest> hbarHtsStopPokeConvertsOrderToMarket() {
         final var stopSellSalt = randomB64Salt();
         final var makerBuySalt = randomB64Salt();

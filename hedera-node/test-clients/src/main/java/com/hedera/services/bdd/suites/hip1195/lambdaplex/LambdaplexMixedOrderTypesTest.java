@@ -29,6 +29,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.THOUSAND_HBAR;
 import static com.hedera.services.bdd.suites.hip1195.lambdaplex.LambdaplexVerbs.FillParty.*;
 import static com.hedera.services.bdd.suites.hip1195.lambdaplex.LambdaplexVerbs.HBAR;
 import static com.hedera.services.bdd.suites.hip1195.lambdaplex.LambdaplexVerbs.assertFirstError;
+import static com.hedera.services.bdd.suites.hip1195.lambdaplex.LambdaplexVerbs.assertSecondError;
 import static com.hedera.services.bdd.suites.hip1195.lambdaplex.LambdaplexVerbs.averagePrice;
 import static com.hedera.services.bdd.suites.hip1195.lambdaplex.LambdaplexVerbs.distantExpiry;
 import static com.hedera.services.bdd.suites.hip1195.lambdaplex.LambdaplexVerbs.inBaseUnits;
@@ -40,6 +41,7 @@ import static com.hedera.services.bdd.suites.hip1195.lambdaplex.LambdaplexVerbs.
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.OrderedInIsolation;
@@ -120,6 +122,7 @@ public class LambdaplexMixedOrderTypesTest implements InitcodeTransform {
     private static final long APPLES_SCALE = 10L * 10L * 10L * 10L;
     private static final long BANANAS_SCALE = 10L * 10L * 10L * 10L * 10L;
     private static final long USDC_SCALE = 10L * 10L * 10L * 10L * 10L * 10L;
+    private static final Bytes MOCK_ORACLE_PROOF = Bytes.wrap(new byte[] {(byte) 0xa1, (byte) 0xb2, (byte) 0xc3});
 
     @Contract(contract = "MockSupraRegistry", creationGas = 2_000_000L)
     static SpecContract MOCK_SUPRA_REGISTRY;
@@ -328,6 +331,229 @@ public class LambdaplexMixedOrderTypesTest implements InitcodeTransform {
                                 0,
                                 notional(1.0).compareTo(bd),
                                 "Wrong SELL out token amount after mixed batch fill: expected one HBAR, got " + bd)));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> batchOrderHbarHtsMixedRevertsWhenProposedDebitExceedsTotalAuthorized() {
+        final var makerLimitSalt = randomB64Salt();
+        final var makerMarketSalt = randomB64Salt();
+        final var partyBuySalt = randomB64Salt();
+        return hapiTest(
+                lv.placeLimitOrder(
+                        MARKET_MAKER,
+                        makerLimitSalt,
+                        HBAR,
+                        USDC,
+                        Side.SELL,
+                        distantExpiry(),
+                        ZERO_BPS,
+                        price(1.00),
+                        quantity(1.0)),
+                lv.placeMarketOrder(
+                        MARKET_MAKER,
+                        makerMarketSalt,
+                        HBAR,
+                        USDC,
+                        Side.SELL,
+                        distantExpiry(),
+                        ZERO_BPS,
+                        price(1.00),
+                        quantity(2.0),
+                        0,
+                        TimeInForce.IOC),
+                lv.placeLimitOrder(
+                        PARTY,
+                        partyBuySalt,
+                        HBAR,
+                        USDC,
+                        Side.BUY,
+                        distantExpiry(),
+                        ZERO_BPS,
+                        price(1.00),
+                        quantity(4.0)),
+                // Mixed maker orders authorize 3 HBAR total; proposing 3.1 HBAR debit must fail.
+                lv.settleFillsNoFees(
+                                HBAR,
+                                USDC,
+                                makingSeller(
+                                        MARKET_MAKER,
+                                        quantity(3.1),
+                                        averagePrice(1.00),
+                                        makerMarketSalt,
+                                        makerLimitSalt),
+                                takingBuyer(PARTY, quantity(3.1), averagePrice(1.00), partyBuySalt))
+                        .via("mixedExcessDebitTx")
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
+                // require(st.remaining == 0, "debit too high")
+                assertFirstError("mixedExcessDebitTx", "debit too high"));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> batchOrderHbarHtsMixedRevertsWhenProposedCreditLessThanTotalAuthorized() {
+        final var makerLimitSalt = randomB64Salt();
+        final var makerMarketSalt = randomB64Salt();
+        final var partyBuySalt = randomB64Salt();
+        return hapiTest(
+                lv.placeLimitOrder(
+                        MARKET_MAKER,
+                        makerLimitSalt,
+                        HBAR,
+                        USDC,
+                        Side.SELL,
+                        distantExpiry(),
+                        ZERO_BPS,
+                        price(1.00),
+                        quantity(1.0)),
+                lv.placeMarketOrder(
+                        MARKET_MAKER,
+                        makerMarketSalt,
+                        HBAR,
+                        USDC,
+                        Side.SELL,
+                        distantExpiry(),
+                        ZERO_BPS,
+                        price(1.00),
+                        quantity(2.0),
+                        0,
+                        TimeInForce.IOC),
+                lv.placeLimitOrder(
+                        PARTY,
+                        partyBuySalt,
+                        HBAR,
+                        USDC,
+                        Side.BUY,
+                        distantExpiry(),
+                        ZERO_BPS,
+                        price(1.00),
+                        quantity(3.0)),
+                // Mixed maker orders require 3.00 USDC credit for 3 HBAR; proposing 2.97 must fail.
+                lv.settleFillsNoFees(
+                                HBAR,
+                                USDC,
+                                makingSeller(
+                                        MARKET_MAKER,
+                                        quantity(3.0),
+                                        averagePrice(0.99),
+                                        makerMarketSalt,
+                                        makerLimitSalt),
+                                takingBuyer(PARTY, quantity(3.0), averagePrice(0.99), partyBuySalt))
+                        .via("mixedUnderCreditTx")
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
+                // require(sumInAbs + st.feeTotal >= st.needTotal, "credit too low")
+                assertFirstError("mixedUnderCreditTx", "credit too low"));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> batchOrderHbarHtsMixedRevertsWhenFeeExceedsPermittedBps() {
+        final var makerSellSalt = randomB64Salt();
+        final var partyLimitBuySalt = randomB64Salt();
+        final var partyMarketBuySalt = randomB64Salt();
+        return hapiTest(
+                // Give maker enough fee tolerance so maker-side validation passes.
+                lv.placeLimitOrder(
+                        MARKET_MAKER,
+                        makerSellSalt,
+                        HBAR,
+                        USDC,
+                        Side.SELL,
+                        distantExpiry(),
+                        100,
+                        price(0.10),
+                        quantity(10.0)),
+                lv.placeLimitOrder(
+                        PARTY,
+                        partyLimitBuySalt,
+                        HBAR,
+                        USDC,
+                        Side.BUY,
+                        distantExpiry(),
+                        ZERO_BPS,
+                        price(0.10),
+                        quantity(4.0)),
+                lv.placeMarketOrder(
+                        PARTY,
+                        partyMarketBuySalt,
+                        HBAR,
+                        USDC,
+                        Side.BUY,
+                        distantExpiry(),
+                        ZERO_BPS,
+                        price(0.10),
+                        quantity(6.0),
+                        0,
+                        TimeInForce.IOC),
+                // Two mixed zero-tolerance BUY orders in one batch invocation under taker fees.
+                lv.settleFills(
+                                HBAR,
+                                USDC,
+                                FEES,
+                                makingSeller(MARKET_MAKER, quantity(10.0), averagePrice(0.10), makerSellSalt),
+                                takingBuyer(
+                                        PARTY,
+                                        quantity(10.0),
+                                        averagePrice(0.10),
+                                        partyMarketBuySalt,
+                                        partyLimitBuySalt))
+                        .via("mixedFeeTooHighTx")
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
+                // require(sumInAbs + st.feeTotal >= st.needTotal, "credit too low")
+                assertSecondError("mixedFeeTooHighTx", "credit too low"));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> batchOrderHtsHtsMixedStopMarketRevertsWhenConfiguredMinFillNotMet() {
+        final var makerBuySalt = randomB64Salt();
+        final var stopSellSalt = randomB64Salt();
+        final var limitSellSalt = randomB64Salt();
+        return hapiTest(
+                // Resting liquidity: maker bids for only 8 APPLES.
+                lv.placeLimitOrder(
+                        MARKET_MAKER,
+                        makerBuySalt,
+                        APPLES,
+                        USDC,
+                        Side.BUY,
+                        distantExpiry(),
+                        ZERO_BPS,
+                        price(1.80),
+                        quantity(8.0)),
+                // STOP_MARKET configured as fill-or-kill (minFill = 100%).
+                lv.placeStopMarketOrder(
+                        PARTY,
+                        stopSellSalt,
+                        APPLES,
+                        USDC,
+                        Side.SELL,
+                        distantExpiry(),
+                        ZERO_BPS,
+                        price(2.00),
+                        StopDirection.GT,
+                        quantity(10.0),
+                        10,
+                        true),
+                // Mixed multiple: include an additional non-stop order in the same seller batch.
+                lv.placeLimitOrder(
+                        PARTY,
+                        limitSellSalt,
+                        APPLES,
+                        USDC,
+                        Side.SELL,
+                        distantExpiry(),
+                        ZERO_BPS,
+                        price(1.80),
+                        quantity(1.0)),
+                // Trigger the stop via oracle proof in the fill path.
+                lv.answerNextProofVerify(MOCK_SUPRA_REGISTRY, BigInteger.ONE, price(2.10), 1),
+                lv.settleFillsWithOracleProofsNoFees(
+                                APPLES,
+                                USDC,
+                                Map.of(stopSellSalt, LambdaplexVerbs.OracleProofSpec.exact(MOCK_ORACLE_PROOF)),
+                                makingBuyer(MARKET_MAKER, quantity(8.0), averagePrice(1.80), makerBuySalt),
+                                takingSeller(PARTY, quantity(8.0), averagePrice(1.80), stopSellSalt, limitSellSalt))
+                        .via("mixedStopMinFillTx")
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
+                // require(take * BIPS >= q * mfb, "min fill")
+                assertFirstError("mixedStopMinFillTx", "min fill"));
     }
 
     @HapiTest
