@@ -7,11 +7,6 @@ plugins {
 
 description = "Openmetrics HTTP Server for Hiero Metrics"
 
-dependencies {
-    jmh("io.prometheus:prometheus-metrics-core:1.4.3")
-    jmh("io.prometheus:prometheus-metrics-exporter-httpserver:1.4.3")
-}
-
 extraJavaModuleInfo {
     module("io.prometheus:prometheus-metrics-core", "io.prometheus.metrics.core")
     module("io.prometheus:prometheus-metrics-model", "io.prometheus.metrics.model")
