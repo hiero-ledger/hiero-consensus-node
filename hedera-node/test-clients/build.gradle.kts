@@ -25,15 +25,6 @@ tasks.register<JavaExec>("runTestClient") {
     mainClass = providers.gradleProperty("testClient")
 }
 
-tasks.jacocoTestReport {
-    classDirectories.setFrom(files(project(":app").layout.buildDirectory.dir("classes/java/main")))
-    sourceDirectories.setFrom(files(project(":app").projectDir.resolve("src/main/java")))
-    reports {
-        xml.required.set(true)
-        html.required.set(true)
-    }
-}
-
 tasks.test {
     testClassesDirs = sourceSets.main.get().output.classesDirs
     classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
