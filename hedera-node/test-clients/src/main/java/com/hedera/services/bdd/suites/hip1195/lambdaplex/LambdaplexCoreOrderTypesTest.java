@@ -67,8 +67,8 @@ import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
 /**
- * Tests exercising the Lambdaplex protocol hook, focusing on the "core" limit and market order types.(Has some
- * intentional mild duplication with {@link LambdaplexStopOrderTypesTest} to keep the test cases more self-contained.)
+ * Tests exercising the Lambdaplex protocol hook, focusing on the "core" limit and market order types. (Has some
+ * intentional mild duplication with other test classes in this package to keep each test class more self-contained.)
  * <p>
  * The entries in mapping zero of this hook represent orders (limit, market, stop limit, or stop market) on a
  * self-custodied spot exchange. Each mapping's key and value are packed bytes with a specific layout.
@@ -423,6 +423,441 @@ public class LambdaplexCoreOrderTypesTest implements InitcodeTransform {
                                 USDC.name(),
                                 tokenChangeFromSnapshot(
                                         USDC.name(), "takerUsdc", inBaseUnits(quantity(-0.99), USDC_DECIMALS))));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> hbarHtsMarketFullFillWithFeesInRangeSlippageDeletesOrders() {
+        final var makerBuySalt = randomB64Salt();
+        final var marketSellSalt = randomB64Salt();
+        return hapiTest(
+                // Maker bids 10 HBAR for $0.09 each
+                lv.placeLimitOrder(
+                        MARKET_MAKER,
+                        makerBuySalt,
+                        HBAR,
+                        USDC,
+                        Side.BUY,
+                        distantExpiry(),
+                        MAKER_BPS,
+                        price(0.09),
+                        quantity(10)),
+                // Taker sells 10 HBAR at $0.10 reference with up to 10% slippage tolerance
+                lv.placeMarketOrder(
+                        PARTY,
+                        marketSellSalt,
+                        HBAR,
+                        USDC,
+                        Side.SELL,
+                        iocExpiry(),
+                        TAKER_BPS,
+                        price(0.10),
+                        quantity(10),
+                        10,
+                        TimeInForce.IOC),
+                lv.settleFills(
+                                HBAR,
+                                USDC,
+                                FEES,
+                                makingBuyer(MARKET_MAKER, quantity(10), averagePrice(0.09), makerBuySalt),
+                                takingSeller(PARTY, quantity(10), averagePrice(0.09), marketSellSalt))
+                        .via("hbarHtsFullFeeSlipFill"),
+                lv.assertNoSuchOrder(MARKET_MAKER, makerBuySalt),
+                lv.assertNoSuchOrder(PARTY, marketSellSalt),
+                getTxnRecord("hbarHtsFullFeeSlipFill")
+                        .hasPriority(recordWith()
+                                .transfers(includingHbarCredit(
+                                        FEE_COLLECTOR.name(), inBaseUnits(quantity(10), 8) * MAKER_BPS / 10_000))
+                                .tokenTransfers(changingFungibleBalances()
+                                        .including(
+                                                USDC.name(),
+                                                FEE_COLLECTOR.name(),
+                                                inBaseUnits(quantity(0.9), USDC_DECIMALS) * TAKER_BPS / 10_000))));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> hbarHtsMarketSatisficingPartialFillWithFeesNoSlippageDeletesOrders() {
+        final var makerBuySalt = randomB64Salt();
+        final var marketSellSalt = randomB64Salt();
+        return hapiTest(
+                balanceSnapshot("partyHbarBeforePartialNoSlip", PARTY.name()),
+                // Maker bids for only 9 HBAR, so market order will be partially satisficed then deleted
+                lv.placeLimitOrder(
+                        MARKET_MAKER,
+                        makerBuySalt,
+                        HBAR,
+                        USDC,
+                        Side.BUY,
+                        distantExpiry(),
+                        MAKER_BPS,
+                        price(0.10),
+                        quantity(9)),
+                lv.placeMarketOrder(
+                        PARTY,
+                        marketSellSalt,
+                        HBAR,
+                        USDC,
+                        Side.SELL,
+                        iocExpiry(),
+                        TAKER_BPS,
+                        price(0.10),
+                        quantity(10),
+                        0,
+                        TimeInForce.IOC),
+                lv.settleFills(
+                                HBAR,
+                                USDC,
+                                FEES,
+                                makingBuyer(MARKET_MAKER, quantity(9), averagePrice(0.10), makerBuySalt),
+                                takingSeller(PARTY, quantity(9), averagePrice(0.10), marketSellSalt))
+                        .via("hbarHtsPartialFeeNoSlipFill"),
+                lv.assertNoSuchOrder(MARKET_MAKER, makerBuySalt),
+                lv.assertNoSuchOrder(PARTY, marketSellSalt),
+                getAccountBalance(PARTY.name())
+                        .hasTinyBars(changeFromSnapshot("partyHbarBeforePartialNoSlip", -9 * ONE_HBAR)),
+                getTxnRecord("hbarHtsPartialFeeNoSlipFill")
+                        .hasPriority(recordWith()
+                                .transfers(includingHbarCredit(
+                                        FEE_COLLECTOR.name(), inBaseUnits(quantity(9), 8) * MAKER_BPS / 10_000))
+                                .tokenTransfers(changingFungibleBalances()
+                                        .including(
+                                                USDC.name(),
+                                                FEE_COLLECTOR.name(),
+                                                inBaseUnits(quantity(0.9), USDC_DECIMALS) * TAKER_BPS / 10_000))));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> hbarHtsMarketSatisficingPartialFillWithFeesInRangeSlippageDeletesOrders() {
+        final var makerBuySalt = randomB64Salt();
+        final var marketSellSalt = randomB64Salt();
+        return hapiTest(
+                balanceSnapshot("partyHbarBeforePartialSlip", PARTY.name()),
+                // Maker bids for only 9 HBAR at a 10%-worse price for the seller
+                lv.placeLimitOrder(
+                        MARKET_MAKER,
+                        makerBuySalt,
+                        HBAR,
+                        USDC,
+                        Side.BUY,
+                        distantExpiry(),
+                        MAKER_BPS,
+                        price(0.09),
+                        quantity(9)),
+                lv.placeMarketOrder(
+                        PARTY,
+                        marketSellSalt,
+                        HBAR,
+                        USDC,
+                        Side.SELL,
+                        iocExpiry(),
+                        TAKER_BPS,
+                        price(0.10),
+                        quantity(10),
+                        10,
+                        TimeInForce.IOC),
+                lv.settleFills(
+                                HBAR,
+                                USDC,
+                                FEES,
+                                makingBuyer(MARKET_MAKER, quantity(9), averagePrice(0.09), makerBuySalt),
+                                takingSeller(PARTY, quantity(9), averagePrice(0.09), marketSellSalt))
+                        .via("hbarHtsPartialFeeSlipFill"),
+                lv.assertNoSuchOrder(MARKET_MAKER, makerBuySalt),
+                lv.assertNoSuchOrder(PARTY, marketSellSalt),
+                getAccountBalance(PARTY.name())
+                        .hasTinyBars(changeFromSnapshot("partyHbarBeforePartialSlip", -9 * ONE_HBAR)),
+                getTxnRecord("hbarHtsPartialFeeSlipFill")
+                        .hasPriority(recordWith()
+                                .transfers(includingHbarCredit(
+                                        FEE_COLLECTOR.name(), inBaseUnits(quantity(9), 8) * MAKER_BPS / 10_000))
+                                .tokenTransfers(changingFungibleBalances()
+                                        .including(
+                                                USDC.name(),
+                                                FEE_COLLECTOR.name(),
+                                                inBaseUnits(quantity(0.81), USDC_DECIMALS) * TAKER_BPS / 10_000))));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> htsHtsMarketFullFillNoFeesNoSlippageDeletesOrders() {
+        final var makerBuySalt = randomB64Salt();
+        final var marketSellSalt = randomB64Salt();
+        return hapiTest(
+                lv.placeLimitOrder(
+                        MARKET_MAKER,
+                        makerBuySalt,
+                        APPLES,
+                        USDC,
+                        Side.BUY,
+                        distantExpiry(),
+                        ZERO_BPS,
+                        price(2.00),
+                        quantity(3)),
+                lv.placeMarketOrder(
+                        PARTY,
+                        marketSellSalt,
+                        APPLES,
+                        USDC,
+                        Side.SELL,
+                        iocExpiry(),
+                        ZERO_BPS,
+                        price(2.00),
+                        quantity(3),
+                        0,
+                        TimeInForce.IOC),
+                lv.settleFillsNoFees(
+                        APPLES,
+                        USDC,
+                        makingBuyer(MARKET_MAKER, quantity(3), averagePrice(2.00), makerBuySalt),
+                        takingSeller(PARTY, quantity(3), averagePrice(2.00), marketSellSalt)),
+                lv.assertNoSuchOrder(MARKET_MAKER, makerBuySalt),
+                lv.assertNoSuchOrder(PARTY, marketSellSalt));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> htsHtsMarketFullFillNoFeesInRangeSlippageDeletesOrders() {
+        final var makerBuySalt = randomB64Salt();
+        final var marketSellSalt = randomB64Salt();
+        return hapiTest(
+                lv.placeLimitOrder(
+                        MARKET_MAKER,
+                        makerBuySalt,
+                        APPLES,
+                        USDC,
+                        Side.BUY,
+                        distantExpiry(),
+                        ZERO_BPS,
+                        price(1.90),
+                        quantity(3)),
+                lv.placeMarketOrder(
+                        PARTY,
+                        marketSellSalt,
+                        APPLES,
+                        USDC,
+                        Side.SELL,
+                        iocExpiry(),
+                        ZERO_BPS,
+                        price(2.00),
+                        quantity(3),
+                        10,
+                        TimeInForce.IOC),
+                lv.settleFillsNoFees(
+                        APPLES,
+                        USDC,
+                        makingBuyer(MARKET_MAKER, quantity(3), averagePrice(1.90), makerBuySalt),
+                        takingSeller(PARTY, quantity(3), averagePrice(1.90), marketSellSalt)),
+                lv.assertNoSuchOrder(MARKET_MAKER, makerBuySalt),
+                lv.assertNoSuchOrder(PARTY, marketSellSalt));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> htsHtsMarketFullFillWithFeesNoSlippageDeletesOrders() {
+        final var makerBuySalt = randomB64Salt();
+        final var marketSellSalt = randomB64Salt();
+        return hapiTest(
+                lv.placeLimitOrder(
+                        MARKET_MAKER,
+                        makerBuySalt,
+                        APPLES,
+                        USDC,
+                        Side.BUY,
+                        distantExpiry(),
+                        MAKER_BPS,
+                        price(2.00),
+                        quantity(3)),
+                lv.placeMarketOrder(
+                        PARTY,
+                        marketSellSalt,
+                        APPLES,
+                        USDC,
+                        Side.SELL,
+                        iocExpiry(),
+                        TAKER_BPS,
+                        price(2.00),
+                        quantity(3),
+                        0,
+                        TimeInForce.IOC),
+                lv.settleFills(
+                                APPLES,
+                                USDC,
+                                FEES,
+                                makingBuyer(MARKET_MAKER, quantity(3), averagePrice(2.00), makerBuySalt),
+                                takingSeller(PARTY, quantity(3), averagePrice(2.00), marketSellSalt))
+                        .via("htsHtsFullFeeNoSlipFill"),
+                lv.assertNoSuchOrder(MARKET_MAKER, makerBuySalt),
+                lv.assertNoSuchOrder(PARTY, marketSellSalt),
+                getTxnRecord("htsHtsFullFeeNoSlipFill")
+                        .hasPriority(recordWith()
+                                .tokenTransfers(changingFungibleBalances()
+                                        .including(
+                                                APPLES.name(),
+                                                FEE_COLLECTOR.name(),
+                                                inBaseUnits(quantity(3), APPLES_DECIMALS) * MAKER_BPS / 10_000)
+                                        .including(
+                                                USDC.name(),
+                                                FEE_COLLECTOR.name(),
+                                                inBaseUnits(quantity(6.00), USDC_DECIMALS) * TAKER_BPS / 10_000))));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> htsHtsMarketFullFillWithFeesInRangeSlippageDeletesOrders() {
+        final var makerBuySalt = randomB64Salt();
+        final var marketSellSalt = randomB64Salt();
+        return hapiTest(
+                lv.placeLimitOrder(
+                        MARKET_MAKER,
+                        makerBuySalt,
+                        APPLES,
+                        USDC,
+                        Side.BUY,
+                        distantExpiry(),
+                        MAKER_BPS,
+                        price(1.90),
+                        quantity(3)),
+                lv.placeMarketOrder(
+                        PARTY,
+                        marketSellSalt,
+                        APPLES,
+                        USDC,
+                        Side.SELL,
+                        iocExpiry(),
+                        TAKER_BPS,
+                        price(2.00),
+                        quantity(3),
+                        10,
+                        TimeInForce.IOC),
+                lv.settleFills(
+                                APPLES,
+                                USDC,
+                                FEES,
+                                makingBuyer(MARKET_MAKER, quantity(3), averagePrice(1.90), makerBuySalt),
+                                takingSeller(PARTY, quantity(3), averagePrice(1.90), marketSellSalt))
+                        .via("htsHtsFullFeeSlipFill"),
+                lv.assertNoSuchOrder(MARKET_MAKER, makerBuySalt),
+                lv.assertNoSuchOrder(PARTY, marketSellSalt),
+                getTxnRecord("htsHtsFullFeeSlipFill")
+                        .hasPriority(recordWith()
+                                .tokenTransfers(changingFungibleBalances()
+                                        .including(
+                                                APPLES.name(),
+                                                FEE_COLLECTOR.name(),
+                                                inBaseUnits(quantity(3), APPLES_DECIMALS) * MAKER_BPS / 10_000)
+                                        .including(
+                                                USDC.name(),
+                                                FEE_COLLECTOR.name(),
+                                                inBaseUnits(quantity(5.70), USDC_DECIMALS) * TAKER_BPS / 10_000))));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> htsHtsMarketSatisficingPartialFillWithFeesNoSlippageDeletesOrders() {
+        final var makerBuySalt = randomB64Salt();
+        final var marketSellSalt = randomB64Salt();
+        return hapiTest(
+                tokenBalanceSnapshot(APPLES.name(), "partyApplesBeforePartialNoSlip", PARTY.name()),
+                lv.placeLimitOrder(
+                        MARKET_MAKER,
+                        makerBuySalt,
+                        APPLES,
+                        USDC,
+                        Side.BUY,
+                        distantExpiry(),
+                        MAKER_BPS,
+                        price(2.00),
+                        quantity(2)),
+                lv.placeMarketOrder(
+                        PARTY,
+                        marketSellSalt,
+                        APPLES,
+                        USDC,
+                        Side.SELL,
+                        iocExpiry(),
+                        TAKER_BPS,
+                        price(2.00),
+                        quantity(3),
+                        0,
+                        TimeInForce.IOC),
+                lv.settleFills(
+                                APPLES,
+                                USDC,
+                                FEES,
+                                makingBuyer(MARKET_MAKER, quantity(2), averagePrice(2.00), makerBuySalt),
+                                takingSeller(PARTY, quantity(2), averagePrice(2.00), marketSellSalt))
+                        .via("htsHtsPartialFeeNoSlipFill"),
+                lv.assertNoSuchOrder(MARKET_MAKER, makerBuySalt),
+                lv.assertNoSuchOrder(PARTY, marketSellSalt),
+                getAccountBalance(PARTY.name())
+                        .hasTokenBalance(
+                                APPLES.name(),
+                                tokenChangeFromSnapshot(
+                                        APPLES.name(),
+                                        "partyApplesBeforePartialNoSlip",
+                                        inBaseUnits(quantity(-2), APPLES_DECIMALS))),
+                getTxnRecord("htsHtsPartialFeeNoSlipFill")
+                        .hasPriority(recordWith()
+                                .tokenTransfers(changingFungibleBalances()
+                                        .including(
+                                                APPLES.name(),
+                                                FEE_COLLECTOR.name(),
+                                                inBaseUnits(quantity(2), APPLES_DECIMALS) * MAKER_BPS / 10_000)
+                                        .including(
+                                                USDC.name(),
+                                                FEE_COLLECTOR.name(),
+                                                inBaseUnits(quantity(4.00), USDC_DECIMALS) * TAKER_BPS / 10_000))));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> htsHtsMarketSatisficingPartialFillWithFeesInRangeSlippageDeletesOrders() {
+        final var makerBuySalt = randomB64Salt();
+        final var marketSellSalt = randomB64Salt();
+        return hapiTest(
+                tokenBalanceSnapshot(APPLES.name(), "partyApplesBeforePartialSlip", PARTY.name()),
+                lv.placeLimitOrder(
+                        MARKET_MAKER,
+                        makerBuySalt,
+                        APPLES,
+                        USDC,
+                        Side.BUY,
+                        distantExpiry(),
+                        MAKER_BPS,
+                        price(1.90),
+                        quantity(2)),
+                lv.placeMarketOrder(
+                        PARTY,
+                        marketSellSalt,
+                        APPLES,
+                        USDC,
+                        Side.SELL,
+                        iocExpiry(),
+                        TAKER_BPS,
+                        price(2.00),
+                        quantity(3),
+                        10,
+                        TimeInForce.IOC),
+                lv.settleFills(
+                                APPLES,
+                                USDC,
+                                FEES,
+                                makingBuyer(MARKET_MAKER, quantity(2), averagePrice(1.90), makerBuySalt),
+                                takingSeller(PARTY, quantity(2), averagePrice(1.90), marketSellSalt))
+                        .via("htsHtsPartialFeeSlipFill"),
+                lv.assertNoSuchOrder(MARKET_MAKER, makerBuySalt),
+                lv.assertNoSuchOrder(PARTY, marketSellSalt),
+                getAccountBalance(PARTY.name())
+                        .hasTokenBalance(
+                                APPLES.name(),
+                                tokenChangeFromSnapshot(
+                                        APPLES.name(),
+                                        "partyApplesBeforePartialSlip",
+                                        inBaseUnits(quantity(-2), APPLES_DECIMALS))),
+                getTxnRecord("htsHtsPartialFeeSlipFill")
+                        .hasPriority(recordWith()
+                                .tokenTransfers(changingFungibleBalances()
+                                        .including(
+                                                APPLES.name(),
+                                                FEE_COLLECTOR.name(),
+                                                inBaseUnits(quantity(2), APPLES_DECIMALS) * MAKER_BPS / 10_000)
+                                        .including(
+                                                USDC.name(),
+                                                FEE_COLLECTOR.name(),
+                                                inBaseUnits(quantity(3.80), USDC_DECIMALS) * TAKER_BPS / 10_000))));
     }
 
     @HapiTest

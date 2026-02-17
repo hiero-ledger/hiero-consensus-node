@@ -65,7 +65,7 @@ import org.junit.jupiter.api.Tag;
 @HapiTestLifecycle
 @OrderedInIsolation
 @Tag(MATS)
-public class LambdaplexStopOrderTypesTest implements InitcodeTransform {
+public class LambdaplexMixedOrderTypesTest implements InitcodeTransform {
     private static final int HOOK_ID = 42;
     private static final int ZERO_BPS = 0;
     private static final int MAKER_BPS = 12;
@@ -87,7 +87,7 @@ public class LambdaplexStopOrderTypesTest implements InitcodeTransform {
     @Contract(
             contract = "OrderFlowAllowance",
             creationGas = 2_000_000L,
-            initcodeTransform = LambdaplexStopOrderTypesTest.class)
+            initcodeTransform = LambdaplexMixedOrderTypesTest.class)
     static SpecContract LAMBDAPLEX_HOOK;
 
     @FungibleToken(initialSupply = 10_000 * APPLES_SCALE, decimals = APPLES_DECIMALS)
