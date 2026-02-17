@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.issues;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.SYSTEM_ACCOUNT_KEYS;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getFileContents;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
@@ -31,7 +30,6 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Tag;
 
 public class Issue2319Spec {
     private static final String NON_TREASURY_KEY = "nonTreasuryKey";
@@ -82,7 +80,6 @@ public class Issue2319Spec {
     }
 
     @LeakyHapiTest(requirement = SYSTEM_ACCOUNT_KEYS)
-    @Tag(MATS)
     final Stream<DynamicTest> sysAccountSigReqsWaivedForMasterAndTreasury() {
         return hapiTest(
                 newKeyNamed(NON_TREASURY_KEY),
@@ -113,7 +110,6 @@ public class Issue2319Spec {
     }
 
     @LeakyHapiTest(requirement = SYSTEM_ACCOUNT_KEYS)
-    @Tag(MATS)
     final Stream<DynamicTest> sysFileSigReqsWaivedForMasterAndTreasury() {
         var validRates = new AtomicReference<ByteString>();
 

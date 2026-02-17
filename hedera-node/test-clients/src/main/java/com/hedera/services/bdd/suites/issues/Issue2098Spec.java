@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.issues;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.PERMISSION_OVERRIDES;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTopicInfo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.createTopic;
@@ -22,7 +21,6 @@ import com.hedera.services.bdd.junit.LeakyHapiTest;
 import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Tag;
 
 public class Issue2098Spec {
     private static final String CIVILIAN = "civilian";
@@ -30,7 +28,6 @@ public class Issue2098Spec {
     private static final String GET_TOPIC_INFO = "getTopicInfo";
 
     @LeakyHapiTest(requirement = PERMISSION_OVERRIDES)
-    @Tag(MATS)
     final Stream<DynamicTest> txnApiPermissionsChangeImmediately() {
         return hapiTest(
                 cryptoCreate(CIVILIAN),
@@ -78,7 +75,6 @@ public class Issue2098Spec {
     }
 
     @LeakyHapiTest(requirement = PERMISSION_OVERRIDES)
-    @Tag(MATS)
     final Stream<DynamicTest> adminsCanTransactNoMatterPermissions() {
         return hapiTest(
                 cryptoCreate(CIVILIAN),
