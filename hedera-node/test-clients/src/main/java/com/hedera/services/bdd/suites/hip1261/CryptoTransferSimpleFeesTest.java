@@ -1621,7 +1621,7 @@ public class CryptoTransferSimpleFeesTest {
                                         "tokenTransferTxn",
                                         txnSize -> (expectedCryptoTransferHbarFullFeeUsd(Map.of(
                                                 SIGNATURES, 1L,
-                                                ACCOUNTS, 4L,
+                                                ACCOUNTS, 3L,
                                                 PROCESSING_BYTES, (long) txnSize))),
                                         0.001);
 
@@ -1825,9 +1825,9 @@ public class CryptoTransferSimpleFeesTest {
 
                                 final var checkOpChargedUsd = validateChargedUsdWithinWithTxnSize(
                                         "tokenTransferTxn",
-                                        txnSize -> (expectedCryptoTransferHBARAndFTAndNFTFullFeeUsd(Map.of(
+                                        txnSize -> (expectedCryptoTransferFTAndNFTFullFeeUsd(Map.of(
                                                         SIGNATURES, 1L,
-                                                        ACCOUNTS, 4L,
+                                                        ACCOUNTS, 3L,
                                                         TOKEN_TYPES, 2L,
                                                         PROCESSING_BYTES, (long) txnSize))
                                                 + TOKEN_ASSOCIATE_EXTRA_FEE_USD * 2),

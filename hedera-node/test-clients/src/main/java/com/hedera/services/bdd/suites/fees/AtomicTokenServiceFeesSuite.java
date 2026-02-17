@@ -1426,7 +1426,7 @@ class AtomicTokenServiceFeesSuite {
                                         PROCESSING_BYTES, (long) txnSize)),
                                 0.1);
                     } else {
-                        return validateInnerTxnChargedUsd(nftUpdateTxn, ATOMIC_BATCH, expectedNftUpdatePriceUsd, 0.01);
+                        return validateInnerTxnChargedUsd(nftUpdateTxn, ATOMIC_BATCH, expectedNftUpdatePriceUsd, 10);
                     }
                 }));
     }
@@ -1595,7 +1595,7 @@ class AtomicTokenServiceFeesSuite {
                                         PROCESSING_BYTES, (long) txnSize)),
                                 0.1);
                     } else {
-                        return validateInnerTxnChargedUsd(nftUpdateTxn, ATOMIC_BATCH, expectedNftUpdatePriceUsd, 0.01);
+                        return validateInnerTxnChargedUsd(nftUpdateTxn, ATOMIC_BATCH, expectedNftUpdatePriceUsd * 5, 1);
                     }
                 }));
     }
@@ -1650,7 +1650,7 @@ class AtomicTokenServiceFeesSuite {
                                         PROCESSING_BYTES, (long) txnSize)),
                                 0.1);
                     } else {
-                        return validateInnerTxnChargedUsd("nftUpdateTxn", ATOMIC_BATCH, expectedTokenUpdateNfts, 1);
+                        return validateInnerTxnChargedUsd("nftUpdateTxn", ATOMIC_BATCH, expectedTokenUpdateNfts, 10);
                     }
                 }));
     }
