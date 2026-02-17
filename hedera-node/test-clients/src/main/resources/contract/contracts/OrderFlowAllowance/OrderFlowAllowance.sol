@@ -58,10 +58,7 @@ contract OrderFlowAllowance is IHieroAccountAllowanceHook {
             require(block.timestamp < p.expiration(), "expired");
 
             uint8 ot = p.orderType();
-            require(
-                OrderType.isLimitStyle(ot) || OrderType.isMarketStyle(ot),
-                "unsupported type"
-            );
+            require( OrderType.isLimitStyle(ot) || OrderType.isMarketStyle(ot), "unsupported type" );
 
             address inTok  = p.inToken();
             address outTok = p.outToken();

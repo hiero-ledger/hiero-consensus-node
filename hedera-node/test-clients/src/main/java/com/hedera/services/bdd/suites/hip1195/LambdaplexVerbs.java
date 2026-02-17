@@ -300,6 +300,7 @@ public class LambdaplexVerbs {
                 0,
                 0,
                 null,
+                null,
                 null);
     }
 
@@ -329,6 +330,7 @@ public class LambdaplexVerbs {
                 0,
                 0,
                 expiryTransform,
+                null,
                 null);
     }
 
@@ -358,7 +360,38 @@ public class LambdaplexVerbs {
                 0,
                 0,
                 null,
-                detailsTransform);
+                detailsTransform,
+                null);
+    }
+
+    public SpecOperation placeKeyTransformedLimitOrder(
+            @NonNull final SpecAccount account,
+            @NonNull final String b64Salt,
+            @NonNull final SpecFungibleToken specBaseToken,
+            @NonNull final SpecFungibleToken specQuoteToken,
+            @NonNull final Side side,
+            @NonNull final Instant expiry,
+            final int feeBps,
+            @NonNull final BigDecimal price,
+            @NonNull final BigDecimal quantity,
+            @Nullable final UnaryOperator<Bytes> keyTransform) {
+        return placeOrderInternal(
+                account,
+                b64Salt,
+                specBaseToken,
+                specQuoteToken,
+                side,
+                OrderType.LIMIT,
+                null,
+                expiry,
+                price,
+                quantity,
+                feeBps * 100,
+                0,
+                0,
+                null,
+                null,
+                keyTransform);
     }
 
     public SpecOperation placeStopLimitOrder(
@@ -384,13 +417,14 @@ public class LambdaplexVerbs {
                 expiry,
                 price,
                 quantity,
-                feeBps,
+                feeBps * 100,
                 // We reuse priceDeviationCentiBps to encode the trigger price as a percentage of the price
                 triggerPrice
                         .multiply(BigDecimal.valueOf(100_00))
                         .divide(price, HALF_UP)
                         .intValue(),
                 0,
+                null,
                 null,
                 null);
     }
@@ -423,6 +457,7 @@ public class LambdaplexVerbs {
                 // "Fill-or-kill" is encoded as a minimum fill percentage of 100% minus the slippage tolerance
                 timeInForce == TimeInForce.FOK ? 1_000_000 * (100 - slippagePercentTolerance) / 100 : 0,
                 null,
+                null,
                 null);
     }
 
@@ -450,9 +485,10 @@ public class LambdaplexVerbs {
                 expiry,
                 stopPrice,
                 quantity,
-                feeBps,
+                feeBps * 100,
                 slippagePercentTolerance * 10_000,
                 fillOrKill ? 1_000_000 : 0,
+                null,
                 null,
                 null);
     }
@@ -462,22 +498,30 @@ public class LambdaplexVerbs {
             @NonNull final SpecFungibleToken specQuoteToken,
             @NonNull final Fees fees,
             @NonNull final LambdaplexVerbs.FillParty... fillParties) {
-        return settleFillsInternal(specBaseToken, specQuoteToken, fees, null, fillParties);
+        return settleFillsInternal(specBaseToken, specQuoteToken, fees, null, null, fillParties);
     }
 
     public HapiCryptoTransfer settleFillsNoFees(
             @NonNull final SpecFungibleToken specBaseToken,
             @NonNull final SpecFungibleToken specQuoteToken,
             @NonNull final LambdaplexVerbs.FillParty... fillParties) {
-        return settleFillsInternal(specBaseToken, specQuoteToken, null, null, fillParties);
+        return settleFillsInternal(specBaseToken, specQuoteToken, null, null, null, fillParties);
     }
 
-    public HapiCryptoTransfer settleTransformedFillsNoFees(
+    public HapiCryptoTransfer settleBodyTransformedFillsNoFees(
             @NonNull final SpecFungibleToken specBaseToken,
             @NonNull final SpecFungibleToken specQuoteToken,
             @NonNull final Consumer<CryptoTransferTransactionBody.Builder> bodySpec,
             @NonNull final LambdaplexVerbs.FillParty... fillParties) {
-        return settleFillsInternal(specBaseToken, specQuoteToken, null, bodySpec, fillParties);
+        return settleFillsInternal(specBaseToken, specQuoteToken, null, bodySpec, null, fillParties);
+    }
+
+    public HapiCryptoTransfer settleDataTransformedFillsNoFees(
+            @NonNull final SpecFungibleToken specBaseToken,
+            @NonNull final SpecFungibleToken specQuoteToken,
+            @NonNull final UnaryOperator<Bytes> dataTransform,
+            @NonNull final LambdaplexVerbs.FillParty... fillParties) {
+        return settleFillsInternal(specBaseToken, specQuoteToken, null, null, dataTransform, fillParties);
     }
 
     private HapiCryptoTransfer settleFillsInternal(
@@ -485,6 +529,7 @@ public class LambdaplexVerbs {
             @NonNull final SpecFungibleToken specQuoteToken,
             @Nullable final Fees fees,
             @Nullable final Consumer<CryptoTransferTransactionBody.Builder> bodySpec,
+            @Nullable final UnaryOperator<Bytes> dataTransform,
             @NonNull final FillParty... fillParties) {
         return TxnVerbs.cryptoTransfer((spec, builder) -> {
             final var baseToken = specBaseToken.tokenOrThrow(spec.targetNetworkOrThrow());
@@ -493,7 +538,10 @@ public class LambdaplexVerbs {
             final List<AccountAmount> quoteAdjustments = new ArrayList<>();
             for (final var party : fillParties) {
                 final var partyId = spec.registry().getAccountID(party.account().name());
-                final var data = party.toDirectPrefixes(saltPrefixes::get);
+                var data = party.toDirectPrefixes(saltPrefixes::get);
+                if (dataTransform != null) {
+                    data = dataTransform.apply(data);
+                }
                 switch (party.side()) {
                     case BUY -> {
                         // Debiting quote token, crediting base token
@@ -632,7 +680,8 @@ public class LambdaplexVerbs {
             final int priceDeviationCentiBps,
             final int minFillCentiBps,
             @Nullable final LongUnaryOperator expiryTransform,
-            @Nullable final UnaryOperator<Bytes> detailTransform) {
+            @Nullable final UnaryOperator<Bytes> detailTransform,
+            @Nullable final UnaryOperator<Bytes> keyTransform) {
         return sourcingContextual(spec -> {
             final var targetNetwork = spec.targetNetworkOrThrow();
             final var baseToken = specBaseToken.tokenOrThrow(targetNetwork);
@@ -673,7 +722,7 @@ public class LambdaplexVerbs {
             if (expiryTransform != null) {
                 expirySecond = expiryTransform.applyAsLong(expirySecond);
             }
-            final var prefixKey = encodeOrderPrefixKey(
+            var prefixKey = encodeOrderPrefixKey(
                     orderType,
                     stopDirection,
                     inToken.tokenIdOrThrow().tokenNum(),
@@ -681,6 +730,9 @@ public class LambdaplexVerbs {
                     expirySecond,
                     feeCentiBps,
                     b64Salt);
+            if (keyTransform != null) {
+                prefixKey = keyTransform.apply(prefixKey);
+            }
             saltPrefixes.put(b64Salt, prefixKey);
             saltQuantityDecimals.put(b64Salt, outToken.decimals());
             var details = minimalKey(detailValue);

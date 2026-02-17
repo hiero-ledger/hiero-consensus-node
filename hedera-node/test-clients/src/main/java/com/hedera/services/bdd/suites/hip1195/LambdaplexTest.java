@@ -48,6 +48,7 @@ import com.hedera.services.bdd.spec.queries.meta.HapiGetTxnRecord;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hederahashgraph.api.proto.java.AccountAmount;
 import com.hederahashgraph.api.proto.java.TokenTransferList;
+import com.hederahashgraph.api.proto.java.TransferList;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -886,6 +887,37 @@ public class LambdaplexTest implements InitcodeTransform {
                                         makerSellSaltThree),
                                 takingBuyer(PARTY, quantity(5), price(2.20), buySalt))
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
+                // Also fail on extra HBAR transfers
+                sourcingContextual(spec -> lv.settleBodyTransformedFillsNoFees(
+                                APPLES,
+                                USDC,
+                                b -> b.setTransfers(TransferList.newBuilder()
+                                        .addAllAccountAmounts(List.of(
+                                                AccountAmount.newBuilder()
+                                                        .setAmount(-1)
+                                                        .setAccountID(
+                                                                spec.registry().getAccountID(MARKET_MAKER.name()))
+                                                        .build(),
+                                                AccountAmount.newBuilder()
+                                                        .setAmount(1)
+                                                        .setAccountID(
+                                                                spec.registry().getAccountID(PARTY.name()))
+                                                        .build()))
+                                        .build()),
+                                makingSeller(
+                                        MARKET_MAKER,
+                                        quantity(5),
+                                        averagePrice(2.20),
+                                        makerSellSaltThree,
+                                        makerSellSaltTwo,
+                                        makerSellSaltOne),
+                                takingBuyer(PARTY, quantity(5), price(2.20), buySalt))
+                        .signedBy(DEFAULT_PAYER, MARKET_MAKER.name(), PARTY.name())
+                        .via("extraHbarTx")
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK)),
+                // revert('hbar neither base nor quoted');
+                assertFirstError("extraHbarTx", "hbar neither base nor quoted"),
+                // Now do the real fill
                 lv.settleFills(
                         APPLES,
                         USDC,
@@ -918,6 +950,7 @@ public class LambdaplexTest implements InitcodeTransform {
         final var expiredSellSalt = randomB64Salt();
         final var invalidPathSellSalt = randomB64Salt();
         final var missingDetailsSellSalt = randomB64Salt();
+        final var invalidOrderTypeSellSalt = randomB64Salt();
         final var validSellSalt = randomB64Salt();
         return hapiTest(
                 lv.placeMarketOrder(
@@ -992,6 +1025,26 @@ public class LambdaplexTest implements InitcodeTransform {
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
                 // require(dBytes != bytes32(0), "detail missing")
                 assertFirstError("missingDetailsTx", "detail missing"),
+                lv.placeKeyTransformedLimitOrder(
+                        MARKET_MAKER,
+                        invalidOrderTypeSellSalt,
+                        HBAR,
+                        USDC,
+                        Side.SELL,
+                        distantExpiry(),
+                        ZERO_BPS,
+                        price(0.12),
+                        quantity(10),
+                        key -> Bytes.wrap(new byte[] {(byte) 0xff}).append(key.slice(1, key.length() - 1))),
+                lv.settleFillsNoFees(
+                                HBAR,
+                                USDC,
+                                makingSeller(MARKET_MAKER, quantity(10), price(0.12), invalidOrderTypeSellSalt),
+                                takingBuyer(COUNTERPARTY, quantity(10), price(0.12), buySalt))
+                        .via("invalidOrderTx")
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
+                // require(OrderType.isLimitStyle(ot) || OrderType.isMarketStyle(ot), "unsupported type");
+                assertFirstError("invalidOrderTx", "unsupported type"),
                 lv.placeLimitOrder(
                         MARKET_MAKER,
                         validSellSalt,
@@ -1002,7 +1055,7 @@ public class LambdaplexTest implements InitcodeTransform {
                         ZERO_BPS,
                         price(0.12),
                         quantity(10)),
-                sourcingContextual(spec -> lv.settleTransformedFillsNoFees(
+                sourcingContextual(spec -> lv.settleBodyTransformedFillsNoFees(
                                 HBAR,
                                 USDC,
                                 b -> b.addTokenTransfers(TokenTransferList.newBuilder()
@@ -1034,7 +1087,17 @@ public class LambdaplexTest implements InitcodeTransform {
                         .via("noFillTx")
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK)),
                 // revert("IOC: no fill")
-                assertSecondError("noFillTx", "IOC: no fill"));
+                assertSecondError("noFillTx", "IOC: no fill"),
+                sourcingContextual(spec -> lv.settleDataTransformedFillsNoFees(
+                                HBAR,
+                                USDC,
+                                data -> Bytes.wrap(new byte[] {(byte) 0xaa, (byte) 0xbb, (byte) 0xcc}),
+                                makingSeller(MARKET_MAKER, quantity(0), price(0.12), validSellSalt),
+                                takingBuyer(COUNTERPARTY, quantity(0), price(0.12), buySalt))
+                        .via("truncatedTx")
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK)),
+                // require(args.length >= 32, "args too short")
+                assertFirstError("truncatedTx", "args too short"));
     }
 
     private static HapiGetTxnRecord assertFirstError(@NonNull final String tx, @NonNull final String message) {
