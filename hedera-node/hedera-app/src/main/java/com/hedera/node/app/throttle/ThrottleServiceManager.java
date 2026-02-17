@@ -37,6 +37,10 @@ import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+/**
+ * Manages the throttling service for the node.
+ * This is a service orchestrator for rebuild/reset/snapshot operations.
+ */
 @Singleton
 public class ThrottleServiceManager {
     private static final Logger log = LogManager.getLogger(ThrottleServiceManager.class);
@@ -155,7 +159,7 @@ public class ThrottleServiceManager {
     }
 
     private void saveThrottleSnapshotsTo(@NonNull final WritableStates serviceStates) {
-        final var hapiThrottles = backendThrottle.allActiveThrottles();
+        final var hapiThrottles = backendThrottle.allActiveThrottlesIncludingHighVolume();
         final List<ThrottleUsageSnapshot> hapiThrottleSnapshots;
         if (hapiThrottles.isEmpty()) {
             hapiThrottleSnapshots = emptyList();
@@ -225,7 +229,8 @@ public class ThrottleServiceManager {
         final ReadableSingletonState<ThrottleUsageSnapshots> usageSnapshotsState =
                 serviceStates.getSingleton(THROTTLE_USAGE_SNAPSHOTS_STATE_ID);
         final var usageSnapshots = requireNonNull(usageSnapshotsState.get());
-        safeResetThrottles(backendThrottle.allActiveThrottles(), usageSnapshots.tpsThrottles());
+        safeResetThrottles(
+                selectedThrottlesFor(backendThrottle, usageSnapshots.tpsThrottles()), usageSnapshots.tpsThrottles());
         if (usageSnapshots.hasGasThrottle()) {
             backendThrottle.gasLimitThrottle().resetUsageTo(usageSnapshots.gasThrottleOrThrow());
         }
@@ -238,7 +243,8 @@ public class ThrottleServiceManager {
         final ReadableSingletonState<ThrottleUsageSnapshots> usageSnapshotsState =
                 serviceStates.getSingleton(THROTTLE_USAGE_SNAPSHOTS_STATE_ID);
         final var usageSnapshots = requireNonNull(usageSnapshotsState.get());
-        resetUnconditionally(backendThrottle.allActiveThrottles(), usageSnapshots.tpsThrottles());
+        resetUnconditionally(
+                selectedThrottlesFor(backendThrottle, usageSnapshots.tpsThrottles()), usageSnapshots.tpsThrottles());
         if (usageSnapshots.hasGasThrottle()) {
             backendThrottle.gasLimitThrottle().resetUsageTo(usageSnapshots.gasThrottleOrThrow());
         }
@@ -325,5 +331,28 @@ public class ThrottleServiceManager {
             }
         }
         return starts;
+    }
+
+    /**
+     * Chooses the set of throttles to restore from snapshots.
+     * Legacy snapshots only contain normal TPS throttles; newer snapshots include
+     * both normal and high-volume TPS throttles.
+     */
+    private static List<DeterministicThrottle> selectedThrottlesFor(
+            @NonNull final ThrottleAccumulator throttleAccumulator,
+            @NonNull final List<ThrottleUsageSnapshot> snapshots) {
+        final var allThrottles = throttleAccumulator.allActiveThrottlesIncludingHighVolume();
+        if (allThrottles.size() == snapshots.size()) {
+            return allThrottles;
+        }
+        log.info(
+                "Snapshot size {} does not match all throttles size {}, using normal throttles",
+                snapshots.size(),
+                allThrottles.size());
+        final var normalThrottles = throttleAccumulator.allActiveThrottles();
+        if (normalThrottles.size() == snapshots.size()) {
+            return normalThrottles;
+        }
+        return allThrottles;
     }
 }

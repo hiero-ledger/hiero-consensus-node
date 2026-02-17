@@ -1,22 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.hashgraph.impl.consensus;
 
-import static com.swirlds.platform.test.fixtures.graph.OtherParentMatrixFactory.createBalancedOtherParentMatrix;
-import static com.swirlds.platform.test.fixtures.graph.OtherParentMatrixFactory.createCliqueOtherParentMatrix;
-import static com.swirlds.platform.test.fixtures.graph.OtherParentMatrixFactory.createPartitionedOtherParentAffinityMatrix;
-import static com.swirlds.platform.test.fixtures.graph.OtherParentMatrixFactory.createShunnedNodeOtherParentAffinityMatrix;
 import static org.hiero.consensus.hashgraph.impl.test.fixtures.event.EventUtils.integerPowerDistribution;
+import static org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.OtherParentMatrixFactory.createBalancedOtherParentMatrix;
+import static org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.OtherParentMatrixFactory.createCliqueOtherParentMatrix;
+import static org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.OtherParentMatrixFactory.createPartitionedOtherParentAffinityMatrix;
+import static org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.OtherParentMatrixFactory.createShunnedNodeOtherParentAffinityMatrix;
 
-import com.swirlds.platform.test.fixtures.consensus.framework.ConsensusTestNode;
-import com.swirlds.platform.test.fixtures.consensus.framework.ConsensusTestOrchestrator;
-import com.swirlds.platform.test.fixtures.consensus.framework.ConsensusTestUtils;
-import com.swirlds.platform.test.fixtures.consensus.framework.OrchestratorBuilder;
-import com.swirlds.platform.test.fixtures.consensus.framework.TestInput;
-import com.swirlds.platform.test.fixtures.consensus.framework.validation.ConsensusOutputValidator;
-import com.swirlds.platform.test.fixtures.consensus.framework.validation.NumberOfConsensusRoundsValidation;
-import com.swirlds.platform.test.fixtures.consensus.framework.validation.OutputEventRatioValidation;
-import com.swirlds.platform.test.fixtures.consensus.framework.validation.OutputEventsAddedInDifferentOrderValidation;
-import com.swirlds.platform.test.fixtures.consensus.framework.validation.OutputEventsEqualityValidation;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -32,6 +22,16 @@ import java.util.stream.IntStream;
 import java.util.stream.StreamSupport;
 import org.assertj.core.api.Assertions;
 import org.hiero.base.utility.Threshold;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.ConsensusTestOrchestrator;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.framework.ConsensusTestNode;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.framework.ConsensusTestUtils;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.framework.OrchestratorBuilder;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.framework.TestInput;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.framework.validation.ConsensusOutputValidator;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.framework.validation.NumberOfConsensusRoundsValidation;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.framework.validation.OutputEventRatioValidation;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.framework.validation.OutputEventsAddedInDifferentOrderValidation;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.framework.validation.OutputEventsEqualityValidation;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.DynamicValue;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.emitter.PriorityEventEmitter;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.emitter.StandardEventEmitter;
@@ -40,6 +40,7 @@ import org.hiero.consensus.hashgraph.impl.test.fixtures.event.source.BranchingEv
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.source.EventSource;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.source.StandardEventSource;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
+import org.hiero.consensus.model.hashgraph.GenesisSnapshotFactory;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterUtils;
 
@@ -582,7 +583,7 @@ public final class ConsensusTestDefinitions {
         final ConsensusTestOrchestrator orchestrator =
                 OrchestratorBuilder.builder().setTestInput(input).build();
         for (final ConsensusTestNode node : orchestrator.getNodes()) {
-            node.getIntake().loadSnapshot(SyntheticSnapshot.getGenesisSnapshot());
+            node.getIntake().loadSnapshot(GenesisSnapshotFactory.newGenesisSnapshot());
         }
 
         final ConsensusOutputValidator consensusOutputValidatorWithEventRatioType2 =

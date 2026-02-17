@@ -3,10 +3,11 @@ package org.hiero.consensus.hashgraph.impl.consensus;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.swirlds.platform.test.fixtures.graph.SimpleGraph;
-import com.swirlds.platform.test.fixtures.graph.SimpleGraphs;
 import java.util.List;
 import org.hiero.consensus.hashgraph.impl.EventImpl;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.graph.SimpleGraph;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.graph.SimpleGraphs;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.graph.internal.SimpleEventImplGraph;
 import org.hiero.consensus.test.fixtures.Randotron;
 import org.junit.jupiter.api.Test;
 
@@ -14,7 +15,9 @@ import org.junit.jupiter.api.Test;
  * Tests for the {@link LocalConsensusGeneration} class.
  */
 class LocalConsensusGenerationTest {
-    private SimpleGraph graph;
+
+    private SimpleGraph<EventImpl> graph;
+    private final SimpleGraphs<EventImpl> graphs = new SimpleGraphs<>(SimpleEventImplGraph::new);
 
     /**
      * Test the assignment and clearing of cGen values in a simple graph.
@@ -23,9 +26,9 @@ class LocalConsensusGenerationTest {
     void simpleGraphTest() {
         final Randotron randotron = Randotron.create();
         // Create a simple graph
-        graph = SimpleGraphs.graph8e4n(randotron);
+        graph = graphs.graph8e4n(randotron);
         // Shuffle the events to simulate random order
-        final List<EventImpl> shuffledEvents = graph.shuffledImpls();
+        final List<EventImpl> shuffledEvents = graph.shuffledEvents(randotron);
 
         // Assign cGen to the events
         LocalConsensusGeneration.assignCGen(shuffledEvents);
@@ -44,7 +47,7 @@ class LocalConsensusGenerationTest {
         LocalConsensusGeneration.clearCGen(shuffledEvents);
 
         // Check that the cGen values are cleared
-        for (final var event : graph.impls()) {
+        for (final var event : graph.events()) {
             assertThat(event.getCGen())
                     .withFailMessage("Expected CGen to have been cleared")
                     .isEqualTo(LocalConsensusGeneration.GENERATION_UNDEFINED);
@@ -52,7 +55,7 @@ class LocalConsensusGenerationTest {
     }
 
     private void assertCGen(final int eventIndex, final int expectedCGen) {
-        final EventImpl event = graph.impls().get(eventIndex);
+        final EventImpl event = graph.events().get(eventIndex);
         assertThat(event).withFailMessage("Event " + eventIndex + " is null").isNotNull();
         assertThat(event.getCGen())
                 .withFailMessage(

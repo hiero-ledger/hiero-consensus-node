@@ -32,10 +32,10 @@ public class RecordStreamingUtils {
 
     private RecordStreamingUtils() {}
 
-    public static Pair<Integer, Optional<RecordStreamFile>> readMaybeCompressedRecordStreamFile(final String loc)
-            throws IOException {
+    public static Pair<Integer, Optional<RecordStreamFile>> readMaybeCompressedRecordStreamFile(
+            final @NonNull Path authorizedDir, final @NonNull String loc) throws IOException {
         final var isCompressed = loc.endsWith(V6_GZ_FILE_EXT);
-        return isCompressed ? readRecordStreamFile(loc) : readUncompressedRecordStreamFile(loc);
+        return isCompressed ? readRecordStreamFile(authorizedDir, loc) : readUncompressedRecordStreamFile(loc);
     }
 
     public static Pair<Integer, Optional<RecordStreamFile>> readUncompressedRecordStreamFile(final String fileLoc)
@@ -47,9 +47,9 @@ public class RecordStreamingUtils {
         }
     }
 
-    public static Pair<Integer, Optional<RecordStreamFile>> readRecordStreamFile(final String fileLoc)
-            throws IOException {
-        final var uncompressedFileContents = FileCompressionUtils.readUncompressedFileBytes(fileLoc);
+    public static Pair<Integer, Optional<RecordStreamFile>> readRecordStreamFile(
+            final @NonNull Path authorizedDir, final @NonNull String fileLoc) throws IOException {
+        final var uncompressedFileContents = FileCompressionUtils.readUncompressedFileBytes(authorizedDir, fileLoc);
         final var recordFileVersion =
                 ByteBuffer.wrap(uncompressedFileContents, 0, 4).getInt();
         final var recordStreamFile = RecordStreamFile.parseFrom(
@@ -65,9 +65,10 @@ public class RecordStreamingUtils {
         }
     }
 
-    public static SidecarFile readMaybeCompressedSidecarFile(final String loc) throws IOException {
+    public static SidecarFile readMaybeCompressedSidecarFile(final @NonNull Path authorizedDir, final String loc)
+            throws IOException {
         final var isCompressed = loc.endsWith(V6_GZ_FILE_EXT);
-        return isCompressed ? readSidecarFile(loc) : readUncompressedSidecarFile(loc);
+        return isCompressed ? readSidecarFile(authorizedDir, loc) : readUncompressedSidecarFile(loc);
     }
 
     public static SidecarFile readUncompressedSidecarFile(final String fileLoc) throws IOException {
@@ -76,8 +77,9 @@ public class RecordStreamingUtils {
         }
     }
 
-    public static SidecarFile readSidecarFile(final String fileLoc) throws IOException {
-        return SidecarFile.parseFrom(FileCompressionUtils.readUncompressedFileBytes(fileLoc));
+    public static SidecarFile readSidecarFile(final @NonNull Path authorizedDir, final String fileLoc)
+            throws IOException {
+        return SidecarFile.parseFrom(FileCompressionUtils.readUncompressedFileBytes(authorizedDir, fileLoc));
     }
 
     public static Instant parseRecordFileConsensusTime(final String recordFile) {

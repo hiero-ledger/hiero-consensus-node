@@ -112,6 +112,7 @@ class NodeDeleteHandlerTest extends AddressBookTestBase {
         final var feeCalc = mock(FeeCalculator.class);
         given(feeCtx.feeCalculatorFactory()).willReturn(feeCalcFact);
         given(feeCalcFact.feeCalculator(any())).willReturn(feeCalc);
+
         final var config = HederaTestConfigBuilder.create()
                 .withValue("nodes.enableDAB", true)
                 .getOrCreateConfig();

@@ -26,14 +26,13 @@ import com.swirlds.component.framework.schedulers.builders.TaskSchedulerType;
 import com.swirlds.platform.metrics.RoundHandlingMetrics;
 import com.swirlds.platform.metrics.TransactionMetrics;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
-import com.swirlds.platform.state.signed.ReservedSignedState;
-import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.system.status.actions.FreezePeriodEnteredAction;
 import com.swirlds.platform.wiring.PlatformSchedulersConfig;
-import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
 import com.swirlds.state.StateLifecycleManager;
+import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
@@ -54,6 +53,8 @@ import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.consensus.platformstate.PlatformStateModifier;
+import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.state.signed.SignedState;
 
 /**
  * A standard implementation of {@link TransactionHandler}.
@@ -65,7 +66,7 @@ public class DefaultTransactionHandler implements TransactionHandler {
     /**
      * The class responsible for all interactions with the swirld state
      */
-    private final StateLifecycleManager stateLifecycleManager;
+    private final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager;
 
     private final RoundHandlingMetrics handlerMetrics;
 
@@ -73,7 +74,7 @@ public class DefaultTransactionHandler implements TransactionHandler {
     private final NodeId selfId;
 
     @NonNull
-    private final ConsensusStateEventHandler<MerkleNodeState> consensusStateEventHandler;
+    private final ConsensusStateEventHandler consensusStateEventHandler;
 
     /**
      * Whether a round in a freeze period has been received. This may never be reset to false after it is set to true.
@@ -137,7 +138,7 @@ public class DefaultTransactionHandler implements TransactionHandler {
             @NonNull final StateLifecycleManager stateLifecycleManager,
             @NonNull final StatusActionSubmitter statusActionSubmitter,
             @NonNull final SemanticVersion softwareVersion,
-            @NonNull final ConsensusStateEventHandler<MerkleNodeState> consensusStateEventHandler,
+            @NonNull final ConsensusStateEventHandler consensusStateEventHandler,
             @NonNull final NodeId selfId) {
 
         this.platformContext = requireNonNull(platformContext);
@@ -247,13 +248,13 @@ public class DefaultTransactionHandler implements TransactionHandler {
 
     /**
      * Handles the events in a consensus round. Implementations are responsible for invoking
-     * {@link ConsensusStateEventHandler#onHandleConsensusRound(Round, MerkleNodeState, Consumer)} .
+     * {@link ConsensusStateEventHandler#onHandleConsensusRound(Round, State, Consumer)} .
      *
      * @param round the round to handle
      */
     private Queue<ScopedSystemTransaction<StateSignatureTransaction>> doHandleConsensusRound(
             final ConsensusRound round) {
-        final MerkleNodeState state = stateLifecycleManager.getMutableState();
+        final State state = stateLifecycleManager.getMutableState();
         final Queue<ScopedSystemTransaction<StateSignatureTransaction>> scopedSystemTransactions =
                 new ConcurrentLinkedQueue<>();
         try {
@@ -346,7 +347,7 @@ public class DefaultTransactionHandler implements TransactionHandler {
         if (freezeRoundReceived) {
             updateLastFrozenTime(stateLifecycleManager.getMutableState());
         }
-        final MerkleNodeState state = stateLifecycleManager.getMutableState();
+        final VirtualMapState state = stateLifecycleManager.getMutableState();
         final boolean isBoundary = consensusStateEventHandler.onSealConsensusRound(consensusRound, state);
         final ReservedSignedState reservedSignedState;
         if (isBoundary || freezeRoundReceived) {
@@ -358,7 +359,7 @@ public class DefaultTransactionHandler implements TransactionHandler {
             }
             handlerMetrics.setPhase(GETTING_STATE_TO_SIGN);
             stateLifecycleManager.copyMutableState();
-            final MerkleNodeState immutableState = stateLifecycleManager.getLatestImmutableState();
+            final VirtualMapState immutableState = stateLifecycleManager.getLatestImmutableState();
 
             handlerMetrics.setPhase(CREATING_SIGNED_STATE);
             final SignedState signedState = new SignedState(

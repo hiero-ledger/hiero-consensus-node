@@ -5,13 +5,16 @@ import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSee
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Random;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.state.signed.DefaultStateGarbageCollector;
+import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.state.signed.SignedState;
+import org.hiero.consensus.state.signed.StateGarbageCollector;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
@@ -26,9 +29,7 @@ class StateGarbageCollectorTests {
     void standardBehaviorTest() {
         final Random random = getRandomPrintSeed();
 
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().build();
-        final StateGarbageCollector garbageCollector = new DefaultStateGarbageCollector(platformContext);
+        final StateGarbageCollector garbageCollector = new DefaultStateGarbageCollector(new NoOpMetrics());
 
         final List<ReservedSignedState> unreleasedStates = new LinkedList<>();
         final List<SignedState> releasedStates = new LinkedList<>();

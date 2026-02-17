@@ -6,7 +6,6 @@ import static com.swirlds.state.merkle.StateUtils.getStateKeyForKv;
 import static com.swirlds.state.merkle.StateUtils.getStateKeyForSingleton;
 import static com.swirlds.state.merkle.StateUtils.getStateValueForKv;
 import static com.swirlds.state.merkle.StateUtils.getStateValueForSingleton;
-import static com.swirlds.state.test.fixtures.merkle.StateClassIdUtils.computeClassId;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
@@ -102,15 +101,7 @@ public class MerkleTestBase extends StateTestBase {
         fruitVirtualMap = createVirtualMap();
         fruitMetadata = new StateMetadata<>(
                 FIRST_SERVICE,
-                StateDefinition.onDisk(FRUIT_STATE_ID, FRUIT_STATE_KEY, ProtoBytes.PROTOBUF, ProtoBytes.PROTOBUF, 100));
-    }
-
-    protected static long queueNodeClassId(String stateKey) {
-        return computeClassId(FIRST_SERVICE, stateKey, TEST_VERSION, QUEUE_NODE_CLASS_ID_SUFFIX);
-    }
-
-    protected static long singletonClassId(String stateKey) {
-        return computeClassId(FIRST_SERVICE, stateKey, TEST_VERSION, SINGLETON_CLASS_ID_SUFFIX);
+                StateDefinition.keyValue(FRUIT_STATE_ID, FRUIT_STATE_KEY, ProtoBytes.PROTOBUF, ProtoBytes.PROTOBUF));
     }
 
     protected void setupSingletonCountry() {

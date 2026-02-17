@@ -4,10 +4,10 @@ package org.hiero.consensus.hashgraph.impl.consensus;
 import static com.swirlds.platform.test.fixtures.PlatformTestUtils.createPlatformContext;
 
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.platform.test.fixtures.consensus.ConsensusTestParams;
-import com.swirlds.platform.test.fixtures.consensus.ConsensusTestRunner;
 import java.util.List;
 import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.ConsensusTestParams;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.ConsensusTestRunner;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;

@@ -13,6 +13,7 @@ import java.util.Objects;
 
 /**
  * A throttle with milli-TPS resolution that exists in a deterministic timeline.
+ * This wraps BucketThrottle with consensus-time progression + snapshots
  */
 public class DeterministicThrottle implements CongestibleThrottle {
     private static final long NANOS_PER_SECOND = 1_000_000_000L;

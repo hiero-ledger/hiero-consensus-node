@@ -41,11 +41,10 @@ public class V0540RosterBaseSchema extends Schema<SemanticVersion> {
         return Set.of(
                 StateDefinition.singleton(
                         RosterStateId.ROSTER_STATE_STATE_ID, RosterStateId.ROSTER_STATE_KEY, RosterState.PROTOBUF),
-                StateDefinition.onDisk(
+                StateDefinition.keyValue(
                         RosterStateId.ROSTERS_STATE_ID,
                         RosterStateId.ROSTERS_KEY,
                         ProtoBytes.PROTOBUF,
-                        Roster.PROTOBUF,
-                        MAX_ROSTERS));
+                        Roster.PROTOBUF));
     }
 }

@@ -63,6 +63,8 @@ public class SmartContractServiceFeesTest {
     @BeforeAll
     public static void setup(final TestLifecycle lifecycle) {
         lifecycle.doAdhoc(contract.getInfo(), civilian.getInfo(), relayer.getInfo());
+        // SimpleSmartContractServiceFeesTest covers the simple fees
+        lifecycle.overrideInClass(Map.of("fees.simpleFeesEnabled", "false"));
     }
 
     @HapiTest

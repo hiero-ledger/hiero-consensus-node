@@ -3,9 +3,9 @@ package com.swirlds.platform.state.hasher;
 
 import com.swirlds.component.framework.component.InputWireLabel;
 import com.swirlds.platform.eventhandling.StateWithHashComplexity;
-import com.swirlds.platform.state.signed.ReservedSignedState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import org.hiero.consensus.state.signed.ReservedSignedState;
 
 /**
  * Hashes signed states

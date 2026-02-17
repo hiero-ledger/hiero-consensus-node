@@ -122,7 +122,6 @@ public class SyncGossipModular implements Gossip {
                 time,
                 rosterSize,
                 syncMetrics,
-                fallenBehindMonitor,
                 intakeEventCounter,
                 lag -> syncProgressHandler.accept(lag));
 
@@ -201,7 +200,10 @@ public class SyncGossipModular implements Gossip {
         });
 
         clearInput.bindConsumer(ignored -> rpcProtocol.clear());
-        eventInput.bindConsumer(synchronizer::addEvent);
+        eventInput.bindConsumer(event -> {
+            synchronizer.addEvent(event);
+            rpcProtocol.addEvent(event);
+        });
         eventWindowInput.bindConsumer(synchronizer::updateEventWindow);
 
         systemHealthInput.bindConsumer(rpcProtocol::reportUnhealthyDuration);

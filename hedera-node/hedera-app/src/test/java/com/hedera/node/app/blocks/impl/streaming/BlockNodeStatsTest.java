@@ -33,6 +33,55 @@ class BlockNodeStatsTest {
     }
 
     @Test
+    void test_behindPublisher_exceededMaxPermitted() {
+        final Instant now = Instant.now();
+        assertThat(blockNodeStats.addBehindPublisherAndCheckLimit(now.minusSeconds(3), 2, Duration.ofSeconds(10L)))
+                .isFalse();
+        assertThat(blockNodeStats.addBehindPublisherAndCheckLimit(now.minusSeconds(2), 2, Duration.ofSeconds(10L)))
+                .isFalse();
+        assertThat(blockNodeStats.addBehindPublisherAndCheckLimit(now.minusSeconds(1), 2, Duration.ofSeconds(10L)))
+                .isTrue();
+        assertThat(blockNodeStats.getBehindPublisherCount()).isEqualTo(3);
+    }
+
+    @Test
+    void test_behindPublisher_expiredTimestampsPruned() {
+        final Instant now = Instant.now();
+        // Add timestamps that will be outside the time window
+        assertThat(blockNodeStats.addBehindPublisherAndCheckLimit(now.minusSeconds(15), 2, Duration.ofSeconds(10L)))
+                .isFalse();
+        assertThat(blockNodeStats.addBehindPublisherAndCheckLimit(now.minusSeconds(12), 2, Duration.ofSeconds(10L)))
+                .isFalse();
+        // Add a recent timestamp - the old ones should be pruned
+        assertThat(blockNodeStats.addBehindPublisherAndCheckLimit(now.minusSeconds(1), 2, Duration.ofSeconds(10L)))
+                .isFalse();
+        // Only the recent timestamp should remain
+        assertThat(blockNodeStats.getBehindPublisherCount()).isEqualTo(1);
+    }
+
+    @Test
+    void test_behindPublisher_independentOfEndOfStream() {
+        final Instant now = Instant.now();
+        // Add EndOfStream events
+        assertThat(blockNodeStats.addEndOfStreamAndCheckLimit(now.minusSeconds(3), 2, Duration.ofSeconds(10L)))
+                .isFalse();
+        assertThat(blockNodeStats.addEndOfStreamAndCheckLimit(now.minusSeconds(2), 2, Duration.ofSeconds(10L)))
+                .isFalse();
+        // EndOfStream count should be 2
+        assertThat(blockNodeStats.getEndOfStreamCount()).isEqualTo(2);
+
+        // Add BehindPublisher events
+        assertThat(blockNodeStats.addBehindPublisherAndCheckLimit(now.minusSeconds(3), 2, Duration.ofSeconds(10L)))
+                .isFalse();
+        assertThat(blockNodeStats.addBehindPublisherAndCheckLimit(now.minusSeconds(2), 2, Duration.ofSeconds(10L)))
+                .isFalse();
+        // BehindPublisher count should be 2 (independent of EndOfStream)
+        assertThat(blockNodeStats.getBehindPublisherCount()).isEqualTo(2);
+        // EndOfStream count should still be 2
+        assertThat(blockNodeStats.getEndOfStreamCount()).isEqualTo(2);
+    }
+
+    @Test
     void test_ackLatency_consecutiveHighLatencyAndSwitching() {
         final Duration threshold = Duration.ofMillis(50);
         final int eventsBeforeSwitching = 2;

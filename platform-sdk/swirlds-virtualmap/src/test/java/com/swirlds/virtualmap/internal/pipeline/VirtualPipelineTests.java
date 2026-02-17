@@ -734,10 +734,8 @@ class VirtualPipelineTests {
             copies.get(i).release();
         }
 
-        // Wait for a moment and let the pipeline catch up with all work
-        MILLISECONDS.sleep(20);
-
-        assertTrue(copies.get(3).isMerged(), "copy should be merged by now");
+        // Wait for the pipeline to catch up with all work
+        assertEventuallyTrue(() -> copies.get(3).isMerged(), Duration.ofSeconds(1), "copy should be merged by now");
         assertFalse(copies.get(4).isMerged(), "copy should not be merged");
 
         // The next time isMerged() is called on copy 4, it will release itself.

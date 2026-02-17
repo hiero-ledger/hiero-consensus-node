@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.hip551.allowance;
 
 import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountDetailsAsserts.accountDetailsWith;
 import static com.hedera.services.bdd.spec.assertions.AssertUtils.inOrder;
@@ -43,8 +42,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.childRecordsCheck;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.emptyChildRecordsCheck;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateInnerTxnChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
@@ -59,6 +56,9 @@ import static com.hedera.services.bdd.suites.contract.leaky.LeakyContractTestsSu
 import static com.hedera.services.bdd.suites.contract.leaky.LeakyContractTestsSuite.ERC_20_CONTRACT;
 import static com.hedera.services.bdd.suites.contract.leaky.LeakyContractTestsSuite.TRANSFER_FROM;
 import static com.hedera.services.bdd.suites.contract.leaky.LeakyContractTestsSuite.TRANSFER_SIGNATURE;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateFees;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateInnerTxnFees;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.ALLOWANCES_FEE_USD;
 import static com.hedera.services.bdd.suites.token.TokenTransactSpecs.TRANSFER_TXN;
 import static com.hedera.services.bdd.suites.utils.contracts.precompile.HTSPrecompileResult.htsPrecompileResult;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.AMOUNT_EXCEEDS_TOKEN_MAX_SUPPLY;
@@ -145,7 +145,6 @@ class AtomicBatchApproveAllowanceTest {
      * @return hapi test
      */
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> transferErc20TokenFromContractWithApproval() {
         final var transferFromOtherContractWithSignaturesTxn = "transferFromOtherContractWithSignaturesTxn";
         final var nestedContract = "NestedERC20Contract";
@@ -263,7 +262,6 @@ class AtomicBatchApproveAllowanceTest {
      * @return hapi test
      */
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> cannotPayForAnyTransactionWithContractAccount() {
         final var cryptoAdminKey = "cryptoAdminKey";
         final var contract = "PayableConstructor";
@@ -798,7 +796,7 @@ class AtomicBatchApproveAllowanceTest {
                         .addNftAllowance(MISSING_OWNER, NON_FUNGIBLE_TOKEN, SPENDER, false, List.of(1L))
                         .via(APPROVE_TXN)
                         .blankMemo(),
-                validateChargedUsdWithin(APPROVE_TXN, 0.052_380, 0.01),
+                validateFees(APPROVE_TXN, 0.05238, 3 * ALLOWANCES_FEE_USD),
                 getAccountDetails(PAYER)
                         .payingWith(GENESIS)
                         .has(accountDetailsWith()
@@ -1334,9 +1332,9 @@ class AtomicBatchApproveAllowanceTest {
                                         .via(BASE_APPROVE_TXN + "_3")
                                         .blankMemo())
                         .via(batchTxn),
-                validateInnerTxnChargedUsd(BASE_APPROVE_TXN + "_1", batchTxn, 0.05, 0.01),
-                validateInnerTxnChargedUsd(BASE_APPROVE_TXN + "_2", batchTxn, 0.0505, 0.1),
-                validateInnerTxnChargedUsd(BASE_APPROVE_TXN + "_3", batchTxn, 0.0509, 0.1));
+                validateInnerTxnFees(BASE_APPROVE_TXN + "_1", batchTxn, 0.05, ALLOWANCES_FEE_USD),
+                validateInnerTxnFees(BASE_APPROVE_TXN + "_2", batchTxn, 0.0505, 2 * ALLOWANCES_FEE_USD),
+                validateInnerTxnFees(BASE_APPROVE_TXN + "_3", batchTxn, 0.0509, 3 * ALLOWANCES_FEE_USD));
     }
 
     /**
@@ -1392,8 +1390,8 @@ class AtomicBatchApproveAllowanceTest {
                                         .via(APPROVE_TXN)
                                         .blankMemo())
                         .via(batchTxn),
-                validateInnerTxnChargedUsd(BASE_APPROVE_TXN, batchTxn, 0.05, 0.01),
-                validateInnerTxnChargedUsd(APPROVE_TXN, batchTxn, 0.052_380, 0.01),
+                validateInnerTxnFees(BASE_APPROVE_TXN, batchTxn, 0.05, ALLOWANCES_FEE_USD),
+                validateInnerTxnFees(APPROVE_TXN, batchTxn, 0.052380, 3 * ALLOWANCES_FEE_USD),
                 getAccountDetails(OWNER)
                         .payingWith(GENESIS)
                         .has(accountDetailsWith()
@@ -1479,7 +1477,6 @@ class AtomicBatchApproveAllowanceTest {
      * @return hapi test
      */
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> cannotHaveMultipleAllowedSpendersForTheSameNftSerial() {
         return hapiTest(
                 newKeyNamed(SUPPLY_KEY),

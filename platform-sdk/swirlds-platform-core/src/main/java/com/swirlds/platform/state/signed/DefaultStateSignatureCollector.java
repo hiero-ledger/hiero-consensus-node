@@ -7,7 +7,6 @@ import static java.util.stream.Collectors.toList;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.logging.legacy.LogMarker;
-import com.swirlds.platform.config.StateConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
@@ -30,6 +29,9 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.sequence.set.SequenceSet;
 import org.hiero.consensus.model.sequence.set.StandardSequenceSet;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
+import org.hiero.consensus.state.config.StateConfig;
+import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.state.signed.SignedState;
 
 /**
  * Collects signatures for signed states. This class ensures that all the non-ancient states that are not fully signed
@@ -277,5 +279,6 @@ public class DefaultStateSignatureCollector implements StateSignatureCollector {
     /**
      * A signature for a state hash that was received when this node does not yet have a state with a matching round.
      */
-    private record SavedSignature(long round, @NonNull NodeId memberId, @NonNull Signature signature) {}
+    private record SavedSignature(
+            long round, @NonNull NodeId memberId, @NonNull Signature signature) {}
 }

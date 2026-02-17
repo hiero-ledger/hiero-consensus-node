@@ -9,7 +9,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.statevalidation.report.Report;
 import com.hedera.statevalidation.util.StateUtils;
 import com.swirlds.merkledb.MerkleDbDataSource;
-import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -48,8 +48,8 @@ public class AnalyzeCommand implements Runnable {
 
         final MerkleDbDataSource vds;
 
-        final MerkleNodeState state = StateUtils.getDefaultState();
-        final VirtualMap virtualMap = (VirtualMap) state.getRoot();
+        final VirtualMapState state = StateUtils.getDefaultState();
+        final VirtualMap virtualMap = state.getRoot();
         requireNonNull(virtualMap);
         vds = (MerkleDbDataSource) virtualMap.getDataSource();
         requireNonNull(vds);

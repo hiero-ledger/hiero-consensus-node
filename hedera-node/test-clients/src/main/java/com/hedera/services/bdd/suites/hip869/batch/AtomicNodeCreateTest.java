@@ -491,6 +491,7 @@ class AtomicNodeCreateTest {
                                 .adminKey(ED_25519_KEY)
                                 .payingWith("payer")
                                 .signedBy("payer")
+                                .sigMapPrefixes(uniqueWithFullPrefixesFor("payer"))
                                 .gossipCaCertificate(
                                         gossipCertificates.getFirst().getEncoded())
                                 .hasKnownStatus(UNAUTHORIZED)

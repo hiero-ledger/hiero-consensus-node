@@ -1,0 +1,196 @@
+// SPDX-License-Identifier: Apache-2.0
+package org.hiero.consensus.state.signed;
+
+import com.hedera.hapi.platform.state.NodeIdSignaturePair;
+import com.hedera.pbj.runtime.ParseException;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
+import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
+import com.swirlds.common.FastCopyable;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import org.hiero.base.crypto.Signature;
+import org.hiero.base.crypto.SignatureType;
+import org.hiero.consensus.model.node.NodeId;
+
+/**
+ * Signatures of the hash of a state.
+ */
+public class SigSet implements FastCopyable, Iterable<NodeId> {
+    /**
+     * The maximum allowed signature count. Used to prevent serialization DOS attacks.
+     */
+    public static final int MAX_SIGNATURE_COUNT = 1024;
+
+    private final Map<NodeId, Signature> signatures = new HashMap<>();
+
+    /**
+     * Zero arg constructor.
+     */
+    public SigSet() {}
+
+    /**
+     * Copy constructor.
+     *
+     * @param that the sig set to copy
+     */
+    private SigSet(final SigSet that) {
+        this.signatures.putAll(that.signatures);
+    }
+
+    /**
+     * Add a signature to the sigset. Does not validate the signature.
+     *
+     * @param nodeId    the ID of the node that provided the signature
+     * @param signature the signature to add
+     */
+    public void addSignature(@NonNull final NodeId nodeId, @NonNull final Signature signature) {
+        Objects.requireNonNull(nodeId, "nodeId must not be null");
+        Objects.requireNonNull(signature, "signature must not be null");
+        signatures.put(nodeId, signature);
+    }
+
+    /**
+     * Remove a signature from the sigset.
+     *
+     * @param nodeId the ID of the signature to remove
+     */
+    public void removeSignature(@NonNull final NodeId nodeId) {
+        Objects.requireNonNull(nodeId, "nodeId must not be null");
+        signatures.remove(nodeId);
+    }
+
+    /**
+     * Get the signature for the given node ID, or null if there is no signature for the requested node.
+     *
+     * @param nodeId the ID of the node
+     * @return a signature for the node, or null if there is no signature for the node
+     */
+    @Nullable
+    public Signature getSignature(@NonNull final NodeId nodeId) {
+        Objects.requireNonNull(nodeId, "nodeId must not be null");
+        return signatures.get(nodeId);
+    }
+
+    /**
+     * Check if this sigset has a signature for a given node.
+     *
+     * @param nodeId the node ID in question
+     * @return true if a signature from this node is present
+     */
+    public boolean hasSignature(@NonNull final NodeId nodeId) {
+        Objects.requireNonNull(nodeId, "nodeId must not be null");
+        return signatures.containsKey(nodeId);
+    }
+
+    /**
+     * Get an iterator that walks over the set of nodes that have signed the state.
+     */
+    @Override
+    @NonNull
+    public Iterator<NodeId> iterator() {
+        final Iterator<NodeId> iterator = signatures.keySet().iterator();
+
+        // Wrap the iterator so that it can't be used to modify the SigSet.
+        return new Iterator<>() {
+            @Override
+            public boolean hasNext() {
+                return iterator.hasNext();
+            }
+
+            @Override
+            public NodeId next() {
+                return iterator.next();
+            }
+        };
+    }
+
+    /**
+     * Get a list of all signing nodes. This list is safe to modify without affecting the SigSet.
+     *
+     * @return a list of all signing nodes
+     */
+    @NonNull
+    public List<NodeId> getSigningNodes() {
+        return new ArrayList<>(signatures.keySet());
+    }
+
+    /**
+     * Get the number of signatures.
+     *
+     * @return the number of signatures
+     */
+    public int size() {
+        return signatures.size();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @SuppressWarnings("unchecked")
+    @Override
+    @NonNull
+    public SigSet copy() {
+        return new SigSet(this);
+    }
+
+    /**
+     * Serialize this object to a PBJ stream.
+     *
+     * @param out the stream to write to
+     * @throws IOException if an I/O error occurs
+     */
+    public void serialize(@NonNull final WritableStreamingData out) throws IOException {
+        final List<NodeId> sortedIds = getSigningNodes().stream().sorted().toList();
+        final List<NodeIdSignaturePair> signaturePairs = new ArrayList<>(sortedIds.size());
+        for (final NodeId nodeId : sortedIds) {
+            final Signature signature = signatures.get(nodeId);
+            final Bytes signatureBytes = signature.getBytes();
+
+            signaturePairs.add(
+                    new NodeIdSignaturePair(nodeId.id(), signature.getType().ordinal(), signatureBytes));
+        }
+
+        final com.hedera.hapi.platform.state.SigSet sigSet = new com.hedera.hapi.platform.state.SigSet(signaturePairs);
+        out.writeVarInt(com.hedera.hapi.platform.state.SigSet.PROTOBUF.measureRecord(sigSet), false);
+        com.hedera.hapi.platform.state.SigSet.PROTOBUF.write(sigSet, out);
+    }
+
+    /**
+     * Deserialize this object from a PBJ stream.
+     *
+     * @param in the stream to read from
+     * @throws ParseException if a parse error occurs
+     */
+    public void deserialize(@NonNull final ReadableStreamingData in) throws IOException, ParseException {
+        signatures.clear();
+
+        final long length = in.readVarInt(false);
+        final long limitBefore = in.limit();
+        in.limit(in.position() + length);
+
+        final com.hedera.hapi.platform.state.SigSet sigSet = com.hedera.hapi.platform.state.SigSet.PROTOBUF.parse(in);
+        in.limit(limitBefore);
+
+        final List<NodeIdSignaturePair> nodeIdSignaturePairs = sigSet.nodeIdSignaturePairs();
+        if (nodeIdSignaturePairs.size() > MAX_SIGNATURE_COUNT) {
+            throw new IOException(
+                    "Signature count of " + signatures.size() + " exceeds maximum of " + MAX_SIGNATURE_COUNT);
+        }
+
+        for (NodeIdSignaturePair nodeIdSignaturePair : nodeIdSignaturePairs) {
+            signatures.put(
+                    NodeId.of(nodeIdSignaturePair.nodeId()),
+                    new Signature(
+                            SignatureType.from(nodeIdSignaturePair.signatureType(), SignatureType.RSA),
+                            nodeIdSignaturePair.signatureBytes()));
+        }
+    }
+}

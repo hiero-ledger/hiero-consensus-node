@@ -2,7 +2,6 @@
 package com.swirlds.platform.components;
 
 import com.swirlds.common.notification.NotificationEngine;
-import com.swirlds.platform.components.appcomm.CompleteStateNotificationWithCleanup;
 import com.swirlds.platform.listeners.PlatformStatusChangeListener;
 import com.swirlds.platform.listeners.PlatformStatusChangeNotification;
 import com.swirlds.platform.listeners.ReconnectCompleteListener;
@@ -11,7 +10,6 @@ import com.swirlds.platform.listeners.StateWriteToDiskCompleteListener;
 import com.swirlds.platform.listeners.StateWriteToDiskCompleteNotification;
 import com.swirlds.platform.system.state.notifications.AsyncFatalIssListener;
 import com.swirlds.platform.system.state.notifications.IssListener;
-import com.swirlds.platform.system.state.notifications.NewSignedStateListener;
 import com.swirlds.platform.system.state.notifications.StateHashedListener;
 import com.swirlds.platform.system.state.notifications.StateHashedNotification;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -51,18 +49,6 @@ public record DefaultAppNotifier(@NonNull NotificationEngine notificationEngine)
     public void sendPlatformStatusChangeNotification(@NonNull final PlatformStatus newStatus) {
         notificationEngine.dispatch(
                 PlatformStatusChangeListener.class, new PlatformStatusChangeNotification(newStatus));
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void sendLatestCompleteStateNotification(
-            @NonNull final CompleteStateNotificationWithCleanup notificationWithCleanup) {
-        notificationEngine.dispatch(
-                NewSignedStateListener.class,
-                notificationWithCleanup.notification(),
-                notificationWithCleanup.cleanup());
     }
 
     /**

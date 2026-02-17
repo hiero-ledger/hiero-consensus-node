@@ -20,6 +20,7 @@ import static org.mockito.Mockito.when;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.swirlds.base.units.UnitConstants;
+import com.swirlds.common.test.fixtures.logging.MockAppender;
 import com.swirlds.merkledb.KeyRange;
 import com.swirlds.merkledb.collections.CASableLongIndex;
 import com.swirlds.merkledb.collections.ImmutableIndexedObjectListUsingArray;
@@ -27,7 +28,6 @@ import com.swirlds.merkledb.collections.IndexedObject;
 import com.swirlds.merkledb.collections.LongListHeap;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.test.fixtures.files.FilesTestType;
-import com.swirlds.merkledb.test.fixtures.files.MockAppender;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;

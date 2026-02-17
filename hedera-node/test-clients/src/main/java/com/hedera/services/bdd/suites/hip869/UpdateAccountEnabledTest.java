@@ -13,9 +13,12 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeUpdate;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewNode;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.safeValidateChargedUsdWithin;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NODE_UPDATE_BASE_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SIGNATURE_FEE_AFTER_MULTIPLIER;
 import static com.hedera.services.bdd.suites.hip869.NodeCreateTest.generateX509Certificates;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_NODE_ACCOUNT_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
@@ -126,7 +129,12 @@ public class UpdateAccountEnabledTest {
                         .sigMapPrefixes(uniqueWithFullPrefixesFor("payer", "randomAccount", "testKey"))
                         .fee(ONE_HBAR)
                         .via("failedUpdateMultipleSigs"),
-                validateChargedUsdWithin("failedUpdateMultipleSigs", 0.0011276316, 3.0));
+                safeValidateChargedUsdWithin(
+                        "failedUpdateMultipleSigs",
+                        0.0011276316,
+                        3.0,
+                        NODE_UPDATE_BASE_FEE_USD + 2 * SIGNATURE_FEE_AFTER_MULTIPLIER,
+                        1.0));
     }
 
     @EmbeddedHapiTest(NEEDS_STATE_ACCESS)

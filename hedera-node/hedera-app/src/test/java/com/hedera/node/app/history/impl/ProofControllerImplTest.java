@@ -132,7 +132,7 @@ class ProofControllerImplTest {
 
     @Test
     void isStillInProgressTrueWhenNoProofOrFailure() {
-        assertTrue(subject.isStillInProgress());
+        assertTrue(subject.isStillInProgress(DEFAULT_TSS_CONFIG));
     }
 
     @Test
@@ -159,7 +159,7 @@ class ProofControllerImplTest {
                 null,
                 DEFAULT_TSS_CONFIG);
 
-        assertFalse(subject.isStillInProgress());
+        assertFalse(subject.isStillInProgress(DEFAULT_TSS_CONFIG));
     }
 
     @Test
@@ -186,7 +186,7 @@ class ProofControllerImplTest {
                 null,
                 DEFAULT_TSS_CONFIG);
 
-        assertFalse(subject.isStillInProgress());
+        assertFalse(subject.isStillInProgress(DEFAULT_TSS_CONFIG));
     }
 
     @Test

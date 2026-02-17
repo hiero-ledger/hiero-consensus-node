@@ -20,6 +20,7 @@ import com.swirlds.common.stream.RunningEventHashOverride;
 import com.swirlds.common.utility.AutoCloseableWrapper;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
+import com.swirlds.platform.builder.ConsensusModuleBuilder;
 import com.swirlds.platform.builder.PlatformBuildingBlocks;
 import com.swirlds.platform.builder.PlatformComponentBuilder;
 import com.swirlds.platform.components.AppNotifier;
@@ -28,18 +29,14 @@ import com.swirlds.platform.components.DefaultEventWindowManager;
 import com.swirlds.platform.components.DefaultSavedStateController;
 import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.components.SavedStateController;
-import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.event.preconsensus.PcesReplayer;
 import com.swirlds.platform.metrics.RuntimeMetrics;
-import com.swirlds.platform.reconnect.DefaultSignedStateValidator;
-import com.swirlds.platform.reconnect.ReconnectController;
+import com.swirlds.platform.reconnect.ReconnectModule;
 import com.swirlds.platform.state.nexus.DefaultLatestCompleteStateNexus;
 import com.swirlds.platform.state.nexus.LatestCompleteStateNexus;
 import com.swirlds.platform.state.nexus.LockFreeStateNexus;
 import com.swirlds.platform.state.nexus.SignedStateNexus;
 import com.swirlds.platform.state.signed.DefaultStateSignatureCollector;
-import com.swirlds.platform.state.signed.ReservedSignedState;
-import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.signed.SignedStateMetrics;
 import com.swirlds.platform.state.signed.StateSignatureCollector;
 import com.swirlds.platform.state.snapshot.SavedStateInfo;
@@ -49,9 +46,10 @@ import com.swirlds.platform.system.status.actions.DoneReplayingEventsAction;
 import com.swirlds.platform.system.status.actions.StartedReplayingEventsAction;
 import com.swirlds.platform.wiring.PlatformComponents;
 import com.swirlds.platform.wiring.PlatformCoordinator;
-import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
 import com.swirlds.state.StateLifecycleManager;
+import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.List;
@@ -61,8 +59,6 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Signature;
-import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
-import org.hiero.consensus.concurrent.manager.AdHocThreadManager;
 import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.hashgraph.config.ConsensusConfig;
 import org.hiero.consensus.io.IOIterator;
@@ -73,6 +69,9 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.pces.config.PcesConfig;
 import org.hiero.consensus.round.EventWindowUtils;
+import org.hiero.consensus.state.config.StateConfig;
+import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.state.signed.SignedState;
 
 /**
  * The swirlds consensus node platform. Responsible for the creation, gossip, and consensus of events. Also manages the
@@ -192,12 +191,12 @@ public class SwirldsPlatform implements Platform {
                 () -> latestImmutableStateNexus.getState("PCES replay"),
                 () -> isLessThan(blocks.model().getUnhealthyDuration(), replayHealthThreshold));
 
-        initializeState(this, platformContext, initialState, blocks.consensusStateEventHandler());
+        initializeState(this, initialState, blocks.consensusStateEventHandler());
 
         // This object makes a copy of the state. After this point, initialState becomes immutable.
-        final StateLifecycleManager stateLifecycleManager = blocks.stateLifecycleManager();
-        final MerkleNodeState state = initialState.getState();
-        stateLifecycleManager.initState(state);
+        final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager = blocks.stateLifecycleManager();
+        final State state = initialState.getState();
+        stateLifecycleManager.initState((VirtualMapState) state);
         // Genesis state must stay empty until changes can be externalized in the block stream
         if (!initialState.isGenesisState()) {
             setCreationSoftwareVersionTo(stateLifecycleManager.getMutableState(), blocks.appVersion());
@@ -207,10 +206,12 @@ public class SwirldsPlatform implements Platform {
 
         final AppNotifier appNotifier = new DefaultAppNotifier(blocks.notificationEngine());
 
-        final ReconnectController reconnectController = new ReconnectController(
+        final ReconnectModule reconnectModule = ConsensusModuleBuilder.createReconnectModule();
+        reconnectModule.initialize(
                 configuration,
                 platformContext.getTime(),
                 currentRoster,
+                platformComponents,
                 this,
                 platformCoordinator,
                 stateLifecycleManager,
@@ -218,18 +219,7 @@ public class SwirldsPlatform implements Platform {
                 blocks.consensusStateEventHandler(),
                 blocks.reservedSignedStateResultPromise(),
                 selfId,
-                blocks.fallenBehindMonitor(),
-                new DefaultSignedStateValidator());
-
-        final Thread reconnectControllerThread = new ThreadConfiguration(AdHocThreadManager.getStaticThreadManager())
-                .setComponent("platform-core")
-                .setThreadName("reconnectController")
-                .setRunnable(reconnectController)
-                .build(true);
-        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            reconnectController.stopReconnectLoop();
-            reconnectControllerThread.interrupt();
-        }));
+                blocks.fallenBehindMonitor());
 
         platformComponents.bind(
                 builder,

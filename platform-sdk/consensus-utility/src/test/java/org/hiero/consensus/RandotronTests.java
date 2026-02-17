@@ -14,7 +14,6 @@ import java.net.InetAddress;
 import java.util.Arrays;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
-import org.hiero.base.crypto.Signature;
 import org.hiero.consensus.test.fixtures.Randotron;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -200,28 +199,6 @@ class RandotronTests {
         assertEquals(hashBytes1, hashBytes2);
         assertEquals(48, hashBytes1.length());
         assertEquals(48, hashBytes2.length());
-    }
-
-    @Test
-    @DisplayName("Test nextSignature with different seeds")
-    void nextSignatureUnique() {
-        final Signature signature1 = random1.nextSignature();
-        final Signature signature2 = random2.nextSignature();
-
-        assertNotEquals(signature1, signature2);
-        assertEquals(384, signature1.getBytes().length());
-        assertEquals(384, signature2.getBytes().length());
-    }
-
-    @Test
-    @DisplayName("Test nextSignature with same seed")
-    void nextSignatureSameSeed() {
-        final Signature signature1 = random1.nextSignature();
-        final Signature signature2 = random1Duplicate.nextSignature();
-
-        assertEquals(signature1, signature2);
-        assertEquals(384, signature1.getBytes().length());
-        assertEquals(384, signature2.getBytes().length());
     }
 
     @Test

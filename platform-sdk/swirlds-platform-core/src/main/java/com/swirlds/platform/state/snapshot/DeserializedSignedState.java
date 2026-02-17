@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.snapshot;
 
-import com.swirlds.platform.state.signed.ReservedSignedState;
 import org.hiero.base.crypto.Hash;
+import org.hiero.consensus.state.signed.ReservedSignedState;
 
 /**
  * This record encapsulates the data read from a new signed state.

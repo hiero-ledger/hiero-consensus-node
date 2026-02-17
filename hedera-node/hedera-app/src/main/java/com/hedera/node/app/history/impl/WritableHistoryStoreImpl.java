@@ -82,13 +82,7 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
             throw new IllegalArgumentException("Handoff phase has no construction");
         }
         var construction = getConstructionFor(activeRosters);
-        // Special case at genesis with WRAPS enabled where even though a construction
-        // exists, it was completed with a non-extensible proof, so we need to start a
-        // new construction nonetheless
-        if (construction == null
-                || (tssConfig.wrapsEnabled()
-                        && construction.hasTargetProof()
-                        && !isWrapsExtensible(construction.targetProof()))) {
+        if (construction == null) {
             final var gracePeriod = phase == BOOTSTRAP
                     ? tssConfig.bootstrapProofKeyGracePeriod()
                     : tssConfig.transitionProofKeyGracePeriod();

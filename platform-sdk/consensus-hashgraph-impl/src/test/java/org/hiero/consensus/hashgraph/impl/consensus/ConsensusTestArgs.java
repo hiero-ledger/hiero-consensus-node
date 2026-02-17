@@ -11,8 +11,8 @@ import static org.hiero.consensus.test.fixtures.WeightGenerators.SINGLE_NODE_STR
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
-import com.swirlds.platform.test.fixtures.consensus.ConsensusTestParams;
 import java.util.stream.Stream;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.ConsensusTestParams;
 
 public class ConsensusTestArgs {
 

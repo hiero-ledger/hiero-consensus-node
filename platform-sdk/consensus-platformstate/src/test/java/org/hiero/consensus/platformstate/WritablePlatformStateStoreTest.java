@@ -17,7 +17,7 @@ import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.state.merkle.StateUtils;
 import com.swirlds.state.merkle.StateValue;
 import com.swirlds.state.merkle.StateValue.StateValueCodec;
-import com.swirlds.state.merkle.disk.OnDiskWritableSingletonState;
+import com.swirlds.state.merkle.vm.VirtualMapWritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
 import com.swirlds.state.test.fixtures.merkle.VirtualMapUtils;
 import com.swirlds.virtualmap.VirtualMap;
@@ -57,7 +57,7 @@ class WritablePlatformStateStoreTest {
         virtualMap.put(key, value, stateValueCodec);
 
         when(writableStates.<PlatformState>getSingleton(PLATFORM_STATE_STATE_ID))
-                .thenReturn(new OnDiskWritableSingletonState<>(
+                .thenReturn(new VirtualMapWritableSingletonState<>(
                         PLATFORM_STATE_STATE_ID, PLATFORM_STATE_STATE_LABEL, codec, virtualMap));
         store = new WritablePlatformStateStore(writableStates);
     }

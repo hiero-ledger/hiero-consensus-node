@@ -40,6 +40,7 @@ import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movi
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUnique;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateInnerTxnChargedUsd;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_BILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
@@ -47,6 +48,13 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
 import static com.hedera.services.bdd.suites.contract.leaky.LeakyContractTestsSuite.RECEIVER;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.nodeFeeFromBytesUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.signedTxnSizeFor;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateInnerTxnFees;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.KEYS_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SIGNATURE_FEE_AFTER_MULTIPLIER;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_CREATE_FEE;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_UPDATE_NFT_FEE;
 import static com.hedera.services.bdd.suites.hip904.TokenAirdropBase.setUpTokensAndAllReceivers;
 import static com.hedera.services.bdd.suites.utils.MiscEETUtils.metadata;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
@@ -73,7 +81,6 @@ import org.junit.jupiter.api.Tag;
 // we are wrapping the operations in an atomic batch to confirm the fees are the same
 @Tag(ATOMIC_BATCH)
 class AtomicTokenServiceFeesSuite {
-
     private static final double ALLOWED_DIFFERENCE_PERCENTAGE = 0.01;
     private static final double ALLOWED_DIFFERENCE = 5;
     private static final String TOKEN_TREASURY = "treasury";
@@ -497,7 +504,8 @@ class AtomicTokenServiceFeesSuite {
     @Tag(MATS)
     final Stream<DynamicTest> baseCreationsUniqueNoFeesHaveExpectedPrices() {
         final var civilian = "NonExemptPayer";
-        final var expectedUniqueNoCustomFeesPriceUsd = 1.00;
+        final var expectedUniqueNoCustomFeesPriceUsd =
+                TOKEN_CREATE_FEE + 3 * SIGNATURE_FEE_AFTER_MULTIPLIER + KEYS_FEE_USD;
         final var uniqueNoFees = "uniqueNoFees";
 
         return hapiTest(flattened(
@@ -515,12 +523,12 @@ class AtomicTokenServiceFeesSuite {
                                 .autoRenewPeriod(THREE_MONTHS_IN_SECONDS)
                                 .adminKey(ADMIN_KEY)
                                 .supplyKey(SUPPLY_KEY)
-                                .via(txnFor(uniqueNoFees))
+                                .via(uniqueNoFees)
                                 .batchKey(BATCH_OPERATOR))
                         .via(ATOMIC_BATCH)
-                        .signedByPayerAnd(BATCH_OPERATOR)
+                        .signedBy(BATCH_OPERATOR)
                         .payingWith(BATCH_OPERATOR),
-                validateInnerTxnChargedUsd(txnFor(uniqueNoFees), ATOMIC_BATCH, expectedUniqueNoCustomFeesPriceUsd, 1)));
+                validateInnerTxnFees(uniqueNoFees, ATOMIC_BATCH, 1.0022, expectedUniqueNoCustomFeesPriceUsd)));
     }
 
     @HapiTest
@@ -548,13 +556,16 @@ class AtomicTokenServiceFeesSuite {
                                 .withCustom(fixedHbarFee(ONE_HBAR, TOKEN_TREASURY))
                                 .supplyKey(SUPPLY_KEY)
                                 .feeScheduleKey(customFeeKey)
-                                .via(txnFor(uniqueWithFees))
+                                .via("innerTxn")
                                 .batchKey(BATCH_OPERATOR))
                         .via(ATOMIC_BATCH)
-                        .signedByPayerAnd(BATCH_OPERATOR)
+                        .signedBy(BATCH_OPERATOR)
                         .payingWith(BATCH_OPERATOR),
                 validateInnerTxnChargedUsd(
-                        txnFor(uniqueWithFees), ATOMIC_BATCH, expectedUniqueWithCustomFeesPriceUsd, 1)));
+                        "innerTxn",
+                        ATOMIC_BATCH,
+                        expectedUniqueWithCustomFeesPriceUsd + 2 * KEYS_FEE_USD + 3 * SIGNATURE_FEE_AFTER_MULTIPLIER,
+                        1)));
     }
 
     @HapiTest
@@ -639,12 +650,11 @@ class AtomicTokenServiceFeesSuite {
                 atomicBatch(mintToken(UNIQUE_TOKEN, List.of(standard100ByteMetadata))
                                 .payingWith(CIVILIAN_ACCT)
                                 .signedBy(SUPPLY_KEY)
-                                .blankMemo()
                                 .fee(ONE_HUNDRED_HBARS)
                                 .via(BASE_TXN)
                                 .batchKey(BATCH_OPERATOR))
                         .via(ATOMIC_BATCH)
-                        .signedByPayerAnd(BATCH_OPERATOR)
+                        .signedBy(BATCH_OPERATOR)
                         .payingWith(BATCH_OPERATOR),
                 validateInnerTxnChargedUsd(
                         BASE_TXN, ATOMIC_BATCH, EXPECTED_NFT_MINT_PRICE_USD, ALLOWED_DIFFERENCE_PERCENTAGE));
@@ -690,9 +700,14 @@ class AtomicTokenServiceFeesSuite {
                                 .via(BASE_TXN)
                                 .batchKey(BATCH_OPERATOR))
                         .via(ATOMIC_BATCH)
-                        .signedByPayerAnd(BATCH_OPERATOR)
+                        .signedBy(BATCH_OPERATOR)
                         .payingWith(BATCH_OPERATOR),
-                validateInnerTxnChargedUsd(BASE_TXN, ATOMIC_BATCH, expectedFee, ALLOWED_DIFFERENCE_PERCENTAGE));
+                withOpContext((spec, log) -> {
+                    final var txnSize = signedTxnSizeFor(spec, BASE_TXN);
+                    final var feeFromNodeBytes = nodeFeeFromBytesUsd(txnSize) * 10;
+                    validateInnerTxnChargedUsd(
+                            BASE_TXN, ATOMIC_BATCH, expectedFee + feeFromNodeBytes, ALLOWED_DIFFERENCE_PERCENTAGE);
+                }));
     }
 
     @HapiTest
@@ -1013,7 +1028,7 @@ class AtomicTokenServiceFeesSuite {
     @HapiTest
     @Tag(MATS)
     final Stream<DynamicTest> updateNftChargedAsExpected() {
-        final var expectedNftUpdatePriceUsd = 0.001;
+        final var expectedNftUpdatePriceUsd = 0.001 + SIGNATURE_FEE_AFTER_MULTIPLIER;
         final var nftUpdateTxn = "nftUpdateTxn";
 
         return hapiTest(
@@ -1050,7 +1065,7 @@ class AtomicTokenServiceFeesSuite {
                         .via(ATOMIC_BATCH)
                         .signedByPayerAnd(BATCH_OPERATOR)
                         .payingWith(BATCH_OPERATOR),
-                validateInnerTxnChargedUsd(nftUpdateTxn, ATOMIC_BATCH, expectedNftUpdatePriceUsd, 0.01));
+                validateInnerTxnFees(nftUpdateTxn, ATOMIC_BATCH, 0.001, expectedNftUpdatePriceUsd));
     }
 
     @HapiTest
@@ -1129,7 +1144,7 @@ class AtomicTokenServiceFeesSuite {
     @HapiTest
     @Tag(MATS)
     final Stream<DynamicTest> updateMultipleNftsFeeChargedAsExpected() {
-        final var expectedNftUpdatePriceUsd = 0.005;
+        final var expectedFee = 5 * TOKEN_UPDATE_NFT_FEE + SIGNATURE_FEE_AFTER_MULTIPLIER;
         final var nftUpdateTxn = "nftUpdateTxn";
 
         return hapiTest(
@@ -1168,12 +1183,12 @@ class AtomicTokenServiceFeesSuite {
                         .via(ATOMIC_BATCH)
                         .signedByPayerAnd(BATCH_OPERATOR)
                         .payingWith(BATCH_OPERATOR),
-                validateInnerTxnChargedUsd(nftUpdateTxn, ATOMIC_BATCH, expectedNftUpdatePriceUsd, 0.01));
+                validateInnerTxnFees(nftUpdateTxn, ATOMIC_BATCH, 0.005, expectedFee));
     }
 
     @HapiTest
     final Stream<DynamicTest> tokenUpdateNftsFeeChargedAsExpected() {
-        final var expectedTokenUpdateNfts = 0.001;
+        final var expectedTokenUpdateNfts = TOKEN_UPDATE_NFT_FEE + SIGNATURE_FEE_AFTER_MULTIPLIER;
 
         return hapiTest(
                 cryptoCreate(BATCH_OPERATOR).balance(ONE_BILLION_HBARS),
@@ -1210,7 +1225,7 @@ class AtomicTokenServiceFeesSuite {
                         .via(ATOMIC_BATCH)
                         .signedByPayerAnd(BATCH_OPERATOR)
                         .payingWith(BATCH_OPERATOR),
-                validateInnerTxnChargedUsd("nftUpdateTxn", ATOMIC_BATCH, expectedTokenUpdateNfts, 1));
+                validateInnerTxnFees("nftUpdateTxn", ATOMIC_BATCH, 0.001, expectedTokenUpdateNfts));
     }
 
     // verify bulk operations base fees

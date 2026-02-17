@@ -2,6 +2,8 @@
 package com.hedera.node.app.throttle;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_TRANSFER;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 
 import java.time.Instant;
@@ -29,5 +31,14 @@ class AppThrottleAdviserTest {
     void forwardsShouldThrottleNOfUnscaled() {
         subject.shouldThrottleNOfUnscaled(2, CRYPTO_TRANSFER);
         verify(networkUtilizationManager).shouldThrottleNOfUnscaled(2, CRYPTO_TRANSFER, CONSENSUS_NOW);
+    }
+
+    @Test
+    void forwardsHighVolumeThrottleUtilization() {
+        given(networkUtilizationManager.highVolumeThrottleUtilization(CRYPTO_TRANSFER, CONSENSUS_NOW))
+                .willReturn(2_500);
+
+        assertEquals(2_500, subject.highVolumeThrottleUtilization(CRYPTO_TRANSFER));
+        verify(networkUtilizationManager).highVolumeThrottleUtilization(CRYPTO_TRANSFER, CONSENSUS_NOW);
     }
 }

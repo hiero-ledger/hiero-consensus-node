@@ -12,6 +12,7 @@ import static com.hedera.node.app.workflows.handle.dispatch.ChildDispatchFactory
 import static com.hedera.node.app.workflows.handle.dispatch.ChildDispatchFactory.getTxnInfoFrom;
 import static com.hedera.node.app.workflows.prehandle.PreHandleResult.Status.PRE_HANDLE_FAILURE;
 import static com.hedera.node.app.workflows.prehandle.PreHandleResult.Status.SO_FAR_SO_GOOD;
+import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static java.util.Collections.emptySet;
 import static java.util.Objects.requireNonNull;
@@ -350,7 +351,7 @@ public class ParentTxnFactory {
                 txnInfo,
                 config,
                 authorizer,
-                streamMode != RECORDS ? blockStreamManager : blockRecordManager,
+                streamMode == BLOCKS ? blockStreamManager : blockRecordManager,
                 priceCalculator,
                 feeManager,
                 appFeeCharging,
@@ -379,6 +380,15 @@ public class ParentTxnFactory {
                     txnInfo.txBody(), txnInfo.functionality(), storeFactory.asReadOnly());
             if (congestionMultiplier > 1) {
                 baseBuilder.congestionMultiplier(congestionMultiplier);
+            }
+            if (txnInfo.txBody().highVolume()) {
+                final var utilizationBasisPoints =
+                        throttleAdvisor.highVolumeThrottleUtilization(txnInfo.functionality());
+                final var highVolumeMultiplier = feeManager.highVolumeMultiplierFor(
+                        txnInfo.txBody(), txnInfo.functionality(), utilizationBasisPoints);
+                if (highVolumeMultiplier > 1) {
+                    baseBuilder.highVolumePricingMultiplier(highVolumeMultiplier);
+                }
             }
         }
         return new RecordDispatch(

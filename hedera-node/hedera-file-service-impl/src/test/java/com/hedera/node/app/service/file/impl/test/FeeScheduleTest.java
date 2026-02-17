@@ -33,7 +33,10 @@ public class FeeScheduleTest {
     private FeeSchedule createMinimalValidSchedule() {
         return FeeSchedule.DEFAULT
                 .copyBuilder()
-                .extras(makeExtraDef(Extra.KEYS, 1), makeExtraDef(Extra.BYTES, 1), makeExtraDef(Extra.SIGNATURES, 1))
+                .extras(
+                        makeExtraDef(Extra.KEYS, 1),
+                        makeExtraDef(Extra.STATE_BYTES, 1),
+                        makeExtraDef(Extra.SIGNATURES, 1))
                 .node(NodeFee.DEFAULT
                         .copyBuilder()
                         .baseFee(100)
@@ -235,7 +238,7 @@ public class FeeScheduleTest {
                         makeServiceFee(
                                 HederaFunctionality.CRYPTO_CREATE,
                                 100,
-                                makeExtraIncluded(Extra.BYTES, 10)))) // BYTES not defined
+                                makeExtraIncluded(Extra.STATE_BYTES, 10)))) // BYTES not defined
                 .build();
         assertFalse(
                 FeeScheduleUtils.isValid(badSchedule),
@@ -250,7 +253,7 @@ public class FeeScheduleTest {
                 .node(NodeFee.DEFAULT
                         .copyBuilder()
                         .baseFee(100)
-                        .extras(makeExtraIncluded(Extra.BYTES, 10)) // BYTES not defined
+                        .extras(makeExtraIncluded(Extra.STATE_BYTES, 10)) // BYTES not defined
                         .build())
                 .build();
         assertFalse(

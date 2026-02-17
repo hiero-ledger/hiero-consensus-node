@@ -6,6 +6,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
+import org.hiero.consensus.event.EventGraphSource;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.pces.impl.common.PcesFileReader;
 import org.hiero.consensus.pces.impl.common.PcesFileTracker;

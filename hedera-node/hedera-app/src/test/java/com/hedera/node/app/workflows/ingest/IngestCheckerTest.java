@@ -87,6 +87,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.stream.Stream;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -245,6 +246,18 @@ class IngestCheckerTest extends AppTestBase {
                     .isInstanceOf(PreCheckException.class)
                     .has(responseCode(WAITING_FOR_LEDGER_ID));
             verify(opWorkflowMetrics, never()).incrementThrottled(any());
+        }
+
+        @Test
+        void answersFreeQueriesIfInControlledState() {
+            when(currentPlatformStatus.get()).thenReturn(PlatformStatus.ACTIVE);
+            Assertions.assertDoesNotThrow(() -> subject.verifyFreeQueryable());
+            when(currentPlatformStatus.get()).thenReturn(PlatformStatus.FREEZING);
+            Assertions.assertDoesNotThrow(() -> subject.verifyFreeQueryable());
+            when(currentPlatformStatus.get()).thenReturn(PlatformStatus.FREEZE_COMPLETE);
+            Assertions.assertDoesNotThrow(() -> subject.verifyFreeQueryable());
+            when(currentPlatformStatus.get()).thenReturn(PlatformStatus.CHECKING);
+            Assertions.assertThrows(PreCheckException.class, () -> subject.verifyFreeQueryable());
         }
     }
 
@@ -483,6 +496,7 @@ class IngestCheckerTest extends AppTestBase {
             final var enabledConfig = new VersionedConfigImpl(
                     HederaTestConfigBuilder.create()
                             .withValue("networkAdmin.highVolumeThrottlesEnabled", true)
+                            .withValue("fees.simpleFeesEnabled", true)
                             .getOrCreateConfig(),
                     1L);
 

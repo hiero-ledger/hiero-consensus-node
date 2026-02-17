@@ -29,8 +29,7 @@ public class AccountsStateSpecification implements OtterServiceStateSpecificatio
         return Set.of(
                 StateDefinition.singleton(
                         ENTITYID_GENERATOR_STATE_ID, ENTITYID_GENERATOR_STATE_KEY, EntityIdGenerator.PROTOBUF),
-                StateDefinition.onDisk(
-                        ACCOUNTS_STATE_ID, ACCOUNTS_STATE_KEY, AccountId.PROTOBUF, Account.PROTOBUF, MAX_ACCOUNTS));
+                StateDefinition.keyValue(ACCOUNTS_STATE_ID, ACCOUNTS_STATE_KEY, AccountId.PROTOBUF, Account.PROTOBUF));
     }
 
     /**

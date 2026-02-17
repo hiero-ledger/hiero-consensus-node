@@ -11,4 +11,13 @@ import java.lang.annotation.Target;
  */
 @Target({ElementType.TYPE, ElementType.METHOD})
 @Retention(RetentionPolicy.RUNTIME)
-public @interface ContainerSpecs {}
+public @interface ContainerSpecs {
+
+    /**
+     * Existence of proxy between the nodes in the network. This enables functionality related to controlling latency,
+     * bandwidth, node isolation, etc. Enabling proxy has a considerable latency cost, even if all latencies are set to
+     * zero and bandwidth is unlimited. It is enabled by default, can be disabled mostly for the performance-sensitive
+     * tests.
+     */
+    boolean proxyEnabled() default true;
+}

@@ -107,10 +107,12 @@ public class SubmissionManager {
      *
      * @param txBody the {@link TransactionBody} that should be submitted to the platform
      * @param serializedSignedTx the bytes of the data that should be submitted
+     * @param priority whether to submit this transaction with priority or not
      * @throws NullPointerException if one of the arguments is {@code null}
      * @throws PreCheckException if the transaction could not be submitted
      */
-    public void submit(@NonNull final TransactionBody txBody, @NonNull final Bytes serializedSignedTx)
+    public void submit(
+            @NonNull final TransactionBody txBody, @NonNull final Bytes serializedSignedTx, final boolean priority)
             throws PreCheckException {
         requireNonNull(txBody);
         requireNonNull(serializedSignedTx);
@@ -154,7 +156,13 @@ public class SubmissionManager {
             // or while the system is being shut down. In any event, the user will receive an error code indicating
             // that the transaction was not submitted and they can retry.
 
-            final var success = transactionPool.submitApplicationTransaction(payload);
+            final boolean success;
+            if (priority) {
+                transactionPool.submitPriorityTransaction(payload);
+                success = true;
+            } else {
+                success = transactionPool.submitApplicationTransaction(payload);
+            }
             if (success) {
                 submittedTxns.add(txId);
 

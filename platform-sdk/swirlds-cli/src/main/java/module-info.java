@@ -28,7 +28,7 @@ module org.hiero.consensus.pcli {
     requires org.hiero.consensus.concurrent;
     requires org.hiero.consensus.event.creator;
     requires org.hiero.consensus.event.intake;
-    requires org.hiero.consensus.gossip.impl;
+    requires org.hiero.consensus.gossip;
     requires org.hiero.consensus.hashgraph.impl;
     requires org.hiero.consensus.hashgraph;
     requires org.hiero.consensus.metrics;
@@ -37,6 +37,7 @@ module org.hiero.consensus.pcli {
     requires org.hiero.consensus.pces;
     requires org.hiero.consensus.platformstate;
     requires org.hiero.consensus.roster;
+    requires org.hiero.consensus.state;
     requires org.hiero.consensus.utility;
     requires info.picocli;
     requires io.github.classgraph;

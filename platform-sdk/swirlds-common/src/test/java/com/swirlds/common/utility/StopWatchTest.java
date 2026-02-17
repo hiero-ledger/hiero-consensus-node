@@ -3,10 +3,11 @@ package com.swirlds.common.utility;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.swirlds.base.test.fixtures.time.FakeTime;
+import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 
@@ -29,46 +30,48 @@ class StopWatchTest {
     }
 
     @Test
-    void elapsedTime() throws InterruptedException {
-        final StopWatch stopWatch = new StopWatch();
+    void elapsedTime() {
+        final FakeTime fakeTime = new FakeTime();
+        final StopWatch stopWatch = new StopWatch(fakeTime);
 
         stopWatch.start();
-        Thread.sleep(100);
+        fakeTime.tick(Duration.ofMillis(100)); // Simulate 100ms passing
         stopWatch.stop();
 
-        assertTrue(stopWatch.getTime(TimeUnit.MILLISECONDS) >= 100); // Ensure elapsed time is at least 100ms
+        assertEquals(100, stopWatch.getTime(TimeUnit.MILLISECONDS)); // Ensure elapsed time is exactly 100ms
     }
 
     @Test
-    void multipleRuns() throws InterruptedException {
-        final StopWatch stopWatch = new StopWatch();
+    void multipleRuns() {
+        final FakeTime fakeTime = new FakeTime();
+        final StopWatch stopWatch = new StopWatch(fakeTime);
 
         stopWatch.start();
-        Thread.sleep(50);
+        fakeTime.tick(Duration.ofMillis(50)); // Simulate 50ms passing
         stopWatch.stop();
 
         long firstRunTime = stopWatch.getTime(TimeUnit.MILLISECONDS);
 
         stopWatch.start();
-        Thread.sleep(100);
+        fakeTime.tick(Duration.ofMillis(100)); // Simulate 100ms passing
         stopWatch.stop();
 
         long secondRunTime = stopWatch.getTime(TimeUnit.MILLISECONDS);
 
-        assertTrue(firstRunTime >= 50);
-        assertTrue(secondRunTime >= 100);
-        assertNotEquals(firstRunTime, secondRunTime);
+        assertEquals(50, firstRunTime);
+        assertEquals(100, secondRunTime);
     }
 
     @Test
-    void reset() throws InterruptedException {
-        final StopWatch stopWatch = new StopWatch();
+    void reset() {
+        final FakeTime fakeTime = new FakeTime();
+        final StopWatch stopWatch = new StopWatch(fakeTime);
 
         stopWatch.start();
-        Thread.sleep(50);
+        fakeTime.tick(Duration.ofMillis(50)); // Simulate 50ms passing
         stopWatch.stop();
 
-        assertTrue(stopWatch.getTime(TimeUnit.MILLISECONDS) >= 50);
+        assertEquals(50, stopWatch.getTime(TimeUnit.MILLISECONDS));
 
         stopWatch.reset();
         assertFalse(stopWatch.isRunning());
@@ -78,23 +81,27 @@ class StopWatchTest {
 
         stopWatch.start();
         assertTrue(stopWatch.isRunning());
-        Thread.sleep(50);
+        fakeTime.tick(Duration.ofMillis(60)); // Simulate 60ms passing
         stopWatch.stop();
 
-        assertTrue(stopWatch.getTime(TimeUnit.MILLISECONDS) >= 50); // Ensure it still works as expected after a reset
+        assertEquals(60, stopWatch.getTime(TimeUnit.MILLISECONDS)); // Ensure it still works as expected after a reset
     }
 
     @Test
-    void getTimeInDifferentUnits() throws InterruptedException {
-        StopWatch stopWatch = new StopWatch();
+    void getTimeInDifferentUnits() {
+        final FakeTime fakeTime = new FakeTime();
+        final StopWatch stopWatch = new StopWatch(fakeTime);
+
+        // Sleep for a little more than 2 seconds for test precision
+        final Duration sleepDuration = Duration.ofMillis(2050);
 
         stopWatch.start();
-        Thread.sleep(2050); // Sleep for a little more than 2 seconds for test precision
+        fakeTime.tick(sleepDuration);
         stopWatch.stop();
 
-        assertEquals(stopWatch.getTime(TimeUnit.MILLISECONDS), stopWatch.getTime(TimeUnit.MILLISECONDS));
-        assertEquals(stopWatch.getElapsedTimeNano(), stopWatch.getTime(TimeUnit.NANOSECONDS));
-        assertTrue(stopWatch.getTime(TimeUnit.SECONDS) >= 2);
+        assertEquals(sleepDuration.toNanos(), stopWatch.getTime(TimeUnit.NANOSECONDS));
+        assertEquals(sleepDuration.toMillis(), stopWatch.getTime(TimeUnit.MILLISECONDS));
+        assertEquals(sleepDuration.getSeconds(), stopWatch.getTime(TimeUnit.SECONDS));
         assertEquals(0, stopWatch.getTime(TimeUnit.MINUTES));
         assertEquals(0, stopWatch.getTime(TimeUnit.HOURS));
         assertEquals(0, stopWatch.getTime(TimeUnit.DAYS));
@@ -122,22 +129,24 @@ class StopWatchTest {
     }
 
     @Test
-    void isStoppedTrue() throws InterruptedException {
-        StopWatch stopWatch = new StopWatch();
+    void isStoppedTrue() {
+        final FakeTime fakeTime = new FakeTime();
+        final StopWatch stopWatch = new StopWatch(fakeTime);
 
         stopWatch.start();
-        Thread.sleep(100);
+        fakeTime.tick(100);
         stopWatch.stop();
 
         assertTrue(stopWatch.isStopped());
     }
 
     @Test
-    void isStoppedFalseIfSuspended() throws InterruptedException {
-        StopWatch stopWatch = new StopWatch();
+    void isStoppedFalseIfSuspended() {
+        final FakeTime fakeTime = new FakeTime();
+        final StopWatch stopWatch = new StopWatch(fakeTime);
 
         stopWatch.start();
-        Thread.sleep(100);
+        fakeTime.tick(100);
         stopWatch.suspend();
 
         assertFalse(stopWatch.isStopped());

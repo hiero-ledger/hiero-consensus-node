@@ -9,6 +9,7 @@ import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import org.hiero.consensus.event.EventGraphSource;
 import org.hiero.consensus.model.event.PlatformEvent;
 
 /**

@@ -1,0 +1,51 @@
+{
+  "buckets": [
+    {
+      "name": "ThroughputLimits",
+      "burstPeriod": 1,
+      "throttleGroups": [
+        {
+          "opsPerSec": 200,
+          "operations": [ "CryptoCreate" ]
+        }
+      ]
+    },
+    {
+      "name": "HVCryptoCreateThrottles",
+      "burstPeriod": 1,
+      "highVolume": true,
+      "throttleGroups": [
+        {
+          "opsPerSec": 800,
+          "operations": [ "CryptoCreate" ]
+        }
+      ]
+    },
+    {
+      "name": "HVTotalThrottles",
+      "burstPeriod": 1,
+      "highVolume": true,
+      "throttleGroups": [
+        {
+          "opsPerSec": 800,
+          "operations": [ "CryptoCreate" ]
+        }
+      ]
+    },
+    {
+      "name": "MiscQueryLimits",
+      "burstPeriod": 1,
+      "throttleGroups": [
+        {
+          "opsPerSec": 100000,
+          "operations": [
+            "TransactionGetReceipt",
+            "FileGetInfo",
+            "FileGetContents",
+            "TokenGetInfo"
+          ]
+        }
+      ]
+    }
+  ]
+}

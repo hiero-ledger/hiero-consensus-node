@@ -105,6 +105,7 @@ QUERY_SIMPLE = {
 
 EXTRA_RE = re.compile(r"([A-Z_]+)\s*=\s*(\d+)")
 EXTRA_GT_RE = re.compile(r"([A-Z_]+)\s*>\s*(\d+)")
+MIN_MULTIPLIER = 1000
 
 
 def load_schedule(path: Path):
@@ -143,6 +144,35 @@ def load_canonical_prices(path: Path):
 def usd_to_tinycents(amount_usd: Decimal) -> int:
     # 1 USD = 100 cents; 1 cent = 1e8 tinycents => 1 USD = 1e10 tinycents.
     return int((amount_usd * Decimal("10000000000")).to_integral_value())
+
+
+def validate_high_volume_multipliers(path: Path):
+    with path.open() as f:
+        sched = json.load(f)
+    violations = []
+    for svc in sched.get("services", []):
+        for entry in svc.get("schedule", []):
+            high_volume = entry.get("highVolumeRates")
+            if not high_volume:
+                continue
+            name = entry.get("name", "<unknown>")
+            max_multiplier = high_volume.get("maxMultiplier")
+            if max_multiplier is not None and max_multiplier < MIN_MULTIPLIER:
+                violations.append(f"{name}: maxMultiplier {max_multiplier} < {MIN_MULTIPLIER}")
+            points = (
+                high_volume.get("pricingCurve", {})
+                .get("piecewiseLinear", {})
+                .get("points", [])
+            )
+            for point in points:
+                multiplier = point.get("multiplier", 0)
+                if multiplier < MIN_MULTIPLIER:
+                    utilization = point.get("utilizationBasisPoints", "?")
+                    violations.append(
+                        f"{name}: point multiplier {multiplier} < {MIN_MULTIPLIER} at utilization {utilization}"
+                    )
+    if violations:
+        raise SystemExit("Invalid high-volume multipliers:\n" + "\n".join(violations))
 
 
 def parse_extras(extras_str: str):
@@ -312,6 +342,8 @@ def main():
     parser.add_argument("--out", help="Output CSV path (defaults to <input>.validated.csv if --write-csv).")
 
     args = parser.parse_args()
+
+    validate_high_volume_multipliers(Path(args.schedule))
 
     node_base, node_extras, network_multiplier, extra_fees, service_defs = load_schedule(Path(args.schedule))
     canonical_prices = load_canonical_prices(Path(args.canonical_prices))

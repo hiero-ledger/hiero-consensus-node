@@ -15,6 +15,7 @@ import org.hiero.otter.fixtures.Capability;
 import org.hiero.otter.fixtures.OtterTest;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.container.ContainerTestEnvironment;
+import org.hiero.otter.fixtures.specs.ContainerSpecs;
 import org.hiero.otter.fixtures.specs.OtterSpecs;
 import org.hiero.otter.fixtures.specs.TurtleSpecs;
 import org.hiero.otter.fixtures.turtle.TurtleTestEnvironment;
@@ -291,8 +292,14 @@ public class OtterTestExtension
                 AnnotationSupport.findAnnotation(extensionContext.getElement(), OtterSpecs.class);
         final boolean randomNodeIds = otterSpecs.map(OtterSpecs::randomNodeIds).orElse(true);
 
+        final Optional<ContainerSpecs> containerSpecs =
+                AnnotationSupport.findAnnotation(extensionContext.getElement(), ContainerSpecs.class);
+
         final Path outputDirectory = EnvironmentUtils.getDefaultOutputDirectory("container", extensionContext);
-        return new ContainerTestEnvironment(randomNodeIds, outputDirectory);
+        return new ContainerTestEnvironment(
+                randomNodeIds,
+                outputDirectory,
+                containerSpecs.map(ContainerSpecs::proxyEnabled).orElse(true));
     }
 
     /**

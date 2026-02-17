@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.blocknode;
 
 import static com.hedera.services.bdd.junit.TestTags.BLOCK_NODE;
+import static com.hedera.services.bdd.junit.hedera.NodeSelector.allNodes;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.utilops.BlockNodeVerbs.blockNode;
@@ -116,5 +117,92 @@ public class BlockNodeBackPressureSuite {
                 waitForActive(byNodeId(0), Duration.ofSeconds(30)),
                 doingContextual(
                         spec -> LockSupport.parkNanos(Duration.ofSeconds(20).toNanos())));
+    }
+
+    @HapiTest
+    @HapiBlockNode(
+            networkSize = 4,
+            blockNodeConfigs = {
+                @BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.REAL),
+                @BlockNodeConfig(nodeId = 1, mode = BlockNodeMode.REAL),
+                @BlockNodeConfig(nodeId = 2, mode = BlockNodeMode.REAL),
+                @BlockNodeConfig(nodeId = 3, mode = BlockNodeMode.REAL)
+            },
+            subProcessNodeConfigs = {
+                @SubProcessNodeConfig(
+                        nodeId = 0,
+                        blockNodeIds = {0},
+                        blockNodePriorities = {0},
+                        applicationPropertiesOverrides = {
+                            "blockStream.buffer.maxBlocks", "5",
+                            "blockStream.streamMode", "BLOCKS",
+                            "blockStream.writerMode", "GRPC"
+                        }),
+                @SubProcessNodeConfig(
+                        nodeId = 1,
+                        blockNodeIds = {1},
+                        blockNodePriorities = {0},
+                        applicationPropertiesOverrides = {
+                            "blockStream.buffer.maxBlocks", "5",
+                            "blockStream.streamMode", "BLOCKS",
+                            "blockStream.writerMode", "GRPC"
+                        }),
+                @SubProcessNodeConfig(
+                        nodeId = 2,
+                        blockNodeIds = {2},
+                        blockNodePriorities = {0},
+                        applicationPropertiesOverrides = {
+                            "blockStream.buffer.maxBlocks", "5",
+                            "blockStream.streamMode", "BLOCKS",
+                            "blockStream.writerMode", "GRPC"
+                        }),
+                @SubProcessNodeConfig(
+                        nodeId = 3,
+                        blockNodeIds = {3},
+                        blockNodePriorities = {0},
+                        applicationPropertiesOverrides = {
+                            "blockStream.buffer.maxBlocks", "5",
+                            "blockStream.streamMode", "BLOCKS",
+                            "blockStream.writerMode", "GRPC"
+                        })
+            })
+    @Order(3)
+    final Stream<DynamicTest> backPressureAllNodesCheckingScenario() {
+        final AtomicReference<Instant> time = new AtomicReference<>();
+        return hapiTest(
+                doingContextual(
+                        spec -> LockSupport.parkNanos(Duration.ofSeconds(10).toNanos())),
+                blockNode(0).shutDownImmediately(),
+                doingContextual(spec -> time.set(Instant.now())),
+                sourcingContextual(spec -> assertBlockNodeCommsLogContainsTimeframe(
+                        byNodeId(0),
+                        time::get,
+                        Duration.ofSeconds(30),
+                        Duration.ofSeconds(30),
+                        "Block buffer is saturated; backpressure is being enabled",
+                        "!!! Block buffer is saturated; blocking thread until buffer is no longer saturated")),
+                waitForAny(byNodeId(0), Duration.ofSeconds(30), PlatformStatus.CHECKING),
+                doingContextual(
+                        spec -> LockSupport.parkNanos(Duration.ofMinutes(1).toNanos())),
+                blockNode(0).startImmediately(),
+                doingContextual(spec -> time.set(Instant.now())),
+                sourcingContextual(
+                        spec -> assertBlockNodeCommsLogContainsTimeframe(
+                                byNodeId(0),
+                                time::get,
+                                Duration.ofMinutes(1),
+                                Duration.ofMinutes(1),
+                                "Buffer saturation is below or equal to the recovery threshold; back pressure will be disabled.")),
+                waitForAny(byNodeId(0), Duration.ofSeconds(30), PlatformStatus.ACTIVE),
+                doingContextual(
+                        spec -> LockSupport.parkNanos(Duration.ofSeconds(30).toNanos())),
+                blockNode(0).shutDownImmediately(),
+                blockNode(1).shutDownImmediately(),
+                waitForAny(allNodes(), Duration.ofSeconds(120), PlatformStatus.CHECKING),
+                doingContextual(
+                        spec -> LockSupport.parkNanos(Duration.ofMinutes(1).toNanos())),
+                blockNode(0).startImmediately(),
+                blockNode(1).startImmediately(),
+                waitForAny(allNodes(), Duration.ofSeconds(120), PlatformStatus.ACTIVE));
     }
 }

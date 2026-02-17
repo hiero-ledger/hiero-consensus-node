@@ -33,6 +33,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.balanceSnapshot;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sendModified;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
@@ -299,7 +300,15 @@ public class IssueRegressionTests {
                         .hasKnownStatus(ACCOUNT_DELETED),
                 getTxnRecord(DELETE_TXN).logged(),
                 // since the account is already deleted, we have less signatures to verify
-                getAccountBalance(PAYER).hasTinyBars(approxChangeFromSnapshot(SNAPSHOT, -6872159, 10000)));
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return getAccountBalance(PAYER)
+                                .hasTinyBars(approxChangeFromSnapshot(SNAPSHOT, -4250000, 10000));
+                    } else {
+                        return getAccountBalance(PAYER)
+                                .hasTinyBars(approxChangeFromSnapshot(SNAPSHOT, -6872159, 10000));
+                    }
+                }));
     }
 
     @HapiTest

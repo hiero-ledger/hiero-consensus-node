@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.crypto;
 
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.customizedHapiTest;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountDetailsAsserts.accountDetailsWith;
@@ -433,7 +432,6 @@ public class TransferWithCustomFixedFees {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> transferApprovedFungibleWithFixedHtsCustomFeeAsOwner() {
         return hapiTest(
                 cryptoCreate(htsCollector),
@@ -669,7 +667,6 @@ public class TransferWithCustomFixedFees {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> transferApprovedNonFungibleWithFixedHtsCustomFeeAsSpender() {
         return hapiTest(
                 newKeyNamed(NFT_KEY),
@@ -821,7 +818,6 @@ public class TransferWithCustomFixedFees {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> transferFungibleWithFixedHtsCustomFees2Layers() {
         return hapiTest(
                 cryptoCreate(htsCollector),
@@ -1381,7 +1377,6 @@ public class TransferWithCustomFixedFees {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> transferWithFractionalCustomFee() {
         return hapiTest(
                 cryptoCreate(htsCollector).balance(ONE_HUNDRED_HBARS),

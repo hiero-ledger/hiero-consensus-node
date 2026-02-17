@@ -1,16 +1,32 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.gossip;
 
+import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.hapi.node.state.roster.Roster;
+import com.swirlds.base.time.Time;
 import com.swirlds.component.framework.component.InputWireLabel;
+import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.wires.input.InputWire;
 import com.swirlds.component.framework.wires.input.NoInput;
 import com.swirlds.component.framework.wires.output.OutputWire;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.metrics.api.Metrics;
+import com.swirlds.state.StateLifecycleManager;
+import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
+import java.util.function.Supplier;
+import org.hiero.base.concurrent.BlockingResourceProvider;
+import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.gossip.SyncProgress;
 import org.hiero.consensus.model.hashgraph.EventWindow;
+import org.hiero.consensus.model.node.KeysAndCerts;
+import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.consensus.monitoring.FallenBehindMonitor;
+import org.hiero.consensus.state.signed.ReservedSignedState;
 
 /**
  * Gossip module interface.
@@ -19,8 +35,35 @@ public interface GossipModule {
 
     /**
      * Initialize the gossip module.
+     *
+     * @param model the wiring model to use for connecting wires
+     * @param configuration the configuration for the gossip module
+     * @param metrics the metrics system
+     * @param time the time source
+     * @param keysAndCerts the keys and certificates of this node
+     * @param currentRoster the current roster of nodes in the network
+     * @param selfId the ID of this node
+     * @param appVersion the application version
+     * @param intakeEventCounter the counter for events in the intake pipeline
+     * @param latestCompleteState a supplier for the latest complete signed state
+     * @param reservedSignedStateResultPromise a promise for the result of reserving a signed state
+     * @param fallenBehindMonitor the monitor for detecting if the node has fallen behind
+     * @param stateLifecycleManager the manager for the lifecycle of the platform state
      */
-    void initialize();
+    void initialize(
+            @NonNull WiringModel model,
+            @NonNull Configuration configuration,
+            @NonNull Metrics metrics,
+            @NonNull Time time,
+            @NonNull KeysAndCerts keysAndCerts,
+            @NonNull Roster currentRoster,
+            @NonNull NodeId selfId,
+            @NonNull SemanticVersion appVersion,
+            @NonNull IntakeEventCounter intakeEventCounter,
+            @NonNull Supplier<ReservedSignedState> latestCompleteState,
+            @NonNull BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise,
+            @NonNull FallenBehindMonitor fallenBehindMonitor,
+            @NonNull StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager);
 
     /**
      * {@link OutputWire} for events received through gossip.

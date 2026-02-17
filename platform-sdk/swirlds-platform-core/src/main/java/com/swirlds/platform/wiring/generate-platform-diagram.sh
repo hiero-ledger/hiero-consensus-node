@@ -26,7 +26,6 @@ SCRIPT_PATH="$(dirname "$(readlink -f "$0")")"
     -s 'IssDetector:ISS notification monitoring:💀' \
     -s 'ConsensusRoundsSplitter:monitor consensus round:🕐' \
     -s 'staleEventsSplitter:stale events:🗑️' \
-    -s 'LatestCompleteStateNotifier:complete state notification:💢' \
     -s 'RunningEventHashOverride:hash override:💨' \
     -s 'StateSnapshotManager:state saving monitoring:💾' \
     -s 'PlatformMonitor:PlatformStatus:🚦' \
@@ -36,8 +35,8 @@ SCRIPT_PATH="$(dirname "$(readlink -f "$0")")"
     -g 'Consensus Engine:ConsensusEngine,RoundsToCesEvents' \
     -g 'State Snapshot Manager:saveToDiskFilter,StateSnapshotManager,extractOldestMinimumBirthRoundOnDisk,toNotification' \
     -g 'State File Management:State Snapshot Manager,📀,💾' \
-    -g 'State Signature Collector:StateSignatureCollector,reservedStateSplitter,allStatesReserver,completeStateFilter,completeStatesReserver,LatestCompleteStateNotifier' \
-    -g 'State Signature Collection:State Signature Collector,LatestCompleteStateNexus,💢' \
+    -g 'State Signature Collector:StateSignatureCollector,reservedStateSplitter,allStatesReserver,completeStateFilter' \
+    -g 'State Signature Collection:State Signature Collector,LatestCompleteStateNexus' \
     -g 'EventCreatorModule:EventCreationManager,🍎' \
     -g 'ISS Detector:IssDetector,IssDetectorSplitter,IssHandler' \
     -g 'PCES Replay:pcesReplayer,✅' \

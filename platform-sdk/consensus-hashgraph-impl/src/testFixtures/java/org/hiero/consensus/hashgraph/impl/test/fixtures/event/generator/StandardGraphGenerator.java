@@ -10,10 +10,6 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.common.context.PlatformContext;
-// GUI imports commented out - will be restored when consensus-gui module is created
-// import com.swirlds.platform.gui.GuiEventStorage;
-// import com.swirlds.platform.gui.hashgraph.HashgraphGuiSource;
-// import com.swirlds.platform.gui.hashgraph.internal.StandardGuiSource;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
@@ -37,6 +33,9 @@ import org.hiero.consensus.hashgraph.impl.metrics.NoOpConsensusMetrics;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.DynamicValue;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.DynamicValueGenerator;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.source.EventSource;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.gui.internal.GuiEventStorage;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.gui.internal.hashgraph.HashgraphGuiSource;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.gui.internal.hashgraph.util.StandardGuiSource;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
@@ -559,12 +558,11 @@ public class StandardGraphGenerator implements GraphGenerator {
         }
     }
 
-    // GUI method commented out - will be restored when consensus-gui module is created
-    // @SuppressWarnings("unused") // useful for debugging
-    // public HashgraphGuiSource createGuiSource() {
-    //     return new StandardGuiSource(
-    //             getRoster(), new GuiEventStorage(consensus, linker, platformContext.getConfiguration()));
-    // }
+    @SuppressWarnings("unused") // useful for debugging
+    private HashgraphGuiSource createGuiSource() {
+        return new StandardGuiSource(
+                getRoster(), new GuiEventStorage(consensus, linker, platformContext.getConfiguration()));
+    }
 
     /**
      * {@inheritDoc}

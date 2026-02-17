@@ -9,6 +9,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.TimeUnit;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.gossip.impl.network.NetworkMetrics;
@@ -46,6 +47,21 @@ final class RpcPingHandler {
     private final RpcPeerProtocol rpcPeerProtocol;
 
     /**
+     * Increasing counter for ping correlation id
+     */
+    private long pingId = 1;
+
+    /**
+     * Last time ping was sent, to keep track to avoid spamming network with ping requests
+     */
+    private long lastPingInitiationTime;
+
+    /**
+     * How long it took to do a round trip on the last measured ping
+     */
+    private long lastPingNanos = -1;
+
+    /**
      * @param time            the {@link Time} instance for the platformeturns the {@link Time} instance for the
      *                        platform
      * @param networkMetrics  network metrics to register data about communication traffic and latencies
@@ -63,16 +79,6 @@ final class RpcPingHandler {
         this.rpcPeerProtocol = Objects.requireNonNull(rpcPeerProtocol);
     }
 
-    /**
-     * Increasing counter for ping correlation id
-     */
-    private long pingId = 1;
-
-    /**
-     * Last time ping was sent, to keep track to avoid spamming network with ping requests
-     */
-    private long lastPingTime;
-
     void handleIncomingPing(final GossipPing ping) {
         final GossipPing reply = new GossipPing(time.currentTimeMillis(), ping.correlationId());
         rpcPeerProtocol.sendPingReply(reply);
@@ -85,10 +91,10 @@ final class RpcPingHandler {
      */
     GossipPing possiblyInitiatePing() {
         final long timestamp = time.currentTimeMillis();
-        if ((timestamp - lastPingTime) < 1000) {
+        if ((timestamp - lastPingInitiationTime) < 1000) {
             return null;
         }
-        this.lastPingTime = timestamp;
+        this.lastPingInitiationTime = timestamp;
         final GossipPing ping = new GossipPing(timestamp, pingId++);
         sentPings.put(ping.correlationId(), ping);
         return ping;
@@ -98,8 +104,9 @@ final class RpcPingHandler {
      * Called when ping reply was received by network layer
      *
      * @param pingReply reply to our ping
+     * @return amount of nanoseconds which has passed since we have sent that ping request
      */
-    void handleIncomingPingReply(final GossipPing pingReply) {
+    long handleIncomingPingReply(@NonNull final GossipPing pingReply) {
         final GossipPing original = sentPings.remove(pingReply.correlationId());
         if (original == null) {
             logger.error(
@@ -110,7 +117,9 @@ final class RpcPingHandler {
         } else {
             // don't trust remote timestamp for measuring ping
             logger.debug(NETWORK.getMarker(), "Ping {}", time.currentTimeMillis() - original.timestamp());
-            networkMetrics.recordPingTime(remotePeerId, (time.currentTimeMillis() - original.timestamp()) * 1_000_000);
+            this.lastPingNanos = TimeUnit.MILLISECONDS.toNanos(time.currentTimeMillis() - original.timestamp());
+            networkMetrics.recordPingTime(remotePeerId, lastPingNanos);
         }
+        return lastPingNanos;
     }
 }

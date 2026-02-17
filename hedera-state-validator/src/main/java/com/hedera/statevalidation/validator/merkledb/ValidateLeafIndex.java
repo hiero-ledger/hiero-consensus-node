@@ -12,7 +12,7 @@ import com.hedera.statevalidation.report.SlackReportGenerator;
 import com.hedera.statevalidation.util.junit.MerkleNodeStateResolver;
 import com.hedera.statevalidation.util.reflect.MemoryIndexDiskKeyValueStoreAccessor;
 import com.swirlds.merkledb.MerkleDbDataSource;
-import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import java.io.IOException;
@@ -32,10 +32,9 @@ public class ValidateLeafIndex {
 
     private static final Logger log = LogManager.getLogger(ValidateLeafIndex.class);
 
-    @SuppressWarnings("unchecked")
     @Test
-    public void validateIndex(final MerkleNodeState merkleNodeState) {
-        final VirtualMap virtualMap = (VirtualMap) merkleNodeState.getRoot();
+    public void validateIndex(final VirtualMapState virtualMapState) {
+        final VirtualMap virtualMap = virtualMapState.getRoot();
         assertNotNull(virtualMap);
         MerkleDbDataSource vds = (MerkleDbDataSource) virtualMap.getDataSource();
 

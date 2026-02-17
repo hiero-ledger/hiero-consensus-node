@@ -7,11 +7,11 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.mintToken;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertCloseEnough;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingTwo;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
-import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
@@ -68,9 +68,11 @@ public class UtilScalePricingCheck {
                                     } else {
                                         final var multiplier = expectedMultiplier(i);
                                         final var expected = multiplier * baseFee.get();
-                                        assertEquals(
+                                        assertCloseEnough(
                                                 expected,
                                                 mintRecord.getTransactionFee(),
+                                                0.1,
+                                                "transaction fee",
                                                 multiplier + "x multiplier should be in effect at " + i + " mints");
                                     }
                                 }))

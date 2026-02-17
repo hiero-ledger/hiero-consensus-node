@@ -2113,6 +2113,10 @@ class ThrottleAccumulatorTest {
 
         // then - should eventually be throttled
         assertTrue(throttled, "High-volume transactions should eventually be throttled");
+        assertEquals(
+                10_000,
+                subject.getHighVolumeThrottleInstantaneousUtilization(CRYPTO_CREATE),
+                "High-volume utilization should be reported in basis points");
     }
 
     @ParameterizedTest

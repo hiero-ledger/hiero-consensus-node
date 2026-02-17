@@ -93,24 +93,15 @@ public class V071HistorySchema extends Schema<SemanticVersion> {
                         NEXT_PROOF_CONSTRUCTION_STATE_ID,
                         NEXT_PROOF_CONSTRUCTION_KEY,
                         HistoryProofConstruction.PROTOBUF),
-                StateDefinition.onDisk(
-                        PROOF_KEY_SETS_STATE_ID,
-                        PROOF_KEY_SETS_KEY,
-                        NodeId.PROTOBUF,
-                        ProofKeySet.PROTOBUF,
-                        MAX_PROOF_KEYS),
-                StateDefinition.onDisk(
-                        PROOF_VOTES_STATE_ID,
-                        PROOF_VOTES_KEY,
-                        ConstructionNodeId.PROTOBUF,
-                        HistoryProofVote.PROTOBUF,
-                        MAX_PROOF_VOTES),
-                StateDefinition.onDisk(
+                StateDefinition.keyValue(
+                        PROOF_KEY_SETS_STATE_ID, PROOF_KEY_SETS_KEY, NodeId.PROTOBUF, ProofKeySet.PROTOBUF),
+                StateDefinition.keyValue(
+                        PROOF_VOTES_STATE_ID, PROOF_VOTES_KEY, ConstructionNodeId.PROTOBUF, HistoryProofVote.PROTOBUF),
+                StateDefinition.keyValue(
                         WRAPS_MESSAGE_HISTORIES_STATE_ID,
                         WRAPS_MESSAGE_HISTORIES_KEY,
                         ConstructionNodeId.PROTOBUF,
-                        WrapsMessageHistory.PROTOBUF,
-                        MAX_WRAPS_MESSAGE_HISTORIES));
+                        WrapsMessageHistory.PROTOBUF));
     }
 
     @Override

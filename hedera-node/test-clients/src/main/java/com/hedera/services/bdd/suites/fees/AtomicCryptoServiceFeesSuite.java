@@ -31,6 +31,8 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
 import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateInnerTxnFees;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_APPROVE_ALLOWANCE_FEE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_EXPIRATION_TIME;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
@@ -303,7 +305,7 @@ class AtomicCryptoServiceFeesSuite {
                                 .batchKey(BATCH_OPERATOR))
                         .via(ATOMIC_BATCH)
                         .signedByPayerAnd(BATCH_OPERATOR),
-                validateInnerTxnChargedUsd("approveForAllNftTxn", ATOMIC_BATCH, 0.05, 5)));
+                validateInnerTxnFees("approveForAllNftTxn", ATOMIC_BATCH, 0.05, CRYPTO_APPROVE_ALLOWANCE_FEE)));
     }
 
     @HapiTest
@@ -322,11 +324,10 @@ class AtomicCryptoServiceFeesSuite {
                                 .via(APPROVE_TXN)
                                 .fee(ONE_HBAR)
                                 .blankMemo()
-                                .logged()
                                 .batchKey(BATCH_OPERATOR))
                         .via(ATOMIC_BATCH)
                         .signedByPayerAnd(BATCH_OPERATOR),
-                validateInnerTxnChargedUsd(APPROVE_TXN, ATOMIC_BATCH, 0.05238, 5)));
+                validateInnerTxnFees(APPROVE_TXN, ATOMIC_BATCH, 0.05238, 3 * CRYPTO_APPROVE_ALLOWANCE_FEE)));
     }
 
     @HapiTest

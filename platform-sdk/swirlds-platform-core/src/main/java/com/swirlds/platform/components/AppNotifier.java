@@ -2,7 +2,6 @@
 package com.swirlds.platform.components;
 
 import com.swirlds.component.framework.component.InputWireLabel;
-import com.swirlds.platform.components.appcomm.CompleteStateNotificationWithCleanup;
 import com.swirlds.platform.listeners.ReconnectCompleteNotification;
 import com.swirlds.platform.listeners.StateWriteToDiskCompleteNotification;
 import com.swirlds.platform.system.state.notifications.StateHashedNotification;
@@ -45,15 +44,6 @@ public interface AppNotifier {
      */
     @InputWireLabel("PlatformStatus")
     void sendPlatformStatusChangeNotification(@NonNull final PlatformStatus newStatus);
-
-    /**
-     * Send a notification to the app with the latest complete state.
-     *
-     * @param notificationWithCleanup the notification, with required cleanup
-     */
-    @InputWireLabel("complete state notification")
-    void sendLatestCompleteStateNotification(
-            @NonNull final CompleteStateNotificationWithCleanup notificationWithCleanup);
 
     /**
      * Notify the app of an ISS

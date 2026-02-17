@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.system.state.notifications;
 
-import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.merkle.VirtualMapState;
 import java.time.Instant;
 import org.hiero.consensus.model.notification.AbstractNotification;
 import org.hiero.consensus.model.notification.Notification;
@@ -14,7 +14,7 @@ import org.hiero.consensus.model.notification.Notification;
  */
 public class NewRecoveredStateNotification extends AbstractNotification {
 
-    private final MerkleNodeState state;
+    private final VirtualMapState state;
     private final long round;
     private final Instant consensusTimestamp;
 
@@ -26,7 +26,7 @@ public class NewRecoveredStateNotification extends AbstractNotification {
      * @param consensusTimestamp the consensus timestamp of the recovered state round
      */
     public NewRecoveredStateNotification(
-            final MerkleNodeState state, final long round, final Instant consensusTimestamp) {
+            final VirtualMapState state, final long round, final Instant consensusTimestamp) {
         this.state = state;
         this.round = round;
         this.consensusTimestamp = consensusTimestamp;
@@ -36,7 +36,7 @@ public class NewRecoveredStateNotification extends AbstractNotification {
      * Get the state from the recovered state. Guaranteed to hold a reservation in the scope of this
      * notification.
      */
-    public MerkleNodeState getState() {
+    public VirtualMapState getState() {
         return state;
     }
 

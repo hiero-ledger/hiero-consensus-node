@@ -14,7 +14,6 @@ import com.hedera.hapi.platform.state.MinimumJudgeInfo;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.swirlds.base.formatting.TextTable;
 import com.swirlds.common.utility.Mnemonics;
-import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.ReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -75,7 +74,7 @@ public final class PlatformStateUtils {
      * @param state         the state object to extract the data from
      * @return true is the {@code timestamp} is in a freeze period
      */
-    public static boolean isInFreezePeriod(@NonNull final Instant consensusTime, @NonNull final MerkleNodeState state) {
+    public static boolean isInFreezePeriod(@NonNull final Instant consensusTime, @NonNull final State state) {
         return isInFreezePeriod(consensusTime, freezeTimeOf(state), lastFrozenTimeOf(state));
     }
 
@@ -140,7 +139,6 @@ public final class PlatformStateUtils {
      * @param state the state to extract the platform state from
      * @return the platform state, or null if the state is a genesis state
      */
-    @SuppressWarnings("unchecked")
     @Nullable
     public static PlatformState platformStateOf(@NonNull final State state) {
         final ReadableStates readableStates = state.getReadableStates(NAME);
@@ -290,9 +288,8 @@ public final class PlatformStateUtils {
      */
     @NonNull
     public static String getInfoString(@NonNull final State state) {
-        final MerkleNodeState merkleNodeState = (MerkleNodeState) state;
-        return createInfoString(readablePlatformStateStore(state), merkleNodeState.getHash())
-                .concat(merkleNodeState.getInfoJson());
+        return createInfoString(readablePlatformStateStore(state), state.getHash())
+                .concat(state.getInfoJson());
     }
 
     private static PlatformStateAccessor readablePlatformStateStore(@NonNull final State state) {

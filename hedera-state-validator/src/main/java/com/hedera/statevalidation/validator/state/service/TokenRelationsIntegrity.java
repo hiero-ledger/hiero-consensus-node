@@ -21,9 +21,9 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.statevalidation.report.SlackReportGenerator;
 import com.hedera.statevalidation.util.junit.MerkleNodeStateResolver;
 import com.swirlds.base.utility.Pair;
-import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.merkle.StateKeyUtils;
 import com.swirlds.state.merkle.StateValue;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.VirtualMapMigration;
@@ -43,16 +43,16 @@ public class TokenRelationsIntegrity {
     private static final Logger log = LogManager.getLogger(TokenRelationsIntegrity.class);
 
     @Test
-    void validate(final MerkleNodeState merkleNodeState) throws InterruptedException {
-        final VirtualMap virtualMap = (VirtualMap) merkleNodeState.getRoot();
+    void validate(final VirtualMapState virtualMapState) throws InterruptedException {
+        final VirtualMap virtualMap = virtualMapState.getRoot();
         assertNotNull(virtualMap);
 
         final ReadableEntityIdStore entityCounters =
-                new ReadableEntityIdStoreImpl(merkleNodeState.getReadableStates(EntityIdService.NAME));
+                new ReadableEntityIdStoreImpl(virtualMapState.getReadableStates(EntityIdService.NAME));
         final ReadableKVState<AccountID, Account> tokenAccounts =
-                merkleNodeState.getReadableStates(TokenService.NAME).get(V0490TokenSchema.ACCOUNTS_STATE_ID);
+                virtualMapState.getReadableStates(TokenService.NAME).get(V0490TokenSchema.ACCOUNTS_STATE_ID);
         final ReadableKVState<TokenID, Token> tokenTokens =
-                merkleNodeState.getReadableStates(TokenService.NAME).get(V0490TokenSchema.TOKENS_STATE_ID);
+                virtualMapState.getReadableStates(TokenService.NAME).get(V0490TokenSchema.TOKENS_STATE_ID);
 
         assertNotNull(entityCounters);
         assertNotNull(tokenAccounts);

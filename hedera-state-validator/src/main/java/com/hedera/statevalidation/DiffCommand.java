@@ -3,7 +3,7 @@ package com.hedera.statevalidation;
 
 import com.hedera.statevalidation.exporter.DiffExporter;
 import com.hedera.statevalidation.util.StateUtils;
-import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.merkle.VirtualMapState;
 import java.io.File;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -55,14 +55,14 @@ public class DiffCommand implements Runnable {
         parent.initializeStateDir();
         System.setProperty("tmp.dir", getTmpDir(parent.getStateDir()));
         long start = System.currentTimeMillis();
-        final MerkleNodeState state1 = StateUtils.getState(STATE_1);
+        final VirtualMapState state1 = StateUtils.getState(STATE_1);
         log.debug("First state has been initialized in {} seconds.", (System.currentTimeMillis() - start) / 1000);
 
         log.debug("Initializing the second state...");
         System.setProperty("state.dir", stateDir2.getAbsolutePath());
         System.setProperty("tmp.dir", getTmpDir(stateDir2));
         start = System.currentTimeMillis();
-        final MerkleNodeState state2 = StateUtils.getState(STATE_2);
+        final VirtualMapState state2 = StateUtils.getState(STATE_2);
         log.debug("Second state has been initialized in {} seconds.", (System.currentTimeMillis() - start) / 1000);
 
         final DiffExporter exporter = new DiffExporter(outputDirectory, state1, state2, serviceName, stateKey);

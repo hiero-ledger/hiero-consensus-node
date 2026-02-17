@@ -171,10 +171,6 @@ public class FakeSchemaRegistry implements SchemaRegistry<SemanticVersion> {
             @NonNull final Map<String, Object> sharedValues,
             @NonNull final StartupNetworks startupNetworks) {
         return new HederaMigrationContext() {
-            @Override
-            public void copyAndReleaseOnDiskState(final int stateId) {
-                // No-op
-            }
 
             @Override
             public long roundNumber() {

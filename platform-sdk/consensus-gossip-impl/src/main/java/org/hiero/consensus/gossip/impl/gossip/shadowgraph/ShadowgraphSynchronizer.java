@@ -15,8 +15,6 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.gossip.config.SyncConfig;
@@ -25,7 +23,6 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.gossip.SyncProgress;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.monitoring.FallenBehindMonitor;
 
 /**
  * The goal of the GossipRpcShadowgraphSynchronizer is to compare graphs with a remote node, and update them so both
@@ -35,33 +32,15 @@ import org.hiero.consensus.monitoring.FallenBehindMonitor;
  */
 public class ShadowgraphSynchronizer {
 
-    private static final Logger logger = LogManager.getLogger();
-
     /**
      * The shadow graph manager to use for this sync
      */
     private final Shadowgraph shadowGraph;
 
     /**
-     * Number of member nodes in the network for this sync
-     */
-    protected final int numberOfNodes;
-
-    /**
      * All sync stats
      */
     protected final SyncMetrics syncMetrics;
-
-    /**
-     * Keeps track of the FallenBehind status of the local node
-     */
-    protected final FallenBehindMonitor fallenBehindMonitor;
-
-    /**
-     * Keeps track of how many events from each peer have been received, but haven't yet made it through the intake
-     * pipeline
-     */
-    protected final IntakeEventCounter intakeEventCounter;
 
     /**
      * Platform time
@@ -82,6 +61,20 @@ public class ShadowgraphSynchronizer {
     private final Duration nonAncestorFilterThreshold;
 
     /**
+     * For events that are ancestors of self events, we must have had this event for at least this amount
+     * of time before it is eligible to be sent. Ignored if {@link #filterLikelyDuplicates} is false. It helps to reduce
+     * the duplicate ratio when using broadcast. Not active if broadcast is disabled.
+     */
+    private final Duration ancestorFilterThreshold;
+
+    /**
+     * For events that are self events, we must have had this event for at least this amount
+     * of time before it is eligible to be sent. Ignored if {@link #filterLikelyDuplicates} is false. It helps to reduce
+     * the duplicate ratio when using broadcast. Not active if broadcast is disabled.
+     */
+    private final Duration selfFilterThreshold;
+
+    /**
      * The maximum number of events to send in a single sync, or 0 if there is no limit.
      */
     protected final int maximumEventsPerSync;
@@ -96,7 +89,6 @@ public class ShadowgraphSynchronizer {
      * @param time source of time
      * @param numberOfNodes number of nodes in the network
      * @param syncMetrics metrics for sync
-     * @param fallenBehindMonitor an instance of the fallenBehind Monitor which tracks if the node has fallen behind
      * @param intakeEventCounter used for tracking events in the intake pipeline per peer
      * @param syncLagHandler callback for reporting median sync lag
      */
@@ -106,19 +98,17 @@ public class ShadowgraphSynchronizer {
             @NonNull final Time time,
             final int numberOfNodes,
             @NonNull final SyncMetrics syncMetrics,
-            @NonNull final FallenBehindMonitor fallenBehindMonitor,
             @NonNull final IntakeEventCounter intakeEventCounter,
             @NonNull final Consumer<SyncProgress> syncLagHandler) {
 
         this.time = requireNonNull(time);
         this.shadowGraph = new Shadowgraph(metrics, numberOfNodes, intakeEventCounter);
-        this.numberOfNodes = numberOfNodes;
         this.syncMetrics = requireNonNull(syncMetrics);
-        this.fallenBehindMonitor = requireNonNull(fallenBehindMonitor);
-        this.intakeEventCounter = requireNonNull(intakeEventCounter);
 
         final SyncConfig syncConfig = configuration.getConfigData(SyncConfig.class);
         this.nonAncestorFilterThreshold = syncConfig.nonAncestorFilterThreshold();
+        this.ancestorFilterThreshold = syncConfig.ancestorFilterThreshold();
+        this.selfFilterThreshold = syncConfig.selfFilterThreshold();
 
         this.filterLikelyDuplicates = syncConfig.filterLikelyDuplicates();
         this.maximumEventsPerSync = syncConfig.maxSyncEventCount();
@@ -147,6 +137,7 @@ public class ShadowgraphSynchronizer {
      *                         added to during this method)
      * @param myEventWindow    the event window of this node
      * @param theirEventWindow the event window of the peer
+     * @param broadcastRunning is broadcast running currently, which would suggest delaying syncing self events
      * @return a list of events to send to the peer
      */
     @NonNull
@@ -154,7 +145,8 @@ public class ShadowgraphSynchronizer {
             @NonNull final NodeId selfId,
             @NonNull final Set<ShadowEvent> knownSet,
             @NonNull final EventWindow myEventWindow,
-            @NonNull final EventWindow theirEventWindow) {
+            @NonNull final EventWindow theirEventWindow,
+            final boolean broadcastRunning) {
 
         requireNonNull(selfId);
         requireNonNull(knownSet);
@@ -193,7 +185,13 @@ public class ShadowgraphSynchronizer {
         List<PlatformEvent> sendList;
         if (filterLikelyDuplicates) {
             final long startFilterTime = time.nanoTime();
-            sendList = filterLikelyDuplicates(selfId, nonAncestorFilterThreshold, time.now(), eventsTheyMayNeed);
+            sendList = filterLikelyDuplicates(
+                    selfId,
+                    nonAncestorFilterThreshold,
+                    broadcastRunning ? ancestorFilterThreshold : Duration.ZERO,
+                    broadcastRunning ? selfFilterThreshold : Duration.ZERO,
+                    time.now(),
+                    eventsTheyMayNeed);
             final long endFilterTime = time.nanoTime();
             syncMetrics.recordSyncFilterTime(endFilterTime - startFilterTime);
         } else {

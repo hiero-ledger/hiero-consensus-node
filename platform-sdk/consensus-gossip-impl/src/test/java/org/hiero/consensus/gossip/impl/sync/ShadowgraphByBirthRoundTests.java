@@ -12,8 +12,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
-import com.swirlds.platform.test.fixtures.graph.SimpleGraph;
-import com.swirlds.platform.test.fixtures.graph.SimpleGraphs;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -29,13 +27,16 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
-import org.hiero.consensus.gossip.impl.gossip.NoOpIntakeEventCounter;
+import org.hiero.consensus.event.NoOpIntakeEventCounter;
 import org.hiero.consensus.gossip.impl.gossip.shadowgraph.ReservedEventWindow;
 import org.hiero.consensus.gossip.impl.gossip.shadowgraph.ShadowEvent;
 import org.hiero.consensus.gossip.impl.gossip.shadowgraph.Shadowgraph;
 import org.hiero.consensus.gossip.impl.gossip.shadowgraph.ShadowgraphInsertionException;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.emitter.EventEmitterBuilder;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.emitter.StandardEventEmitter;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.graph.SimpleGraph;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.graph.SimpleGraphs;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.graph.SimplePlatformEventGraph;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -717,7 +718,7 @@ class ShadowgraphByBirthRoundTests {
     void testMultipleOtherParents() {
         final Randotron randotron = Randotron.create();
         initShadowGraph(randotron, 0, 4);
-        final SimpleGraph graph = SimpleGraphs.mopGraph(randotron);
+        final SimpleGraph<PlatformEvent> graph = new SimpleGraphs<>(SimplePlatformEventGraph::new).mopGraph(randotron);
 
         // add all events to shadow graph
         graph.events().forEach(shadowGraph::addEvent);
@@ -741,7 +742,9 @@ class ShadowgraphByBirthRoundTests {
      * @param expectedAncestorIndices the indices of the expected ancestors
      */
     private void checkAncestors(
-            final int indexToCheck, @NonNull final SimpleGraph graph, final int... expectedAncestorIndices) {
+            final int indexToCheck,
+            @NonNull final SimpleGraph<PlatformEvent> graph,
+            final int... expectedAncestorIndices) {
 
         final ShadowEvent shadow = shadowGraph.shadow(graph.event(indexToCheck).getDescriptor());
         assertNotNull(shadow, "Shadow event for event %d should exist in the shadow graph".formatted(indexToCheck));

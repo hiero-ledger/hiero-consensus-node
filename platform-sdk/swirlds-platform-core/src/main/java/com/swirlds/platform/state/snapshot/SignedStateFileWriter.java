@@ -5,7 +5,6 @@ import static com.swirlds.common.io.utility.FileUtils.executeAndRename;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STATE_TO_DISK;
 import static com.swirlds.platform.config.internal.PlatformConfigUtils.writeSettingsUsed;
-import static com.swirlds.platform.event.preconsensus.BestEffortPcesFileCopy.copyPcesFilesRetryOnFailure;
 import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.CURRENT_ROSTER_FILE_NAME;
 import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.HASH_INFO_FILE_NAME;
 import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.SIGNATURE_SET_FILE_NAME;
@@ -19,10 +18,10 @@ import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.utility.Mnemonics;
 import com.swirlds.logging.legacy.payload.StateSavedToDiskPayload;
-import com.swirlds.platform.config.StateConfig;
-import com.swirlds.platform.state.signed.SignedState;
-import com.swirlds.state.MerkleNodeState;
+import com.swirlds.platform.builder.ConsensusModuleBuilder;
 import com.swirlds.state.StateLifecycleManager;
+import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.BufferedWriter;
@@ -34,7 +33,10 @@ import java.time.Instant;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.platformstate.PlatformStateUtils;
+import org.hiero.consensus.state.signed.SignedState;
+import org.hiero.consensus.state.snapshot.StateToDiskReason;
 
 /**
  * Utility methods for writing a signed state to disk.
@@ -57,9 +59,8 @@ public final class SignedStateFileWriter {
     public static void writeHashInfoFile(
             @NonNull final PlatformContext platformContext,
             @NonNull final Path directory,
-            @NonNull final MerkleNodeState state)
+            @NonNull final VirtualMapState state)
             throws IOException {
-        final StateConfig stateConfig = platformContext.getConfiguration().getConfigData(StateConfig.class);
         final String platformInfo = getInfoString(state);
 
         logger.info(STATE_TO_DISK.getMarker(), """
@@ -121,7 +122,7 @@ public final class SignedStateFileWriter {
             @Nullable final NodeId selfId,
             @NonNull final Path directory,
             @NonNull final SignedState signedState,
-            @NonNull final StateLifecycleManager stateLifecycleManager)
+            @NonNull final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager)
             throws IOException {
         requireNonNull(platformContext);
         requireNonNull(directory);
@@ -150,7 +151,10 @@ public final class SignedStateFileWriter {
         writeSettingsUsed(directory, platformContext.getConfiguration());
 
         if (selfId != null) {
-            copyPcesFilesRetryOnFailure(
+            // This is a temporary measure that allows us to move this functionality into the consensus module
+            // with the minimal amount of refactoring. The whole approach has to be revisited (issue #23415).
+            final PcesModule pcesModule = ConsensusModuleBuilder.createPcesModule();
+            pcesModule.copyPcesFilesRetryOnFailure(
                     platformContext.getConfiguration(),
                     selfId,
                     directory,
@@ -190,7 +194,7 @@ public final class SignedStateFileWriter {
             @NonNull final Path savedStateDirectory,
             @Nullable final StateToDiskReason stateToDiskReason,
             @NonNull final SignedState signedState,
-            @NonNull final StateLifecycleManager stateLifecycleManager)
+            @NonNull final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager)
             throws IOException {
 
         requireNonNull(signedState);

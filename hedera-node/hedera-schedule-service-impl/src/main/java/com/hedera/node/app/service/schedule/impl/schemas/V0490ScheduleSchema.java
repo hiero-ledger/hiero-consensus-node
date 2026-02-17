@@ -63,29 +63,20 @@ public final class V0490ScheduleSchema extends Schema<SemanticVersion> {
     }
 
     private static StateDefinition<ScheduleID, Schedule> schedulesByIdDef() {
-        return StateDefinition.onDisk(
-                SCHEDULES_BY_ID_STATE_ID,
-                SCHEDULES_BY_ID_KEY,
-                ScheduleID.PROTOBUF,
-                Schedule.PROTOBUF,
-                MAX_SCHEDULES_BY_ID_KEY);
+        return StateDefinition.keyValue(
+                SCHEDULES_BY_ID_STATE_ID, SCHEDULES_BY_ID_KEY, ScheduleID.PROTOBUF, Schedule.PROTOBUF);
     }
 
     private static StateDefinition<ProtoLong, ScheduleList> schedulesByExpirySec() {
-        return StateDefinition.onDisk(
+        return StateDefinition.keyValue(
                 SCHEDULES_BY_EXPIRY_SEC_STATE_ID,
                 SCHEDULES_BY_EXPIRY_SEC_KEY,
                 ProtoLong.PROTOBUF,
-                ScheduleList.PROTOBUF,
-                MAX_SCHEDULES_BY_EXPIRY_SEC_KEY);
+                ScheduleList.PROTOBUF);
     }
 
     private static StateDefinition<ProtoBytes, ScheduleList> schedulesByEquality() {
-        return StateDefinition.onDisk(
-                SCHEDULES_BY_EQUALITY_STATE_ID,
-                SCHEDULES_BY_EQUALITY_KEY,
-                ProtoBytes.PROTOBUF,
-                ScheduleList.PROTOBUF,
-                MAX_SCHEDULES_BY_EQUALITY);
+        return StateDefinition.keyValue(
+                SCHEDULES_BY_EQUALITY_STATE_ID, SCHEDULES_BY_EQUALITY_KEY, ProtoBytes.PROTOBUF, ScheduleList.PROTOBUF);
     }
 }

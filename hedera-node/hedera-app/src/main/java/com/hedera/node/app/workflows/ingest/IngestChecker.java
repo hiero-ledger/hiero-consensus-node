@@ -33,6 +33,8 @@ import static com.hedera.node.app.workflows.InnerTransaction.YES;
 import static com.hedera.node.app.workflows.handle.dispatch.DispatchValidator.WorkflowCheck.INGEST;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
+import static org.hiero.consensus.model.status.PlatformStatus.FREEZE_COMPLETE;
+import static org.hiero.consensus.model.status.PlatformStatus.FREEZING;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.SignaturePair;
@@ -68,6 +70,7 @@ import com.hedera.node.app.workflows.TransactionChecker.RequireMinValidLifetimeB
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.app.workflows.purechecks.PureChecksContextImpl;
+import com.hedera.node.config.data.FeesConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.HooksConfig;
 import com.hedera.node.config.data.NetworkAdminConfig;
@@ -216,6 +219,17 @@ public final class IngestChecker {
     }
 
     /**
+     * Throws if the platform is not in a state where we can guarantee that free queries will be processed correctly.
+     * @throws PreCheckException if the response might be unreliable due to platform disruptions
+     */
+    public void verifyFreeQueryable() throws PreCheckException {
+        final var status = currentPlatformStatus.get();
+        if (status != ACTIVE && status != FREEZING && status != FREEZE_COMPLETE) {
+            throw new PreCheckException(PLATFORM_NOT_ACTIVE);
+        }
+    }
+
+    /**
      * Verifies the network is ready to handle transactions.
      *
      * @throws PreCheckException if the node is unable to process HAPI operations
@@ -339,7 +353,8 @@ public final class IngestChecker {
                 configuration,
                 authorizer,
                 numSigs,
-                dispatcher);
+                dispatcher,
+                synchronizedThrottleAccumulator);
         final var fees = dispatcher.dispatchComputeFees(feeContext);
         solvencyPreCheck.checkSolvency(txInfo, payer, fees, INGEST);
 
@@ -360,7 +375,8 @@ public final class IngestChecker {
         final var hederaConfig = configuration.getConfigData(HederaConfig.class);
         final var hooksConfig = configuration.getConfigData(HooksConfig.class);
         final var networkAdminConfig = configuration.getConfigData(NetworkAdminConfig.class);
-        assertThrottlingPreconditions(txInfo, hederaConfig, hooksConfig, networkAdminConfig);
+        final var feesConfig = configuration.getConfigData(FeesConfig.class);
+        assertThrottlingPreconditions(txInfo, hederaConfig, hooksConfig, networkAdminConfig, feesConfig);
         if (hederaConfig.ingestThrottleEnabled()
                 && synchronizedThrottleAccumulator.shouldThrottle(txInfo, state, throttleUsages)) {
             workflowMetrics.incrementThrottled(txInfo.functionality());
@@ -372,11 +388,14 @@ public final class IngestChecker {
             @NonNull final TransactionInfo txInfo,
             @NonNull final HederaConfig hederaConfig,
             @NonNull final HooksConfig hooksConfig,
-            @NonNull final NetworkAdminConfig networkAdminConfig)
+            @NonNull final NetworkAdminConfig networkAdminConfig,
+            @NonNull final FeesConfig feesConfig)
             throws PreCheckException {
         final var function = txInfo.functionality();
-        // Reject transactions with highVolume=true if the feature is not enabled
-        if (txInfo.txBody().highVolume() && !networkAdminConfig.highVolumeThrottlesEnabled()) {
+        // Reject transactions with highVolume=true if the feature is not enabled.
+        // High volume entity creation HIP depends on simple fees to be enabled.
+        if (txInfo.txBody().highVolume()
+                && (!feesConfig.simpleFeesEnabled() || !networkAdminConfig.highVolumeThrottlesEnabled())) {
             throw new PreCheckException(NOT_SUPPORTED);
         }
         if (UNSUPPORTED_TRANSACTIONS.contains(function)) {
