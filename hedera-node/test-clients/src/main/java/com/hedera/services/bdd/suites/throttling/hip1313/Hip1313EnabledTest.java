@@ -196,7 +196,7 @@ public class Hip1313EnabledTest {
                         .andAllChildRecords()
                         .exposingAllTo(records -> assertRecordHasHighVolumeMultiplier(records, "autoCreation"))
                         .logged(),
-                validateChargedUsdWithChild("autoCreation", 0.1 * 4 + (0.051 * 4), 0.01));
+                validateChargedUsdWithChild("autoCreation", (0.1 * 4) + (0.051 * 4), 0.01));
     }
 
     @HapiTest
@@ -295,8 +295,9 @@ public class Hip1313EnabledTest {
                         .via("plainTransfer"),
                 getTxnRecord("plainTransfer")
                         .andAllChildRecords()
-                        .exposingAllTo(records -> assertNoRecordHasHighVolumeMultiplier(records, "plainTransfer"))
-                        .logged());
+                        .exposingAllTo(records -> assertRecordHasDefaultHighVolumeMultiplier(records, "plainTransfer"))
+                        .logged(),
+                validateChargedUsdWithChild("plainTransfer", 0.0001, 0.01));
     }
 
     @LeakyHapiTest(
