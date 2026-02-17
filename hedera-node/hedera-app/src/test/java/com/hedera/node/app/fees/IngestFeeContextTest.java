@@ -2,11 +2,13 @@
 package com.hedera.node.app.fees;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Key;
+import com.hedera.node.app.fees.context.IngestFeeContext;
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.hedera.node.app.throttle.SynchronizedThrottleAccumulator;
@@ -21,7 +23,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
-class FeeContextImplTest {
+class IngestFeeContextTest {
     private static final Instant NOW = Instant.ofEpochSecond(1_234_567L, 890);
 
     @Mock
@@ -45,12 +47,12 @@ class FeeContextImplTest {
     @Mock
     private SynchronizedThrottleAccumulator frontendThrottle;
 
-    private FeeContextImpl subject;
+    private IngestFeeContext subject;
 
     @BeforeEach
     void setUp() {
         given(txInfo.functionality()).willReturn(CRYPTO_CREATE);
-        subject = new FeeContextImpl(
+        subject = new IngestFeeContext(
                 NOW,
                 txInfo,
                 Key.DEFAULT,

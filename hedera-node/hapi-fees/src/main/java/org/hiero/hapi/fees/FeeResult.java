@@ -3,7 +3,7 @@ package org.hiero.hapi.fees;
 
 import static com.hedera.node.app.hapi.utils.CommonUtils.clampedAdd;
 import static com.hedera.node.app.hapi.utils.CommonUtils.clampedMultiply;
-import static org.hiero.hapi.fees.HighVolumePricingCalculator.HIGH_VOLUME_MULTIPLIER_SCALE;
+import static org.hiero.hapi.fees.HighVolumePricingCalculator.DEFAULT_HIGH_VOLUME_MULTIPLIER;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -21,7 +21,7 @@ public class FeeResult {
     private final List<FeeDetail> nodeExtrasDetails = new ArrayList<>();
     private long nodeTotal = 0;
     private int networkMultiplier = 0;
-    private long highVolumeMultiplier = HIGH_VOLUME_MULTIPLIER_SCALE;
+    private long highVolumeMultiplier = DEFAULT_HIGH_VOLUME_MULTIPLIER;
 
     public FeeResult() {}
 
@@ -29,7 +29,7 @@ public class FeeResult {
         this.serviceTotal = serviceTotal;
         this.nodeTotal = nodeTotal;
         this.networkMultiplier = networkMultiplier;
-        this.highVolumeMultiplier = HIGH_VOLUME_MULTIPLIER_SCALE;
+        this.highVolumeMultiplier = DEFAULT_HIGH_VOLUME_MULTIPLIER;
     }
 
     /**
@@ -203,7 +203,7 @@ public class FeeResult {
         this.nodeBase = 0;
         this.nodeTotal = 0;
         this.networkMultiplier = 0;
-        this.highVolumeMultiplier = HIGH_VOLUME_MULTIPLIER_SCALE;
+        this.highVolumeMultiplier = DEFAULT_HIGH_VOLUME_MULTIPLIER;
     }
 
     /**
@@ -277,6 +277,6 @@ public class FeeResult {
                 + getNodeExtraDetails() + ", networkMultiplier="
                 + getNetworkMultiplier() + ", networkFee="
                 + getNetworkTotalTinycents() + ", highVolumeMultiplier="
-                + getNetworkTotalTinycents() + '}';
+                + getHighVolumeMultiplier() + '}';
     }
 }

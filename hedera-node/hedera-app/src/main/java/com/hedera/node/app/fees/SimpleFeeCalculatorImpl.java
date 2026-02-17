@@ -17,6 +17,7 @@ import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_MINT;
 import static com.hedera.node.app.workflows.handle.HandleWorkflow.ALERT_MESSAGE;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.hapi.fees.FeeScheduleUtils.lookupServiceFee;
+import static org.hiero.hapi.fees.HighVolumePricingCalculator.HIGH_VOLUME_MULTIPLIER_SCALE;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.node.base.HederaFunctionality;
@@ -226,7 +227,7 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
         // Calculate the multiplier based on the pricing curve
         final long rawMultiplier = HighVolumePricingCalculator.calculateMultiplier(
                 serviceFeeDefinition.highVolumeRates(), utilizationPercentBasisPoints);
-        result.applyMultiplier(rawMultiplier, HighVolumePricingCalculator.HIGH_VOLUME_MULTIPLIER_SCALE);
+        result.applyMultiplier(rawMultiplier, HIGH_VOLUME_MULTIPLIER_SCALE);
     }
 
     @Override

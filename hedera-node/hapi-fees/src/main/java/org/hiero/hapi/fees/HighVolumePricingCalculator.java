@@ -51,6 +51,9 @@ public final class HighVolumePricingCalculator {
 
     /** The scale factor for multiplier values (1,000 = 1x). */
     public static final long HIGH_VOLUME_MULTIPLIER_SCALE = 1_000L;
+
+    /** The default multiplier scaled by 1,000 (1,000 = 1x). */
+    public static final long DEFAULT_HIGH_VOLUME_MULTIPLIER = 1_000L;
     /** The set of high-volume functions. */
     public static final Set<HederaFunctionality> HIGH_VOLUME_FUNCTIONS = Set.of(
             CRYPTO_CREATE,

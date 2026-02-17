@@ -2,10 +2,12 @@
 package com.hedera.node.app.fees;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 
+import com.hedera.node.app.fees.context.SimpleFeeContextImpl;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import org.junit.jupiter.api.Test;
