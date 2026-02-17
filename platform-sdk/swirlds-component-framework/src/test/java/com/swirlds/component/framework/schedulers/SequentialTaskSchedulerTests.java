@@ -767,7 +767,7 @@ class SequentialTaskSchedulerTests implements SequentialTaskSchedulerAliveThread
         final AtomicInteger wireValueA = new AtomicInteger();
         final AtomicInteger wireValueB = new AtomicInteger();
 
-        final int capacity = 11;
+        final long capacity = 11;
         final ObjectCounter backpressure = new BackpressureObjectCounter("test", capacity, Duration.ofMillis(1));
 
         final TaskScheduler<Integer> taskSchedulerA = model.<Integer>schedulerBuilder("testA")
@@ -823,7 +823,7 @@ class SequentialTaskSchedulerTests implements SequentialTaskSchedulerAliveThread
         // unable to add anything until we release the gate.
         final AtomicBoolean allWorkAdded = new AtomicBoolean(false);
         final RunnableCompletionControl secondProducer = RunnableCompletionControl.unblocked(() -> {
-            for (int i = capacity; i < DEFAULT_OPERATIONS; i++) {
+            for (int i = (int) capacity; i < DEFAULT_OPERATIONS; i++) {
                 channelA.put(i);
                 valueA.set(hash32(valueA.get(), -i));
                 valueB.set(hash32(valueB.get(), i));
@@ -1919,7 +1919,7 @@ class SequentialTaskSchedulerTests implements SequentialTaskSchedulerAliveThread
         // Work is currently stuck at A. No matter how much time passes, no new work should be added.
         sleep(50);
         assertFalse(moreWorkInserted.get());
-        assertEquals(10, counter.getCount(), "Counter should remain at 10");
+        assertEquals(10L, counter.getCount(), "Counter should remain at 10");
         assertEventuallyEquals(State.TIMED_WAITING, producerThread::getState, "Producer thread was not blocked");
 
         // Unblock A. Work will flow forward and get blocked at B. No matter how much time passes, no new work should
@@ -1928,7 +1928,7 @@ class SequentialTaskSchedulerTests implements SequentialTaskSchedulerAliveThread
         handlerA.executionControl().await(10, AWAIT_MAX_DURATION);
         sleep(50);
         assertFalse(moreWorkInserted.get());
-        assertEventuallyEquals(10, counter::getCount, "counter should eventually get to 10");
+        assertEventuallyEquals(10L, counter::getCount, "counter should eventually get to 10");
 
         // Unblock B. Work will flow forward and get blocked at (C). No matter how much time passes, no new work should
         // be added.
