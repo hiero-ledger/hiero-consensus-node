@@ -1675,7 +1675,7 @@ public class LambdaplexCoreOrderTypesTest implements InitcodeTransform {
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK)),
                 // revert("foreign")
                 assertFirstError("foreignTokenTx", "foreign"),
-                sourcingContextual(spec -> lv.settleFillsNoFees(
+                sourcingContextual(spec -> lv.settleUnmergedFillsNoFees(
                                 HBAR,
                                 USDC,
                                 makingSeller(MARKET_MAKER, quantity(0), price(0.12), validSellSalt),
@@ -1688,8 +1688,8 @@ public class LambdaplexCoreOrderTypesTest implements InitcodeTransform {
                                 HBAR,
                                 USDC,
                                 data -> Bytes.wrap(new byte[] {(byte) 0xaa, (byte) 0xbb, (byte) 0xcc}),
-                                makingSeller(MARKET_MAKER, quantity(0), price(0.12), validSellSalt),
-                                takingBuyer(COUNTERPARTY, quantity(0), price(0.12), buySalt))
+                                makingSeller(MARKET_MAKER, quantity(1), price(0.12), validSellSalt),
+                                takingBuyer(COUNTERPARTY, quantity(1), price(0.12), buySalt))
                         .via("truncatedTx")
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK)),
                 // require(args.length >= 32, "args too short")

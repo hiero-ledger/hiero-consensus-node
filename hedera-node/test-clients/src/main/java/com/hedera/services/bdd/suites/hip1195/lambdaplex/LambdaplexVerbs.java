@@ -91,6 +91,7 @@ public class LambdaplexVerbs {
     private static final long DIRECT_PREFIX_GAS_INCREMENT = 20_000L;
     private static final long ORACLE_SETUP_GAS = 300_000L;
     public static final long ORACLE_HOOK_GAS = 300_000L;
+    private static final int ONE_HUNDRED_PERCENT_CENTI_BPS = 1_000_000;
     private static final Bytes PADDED_ZERO = leftPad32(Bytes.EMPTY);
 
     // Sentinel for HBAR
@@ -569,7 +570,7 @@ public class LambdaplexVerbs {
                 feeBps * 100,
                 // We reuse priceDeviationCentiBps to encode the trigger price as a percentage of the price
                 triggerPrice
-                        .multiply(BigDecimal.valueOf(100_00))
+                        .multiply(BigDecimal.valueOf(ONE_HUNDRED_PERCENT_CENTI_BPS))
                         .divide(price, HALF_UP)
                         .intValue(),
                 0,
@@ -647,14 +648,21 @@ public class LambdaplexVerbs {
             @NonNull final SpecFungibleToken specQuoteToken,
             @NonNull final Fees fees,
             @NonNull final LambdaplexVerbs.FillParty... fillParties) {
-        return settleFillsInternal(specBaseToken, specQuoteToken, fees, null, null, fillParties);
+        return settleFillsInternal(specBaseToken, specQuoteToken, fees, null, null, false, fillParties);
     }
 
     public HapiCryptoTransfer settleFillsNoFees(
             @NonNull final SpecFungibleToken specBaseToken,
             @NonNull final SpecFungibleToken specQuoteToken,
             @NonNull final LambdaplexVerbs.FillParty... fillParties) {
-        return settleFillsInternal(specBaseToken, specQuoteToken, null, null, null, fillParties);
+        return settleFillsInternal(specBaseToken, specQuoteToken, null, null, null, false, fillParties);
+    }
+
+    public HapiCryptoTransfer settleUnmergedFillsNoFees(
+            @NonNull final SpecFungibleToken specBaseToken,
+            @NonNull final SpecFungibleToken specQuoteToken,
+            @NonNull final LambdaplexVerbs.FillParty... fillParties) {
+        return settleFillsInternal(specBaseToken, specQuoteToken, null, null, null, true, fillParties);
     }
 
     public HapiCryptoTransfer settleBodyTransformedFillsNoFees(
@@ -662,7 +670,7 @@ public class LambdaplexVerbs {
             @NonNull final SpecFungibleToken specQuoteToken,
             @NonNull final Consumer<CryptoTransferTransactionBody.Builder> bodySpec,
             @NonNull final LambdaplexVerbs.FillParty... fillParties) {
-        return settleFillsInternal(specBaseToken, specQuoteToken, null, bodySpec, null, fillParties);
+        return settleFillsInternal(specBaseToken, specQuoteToken, null, bodySpec, null, false, fillParties);
     }
 
     public HapiCryptoTransfer settleDataTransformedFillsNoFees(
@@ -670,7 +678,7 @@ public class LambdaplexVerbs {
             @NonNull final SpecFungibleToken specQuoteToken,
             @NonNull final UnaryOperator<Bytes> dataTransform,
             @NonNull final LambdaplexVerbs.FillParty... fillParties) {
-        return settleFillsInternal(specBaseToken, specQuoteToken, null, null, dataTransform, fillParties);
+        return settleFillsInternal(specBaseToken, specQuoteToken, null, null, dataTransform, false, fillParties);
     }
 
     public HapiCryptoTransfer settleDataTransformedFills(
@@ -679,16 +687,7 @@ public class LambdaplexVerbs {
             @NonNull final Fees fees,
             @NonNull final UnaryOperator<Bytes> dataTransform,
             @NonNull final LambdaplexVerbs.FillParty... fillParties) {
-        return settleFillsInternal(specBaseToken, specQuoteToken, fees, null, dataTransform, fillParties);
-    }
-
-    public HapiCryptoTransfer settleBodyAndDataTransformedFillsNoFees(
-            @NonNull final SpecFungibleToken specBaseToken,
-            @NonNull final SpecFungibleToken specQuoteToken,
-            @NonNull final Consumer<CryptoTransferTransactionBody.Builder> bodySpec,
-            @NonNull final UnaryOperator<Bytes> dataTransform,
-            @NonNull final LambdaplexVerbs.FillParty... fillParties) {
-        return settleFillsInternal(specBaseToken, specQuoteToken, null, bodySpec, dataTransform, fillParties);
+        return settleFillsInternal(specBaseToken, specQuoteToken, fees, null, dataTransform, false, fillParties);
     }
 
     private HapiCryptoTransfer settleFillsInternal(
@@ -697,6 +696,7 @@ public class LambdaplexVerbs {
             @Nullable final Fees fees,
             @Nullable final Consumer<CryptoTransferTransactionBody.Builder> bodySpec,
             @Nullable final UnaryOperator<Bytes> dataTransform,
+            final boolean skipAccountAmountsMerge,
             @NonNull final FillParty... fillParties) {
         return TxnVerbs.cryptoTransfer((spec, builder) -> {
             final var baseToken = specBaseToken.tokenOrThrow(spec.targetNetworkOrThrow());
@@ -762,8 +762,8 @@ public class LambdaplexVerbs {
                     }
                 }
             }
-            final var mergedBaseAdjustments = mergedAdjustments(baseAdjustments);
-            final var mergedQuoteAdjustments = mergedAdjustments(quoteAdjustments);
+            final var mergedBaseAdjustments = skipAccountAmountsMerge ? baseAdjustments : mergedAdjustments(baseAdjustments);
+            final var mergedQuoteAdjustments = skipAccountAmountsMerge ? quoteAdjustments : mergedAdjustments(quoteAdjustments);
             final var registry = spec.registry();
             if (specBaseToken == HBAR) {
                 builder.setTransfers(TransferList.newBuilder().addAllAccountAmounts(mergedBaseAdjustments))
@@ -902,6 +902,19 @@ public class LambdaplexVerbs {
                             .setAccountID(accountId)
                             .build())
                     .build());
+        });
+    }
+
+    /**
+     * Rebinds a known stop-order salt to its converted key type after a trigger-and-convert path.
+     * <p>
+     * This updates only local test bookkeeping so subsequent assertions/settlements use the converted key.
+     */
+    public SpecOperation rebindSaltAfterStopConversion(@NonNull final String b64Salt) {
+        requireNonNull(b64Salt);
+        return doingContextual(spec -> {
+            final var prefix = requireNonNull(saltPrefixes.get(b64Salt));
+            saltPrefixes.put(b64Salt, convertedPokePrefix(prefix));
         });
     }
 
