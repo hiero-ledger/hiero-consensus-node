@@ -1,18 +1,26 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.gossip.impl.network.connectivity;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
+import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.security.PrivateKey;
+import java.security.cert.Certificate;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.hiero.base.crypto.config.CryptoConfig;
+import org.hiero.base.crypto.config.CryptoConfig_;
 import org.hiero.consensus.gossip.impl.gossip.Utilities;
 import org.hiero.consensus.gossip.impl.network.NetworkUtils;
 import org.hiero.consensus.gossip.impl.network.PeerInfo;
@@ -22,6 +30,7 @@ import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
 import org.hiero.consensus.roster.test.fixtures.RosterWithKeys;
 import org.hiero.consensus.test.fixtures.Randotron;
 import org.hiero.consensus.test.fixtures.WeightGenerators;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -106,6 +115,20 @@ class TlsFactoryTest extends ConnectivityTestBase {
                 NetworkUtils.createSocketFactory(nodeC, peersC, updatedKeysAndCerts.get(nodeC), TLS_NO_IP_TOS_CONFIG);
     }
 
+    @AfterEach
+    void tearDown() throws IOException, InterruptedException {
+        closeSeverConnection.set(true);
+        if (serverSocket != null && !serverSocket.isClosed()) {
+            serverSocket.close();
+        }
+        if (serverThread != null && serverThread.isAlive()) {
+            serverThread.join();
+        }
+        if (clientSocketB != null && !clientSocketB.isClosed()) {
+            clientSocketB.close();
+        }
+    }
+
     /**
      * Asserts that for sockets A and B that can connect to each other, if A's peer list changes and in effect its trust
      * store reloaded, B, as well as a new peer C in the updated peer list can both connect to A.
@@ -126,6 +149,40 @@ class TlsFactoryTest extends ConnectivityTestBase {
         closeSeverConnection.set(true);
         serverThread.join();
         Assertions.assertTrue(serverSocket.isClosed());
+    }
+
+    @Test
+    void tlsFactoryThrowsIfKeystorePasswordIsNull() {
+        final Configuration configuration = mock(Configuration.class);
+        when(configuration.getConfigData(CryptoConfig.class)).thenReturn(new CryptoConfig(null));
+
+        final IllegalArgumentException exception = assertThrows(
+                IllegalArgumentException.class,
+                () -> new TlsFactory(
+                        mock(Certificate.class), mock(PrivateKey.class), List.of(), NodeId.of(0), configuration));
+
+        final String expectedMessage = CryptoConfig_.KEYSTORE_PASSWORD + " must not be null or blank";
+        final String assertionMessage =
+                "TlsFactory should fail fast when " + CryptoConfig_.KEYSTORE_PASSWORD + " is null";
+
+        assertEquals(expectedMessage, exception.getMessage(), assertionMessage);
+    }
+
+    @Test
+    void tlsFactoryThrowsIfKeystorePasswordIsBlank() {
+        final Configuration configuration = mock(Configuration.class);
+        when(configuration.getConfigData(CryptoConfig.class)).thenReturn(new CryptoConfig("   "));
+
+        final IllegalArgumentException exception = assertThrows(
+                IllegalArgumentException.class,
+                () -> new TlsFactory(
+                        mock(Certificate.class), mock(PrivateKey.class), List.of(), NodeId.of(0), configuration));
+
+        final String expectedMessage = CryptoConfig_.KEYSTORE_PASSWORD + " must not be null or blank";
+        final String assertionMessage =
+                "TlsFactory should fail fast when " + CryptoConfig_.KEYSTORE_PASSWORD + " is blank";
+
+        assertEquals(expectedMessage, exception.getMessage(), assertionMessage);
     }
 
     /**

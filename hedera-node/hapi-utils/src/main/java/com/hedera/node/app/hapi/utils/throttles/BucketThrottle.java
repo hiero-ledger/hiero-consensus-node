@@ -4,6 +4,7 @@ package com.hedera.node.app.hapi.utils.throttles;
 import static com.hedera.node.app.hapi.utils.CommonUtils.productWouldOverflow;
 
 /**
+ * This is TPS/MTPS leaky-bucket logic for HAPI op buckets.
  * A throttle that enforces a transaction rate with resolution of 1/1000th of a transaction.
  * Throttling decisions are made based on the capacity remaining in a {@link DiscreteLeakyBucket}
  * that leaks a fixed number of units per nanosecond. (One unit of capacity in the bucket is
