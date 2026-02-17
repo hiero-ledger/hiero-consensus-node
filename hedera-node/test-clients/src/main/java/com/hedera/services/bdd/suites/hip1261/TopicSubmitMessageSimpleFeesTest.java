@@ -30,6 +30,7 @@ import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.exp
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedFeeToUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedFeeToUsdWithTxnSize;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdWithinWithTxnSize;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateTxnFeeFromRecordToUsdWithTxnSize;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_CHUNK_NUMBER;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_PAYER_SIGNATURE;
@@ -540,10 +541,8 @@ public class TopicSubmitMessageSimpleFeesTest {
                         withOpContext((spec, log) -> {
                             assertTrue(initialBalance.get() > afterBalance.get());
                         }),
-                        validateChargedFeeToUsdWithTxnSize(
+                        validateTxnFeeFromRecordToUsdWithTxnSize(
                                 "submitMessageTxn",
-                                initialBalance,
-                                afterBalance,
                                 txnSize -> expectedTopicSubmitMessageFullFeeUsd(1L, message.length(), txnSize),
                                 1.0));
             }
