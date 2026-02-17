@@ -148,6 +148,8 @@ public class HollowAccountCompletions {
                     return;
                 }
                 // dispatch synthetic update transaction for updating key on this hollow account
+
+                logger.error("ZZZZZZ Dispathing synthetic update txn for account {}", hollowAccount.accountId());
                 final var syntheticUpdateTxn = TransactionBody.newBuilder()
                         .cryptoUpdateAccount(CryptoUpdateTransactionBody.newBuilder()
                                 .accountIDToUpdate(hollowAccount.accountId())
