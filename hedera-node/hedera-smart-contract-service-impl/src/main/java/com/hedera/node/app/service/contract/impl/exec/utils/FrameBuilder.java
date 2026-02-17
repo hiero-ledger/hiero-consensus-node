@@ -200,6 +200,8 @@ public class FrameBuilder {
         LOG.warn("XX FrameBuilder.finishedAsCall");
 
         final var contractId = transaction.contractIdOrThrow();
+        LOG.warn("XX FrameBuilder.finishedAsCall contractId = {}", contractId);
+
         final var contractMustBePresent = contractMustBePresent(config, featureFlags, contractId);
 
         // Handle deleted contracts
@@ -218,6 +220,11 @@ public class FrameBuilder {
         }
 
         final var account = worldUpdater.getHederaAccount(contractId);
+        LOG.warn("XX FrameBuilder.finishedAsCall account  = {}", account);
+        LOG.warn(
+                "XX FrameBuilder.finishedAsCall account clz = {}",
+                account.getClass().getName());
+
         final Code code;
         if (account != null) {
             LOG.warn("XX FrameBuilder.finishedAsCall account is not null {}", account.getAddress());
