@@ -160,6 +160,24 @@ public class Hip1313EnabledTest {
     }
 
     @HapiTest
+    final Stream<DynamicTest> cryptoTransferAutoCreationWithoutHighVolumeUsesDefaultPricing() {
+        return hapiTest(
+                newKeyNamed("alias"),
+                cryptoCreate("nonHvCreate")
+                        .payingWith(CIVILIAN_PAYER)
+                        .via("createAccount"),
+                cryptoTransfer(TokenMovement.movingHbar(ONE_HBAR).between(CIVILIAN_PAYER, "alias"))
+                        .payingWith(CIVILIAN_PAYER)
+                        .via("autoCreationNoHv"),
+                getTxnRecord("autoCreationNoHv")
+                        .andAllChildRecords()
+                        .exposingAllTo(
+                                records ->
+                                        assertNoRecordHasHighVolumeMultiplier(records, "autoCreationWithoutHighVolume"))
+                        .logged());
+    }
+
+    @HapiTest
     final Stream<DynamicTest> airdropAutoCreationsUsesHighVolume() {
         return hapiTest(
                 newKeyNamed("alias"),
@@ -176,10 +194,31 @@ public class Hip1313EnabledTest {
                 getAutoCreatedAccountBalance("alias").hasTokenBalance("token", 10),
                 getTxnRecord("autoCreation")
                         .andAllChildRecords()
-                        .exposingAllTo(records -> assertAllRecordHasHighVolumeMultiplier(records, "autoCreation"))
+                        .exposingAllTo(
+                                records -> assertOnlyChildRecordsHaveHighVolumeMultiplier(records, "autoCreation"))
                         .logged(),
                 // Apply high volume multiplier for crypto create only
                 validateChargedUsdWithChild("autoCreation", 0.1 + (0.051 * 4), 0.01));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> airdropAutoCreationWithoutHighVolumeUsesDefaultPricing() {
+        return hapiTest(
+                newKeyNamed("alias"),
+                cryptoCreate("nonHvCreate")
+                        .payingWith(CIVILIAN_PAYER)
+                        .hasPrecheck(OK)
+                        .via("createAccount"),
+                tokenCreate("token").treasury(CIVILIAN_PAYER).initialSupply(1000L),
+                tokenAirdrop(TokenMovement.moving(10, "token").between(CIVILIAN_PAYER, "alias"))
+                        .payingWith(CIVILIAN_PAYER)
+                        .signedBy(CIVILIAN_PAYER)
+                        .via("airdropNoHv"),
+                getTxnRecord("airdropNoHv")
+                        .andAllChildRecords()
+                        .exposingAllTo(
+                                records -> assertNoRecordHasHighVolumeMultiplier(records, "airdropWithoutHighVolume"))
+                        .logged());
     }
 
     @HapiTest
@@ -204,9 +243,36 @@ public class Hip1313EnabledTest {
                 getAutoCreatedAccountBalance(hollowReceiver).hasTokenBalance("token", 10),
                 getTxnRecord("claimAirdrop")
                         .andAllChildRecords()
-                        .exposingAllTo(records -> assertAllRecordHasHighVolumeMultiplier(records, "claimAirdrop"))
+                        .exposingAllTo(
+                                records -> assertOnlyChildRecordsHaveHighVolumeMultiplier(records, "claimAirdrop"))
                         .logged(),
                 validateChargedUsdWithChild("claimAirdrop", 0.001 * 4, 0.01));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> claimAirdropHollowCompletionWithoutHighVolumeUsesDefaultPricing() {
+        final var hollowReceiver = "hollowReceiverNoHv";
+        return hapiTest(
+                createHollow(1, i -> hollowReceiver),
+                tokenCreate("tokenNoHv").treasury(CIVILIAN_PAYER).initialSupply(1000L),
+                cryptoUpdate(hollowReceiver)
+                        .sigMapPrefixes(uniqueWithFullPrefixesFor(hollowReceiver))
+                        .maxAutomaticAssociations(0),
+                tokenAirdrop(TokenMovement.moving(10, "tokenNoHv").between(CIVILIAN_PAYER, hollowReceiver))
+                        .payingWith(CIVILIAN_PAYER)
+                        .signedBy(CIVILIAN_PAYER)
+                        .via("pendingAirdropNoHv"),
+                getAutoCreatedAccountBalance(hollowReceiver).hasTokenBalance("tokenNoHv", 0),
+                tokenClaimAirdrop(pendingAirdrop(CIVILIAN_PAYER, hollowReceiver, "tokenNoHv"))
+                        .payingWith(hollowReceiver)
+                        .sigMapPrefixes(uniqueWithFullPrefixesFor(hollowReceiver))
+                        .via("claimAirdropNoHv"),
+                getAutoCreatedAccountBalance(hollowReceiver).hasTokenBalance("tokenNoHv", 10),
+                getTxnRecord("claimAirdropNoHv")
+                        .andAllChildRecords()
+                        .exposingAllTo(
+                                records -> assertNoRecordHasHighVolumeMultiplier(records, "claimAirdropWithoutHighVolume"))
+                        .logged());
     }
 
     @HapiTest
@@ -234,6 +300,22 @@ public class Hip1313EnabledTest {
                         .andAllChildRecords()
                         .exposingAllTo(records -> assertNoRecordHasHighVolumeMultiplier(records, "plainTransfer"))
                         .logged());
+    }
+
+    @LeakyHapiTest(
+            requirement = {THROTTLE_OVERRIDES},
+            throttles = "testSystemFiles/hip1313-disabled-one-tps-create.json")
+    final Stream<DynamicTest> highVolumeTxnFallsBackToNormalThrottleWhenNoHighVolumeBucketExists() {
+        return hapiTest(
+                overridingThrottles("testSystemFiles/hip1313-disabled-one-tps-create.json"),
+                cryptoCreate("fallbackThrottleA")
+                        .payingWith(CIVILIAN_PAYER)
+                        .withHighVolume()
+                        .hasPrecheck(OK),
+                cryptoCreate("fallbackThrottleB")
+                        .payingWith(CIVILIAN_PAYER)
+                        .withHighVolume()
+                        .hasPrecheck(BUSY));
     }
 
     @GenesisHapiTest
@@ -393,6 +475,47 @@ public class Hip1313EnabledTest {
                 }));
     }
 
+    @GenesisHapiTest
+    final Stream<DynamicTest> cryptoCreateWithHighVolumeUsesDefaultMultiplierWhenMaxIsOneX() {
+        final AtomicReference<ByteString> originalSimpleFeeSchedule = new AtomicReference<>();
+        return hapiTest(
+                overridingThrottles("testSystemFiles/hip1313-pricing-sim-throttles.json"),
+                doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted),
+                cryptoCreate(CIVILIAN_PAYER).balance(ONE_MILLION_HBARS),
+                overridingTwo("fees.simpleFeesEnabled", "true", "networkAdmin.highVolumeThrottlesEnabled", "true"),
+                withOpContext((spec, opLog) -> {
+                    allRunFor(
+                            spec,
+                            getFileContents(SIMPLE_FEE_SCHEDULE)
+                                    .consumedBy(bytes -> originalSimpleFeeSchedule.set(ByteString.copyFrom(bytes))));
+                    allRunFor(
+                            spec,
+                            updateLargeFile(
+                                    GENESIS, SIMPLE_FEE_SCHEDULE, simpleFeesWithOneXCryptoCreateHighVolumeRates()));
+                    assertTrue(
+                            spec.tryReinitializingFees(),
+                            "Failed to reinitialize fees after overriding simple fee schedule");
+                }),
+                cryptoCreate("defaultMultiplierCreate")
+                        .payingWith(CIVILIAN_PAYER)
+                        .withHighVolume()
+                        .via("defaultMultiplierCreateTxn"),
+                getTxnRecord("defaultMultiplierCreateTxn")
+                        .andAllChildRecords()
+                        .exposingAllTo(
+                                records -> assertNoRecordHasHighVolumeMultiplier(records, "defaultMultiplierCreateTxn"))
+                        .logged(),
+                withOpContext((spec, opLog) -> {
+                    final var snapshot = originalSimpleFeeSchedule.get();
+                    if (snapshot != null) {
+                        allRunFor(spec, updateLargeFile(GENESIS, SIMPLE_FEE_SCHEDULE, snapshot));
+                        assertTrue(
+                                spec.tryReinitializingFees(),
+                                "Failed to reinitialize fees after restoring simple fee schedule");
+                    }
+                }));
+    }
+
     public static long getInterpolatedMultiplier(
             final NavigableMap<Integer, Long> map, final int utilizationBasisPoints) {
         return interpolatePiecewiseLinear(asPiecewiseLinearCurve(map), utilizationBasisPoints);
@@ -480,10 +603,10 @@ public class Hip1313EnabledTest {
     private static void assertNoRecordHasHighVolumeMultiplier(
             @NonNull final List<TransactionRecord> records, @NonNull final String operation) {
         final var hasHighVolumeMultiplier =
-                records.stream().anyMatch(record -> record.getHighVolumePricingMultiplier() > 1000L);
+                records.stream().anyMatch(record -> record.getHighVolumePricingMultiplier() > 0L);
         assertFalse(
                 hasHighVolumeMultiplier,
-                "Expected " + operation + " to have no record with high-volume multiplier set (>1)");
+                "Expected " + operation + " to have no record with high-volume multiplier set (>0)");
     }
 
     private static void assertOnlyChildRecordsHaveHighVolumeMultiplier(
@@ -534,6 +657,19 @@ public class Hip1313EnabledTest {
         } catch (final Exception e) {
             throw new IllegalStateException(
                     "Unable to build simple fee schedule without CryptoCreate pricing curve", e);
+        }
+    }
+
+    private static ByteString simpleFeesWithOneXCryptoCreateHighVolumeRates() {
+        try {
+            final JsonNode root = MAPPER.readTree(TxnUtils.resourceAsString("genesis/simpleFeesSchedules.json"));
+            final ObjectNode highVolumeRates = findCryptoCreateHighVolumeRates(root);
+            highVolumeRates.put("maxMultiplier", 1000);
+            highVolumeRates.remove("pricingCurve");
+            final var pbjSimpleFees = FeeSchedule.JSON.parse(Bytes.wrap(MAPPER.writeValueAsBytes(root)));
+            return ByteString.copyFrom(FeeSchedule.PROTOBUF.toBytes(pbjSimpleFees).toByteArray());
+        } catch (final Exception e) {
+            throw new IllegalStateException("Unable to build simple fee schedule with 1x CryptoCreate multiplier", e);
         }
     }
 

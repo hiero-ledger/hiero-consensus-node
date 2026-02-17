@@ -736,14 +736,14 @@ class BlockItemsTranslatorTest {
     @Test
     void recordIncludesHighVolumePricingMultiplierFromResult() {
         final var highVolumeResult =
-                TRANSACTION_RESULT.copyBuilder().highVolumePricingMultiplier(4L).build();
+                TRANSACTION_RESULT.copyBuilder().highVolumePricingMultiplier(4000L).build();
         final var context = new BaseOpContext(MEMO, RATES, TXN_ID, SignedTransaction.DEFAULT, CRYPTO_TRANSFER, null);
 
         final var actualRecord = BLOCK_ITEMS_TRANSLATOR.translateRecord(context, highVolumeResult, null);
         assertEquals(
                 EXPECTED_BASE_RECORD
                         .copyBuilder()
-                        .highVolumePricingMultiplier(4L)
+                        .highVolumePricingMultiplier(4000L)
                         .build(),
                 actualRecord);
     }

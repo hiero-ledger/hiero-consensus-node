@@ -8,6 +8,7 @@ import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.createTopic;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingThrottles;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingTwo;
 import static com.hedera.services.bdd.suites.HapiSuite.CIVILIAN_PAYER;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NOT_SUPPORTED;
@@ -40,6 +41,26 @@ public class Hip1313DisabledTest {
                 .payingWith(CIVILIAN_PAYER)
                 .withHighVolume()
                 .hasPrecheck(NOT_SUPPORTED));
+    }
+
+    @LeakyHapiTest(requirement = {PROPERTY_OVERRIDES}, overrides = {"fees.simpleFeesEnabled"})
+    final Stream<DynamicTest> highVolumeTxnRejectedWhenSimpleFeesEnabledButHighVolumeThrottlesDisabled() {
+        return hapiTest(
+                overridingTwo("fees.simpleFeesEnabled", "true", "networkAdmin.highVolumeThrottlesEnabled", "false"),
+                createTopic("hvRequiresThrottleFlag")
+                        .payingWith(CIVILIAN_PAYER)
+                        .withHighVolume()
+                        .hasPrecheck(NOT_SUPPORTED));
+    }
+
+    @LeakyHapiTest(requirement = {PROPERTY_OVERRIDES}, overrides = {"networkAdmin.highVolumeThrottlesEnabled"})
+    final Stream<DynamicTest> highVolumeTxnRejectedWhenHighVolumeThrottlesEnabledButSimpleFeesDisabled() {
+        return hapiTest(
+                overridingTwo("fees.simpleFeesEnabled", "false", "networkAdmin.highVolumeThrottlesEnabled", "true"),
+                createTopic("hvRequiresSimpleFeesFlag")
+                        .payingWith(CIVILIAN_PAYER)
+                        .withHighVolume()
+                        .hasPrecheck(NOT_SUPPORTED));
     }
 
     @LeakyHapiTest(
