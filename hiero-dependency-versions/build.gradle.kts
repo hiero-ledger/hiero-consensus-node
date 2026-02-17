@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 dependencies {
     api(platform("io.netty:netty-bom:4.2.4.Final"))
-    api(platform("io.prometheus:prometheus-metrics-bom:1.4.3"))
 
     // forward logging from modules using SLF4J (e.g. 'org.hyperledger.besu.evm') to Log4J
     runtime("org.apache.logging.log4j:log4j-slf4j2-impl") {
