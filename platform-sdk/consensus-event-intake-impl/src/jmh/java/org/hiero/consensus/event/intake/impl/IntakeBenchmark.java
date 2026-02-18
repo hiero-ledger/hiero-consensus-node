@@ -66,13 +66,13 @@ public class IntakeBenchmark {
     @Param({"10"})
     public int numberOfThreads;
 
-    @Param({"ED25519"})
+    @Param({"RSA","ED25519"})
     public SigningSchema signingSchema;
 
-    @Param({"0.0", "0.5"})
+    @Param({"0.5"}) // does not seem to affect the results much
     public double duplicateRate;
 
-    @Param({"1","100","1000"})
+    @Param({"100"}) // does not seem to affect the results much
     public int shuffleBatchSize;
 
     private List<PlatformEvent> events;
@@ -156,13 +156,9 @@ public class IntakeBenchmark {
     /*
     Results on a M1 Max MacBook Pro:
 
-    Benchmark               (duplicateRate)  (numNodes)  (numberOfThreads)  (shuffleBatchSize)  (signingSchema)   Mode  Cnt       Score       Error  Units
-    IntakeBenchmark.intake              0.0           4                 10                   1          ED25519  thrpt    3  147082.323 ± 65218.633  ops/s
-    IntakeBenchmark.intake              0.0           4                 10                 100          ED25519  thrpt    3  150490.768 ± 74712.088  ops/s
-    IntakeBenchmark.intake              0.0           4                 10                1000          ED25519  thrpt    3  152585.029 ± 14062.522  ops/s
-    IntakeBenchmark.intake              0.5           4                 10                   1          ED25519  thrpt    3  144408.659 ±  4639.713  ops/s
-    IntakeBenchmark.intake              0.5           4                 10                 100          ED25519  thrpt    3  146459.959 ± 12895.160  ops/s
-    IntakeBenchmark.intake              0.5           4                 10                1000          ED25519  thrpt    3  146133.726 ± 11340.480  ops/s
+    Benchmark               (duplicateRate)  (numNodes)  (numberOfThreads)  (shuffleBatchSize)  (signingSchema)   Mode  Cnt       Score        Error  Units
+    IntakeBenchmark.intake              0.5           4                 10                 100              RSA  thrpt    3   72183.508 ± 298798.404  ops/s
+    IntakeBenchmark.intake              0.5           4                 10                 100          ED25519  thrpt    3  144752.082 ±  18561.397  ops/s
     */
     @Benchmark
     @BenchmarkMode(Mode.Throughput)
