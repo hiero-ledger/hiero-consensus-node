@@ -1,0 +1,10 @@
+// SPDX-License-Identifier: Apache-2.0
+package com.hedera.statevalidation.validator.model;
+
+/**
+ * Represents a task config for reading a range of paths from in-memory hash storage.
+ *
+ * @param startPath the starting path (inclusive)
+ * @param endPath the ending path (exclusive)
+ */
+public record MemoryReadTaskConfig(long startPath, long endPath) {}

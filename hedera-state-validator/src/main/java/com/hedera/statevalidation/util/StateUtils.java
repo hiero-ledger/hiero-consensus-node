@@ -85,6 +85,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.platformstate.PlatformStateService;
 import org.hiero.consensus.state.signed.SignedState;
@@ -104,7 +105,7 @@ public final class StateUtils {
     private static final String DEFAULT = "DEFAULT";
 
     private static final Map<String, VirtualMapState> states = new ConcurrentHashMap<>();
-    private static final Map<String, DeserializedSignedState> deserializedSignedStates = new ConcurrentHashMap<>();
+    private static final Map<String, Hash> originalStateHashes = new ConcurrentHashMap<>();
 
     // Static JSON codec cache
     private static final Map<Integer, JsonCodec> keyCodecsById = new ConcurrentHashMap<>();
@@ -158,23 +159,18 @@ public final class StateUtils {
     }
 
     /**
-     * Returns <b>immutable</b> instance of {@link DeserializedSignedState} loaded from disk.
-     * @return immutable instance of {@link DeserializedSignedState}
+     * Returns the original hash of the default signed state when it was serialized.
+     * <p>
+     * Note: This hash may differ from the current hash if the state has been modified since deserialization.
+     *
+     * @return the original hash from {@link DeserializedSignedState#originalHash()}
+     * @see DeserializedSignedState
      */
-    public static DeserializedSignedState getDeserializedSignedState() {
-        return getDeserializedSignedState(DEFAULT);
-    }
-
-    /**
-     * Returns <b>immutable</b> instance of {@link DeserializedSignedState} loaded from disk for a given key.
-     * @param key the key identifying the state
-     * @return immutable instance of {@link DeserializedSignedState}
-     */
-    public static DeserializedSignedState getDeserializedSignedState(String key) {
-        if (!deserializedSignedStates.containsKey(key)) {
-            initState(key);
+    public static Hash getOriginalStateHash() {
+        if (!originalStateHashes.containsKey(DEFAULT)) {
+            initState(DEFAULT);
         }
-        return deserializedSignedStates.get(key);
+        return originalStateHashes.get(DEFAULT);
     }
 
     private static void initState(String key) {
@@ -192,14 +188,9 @@ public final class StateUtils {
                             virtualMap -> new VirtualMapStateImpl(virtualMap, platformContext.getMetrics()),
                             platformContext.getConfiguration());
 
-            serviceRegistry.register(
-                    new RosterServiceImpl(roster -> true, (r, b) -> {}, () -> StateUtils.getState(key), () -> {
-                        throw new UnsupportedOperationException("No startup networks available");
-                    }));
-
             final DeserializedSignedState dss =
                     readState(Path.of(ConfigUtils.STATE_DIR).toAbsolutePath(), platformContext, stateLifecycleManager);
-            deserializedSignedStates.put(key, dss);
+            originalStateHashes.put(key, dss.originalHash());
 
             final SignedState signedState = dss.reservedSignedState().get();
 
@@ -208,8 +199,11 @@ public final class StateUtils {
                     copyInitialSignedState(signedState, PlatformContextHelper.getPlatformContext());
             final VirtualMapState state = hashedSignedState.state().get().getState();
             states.put(key, state);
+            serviceRegistry.register(new RosterServiceImpl(roster -> true, (r, b) -> {}, () -> getState(key), () -> {
+                throw new UnsupportedOperationException("No startup networks available");
+            }));
             initServiceMigrator(state, platformContext, serviceRegistry);
-            (state.getRoot()).getDataSource().stopAndDisableBackgroundCompaction();
+            state.getRoot().getDataSource().stopAndDisableBackgroundCompaction();
         } catch (Exception e) {
             throw new RuntimeException(e);
         }

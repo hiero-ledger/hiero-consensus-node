@@ -1,85 +1,22 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.statevalidation.validator.state;
+package com.hedera.statevalidation.validator.pipeline;
 
 import static com.hedera.statevalidation.util.ParallelProcessingUtils.VALIDATOR_FORK_JOIN_POOL;
-import static org.hiero.consensus.platformstate.PlatformStateUtils.getInfoString;
-import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.pbj.runtime.hashing.WritableMessageDigest;
-import com.hedera.statevalidation.report.SlackReportGenerator;
 import com.hedera.statevalidation.util.FutureMerkleHash;
-import com.hedera.statevalidation.util.junit.DeserializedSignedStateResolver;
-import com.hedera.statevalidation.util.junit.HashInfo;
-import com.hedera.statevalidation.util.junit.HashInfoResolver;
-import com.swirlds.platform.state.snapshot.DeserializedSignedState;
-import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.Path;
 import com.swirlds.virtualmap.internal.RecordAccessor;
-import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
-import java.util.Arrays;
-import java.util.List;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.base.concurrent.AbstractTask;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
-import org.junit.jupiter.api.Tag;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 
-@ExtendWith({DeserializedSignedStateResolver.class, SlackReportGenerator.class, HashInfoResolver.class})
-@Tag("rehash")
-public class Rehash {
-
-    private static final Logger logger = LogManager.getLogger(Rehash.class);
-
-    @Test
-    void reHash(DeserializedSignedState deserializedSignedState) throws Exception {
-        final VirtualMap vm =
-                deserializedSignedState.reservedSignedState().get().getState().getRoot();
-        records = vm.getRecords();
-
-        final VirtualMapMetadata metadata = vm.getMetadata();
-        firstLeafPath = metadata.getFirstLeafPath();
-        lastLeafPath = metadata.getLastLeafPath();
-        logger.info("Doing full rehash for the path range: {} - {}  in the VirtualMap", firstLeafPath, lastLeafPath);
-
-        final long start = System.currentTimeMillis();
-        result = new FutureMerkleHash();
-        new TraverseTask(0, null).send();
-        assertEquals(deserializedSignedState.originalHash(), result.get());
-        logger.info("It took {} seconds to rehash the VirtualMap", (System.currentTimeMillis() - start) / 1000);
-    }
-
-    /**
-     * This test validates the Merkle tree structure of the state.
-     *
-     * @param deserializedSignedState The deserialized signed state, propagated by the DeserializedSignedStateResolver.
-     * @param hashInfo                The hash info object, propagated by the HashInfoResolver.
-     */
-    @Test
-    void validateMerkleTree(DeserializedSignedState deserializedSignedState, HashInfo hashInfo) {
-
-        var infoStringFromState = getInfoString(
-                deserializedSignedState.reservedSignedState().get().getState());
-
-        final var originalLines = Arrays.asList(hashInfo.content().split("\n")).getFirst();
-        final var fullList = Arrays.asList(infoStringFromState.split("\n"));
-        // skipping irrelevant lines, capturing only the one with the root hash
-        final var revisedLines = filterLines(fullList);
-
-        assertEquals(originalLines, revisedLines, "The Merkle tree structure does not match the expected state.");
-    }
-
-    private String filterLines(List<String> lines) {
-        for (String line : lines) {
-            if (line.contains("(root)")) {
-                return line;
-            }
-        }
-        return "root hash not found";
-    }
+/**
+ * Executes state rehash computation using tasks.
+ */
+public class RehashTaskExecutor {
 
     /**
      * This thread-local gets a message digest that can be used for hashing on a per-thread basis.
@@ -89,10 +26,36 @@ public class Rehash {
 
     private static final Hash NO_PATH2_HASH = new Hash();
 
-    private RecordAccessor records;
-    private long firstLeafPath;
-    private long lastLeafPath;
-    private FutureMerkleHash result;
+    private final RecordAccessor records;
+    private final long firstLeafPath;
+    private final long lastLeafPath;
+    private final FutureMerkleHash result;
+
+    /**
+     * Creates a new RehashTaskExecutor.
+     *
+     * @param records the record accessor for reading leaf data
+     * @param firstLeafPath the first leaf path in the virtual map
+     * @param lastLeafPath the last leaf path in the virtual map
+     */
+    public RehashTaskExecutor(
+            @NonNull final RecordAccessor records, final long firstLeafPath, final long lastLeafPath) {
+        this.records = records;
+        this.firstLeafPath = firstLeafPath;
+        this.lastLeafPath = lastLeafPath;
+        this.result = new FutureMerkleHash();
+    }
+
+    /**
+     * Executes the rehash computation and returns the computed root hash.
+     *
+     * @return the computed root hash
+     * @throws Exception if rehashing fails
+     */
+    public Hash execute() throws Exception {
+        new TraverseTask(0, null).send();
+        return result.get();
+    }
 
     private class TraverseTask extends AbstractTask {
         final long path;
@@ -108,9 +71,9 @@ public class Rehash {
         protected boolean onExecute() {
             if (path < firstLeafPath) {
                 // Internal node. Create traverse tasks recursively.
-                ComputeInternalHashTask hashTash = new ComputeInternalHashTask(path, parent);
-                new TraverseTask(Path.getChildPath(path, 0), hashTash).send();
-                new TraverseTask(Path.getChildPath(path, 1), hashTash).send();
+                ComputeInternalHashTask hashTask = new ComputeInternalHashTask(path, parent);
+                new TraverseTask(Path.getChildPath(path, 0), hashTask).send();
+                new TraverseTask(Path.getChildPath(path, 1), hashTask).send();
             } else {
                 // Leaf node. Read and hash bytes.
                 final VirtualLeafBytes<?> leafBytes = records.findLeafRecord(path);
