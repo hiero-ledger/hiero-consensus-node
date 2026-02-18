@@ -31,7 +31,7 @@ merge:
     - "MATS / Gradle Determinism / Gradle: Verify Artifacts (hl-cn-gradle-determinism-lin-lg)"
 
     # MATS Docker Determinism
-    - "Node: PR Checks / MATS / Docker Determinism / Docker: Generate Baseline (pull_request"
+    - "MATS / Docker Determinism / Docker: Generate Baseline (pull_request)"
     - "MATS / Docker Determinism / Docker: Verify Artifacts (ubuntu-24.04)"
     - "MATS / Docker Determinism / Docker: Verify Artifacts (hl-cn-docker-determinism-lin-lg)"
 
