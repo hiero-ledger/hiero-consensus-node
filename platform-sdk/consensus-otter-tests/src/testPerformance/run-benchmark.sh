@@ -102,6 +102,10 @@ for EXPERIMENT in "${EXPERIMENTS_TO_RUN[@]}"; do
     echo -e "${BLUE}=== Experiment: $EXPERIMENT (${EXPERIMENT_CLASS}) ===${NC}"
     echo -e "${BLUE}======================================================================${NC}"
 
+    # Get list of test methods for this experiment class
+    echo "Discovering test methods for ${EXPERIMENT_CLASS}..."
+    CONTAINER_DIR="${PROJECT_DIR}/platform-sdk/consensus-otter-tests/build/container/${EXPERIMENT_CLASS}"
+
     # Run this experiment multiple times
     for RUN in $(seq 1 "$NUM_RUNS"); do
         CURRENT_RUN=$((CURRENT_RUN + 1))
@@ -112,20 +116,18 @@ for EXPERIMENT in "${EXPERIMENTS_TO_RUN[@]}"; do
         echo -e "${GREEN}=== Run $CURRENT_RUN of $TOTAL_RUNS (Experiment: $EXPERIMENT, iteration $RUN/$NUM_RUNS) ===${NC}"
         echo -e "${GREEN}######################################################################${NC}"
 
-        # Clean container directory if requested
-        if [[ "$CLEAN_BETWEEN_RUNS" == "true" ]]; then
-            CONTAINER_DIR="${PROJECT_DIR}/platform-sdk/consensus-otter-tests/build/container/${EXPERIMENT_CLASS}"
-            if [[ -d "$CONTAINER_DIR" ]]; then
-                echo -e "${YELLOW}Cleaning previous results from $CONTAINER_DIR${NC}"
-                rm -rf "$CONTAINER_DIR"
-            fi
+        # Clean container directory before this run
+        if [[ "$CLEAN_BETWEEN_RUNS" == "true" ]] && [[ -d "$CONTAINER_DIR" ]]; then
+            echo -e "${YELLOW}Cleaning previous results from $CONTAINER_DIR${NC}"
+            rm -rf "$CONTAINER_DIR"
         fi
 
         LOG_FILE="/tmp/benchmark-${EXPERIMENT}-run${RUN}-$(date +%Y%m%d-%H%M%S).log"
 
-        echo "=== Running performance tests for ${EXPERIMENT_CLASS} ==="
+        echo "=== Running ALL test methods for ${EXPERIMENT_CLASS} ==="
         echo "Log file: $LOG_FILE"
 
+        # Run all tests in the class at once
         if ! ./gradlew :consensus-otter-tests:testPerformance --tests "*${EXPERIMENT_CLASS}" 2>&1 | tee "$LOG_FILE"; then
             echo -e "${RED}ERROR: Test execution failed for ${EXPERIMENT_CLASS}${NC}"
             echo "Check log file: $LOG_FILE"
@@ -133,23 +135,32 @@ for EXPERIMENT in "${EXPERIMENTS_TO_RUN[@]}"; do
         fi
 
         echo ""
-        echo "=== Processing results from container directories ==="
+        echo "=== Processing results IMMEDIATELY (before any cleanup) ==="
 
-        CONTAINER_DIR="${PROJECT_DIR}/platform-sdk/consensus-otter-tests/build/container/${EXPERIMENT_CLASS}"
+        # Use the exact container directory for this class
+        CONTAINER_DIR_FULL="${PROJECT_DIR}/platform-sdk/consensus-otter-tests/build/container/${EXPERIMENT_CLASS}"
 
-        if [[ ! -d "$CONTAINER_DIR" ]]; then
-            echo -e "${RED}ERROR: Container directory not found: $CONTAINER_DIR${NC}"
+        if [[ ! -d "$CONTAINER_DIR_FULL" ]]; then
+            echo -e "${RED}ERROR: Container directory not found: $CONTAINER_DIR_FULL${NC}"
             echo "Test may have failed - check log: $LOG_FILE"
             continue
         fi
 
-        # Count test directories
-        TEST_COUNT=$(find "$CONTAINER_DIR" -mindepth 1 -maxdepth 1 -type d | wc -l)
-        echo "Found $TEST_COUNT test result(s)"
+        # IMMEDIATELY create a backup copy to prevent loss from any cleanup
+        TEMP_BACKUP="/tmp/benchmark-backup-${EXPERIMENT}-run${RUN}-$$"
+        echo "Creating backup: $TEMP_BACKUP"
+        cp -r "$CONTAINER_DIR_FULL" "$TEMP_BACKUP"
 
-        # Process each test directory
+        # Process from the backup to avoid any interference
+        CONTAINER_DIR_FULL="$TEMP_BACKUP"
+
+        # Count test directories
+        TEST_COUNT=$(find "$CONTAINER_DIR_FULL" -mindepth 1 -maxdepth 1 -type d | wc -l)
+        echo "Found $TEST_COUNT test result(s) in $CONTAINER_DIR_FULL"
+
+        # Process each test directory IMMEDIATELY
         TEST_NUM=0
-        for TEST_DIR in "$CONTAINER_DIR"/*; do
+        for TEST_DIR in "$CONTAINER_DIR_FULL"/*; do
             if [[ ! -d "$TEST_DIR" ]]; then
                 continue
             fi
@@ -213,6 +224,12 @@ for EXPERIMENT in "${EXPERIMENTS_TO_RUN[@]}"; do
             echo "Copied $ARTIFACT_COUNT artifact(s)"
             echo -e "${GREEN}Saved: $DEST_DIR${NC}"
         done
+
+        # Clean up temporary backup
+        if [[ -d "$TEMP_BACKUP" ]]; then
+            echo "Removing temporary backup: $TEMP_BACKUP"
+            rm -rf "$TEMP_BACKUP"
+        fi
 
         # Calculate run time
         RUN_END=$(date +%s)
