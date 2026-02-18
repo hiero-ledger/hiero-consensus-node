@@ -167,6 +167,8 @@ public class HandleWorkflow {
     @Nullable
     private Dispatch inFlightDispatch;
 
+    private boolean eventHeaderAlreadyWritten = false;
+
     // The last second since the epoch at which the metrics were updated; this does not affect transaction handling
     private long lastMetricUpdateSecond;
     // The last second for which this workflow has confirmed all scheduled transactions are executed
@@ -271,11 +273,16 @@ public class HandleWorkflow {
         logStartRound(round);
         blockBufferService.ensureNewBlocksPermitted();
         cacheWarmer.warm(state, round);
+        final var firstEvent = round.iterator().next();
         if (streamMode != RECORDS) {
             blockStreamManager.startRound(round, state);
             blockStreamManager.writeItem(BlockItem.newBuilder()
                     .roundHeader(new RoundHeader(round.getRoundNum()))
                     .build());
+            // "Pull forward" the first event header to respect conventions for the position of a SignedTransaction in
+            // the block stream---we have many kinds of setup and scheduled work that happens by synthetic tx dispatch
+            writeEventHeader(firstEvent);
+            eventHeaderAlreadyWritten = true;
             if (!migrationStateChanges.isEmpty()) {
                 final var startupConsTime = systemTransactions.firstReservedSystemTimeFor(
                         round.iterator().next().getConsensusTimestamp());
@@ -296,7 +303,7 @@ public class HandleWorkflow {
                     case BLOCKS, BOTH -> blockStreamManager.pendingWork() == GENESIS_WORK;
                 };
         if (isGenesis) {
-            final var genesisEventTime = round.iterator().next().getConsensusTimestamp();
+            final var genesisEventTime = firstEvent.getConsensusTimestamp();
             logger.info("Doing genesis setup before {}", genesisEventTime);
             systemTransactions.doGenesisSetup(genesisEventTime, state, this::doStreamingAllChanges);
             transactionsDispatched = true;
@@ -425,9 +432,10 @@ public class HandleWorkflow {
             @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> stateSignatureTxnCallback) {
         boolean transactionsDispatched = false;
         for (final var event : round) {
-            if (streamMode != RECORDS) {
+            if (streamMode != RECORDS && !eventHeaderAlreadyWritten) {
                 writeEventHeader(event);
             }
+            eventHeaderAlreadyWritten = false;
             final var creator = networkInfo.nodeInfo(event.getCreatorId().id());
             final ShortCircuitCallback shortCircuitCallback = (stateSignatureTx, bytes) -> {
                 if (stateSignatureTx != null) {

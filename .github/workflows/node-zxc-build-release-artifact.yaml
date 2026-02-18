@@ -584,6 +584,22 @@ jobs:
       jf-docker-registry: ${{ secrets.jf-docker-registry }}
       jf-access-token: ${{ secrets.jf-access-token }}
 
+  yahcli-image:
+    name: Publish Yahcli Image
+    uses: ./.github/workflows/zxc-publish-yahcli-image.yaml
+    needs:
+      - validate
+    with:
+      version: ${{ needs.validate.outputs.version }}
+      version-policy: ${{ inputs.version-policy }}
+      dry-run-enabled: ${{ inputs.dry-run-enabled }}
+      ref: ${{ needs.validate.outputs.commit-id }}
+      java-distribution: ${{ inputs.java-distribution }}
+      java-version: ${{ inputs.java-version }}
+      gradle-version: ${{ inputs.gradle-version }}
+    secrets:
+      access-token: ${{ secrets.access-token }}
+
   validate-production-image:
     name: Validate Production Image
     runs-on: hl-cn-default-lin-md
