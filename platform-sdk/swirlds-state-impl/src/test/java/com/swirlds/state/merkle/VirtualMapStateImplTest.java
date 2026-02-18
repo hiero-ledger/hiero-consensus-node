@@ -1189,7 +1189,7 @@ public class VirtualMapStateImplTest extends MerkleTestBase {
                         + "\"VirtualMapMetadata\":{\"firstLeafPath\":2,\"lastLeafPath\":4},"
                         + "\"Singletons\":"
                         + "{\"First-Service." + COUNTRY_STATE_KEY
-                        + "\":{\"path\":3,\"mnemonic\":\"cushion-bright-early-flight\"}}}");
+                        + "\":{\"path\":3,\"mnemonic\":\"jelly-blast-anxiety-outside\"}}}");
     }
 
     @Test
