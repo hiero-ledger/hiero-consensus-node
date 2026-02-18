@@ -47,7 +47,7 @@
 | node-flow-deploy-release-artifact.yaml                | ZXF: Deploy Production Release                                    |                  |                      |
 |                                                       |                                                                   |                  |                      |
 | # DETERMINISM                                         |                                                                   |                  |                      |
-| 090-disp-artifact-determinism                         | 090: [DISP] Artifact Determinism                                  |                  |                      |
+| 090-disp-artifact-determinism.yaml                         | 090: [DISP] Artifact Determinism                                  |                  |                      |
 | zxc-verify-docker-build-determinism.yaml              | ZXC: Verify Docker Build Determinism                              |                  |                      |
 | zxc-verify-gradle-build-determinism.yaml              | ZXC: Verify Gradle Build Determinism                              |                  |                      |
 |                                                       |                                                                   |                  |                      |
