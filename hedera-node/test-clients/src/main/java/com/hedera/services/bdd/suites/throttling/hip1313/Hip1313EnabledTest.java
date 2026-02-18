@@ -61,6 +61,8 @@ import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItemsValidator;
 import com.hederahashgraph.api.proto.java.TransactionRecord;
 import edu.umd.cs.findbugs.annotations.NonNull;
+
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
@@ -339,9 +341,11 @@ public class Hip1313EnabledTest {
                 withOpContext((spec, opLog) -> {
                     final var entries = filteredHighVolumeEntries(highVolumeTxns, e -> true);
                     final var throttle = DeterministicThrottle.withTpsAndBurstPeriodMs(CRYPTO_CREATE_HV_TPS, 1000);
+                    var numCreateTxnsAllowed = 0;
                     for (final var entry : entries) {
                         final var utilizationBasisPointsBefore = utilizationBasisPointsBefore(throttle);
                         throttle.allow(1, entry.consensusTime());
+                        numCreateTxnsAllowed++;
                         final var utilizationBasisPointsAfter = utilizationBasisPointsBefore(throttle);
                         assertHighVolumeMultiplierSet(entry, "crypto create");
                         final var fee = entry.txnRecord().getTransactionFee();
@@ -352,7 +356,8 @@ public class Hip1313EnabledTest {
                                 observedMultiplier,
                                 utilizationBasisPointsBefore,
                                 utilizationBasisPointsAfter,
-                                "crypto create");
+                                "crypto create",
+                                numCreateTxnsAllowed);
                     }
                     assertEquals(200, entries.size());
                 }));
@@ -385,6 +390,7 @@ public class Hip1313EnabledTest {
                         if (entry.body().hasConsensusCreateTopic()) {
                             final var utilizationBasisPointsBefore = utilizationBasisPointsBefore(topicThrottle);
                             topicThrottle.allow(1, entry.consensusTime());
+                            topicCreates++;
                             final var utilizationBasisPointsAfter = utilizationBasisPointsBefore(topicThrottle);
                             assertHighVolumeMultiplierSet(entry, "topic create");
                             final var observedMultiplier = observedMultiplier(spec, fee, TOPIC_CREATE_BASE_FEE);
@@ -394,11 +400,12 @@ public class Hip1313EnabledTest {
                                     observedMultiplier,
                                     utilizationBasisPointsBefore,
                                     utilizationBasisPointsAfter,
-                                    "topic create");
-                            topicCreates++;
+                                    "topic create",
+                                    topicCreates);
                         } else if (entry.body().hasScheduleCreate()) {
                             final var utilizationBasisPointsBefore = utilizationBasisPointsBefore(scheduleThrottle);
                             scheduleThrottle.allow(1, entry.consensusTime());
+                            scheduleCreates++;
                             final var utilizationBasisPointsAfter = utilizationBasisPointsBefore(scheduleThrottle);
                             assertHighVolumeMultiplierSet(entry, "schedule create");
                             final var observedMultiplier = observedMultiplier(spec, fee, SCHEDULE_CREATE_BASE_FEE);
@@ -407,8 +414,8 @@ public class Hip1313EnabledTest {
                                     observedMultiplier,
                                     utilizationBasisPointsBefore,
                                     utilizationBasisPointsAfter,
-                                    "schedule create");
-                            scheduleCreates++;
+                                    "schedule create",
+                                    scheduleCreates);
                         }
                     }
                     assertEquals(numBursts * 2, entries.size());
@@ -656,7 +663,12 @@ public class Hip1313EnabledTest {
             final double observedMultiplier,
             final int utilizationBasisPointsBefore,
             final int utilizationBasisPointsAfter,
-            @NonNull final String operation) {
+            @NonNull final String operation,
+            final int numTxnsAllowed) {
+        System.out.println("OBSERVED " + observedMultiplier + " EXPECTED: " + multiplierMap
+                + " for " + operation
+                + " BPS before: " + utilizationBasisPointsBefore
+                + " BPS after: " + utilizationBasisPointsAfter);
         final var minBps = Math.max(0, Math.min(utilizationBasisPointsBefore, utilizationBasisPointsAfter) - 1);
         final var maxBps = Math.min(10_000, Math.max(utilizationBasisPointsBefore, utilizationBasisPointsAfter) + 1);
         final var acceptableMultipliers = IntStream.rangeClosed(minBps, maxBps)
@@ -670,7 +682,7 @@ public class Hip1313EnabledTest {
                 "Given BPS before " + utilizationBasisPointsBefore + " and after " + utilizationBasisPointsAfter
                         + ", observed " + operation + " multiplier " + observedMultiplier
                         + " does not match acceptable multipliers "
-                        + java.util.Arrays.toString(acceptableMultipliers));
+                        + Arrays.toString(acceptableMultipliers) + " with " + numTxnsAllowed + " txns allowed");
     }
 
     private static VisibleItemsValidator feeMultiplierValidator(

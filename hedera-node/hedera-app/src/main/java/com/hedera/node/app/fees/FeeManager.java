@@ -64,38 +64,9 @@ import org.hiero.hapi.support.fees.ServiceFeeDefinition;
 @Singleton
 public final class FeeManager {
     private static final Logger logger = LogManager.getLogger(FeeManager.class);
-    private static final String SIMPLE_FEES_UNAVAILABLE =
-            "Simple fees are unavailable because no valid simple fee schedule is initialized";
-    private static final SimpleFeeCalculator UNINITIALIZED_SIMPLE_FEE_CALCULATOR = new SimpleFeeCalculator() {
-        @NonNull
-        @Override
-        public FeeResult calculateTxFee(
-                @NonNull final TransactionBody txnBody, @NonNull final SimpleFeeContext simpleFeeContext) {
-            throw new IllegalStateException(SIMPLE_FEES_UNAVAILABLE);
-        }
-
-        @NonNull
-        @Override
-        public FeeResult calculateQueryFee(
-                @NonNull final Query query, @NonNull final SimpleFeeContext simpleFeeContext) {
-            throw new IllegalStateException(SIMPLE_FEES_UNAVAILABLE);
-        }
-
-        @Override
-        public long getExtraFee(final Extra extra) {
-            throw new IllegalStateException(SIMPLE_FEES_UNAVAILABLE);
-        }
-
-        @Override
-        public long highVolumeRawMultiplier(
-                @NonNull final TransactionBody txnBody, @NonNull final FeeContext feeContext) {
-            throw new IllegalStateException(SIMPLE_FEES_UNAVAILABLE);
-        }
-    };
 
     private org.hiero.hapi.support.fees.FeeSchedule simpleFeesSchedule;
-
-    private SimpleFeeCalculator simpleFeeCalculator = UNINITIALIZED_SIMPLE_FEE_CALCULATOR;
+    private SimpleFeeCalculator simpleFeeCalculator;
 
     private final Set<ServiceFeeCalculator> serviceFeeCalculators;
     private final Set<QueryFeeCalculator> queryFeeCalculators;
@@ -232,9 +203,9 @@ public final class FeeManager {
             final org.hiero.hapi.support.fees.FeeSchedule schedule =
                     org.hiero.hapi.support.fees.FeeSchedule.PROTOBUF.parse(bytes);
             if (isValid(schedule)) {
+                logger.info("Successfully validated simple fee schedule.");
                 this.simpleFeesSchedule = schedule;
-                this.simpleFeeCalculator = new SimpleFeeCalculatorImpl(
-                        schedule, serviceFeeCalculators, queryFeeCalculators, congestionMultipliers);
+                this.simpleFeeCalculator = new SimpleFeeCalculatorImpl(schedule, serviceFeeCalculators, queryFeeCalculators, congestionMultipliers);
                 return SUCCESS;
             } else {
                 logger.error("Unable to validate simple fee schedule.");
@@ -291,32 +262,6 @@ public final class FeeManager {
             @NonNull final HederaFunctionality functionality,
             @NonNull final ReadableStoreFactory storeFactory) {
         return congestionMultipliers.maxCurrentMultiplier(body, functionality, storeFactory);
-    }
-
-    /**
-     * Returns the high volume multiplier for the given transaction and current instantaneous utilization.
-     *
-     * @param transactionBody the transaction body
-     * @param functionality the functionality of the transaction
-     * @param utilizationBasisPoints the current utilization percentage in hundredths of one percent (0 to 10,000)
-     * @return the high volume multiplier
-     */
-    public long highVolumeMultiplierFor(
-            @NonNull final TransactionBody transactionBody,
-            @NonNull final HederaFunctionality functionality,
-            final int utilizationBasisPoints) {
-        if (!transactionBody.highVolume()
-                || !HighVolumePricingCalculator.HIGH_VOLUME_FUNCTIONS.contains(functionality)
-                || simpleFeesSchedule == null) {
-            return HighVolumePricingCalculator.DEFAULT_HIGH_VOLUME_MULTIPLIER;
-        }
-        final ServiceFeeDefinition serviceFeeDefinition = lookupServiceFee(simpleFeesSchedule, functionality);
-        if (serviceFeeDefinition == null) {
-            logger.warn("No service fee definition found for {}", functionality);
-            return HighVolumePricingCalculator.DEFAULT_HIGH_VOLUME_MULTIPLIER;
-        }
-        return HighVolumePricingCalculator.calculateMultiplier(
-                serviceFeeDefinition.highVolumeRates(), utilizationBasisPoints);
     }
 
     @NonNull
