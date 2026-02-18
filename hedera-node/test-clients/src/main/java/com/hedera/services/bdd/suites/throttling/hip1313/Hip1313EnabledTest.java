@@ -61,7 +61,6 @@ import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItemsValidator;
 import com.hederahashgraph.api.proto.java.TransactionRecord;
 import edu.umd.cs.findbugs.annotations.NonNull;
-
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -665,16 +664,16 @@ public class Hip1313EnabledTest {
             final int utilizationBasisPointsAfter,
             @NonNull final String operation,
             final int numTxnsAllowed) {
-        System.out.println("OBSERVED " + observedMultiplier + " EXPECTED: " + multiplierMap
-                + " for " + operation
-                + " BPS before: " + utilizationBasisPointsBefore
-                + " BPS after: " + utilizationBasisPointsAfter);
         final var minBps = Math.max(0, Math.min(utilizationBasisPointsBefore, utilizationBasisPointsAfter) - 1);
         final var maxBps = Math.min(10_000, Math.max(utilizationBasisPointsBefore, utilizationBasisPointsAfter) + 1);
         final var acceptableMultipliers = IntStream.rangeClosed(minBps, maxBps)
                 .mapToDouble(bps -> getInterpolatedMultiplier(multiplierMap, bps) / 1000.0)
                 .distinct()
                 .toArray();
+        System.out.println("OBSERVED " + observedMultiplier + " EXPECTED: " + Arrays.toString(acceptableMultipliers)
+                + " for " + operation
+                + " BPS before: " + utilizationBasisPointsBefore
+                + " BPS after: " + utilizationBasisPointsAfter);
         final var isAcceptable = IntStream.range(0, acceptableMultipliers.length)
                 .anyMatch(i -> Math.abs(acceptableMultipliers[i] - observedMultiplier) <= MULTIPLIER_TOLERANCE);
         assertTrue(
