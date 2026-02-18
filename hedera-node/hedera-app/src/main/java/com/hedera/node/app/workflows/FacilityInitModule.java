@@ -231,7 +231,8 @@ public interface FacilityInitModule {
                         schema.genesisExchangeRatesBytes(bootstrapConfig),
                         schema.genesisMidnightRates(bootstrapConfig));
                 feeManager.update(schema.genesisFeeSchedules(bootstrapConfig));
-                final var simpleStatus = feeManager.updateSimpleFees(schema.genesisSimpleFeesSchedules(bootstrapConfig));
+                final var simpleStatus =
+                        feeManager.updateSimpleFees(schema.genesisSimpleFeesSchedules(bootstrapConfig));
                 if (simpleStatus != SUCCESS) {
                     log.error("Genesis simple fee schedules did not parse ({})", simpleStatus);
                     throw new IllegalStateException("Genesis simple fee schedules did not parse: " + simpleStatus);
@@ -283,13 +284,9 @@ public interface FacilityInitModule {
                 "The initialized state had no fee schedule file 0.0." + simpleFileNum);
         final var simpleStatus = feeManager.updateSimpleFees(simpleFile.contents());
         if (simpleStatus != SUCCESS) {
-            log.error(
-                    "State file 0.0.{} did not contain parseable fee schedules ({})",
-                    simpleFileNum,
-                    simpleStatus);
-            throw new IllegalStateException(
-                    "State file 0.0." + simpleFileNum + " did not contain parseable simple fee schedules ("
-                            + simpleStatus + ")");
+            log.error("State file 0.0.{} did not contain parseable fee schedules ({})", simpleFileNum, simpleStatus);
+            throw new IllegalStateException("State file 0.0." + simpleFileNum
+                    + " did not contain parseable simple fee schedules (" + simpleStatus + ")");
         }
     }
 
