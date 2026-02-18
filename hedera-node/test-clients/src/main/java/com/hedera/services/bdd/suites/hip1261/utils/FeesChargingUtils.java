@@ -8,6 +8,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertionsHold;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.getChargedUsedForInnerTxn;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.safeValidateChargedUsdWithin;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithChild;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateInnerTxnChargedUsd;
@@ -93,6 +94,8 @@ import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleCon
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_UPDATE_NFT_FEE;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_WIPE_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.UTIL_PRNG_BASE_FEE_USD;
+import static org.hiero.hapi.support.fees.Extra.PROCESSING_BYTES;
+import static org.hiero.hapi.support.fees.Extra.SIGNATURES;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.google.protobuf.InvalidProtocolBufferException;
@@ -101,6 +104,7 @@ import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.utilops.CustomSpecAssert;
 import com.hederahashgraph.api.proto.java.Transaction;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.IntToDoubleFunction;
@@ -2422,5 +2426,58 @@ public class FeesChargingUtils {
                         3,
                         BATCH_BASE_FEE + expectedFeeFromBytesFor(spec, log, batchTxn),
                         3)));
+    }
+
+    public static SpecOperation validateBatchFee(final String batchTxnName, final double legacyExpectedUsd) {
+        return doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+            if ("true".equals(flag)) {
+                return validateChargedUsdWithinWithTxnSize(
+                        batchTxnName,
+                        txnSize ->
+                                expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
+                        0.1);
+            } else {
+                return validateChargedUsd(batchTxnName, legacyExpectedUsd);
+            }
+        });
+    }
+
+    // --------- Utils for dual-mode validation ---------//
+
+    /** Enum for legacy fee parameters to improve readability when passing parameters in a map. */
+    public enum LegacyFeeParam {
+        LEGACY_EXPECTED_USD,
+        LEGACY_ALLOWED_PERCENT_DIFF
+    }
+
+    /** Functional interface for computing expected USD from extras in dual-mode validation. */
+    @FunctionalInterface
+    public interface ExpectedUsdFromExtras {
+        double compute(Map<Extra, Long> extras);
+    }
+
+    public static SpecOperation validateFeeModeAwareWithTxnSize(
+            final String txnId,
+            final Map<Extra, Long> simpleFeesExtras,
+            final Map<LegacyFeeParam, Double> legacyParams,
+            final double simpleFeesAllowedPercentDiff,
+            final ExpectedUsdFromExtras expectedUsdSimpleFees) {
+        return doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+            if ("true".equals(flag)) {
+                return validateChargedUsdWithinWithTxnSize(
+                        txnId,
+                        txnSize -> {
+                            final var extrasWithProcessingBytes = new HashMap<>(simpleFeesExtras);
+                            extrasWithProcessingBytes.put(Extra.PROCESSING_BYTES, (long) txnSize);
+                            return expectedUsdSimpleFees.compute(extrasWithProcessingBytes);
+                        },
+                        simpleFeesAllowedPercentDiff);
+            } else {
+                final double expectedUsd = legacyParams.getOrDefault(LegacyFeeParam.LEGACY_EXPECTED_USD, 0.0);
+                final double allowedPercentDiff =
+                        legacyParams.getOrDefault(LegacyFeeParam.LEGACY_ALLOWED_PERCENT_DIFF, 1.0);
+                return validateChargedUsdWithin(txnId, expectedUsd, allowedPercentDiff);
+            }
+        });
     }
 }
