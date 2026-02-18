@@ -200,21 +200,21 @@ for EXPERIMENT in "${EXPERIMENTS_TO_RUN[@]}"; do
                 NODE_NAME=$(basename "$NODE_DIR")
                 if [[ -f "$NODE_DIR/output/swirlds.log" ]]; then
                     cp "$NODE_DIR/output/swirlds.log" "$DEST_DIR/swirlds-${NODE_NAME}.log"
-                    ((ARTIFACT_COUNT++))
+                    ARTIFACT_COUNT=$((ARTIFACT_COUNT + 1))
                 fi
                 if [[ -f "$NODE_DIR/output/otter.log" ]]; then
                     cp "$NODE_DIR/output/otter.log" "$DEST_DIR/otter-${NODE_NAME}.log"
-                    ((ARTIFACT_COUNT++))
+                    ARTIFACT_COUNT=$((ARTIFACT_COUNT + 1))
                 fi
                 for CSV in "$NODE_DIR"/data/stats/MainNetStats*.csv; do
                     if [[ -f "$CSV" ]]; then
                         cp "$CSV" "$STATS_DIR/"
-                        ((ARTIFACT_COUNT++))
+                        ARTIFACT_COUNT=$((ARTIFACT_COUNT + 1))
                     fi
                 done
                 if [[ -f "$NODE_DIR/data/stats/metrics.txt" ]]; then
                     cp "$NODE_DIR/data/stats/metrics.txt" "$STATS_DIR/metrics-${NODE_NAME}.txt"
-                    ((ARTIFACT_COUNT++))
+                    ARTIFACT_COUNT=$((ARTIFACT_COUNT + 1))
                 fi
             done
 
