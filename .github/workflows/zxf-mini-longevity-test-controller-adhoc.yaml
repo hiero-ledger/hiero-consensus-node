@@ -1,3 +1,4 @@
+syntax to wake
 # SPDX-License-Identifier: Apache-2.0
 name: "ZXF: [CITR] Adhoc - Merge Queue Longevity Test Controller"
 on:
