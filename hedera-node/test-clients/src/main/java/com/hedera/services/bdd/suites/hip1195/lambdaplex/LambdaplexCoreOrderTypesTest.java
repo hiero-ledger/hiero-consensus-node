@@ -3,7 +3,7 @@ package com.hedera.services.bdd.suites.hip1195.lambdaplex;
 
 import static com.hedera.hapi.node.hooks.HookExtensionPoint.ACCOUNT_ALLOWANCE_HOOK;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asLongZeroAddress;
-import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION;
+import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.REPEATABLE;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.changeFromSnapshot;
@@ -204,7 +204,7 @@ public class LambdaplexCoreOrderTypesTest implements InitcodeTransform {
                                 .between(USDC.treasury().name(), COUNTERPARTY.name())));
     }
 
-    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+    @RepeatableHapiTest(NEEDS_STATE_ACCESS)
     final Stream<DynamicTest> hbarHtsFullFillOnMakerSpreadCrossNoFees() {
         final var sellSalt = randomB64Salt();
         final var buySalt = randomB64Salt();
@@ -238,7 +238,7 @@ public class LambdaplexCoreOrderTypesTest implements InitcodeTransform {
                 assertOwnerHasEvmHookSlotUsageChange(PARTY.name(), partyOrdersBefore, 0));
     }
 
-    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+    @RepeatableHapiTest(NEEDS_STATE_ACCESS)
     final Stream<DynamicTest> hbarHtsFullFillOnTakerSpreadCrossNoFeesOrSlippage() {
         final var sellSalt = randomB64Salt();
         final var buySalt = randomB64Salt();
@@ -292,7 +292,7 @@ public class LambdaplexCoreOrderTypesTest implements InitcodeTransform {
                                         USDC.name(), "takerUsdc", inBaseUnits(quantity(-1), USDC_DECIMALS))));
     }
 
-    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+    @RepeatableHapiTest(NEEDS_STATE_ACCESS)
     final Stream<DynamicTest> hbarHtsSingleLimitOrderRevertsWhenProposedDebitExceedsAuthorized() {
         final var makerSellSalt = randomB64Salt();
         final var partyBuySalt = randomB64Salt();
@@ -328,7 +328,7 @@ public class LambdaplexCoreOrderTypesTest implements InitcodeTransform {
                 assertFirstError("singleLimitExcessDebitTx", "debit too high"));
     }
 
-    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+    @RepeatableHapiTest(NEEDS_STATE_ACCESS)
     final Stream<DynamicTest> hbarHtsMultipleLimitOrdersRevertWhenProposedDebitExceedsTotalAuthorized() {
         final var makerSellSaltOne = randomB64Salt();
         final var makerSellSaltTwo = randomB64Salt();
@@ -380,7 +380,7 @@ public class LambdaplexCoreOrderTypesTest implements InitcodeTransform {
                 assertFirstError("multiLimitExcessDebitTx", "debit too high"));
     }
 
-    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+    @RepeatableHapiTest(NEEDS_STATE_ACCESS)
     final Stream<DynamicTest> hbarHtsSingleLimitOrderRevertsWhenProposedCreditIsLessThanRequired() {
         final var makerSellSalt = randomB64Salt();
         final var partyBuySalt = randomB64Salt();
@@ -417,7 +417,7 @@ public class LambdaplexCoreOrderTypesTest implements InitcodeTransform {
                 assertFirstError("singleLimitUnderCreditTx", "credit too low"));
     }
 
-    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+    @RepeatableHapiTest(NEEDS_STATE_ACCESS)
     final Stream<DynamicTest> hbarHtsMultipleLimitOrdersRevertWhenProposedCreditIsLessThanRequired() {
         final var makerSellSaltOne = randomB64Salt();
         final var makerSellSaltTwo = randomB64Salt();
@@ -470,7 +470,7 @@ public class LambdaplexCoreOrderTypesTest implements InitcodeTransform {
                 assertFirstError("multiLimitUnderCreditTx", "credit too low"));
     }
 
-    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+    @RepeatableHapiTest(NEEDS_STATE_ACCESS)
     final Stream<DynamicTest> hbarHtsFullFillOnTakerSpreadWithFeesNoSlippage() {
         final var sellSalt = randomB64Salt();
         final var buySalt = randomB64Salt();
@@ -525,7 +525,7 @@ public class LambdaplexCoreOrderTypesTest implements InitcodeTransform {
                                         USDC.name(), "takerUsdc", inBaseUnits(quantity(-1), USDC_DECIMALS))));
     }
 
-    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+    @RepeatableHapiTest(NEEDS_STATE_ACCESS)
     final Stream<DynamicTest> hbarHtsFullFillOnTakerSpreadCrossNoFeesInRangeSlippage() {
         final var sellSalt = randomB64Salt();
         final var buySalt = randomB64Salt();
@@ -604,7 +604,7 @@ public class LambdaplexCoreOrderTypesTest implements InitcodeTransform {
                                         USDC.name(), "takerUsdc", inBaseUnits(quantity(-0.99), USDC_DECIMALS))));
     }
 
-    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+    @RepeatableHapiTest(NEEDS_STATE_ACCESS)
     final Stream<DynamicTest> hbarHtsMarketFullFillWithFeesInRangeSlippageDeletesOrders() {
         final var makerBuySalt = randomB64Salt();
         final var marketSellSalt = randomB64Salt();
@@ -653,7 +653,7 @@ public class LambdaplexCoreOrderTypesTest implements InitcodeTransform {
                                                 inBaseUnits(quantity(0.9), USDC_DECIMALS) * TAKER_BPS / 10_000))));
     }
 
-    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+    @RepeatableHapiTest(NEEDS_STATE_ACCESS)
     final Stream<DynamicTest> hbarHtsMarketSatisficingPartialFillWithFeesNoSlippageDeletesOrders() {
         final var makerBuySalt = randomB64Salt();
         final var marketSellSalt = randomB64Salt();
@@ -704,7 +704,7 @@ public class LambdaplexCoreOrderTypesTest implements InitcodeTransform {
                                                 inBaseUnits(quantity(0.9), USDC_DECIMALS) * TAKER_BPS / 10_000))));
     }
 
-    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+    @RepeatableHapiTest(NEEDS_STATE_ACCESS)
     final Stream<DynamicTest> hbarHtsMarketSatisficingPartialFillWithFeesInRangeSlippageDeletesOrders() {
         final var makerBuySalt = randomB64Salt();
         final var marketSellSalt = randomB64Salt();
@@ -755,7 +755,7 @@ public class LambdaplexCoreOrderTypesTest implements InitcodeTransform {
                                                 inBaseUnits(quantity(0.81), USDC_DECIMALS) * TAKER_BPS / 10_000))));
     }
 
-    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+    @RepeatableHapiTest(NEEDS_STATE_ACCESS)
     final Stream<DynamicTest> hbarHtsSingleMarketOrderRevertsWhenConfiguredMinFillIsNotMet() {
         final var makerSellSalt = randomB64Salt();
         final var takerBuySalt = randomB64Salt();
@@ -796,7 +796,7 @@ public class LambdaplexCoreOrderTypesTest implements InitcodeTransform {
                 assertSecondError("minFillTx", "min fill"));
     }
 
-    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+    @RepeatableHapiTest(NEEDS_STATE_ACCESS)
     final Stream<DynamicTest> hbarHtsSingleLimitOrderRevertsWhenFeeExceedsPermittedBps() {
         final var makerSellSalt = randomB64Salt();
         final var partyBuySalt = randomB64Salt();
@@ -835,7 +835,7 @@ public class LambdaplexCoreOrderTypesTest implements InitcodeTransform {
                 assertSecondError("singleLimitFeeTooHighTx", "credit too low"));
     }
 
-    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+    @RepeatableHapiTest(NEEDS_STATE_ACCESS)
     final Stream<DynamicTest> hbarHtsSingleMarketOrderRevertsWhenFeeExceedsPermittedBps() {
         final var makerSellSalt = randomB64Salt();
         final var partyMarketBuySalt = randomB64Salt();
@@ -876,7 +876,7 @@ public class LambdaplexCoreOrderTypesTest implements InitcodeTransform {
                 assertSecondError("singleMarketFeeTooHighTx", "credit too low"));
     }
 
-    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+    @RepeatableHapiTest(NEEDS_STATE_ACCESS)
     final Stream<DynamicTest> hbarHtsMultipleLimitOrdersRevertWhenFeeExceedsPermittedBps() {
         final var makerSellSalt = randomB64Salt();
         final var partyBuySaltOne = randomB64Salt();
@@ -926,7 +926,7 @@ public class LambdaplexCoreOrderTypesTest implements InitcodeTransform {
                 assertSecondError("multiLimitFeeTooHighTx", "credit too low"));
     }
 
-    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+    @RepeatableHapiTest(NEEDS_STATE_ACCESS)
     final Stream<DynamicTest> hbarHtsMultipleMarketOrdersRevertWhenFeeExceedsPermittedBps() {
         final var makerSellSalt = randomB64Salt();
         final var partyMarketBuySaltOne = randomB64Salt();
@@ -985,7 +985,7 @@ public class LambdaplexCoreOrderTypesTest implements InitcodeTransform {
                 assertSecondError("multiMarketFeeTooHighTx", "credit too low"));
     }
 
-    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+    @RepeatableHapiTest(NEEDS_STATE_ACCESS)
     final Stream<DynamicTest> htsHtsMarketFullFillNoFeesNoSlippageDeletesOrders() {
         final var makerBuySalt = randomB64Salt();
         final var marketSellSalt = randomB64Salt();
@@ -1021,7 +1021,7 @@ public class LambdaplexCoreOrderTypesTest implements InitcodeTransform {
                 lv.assertNoSuchOrder(PARTY, marketSellSalt));
     }
 
-    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+    @RepeatableHapiTest(NEEDS_STATE_ACCESS)
     final Stream<DynamicTest> htsHtsMarketFullFillNoFeesInRangeSlippageDeletesOrders() {
         final var makerBuySalt = randomB64Salt();
         final var marketSellSalt = randomB64Salt();
@@ -1057,7 +1057,7 @@ public class LambdaplexCoreOrderTypesTest implements InitcodeTransform {
                 lv.assertNoSuchOrder(PARTY, marketSellSalt));
     }
 
-    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+    @RepeatableHapiTest(NEEDS_STATE_ACCESS)
     final Stream<DynamicTest> htsHtsMarketFullFillWithFeesNoSlippageDeletesOrders() {
         final var makerBuySalt = randomB64Salt();
         final var marketSellSalt = randomB64Salt();
@@ -1106,7 +1106,7 @@ public class LambdaplexCoreOrderTypesTest implements InitcodeTransform {
                                                 inBaseUnits(quantity(6.00), USDC_DECIMALS) * TAKER_BPS / 10_000))));
     }
 
-    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+    @RepeatableHapiTest(NEEDS_STATE_ACCESS)
     final Stream<DynamicTest> htsHtsMarketFullFillWithFeesInRangeSlippageDeletesOrders() {
         final var makerBuySalt = randomB64Salt();
         final var marketSellSalt = randomB64Salt();
@@ -1155,7 +1155,7 @@ public class LambdaplexCoreOrderTypesTest implements InitcodeTransform {
                                                 inBaseUnits(quantity(5.70), USDC_DECIMALS) * TAKER_BPS / 10_000))));
     }
 
-    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+    @RepeatableHapiTest(NEEDS_STATE_ACCESS)
     final Stream<DynamicTest> htsHtsMarketSatisficingPartialFillWithFeesNoSlippageDeletesOrders() {
         final var makerBuySalt = randomB64Salt();
         final var marketSellSalt = randomB64Salt();
@@ -1212,7 +1212,7 @@ public class LambdaplexCoreOrderTypesTest implements InitcodeTransform {
                                                 inBaseUnits(quantity(4.00), USDC_DECIMALS) * TAKER_BPS / 10_000))));
     }
 
-    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+    @RepeatableHapiTest(NEEDS_STATE_ACCESS)
     final Stream<DynamicTest> htsHtsMarketSatisficingPartialFillWithFeesInRangeSlippageDeletesOrders() {
         final var makerBuySalt = randomB64Salt();
         final var marketSellSalt = randomB64Salt();
@@ -1269,7 +1269,7 @@ public class LambdaplexCoreOrderTypesTest implements InitcodeTransform {
                                                 inBaseUnits(quantity(3.80), USDC_DECIMALS) * TAKER_BPS / 10_000))));
     }
 
-    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+    @RepeatableHapiTest(NEEDS_STATE_ACCESS)
     final Stream<DynamicTest> htsHbarFullFillOnMakerSpreadCrossWithFees() {
         final var sellSalt = randomB64Salt();
         final var buySalt = randomB64Salt();
@@ -1314,7 +1314,7 @@ public class LambdaplexCoreOrderTypesTest implements InitcodeTransform {
                                                 inBaseUnits(quantity(3), APPLES_DECIMALS) * TAKER_BPS / 10_000))));
     }
 
-    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+    @RepeatableHapiTest(NEEDS_STATE_ACCESS)
     final Stream<DynamicTest> batchOrderHbarHtsFullFillsWithFeesOnMakerSpreadCross() {
         final var makerSellSaltOne = randomB64Salt();
         final var makerSellSaltTwo = randomB64Salt();
@@ -1358,7 +1358,7 @@ public class LambdaplexCoreOrderTypesTest implements InitcodeTransform {
                 lv.assertNoSuchOrder(PARTY.name(), buySalt));
     }
 
-    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+    @RepeatableHapiTest(NEEDS_STATE_ACCESS)
     final Stream<DynamicTest> htsHbarPartialThenPartialThenFullFillsWithAndWithoutFeesOnMakerSpreadCross() {
         final var makerSalt = randomB64Salt();
         final var sellSaltOne = randomB64Salt();
@@ -1446,7 +1446,7 @@ public class LambdaplexCoreOrderTypesTest implements InitcodeTransform {
                                                 .longValueExact())));
     }
 
-    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+    @RepeatableHapiTest(NEEDS_STATE_ACCESS)
     final Stream<DynamicTest> batchOrderHbarHtsFullFullPartialFillsWithFeesOnMakerSpreadCross() {
         final var makerSellSaltOne = randomB64Salt();
         final var makerSellSaltTwo = randomB64Salt();
@@ -1528,7 +1528,7 @@ public class LambdaplexCoreOrderTypesTest implements InitcodeTransform {
                                 "Wrong SELL out token amount after batch fill: expected one HBAR, got " + bd)));
     }
 
-    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+    @RepeatableHapiTest(NEEDS_STATE_ACCESS)
     final Stream<DynamicTest> htsHtsFullFillOnMakerSpreadCrossNoFees() {
         final var sellSalt = randomB64Salt();
         final var buySalt = randomB64Salt();
@@ -1562,7 +1562,7 @@ public class LambdaplexCoreOrderTypesTest implements InitcodeTransform {
                 assertOwnerHasEvmHookSlotUsageChange(PARTY.name(), partyOrdersBefore, 0));
     }
 
-    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+    @RepeatableHapiTest(NEEDS_STATE_ACCESS)
     final Stream<DynamicTest> htsHtsFullFillOnMakerSpreadCrossWithFees() {
         final var sellSalt = randomB64Salt();
         final var buySalt = randomB64Salt();
@@ -1609,7 +1609,7 @@ public class LambdaplexCoreOrderTypesTest implements InitcodeTransform {
                                                 inBaseUnits(quantity(6.00), USDC_DECIMALS) * MAKER_BPS / 10_000))));
     }
 
-    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+    @RepeatableHapiTest(NEEDS_STATE_ACCESS)
     final Stream<DynamicTest> htsHtsPartialFillOnMakerSpreadCrossNoFeesThenFees() {
         final var makerSellSalt = randomB64Salt();
         final var counterpartySellSalt = randomB64Salt();
@@ -1683,7 +1683,7 @@ public class LambdaplexCoreOrderTypesTest implements InitcodeTransform {
                 lv.assertNoSuchOrder(COUNTERPARTY.name(), counterpartySellSalt));
     }
 
-    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+    @RepeatableHapiTest(NEEDS_STATE_ACCESS)
     final Stream<DynamicTest> batchOrderHtsHtsFullFullPartialFillsWithFeesOnMakerSpreadCross() {
         final var makerSellSaltOne = randomB64Salt();
         final var makerSellSaltTwo = randomB64Salt();
@@ -1796,7 +1796,7 @@ public class LambdaplexCoreOrderTypesTest implements InitcodeTransform {
                                 "Wrong SELL out token amount after batch fill: expected one apple, got " + bd)));
     }
 
-    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+    @RepeatableHapiTest(NEEDS_STATE_ACCESS)
     final Stream<DynamicTest> batchInvocationRejectsMixedInputTokens() {
         final var makerBuyApplesSalt = randomB64Salt();
         final var makerBuyBananasSalt = randomB64Salt();
@@ -1852,7 +1852,7 @@ public class LambdaplexCoreOrderTypesTest implements InitcodeTransform {
                 assertSecondError("mixedInTokenTx", "mixed inToken"));
     }
 
-    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+    @RepeatableHapiTest(NEEDS_STATE_ACCESS)
     final Stream<DynamicTest> batchInvocationRejectsMixedOutputTokens() {
         final var makerSellApplesSalt = randomB64Salt();
         final var makerSellBananasSalt = randomB64Salt();
@@ -1908,7 +1908,7 @@ public class LambdaplexCoreOrderTypesTest implements InitcodeTransform {
                 assertFirstError("mixedOutTokenTx", "mixed outToken"));
     }
 
-    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+    @RepeatableHapiTest(NEEDS_STATE_ACCESS)
     final Stream<DynamicTest> batchInvocationRejectsDataLengthNotMultipleOf32() {
         final var makerSellSaltOne = randomB64Salt();
         final var makerSellSaltTwo = randomB64Salt();
@@ -1962,7 +1962,7 @@ public class LambdaplexCoreOrderTypesTest implements InitcodeTransform {
                 assertFirstError("misalignedDataTx", "bytes32 oob"));
     }
 
-    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+    @RepeatableHapiTest(NEEDS_STATE_ACCESS)
     final Stream<DynamicTest> singleOrderSanityChecksAreEnforced() {
         final var buySalt = randomB64Salt();
         final var expiredSellSalt = randomB64Salt();
