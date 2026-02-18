@@ -22,6 +22,7 @@ import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movi
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
@@ -70,6 +71,8 @@ class AtomicBatchEndToEndCryptoAndTokenServiceTests {
     private static final String adminKey = "adminKey";
     private static final String newAdminKey = "newAdminKey";
     private static final String supplyKey = "supplyKey";
+
+    private static final double BASE_FEE_BATCH_TRANSACTION = 0.001;
 
     @Nested
     @DisplayName("Token and Crypto Service operations in Atomic Batch")
