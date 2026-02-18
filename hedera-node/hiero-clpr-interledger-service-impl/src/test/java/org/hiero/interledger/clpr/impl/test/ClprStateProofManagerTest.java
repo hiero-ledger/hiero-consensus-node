@@ -48,7 +48,7 @@ class ClprStateProofManagerTest extends ClprTestBase {
         when(stateLifecycleManager.getLatestImmutableState()).thenReturn(testState);
         snapshotProvider = new BlockProvenStateAccessor(stateLifecycleManager);
         // Create dev mode config for testing
-        devModeConfig = new ClprConfig(true, 5000, true, true);
+        devModeConfig = new ClprConfig(true, 5000, true, true, 5, 6144);
         manager = new ClprStateProofManager(snapshotProvider, devModeConfig);
     }
 
@@ -139,7 +139,7 @@ class ClprStateProofManagerTest extends ClprTestBase {
     @Test
     void isDevModeEnabledReflectsConfig() {
         assertTrue(manager.isDevModeEnabled());
-        final var prodConfig = new ClprConfig(true, devModeConfig.connectionFrequency(), true, false);
+        final var prodConfig = new ClprConfig(true, devModeConfig.connectionFrequency(), true, false, 5, 6144);
         final var prodManager = new ClprStateProofManager(snapshotProvider, prodConfig);
         assertFalse(prodManager.isDevModeEnabled());
     }

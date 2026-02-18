@@ -21,11 +21,13 @@ import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.config.ConfigProvider;
+import com.hedera.node.config.data.ClprConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.hapi.interledger.state.clpr.ClprBundleShape;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerId;
 import org.hiero.hapi.interledger.state.clpr.ClprMessage;
 import org.hiero.hapi.interledger.state.clpr.ClprMessageKey;
@@ -85,6 +87,7 @@ public class ClprUpdateMessageQueueMetadataHandler implements TransactionHandler
 
     @Override
     public void handle(@NonNull HandleContext context) throws HandleException {
+        final var clprConfig = context.configuration().getConfigData(ClprConfig.class);
         final var txn = context.body();
         final var body = txn.clprUpdateMessageQueueMetadataOrThrow();
         final var remoteLedgerId = body.ledgerIdOrThrow();
@@ -97,7 +100,7 @@ public class ClprUpdateMessageQueueMetadataHandler implements TransactionHandler
 
         if (queueMetadata == null) {
             // create new queue
-            final var initialQueue = initQueue(context, remoteLedgerId);
+            final var initialQueue = initQueue(context, remoteLedgerId, clprConfig);
             writableMessageQueueMetadataStore.put(remoteLedgerId, initialQueue);
             return;
         }
@@ -140,7 +143,12 @@ public class ClprUpdateMessageQueueMetadataHandler implements TransactionHandler
         }
     }
 
-    private ClprMessageQueueMetadata initQueue(HandleContext context, ClprLedgerId remoteLedgerId) {
+    private ClprMessageQueueMetadata initQueue(HandleContext context, ClprLedgerId remoteLedgerId, ClprConfig config) {
+        final var bundleShape = ClprBundleShape.newBuilder()
+                .maxBundleBytes(config.maxBundleBytes())
+                .maxNumberOfMessages(config.maxBundleMessages())
+                .build();
+
         Bytes runningHash = Bytes.wrap(new byte[RUNNING_HASH_SIZE]);
         final var initQueueBuilder = ClprMessageQueueMetadata.newBuilder()
                 .ledgerId(remoteLedgerId)
@@ -148,7 +156,8 @@ public class ClprUpdateMessageQueueMetadataHandler implements TransactionHandler
                 .sentMessageId(0)
                 .sentRunningHash(runningHash)
                 .receivedMessageId(0)
-                .receivedRunningHash(Bytes.wrap(new byte[RUNNING_HASH_SIZE]));
+                .receivedRunningHash(Bytes.wrap(new byte[RUNNING_HASH_SIZE]))
+                .bundleShape(bundleShape);
 
         // TODO: REMOVE THIS TESTING CODE
         // generate 10 outgoing messages

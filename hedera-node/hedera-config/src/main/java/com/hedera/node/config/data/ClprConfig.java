@@ -25,4 +25,9 @@ public record ClprConfig(
         boolean publicizeNetworkAddresses,
 
         @ConfigProperty(defaultValue = "true") @NetworkProperty
-        boolean devModeEnabled) {}
+        boolean devModeEnabled,
+
+        @ConfigProperty(defaultValue = "5") @NetworkProperty int maxBundleMessages,
+
+        @ConfigProperty(defaultValue = "6144") @NetworkProperty
+        int maxBundleBytes) {}

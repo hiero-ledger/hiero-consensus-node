@@ -25,6 +25,7 @@ import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.config.ConfigProvider;
+import com.hedera.node.config.data.ClprConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
@@ -59,15 +60,24 @@ public class ClprProcessMessageBundleHandler implements TransactionHandler {
     public void pureChecks(@NonNull PureChecksContext context) throws PreCheckException {
         validateTruePreCheck(stateProofManager.clprEnabled(), NOT_SUPPORTED);
         final var body = context.body();
+
         // validate mandatory fields
         validateTruePreCheck(body.clprProcessMessageBundleOrThrow().hasMessageBundle(), INVALID_TRANSACTION_BODY);
         final var bundle = body.clprProcessMessageBundleOrThrow().messageBundleOrThrow();
+
+        // validate bundle shape
+        final var config = configProvider.getConfiguration().getConfigData(ClprConfig.class);
+        validateTruePreCheck(bundle.protobufSize() <= config.maxBundleBytes(), CLPR_INVALID_BUNDLE);
+        validateTruePreCheck(bundle.messages().size() + 1 <= config.maxBundleMessages(), CLPR_INVALID_BUNDLE);
+
         // bundle must have at least state proof
         validateTruePreCheck(bundle.hasStateProof(), CLPR_INVALID_STATE_PROOF);
+
         // validate the state proof
         final var stateProof = bundle.stateProofOrThrow();
         validateTruePreCheck(validateStateProof(stateProof), CLPR_INVALID_STATE_PROOF);
 
+        // validate respective queue exist
         final var messageQueue = stateProofManager.getLocalMessageQueueMetadata(bundle.ledgerIdOrThrow());
         validateTruePreCheck(messageQueue != null, CLPR_MESSAGE_QUEUE_NOT_AVAILABLE);
 
@@ -77,12 +87,12 @@ public class ClprProcessMessageBundleHandler implements TransactionHandler {
         final var lastBundleMessageId = lastBundleMessageKey.messageId();
         final var firstBundleMessageId = lastBundleMessageId - bundle.messages().size();
 
-        // validate if the bundle has misaligned message ids or all messages in the bundle are already processed
+        // validate if the bundle has misaligned message ids
         validateFalsePreCheck(lastBundleMessageId <= receivedMessageId, CLPR_INVALID_BUNDLE);
         validateFalsePreCheck(firstBundleMessageId > firstNonProcessedMsgId, CLPR_INVALID_BUNDLE);
 
-        // we may have already received a part of this bundle (or entire bundle).
-        // In this case we should skip processing these messages
+        // validate the running hash
+        // In case the bundle contain some messages that are already processed, we should skip those
         final var skipCount = firstNonProcessedMsgId - firstBundleMessageId;
 
         final var lastBundleMessageValue = extractMessageValue(stateProof);
