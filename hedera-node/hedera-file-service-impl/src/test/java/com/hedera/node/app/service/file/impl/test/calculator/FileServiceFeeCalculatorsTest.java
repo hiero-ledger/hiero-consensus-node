@@ -217,6 +217,68 @@ class FileServiceFeeCalculatorsTest {
     }
 
     @Test
+    @DisplayName("FileUpdateFeeCalculator with AUTHORIZED privilege clears fees")
+    void testFileUpdateWithPrivilegedAuthorizationClearsFees() throws UnknownHederaFunctionality {
+        final var transactionID = TransactionID.newBuilder()
+                .accountID(AccountID.newBuilder().accountNum(1001).build())
+                .build();
+        final var fileUpdateBody = TransactionBody.newBuilder()
+                .transactionID(transactionID)
+                .fileUpdate(FileUpdateTransactionBody.newBuilder()
+                        .keys(KeyList.newBuilder()
+                                .keys(Key.newBuilder()
+                                        .ed25519(Bytes.wrap(new byte[32]))
+                                        .build())
+                                .build())
+                        .build())
+                .build();
+
+        lenient().when(feeContext.numTxnSignatures()).thenReturn(1);
+        when(feeContext.functionality()).thenReturn(HederaFunctionality.FILE_UPDATE);
+        lenient().when(feeContext.authorizer()).thenReturn(authorizer);
+        lenient().when(feeContext.body()).thenReturn(fileUpdateBody);
+        lenient()
+                .when(authorizer.hasPrivilegedAuthorization(
+                        ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.any()))
+                .thenReturn(SystemPrivilege.AUTHORIZED);
+
+        final var result = feeCalculator.calculateTxFee(fileUpdateBody, new SimpleFeeContextImpl(feeContext, null));
+
+        assertThat(result).isNotNull();
+        assertThat(result.getNodeTotalTinycents()).isEqualTo(0L);
+        assertThat(result.getServiceTotalTinycents()).isEqualTo(0L);
+        assertThat(result.getNetworkTotalTinycents()).isEqualTo(0L);
+    }
+
+    @Test
+    @DisplayName("FileUpdateFeeCalculator with UNAUTHORIZED privilege clears fees")
+    void testFileUpdateWithUnauthorizedPrivilegedAuthorizationClearsFees() throws UnknownHederaFunctionality {
+        final var transactionID = TransactionID.newBuilder()
+                .accountID(AccountID.newBuilder().accountNum(1001).build())
+                .build();
+        final var fileUpdateBody = TransactionBody.newBuilder()
+                .transactionID(transactionID)
+                .fileUpdate(FileUpdateTransactionBody.newBuilder().build())
+                .build();
+
+        lenient().when(feeContext.numTxnSignatures()).thenReturn(1);
+        when(feeContext.functionality()).thenReturn(HederaFunctionality.FILE_UPDATE);
+        lenient().when(feeContext.authorizer()).thenReturn(authorizer);
+        lenient().when(feeContext.body()).thenReturn(fileUpdateBody);
+        lenient()
+                .when(authorizer.hasPrivilegedAuthorization(
+                        ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.any()))
+                .thenReturn(SystemPrivilege.UNAUTHORIZED);
+
+        final var result = feeCalculator.calculateTxFee(fileUpdateBody, new SimpleFeeContextImpl(feeContext, null));
+
+        assertThat(result).isNotNull();
+        assertThat(result.getNodeTotalTinycents()).isEqualTo(0L);
+        assertThat(result.getServiceTotalTinycents()).isEqualTo(0L);
+        assertThat(result.getNetworkTotalTinycents()).isEqualTo(0L);
+    }
+
+    @Test
     void testGetInfoQueryCalculator() {
         final var mockQueryContext = mock(QueryContext.class);
         final var query = Query.newBuilder().build();
