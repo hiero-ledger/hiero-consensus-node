@@ -24,11 +24,14 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.updateTopic;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedConsensusHbarFee;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateBatchChargedCorrectly;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedAtomicBatchFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdWithinWithTxnSize;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
@@ -40,6 +43,8 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_NOT_ASSO
 import static com.hederahashgraph.api.proto.java.TokenKycStatus.Granted;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
+import static org.hiero.hapi.support.fees.Extra.PROCESSING_BYTES;
+import static org.hiero.hapi.support.fees.Extra.SIGNATURES;
 
 import com.google.protobuf.ByteString;
 import com.hedera.node.app.hapi.utils.ByteStringUtils;
@@ -51,6 +56,7 @@ import com.hedera.services.bdd.spec.transactions.token.HapiTokenMint;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hederahashgraph.api.proto.java.TopicID;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
@@ -92,6 +98,8 @@ class AtomicBatchEndToEndConsensusAndTokenServiceTests {
     private static final String irrelevantKey2 = "irrelevantKey2";
     private static final String irrelevantKey3 = "irrelevantKey3";
 
+    private static final double BASE_FEE_BATCH_TRANSACTION = 0.001;
+
     @Nested
     @DisplayName(
             "Atomic Batch End-to-End Test Cases for Consensus and Token Service with Token Operations and Topic Message Submissions")
@@ -132,7 +140,7 @@ class AtomicBatchEndToEndConsensusAndTokenServiceTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    validateBatchChargedCorrectly("batchTxn"),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // validate account balances and token info
                     getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FT_FOR_END_TO_END, 10L),
@@ -187,7 +195,7 @@ class AtomicBatchEndToEndConsensusAndTokenServiceTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    validateBatchChargedCorrectly("batchTxn"),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // validate account balances and token info
                     getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FT_FOR_END_TO_END, 9L),
@@ -232,7 +240,7 @@ class AtomicBatchEndToEndConsensusAndTokenServiceTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    validateBatchChargedCorrectly("batchTxn"),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // validate NFT metadata
                     getTokenNftInfo(NFT_FOR_END_TO_END, 1L).hasMetadata(ByteString.copyFrom(metadataBytes)),
@@ -293,7 +301,7 @@ class AtomicBatchEndToEndConsensusAndTokenServiceTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    validateBatchChargedCorrectly("batchTxn"),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // validate NFT metadata
                     getTokenNftInfo(NFT_FOR_END_TO_END, 1L).hasMetadata(ByteString.copyFrom(metadataBytes)),
@@ -337,7 +345,7 @@ class AtomicBatchEndToEndConsensusAndTokenServiceTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    validateBatchChargedCorrectly("batchTxn"),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // validate user is associated with the token
                     getAccountInfo(RECEIVER_ASSOCIATED_FIRST).hasToken(relationshipWith(FT_FOR_END_TO_END)),
@@ -379,7 +387,7 @@ class AtomicBatchEndToEndConsensusAndTokenServiceTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    validateBatchChargedCorrectly("batchTxn"),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // validate account balances and token info
                     getAccountInfo(RECEIVER_ASSOCIATED_FIRST)
@@ -427,7 +435,7 @@ class AtomicBatchEndToEndConsensusAndTokenServiceTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    validateBatchChargedCorrectly("batchTxn"),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // validate account balances and token info
                     getAccountInfo(RECEIVER_ASSOCIATED_FIRST)
@@ -490,7 +498,7 @@ class AtomicBatchEndToEndConsensusAndTokenServiceTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    validateBatchChargedCorrectly("batchTxn"),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // validate account balances and token info
                     getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FT_FOR_END_TO_END, 10L),
@@ -534,7 +542,7 @@ class AtomicBatchEndToEndConsensusAndTokenServiceTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    validateBatchChargedCorrectly("batchTxn"),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // validate account balances and token info
                     getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FT_FOR_END_TO_END, 10L),
@@ -599,7 +607,7 @@ class AtomicBatchEndToEndConsensusAndTokenServiceTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    validateBatchChargedCorrectly("batchTxn"),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // validate account balances and token info
                     getAccountBalance(RECEIVER).hasTinyBars(3L),
@@ -821,7 +829,7 @@ class AtomicBatchEndToEndConsensusAndTokenServiceTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                    validateBatchChargedCorrectly("batchTxn"),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // validate NFT was not minted
                     getTokenInfo(NFT_FOR_END_TO_END).hasTotalSupply(0L),
@@ -985,7 +993,7 @@ class AtomicBatchEndToEndConsensusAndTokenServiceTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                    validateBatchChargedCorrectly("batchTxn"),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // confirm topic is not deleted
                     getTopicInfo(TEST_TOPIC)
@@ -1028,7 +1036,7 @@ class AtomicBatchEndToEndConsensusAndTokenServiceTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                    validateBatchChargedCorrectly("batchTxn"),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // confirm no message is submitted to the topic
                     getTopicInfo(TEST_TOPIC)
@@ -1141,7 +1149,7 @@ class AtomicBatchEndToEndConsensusAndTokenServiceTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    validateBatchChargedCorrectly("batchTxn"),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // validate account balances and token info
                     getAccountBalance(OWNER).hasTokenBalance(FT_FOR_END_TO_END, 10L),
@@ -1192,7 +1200,7 @@ class AtomicBatchEndToEndConsensusAndTokenServiceTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    validateBatchChargedCorrectly("batchTxn"),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // validate account balances and token info
                     getAccountBalance(OWNER).hasTokenBalance(FT_FOR_END_TO_END, 0L),
@@ -1249,7 +1257,7 @@ class AtomicBatchEndToEndConsensusAndTokenServiceTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    validateBatchChargedCorrectly("batchTxn"),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // validate account balances and token info
                     getAccountBalance(OWNER).hasTokenBalance(FT_FOR_END_TO_END, 9L),
@@ -1311,7 +1319,7 @@ class AtomicBatchEndToEndConsensusAndTokenServiceTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    validateBatchChargedCorrectly("batchTxn"),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // validate account balances and token info
                     getAccountBalance(OWNER).hasTokenBalance(FT_FOR_END_TO_END, 0L),
@@ -1375,7 +1383,7 @@ class AtomicBatchEndToEndConsensusAndTokenServiceTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    validateBatchChargedCorrectly("batchTxn"),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // validate account balances and token info
                     getAccountBalance(OWNER).hasTokenBalance(FT_FOR_END_TO_END, 0L),
@@ -1443,7 +1451,7 @@ class AtomicBatchEndToEndConsensusAndTokenServiceTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    validateBatchChargedCorrectly("batchTxn"),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // validate account balances and token info
                     getAccountBalance(OWNER).hasTokenBalance(FT_FOR_END_TO_END, 9L),
@@ -1501,7 +1509,7 @@ class AtomicBatchEndToEndConsensusAndTokenServiceTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                    validateBatchChargedCorrectly("batchTxn"),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // validate account balances and token info
                     getAccountBalance(OWNER).hasTokenBalance(FT_FOR_END_TO_END, 10L),
@@ -1568,7 +1576,7 @@ class AtomicBatchEndToEndConsensusAndTokenServiceTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                    validateBatchChargedCorrectly("batchTxn"),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // validate account balances and token info
                     getAccountBalance(OWNER).hasTokenBalance(FT_FOR_END_TO_END, 10L),
@@ -1638,7 +1646,7 @@ class AtomicBatchEndToEndConsensusAndTokenServiceTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                    validateBatchChargedCorrectly("batchTxn"),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // validate account balances and token info
                     getAccountBalance(OWNER).hasTokenBalance(FT_FOR_END_TO_END, 10L),
@@ -1649,6 +1657,20 @@ class AtomicBatchEndToEndConsensusAndTokenServiceTests {
                             .hasAdminKey(adminKey)
                             .hasSeqNo(0)));
         }
+    }
+
+    private SpecOperation validateBatchFee(final String batchTxnName, final double legacyExpectedUsd) {
+        return doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+            if ("true".equals(flag)) {
+                return validateChargedUsdWithinWithTxnSize(
+                        batchTxnName,
+                        txnSize ->
+                                expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
+                        0.001);
+            } else {
+                return validateChargedUsd(batchTxnName, legacyExpectedUsd);
+            }
+        });
     }
 
     private HapiTokenCreate createFungibleTokenWithAdminKey(

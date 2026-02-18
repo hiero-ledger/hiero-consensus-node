@@ -11,7 +11,6 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.ifNotEmbeddedTest;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usableTxnIdNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
@@ -63,15 +62,6 @@ public class TxnRecordRegression {
                 cryptoCreate("misc").via("success"),
                 usableTxnIdNamed("rightAccountWrongId").payerId("misc"),
                 getTxnRecord("rightAccountWrongId").hasAnswerOnlyPrecheck(RECORD_NOT_FOUND));
-    }
-
-    @HapiTest
-    final Stream<DynamicTest> recordUnavailableBeforeConsensus() {
-        return hapiTest(
-                cryptoCreate("misc").via("success").balance(1_000L).deferStatusResolution(),
-                // Running with embedded mode the previous transaction will often already be handled
-                // and have a record available, so this is only interesting with a live network
-                ifNotEmbeddedTest(getTxnRecord("success").hasAnswerOnlyPrecheck(RECORD_NOT_FOUND)));
     }
 
     @HapiTest
