@@ -32,7 +32,6 @@ import static com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleIte
 import static com.hedera.services.bdd.suites.HapiSuite.CIVILIAN_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
-import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.SIMPLE_FEE_SCHEDULE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
@@ -132,13 +131,11 @@ public class Hip1313EnabledTest {
                 cryptoCreate("hvTotalCreate")
                         .payingWith(CIVILIAN_PAYER)
                         .withHighVolume()
-                        .fee(ONE_HUNDRED_HBARS)
                         .hasPrecheck(OK)
                         .via("createAccount"),
                 getTxnRecord("createAccount").logged(),
                 createTopic("createAccount")
                         .payingWith(CIVILIAN_PAYER)
-                        .fee(ONE_HUNDRED_HBARS)
                         .withHighVolume()
                         .hasPrecheck(BUSY));
     }
@@ -238,7 +235,6 @@ public class Hip1313EnabledTest {
                 tokenClaimAirdrop(pendingAirdrop(CIVILIAN_PAYER, hollowReceiver, "token"))
                         .payingWith(hollowReceiver)
                         .sigMapPrefixes(uniqueWithFullPrefixesFor(hollowReceiver))
-                        .fee(ONE_HUNDRED_HBARS)
                         .withHighVolume()
                         .via("claimAirdrop"),
                 getAutoCreatedAccountBalance(hollowReceiver).hasTokenBalance("token", 10),
@@ -281,7 +277,6 @@ public class Hip1313EnabledTest {
         return hapiTest(
                 cryptoUpdate(CIVILIAN_PAYER)
                         .memo("hip-1313-ignore")
-                        .fee(ONE_HUNDRED_HBARS)
                         .withHighVolume()
                         .via("highVolumeUpdate"),
                 getTxnRecord("highVolumeUpdate")
@@ -297,7 +292,6 @@ public class Hip1313EnabledTest {
                 cryptoTransfer(TokenMovement.movingHbar(ONE_HBAR).between(CIVILIAN_PAYER, "existingReceiver"))
                         .payingWith(CIVILIAN_PAYER)
                         .withHighVolume()
-                        .fee(ONE_HUNDRED_HBARS)
                         .via("plainTransfer"),
                 getTxnRecord("plainTransfer")
                         .andAllChildRecords()
@@ -315,12 +309,10 @@ public class Hip1313EnabledTest {
                 cryptoCreate("fallbackThrottleA")
                         .payingWith(CIVILIAN_PAYER)
                         .withHighVolume()
-                        .fee(ONE_HUNDRED_HBARS)
                         .hasPrecheck(OK),
                 cryptoCreate("fallbackThrottleB")
                         .payingWith(CIVILIAN_PAYER)
                         .withHighVolume()
-                        .fee(ONE_HUNDRED_HBARS)
                         .hasPrecheck(BUSY));
     }
 
@@ -510,7 +502,6 @@ public class Hip1313EnabledTest {
                 cryptoCreate("defaultMultiplierCreate")
                         .payingWith(CIVILIAN_PAYER)
                         .withHighVolume()
-                        .fee(ONE_HUNDRED_HBARS)
                         .via("defaultMultiplierCreateTxn"),
                 getTxnRecord("defaultMultiplierCreateTxn")
                         .andAllChildRecords()
@@ -549,7 +540,6 @@ public class Hip1313EnabledTest {
                     spec,
                     cryptoCreate("hvTotalCreate" + i)
                             .payingWith(CIVILIAN_PAYER)
-                            .fee(ONE_HUNDRED_HBARS)
                             .deferStatusResolution()
                             .withHighVolume());
         }
@@ -562,12 +552,10 @@ public class Hip1313EnabledTest {
                     spec,
                     createTopic("mixedHvTopic" + i)
                             .payingWith(CIVILIAN_PAYER)
-                            .fee(ONE_HUNDRED_HBARS)
                             .deferStatusResolution()
                             .withHighVolume(),
                     scheduleCreate("mixedHvSchedule" + i, cryptoCreate("mixedHvScheduledAccount" + i))
                             .payingWith(CIVILIAN_PAYER)
-                            .fee(ONE_HUNDRED_HBARS)
                             .expiringIn(7_200L + (i * 1_000L))
                             .deferStatusResolution()
                             .withHighVolume());

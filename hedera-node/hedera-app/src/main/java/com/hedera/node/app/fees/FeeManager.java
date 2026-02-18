@@ -13,7 +13,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.FEE_DIVISOR_FACTOR;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.hapi.fees.FeeScheduleUtils.isValid;
-import static org.hiero.hapi.fees.FeeScheduleUtils.lookupServiceFee;
 
 import com.hedera.hapi.node.base.CurrentAndNextFeeSchedule;
 import com.hedera.hapi.node.base.FeeComponents;
@@ -24,15 +23,12 @@ import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.TransactionFeeSchedule;
-import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.fees.congestion.CongestionMultipliers;
 import com.hedera.node.app.spi.fees.FeeCalculator;
-import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.QueryFeeCalculator;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculator;
-import com.hedera.node.app.spi.fees.SimpleFeeContext;
 import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -50,10 +46,6 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.hapi.fees.FeeResult;
-import org.hiero.hapi.fees.HighVolumePricingCalculator;
-import org.hiero.hapi.support.fees.Extra;
-import org.hiero.hapi.support.fees.ServiceFeeDefinition;
 
 /**
  * Creates {@link FeeCalculator} instances based on the current fee schedule. Whenever the fee schedule is updated,
@@ -190,12 +182,12 @@ public final class FeeManager {
         return SUCCESS;
     }
 
+
     /**
-     * Updates the fee schedule based on the given file content.
+     * Updates the simple fee schedule based on the given file content. This is called on genesis and whenever
+     * the simple fee schedule file is updated.
      *
-     * <p>IMPORTANT:</p> This can only be called when initializing a state or handling a transaction.
-     *
-     * @param bytes The new fee schedule file content.
+     * @param bytes The new simple fee schedule file content.
      */
     public ResponseCodeEnum updateSimpleFees(@NonNull final Bytes bytes) {
         // Parse the current and next fee schedules
@@ -205,7 +197,8 @@ public final class FeeManager {
             if (isValid(schedule)) {
                 logger.info("Successfully validated simple fee schedule.");
                 this.simpleFeesSchedule = schedule;
-                this.simpleFeeCalculator = new SimpleFeeCalculatorImpl(schedule, serviceFeeCalculators, queryFeeCalculators, congestionMultipliers);
+                this.simpleFeeCalculator = new SimpleFeeCalculatorImpl(
+                        schedule, serviceFeeCalculators, queryFeeCalculators, congestionMultipliers);
                 return SUCCESS;
             } else {
                 logger.error("Unable to validate simple fee schedule.");
