@@ -102,8 +102,10 @@ tasks.compileTestFixturesJava {
 }
 
 // Disable Jacoco (code coverage) for performance tests to avoid overhead
+// Also ensure performance tests always run (never cached/skipped)
 tasks.named<Test>("testPerformance") {
     extensions.configure<JacocoTaskExtension> { isEnabled = false }
+    outputs.upToDateWhen { false } // Always run, never consider up-to-date
 }
 
 // Task to start Grafana and import metrics after performance tests

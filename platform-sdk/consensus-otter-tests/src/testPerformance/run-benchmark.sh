@@ -127,8 +127,8 @@ for EXPERIMENT in "${EXPERIMENTS_TO_RUN[@]}"; do
         echo "=== Running ALL test methods for ${EXPERIMENT_CLASS} ==="
         echo "Log file: $LOG_FILE"
 
-        # Run all tests in the class at once
-        if ! ./gradlew :consensus-otter-tests:testPerformance --tests "*${EXPERIMENT_CLASS}" 2>&1 | tee "$LOG_FILE"; then
+        # Run all tests in the class at once (--rerun-tasks forces execution even if "up-to-date")
+        if ! ./gradlew :consensus-otter-tests:testPerformance --tests "*${EXPERIMENT_CLASS}" --rerun-tasks 2>&1 | tee "$LOG_FILE"; then
             echo -e "${RED}ERROR: Test execution failed for ${EXPERIMENT_CLASS}${NC}"
             echo "Check log file: $LOG_FILE"
             continue
