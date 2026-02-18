@@ -505,9 +505,17 @@ public class ThrottleAccumulator {
             }
         }
 
+        int transferImplicitCreationsCount = 0;
+        if (function == CRYPTO_TRANSFER) {
+            final var accountStore = new ReadableStoreFactoryImpl(state).readableStore(ReadableAccountStore.class);
+            transferImplicitCreationsCount = getImplicitCreationsCount(txBody, accountStore);
+        }
+
         // Check if this is a high-volume transaction and use appropriate throttle bucket
         final boolean isHighVolumeTxn = txBody.highVolume();
-        final boolean useHighVolumeBucket = isHighVolumeTxn && HIGH_VOLUME_FUNCTIONS.contains(function);
+        final boolean isHighVolumeFunction = HIGH_VOLUME_FUNCTIONS.contains(function);
+        final boolean useHighVolumeBucket = shouldUseHighVolumeBucket(
+                isHighVolumeTxn, isHighVolumeFunction, function, transferImplicitCreationsCount);
         final var targetFunctionReqs = useHighVolumeBucket ? highVolumeFunctionReqs : functionReqs;
         final var manager = targetFunctionReqs.get(function);
 
@@ -524,14 +532,13 @@ public class ThrottleAccumulator {
             case TOKEN_MINT ->
                 shouldThrottleMint(effectiveManager, txBody.tokenMintOrThrow(), now, configuration, throttleUsages);
             case CRYPTO_TRANSFER -> {
-                final var accountStore = new ReadableStoreFactoryImpl(state).readableStore(ReadableAccountStore.class);
                 final var relationStore =
                         new ReadableStoreFactoryImpl(state).readableStore(ReadableTokenRelationStore.class);
                 yield shouldThrottleCryptoTransfer(
                         effectiveManager,
                         now,
                         configuration,
-                        getImplicitCreationsCount(txBody, accountStore),
+                        transferImplicitCreationsCount,
                         getAutoAssociationsCount(txBody, relationStore),
                         throttleUsages,
                         useHighVolumeBucket);
@@ -547,6 +554,30 @@ public class ThrottleAccumulator {
             }
             default -> !effectiveManager.allReqsMetAt(now, throttleUsages);
         };
+    }
+
+    /**
+     * Returns whether to use the high-volume bucket for the given transaction. If the transaction is a crypto transfer,
+     * the high volume bucket is only used if the transaction has implicit creations.
+     *
+     * @param isHighVolumeTxn whether the transaction is high volume
+     * @param isHighVolumeFunction whether the function is high volume
+     * @param function the functionality of the transaction
+     * @param transferImplicitCreationsCount the number of implicit creations in the transaction
+     * @return whether to use the high-volume bucket
+     */
+    private boolean shouldUseHighVolumeBucket(
+            final boolean isHighVolumeTxn,
+            final boolean isHighVolumeFunction,
+            @NonNull final HederaFunctionality function,
+            final int transferImplicitCreationsCount) {
+        if (!(isHighVolumeTxn && isHighVolumeFunction)) {
+            return false;
+        }
+        if (function != CRYPTO_TRANSFER) {
+            return true;
+        }
+        return transferImplicitCreationsCount > 0;
     }
 
     private boolean shouldThrottleScheduleCreate(

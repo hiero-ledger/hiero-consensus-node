@@ -25,7 +25,7 @@ import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.token.TokenReference;
 import com.hedera.hapi.node.token.TokenRejectTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.fees.FeeContextImpl;
+import com.hedera.node.app.fees.context.IngestFeeContext;
 import com.hedera.node.app.service.token.impl.handlers.TokenRejectHandler;
 import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
@@ -125,7 +125,7 @@ class TokenRejectHandlerTest extends CryptoTransferHandlerTestBase {
     void calculateFeesFungibleReject() {
         final var txn = newTokenReject(ACCOUNT_ID_3333, tokenRefFungible);
 
-        FeeContext feeContext = mock(FeeContextImpl.class);
+        FeeContext feeContext = mock(IngestFeeContext.class);
         FeeCalculator feeCalculator = mock(FeeCalculator.class);
         FeeCalculatorFactory feeCalculatorFactory = mock(FeeCalculatorFactory.class);
         setupFeeTest(txn, feeContext, feeCalculator, feeCalculatorFactory);
@@ -143,7 +143,7 @@ class TokenRejectHandlerTest extends CryptoTransferHandlerTestBase {
     @Test
     void calculateFeesNonFungibleReject() {
         final var txn = newTokenReject(ACCOUNT_ID_3333, tokenRefNFT);
-        FeeContext feeContext = mock(FeeContextImpl.class);
+        FeeContext feeContext = mock(IngestFeeContext.class);
         FeeCalculator feeCalculator = mock(FeeCalculator.class);
         FeeCalculatorFactory feeCalculatorFactory = mock(FeeCalculatorFactory.class);
         setupFeeTest(txn, feeContext, feeCalculator, feeCalculatorFactory);
@@ -161,7 +161,7 @@ class TokenRejectHandlerTest extends CryptoTransferHandlerTestBase {
     @Test
     void calculateFeesFungibleAndNonFungibleRejects() {
         final var txn = newTokenReject(ACCOUNT_ID_3333, tokenRefNFT, tokenRefFungible);
-        FeeContext feeContext = mock(FeeContextImpl.class);
+        FeeContext feeContext = mock(IngestFeeContext.class);
         FeeCalculator feeCalculator = mock(FeeCalculator.class);
         FeeCalculatorFactory feeCalculatorFactory = mock(FeeCalculatorFactory.class);
         setupFeeTest(txn, feeContext, feeCalculator, feeCalculatorFactory);
