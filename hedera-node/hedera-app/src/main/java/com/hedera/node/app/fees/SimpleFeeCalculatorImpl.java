@@ -188,6 +188,7 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
         }
         final var rawMultiplier = highVolumeRawMultiplier(feeContext.body(), requireNonNull(feeContext.feeContext()));
         result.applyMultiplier(rawMultiplier, HIGH_VOLUME_MULTIPLIER_SCALE);
+        result.setHighVolumeMultiplier(rawMultiplier);
     }
 
     @Override

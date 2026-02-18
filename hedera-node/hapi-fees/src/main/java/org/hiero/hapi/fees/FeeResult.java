@@ -91,7 +91,6 @@ public class FeeResult {
         if (rawMultiplier == scale) {
             return;
         }
-        highVolumeMultiplier = rawMultiplier;
         serviceBase = scaleAmount(serviceBase, rawMultiplier, scale);
         nodeBase = scaleAmount(nodeBase, rawMultiplier, scale);
         scaleFeeDetails(serviceExtrasDetails, rawMultiplier, scale);
@@ -193,6 +192,18 @@ public class FeeResult {
 
     public long getHighVolumeMultiplier() {
         return highVolumeMultiplier;
+    }
+
+    /**
+     * Set the high-volume multiplier metadata applied to this fee result.
+     *
+     * @param highVolumeMultiplier the raw high-volume multiplier
+     */
+    public void setHighVolumeMultiplier(final long highVolumeMultiplier) {
+        if (highVolumeMultiplier <= 0) {
+            throw new IllegalArgumentException("High-volume multiplier must be positive");
+        }
+        this.highVolumeMultiplier = highVolumeMultiplier;
     }
 
     public void clearFees() {
