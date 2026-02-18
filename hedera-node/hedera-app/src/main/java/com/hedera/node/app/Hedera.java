@@ -1275,7 +1275,6 @@ public final class Hedera
                 configProvider,
                 () -> requireNonNull(genesisNetworkSupplier).get());
         final var selfNodeAccountIdManager = new SelfNodeAccountIdManagerImpl(configProvider, networkInfo, state);
-        hintsService.initCurrentRoster(currentRoster);
         final var blockHashSigner = blockHashSignerFactory.apply(hintsService, historyService, configProvider);
         // Fully qualified so as to not confuse javadoc
         daggerApp = DaggerHederaInjectionComponent.builder()
