@@ -19,20 +19,26 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.deleteTopic;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.submitMessageTo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.updateTopic;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateBatchChargedCorrectly;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedAtomicBatchFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdWithinWithTxnSize;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_PAYER_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
+import static org.hiero.hapi.support.fees.Extra.PROCESSING_BYTES;
+import static org.hiero.hapi.support.fees.Extra.SIGNATURES;
 
 import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.keys.SigControl;
 import com.hedera.services.bdd.spec.transactions.consensus.HapiTopicUpdate;
+import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
@@ -40,7 +46,7 @@ import org.junit.jupiter.api.Tag;
 
 @Tag(ATOMIC_BATCH)
 class AtomicBatchConsensusServiceTest {
-
+    final double BASE_FEE_BATCH_TRANSACTION = 0.001;
     // Submit Message to Topic with Submit Key tests
 
     @HapiTest
@@ -68,7 +74,7 @@ class AtomicBatchConsensusServiceTest {
                         .payingWith("batchOperator")
                         .via("batchTxn")
                         .hasKnownStatus(SUCCESS),
-                validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION));
+                validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION));
     }
 
     @HapiTest
@@ -96,7 +102,7 @@ class AtomicBatchConsensusServiceTest {
                         .payingWith("batchOperator")
                         .via("batchTxn")
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION));
+                validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION));
     }
 
     @HapiTest
@@ -129,7 +135,7 @@ class AtomicBatchConsensusServiceTest {
                         .payingWith("batchOperator")
                         .via("batchTxn")
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                validateBatchChargedCorrectly("batchTxn"));
+                validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION));
     }
 
     @HapiTest
@@ -162,7 +168,7 @@ class AtomicBatchConsensusServiceTest {
                         .payingWith("batchOperator")
                         .via("batchTxn")
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                validateBatchChargedCorrectly("batchTxn"));
+                validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION));
     }
 
     @HapiTest
@@ -194,7 +200,7 @@ class AtomicBatchConsensusServiceTest {
                         .payingWith("batchOperator")
                         .via("batchTxn")
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                validateBatchChargedCorrectly("batchTxn"));
+                validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION));
     }
 
     @HapiTest
@@ -214,7 +220,7 @@ class AtomicBatchConsensusServiceTest {
                         .payingWith("batchOperator")
                         .via("batchTxn")
                         .hasKnownStatus(SUCCESS),
-                validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION));
+                validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION));
     }
 
     // Create Topic tests
@@ -235,7 +241,7 @@ class AtomicBatchConsensusServiceTest {
                         .payingWith("batchOperator")
                         .via("batchTxn")
                         .hasKnownStatus(SUCCESS),
-                validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+                validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
                 getTopicInfo("testTopic").hasAutoRenewAccount("autoRenewAccount"));
     }
 
@@ -258,7 +264,7 @@ class AtomicBatchConsensusServiceTest {
                         .payingWith("batchOperator")
                         .via("batchTxn")
                         .hasKnownStatus(SUCCESS),
-                validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+                validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
                 getTopicInfo("testTopic")
                         .hasAutoRenewAccount("autoRenewAccount")
                         .hasAdminKey("adminKey"));
@@ -283,7 +289,7 @@ class AtomicBatchConsensusServiceTest {
                         .payingWith("batchOperator")
                         .via("batchTxn")
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION));
+                validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION));
     }
 
     @HapiTest
@@ -321,7 +327,7 @@ class AtomicBatchConsensusServiceTest {
                         .payingWith("batchOperator")
                         .via("batchTxn")
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION));
+                validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION));
     }
 
     @HapiTest
@@ -344,7 +350,7 @@ class AtomicBatchConsensusServiceTest {
                         .payingWith("batchOperator")
                         .via("batchTxn")
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION));
+                validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION));
     }
 
     @HapiTest
@@ -367,7 +373,7 @@ class AtomicBatchConsensusServiceTest {
                         .payingWith("batchOperator")
                         .via("batchTxn")
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION));
+                validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION));
     }
 
     @HapiTest
@@ -389,7 +395,6 @@ class AtomicBatchConsensusServiceTest {
                         .payingWith("batchOperator")
                         .via("batchTxn")
                         .hasPrecheck(INVALID_SIGNATURE));
-        //                validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION));
     }
 
     @HapiTest
@@ -412,7 +417,7 @@ class AtomicBatchConsensusServiceTest {
                         .payingWith("batchOperator")
                         .via("batchTxn")
                         .hasKnownStatus(SUCCESS),
-                validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+                validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
                 getTopicInfo("testTopic").hasAutoRenewAccount(contractWithAdminKey));
     }
 
@@ -456,7 +461,7 @@ class AtomicBatchConsensusServiceTest {
                         .payingWith("batchOperator")
                         .via("batchTxn")
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION));
+                validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION));
     }
 
     @HapiTest
@@ -480,7 +485,7 @@ class AtomicBatchConsensusServiceTest {
                         .payingWith("batchOperator")
                         .via("batchTxn")
                         .hasKnownStatus(SUCCESS),
-                validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+                validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
                 getTopicInfo("testTopic").hasAdminKey("adminKey").hasAutoRenewAccount(contractWithAdminKey));
     }
 
@@ -529,7 +534,7 @@ class AtomicBatchConsensusServiceTest {
                         .payingWith("batchOperator")
                         .via("batchTxn")
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION));
+                validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION));
     }
 
     @HapiTest
@@ -555,7 +560,7 @@ class AtomicBatchConsensusServiceTest {
                         .payingWith("batchOperator")
                         .via("batchTxn")
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION));
+                validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION));
     }
 
     @HapiTest
@@ -576,7 +581,7 @@ class AtomicBatchConsensusServiceTest {
                         .payingWith("batchOperator")
                         .via("batchTxn")
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION));
+                validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION));
     }
 
     // Delete Topic tests
@@ -598,7 +603,7 @@ class AtomicBatchConsensusServiceTest {
                         .payingWith("batchOperator")
                         .via("batchTxn")
                         .hasKnownStatus(SUCCESS),
-                validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION));
+                validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION));
     }
 
     @HapiTest
@@ -620,7 +625,7 @@ class AtomicBatchConsensusServiceTest {
                         .payingWith("batchOperator")
                         .via("batchTxn")
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION));
+                validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION));
     }
 
     @HapiTest
@@ -658,7 +663,7 @@ class AtomicBatchConsensusServiceTest {
                         .payingWith("batchOperator")
                         .via("batchTxn")
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION));
+                validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION));
     }
 
     // Update Topic tests
@@ -685,7 +690,7 @@ class AtomicBatchConsensusServiceTest {
                                 .batchKey("batchOperator"))
                         .payingWith("batchOperator")
                         .via("batchTxn"),
-                validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+                validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
                 getTopicInfo("testTopic").hasAdminKey("adminKey").hasAutoRenewAccount("newAutoRenewAccount"));
     }
 
@@ -713,7 +718,7 @@ class AtomicBatchConsensusServiceTest {
                         .payingWith("batchOperator")
                         .via("batchTxn")
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION));
+                validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION));
     }
 
     @HapiTest
@@ -740,7 +745,7 @@ class AtomicBatchConsensusServiceTest {
                                 .batchKey("batchOperator"))
                         .payingWith("batchOperator")
                         .via("batchTxn"),
-                validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+                validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
                 getTopicInfo("testTopic").hasAdminKey("newAdminKey").hasAutoRenewAccount("newAutoRenewAccount"));
     }
 
@@ -769,7 +774,7 @@ class AtomicBatchConsensusServiceTest {
                         .payingWith("batchOperator")
                         .via("batchTxn")
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION));
+                validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION));
     }
 
     @HapiTest
@@ -797,7 +802,7 @@ class AtomicBatchConsensusServiceTest {
                         .payingWith("batchOperator")
                         .via("batchTxn")
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION));
+                validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION));
     }
 
     @HapiTest
@@ -825,7 +830,7 @@ class AtomicBatchConsensusServiceTest {
                         .payingWith("batchOperator")
                         .via("batchTxn")
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION));
+                validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION));
     }
 
     @HapiTest
@@ -853,6 +858,20 @@ class AtomicBatchConsensusServiceTest {
                         .payingWith("batchOperator")
                         .via("batchTxn")
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION));
+                validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION));
+    }
+
+    private SpecOperation validateBatchFee(final String batchTxnName, final double legacyExpectedUsd) {
+        return doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+            if ("true".equals(flag)) {
+                return validateChargedUsdWithinWithTxnSize(
+                        batchTxnName,
+                        txnSize ->
+                                expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
+                        0.001);
+            } else {
+                return validateChargedUsd(batchTxnName, legacyExpectedUsd);
+            }
+        });
     }
 }
