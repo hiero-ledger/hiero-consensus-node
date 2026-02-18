@@ -15,6 +15,7 @@ import com.hedera.node.app.service.consensus.impl.handlers.ConsensusCreateTopicH
 import com.hedera.node.app.service.consensus.impl.handlers.ConsensusDeleteTopicHandler;
 import com.hedera.node.app.service.consensus.impl.handlers.ConsensusSubmitMessageHandler;
 import com.hedera.node.app.service.consensus.impl.handlers.ConsensusUpdateTopicHandler;
+import com.hedera.node.app.service.contract.impl.handlers.ClprMessagePayloadHandler;
 import com.hedera.node.app.service.contract.impl.handlers.ContractCallHandler;
 import com.hedera.node.app.service.contract.impl.handlers.ContractCreateHandler;
 import com.hedera.node.app.service.contract.impl.handlers.ContractDeleteHandler;
@@ -66,6 +67,7 @@ import com.hedera.node.app.service.token.impl.handlers.TokenUpdateNftsHandler;
 import com.hedera.node.app.service.util.impl.handlers.AtomicBatchHandler;
 import com.hedera.node.app.service.util.impl.handlers.UtilPrngHandler;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.interledger.clpr.impl.handlers.ClprEnqueueMessageHandler;
 import org.hiero.interledger.clpr.impl.handlers.ClprProcessMessageBundleHandler;
 import org.hiero.interledger.clpr.impl.handlers.ClprSetLedgerConfigurationHandler;
 import org.hiero.interledger.clpr.impl.handlers.ClprUpdateMessageQueueMetadataHandler;
@@ -78,6 +80,8 @@ public record TransactionHandlers(
         @NonNull ClprSetLedgerConfigurationHandler clprSetLedgerConfigurationHandler,
         @NonNull ClprUpdateMessageQueueMetadataHandler clprUpdateMessageQueueMetadataHandler,
         @NonNull ClprProcessMessageBundleHandler clprProcessMessageBundleHandler,
+        @NonNull ClprEnqueueMessageHandler clprEnqueueMessageHandler,
+        @NonNull ClprMessagePayloadHandler clprMessagePayloadHandler,
         @NonNull ConsensusCreateTopicHandler consensusCreateTopicHandler,
         @NonNull ConsensusUpdateTopicHandler consensusUpdateTopicHandler,
         @NonNull ConsensusDeleteTopicHandler consensusDeleteTopicHandler,

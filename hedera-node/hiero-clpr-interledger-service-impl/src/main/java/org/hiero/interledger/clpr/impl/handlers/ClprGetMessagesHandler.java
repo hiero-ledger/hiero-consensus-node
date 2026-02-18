@@ -76,14 +76,28 @@ public class ClprGetMessagesHandler extends FreeQueryHandler {
         final var readableMessageQueueStore = context.createStore(ReadableClprMessageQueueMetadataStore.class);
         final var readableMessagesStore = context.createStore(ReadableClprMessageStore.class);
         final var messageQueue = readableMessageQueueStore.get(remoteLedgerId);
+        // TEMP-OBSERVABILITY (delete before production): traces CLPR message query ingress and requested bundle size.
+        log.info(
+                "CLPR_OBS|component=clpr_get_messages_handler|stage=query_received|remoteLedgerId={}|bundleSize={}",
+                remoteLedgerId.ledgerId(),
+                bundleSize);
 
         if (bundleSize <= 0) {
+            // TEMP-OBSERVABILITY (delete before production): traces empty-result reason for CLPR message query.
+            log.info(
+                    "CLPR_OBS|component=clpr_get_messages_handler|stage=query_empty|reason=non_positive_bundle_size|bundleSize={}",
+                    bundleSize);
             return createEmptyResponse(header);
         }
 
         final var firsMessageInBundle = messageQueue.sentMessageId() + 1;
         final var lastAvailableMessageId = messageQueue.nextMessageId() - 1;
         if (firsMessageInBundle > lastAvailableMessageId) {
+            // TEMP-OBSERVABILITY (delete before production): traces empty-result reason when queue has nothing to send.
+            log.info(
+                    "CLPR_OBS|component=clpr_get_messages_handler|stage=query_empty|reason=no_available_messages|firstMessageInBundle={}|lastAvailableMessageId={}",
+                    firsMessageInBundle,
+                    lastAvailableMessageId);
             return createEmptyResponse(header);
         }
         final var lastMessageInBundle = Math.min(firsMessageInBundle + bundleSize - 1, lastAvailableMessageId);
@@ -91,6 +105,11 @@ public class ClprGetMessagesHandler extends FreeQueryHandler {
         final var bundle = createBundle(
                 firsMessageInBundle, lastMessageInBundle, localLedgerId, remoteLedgerId, readableMessagesStore::get);
         if (bundle != null) {
+            // TEMP-OBSERVABILITY (delete before production): traces successful bundle assembly for remote pull.
+            log.info(
+                    "CLPR_OBS|component=clpr_get_messages_handler|stage=query_success|firstMessageInBundle={}|lastMessageInBundle={}",
+                    firsMessageInBundle,
+                    lastMessageInBundle);
             final var result = ClprGetMessagesResponse.newBuilder()
                     .header(header)
                     .messageBundle(bundle)
@@ -98,6 +117,9 @@ public class ClprGetMessagesHandler extends FreeQueryHandler {
             return Response.newBuilder().clprMessages(result).build();
         }
 
+        // TEMP-OBSERVABILITY (delete before production): traces empty-result fallback when bundle assembly returns
+        // null.
+        log.info("CLPR_OBS|component=clpr_get_messages_handler|stage=query_empty|reason=null_bundle");
         return createEmptyResponse(header);
     }
 }

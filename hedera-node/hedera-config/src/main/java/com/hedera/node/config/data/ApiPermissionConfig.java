@@ -2,9 +2,11 @@
 package com.hedera.node.config.data;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.ATOMIC_BATCH;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_ENQUEUE_MESSAGE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_GET_LEDGER_CONFIG;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_GET_MESSAGES;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_GET_MESSAGE_QUEUE_METADATA;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_HANDLE_MESSAGE_PAYLOAD;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_PROCESS_MESSAGE_BUNDLE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_SET_LEDGER_CONFIG;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_UPDATE_MESSAGE_QUEUE_METADATA;
@@ -298,7 +300,9 @@ public record ApiPermissionConfig(
         @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange clprGetMessageQueueMetadata,
         @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange clprUpdateMessageQueueMetadata,
         @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange clprGetMessages,
-        @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange clprProcessMessages) {
+        @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange clprProcessMessages,
+        @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange clprEnqueueMessage,
+        @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange clprHandleMessagePayload) {
 
     private static final EnumMap<HederaFunctionality, Function<ApiPermissionConfig, PermissionedAccountsRange>>
             permissionKeys = new EnumMap<>(HederaFunctionality.class);
@@ -354,6 +358,8 @@ public record ApiPermissionConfig(
         permissionKeys.put(TOKEN_CLAIM_AIRDROP, c -> c.tokenClaimAirdrop);
         permissionKeys.put(CLPR_UPDATE_MESSAGE_QUEUE_METADATA, c -> c.clprUpdateMessageQueueMetadata);
         permissionKeys.put(CLPR_PROCESS_MESSAGE_BUNDLE, c -> c.clprProcessMessages);
+        permissionKeys.put(CLPR_ENQUEUE_MESSAGE, c -> c.clprEnqueueMessage);
+        permissionKeys.put(CLPR_HANDLE_MESSAGE_PAYLOAD, c -> c.clprHandleMessagePayload);
         /* Queries */
         permissionKeys.put(CONSENSUS_GET_TOPIC_INFO, c -> c.getTopicInfo);
         permissionKeys.put(CONTRACT_CALL_LOCAL, c -> c.contractCallLocalMethod);

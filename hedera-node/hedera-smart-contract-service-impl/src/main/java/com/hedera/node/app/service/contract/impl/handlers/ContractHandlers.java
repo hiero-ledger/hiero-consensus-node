@@ -22,7 +22,8 @@ public record ContractHandlers(
         @NonNull ContractUpdateHandler contractUpdateHandler,
         @NonNull EthereumTransactionHandler ethereumTransactionHandler,
         @NonNull HookStoreHandler hookStoreHandler,
-        @NonNull HookDispatchHandler hookDispatchHandler) {
+        @NonNull HookDispatchHandler hookDispatchHandler,
+        @NonNull ClprMessagePayloadHandler clprMessagePayloadHandler) {
     public ContractHandlers {
         requireNonNull(contractCallHandler);
         requireNonNull(contractCallLocalHandler);
@@ -38,5 +39,6 @@ public record ContractHandlers(
         requireNonNull(ethereumTransactionHandler);
         requireNonNull(hookStoreHandler);
         requireNonNull(hookDispatchHandler);
+        requireNonNull(clprMessagePayloadHandler);
     }
 }

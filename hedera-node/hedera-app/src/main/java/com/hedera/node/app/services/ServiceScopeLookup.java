@@ -114,8 +114,11 @@ public class ServiceScopeLookup {
             case HINTS_KEY_PUBLICATION, HINTS_PARTIAL_SIGNATURE, HINTS_PREPROCESSING_VOTE, CRS_PUBLICATION ->
                 HintsService.NAME;
 
-            case CLPR_SET_LEDGER_CONFIGURATION, CLPR_UPDATE_MESSAGE_QUEUE_METADATA, CLPR_PROCESS_MESSAGE_BUNDLE ->
-                ClprService.NAME;
+            case CLPR_SET_LEDGER_CONFIGURATION,
+                    CLPR_UPDATE_MESSAGE_QUEUE_METADATA,
+                    CLPR_PROCESS_MESSAGE_BUNDLE,
+                    CLPR_ENQUEUE_MESSAGE -> ClprService.NAME;
+            case CLPR_HANDLE_MESSAGE_PAYLOAD -> ContractService.NAME;
 
             default -> NON_EXISTING_SERVICE;
         };

@@ -1,0 +1,383 @@
+[
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "middlewareAddress",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "destinationApplication",
+        "type": "address"
+      },
+      {
+        "internalType": "bytes32[]",
+        "name": "connectorIds",
+        "type": "bytes32[]"
+      },
+      {
+        "internalType": "uint256",
+        "name": "maxChargeValue",
+        "type": "uint256"
+      },
+      {
+        "internalType": "string",
+        "name": "maxChargeUnit",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "constructor"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidConnectorId",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidDestinationApplication",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidMaxChargeUnit",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidMiddleware",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "MiddlewareOnly",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NoConnectors",
+    "type": "error"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint64",
+        "name": "appMsgId",
+        "type": "uint64"
+      },
+      {
+        "indexed": false,
+        "internalType": "bytes",
+        "name": "payload",
+        "type": "bytes"
+      }
+    ],
+    "name": "ResponseReceived",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint64",
+        "name": "appMsgId",
+        "type": "uint64"
+      },
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "connectorId",
+        "type": "bytes32"
+      },
+      {
+        "indexed": false,
+        "internalType": "enum ClprTypes.ClprSendStatus",
+        "name": "status",
+        "type": "uint8"
+      },
+      {
+        "indexed": false,
+        "internalType": "enum ClprTypes.ClprSendFailureReason",
+        "name": "failureReason",
+        "type": "uint8"
+      },
+      {
+        "indexed": false,
+        "internalType": "enum ClprTypes.ClprSendFailureSide",
+        "name": "failureSide",
+        "type": "uint8"
+      },
+      {
+        "indexed": false,
+        "internalType": "bytes",
+        "name": "payload",
+        "type": "bytes"
+      }
+    ],
+    "name": "SendAttempted",
+    "type": "event"
+  },
+  {
+    "inputs": [],
+    "name": "currentConnectorIndex",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "defaultMaxChargeUnit",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "defaultMaxChargeValue",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "destinationApplicationId",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "getConnectorIds",
+    "outputs": [
+      {
+        "internalType": "bytes32[]",
+        "name": "connectorIds",
+        "type": "bytes32[]"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint64",
+        "name": "appMsgId",
+        "type": "uint64"
+      }
+    ],
+    "name": "getResponse",
+    "outputs": [
+      {
+        "internalType": "bytes",
+        "name": "payload",
+        "type": "bytes"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "bytes",
+            "name": "data",
+            "type": "bytes"
+          }
+        ],
+        "internalType": "struct ClprTypes.ClprApplicationResponse",
+        "name": "response",
+        "type": "tuple"
+      },
+      {
+        "internalType": "uint64",
+        "name": "appMsgId",
+        "type": "uint64"
+      }
+    ],
+    "name": "handleResponse",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "lastReceivedAppMsgId",
+    "outputs": [
+      {
+        "internalType": "uint64",
+        "name": "",
+        "type": "uint64"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "middleware",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes",
+        "name": "payload",
+        "type": "bytes"
+      }
+    ],
+    "name": "send",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "uint64",
+            "name": "appMsgId",
+            "type": "uint64"
+          },
+          {
+            "internalType": "enum ClprTypes.ClprSendStatus",
+            "name": "status",
+            "type": "uint8"
+          },
+          {
+            "internalType": "enum ClprTypes.ClprSendFailureReason",
+            "name": "failureReason",
+            "type": "uint8"
+          },
+          {
+            "internalType": "enum ClprTypes.ClprSendFailureSide",
+            "name": "failureSide",
+            "type": "uint8"
+          }
+        ],
+        "internalType": "struct ClprTypes.ClprSendMessageStatus",
+        "name": "status",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes",
+        "name": "payload",
+        "type": "bytes"
+      }
+    ],
+    "name": "sendWithFailover",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "uint64",
+            "name": "appMsgId",
+            "type": "uint64"
+          },
+          {
+            "internalType": "enum ClprTypes.ClprSendStatus",
+            "name": "status",
+            "type": "uint8"
+          },
+          {
+            "internalType": "enum ClprTypes.ClprSendFailureReason",
+            "name": "failureReason",
+            "type": "uint8"
+          },
+          {
+            "internalType": "enum ClprTypes.ClprSendFailureSide",
+            "name": "failureSide",
+            "type": "uint8"
+          }
+        ],
+        "internalType": "struct ClprTypes.ClprSendMessageStatus",
+        "name": "status",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes",
+        "name": "payload",
+        "type": "bytes"
+      }
+    ],
+    "name": "sendWithFailoverFromFirst",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "uint64",
+            "name": "appMsgId",
+            "type": "uint64"
+          },
+          {
+            "internalType": "enum ClprTypes.ClprSendStatus",
+            "name": "status",
+            "type": "uint8"
+          },
+          {
+            "internalType": "enum ClprTypes.ClprSendFailureReason",
+            "name": "failureReason",
+            "type": "uint8"
+          },
+          {
+            "internalType": "enum ClprTypes.ClprSendFailureSide",
+            "name": "failureSide",
+            "type": "uint8"
+          }
+        ],
+        "internalType": "struct ClprTypes.ClprSendMessageStatus",
+        "name": "status",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  }
+]

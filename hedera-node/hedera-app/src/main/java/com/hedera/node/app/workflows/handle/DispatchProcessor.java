@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_ENQUEUE_MESSAGE;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_HANDLE_MESSAGE_PAYLOAD;
 import static com.hedera.hapi.node.base.HederaFunctionality.ETHEREUM_TRANSACTION;
 import static com.hedera.hapi.node.base.HederaFunctionality.HOOK_DISPATCH;
 import static com.hedera.hapi.node.base.HederaFunctionality.NODE_UPDATE;
@@ -60,7 +62,8 @@ public class DispatchProcessor {
     private static final Logger logger = LogManager.getLogger(DispatchProcessor.class);
 
     // Functions that are only usable as child dispatches from handlers
-    private static final Set<HederaFunctionality> HANDLER_STEP_FUNCTIONS = EnumSet.of(HOOK_DISPATCH);
+    private static final Set<HederaFunctionality> HANDLER_STEP_FUNCTIONS =
+            EnumSet.of(HOOK_DISPATCH, CLPR_ENQUEUE_MESSAGE, CLPR_HANDLE_MESSAGE_PAYLOAD);
 
     private final Authorizer authorizer;
     private final DispatchValidator validator;

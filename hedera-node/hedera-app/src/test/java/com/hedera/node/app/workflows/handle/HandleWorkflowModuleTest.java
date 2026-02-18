@@ -26,6 +26,7 @@ import com.hedera.node.app.service.consensus.impl.handlers.ConsensusDeleteTopicH
 import com.hedera.node.app.service.consensus.impl.handlers.ConsensusHandlers;
 import com.hedera.node.app.service.consensus.impl.handlers.ConsensusSubmitMessageHandler;
 import com.hedera.node.app.service.consensus.impl.handlers.ConsensusUpdateTopicHandler;
+import com.hedera.node.app.service.contract.impl.handlers.ClprMessagePayloadHandler;
 import com.hedera.node.app.service.contract.impl.handlers.ContractCallHandler;
 import com.hedera.node.app.service.contract.impl.handlers.ContractCreateHandler;
 import com.hedera.node.app.service.contract.impl.handlers.ContractDeleteHandler;
@@ -77,6 +78,7 @@ import com.hedera.node.app.service.util.impl.handlers.UtilPrngHandler;
 import com.hedera.node.app.workflows.dispatcher.TransactionHandlers;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.List;
+import org.hiero.interledger.clpr.impl.handlers.ClprEnqueueMessageHandler;
 import org.hiero.interledger.clpr.impl.handlers.ClprGetLedgerConfigurationHandler;
 import org.hiero.interledger.clpr.impl.handlers.ClprGetMessageQueueMetadataHandler;
 import org.hiero.interledger.clpr.impl.handlers.ClprGetMessagesHandler;
@@ -171,6 +173,9 @@ class HandleWorkflowModuleTest {
 
     @Mock
     private EthereumTransactionHandler etherumTransactionHandler;
+
+    @Mock
+    private ClprMessagePayloadHandler clprMessagePayloadHandler;
 
     @Mock
     private CryptoCreateHandler cryptoCreateHandler;
@@ -305,6 +310,9 @@ class HandleWorkflowModuleTest {
     private ClprGetMessagesHandler clprGetMessagesHandler;
 
     @Mock
+    private ClprEnqueueMessageHandler clprEnqueueMessageHandler;
+
+    @Mock
     private HintsKeyPublicationHandler keyPublicationHandler;
 
     @Mock
@@ -337,6 +345,7 @@ class HandleWorkflowModuleTest {
         given(contractHandlers.contractSystemDeleteHandler()).willReturn(contractSystemDeleteHandler);
         given(contractHandlers.contractSystemUndeleteHandler()).willReturn(contractSystemUndeleteHandler);
         given(contractHandlers.ethereumTransactionHandler()).willReturn(etherumTransactionHandler);
+        given(contractHandlers.clprMessagePayloadHandler()).willReturn(clprMessagePayloadHandler);
         given(tokenHandlers.cryptoCreateHandler()).willReturn(cryptoCreateHandler);
         given(tokenHandlers.cryptoUpdateHandler()).willReturn(cryptoUpdateHandler);
         given(tokenHandlers.cryptoTransferHandler()).willReturn(cryptoTransferHandler);
@@ -386,7 +395,8 @@ class HandleWorkflowModuleTest {
                 clprGetMessageQueueMetadataHandler,
                 clprGetMessagesHandler,
                 clprUpdateMessageQueueMetadataHandler,
-                clprProcessMessageBundleHandler);
+                clprProcessMessageBundleHandler,
+                clprEnqueueMessageHandler);
         final var handlers = HandleWorkflowModule.provideTransactionHandlers(
                 networkAdminHandlers,
                 consensusHandlers,

@@ -5,18 +5,17 @@ import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalseP
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.workflows.*;
 import com.hedera.node.config.ConfigProvider;
+import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.ClprConfig;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import javax.inject.Inject;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.roster.ReadableRosterStore;
 import org.hiero.hapi.interledger.clpr.ClprSetLedgerConfigurationTransactionBody;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration;
@@ -32,7 +31,6 @@ import org.hiero.interledger.clpr.impl.ClprStateProofManager;
  * This handler uses the {@link ClprStateProofManager} to validate the state proof and manage ledger configurations.
  */
 public class ClprSetLedgerConfigurationHandler implements TransactionHandler {
-    private static final Logger log = LogManager.getLogger(ClprSetLedgerConfigurationHandler.class);
     private final ClprStateProofManager stateProofManager;
     private final NetworkInfo networkInfo;
     private final ConfigProvider configProvider;
@@ -55,7 +53,6 @@ public class ClprSetLedgerConfigurationHandler implements TransactionHandler {
         if (!stateProofManager.clprEnabled()) {
             throw new PreCheckException(ResponseCodeEnum.NOT_SUPPORTED);
         }
-        final var localLedgerId = getLocalLedgerIdOrThrow();
         requireNonNull(context);
         // TODO: Determine what throttles apply to this transaction.
         //  Number of state proofs per second?
@@ -81,7 +78,14 @@ public class ClprSetLedgerConfigurationHandler implements TransactionHandler {
             throws PreCheckException {
         final var clprConfig = configProvider.getConfiguration().getConfigData(ClprConfig.class);
         validateTruePreCheck(clprConfig.clprEnabled(), ResponseCodeEnum.NOT_SUPPORTED);
-        final var localLedgerId = getLocalLedgerIdOrThrow();
+        final var localLedgerId = stateProofManager.getLocalLedgerId();
+        final boolean localLedgerIdKnown =
+                localLedgerId != null && localLedgerId.ledgerId().length() > 0;
+        if (!localLedgerIdKnown && !isSystemAdminPayer(txn)) {
+            // Bootstrap must be able to set the local configuration before local metadata exists; user transactions
+            // should wait until the ledger id is established.
+            throw new PreCheckException(ResponseCodeEnum.WAITING_FOR_LEDGER_ID);
+        }
         final var configTxnBdy = txn.clprSetLedgerConfiguration();
         validateTruePreCheck(configTxnBdy != null, ResponseCodeEnum.INVALID_TRANSACTION_BODY);
 
@@ -92,7 +96,7 @@ public class ClprSetLedgerConfigurationHandler implements TransactionHandler {
 
         final var ledgerId = ledgerConfig.ledgerIdOrThrow();
         // ledgerId must exist.
-        validateTruePreCheck(ledgerId.ledgerId() != Bytes.EMPTY, ResponseCodeEnum.INVALID_TRANSACTION);
+        validateTruePreCheck(ledgerId.ledgerId().length() > 0, ResponseCodeEnum.INVALID_TRANSACTION);
         // endpoints must not be empty.
         validateFalsePreCheck(ledgerConfig.endpoints().isEmpty(), ResponseCodeEnum.INVALID_TRANSACTION);
         // TODO: Check that certificates are non-empty and valid for each endpoint.
@@ -100,7 +104,8 @@ public class ClprSetLedgerConfigurationHandler implements TransactionHandler {
         final var existingConfig = stateProofManager.readLedgerConfiguration(ledgerId);
         // Guard: prevent remote/user submissions from overwriting the local ledger configuration.
         validateFalsePreCheck(
-                localLedgerId.equals(ledgerId) && existingConfig != null, ResponseCodeEnum.INVALID_TRANSACTION);
+                localLedgerIdKnown && localLedgerId.equals(ledgerId) && existingConfig != null,
+                ResponseCodeEnum.INVALID_TRANSACTION);
         if (existingConfig != null) {
             final var existingConfigTime = existingConfig.timestampOrThrow();
             final var newConfigTime = ledgerConfig.timestampOrThrow();
@@ -123,12 +128,17 @@ public class ClprSetLedgerConfigurationHandler implements TransactionHandler {
         // This is enforced above; if we reached here, the local ledger ID is present and non-empty.
     }
 
-    private @NonNull org.hiero.hapi.interledger.state.clpr.ClprLedgerId getLocalLedgerIdOrThrow()
-            throws PreCheckException {
-        final var localLedgerId = stateProofManager.getLocalLedgerId();
-        validateTruePreCheck(localLedgerId != null, ResponseCodeEnum.WAITING_FOR_LEDGER_ID);
-        validateTruePreCheck(localLedgerId.ledgerId() != Bytes.EMPTY, ResponseCodeEnum.WAITING_FOR_LEDGER_ID);
-        return localLedgerId;
+    private boolean isSystemAdminPayer(@NonNull final TransactionBody txn) {
+        final var txId = txn.transactionID();
+        if (txId == null || txId.accountID() == null) {
+            return false;
+        }
+        final var payer = txId.accountIDOrThrow();
+        if (!payer.hasAccountNum()) {
+            return false;
+        }
+        final var accountsConfig = configProvider.getConfiguration().getConfigData(AccountsConfig.class);
+        return payer.accountNumOrThrow() == accountsConfig.systemAdmin();
     }
 
     @Override
@@ -145,22 +155,45 @@ public class ClprSetLedgerConfigurationHandler implements TransactionHandler {
         if (!context.isUserTransaction()) {
             return;
         }
-        // All nodes need to check that the ledger configuration is an update and that the state proof is valid.
-        // If any of the pure checks fail, the transaction will not be processed and the submitting nodes will need
-        // to be held accountable for the failure.
         final var txn = context.body();
-        final var submittingNode = context.creatorInfo();
-        final var selfNodeId = networkInfo.selfNodeInfo().nodeId();
-        try {
-            // TODO: This call needs to make sure that if it fails, it will always fail in the future.
-            //       Anything that can fail temporarily must pass and then fail on the handle thread.
-            pureChecks(txn, context.isUserTransaction());
-        } catch (PreCheckException e) {
-            // TODO: The submitting nodes should be held accountable for the failure.
+        pureChecks(txn, shouldValidateStateProof(txn));
+    }
 
-            // If the pure checks fail, we throw a PreCheckException to indicate that the transaction is invalid.
-            throw e;
+    /**
+     * In dev mode we allow a node to bootstrap the local ledger configuration without requiring a valid state proof.
+     * This avoids deadlock at startup when proofs are not yet available or verifiable.
+     */
+    private boolean shouldValidateStateProof(@NonNull final TransactionBody txn) {
+        if (!stateProofManager.isDevModeEnabled()) {
+            return true;
         }
+        final var configTxnBdy = txn.clprSetLedgerConfiguration();
+        if (configTxnBdy == null || !configTxnBdy.hasLedgerConfigurationProof()) {
+            return true;
+        }
+        final var txId = txn.transactionID();
+        if (txId == null || txId.accountID() == null) {
+            return true;
+        }
+        final AccountID payer = txId.accountIDOrThrow();
+        final boolean isNodePayer =
+                networkInfo.addressBook().stream().anyMatch(nodeInfo -> payer.equals(nodeInfo.accountId()));
+        if (!isNodePayer) {
+            return true;
+        }
+        try {
+            final var candidateConfig =
+                    ClprStateProofUtils.extractConfiguration(configTxnBdy.ledgerConfigurationProofOrThrow());
+            final var localLedgerId = stateProofManager.getLocalLedgerId();
+            if (localLedgerId != null
+                    && localLedgerId.equals(candidateConfig.ledgerId())
+                    && stateProofManager.readLedgerConfiguration(localLedgerId) == null) {
+                return false;
+            }
+        } catch (final RuntimeException ignore) {
+            // Treat as a normal user submission; pureChecks will map errors to a precheck code.
+        }
+        return true;
     }
 
     @Override

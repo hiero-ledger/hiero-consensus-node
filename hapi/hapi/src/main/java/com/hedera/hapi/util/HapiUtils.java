@@ -201,6 +201,8 @@ public class HapiUtils {
             case CLPR_SET_LEDGER_CONFIGURATION -> HederaFunctionality.CLPR_SET_LEDGER_CONFIG;
             case CLPR_UPDATE_MESSAGE_QUEUE_METADATA -> HederaFunctionality.CLPR_UPDATE_MESSAGE_QUEUE_METADATA;
             case CLPR_PROCESS_MESSAGE_BUNDLE -> HederaFunctionality.CLPR_PROCESS_MESSAGE_BUNDLE;
+            case CLPR_ENQUEUE_MESSAGE -> HederaFunctionality.CLPR_ENQUEUE_MESSAGE;
+            case CLPR_HANDLE_MESSAGE_PAYLOAD -> HederaFunctionality.CLPR_HANDLE_MESSAGE_PAYLOAD;
             case CONSENSUS_CREATE_TOPIC -> HederaFunctionality.CONSENSUS_CREATE_TOPIC;
             case CONSENSUS_UPDATE_TOPIC -> HederaFunctionality.CONSENSUS_UPDATE_TOPIC;
             case CONSENSUS_DELETE_TOPIC -> HederaFunctionality.CONSENSUS_DELETE_TOPIC;

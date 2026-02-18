@@ -24,7 +24,6 @@ import com.hedera.node.app.service.token.impl.WritableTokenRelationStore;
 import com.hedera.node.app.service.token.impl.WritableTokenStore;
 import com.hedera.node.app.store.WritableStoreFactory;
 import com.hedera.node.app.workflows.handle.stack.SavepointStackImpl;
-import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableStates;
 import java.util.stream.Stream;
@@ -71,7 +70,6 @@ class WritableStoreFactoryImplTest {
     void returnCorrectStoreClass(final String serviceName, final Class<?> storeClass) {
         // given
         given(stack.getWritableStates(serviceName)).willReturn(writableStates);
-        final var configuration = HederaTestConfigBuilder.createConfig();
         final WritableStoreFactory subject =
                 new WritableStoreFactory(stack, serviceName, mock(WritableEntityCounters.class));
 

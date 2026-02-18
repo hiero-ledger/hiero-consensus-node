@@ -103,6 +103,7 @@ public record SystemContractMethod(
         HTS,
         HAS,
         HSS,
+        CLPR,
         PNRG,
         EXCHANGE
     }

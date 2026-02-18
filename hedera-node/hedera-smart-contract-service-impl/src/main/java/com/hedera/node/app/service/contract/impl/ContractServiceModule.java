@@ -19,6 +19,7 @@ import com.hedera.node.app.service.contract.impl.exec.v051.V051Module;
 import com.hedera.node.app.service.contract.impl.exec.v065.V065Module;
 import com.hedera.node.app.service.contract.impl.exec.v066.V066Module;
 import com.hedera.node.app.service.contract.impl.exec.v067.V067Module;
+import com.hedera.node.app.service.contract.impl.handlers.ClprMessagePayloadHandler;
 import com.hedera.node.app.service.contract.impl.handlers.ContractCallHandler;
 import com.hedera.node.app.service.contract.impl.handlers.ContractCallLocalHandler;
 import com.hedera.node.app.service.contract.impl.handlers.ContractCreateHandler;
@@ -81,7 +82,8 @@ public interface ContractServiceModule {
             @NonNull final ContractUpdateHandler contractUpdateHandler,
             @NonNull final EthereumTransactionHandler ethereumTransactionHandler,
             @NonNull final HookStoreHandler hookStoreHandler,
-            @NonNull final HookDispatchHandler hookDispatchHandler) {
+            @NonNull final HookDispatchHandler hookDispatchHandler,
+            @NonNull final ClprMessagePayloadHandler clprMessagePayloadHandler) {
         return new ContractHandlers(
                 contractCallHandler,
                 contractCallLocalHandler,
@@ -96,7 +98,8 @@ public interface ContractServiceModule {
                 contractUpdateHandler,
                 ethereumTransactionHandler,
                 hookStoreHandler,
-                hookDispatchHandler);
+                hookDispatchHandler,
+                clprMessagePayloadHandler);
     }
 
     /**

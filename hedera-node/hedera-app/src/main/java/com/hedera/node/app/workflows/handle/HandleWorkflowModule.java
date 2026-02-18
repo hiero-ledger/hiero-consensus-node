@@ -143,6 +143,8 @@ public interface HandleWorkflowModule {
                 clprLedgerConfigurationHandlers.clprSetLedgerConfigurationHandler(),
                 clprMessageQueueHandlers.clprUpdateMessageQueueMetadataHandler(),
                 clprMessageQueueHandlers.clprProcessMessageBundleHandler(),
+                clprMessageQueueHandlers.clprEnqueueMessageHandler(),
+                contractHandlers.get().clprMessagePayloadHandler(),
                 consensusHandlers.consensusCreateTopicHandler(),
                 consensusHandlers.consensusUpdateTopicHandler(),
                 consensusHandlers.consensusDeleteTopicHandler(),

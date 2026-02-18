@@ -10,7 +10,6 @@ import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalseP
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.interledger.clpr.ClprStateProofUtils.validateStateProof;
-import static org.hiero.interledger.clpr.impl.ClprMessageUtils.nextRunningHash;
 import static org.hiero.interledger.clpr.impl.ClprServiceImpl.RUNNING_HASH_SIZE;
 
 import com.hedera.node.app.spi.info.NetworkInfo;
@@ -24,14 +23,9 @@ import com.hedera.node.config.ConfigProvider;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerId;
-import org.hiero.hapi.interledger.state.clpr.ClprMessage;
 import org.hiero.hapi.interledger.state.clpr.ClprMessageKey;
-import org.hiero.hapi.interledger.state.clpr.ClprMessagePayload;
 import org.hiero.hapi.interledger.state.clpr.ClprMessageQueueMetadata;
-import org.hiero.hapi.interledger.state.clpr.ClprMessageValue;
 import org.hiero.interledger.clpr.ClprStateProofUtils;
 import org.hiero.interledger.clpr.WritableClprMessageQueueMetadataStore;
 import org.hiero.interledger.clpr.WritableClprMessageStore;
@@ -43,7 +37,6 @@ import org.hiero.interledger.clpr.impl.ClprStateProofManager;
  * This handler uses the {@link ClprStateProofManager} to validate the state proof and manage ledger's message queue metadata.
  */
 public class ClprUpdateMessageQueueMetadataHandler implements TransactionHandler {
-    private static final Logger log = LogManager.getLogger(ClprUpdateMessageQueueMetadataHandler.class);
     private final ClprStateProofManager stateProofManager;
     private final NetworkInfo networkInfo;
     private final ConfigProvider configProvider;
@@ -66,7 +59,7 @@ public class ClprUpdateMessageQueueMetadataHandler implements TransactionHandler
         validateTruePreCheck(body.clprUpdateMessageQueueMetadataOrThrow().hasLedgerId(), INVALID_TRANSACTION_BODY);
         // ledgerId must exist.
         final var remoteLedgerId = body.clprUpdateMessageQueueMetadataOrThrow().ledgerIdOrThrow();
-        validateTruePreCheck(remoteLedgerId.ledgerId() != Bytes.EMPTY, CLPR_INVALID_LEDGER_ID);
+        validateTruePreCheck(remoteLedgerId.ledgerId().length() > 0, CLPR_INVALID_LEDGER_ID);
         final var localLedgerId = stateProofManager.getLocalLedgerId();
         validateFalsePreCheck(remoteLedgerId.equals(localLedgerId), CLPR_INVALID_LEDGER_ID);
         // validate state proof
@@ -97,7 +90,7 @@ public class ClprUpdateMessageQueueMetadataHandler implements TransactionHandler
 
         if (queueMetadata == null) {
             // create new queue
-            final var initialQueue = initQueue(context, remoteLedgerId);
+            final var initialQueue = initQueue(remoteLedgerId);
             writableMessageQueueMetadataStore.put(remoteLedgerId, initialQueue);
             return;
         }
@@ -120,6 +113,9 @@ public class ClprUpdateMessageQueueMetadataHandler implements TransactionHandler
                         ? queueMetadata.sentRunningHash()
                         : lastMessageValue.runningHashAfterProcessing();
 
+                // TODO(CLPR-PROD-HARDENING): This per-message removal loop is intentionally kept simple for the
+                // prototype. For large backlog windows this becomes O(n) work in one transaction and should be
+                // replaced with bounded/chunked cleanup semantics during production hardening.
                 for (long id = queueMetadata.sentMessageId() + 1; id <= lastProcessedId; id++) {
                     final var messageKey = ClprMessageKey.newBuilder()
                             .messageId(id)
@@ -140,39 +136,14 @@ public class ClprUpdateMessageQueueMetadataHandler implements TransactionHandler
         }
     }
 
-    private ClprMessageQueueMetadata initQueue(HandleContext context, ClprLedgerId remoteLedgerId) {
-        Bytes runningHash = Bytes.wrap(new byte[RUNNING_HASH_SIZE]);
-        final var initQueueBuilder = ClprMessageQueueMetadata.newBuilder()
+    private ClprMessageQueueMetadata initQueue(ClprLedgerId remoteLedgerId) {
+        return ClprMessageQueueMetadata.newBuilder()
                 .ledgerId(remoteLedgerId)
                 .nextMessageId(1)
                 .sentMessageId(0)
-                .sentRunningHash(runningHash)
+                .sentRunningHash(Bytes.wrap(new byte[RUNNING_HASH_SIZE]))
                 .receivedMessageId(0)
-                .receivedRunningHash(Bytes.wrap(new byte[RUNNING_HASH_SIZE]));
-
-        // TODO: REMOVE THIS TESTING CODE
-        // generate 10 outgoing messages
-        final var messageStore = context.storeFactory().writableStore(WritableClprMessageStore.class);
-        for (int i = 1; i < 11; i++) {
-            final var msgString = "Message ID: %d; Ledger ID: %s".formatted(i, remoteLedgerId);
-            final var messageKey = ClprMessageKey.newBuilder()
-                    .messageId(i)
-                    .ledgerId(remoteLedgerId)
-                    .build();
-            final var payload = ClprMessagePayload.newBuilder()
-                    .message(ClprMessage.newBuilder()
-                            .messageData(Bytes.wrap(msgString.getBytes()))
-                            .build())
-                    .build();
-            runningHash = nextRunningHash(payload, runningHash);
-            final var messageValue = ClprMessageValue.newBuilder()
-                    .runningHashAfterProcessing(runningHash)
-                    .payload(payload)
-                    .build();
-            messageStore.put(messageKey, messageValue);
-        }
-
-        initQueueBuilder.nextMessageId(11);
-        return initQueueBuilder.build();
+                .receivedRunningHash(Bytes.wrap(new byte[RUNNING_HASH_SIZE]))
+                .build();
     }
 }

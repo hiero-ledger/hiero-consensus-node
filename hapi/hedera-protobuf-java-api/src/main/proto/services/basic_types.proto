@@ -1888,6 +1888,16 @@ enum HederaFunctionality {
      * Submits a bundle of CLPR messages to be processed.
      */
     ClprProcessMessageBundle = 135;
+
+    /**
+     * (Internal-only) Enqueue a CLPR message payload into the outbound queue.
+     */
+    ClprEnqueueMessage = 136;
+
+    /**
+     * (Internal-only) Deliver a CLPR payload to local middleware handling.
+     */
+    ClprHandleMessagePayload = 137;
 }
 
 /**

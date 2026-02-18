@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.exec.processors;
 
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.ClprQueueSystemContract.CLPR_QUEUE_EVM_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HasSystemContract.HAS_EVM_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HssSystemContract.HSS_EVM_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract.HTS_167_EVM_ADDRESS;
@@ -9,11 +10,13 @@ import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.Prn
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.hedera.node.app.service.contract.impl.exec.processors.ProcessorModule;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.ClprQueueSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.ExchangeRateSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HasSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HssSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.PrngSystemContract;
+import java.util.Set;
 import org.hyperledger.besu.datatypes.Address;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -37,6 +40,9 @@ class ProcessorModuleTest {
     @Mock
     private HssSystemContract hssSystemContract;
 
+    @Mock
+    private ClprQueueSystemContract clprQueueSystemContract;
+
     @Test
     void provideHederaSystemContracts() {
         final var hederaSystemContracts = ProcessorModule.provideHederaSystemContracts(
@@ -44,15 +50,30 @@ class ProcessorModuleTest {
                 exchangeRateSystemContract,
                 prngSystemContract,
                 hasSystemContract,
-                hssSystemContract);
+                hssSystemContract,
+                clprQueueSystemContract);
         assertThat(hederaSystemContracts)
                 .isNotNull()
-                .hasSize(6)
+                .hasSize(7)
                 .containsKey(Address.fromHexString(HTS_167_EVM_ADDRESS))
                 .containsKey(Address.fromHexString(HTS_16C_EVM_ADDRESS))
                 .containsKey(Address.fromHexString(ExchangeRateSystemContract.EXCHANGE_RATE_SYSTEM_CONTRACT_ADDRESS))
                 .containsKey(Address.fromHexString(PRNG_PRECOMPILE_ADDRESS))
                 .containsKey(Address.fromHexString(HAS_EVM_ADDRESS))
-                .containsKey(Address.fromHexString(HSS_EVM_ADDRESS));
+                .containsKey(Address.fromHexString(HSS_EVM_ADDRESS))
+                .containsKey(Address.fromHexString(CLPR_QUEUE_EVM_ADDRESS));
+    }
+
+    @Test
+    void systemContractAddressMappingsAreUnique() {
+        final var addresses = Set.of(
+                Address.fromHexString(HTS_167_EVM_ADDRESS),
+                Address.fromHexString(HTS_16C_EVM_ADDRESS),
+                Address.fromHexString(ExchangeRateSystemContract.EXCHANGE_RATE_SYSTEM_CONTRACT_ADDRESS),
+                Address.fromHexString(PRNG_PRECOMPILE_ADDRESS),
+                Address.fromHexString(HAS_EVM_ADDRESS),
+                Address.fromHexString(HSS_EVM_ADDRESS),
+                Address.fromHexString(CLPR_QUEUE_EVM_ADDRESS));
+        assertThat(addresses).hasSize(7);
     }
 }

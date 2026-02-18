@@ -11,17 +11,20 @@ public class ClprMessageQueueHandlers {
     private final ClprGetMessagesHandler clprGetMessagesHandler;
     private final ClprUpdateMessageQueueMetadataHandler clprUpdateMessageQueueMetadataHandler;
     private final ClprProcessMessageBundleHandler clprProcessMessageBundleHandler;
+    private final ClprEnqueueMessageHandler clprEnqueueMessageHandler;
 
     @Inject
     public ClprMessageQueueHandlers(
             @NonNull final ClprGetMessageQueueMetadataHandler clprGetMessageQueueMetadataHandler,
             @NonNull final ClprGetMessagesHandler clprGetMessagesHandler,
             @NonNull final ClprUpdateMessageQueueMetadataHandler clprUpdateMessageQueueMetadataHandler,
-            @NonNull final ClprProcessMessageBundleHandler clprProcessMessageBundleHandler) {
+            @NonNull final ClprProcessMessageBundleHandler clprProcessMessageBundleHandler,
+            @NonNull final ClprEnqueueMessageHandler clprEnqueueMessageHandler) {
         this.clprGetMessageQueueMetadataHandler = clprGetMessageQueueMetadataHandler;
         this.clprGetMessagesHandler = clprGetMessagesHandler;
         this.clprUpdateMessageQueueMetadataHandler = clprUpdateMessageQueueMetadataHandler;
         this.clprProcessMessageBundleHandler = clprProcessMessageBundleHandler;
+        this.clprEnqueueMessageHandler = clprEnqueueMessageHandler;
     }
 
     @NonNull
@@ -42,5 +45,10 @@ public class ClprMessageQueueHandlers {
     @NonNull
     public ClprProcessMessageBundleHandler clprProcessMessageBundleHandler() {
         return clprProcessMessageBundleHandler;
+    }
+
+    @NonNull
+    public ClprEnqueueMessageHandler clprEnqueueMessageHandler() {
+        return clprEnqueueMessageHandler;
     }
 }

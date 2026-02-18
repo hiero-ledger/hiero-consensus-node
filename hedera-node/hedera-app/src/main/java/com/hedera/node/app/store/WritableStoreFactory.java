@@ -160,9 +160,8 @@ public class WritableStoreFactory {
             @NonNull final State state,
             @NonNull final String serviceName,
             @NonNull final WritableEntityCounters entityCounters) {
-        requireNonNull(state);
         this.serviceName = requireNonNull(serviceName, "The argument 'serviceName' cannot be null!");
-        this.states = state.getWritableStates(serviceName);
+        this.states = requireNonNull(state).getWritableStates(serviceName);
         this.entityCounters = requireNonNull(entityCounters);
     }
 
@@ -179,15 +178,24 @@ public class WritableStoreFactory {
     public <C> C getStore(@NonNull final Class<C> storeInterface) throws IllegalArgumentException {
         requireNonNull(storeInterface, "The supplied argument 'storeInterface' cannot be null!");
         final var entry = STORE_FACTORY.get(storeInterface);
-        if (entry != null && serviceName.equals(entry.name())) {
-            final var store = entry.factory().create(states, entityCounters);
-            if (!storeInterface.isInstance(store)) {
-                throw new IllegalArgumentException("No instance " + storeInterface
-                        + " is available"); // This needs to be ensured while stores are registered
-            }
-            return storeInterface.cast(store);
+        if (entry == null) {
+            throw new IllegalArgumentException("No store of the given class is available " + storeInterface.getName());
         }
+
+        if (serviceName.equals(entry.name())) {
+            return castStore(storeInterface, entry.factory().create(states, entityCounters));
+        }
+
         throw new IllegalArgumentException("No store of the given class is available " + storeInterface.getName());
+    }
+
+    @NonNull
+    private static <C> C castStore(@NonNull final Class<C> storeInterface, @NonNull final Object store) {
+        if (!storeInterface.isInstance(store)) {
+            throw new IllegalArgumentException("No instance " + storeInterface
+                    + " is available"); // This needs to be ensured while stores are registered
+        }
+        return storeInterface.cast(store);
     }
 
     /**
