@@ -178,6 +178,8 @@ message NodeUpdateTransactionBody {
      * This field MUST NOT contain more than twenty(20) entries.<br/>
      * Every entry in this list MUST be a valid `registered_node_id` for a
      * current registered node.
+     * <p>
+     * If set, the new list SHALL replace the existing list.
      */
     repeated uint64 associated_registered_node = 11;
 }
