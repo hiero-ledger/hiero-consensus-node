@@ -77,7 +77,17 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         // The fixture doesn't run genesis migrations by default, so seed the block record singletons
         app.stateMutator(BlockRecordService.NAME)
                 .withSingletonState(
-                        BLOCKS_STATE_ID, new BlockInfo(-1, EPOCH, Bytes.EMPTY, EPOCH, true, EPOCH, EPOCH, EPOCH))
+                        BLOCKS_STATE_ID,
+                        BlockInfo.newBuilder()
+                                .lastBlockNumber(-1)
+                                .firstConsTimeOfLastBlock(EPOCH)
+                                .blockHashes(Bytes.EMPTY)
+                                .consTimeOfLastHandledTxn(EPOCH)
+                                .migrationRecordsStreamed(true)
+                                .firstConsTimeOfCurrentBlock(EPOCH)
+                                .lastUsedConsTime(EPOCH)
+                                .lastIntervalProcessTime(EPOCH)
+                                .build())
                 .withSingletonState(
                         RUNNING_HASHES_STATE_ID,
                         RunningHashes.newBuilder()
@@ -127,7 +137,17 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         // The fixture doesn't run genesis migrations by default, so seed the block record singletons
         app.stateMutator(BlockRecordService.NAME)
                 .withSingletonState(
-                        BLOCKS_STATE_ID, new BlockInfo(-1, EPOCH, Bytes.EMPTY, EPOCH, true, EPOCH, EPOCH, EPOCH))
+                        BLOCKS_STATE_ID,
+                        BlockInfo.newBuilder()
+                                .lastBlockNumber(-1)
+                                .firstConsTimeOfLastBlock(EPOCH)
+                                .blockHashes(Bytes.EMPTY)
+                                .consTimeOfLastHandledTxn(EPOCH)
+                                .migrationRecordsStreamed(true)
+                                .firstConsTimeOfCurrentBlock(EPOCH)
+                                .lastUsedConsTime(EPOCH)
+                                .lastIntervalProcessTime(EPOCH)
+                                .build())
                 .withSingletonState(
                         RUNNING_HASHES_STATE_ID,
                         RunningHashes.newBuilder()
@@ -269,7 +289,17 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         final var someHash = Bytes.wrap(new byte[BlockRecordInfoUtils.HASH_SIZE]);
         app.stateMutator(BlockRecordService.NAME)
                 .withSingletonState(
-                        BLOCKS_STATE_ID, new BlockInfo(7, EPOCH, someHash, EPOCH, true, EPOCH, EPOCH, EPOCH))
+                        BLOCKS_STATE_ID,
+                        BlockInfo.newBuilder()
+                                .lastBlockNumber(7)
+                                .firstConsTimeOfLastBlock(EPOCH)
+                                .blockHashes(someHash)
+                                .consTimeOfLastHandledTxn(EPOCH)
+                                .migrationRecordsStreamed(true)
+                                .firstConsTimeOfCurrentBlock(EPOCH)
+                                .lastUsedConsTime(EPOCH)
+                                .lastIntervalProcessTime(EPOCH)
+                                .build())
                 .withSingletonState(
                         RUNNING_HASHES_STATE_ID,
                         RunningHashes.newBuilder()

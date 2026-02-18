@@ -67,15 +67,16 @@ public class V0560BlockStreamSchemaTest {
 
     @Test
     void assumesMigrationIfNotGenesisAndStateIsNull() {
-        final var blockInfo = new BlockInfo(
-                666L,
-                new Timestamp(1_234_567L, 0),
-                Bytes.fromHex("abcd".repeat(24 * 256)),
-                new Timestamp(1_234_567L, 890),
-                false,
-                new Timestamp(1_234_567L, 123),
-                new Timestamp(1_234_567L, 123),
-                new Timestamp(1_234_567L, 123));
+        final var blockInfo = BlockInfo.newBuilder()
+                .lastBlockNumber(666L)
+                .firstConsTimeOfLastBlock(new Timestamp(1_234_567L, 0))
+                .blockHashes(Bytes.fromHex("abcd".repeat(24 * 256)))
+                .consTimeOfLastHandledTxn(new Timestamp(1_234_567L, 890))
+                .migrationRecordsStreamed(false)
+                .firstConsTimeOfCurrentBlock(new Timestamp(1_234_567L, 123))
+                .lastUsedConsTime(new Timestamp(1_234_567L, 123))
+                .lastIntervalProcessTime(new Timestamp(1_234_567L, 123))
+                .build();
         final var sharedValues = Map.<String, Object>of(
                 "SHARED_BLOCK_RECORD_INFO",
                 blockInfo,
