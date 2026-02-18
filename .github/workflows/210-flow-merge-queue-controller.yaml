@@ -16,7 +16,7 @@ jobs:
     with:
       ref: ${{ github.ref }}
       branch_name: ${{ github.ref_name }}
-      solo-version: ${{ vars.ADHOC_XTS_SOLO_VERSION }}
+      solo-version: ${{ vars.CITR_SOLO_VERSION }}
       solo-ge-0440: "true"
       helm-release-name: "mirror-1"
       custom-job-label: "Merge Queue XTS:"
