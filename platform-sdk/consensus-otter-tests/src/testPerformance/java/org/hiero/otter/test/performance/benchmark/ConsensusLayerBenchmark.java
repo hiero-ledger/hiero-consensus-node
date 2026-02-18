@@ -13,18 +13,12 @@ import static org.hiero.otter.test.performance.benchmark.fixtures.BenchmarkServi
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.security.NoSuchAlgorithmException;
-import java.security.NoSuchProviderException;
-import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.crypto.KeyGeneratingException;
-import org.hiero.consensus.crypto.KeysAndCertsGenerator;
-import org.hiero.consensus.crypto.SigningSchema;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.OtterTest;
@@ -51,11 +45,33 @@ public class ConsensusLayerBenchmark {
 
     private static final Logger log = LogManager.getLogger(ConsensusLayerBenchmark.class);
 
-    private static final int WARMUP_COUNT = 1000;
-    private static final int TRANSACTION_COUNT = 1000;
-    private static final int MAX_TPS = 20;
-    // Setup simulation with 4 nodes
-    public static final int NUMBER_OF_NODES = 4;
+    /**
+     * Record holding benchmark execution parameters.
+     *
+     * @param numberOfNodes the number of nodes in the network
+     * @param warmupCount the number of warmup transactions
+     * @param transactionCount the number of benchmark transactions
+     * @param maxTps the maximum transactions per second rate
+     * @param stabilizationTime time to wait for network stabilization (seconds)
+     * @param warmupTime time to wait after warmup transactions (seconds)
+     * @param collectionTime time to wait for transaction collection (seconds)
+     */
+    public record BenchmarkParameters(
+            int numberOfNodes,
+            int warmupCount,
+            int transactionCount,
+            int maxTps,
+            long stabilizationTime,
+            long warmupTime,
+            long collectionTime) {
+
+        /**
+         * Creates default benchmark parameters.
+         */
+        public static BenchmarkParameters defaults() {
+            return new BenchmarkParameters(4, 1000, 1000, 20, 3L, 5L, 10L);
+        }
+    }
 
     /**
      * Baseline benchmark - default settings (RSA, maxOtherParents=1, antiSelfishnessFactor=10, maxCreationRate=20).
@@ -66,125 +82,8 @@ public class ConsensusLayerBenchmark {
     @Order(1)
     void benchmarkBaseline(@NonNull final TestEnvironment env) {
         log.info("=== BASELINE BENCHMARK (defaults) ===");
-        runBenchmark(env, "benchmarkBaseline", network -> {
+        runBenchmark(env, "benchmarkBaseline", BenchmarkParameters.defaults(), network -> {
             // No config changes - use defaults
-        });
-    }
-
-    /**
-     * Test maxOtherParents=2 in isolation.
-     */
-    @OtterTest
-    @OtterSpecs(randomNodeIds = false)
-    @ContainerSpecs(proxyEnabled = false)
-    @Order(2)
-    void benchmarkMaxOtherParents2(@NonNull final TestEnvironment env) {
-        log.info("=== BENCHMARK: maxOtherParents=2 ===");
-        runBenchmark(env, "benchmarkMaxOtherParents2", network -> {
-            network.withConfigValue("event.creation.maxOtherParents", 2);
-        });
-    }
-
-    /**
-     * Test maxOtherParents=3 in isolation.
-     */
-    @OtterTest
-    @OtterSpecs(randomNodeIds = false)
-    @ContainerSpecs(proxyEnabled = false)
-    @Order(3)
-    void benchmarkMaxOtherParentsAll(@NonNull final TestEnvironment env) {
-        log.info("=== BENCHMARK: maxOtherParents={} ===", NUMBER_OF_NODES);
-        runBenchmark(env, "benchmarkMaxOtherParentsAll", network -> {
-            network.withConfigValue("event.creation.maxOtherParents", NUMBER_OF_NODES);
-        });
-    }
-
-    /**
-     * Test antiSelfishnessFactor=5 in isolation.
-     */
-    @OtterTest
-    @OtterSpecs(randomNodeIds = false)
-    @ContainerSpecs(proxyEnabled = false)
-    @Order(4)
-    void benchmarkAntiSelfishness5(@NonNull final TestEnvironment env) {
-        log.info("=== BENCHMARK: antiSelfishnessFactor=8 ===");
-        runBenchmark(env, "benchmarkAntiSelfishness5", network -> {
-            network.withConfigValue("event.creation.antiSelfishnessFactor", 8);
-        });
-    }
-
-    /**
-     * Test maxCreationRate=15 in isolation.
-     */
-    @OtterTest
-    @OtterSpecs(randomNodeIds = false)
-    @ContainerSpecs(proxyEnabled = false)
-    @Order(5)
-    void benchmarkMaxCreationRate100(@NonNull final TestEnvironment env) {
-        log.info("=== BENCHMARK: maxCreationRate=100 ===");
-        runBenchmark(env, "benchmarkMaxCreationRate100", network -> {
-            network.withConfigValue("event.creation.maxCreationRate", 100);
-        });
-    }
-
-    /**
-     * Test ED25519 signature scheme in isolation.
-     */
-    @OtterTest
-    @OtterSpecs(randomNodeIds = false)
-    @ContainerSpecs(proxyEnabled = false)
-    @Order(6)
-    void benchmarkED25519(@NonNull final TestEnvironment env) {
-        log.info("=== BENCHMARK: ED25519 signature scheme ===");
-        runBenchmark(env, "benchmarkED25519", network -> {
-            // Override signature scheme to ED25519 for all nodes
-            final SecureRandom secureRandom;
-            try {
-                secureRandom = SecureRandom.getInstanceStrong();
-                network.nodes().forEach(node -> {
-                    try {
-                        node.keysAndCerts(KeysAndCertsGenerator.generate(
-                                node.selfId(), SigningSchema.ED25519, secureRandom, secureRandom));
-                    } catch (final NoSuchAlgorithmException | NoSuchProviderException | KeyGeneratingException e) {
-                        throw new RuntimeException(e);
-                    }
-                });
-            } catch (final NoSuchAlgorithmException e) {
-                throw new RuntimeException(e);
-            }
-        });
-    }
-
-    /**
-     * Test all optimizations combined.
-     */
-    @OtterTest
-    @OtterSpecs(randomNodeIds = false)
-    @ContainerSpecs(proxyEnabled = false)
-    @Order(7)
-    void benchmarkAllOptimizations(@NonNull final TestEnvironment env) {
-        log.info("=== BENCHMARK: ALL OPTIMIZATIONS ===");
-        runBenchmark(env, "benchmarkAllOptimizations", network -> {
-            // Apply all config optimizations
-            network.withConfigValue("event.creation.maxOtherParents", NUMBER_OF_NODES);
-            network.withConfigValue("event.creation.antiSelfishnessFactor", 8);
-            network.withConfigValue("event.creation.maxCreationRate", 100);
-
-            // Use ED25519 for faster signing
-            final SecureRandom secureRandom;
-            try {
-                secureRandom = SecureRandom.getInstanceStrong();
-                network.nodes().forEach(node -> {
-                    try {
-                        node.keysAndCerts(KeysAndCertsGenerator.generate(
-                                node.selfId(), SigningSchema.ED25519, secureRandom, secureRandom));
-                    } catch (final NoSuchAlgorithmException | NoSuchProviderException | KeyGeneratingException e) {
-                        throw new RuntimeException(e);
-                    }
-                });
-            } catch (final NoSuchAlgorithmException e) {
-                throw new RuntimeException(e);
-            }
         });
     }
 
@@ -193,11 +92,13 @@ public class ConsensusLayerBenchmark {
      *
      * @param env the test environment
      * @param configName name of the configuration being tested
+     * @param params benchmark execution parameters
      * @param networkConfigurator function to configure the network before adding nodes
      */
-    private void runBenchmark(
+    public static void runBenchmark(
             @NonNull final TestEnvironment env,
             @NonNull final String configName,
+            @NonNull final BenchmarkParameters params,
             @NonNull final NetworkConfigurator networkConfigurator) {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
@@ -206,7 +107,7 @@ public class ConsensusLayerBenchmark {
         // Enable the BenchmarkService
         network.withConfigValue("event.services", "org.hiero.otter.fixtures.app.services.benchmark.BenchmarkService");
 
-        network.addNodes(NUMBER_OF_NODES);
+        network.addNodes(params.numberOfNodes());
 
         // Apply test-specific configuration
         networkConfigurator.configure(network);
@@ -217,40 +118,40 @@ public class ConsensusLayerBenchmark {
                 .haveEqualCommonRounds()
                 .haveConsistentRounds();
 
-        log.info("[{}] Starting network with {} nodes...", configName, NUMBER_OF_NODES);
+        log.info("[{}] Starting network with {} nodes...", configName, params.numberOfNodes());
         network.start();
 
         // Wait for network to stabilize
-        timeManager.waitFor(Duration.ofSeconds(3L));
+        timeManager.waitFor(Duration.ofSeconds(params.stabilizationTime()));
         log.info("[{}] Network stabilized", configName);
 
         // Warm-up phase: submit empty transactions to warm up all nodes
         log.info(
                 "[{}] Starting warm-up phase: submitting {} empty transactions across all nodes...",
                 configName,
-                WARMUP_COUNT);
+                params.warmupCount());
         final List<Node> nodes = network.nodes();
-        for (int i = 0; i < WARMUP_COUNT; i++) {
+        for (int i = 0; i < params.warmupCount(); i++) {
             final Node targetNode = nodes.get(i % nodes.size());
             targetNode.submitTransaction(TransactionFactory.createEmptyTransaction(nonceGenerator.incrementAndGet()));
         }
 
         // Wait for warm-up to complete
-        timeManager.waitFor(Duration.ofSeconds(5L));
+        timeManager.waitFor(Duration.ofSeconds(params.warmupTime()));
         log.info("[{}] Warm-up phase complete", configName);
 
         log.info(
                 "[{}] Starting benchmark: It will take approximately {}s submitting {} transactions at a rate of {} ops/s...",
                 configName,
-                TRANSACTION_COUNT / MAX_TPS,
-                TRANSACTION_COUNT,
-                MAX_TPS);
+                params.transactionCount() / params.maxTps(),
+                params.transactionCount(),
+                params.maxTps());
 
         final LoadThrottler throttler = new LoadThrottler(
                 env, () -> createBenchmarkTransaction(nonceGenerator.incrementAndGet(), timeManager.now()));
-        throttler.submitWithRate(TRANSACTION_COUNT, MAX_TPS);
+        throttler.submitWithRate(params.transactionCount(), params.maxTps());
         // Wait for all transactions to be processed
-        timeManager.waitFor(Duration.ofSeconds(10L));
+        timeManager.waitFor(Duration.ofSeconds(params.collectionTime()));
         log.info("[{}] Benchmark transactions submitted, collecting results...", configName);
         // Validations
         assertThat(network.newPlatformStatusResults())
@@ -261,7 +162,7 @@ public class ConsensusLayerBenchmark {
         parseFromLogs(network.newLogResults(), BenchmarkServiceLogParser::parseMeasurement, collector::addEntry);
         // Make sure the benchmark run is valid
         assertEquals(
-                TRANSACTION_COUNT * NUMBER_OF_NODES,
+                params.transactionCount() * params.numberOfNodes(),
                 collector.computeStatistics().totalMeasurements(),
                 "The benchmark is invalid as some of the transactions sent were not measured");
         final String report = collector.generateReport();
@@ -274,7 +175,7 @@ public class ConsensusLayerBenchmark {
      * Functional interface for configuring a network before benchmarking.
      */
     @FunctionalInterface
-    private interface NetworkConfigurator {
+    public interface NetworkConfigurator {
         void configure(@NonNull Network network);
     }
 
