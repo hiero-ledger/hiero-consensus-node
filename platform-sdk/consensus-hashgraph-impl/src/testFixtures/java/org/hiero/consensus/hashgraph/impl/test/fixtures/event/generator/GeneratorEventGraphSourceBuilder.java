@@ -191,7 +191,6 @@ public class GeneratorEventGraphSourceBuilder {
                             .build();
         }
 
-
         return new GeneratorEventGraphSource(
                 getConfiguration(), getTime(), getSeed(), getMaxOtherParents(), actualRoster, signer, populateNgen);
     }

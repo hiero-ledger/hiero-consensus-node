@@ -25,6 +25,7 @@ import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.test.fixtures.event.EventCounter;
 import org.hiero.consensus.roster.RosterHistory;
+import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
 import org.hiero.consensus.roster.test.fixtures.RosterWithKeys;
 import org.hiero.consensus.transaction.TransactionLimits;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -41,7 +42,6 @@ import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Warmup;
-import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
 
 /**
  * A JMH benchmark that measures the throughput of the event intake pipeline. Events are generated using a
@@ -66,7 +66,7 @@ public class IntakeBenchmark {
     @Param({"10"})
     public int numberOfThreads;
 
-    @Param({"RSA","ED25519"})
+    @Param({"RSA", "ED25519"})
     public SigningSchema signingSchema;
 
     @Param({"0.5"}) // does not seem to affect the results much
@@ -105,7 +105,8 @@ public class IntakeBenchmark {
      */
     @Setup(Level.Invocation)
     public void beforeInvocation() {
-        final PlatformContext platformContext = TestPlatformContextBuilder.create().build();
+        final PlatformContext platformContext =
+                TestPlatformContextBuilder.create().build();
         final RosterWithKeys rosterWithKeys = RandomRosterBuilder.create(new Random(SEED))
                 .withSize(numNodes)
                 .withRealKeysEnabled(true)
@@ -125,8 +126,8 @@ public class IntakeBenchmark {
                 .withDefaultPool(threadPool)
                 .withWiringConfig(platformContext.getConfiguration().getConfigData(WiringConfig.class))
                 .build();
-        final RosterHistory rosterHistory =
-                new RosterHistory(List.of(new RoundRosterPair(0L, Bytes.EMPTY)), Map.of(Bytes.EMPTY, rosterWithKeys.getRoster()));
+        final RosterHistory rosterHistory = new RosterHistory(
+                List.of(new RoundRosterPair(0L, Bytes.EMPTY)), Map.of(Bytes.EMPTY, rosterWithKeys.getRoster()));
 
         intake = new DefaultEventIntakeModule();
         intake.initialize(
@@ -180,8 +181,7 @@ public class IntakeBenchmark {
      * @param list the list of unique elements to use as source
      * @return a new list containing unique elements with duplicates interleaved
      */
-    private <T> List<T> injectDuplicates(
-            @NonNull final List<T> list) {
+    private <T> List<T> injectDuplicates(@NonNull final List<T> list) {
         final Random random = new Random(SEED);
         if (duplicateRate <= 0.0) {
             return list;
