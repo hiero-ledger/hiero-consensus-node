@@ -1,0 +1,61 @@
+/**
+ * # Wrapped Record Hashes
+ * Hashes computed by the consensus node when wrapping a record-file block into
+ * the block stream format.
+ *
+ * This schema is internal to the node and is intended to support persistence
+ * of a simple append-only log of wrapped record-file block hashes.
+ *
+ * ### Keywords
+ * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+ * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+ * document are to be interpreted as described in
+ * [RFC2119](https://www.ietf.org/rfc/rfc2119) and clarified in
+ * [RFC8174](https://www.ietf.org/rfc/rfc8174).
+ */
+syntax = "proto3";
+
+package com.hedera.hapi.block.internal;
+
+// SPDX-License-Identifier: Apache-2.0
+
+option java_package = "com.hedera.hapi.block.internal.protoc";
+// <<<pbj.java_package = "com.hedera.hapi.block.internal">>> This comment is special code for setting PBJ Compiler java package
+
+option java_multiple_files = true;
+
+/**
+ * A set of hashes derived from the wrapped record-file block for a record block number.
+ *
+ * All hashes are 48-byte SHA-384 values unless otherwise specified.
+ */
+message WrappedRecordFileBlockHashes {
+  /**
+   * The record block number.
+   */
+  int64 block_number = 1;
+
+  /**
+   * The leaf hash of the first transaction's consensus timestamp in the record file.
+   */
+  bytes consensus_timestamp_hash = 2;
+
+  /**
+   * The root hash of the output-items subtree for the wrapped record-file block.
+   */
+  bytes output_items_tree_root_hash = 3;
+}
+
+/**
+ * An append-only log of wrapped record-file block hashes.
+ *
+ * On disk, this may be represented as a sequence of protobuf-framed occurrences
+ * of field {@code entries} (rather than as a single serialized message).
+ */
+message WrappedRecordFileBlockHashesLog {
+  /**
+   * Hash entries, in increasing record block number order.
+   */
+  repeated WrappedRecordFileBlockHashes entries = 1;
+}
+

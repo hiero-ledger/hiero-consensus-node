@@ -25,6 +25,8 @@ public abstract class AbstractNode implements HederaNode {
     private static final String SWIRLDS_LOG = "swirlds.log";
     private static final String LOG4J2_XML = "log4j2.xml";
     private static final String BLOCK_NODE_COMMS_LOG = "block-node-comms.log";
+    private static final String WRAPPED_RECORD_HASHES_DIR = "wrappedRecordHashes";
+    private static final String WRAPPED_RECORD_HASHES_FILE_NAME = "wrapped-record-hashes.pb";
 
     protected NodeMetadata metadata;
 
@@ -80,6 +82,11 @@ public abstract class AbstractNode implements HederaNode {
                 workingDir.resolve(DATA_DIR).resolve(CONFIG_DIR).resolve(APPLICATION_PROPERTIES);
             case LOG4J2_XML -> workingDir.resolve(LOG4J2_XML);
             case DATA_CONFIG_DIR -> workingDir.resolve(DATA_DIR).resolve(CONFIG_DIR);
+            case WRAPPED_RECORD_HASHES_FILE ->
+                workingDir
+                        .resolve(DATA_DIR)
+                        .resolve(WRAPPED_RECORD_HASHES_DIR)
+                        .resolve(WRAPPED_RECORD_HASHES_FILE_NAME);
             case RECORD_STREAMS_DIR ->
                 workingDir
                         .resolve(DATA_DIR)
