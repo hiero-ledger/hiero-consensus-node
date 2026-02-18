@@ -14,7 +14,6 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
 
-import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
@@ -36,7 +35,7 @@ public class Hip1313DisabledTest {
         testLifecycle.doAdhoc(cryptoCreate(CIVILIAN_PAYER).balance(ONE_MILLION_HBARS));
     }
 
-    @HapiTest
+    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled", "networkAdmin.highVolumeThrottlesEnabled"})
     final Stream<DynamicTest> highVolumeTxnRejectedWhenFeatureDisabled() {
         return hapiTest(createTopic("hvDisabledTopic")
                 .payingWith(CIVILIAN_PAYER)
