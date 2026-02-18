@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.node.app.fees;
+package com.hedera.node.app.fees.context;
 
 import static java.util.Objects.requireNonNull;
 
@@ -10,6 +10,7 @@ import com.hedera.hapi.node.base.SignatureMap;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
@@ -31,7 +32,7 @@ import java.time.Instant;
  * <p>This class is intended to be used during ingest. In the handle-workflow we use
  * {@link DispatchHandleContext}, which also implements{@link FeeContext}
  */
-public class FeeContextImpl implements FeeContext {
+public class IngestFeeContext implements FeeContext {
     private final Instant consensusTime;
     private final TransactionInfo txInfo;
     private final Key payerKey;
@@ -58,7 +59,7 @@ public class FeeContextImpl implements FeeContext {
      * @param transactionDispatcher the {@link TransactionDispatcher} to dispatch child transactions
      * @param frontendThrottle the {@link SynchronizedThrottleAccumulator} to get high volume throttle utilization
      */
-    public FeeContextImpl(
+    public IngestFeeContext(
             @NonNull final Instant consensusTime,
             @NonNull final TransactionInfo txInfo,
             @NonNull final Key payerKey,
@@ -164,7 +165,7 @@ public class FeeContextImpl implements FeeContext {
     @Override
     public Fees dispatchComputeFees(
             @NonNull final TransactionBody childTxBody, @NonNull final AccountID syntheticPayerId) {
-        return transactionDispatcher.dispatchComputeFees(new ChildFeeContextImpl(
+        return transactionDispatcher.dispatchComputeFees(new ChildFeeContext(
                 feeManager,
                 this,
                 childTxBody,

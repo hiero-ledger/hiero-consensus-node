@@ -39,7 +39,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
-class AppThrottleFactoryTest {
+class AppScheduleThrottleFactoryTest {
     private static final int SPLIT_FACTOR = 7;
     private static final Instant CONSENSUS_NOW = Instant.ofEpochSecond(123456, 789);
     private static final AccountID PAYER_ID =
@@ -87,15 +87,15 @@ class AppThrottleFactoryTest {
     private OpsDurationDeterministicThrottle opsDurationThrottle;
 
     @Mock
-    private AppThrottleFactory.ThrottleAccumulatorFactory throttleAccumulatorFactory;
+    private AppScheduleThrottleFactory.ThrottleAccumulatorFactory throttleAccumulatorFactory;
 
-    private AppThrottleFactory subject;
+    private AppScheduleThrottleFactory subject;
     private SemanticVersion softwareVersionFactory;
 
     @BeforeEach
     void setUp() {
         softwareVersionFactory = SemanticVersion.DEFAULT;
-        subject = new AppThrottleFactory(
+        subject = new AppScheduleThrottleFactory(
                 config, () -> state, () -> ThrottleDefinitions.DEFAULT, throttleAccumulatorFactory);
     }
 
