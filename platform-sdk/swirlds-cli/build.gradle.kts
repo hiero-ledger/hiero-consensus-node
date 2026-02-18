@@ -8,6 +8,8 @@ plugins {
 testModuleInfo {
     requires("com.swirlds.platform.core.test.fixtures")
     requires("org.hiero.consensus.pcli")
+    requires("org.hiero.consensus.hashgraph.impl.test.fixtures")
+    requires("org.hiero.consensus.roster.test.fixtures")
     requires("org.hiero.consensus.utility.test.fixtures")
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")

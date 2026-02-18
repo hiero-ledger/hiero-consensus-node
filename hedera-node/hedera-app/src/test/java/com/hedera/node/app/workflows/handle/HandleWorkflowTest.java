@@ -3,9 +3,9 @@ package com.hedera.node.app.workflows.handle;
 
 import static com.hedera.node.config.types.StreamMode.BOTH;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
-import static com.swirlds.platform.state.service.PlatformStateService.NAME;
 import static java.util.Collections.emptyIterator;
 import static java.util.Collections.emptyList;
+import static org.hiero.consensus.platformstate.PlatformStateService.NAME;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -57,9 +57,8 @@ import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.node.config.types.BlockStreamWriterMode;
 import com.hedera.node.config.types.StreamMode;
-import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
 import com.swirlds.platform.system.InitTrigger;
-import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.state.spi.ReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -75,6 +74,7 @@ import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.transaction.ConsensusTransaction;
+import org.hiero.consensus.platformstate.V0540PlatformStateSchema;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -90,6 +90,9 @@ class HandleWorkflowTest {
 
     @Mock
     private HintsService hintsService;
+
+    @Mock
+    private EventDescriptorWrapper wrapper;
 
     @Mock
     private QuiescenceController quiescenceController;
@@ -155,7 +158,7 @@ class HandleWorkflowTest {
     private ExchangeRateManager exchangeRateManager;
 
     @Mock
-    private MerkleNodeState state;
+    private VirtualMapState state;
 
     @Mock
     private Round round;
@@ -211,6 +214,8 @@ class HandleWorkflowTest {
         final var eventFromMissingCreator = mock(ConsensusEvent.class);
         given(round.iterator())
                 .willReturn(List.of(eventFromMissingCreator, eventFromPresentCreator)
+                        .iterator())
+                .willReturn(List.of(eventFromMissingCreator, eventFromPresentCreator)
                         .iterator());
         given(eventFromPresentCreator.getCreatorId()).willReturn(presentCreatorId);
         given(eventFromMissingCreator.getCreatorId()).willReturn(missingCreatorId);
@@ -235,7 +240,10 @@ class HandleWorkflowTest {
 
     @Test
     void writesEachMigrationStateChangeWithBlockTimestamp() {
-        given(round.iterator()).willReturn(List.of(event).iterator());
+        given(round.iterator())
+                .willReturn(List.of(event).iterator())
+                .willReturn(List.of(event).iterator());
+        given(event.allParentsIterator()).willReturn(List.of(wrapper).iterator());
         given(event.getConsensusTimestamp()).willReturn(NOW);
         given(systemTransactions.firstReservedSystemTimeFor(any())).willReturn(NOW);
         final var firstBuilder = StateChanges.newBuilder().stateChanges(List.of(StateChange.DEFAULT));

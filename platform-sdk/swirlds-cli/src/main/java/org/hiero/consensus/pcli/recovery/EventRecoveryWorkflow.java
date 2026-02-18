@@ -3,14 +3,18 @@ package org.hiero.consensus.pcli.recovery;
 
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.platform.eventhandling.DefaultTransactionPrehandler.NO_OP_CONSUMER;
-import static com.swirlds.platform.state.service.PlatformStateUtils.bulkUpdateOf;
-import static com.swirlds.platform.state.service.PlatformStateUtils.creationSoftwareVersionOf;
-import static com.swirlds.platform.state.service.PlatformStateUtils.freezeTimeOf;
-import static com.swirlds.platform.state.service.PlatformStateUtils.legacyRunningEventHashOf;
-import static com.swirlds.platform.state.service.PlatformStateUtils.updateLastFrozenTime;
 import static com.swirlds.platform.util.BootstrapUtils.setupConstructableRegistry;
+import static org.hiero.consensus.model.PbjConverters.toPbjTimestamp;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.bulkUpdateOf;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.creationSoftwareVersionOf;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.freezeTimeOf;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.legacyRunningEventHashOf;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.updateLastFrozenTime;
 
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
+import com.hedera.hapi.platform.state.JudgeId;
+import com.hedera.hapi.platform.state.MinimumJudgeInfo;
 import com.hedera.pbj.runtime.ParseException;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.notification.NotificationEngine;
@@ -19,8 +23,6 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.recovery.internal.EventStreamRoundIterator;
 import com.swirlds.platform.recovery.internal.StreamedRound;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
-import com.swirlds.platform.state.signed.ReservedSignedState;
-import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.platform.state.snapshot.SignedStateFileReader;
 import com.swirlds.platform.state.snapshot.SignedStateFileWriter;
@@ -29,18 +31,21 @@ import com.swirlds.platform.system.SwirldMain;
 import com.swirlds.platform.system.state.notifications.NewRecoveredStateListener;
 import com.swirlds.platform.system.state.notifications.NewRecoveredStateNotification;
 import com.swirlds.platform.util.HederaUtils;
-import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.state.merkle.VirtualMapStateImpl;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Objects;
+import java.util.stream.LongStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.CompareTo;
@@ -48,7 +53,8 @@ import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.crypto.ConsensusCryptoUtils;
 import org.hiero.consensus.crypto.DefaultEventHasher;
 import org.hiero.consensus.hashgraph.config.ConsensusConfig;
-import org.hiero.consensus.hashgraph.impl.consensus.SyntheticSnapshot;
+import org.hiero.consensus.hashgraph.impl.consensus.Consensus;
+import org.hiero.consensus.hashgraph.impl.consensus.ConsensusUtils;
 import org.hiero.consensus.io.IOIterator;
 import org.hiero.consensus.model.event.CesEvent;
 import org.hiero.consensus.model.event.ConsensusEvent;
@@ -59,6 +65,9 @@ import org.hiero.consensus.pces.config.PcesConfig;
 import org.hiero.consensus.pces.config.PcesFileWriterType;
 import org.hiero.consensus.pces.impl.common.PcesFile;
 import org.hiero.consensus.pces.impl.common.PcesMutableFile;
+import org.hiero.consensus.round.RoundCalculationUtils;
+import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.state.signed.SignedState;
 
 /**
  * Handles the event stream recovery workflow.
@@ -109,12 +118,12 @@ public final class EventRecoveryWorkflow {
 
         logger.info(STARTUP.getMarker(), "Loading state from {}", signedStateDir);
         // FUTURE-WORK: Follow Browser approach
-        final SwirldMain<? extends MerkleNodeState> hederaApp = HederaUtils.createHederaAppMain(platformContext);
+        final SwirldMain hederaApp = HederaUtils.createHederaAppMain(platformContext);
 
-        final StateLifecycleManager stateLifecycleManager = new StateLifecycleManagerImpl(
+        final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager = new StateLifecycleManagerImpl(
                 platformContext.getMetrics(),
                 platformContext.getTime(),
-                virtualMap -> new VirtualMapState(virtualMap, platformContext.getMetrics()),
+                virtualMap -> new VirtualMapStateImpl(virtualMap, platformContext.getMetrics()),
                 platformContext.getConfiguration());
 
         final DeserializedSignedState deserializedSignedState =
@@ -156,7 +165,11 @@ public final class EventRecoveryWorkflow {
                     recoveredState.state().get().getState().copy();
 
             SignedStateFileWriter.writeSignedStateFilesToDirectory(
-                    platformContext, selfId, resultingStateDirectory, recoveredState.state(), stateLifecycleManager);
+                    platformContext,
+                    selfId,
+                    resultingStateDirectory,
+                    recoveredState.state().get(),
+                    stateLifecycleManager);
 
             logger.info(STARTUP.getMarker(), "Signed state written to disk");
 
@@ -213,7 +226,7 @@ public final class EventRecoveryWorkflow {
     public static RecoveredState reapplyTransactions(
             @NonNull final PlatformContext platformContext,
             @NonNull final ReservedSignedState initialSignedState,
-            @NonNull final SwirldMain<? extends MerkleNodeState> appMain,
+            @NonNull final SwirldMain appMain,
             @NonNull final IOIterator<StreamedRound> roundIterator,
             final long finalRound,
             @NonNull final NodeId selfId,
@@ -229,7 +242,7 @@ public final class EventRecoveryWorkflow {
         final Configuration configuration = platformContext.getConfiguration();
 
         final ReservedSignedState workingSignedState = ensureMutableState(initialSignedState, configuration);
-        final MerkleNodeState initialState = workingSignedState.get().getState();
+        final VirtualMapState initialState = workingSignedState.get().getState();
         initialState.throwIfImmutable("initial state must be mutable");
 
         logger.info(STARTUP.getMarker(), "Initializing application state");
@@ -281,13 +294,13 @@ public final class EventRecoveryWorkflow {
     private static ReservedSignedState ensureMutableState(
             @NonNull final ReservedSignedState initialSignedState, @NonNull final Configuration configuration) {
         final SignedState signedState = initialSignedState.get();
-        final MerkleNodeState state = signedState.getState();
+        final VirtualMapState state = signedState.getState();
         if (!state.isHashed()) {
             return initialSignedState;
         }
 
         // Snapshot loading hashes the map, which freezes leaf mutations; copy to regain mutability.
-        final MerkleNodeState mutableState = state.copy();
+        final VirtualMapState mutableState = state.copy();
         final SignedState mutableSignedState = new SignedState(
                 configuration,
                 ConsensusCryptoUtils::verifySignature,
@@ -319,7 +332,7 @@ public final class EventRecoveryWorkflow {
         final Instant currentRoundTimestamp = getRoundTimestamp(round);
         final SignedState previousState = previousSignedState.get();
         previousState.getState().throwIfImmutable();
-        final MerkleNodeState newState = previousState.getState().copy();
+        final VirtualMapState newState = previousState.getState().copy();
         final PlatformEvent lastEvent = ((CesEvent) getLastEvent(round)).getPlatformEvent();
         final ConsensusConfig config = platformContext.getConfiguration().getConfigData(ConsensusConfig.class);
         new DefaultEventHasher().hashEvent(lastEvent);
@@ -328,7 +341,7 @@ public final class EventRecoveryWorkflow {
             v.setRound(round.getRoundNum());
             v.setLegacyRunningEventHash(getHashEventsCons(legacyRunningEventHashOf(newState), round));
             v.setConsensusTimestamp(currentRoundTimestamp);
-            v.setSnapshot(SyntheticSnapshot.generateSyntheticSnapshot(
+            v.setSnapshot(generateSyntheticSnapshot(
                     round.getRoundNum(), lastEvent.getConsensusOrder(), currentRoundTimestamp, config, lastEvent));
             v.setCreationSoftwareVersion(creationSoftwareVersionOf(previousState.getState()));
         });
@@ -408,9 +421,9 @@ public final class EventRecoveryWorkflow {
      * @param round          the current round
      */
     static void applyTransactions(
-            final ConsensusStateEventHandler<MerkleNodeState> consensusStateEventHandler,
-            final MerkleNodeState immutableState,
-            final MerkleNodeState mutableState,
+            final ConsensusStateEventHandler consensusStateEventHandler,
+            final VirtualMapState immutableState,
+            final VirtualMapState mutableState,
             final Round round) {
 
         mutableState.throwIfImmutable();
@@ -443,5 +456,42 @@ public final class EventRecoveryWorkflow {
 
         return CompareTo.isLessThan(previousRoundTimestamp, freezeTime)
                 && CompareTo.isGreaterThanOrEqualTo(currentRoundTimestamp, freezeTime);
+    }
+
+    /**
+     * Generate a {@link ConsensusSnapshot} based on the supplied data. This snapshot is not the result of consensus
+     * but is instead generated to be used as a starting point for consensus. The snapshot will contain a single
+     * judge whose generation will be almost ancient. All events older than the judge will be considered ancient.
+     * The judge is the only event needed to continue consensus operations. Once the judge is added to
+     * {@link Consensus}, it will be marked as already having reached consensus beforehand, so it
+     * will not reach consensus again.
+     *
+     * @param round              the round of the snapshot
+     * @param lastConsensusOrder the last consensus order of all events that have reached consensus
+     * @param roundTimestamp     the timestamp of the round
+     * @param config             the consensus configuration
+     * @param judge              the judge event
+     * @return the synthetic snapshot
+     */
+    private static @NonNull ConsensusSnapshot generateSyntheticSnapshot(
+            final long round,
+            final long lastConsensusOrder,
+            @NonNull final Instant roundTimestamp,
+            @NonNull final ConsensusConfig config,
+            @NonNull final PlatformEvent judge) {
+        final List<MinimumJudgeInfo> minimumJudgeInfos = LongStream.range(
+                        RoundCalculationUtils.getOldestNonAncientRound(config.roundsNonAncient(), round), round + 1)
+                .mapToObj(r -> new MinimumJudgeInfo(r, judge.getBirthRound()))
+                .toList();
+        return ConsensusSnapshot.newBuilder()
+                .round(round)
+                .judgeIds(List.of(JudgeId.newBuilder()
+                        .creatorId(judge.getCreatorId().id())
+                        .judgeHash(judge.getHash().getBytes())
+                        .build()))
+                .minimumJudgeInfoList(minimumJudgeInfos)
+                .nextConsensusNumber(lastConsensusOrder + 1)
+                .consensusTimestamp(toPbjTimestamp(ConsensusUtils.calcMinTimestampForNextEvent(roundTimestamp)))
+                .build();
     }
 }

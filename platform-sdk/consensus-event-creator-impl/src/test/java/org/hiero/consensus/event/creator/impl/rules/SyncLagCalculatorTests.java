@@ -6,11 +6,11 @@ import static org.hiero.consensus.test.fixtures.WeightGenerators.GAUSSIAN;
 import static org.hiero.consensus.test.fixtures.WeightGenerators.SINGLE_NODE_HAS_ALL;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import java.util.concurrent.atomic.AtomicLong;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
 import org.hiero.base.utility.test.fixtures.ResettableRandom;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;

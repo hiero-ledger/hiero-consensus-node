@@ -1,25 +1,24 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.state;
 
-import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID;
+import static org.hiero.consensus.platformstate.V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID;
 import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.block.stream.output.StateChanges.Builder;
 import com.hedera.hapi.platform.state.PlatformState;
-import com.swirlds.config.api.Configuration;
-import com.swirlds.platform.state.service.PlatformStateService;
-import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
 import com.swirlds.platform.state.service.schemas.V0540RosterBaseSchema;
-import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.StateDefinition;
 import com.swirlds.state.lifecycle.StateMetadata;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.CommittableWritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import org.hiero.consensus.platformstate.PlatformStateService;
+import org.hiero.consensus.platformstate.V0540PlatformStateSchema;
 import org.hiero.consensus.roster.RosterStateId;
 
 /**
@@ -31,29 +30,27 @@ public final class TestingAppStateInitializer {
     private TestingAppStateInitializer() {}
 
     /**
-     * Initialize the states for the given {@link MerkleNodeState}. This method will initialize both the
+     * Initialize the states for the given {@link VirtualMapState}. This method will initialize both the
      * platform and roster states.
      *
      * @param state the state to initialize
-     * @param configuration configuration to use
      * @return a list of builders for the states that were initialized. Currently, returns an empty list.
      */
-    public static List<Builder> initConsensusModuleStates(
-            @NonNull final MerkleNodeState state, @NonNull final Configuration configuration) {
+    public static List<Builder> initConsensusModuleStates(@NonNull final VirtualMapState state) {
         List<Builder> list = new ArrayList<>();
         list.addAll(initPlatformState(state));
-        list.addAll(initRosterState(state, configuration));
+        list.addAll(initRosterState(state));
         return list;
     }
 
     /**
-     * Initialize the platform state for the given {@link MerkleNodeState}. This method will initialize the
+     * Initialize the platform state for the given {@link VirtualMapState}. This method will initialize the
      * states used by the {@link PlatformStateService}.
      *
      * @param state the state to initialize
      * @return a list of builders for the states that were initialized. Currently, returns an empty list.
      */
-    public static List<Builder> initPlatformState(@NonNull final MerkleNodeState state) {
+    public static List<Builder> initPlatformState(@NonNull final VirtualMapState state) {
         final var schema = new V0540PlatformStateSchema();
         schema.statesToCreate().stream()
                 .sorted(Comparator.comparing(StateDefinition::stateId))
@@ -76,24 +73,23 @@ public final class TestingAppStateInitializer {
     }
 
     /**
-     * Initialize the roster state for the given {@link MerkleNodeState}. This method will initialize the
+     * Initialize the roster state for the given {@link VirtualMapState}. This method will initialize the
      * states used by the {@code RosterService}.
      *
      * @param state the state to initialize
      * @return a list of builders for the states that were initialized. Currently, returns an empty list.
      */
-    public static List<Builder> initRosterState(
-            @NonNull final MerkleNodeState state, @NonNull final Configuration configuration) {
+    public static List<Builder> initRosterState(@NonNull final VirtualMapState state) {
         final var schema = new V0540RosterBaseSchema();
         schema.statesToCreate().stream()
                 .sorted(Comparator.comparing(StateDefinition::stateId))
                 .forEach(def -> {
                     final var md = new StateMetadata<>(RosterStateId.SERVICE_NAME, def);
-                    if (def.singleton() || def.onDisk()) {
+                    if (def.singleton() || def.keyValue()) {
                         state.initializeState(md);
                     } else {
                         throw new IllegalStateException(
-                                "RosterService only expected to use singleton and onDisk virtual map states");
+                                "RosterService only expected to use singleton and keyValue virtual map states");
                     }
                 });
         final var mockMigrationContext = mock(MigrationContext.class);

@@ -23,9 +23,7 @@ option java_multiple_files = true;
 import "block/stream/output/schedule_service.proto";
 import "block/stream/output/util_service.proto";
 import "block/stream/output/crypto_service.proto";
-import "block/stream/output/token_service.proto";
 import "block/stream/output/smart_contract_service.proto";
-import "block/stream/output/consensus_service.proto";
 
 /**
  * Output from a transaction.

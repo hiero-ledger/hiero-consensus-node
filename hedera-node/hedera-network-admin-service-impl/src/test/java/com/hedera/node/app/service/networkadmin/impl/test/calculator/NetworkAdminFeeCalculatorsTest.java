@@ -14,11 +14,11 @@ import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.TransactionGetRecordQuery;
 import com.hedera.hapi.node.transaction.TransactionRecord;
+import com.hedera.node.app.fees.context.SimpleFeeContextImpl;
 import com.hedera.node.app.service.networkadmin.impl.calculator.GetByKeyFeeCalculator;
 import com.hedera.node.app.service.networkadmin.impl.calculator.GetVersionInfoFeeCalculator;
 import com.hedera.node.app.service.networkadmin.impl.calculator.TransactionGetReceiptFeeCalculator;
 import com.hedera.node.app.service.networkadmin.impl.calculator.TransactionGetRecordFeeCalculator;
-import com.hedera.node.app.spi.fees.SimpleFeeContextUtil;
 import com.hedera.node.app.spi.records.RecordCache;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import java.util.List;
@@ -55,7 +55,7 @@ class NetworkAdminFeeCalculatorsTest {
 
         calculator.accumulateNodePayment(
                 Query.newBuilder().build(),
-                SimpleFeeContextUtil.fromQueryContext(mockQueryContext),
+                new SimpleFeeContextImpl(null, mockQueryContext),
                 feeResult,
                 createTestFeeSchedule());
 
@@ -74,7 +74,7 @@ class NetworkAdminFeeCalculatorsTest {
 
         calculator.accumulateNodePayment(
                 Query.newBuilder().build(),
-                SimpleFeeContextUtil.fromQueryContext(mockQueryContext),
+                new SimpleFeeContextImpl(null, mockQueryContext),
                 feeResult,
                 createTestFeeSchedule());
 
@@ -93,7 +93,7 @@ class NetworkAdminFeeCalculatorsTest {
 
         calculator.accumulateNodePayment(
                 Query.newBuilder().build(),
-                SimpleFeeContextUtil.fromQueryContext(mockQueryContext),
+                new SimpleFeeContextImpl(null, mockQueryContext),
                 feeResult,
                 createTestFeeSchedule());
 
@@ -114,7 +114,7 @@ class NetworkAdminFeeCalculatorsTest {
                         .transactionGetRecord(
                                 TransactionGetRecordQuery.newBuilder().build())
                         .build(),
-                SimpleFeeContextUtil.fromQueryContext(null),
+                new SimpleFeeContextImpl(null, null),
                 feeResult,
                 createTestFeeSchedule());
 
@@ -154,7 +154,7 @@ class NetworkAdminFeeCalculatorsTest {
         final var feeResult = new FeeResult();
 
         calculator.accumulateNodePayment(
-                query, SimpleFeeContextUtil.fromQueryContext(mockQueryContext), feeResult, createTestFeeSchedule());
+                query, new SimpleFeeContextImpl(null, mockQueryContext), feeResult, createTestFeeSchedule());
 
         assertThat(feeResult.getServiceTotalTinycents())
                 .isEqualTo(TRANSACTION_GET_RECORD_FEE + (TRANSACTION_GET_RECORD_FEE * (expectedMultiplier - 1)));
@@ -180,7 +180,7 @@ class NetworkAdminFeeCalculatorsTest {
         final var feeResult = new FeeResult();
 
         calculator.accumulateNodePayment(
-                query, SimpleFeeContextUtil.fromQueryContext(mockQueryContext), feeResult, createTestFeeSchedule());
+                query, new SimpleFeeContextImpl(null, mockQueryContext), feeResult, createTestFeeSchedule());
 
         assertThat(feeResult.getServiceTotalTinycents()).isEqualTo(TRANSACTION_GET_RECORD_FEE);
         assertThat(calculator.getQueryType()).isEqualTo(Query.QueryOneOfType.TRANSACTION_GET_RECORD);

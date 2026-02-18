@@ -25,10 +25,12 @@ module com.hedera.node.app {
     requires transitive com.swirlds.metrics.api;
     requires transitive com.swirlds.platform.core;
     requires transitive com.swirlds.state.api;
+    requires transitive com.swirlds.state.impl;
     requires transitive com.swirlds.virtualmap;
     requires transitive org.hiero.base.crypto;
     requires transitive org.hiero.base.utility;
     requires transitive org.hiero.consensus.model;
+    requires transitive org.hiero.consensus.platformstate;
     requires transitive org.hiero.consensus.utility;
     requires transitive dagger;
     requires transitive io.grpc.stub;
@@ -52,11 +54,11 @@ module com.hedera.node.app {
     requires com.swirlds.common;
     requires com.swirlds.config.extensions;
     requires com.swirlds.logging;
-    requires com.swirlds.state.impl;
     requires org.hiero.base.concurrent;
     requires org.hiero.consensus.concurrent;
     requires org.hiero.consensus.metrics;
     requires org.hiero.consensus.roster;
+    requires org.hiero.consensus.state;
     requires com.github.benmanes.caffeine;
     requires com.google.common;
     requires io.grpc.netty;
@@ -131,6 +133,7 @@ module com.hedera.node.app {
     exports com.hedera.node.app.hints.schemas;
     exports com.hedera.node.app.blocks.impl.streaming.config;
     exports com.hedera.node.app.history.schemas;
+    exports com.hedera.node.app.fees.context;
 
     provides com.swirlds.config.api.ConfigurationExtension with
             com.hedera.node.app.config.ServicesConfigExtension;

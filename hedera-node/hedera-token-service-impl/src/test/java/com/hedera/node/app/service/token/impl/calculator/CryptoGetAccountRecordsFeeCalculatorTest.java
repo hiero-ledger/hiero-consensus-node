@@ -11,8 +11,8 @@ import com.hedera.hapi.node.base.QueryHeader;
 import com.hedera.hapi.node.token.CryptoGetAccountRecordsQuery;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.node.app.fees.SimpleFeeCalculatorImpl;
+import com.hedera.node.app.fees.context.SimpleFeeContextImpl;
 import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.SimpleFeeContextUtil;
 import java.util.List;
 import java.util.Set;
 import org.hiero.hapi.support.fees.*;
@@ -59,7 +59,7 @@ class CryptoGetAccountRecordsFeeCalculatorTest {
                     Query.newBuilder().cryptoGetAccountRecords(cryptoGetRecords).build();
 
             // When
-            final var result = feeCalculator.calculateQueryFee(query, SimpleFeeContextUtil.fromFeeContext(null));
+            final var result = feeCalculator.calculateQueryFee(query, new SimpleFeeContextImpl(null, null));
 
             // Then: service=1000000 ($0.0001 USD)
             assertThat(result).isNotNull();
@@ -78,7 +78,7 @@ class CryptoGetAccountRecordsFeeCalculatorTest {
                     Query.newBuilder().cryptoGetAccountRecords(cryptoGetRecords).build();
 
             // When
-            final var result = feeCalculator.calculateQueryFee(query, SimpleFeeContextUtil.fromFeeContext(null));
+            final var result = feeCalculator.calculateQueryFee(query, new SimpleFeeContextImpl(null, null));
 
             // Then: Same fees - context is optional
             assertThat(result.totalTinycents()).isEqualTo(1000000L);

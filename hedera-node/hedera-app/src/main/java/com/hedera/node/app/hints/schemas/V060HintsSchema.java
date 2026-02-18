@@ -49,12 +49,11 @@ public class V060HintsSchema extends Schema<SemanticVersion> {
     public @NonNull Set<StateDefinition> statesToCreate() {
         return Set.of(
                 StateDefinition.singleton(CRS_STATE_STATE_ID, CRS_STATE_KEY, CRSState.PROTOBUF),
-                StateDefinition.onDisk(
+                StateDefinition.keyValue(
                         CRS_PUBLICATIONS_STATE_ID,
                         CRS_PUBLICATIONS_KEY,
                         NodeId.PROTOBUF,
-                        CrsPublicationTransactionBody.PROTOBUF,
-                        MAX_CRS_PUBLICATIONS));
+                        CrsPublicationTransactionBody.PROTOBUF));
     }
 
     @Override

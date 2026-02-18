@@ -89,9 +89,9 @@ public final class IngestWorkflowImpl implements IngestWorkflow {
                 final var configuration = configProvider.getConfiguration();
                 ingestChecker.runAllChecks(state, requestBuffer, configuration, checkerResult);
 
-                // 7. Submit to platform
+                // 7. Submit to platform with priority=false vs network consensus and TSS txs
                 final var txInfo = checkerResult.txnInfoOrThrow();
-                submissionManager.submit(txInfo.txBody(), txInfo.serializedSignedTxOrThrow());
+                submissionManager.submit(txInfo.txBody(), txInfo.serializedSignedTxOrThrow(), false);
                 if (quiescenceEnabled) {
                     txPipelineTracker.incrementInFlight();
                 }
