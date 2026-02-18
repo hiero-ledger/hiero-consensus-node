@@ -121,9 +121,7 @@ tasks.register<Exec>("startGrafana") {
     val metricsPath =
         providers
             .gradleProperty("metricsPath")
-            .orElse(
-                "build/container/*/*/node-*/data/stats/metrics.txt"
-            )
+            .orElse("build/container/*/*/node-*/data/stats/metrics.txt")
 
     workingDir = projectDir
     commandLine("bash", "-c", "src/testPerformance/start-grafana.sh ${metricsPath.get()}")
