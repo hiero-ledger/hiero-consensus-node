@@ -22,6 +22,8 @@ import com.swirlds.config.api.validation.annotation.Min;
  * @param streamFileProducer the type of stream file producer to use. Currently only "concurrent" is supported
  * @param writeWrappedRecordFileBlockHashesToDisk whether to append wrapped record-file block hashes to a file on disk
  * @param wrappedRecordHashesDir the directory to write wrapped record hashes into
+ * @param jumpstartFile path to the jumpstart binary file containing block number, previous block root hash,
+ *     and streaming hasher state
  */
 @ConfigData("hedera.recordStream")
 public record BlockRecordStreamConfig(
@@ -55,5 +57,13 @@ public record BlockRecordStreamConfig(
         @ConfigProperty(defaultValue = "true") @NetworkProperty
         boolean writeWrappedRecordFileBlockHashesToDisk,
 
+        @ConfigProperty(defaultValue = "false") @NetworkProperty
+        boolean computeHashesFromWrappedRecordBlocks,
+
         @ConfigProperty(defaultValue = "/opt/hgcapp/wrappedRecordHashes") @NodeProperty
-        String wrappedRecordHashesDir) {}
+        String wrappedRecordHashesDir,
+
+        @ConfigProperty(defaultValue = "") @NetworkProperty String jumpstartFile,
+
+        @ConfigProperty(defaultValue = "false") @NetworkProperty
+        boolean liveWritePrevWrappedRecordHashes) {}
