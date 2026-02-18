@@ -27,6 +27,7 @@ import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.TransactionFactory;
 import org.hiero.otter.fixtures.network.transactions.BenchmarkTransaction;
 import org.hiero.otter.fixtures.network.transactions.OtterTransaction;
+import org.hiero.otter.fixtures.specs.ContainerSpecs;
 import org.hiero.otter.fixtures.specs.OtterSpecs;
 import org.hiero.otter.test.performance.benchmark.fixtures.BenchmarkServiceLogParser;
 import org.hiero.otter.test.performance.benchmark.fixtures.LoadThrottler;
@@ -42,7 +43,7 @@ public class ConsensusLayerBenchmark {
 
     private static final int WARMUP_COUNT = 1000;
     private static final int TRANSACTION_COUNT = 1000;
-    private static final int INVOCATION_RATE_IN_SECONDS = 20;
+    private static final int MAX_TPS = 20;
     // Setup simulation with 4 nodes
     public static final int NUMBER_OF_NODES = 4;
 
@@ -56,6 +57,7 @@ public class ConsensusLayerBenchmark {
      */
     @OtterTest
     @OtterSpecs(randomNodeIds = false)
+    @ContainerSpecs(proxyEnabled = false)
     void benchmark(@NonNull final TestEnvironment env) {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
@@ -92,18 +94,17 @@ public class ConsensusLayerBenchmark {
         log.info("Warm-up phase complete");
 
         log.info(
-                "Starting benchmark: Will take approximately: {}s submitting {} transactions for measurement at a rate of {} ops/s...",
-                TRANSACTION_COUNT / INVOCATION_RATE_IN_SECONDS,
+                "Starting benchmark: It will take approximately {}s submitting {} transactions at a rate of {} ops/s...",
+                TRANSACTION_COUNT / MAX_TPS,
                 TRANSACTION_COUNT,
-                INVOCATION_RATE_IN_SECONDS);
+                MAX_TPS);
 
         final LoadThrottler throttler = new LoadThrottler(
                 env, () -> createBenchmarkTransaction(nonceGenerator.incrementAndGet(), timeManager.now()));
-        throttler.submitWithRate(TRANSACTION_COUNT, INVOCATION_RATE_IN_SECONDS);
+        throttler.submitWithRate(TRANSACTION_COUNT, MAX_TPS);
         // Wait for all transactions to be processed
         timeManager.waitFor(Duration.ofSeconds(10L));
         log.info("Benchmark transactions submitted, collecting results...");
-
         // Validations
         assertThat(network.newPlatformStatusResults())
                 .haveSteps(target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING));
@@ -117,7 +118,9 @@ public class ConsensusLayerBenchmark {
                 collector.computeStatistics().totalMeasurements(),
                 "The benchmark is invalid as some of the transactions sent were not measured");
         log.info("Benchmark complete. Results:");
-        log.info(collector.generateReport());
+        final String report = collector.generateReport();
+        log.info(report);
+        System.out.println(report);
     }
 
     /**

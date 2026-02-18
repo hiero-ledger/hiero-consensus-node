@@ -67,7 +67,7 @@ env:
   GRAFANA_SYSADM_CHI: https://grafana.lat.ope.eng.hashgraph.io/d/rYdddlPWk/node-exporter-single-node?orgId=1&timezone=utc&var-datasource=P631E2BA859A814B3&var-job=performance-chicago-node-exporter
 
   #Release version from jFrog
-  NLG_VERSION: 0.12.1
+  NLG_VERSION: 0.13.0
 
 jobs:
   longevity-tests-start:
@@ -307,6 +307,9 @@ jobs:
 
           # Generate the application.properties file inline
           cp "${{ github.workspace }}"/.github/workflows/support/citr/application.properties.txt application.properties
+
+          # Generate the application.environment file inline
+          cp "${{ github.workspace }}"/.github/workflows/support/citr/application.environment.txt application.environment
 
           # Generate the settings.txt file inline
           cp "${{ github.workspace }}"/.github/workflows/support/citr/settings.txt settings.txt

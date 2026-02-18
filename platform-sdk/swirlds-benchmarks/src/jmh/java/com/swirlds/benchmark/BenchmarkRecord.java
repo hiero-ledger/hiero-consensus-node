@@ -3,7 +3,6 @@ package com.swirlds.benchmark;
 
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
-import com.swirlds.virtualmap.VirtualValue;
 
 public class BenchmarkRecord extends BenchmarkValue {
 
@@ -21,11 +20,6 @@ public class BenchmarkRecord extends BenchmarkValue {
     public BenchmarkRecord(BenchmarkRecord other) {
         super(other);
         this.path = other.path;
-    }
-
-    @Override
-    public VirtualValue copy() {
-        return new BenchmarkRecord(this);
     }
 
     public void serialize(final WritableSequentialData out) {

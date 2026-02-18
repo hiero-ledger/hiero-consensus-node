@@ -12,6 +12,7 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.utility.StringTable;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.test.performance.benchmark.fixtures.StatisticsCalculator.Statistics;
 
@@ -166,7 +167,6 @@ public class MeasurementsCollector {
     @NonNull
     public String generateReport() {
         final StringBuilder jmhStyleReport = new StringBuilder();
-        final StringBuilder tsvStyleReport = new StringBuilder();
         final Statistics totalStats = computeStatistics();
 
         if (totalStats.sampleCount() == 0) {
@@ -174,34 +174,62 @@ public class MeasurementsCollector {
             return jmhStyleReport.toString();
         }
 
-        // JMH-style header
-        jmhStyleReport.append("\n");
-        jmhStyleReport.append(String.format(
-                "%-12s %6s %10s  %10s %10s %8s %8s %8s %8s %10s %5s%n",
-                "Benchmark", "Cnt", "Score", "Error", "StdDev", "p50", "p95", "p99", "Max", "Throughput", "Units"));
+        final StringTable.Builder tb = StringTable.column("Benchmark");
+        tb.column("Cnt");
+        tb.column("Score").typeFloat(10, 3);
+        tb.fixedValue(UNIT);
+        tb.fixedValue("±");
+        tb.column("Error").typeFloat(6, 3);
+        tb.fixedValue(UNIT);
+        tb.column("StdDev").typeFloat(6, 3);
+        tb.fixedValue(UNIT);
+        tb.column("p50").typeInt(6);
+        tb.fixedValue(UNIT);
+        tb.column("p95").typeInt(6);
+        tb.fixedValue(UNIT);
+        tb.column("p99").typeInt(6);
+        tb.fixedValue(UNIT);
+        tb.column("Max").typeInt(6);
+        tb.fixedValue(UNIT);
+        tb.column("Throughput").typeFloat(6, 3);
+        tb.fixedValue("ops/s").build();
 
-        // TSV for spreadsheet
-        tsvStyleReport
-                .append("# Copy below for spreadsheet (unit: ")
-                .append(UNIT)
-                .append("):\n");
-        tsvStyleReport.append("Node\tCnt\tAvg\tError(99.9%)\tStdDev\tp50\tp95\tp99\tMin\tMax\tThroughput\n");
+        final StringTable table = tb.build();
+        jmhStyleReport.append("\n");
 
         // Per-node results
         for (final NodeId nodeId : getNodeIds()) {
             final Statistics stats = computeStatistics(nodeId);
-            appendJmhRow(jmhStyleReport, "Node " + nodeId, stats);
-            appendTsvRow(tsvStyleReport, nodeId.toString(), stats);
+            table.addRow(
+                    "Node " + nodeId,
+                    stats.sampleCount(),
+                    stats.average(),
+                    stats.error(),
+                    stats.stdDev(),
+                    stats.p50(),
+                    stats.p95(),
+                    stats.p99(),
+                    stats.max(),
+                    stats.throughput());
         }
 
+        table.addRow(
+                "TOTAL",
+                totalStats.sampleCount(),
+                totalStats.average(),
+                totalStats.error(),
+                totalStats.stdDev(),
+                totalStats.p50(),
+                totalStats.p95(),
+                totalStats.p99(),
+                totalStats.max(),
+                totalStats.throughput());
         // Total
-        appendJmhRow(jmhStyleReport, "TOTAL", totalStats);
-        appendTsvRow(tsvStyleReport, "TOTAL", totalStats);
-
+        jmhStyleReport.append(table);
         // Throughput summary
         jmhStyleReport.append("\n");
         jmhStyleReport.append(String.format(
-                "Throughput: %.2f tx/s (over %d %s, %d total transactions)%n",
+                "Test throughput: %.2f tx/s (over %d %s, %d total transactions)%n",
                 totalStats.throughput(), totalStats.duration(), UNIT, totalStats.totalMeasurements()));
 
         if (totalStats.invalidMeasurements() > 0) {
@@ -209,39 +237,22 @@ public class MeasurementsCollector {
                     "Warning: %d measurements with negative latency%n", totalStats.invalidMeasurements()));
         }
         jmhStyleReport.append("\n");
+        // TSV for spreadsheet
+        final String tsvStyleReport = "# Copy below for spreadsheet (unit: "
+                + UNIT
+                + "):\n"
+                + "Avg\tError(99.9%)\tStdDev\tp50\tp95\tp99\tMin\tMax\n"
+                + String.format(
+                        "%.3f\t%.3f\t%.3f\t%d\t%d\t%d\t%d\t%d%n",
+                        totalStats.average(),
+                        totalStats.error(),
+                        totalStats.stdDev(),
+                        totalStats.p50(),
+                        totalStats.p95(),
+                        totalStats.p99(),
+                        totalStats.min(),
+                        totalStats.max());
 
         return jmhStyleReport + "\n" + tsvStyleReport;
-    }
-
-    private void appendJmhRow(final StringBuilder sb, final String label, final Statistics stats) {
-        sb.append(String.format(
-                "%-12s %6d %10.3f ±%10.3f %10.3f %8d %8d %8d %8d %10.3f %s/op%n",
-                label,
-                stats.sampleCount(),
-                stats.average(),
-                stats.error(),
-                stats.stdDev(),
-                stats.p50(),
-                stats.p95(),
-                stats.p99(),
-                stats.max(),
-                stats.throughput(),
-                MeasurementsCollector.UNIT));
-    }
-
-    private void appendTsvRow(final StringBuilder sb, final String label, final Statistics stats) {
-        sb.append(String.format(
-                "%s\t%d\t%.3f\t%.3f\t%.3f\t%d\t%d\t%d\t%d\t%d\t%.3f%n",
-                label,
-                stats.sampleCount(),
-                stats.average(),
-                stats.error(),
-                stats.stdDev(),
-                stats.p50(),
-                stats.p95(),
-                stats.p99(),
-                stats.min(),
-                stats.max(),
-                stats.throughput()));
     }
 }

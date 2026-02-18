@@ -1592,7 +1592,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         verifyNoInteractions(bufferService);
     }
 
-    // Tests EndOfStream rate limiting - connection closes when limit exceeded
+    // Tests EndOfStream rate limiting - sends EndStream with RESET code and reschedules when limit exceeded
     @Test
     void testOnNext_endOfStream_rateLimitExceeded() {
         openConnectionAndResetMocks();
@@ -1610,8 +1610,15 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         verify(metrics).recordEndOfStreamLimitExceeded();
         verify(metrics).recordConnectionClosed();
         verify(metrics).recordActiveConnectionIp(-1L);
+        // Verify EndStream request metrics
+        verify(metrics).recordRequestEndStreamSent(EndStream.Code.RESET);
+        verify(metrics).recordRequestLatency(anyLong());
         verify(connectionManager).recordEndOfStreamAndCheckLimit(eq(nodeConfig), any());
         verify(connectionManager).rescheduleConnection(connection, Duration.ofMinutes(5), null, true);
+        // Verify EndStream request was sent with RESET code
+        verify(bufferService, atLeastOnce()).getEarliestAvailableBlockNumber();
+        verify(bufferService, atLeastOnce()).getHighestAckedBlockNumber();
+        verify(requestPipeline).onNext(any(PublishStreamRequest.class));
         verify(requestPipeline).onComplete();
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(requestPipeline);
@@ -1649,17 +1656,54 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         openConnectionAndResetMocks();
         final PublishStreamResponse response = createBlockNodeBehindResponse(Long.MAX_VALUE);
         when(bufferService.getBlockState(0L)).thenReturn(new BlockState(0L));
+        when(connectionManager.recordBehindPublisherAndCheckLimit(eq(nodeConfig), any()))
+                .thenReturn(false);
         connection.updateConnectionState(ConnectionState.ACTIVE);
 
         connection.onNext(response);
 
         verify(metrics).recordLatestBlockBehindPublisher(Long.MAX_VALUE);
         verify(metrics).recordResponseReceived(ResponseOneOfType.NODE_BEHIND_PUBLISHER);
+        verify(connectionManager).recordBehindPublisherAndCheckLimit(eq(nodeConfig), any());
         verify(bufferService).getBlockState(0L);
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(requestPipeline);
         verifyNoMoreInteractions(connectionManager);
         verifyNoMoreInteractions(bufferService);
+    }
+
+    // Tests BehindPublisher rate limiting - sends EndStream with RESET code and reschedules when limit exceeded
+    @Test
+    void testOnNext_blockNodeBehind_rateLimitExceeded() {
+        openConnectionAndResetMocks();
+        connection.updateConnectionState(ConnectionState.ACTIVE);
+        final PublishStreamResponse response = createBlockNodeBehindResponse(10L);
+
+        when(connectionManager.recordBehindPublisherAndCheckLimit(eq(nodeConfig), any()))
+                .thenReturn(true);
+        when(connectionManager.getBehindPublisherScheduleDelay()).thenReturn(Duration.ofMinutes(5));
+        // Mock bufferService for EndStream request
+        when(bufferService.getEarliestAvailableBlockNumber()).thenReturn(5L);
+        when(bufferService.getHighestAckedBlockNumber()).thenReturn(15L);
+
+        connection.onNext(response);
+
+        verify(metrics).recordLatestBlockBehindPublisher(10L);
+        verify(metrics).recordResponseReceived(ResponseOneOfType.NODE_BEHIND_PUBLISHER);
+        verify(metrics).recordConnectionClosed();
+        verify(metrics).recordActiveConnectionIp(-1L);
+        // Verify EndStream request metrics
+        verify(metrics).recordRequestEndStreamSent(EndStream.Code.RESET);
+        verify(metrics).recordRequestLatency(anyLong());
+        verify(connectionManager).recordBehindPublisherAndCheckLimit(eq(nodeConfig), any());
+        verify(connectionManager).rescheduleConnection(connection, Duration.ofMinutes(5), null, true);
+        // Verify EndStream request was sent with RESET code
+        verify(bufferService, atLeastOnce()).getEarliestAvailableBlockNumber();
+        verify(bufferService, atLeastOnce()).getHighestAckedBlockNumber();
+        verify(requestPipeline).onNext(any(PublishStreamRequest.class));
+        verify(requestPipeline).onComplete();
+        verifyNoMoreInteractions(metrics);
+        verifyNoMoreInteractions(requestPipeline);
     }
 
     // Tests stream failure handling without calling onComplete on the pipeline

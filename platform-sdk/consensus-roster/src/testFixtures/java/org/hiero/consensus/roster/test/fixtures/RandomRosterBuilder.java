@@ -10,6 +10,7 @@ import java.util.Objects;
 import java.util.Random;
 import java.util.stream.IntStream;
 import org.hiero.consensus.crypto.KeysAndCertsGenerator;
+import org.hiero.consensus.crypto.SigningSchema;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.test.fixtures.WeightGenerator;
@@ -51,6 +52,11 @@ public class RandomRosterBuilder {
      * If true then generate real cryptographic keys.
      */
     private boolean realKeys;
+
+    /**
+     * The signing schema to use when generating real cryptographic keys.
+     */
+    private SigningSchema signingSchema = SigningSchema.RSA;
 
     /**
      * If we are using real keys, this map will hold the private keys for each address.
@@ -104,6 +110,21 @@ public class RandomRosterBuilder {
                 .toList());
 
         return builder.build();
+    }
+
+    /**
+     * Builds the roster and returns it together with the cryptographic keys for each node. Requires
+     * {@link #withRealKeysEnabled(boolean)} to have been set to {@code true}.
+     *
+     * @return the roster bundled with its cryptographic keys
+     * @throws IllegalStateException if real keys are not enabled
+     */
+    public RosterWithKeys buildWithKeys() {
+        if (!realKeys) {
+            throw new IllegalStateException("Cannot build roster with keys when real keys are not enabled");
+        }
+        final Roster roster = build();
+        return new RosterWithKeys(roster, privateKeys);
     }
 
     /**
@@ -164,22 +185,15 @@ public class RandomRosterBuilder {
     }
 
     /**
-     * Get the private keys for a node. Should only be called after the roster has been built and only if
-     * {@link #withRealKeysEnabled(boolean)} was set to true.
+     * Set the signing schema to use when generating real cryptographic keys. Default is {@link SigningSchema#RSA}.
      *
-     * @param nodeId the node id
-     * @return the private keys
-     * @throws IllegalStateException if real keys are not being generated or the roster has not been built
+     * @param signingSchema the signing schema to use
+     * @return this object
      */
     @NonNull
-    public KeysAndCerts getPrivateKeys(@NonNull final NodeId nodeId) {
-        if (!realKeys) {
-            throw new IllegalStateException("Real keys are not being generated");
-        }
-        if (!privateKeys.containsKey(nodeId)) {
-            throw new IllegalStateException("Unknown node ID " + nodeId);
-        }
-        return privateKeys.get(nodeId);
+    public RandomRosterBuilder withSigningSchema(@NonNull final SigningSchema signingSchema) {
+        this.signingSchema = Objects.requireNonNull(signingSchema);
+        return this;
     }
 
     /**
@@ -207,7 +221,7 @@ public class RandomRosterBuilder {
                 final byte[] masterKey = new byte[64];
                 random.nextBytes(masterKey);
 
-                final KeysAndCerts keysAndCerts = KeysAndCertsGenerator.generate(nodeId);
+                final KeysAndCerts keysAndCerts = KeysAndCertsGenerator.generate(nodeId, signingSchema);
                 privateKeys.put(nodeId, keysAndCerts);
 
                 addressBuilder.withSigCert(keysAndCerts.sigCert());

@@ -25,10 +25,10 @@ import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.state.MutabilityException;
-import com.swirlds.state.MerkleProof;
-import com.swirlds.state.QueueState;
-import com.swirlds.state.SiblingHash;
 import com.swirlds.state.StateChangeListener;
+import com.swirlds.state.binary.MerkleProof;
+import com.swirlds.state.binary.QueueState;
+import com.swirlds.state.binary.SiblingHash;
 import com.swirlds.state.lifecycle.StateDefinition;
 import com.swirlds.state.lifecycle.StateMetadata;
 import com.swirlds.state.spi.CommittableWritableStates;
@@ -153,8 +153,8 @@ public class VirtualMapStateImplTest extends MerkleTestBase {
             setupFruitVirtualMap();
             final var fruitVirtualMetadata2 = new StateMetadata<>(
                     StateTestBase.FIRST_SERVICE,
-                    StateDefinition.onDisk(
-                            FRUIT_STATE_ID, FRUIT_STATE_KEY, ProtoBytes.PROTOBUF, ProtoBytes.PROTOBUF, 999));
+                    StateDefinition.keyValue(
+                            FRUIT_STATE_ID, FRUIT_STATE_KEY, ProtoBytes.PROTOBUF, ProtoBytes.PROTOBUF));
 
             virtualMapState.initializeState(fruitMetadata);
             virtualMapState.initializeState(fruitVirtualMetadata2);
@@ -825,7 +825,7 @@ public class VirtualMapStateImplTest extends MerkleTestBase {
         }
 
         @Test
-        @DisplayName("getKvPath returns path for existing kv key")
+        @DisplayName("getKvPath returns path for existing keyValue key")
         void kvPath_found() {
             final var kvKey = StateUtils.getStateKeyForKv(FRUIT_STATE_ID, A_KEY, ProtoBytes.PROTOBUF);
             final long expected = (virtualMapState.getRoot()).getRecords().findPath(kvKey);
@@ -925,7 +925,7 @@ public class VirtualMapStateImplTest extends MerkleTestBase {
         }
 
         @Test
-        @DisplayName("getMerkleProof returns correct proof for kv")
+        @DisplayName("getMerkleProof returns correct proof for keyValue")
         void getMerkleProof_kv() throws ParseException {
             // Ensure the tree is hashed
             virtualMapState.getHash();
@@ -954,10 +954,10 @@ public class VirtualMapStateImplTest extends MerkleTestBase {
             assertThat(siblingHashes.size()).isEqualTo(2);
 
             assertThat(siblingHashes.get(0).hash()).isEqualTo(getHash(6));
-            assertTrue(siblingHashes.get(0).isRight());
+            assertFalse(siblingHashes.get(0).isLeft());
 
             assertThat(siblingHashes.get(1).hash()).isEqualTo(getHash(1));
-            assertFalse(siblingHashes.get(1).isRight());
+            assertTrue(siblingHashes.get(1).isLeft());
 
             // Parent hashes leaf(5) -> internal(2) -> root(0)
             final List<Hash> innerParentHashes = proof.innerParentHashes();
@@ -1027,13 +1027,13 @@ public class VirtualMapStateImplTest extends MerkleTestBase {
             assertThat(siblingHashes.size()).isEqualTo(3);
             // Siblings along the path from leaf(7) -> internal(3) -> internal(1)
             assertThat(siblingHashes.get(0).hash()).isEqualTo(getHash(8));
-            assertTrue(siblingHashes.get(0).isRight());
+            assertFalse(siblingHashes.get(0).isLeft());
 
             assertThat(siblingHashes.get(1).hash()).isEqualTo(getHash(4));
-            assertTrue(siblingHashes.get(1).isRight());
+            assertFalse(siblingHashes.get(1).isLeft());
 
             assertThat(siblingHashes.get(2).hash()).isEqualTo(getHash(2));
-            assertTrue(siblingHashes.get(2).isRight());
+            assertFalse(siblingHashes.get(2).isLeft());
 
             final List<Hash> innerParentHashes = proof.innerParentHashes();
             // leaf hash, then internal(3), then internal(1), then root
@@ -1083,13 +1083,13 @@ public class VirtualMapStateImplTest extends MerkleTestBase {
             assertThat(siblingHashes.size()).isEqualTo(3);
             // Path from leaf(10) -> internal(4) -> internal(1)
             assertThat(siblingHashes.get(0).hash()).isEqualTo(getHash(9));
-            assertFalse(siblingHashes.get(0).isRight());
+            assertTrue(siblingHashes.get(0).isLeft());
 
             assertThat(siblingHashes.get(1).hash()).isEqualTo(getHash(3));
-            assertFalse(siblingHashes.get(1).isRight());
+            assertTrue(siblingHashes.get(1).isLeft());
 
             assertThat(siblingHashes.get(2).hash()).isEqualTo(getHash(2));
-            assertTrue(siblingHashes.get(2).isRight());
+            assertFalse(siblingHashes.get(2).isLeft());
 
             final List<Hash> innerParentHashes = proof.innerParentHashes();
             // leaf hash, then internal(4), then internal(1), then root

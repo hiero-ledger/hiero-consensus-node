@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.history.impl;
 
+import static com.hedera.node.app.history.HistoryService.isCompleted;
 import static com.hedera.node.app.history.schemas.V071HistorySchema.ACTIVE_PROOF_CONSTRUCTION_STATE_ID;
 import static com.hedera.node.app.history.schemas.V071HistorySchema.LEDGER_ID_STATE_ID;
 import static com.hedera.node.app.history.schemas.V071HistorySchema.NEXT_PROOF_CONSTRUCTION_STATE_ID;
@@ -85,7 +86,7 @@ public class HistoryServiceImpl implements HistoryService {
         switch (activeRosters.phase()) {
             case BOOTSTRAP, TRANSITION -> {
                 final var construction = historyStore.getOrCreateConstruction(activeRosters, now, tssConfig);
-                if (!construction.hasTargetProof()) {
+                if (!isCompleted(construction, tssConfig)) {
                     final var controller = component
                             .controllers()
                             .getOrCreateFor(

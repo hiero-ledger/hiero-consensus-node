@@ -14,7 +14,6 @@ import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.sources.SimpleConfigSource;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import com.swirlds.state.State;
@@ -24,7 +23,7 @@ import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StateDefinition;
 import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.state.merkle.VirtualMapState;
-import com.swirlds.state.merkle.disk.OnDiskWritableKVState;
+import com.swirlds.state.merkle.vm.VirtualMapWritableKVState;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableQueueState;
 import com.swirlds.state.spi.ReadableSingletonState;
@@ -42,6 +41,7 @@ import java.util.HashMap;
 import java.util.Set;
 import org.hiero.base.crypto.config.CryptoConfig;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.state.signed.SignedState;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -80,8 +80,8 @@ class SerializationTest extends MerkleTestBase {
             @Override
             @SuppressWarnings("rawtypes")
             public Set<StateDefinition> statesToCreate() {
-                final var fruitDef = StateDefinition.onDisk(
-                        FRUIT_STATE_ID, FRUIT_STATE_KEY, ProtoBytes.PROTOBUF, ProtoBytes.PROTOBUF, 100);
+                final var fruitDef = StateDefinition.keyValue(
+                        FRUIT_STATE_ID, FRUIT_STATE_KEY, ProtoBytes.PROTOBUF, ProtoBytes.PROTOBUF);
                 final var countryDef =
                         StateDefinition.singleton(COUNTRY_STATE_ID, COUNTRY_STATE_KEY, ProtoBytes.PROTOBUF);
                 final var steamDef = StateDefinition.queue(STEAM_STATE_ID, STEAM_STATE_KEY, ProtoBytes.PROTOBUF);
@@ -91,9 +91,9 @@ class SerializationTest extends MerkleTestBase {
             @Override
             public void migrate(@NonNull final MigrationContext ctx) {
                 final var newStates = ctx.newStates();
-                final OnDiskWritableKVState<ProtoBytes, ProtoBytes> fruit =
-                        (OnDiskWritableKVState<ProtoBytes, ProtoBytes>)
-                                (OnDiskWritableKVState) newStates.get(FRUIT_STATE_ID);
+                final VirtualMapWritableKVState<ProtoBytes, ProtoBytes> fruit =
+                        (VirtualMapWritableKVState<ProtoBytes, ProtoBytes>)
+                                (VirtualMapWritableKVState) newStates.get(FRUIT_STATE_ID);
                 fruit.put(A_KEY, APPLE);
                 fruit.put(B_KEY, BANANA);
                 fruit.put(C_KEY, CHERRY);

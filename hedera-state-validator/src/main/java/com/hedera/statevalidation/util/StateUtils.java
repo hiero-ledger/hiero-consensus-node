@@ -59,7 +59,6 @@ import com.hedera.pbj.runtime.OneOf;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
-import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.State;
@@ -89,6 +88,7 @@ import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.platformstate.PlatformStateService;
+import org.hiero.consensus.state.signed.SignedState;
 
 /**
  * Utility for loading and initializing state from disk. Manages the complete initialization
@@ -149,7 +149,7 @@ public final class StateUtils {
             for (Map.Entry<Integer, StateMetadata<?, ?>> stateEntry :
                     serviceEntry.getValue().entrySet()) {
                 StateMetadata<?, ?> md = stateEntry.getValue();
-                if (md.stateDefinition().onDisk()) {
+                if (md.stateDefinition().keyValue()) {
                     ReadableKVStateBase<?, ?> readableState =
                             (ReadableKVStateBase) readableStates.get(stateEntry.getKey());
                     readableState.reset();

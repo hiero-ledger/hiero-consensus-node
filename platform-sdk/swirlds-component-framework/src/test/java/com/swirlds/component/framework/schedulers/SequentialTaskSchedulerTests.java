@@ -2180,7 +2180,7 @@ class SequentialTaskSchedulerTests implements SequentialTaskSchedulerAliveThread
         producer.waitIsFinished(AWAIT_MAX_DURATION);
         taskHandler.executionControl().await(totalTasks, AWAIT_MAX_DURATION);
         // check there are no unprocessed tasks, according to the framework
-        assertEquals(0L, taskScheduler.getUnprocessedTaskCount());
+        assertUnprocessedTasksValueIs(taskScheduler, 0L);
         // check there are no unprocessed tasks, according to the test counter
         assertEquals(0L, unprocessedTasks.get());
 

@@ -18,16 +18,17 @@ mainModuleInfo {
     runtimeOnly("com.swirlds.config.impl")
     runtimeOnly("org.hiero.consensus.event.creator.impl")
     runtimeOnly("org.hiero.consensus.event.intake.impl")
+    runtimeOnly("org.hiero.consensus.hashgraph.impl")
     runtimeOnly("org.hiero.consensus.pces.impl")
+    runtimeOnly("org.hiero.consensus.gossip.impl")
+    runtimeOnly("org.hiero.consensus.reconnect.impl")
 }
 
 jmhModuleInfo {
     requires("com.swirlds.common")
     requires("com.swirlds.platform.core")
-    requires("com.swirlds.common.test.fixtures")
     requires("com.swirlds.platform.core.test.fixtures")
     requires("com.hedera.node.hapi")
-    requires("org.hiero.consensus.gossip.impl")
     requires("org.hiero.consensus.model.test.fixtures")
     requires("org.hiero.consensus.pces")
     requires("org.hiero.consensus.pces.impl")
@@ -44,11 +45,11 @@ testModuleInfo {
     requires("com.swirlds.state.api.test.fixtures")
     requires("com.swirlds.state.impl.test.fixtures")
     requires("com.swirlds.merkledb.test.fixtures")
-    requires("org.hiero.base.concurrent.test.fixtures")
     requires("org.hiero.base.crypto.test.fixtures")
     requires("org.hiero.base.utility.test.fixtures")
     requires("org.hiero.consensus.hashgraph.impl.test.fixtures")
     requires("org.hiero.consensus.model.test.fixtures")
+    requires("org.hiero.consensus.reconnect")
     requires("org.hiero.consensus.roster.test.fixtures")
     requires("org.hiero.consensus.utility.test.fixtures")
     requires("org.assertj.core")
@@ -62,14 +63,17 @@ testModuleInfo {
 }
 
 timingSensitiveModuleInfo {
-    requires("com.swirlds.common")
-    requires("com.swirlds.common.test.fixtures")
+    requires("com.swirlds.metrics.api")
     requires("com.swirlds.platform.core")
     requires("com.swirlds.platform.core.test.fixtures")
     requires("com.swirlds.state.impl")
-    requires("org.hiero.base.concurrent")
     requires("org.hiero.base.utility.test.fixtures")
-    requires("org.assertj.core")
+    requires("org.hiero.consensus.metrics")
     requires("org.junit.jupiter.api")
-    requires("org.hiero.consensus.concurrent")
+}
+
+tasks.named<com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar>("shadowJar") {
+    // runtimeClasspath currently re-introduces this module via a transitive cycle
+    // (through consensus-reconnect-impl), which can duplicate classes already in main output.
+    duplicatesStrategy = org.gradle.api.file.DuplicatesStrategy.EXCLUDE
 }

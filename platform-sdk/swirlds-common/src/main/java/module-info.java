@@ -21,7 +21,6 @@ module com.swirlds.common {
     exports com.swirlds.common.stream;
     exports com.swirlds.common.stream.internal;
     exports com.swirlds.common.utility;
-    exports com.swirlds.common.jackson;
     exports com.swirlds.common.startup;
     exports com.swirlds.common.merkle.synchronization.stats;
     exports com.swirlds.common.io.streams.internal to
@@ -48,8 +47,6 @@ module com.swirlds.common {
     requires transitive org.hiero.consensus.model;
     requires transitive org.hiero.consensus.reconnect;
     requires transitive org.hiero.consensus.utility;
-    requires transitive com.fasterxml.jackson.core;
-    requires transitive com.fasterxml.jackson.databind;
     requires com.hedera.pbj.runtime;
     requires com.swirlds.logging;
     requires org.hiero.consensus.metrics;
@@ -58,6 +55,5 @@ module com.swirlds.common {
     requires jdk.management;
     requires org.apache.logging.log4j.core;
     requires org.apache.logging.log4j;
-    requires org.bouncycastle.provider;
     requires static transitive com.github.spotbugs.annotations;
 }

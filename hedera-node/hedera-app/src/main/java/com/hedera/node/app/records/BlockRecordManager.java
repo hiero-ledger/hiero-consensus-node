@@ -139,4 +139,12 @@ public interface BlockRecordManager extends BlockRecordInfo, AutoCloseable {
      * Notifies the block record manager that any startup migration records have been streamed.
      */
     void markMigrationRecordsStreamed();
+
+    /**
+     * Hook to append wrapped record-file block hashes for the current in-progress record block
+     * (if the feature is enabled and sufficient in-memory inputs exist).
+     *
+     * <p>This is primarily intended to be called on orderly shutdown paths like {@code FREEZE_COMPLETE}.
+     */
+    void writeFreezeBlockWrappedRecordFileBlockHashes();
 }

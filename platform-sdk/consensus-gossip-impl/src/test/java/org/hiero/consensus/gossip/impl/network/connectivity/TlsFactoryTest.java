@@ -1,28 +1,36 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.gossip.impl.network.connectivity;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
+import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.security.PrivateKey;
+import java.security.cert.Certificate;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Function;
-import java.util.stream.Collectors;
+import org.hiero.base.crypto.config.CryptoConfig;
+import org.hiero.base.crypto.config.CryptoConfig_;
 import org.hiero.consensus.gossip.impl.gossip.Utilities;
 import org.hiero.consensus.gossip.impl.network.NetworkUtils;
 import org.hiero.consensus.gossip.impl.network.PeerInfo;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
+import org.hiero.consensus.roster.test.fixtures.RosterWithKeys;
 import org.hiero.consensus.test.fixtures.Randotron;
 import org.hiero.consensus.test.fixtures.WeightGenerators;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -50,9 +58,9 @@ class TlsFactoryTest extends ConnectivityTestBase {
     @BeforeEach
     void setUp() throws Throwable {
         // create addressBook, keysAndCerts
-        final RosterAndCerts rosterAndCerts = genRosterLoadKeys(2);
-        final Roster roster = rosterAndCerts.roster();
-        final Map<NodeId, KeysAndCerts> keysAndCerts = rosterAndCerts.nodeIdKeysAndCertsMap();
+        final RosterWithKeys rosterAndCerts = genRosterLoadKeys(2);
+        final Roster roster = rosterAndCerts.getRoster();
+        final Map<NodeId, KeysAndCerts> keysAndCerts = rosterAndCerts.getAllKeysAndCerts();
         assertTrue(roster.rosterEntries().size() > 1, "Roster must contain at least 2 nodes");
 
         // choose 2 nodes to test connections
@@ -77,13 +85,13 @@ class TlsFactoryTest extends ConnectivityTestBase {
         Assertions.assertFalse(serverSocket.isClosed());
 
         // create a new address book with keys and new set of nodes
-        final RosterAndCerts updatedRosterAndCerts = genRosterLoadKeys(6);
+        final RosterWithKeys updatedRosterAndCerts = genRosterLoadKeys(6);
         final Roster updatedRoster = Roster.newBuilder()
-                .rosterEntries(updatedRosterAndCerts.roster().rosterEntries().stream()
+                .rosterEntries(updatedRosterAndCerts.getRoster().rosterEntries().stream()
                         .map(entry -> {
                             if (entry.nodeId() == nodeA.id()) {
                                 return entry.copyBuilder()
-                                        .nodeId(updatedRosterAndCerts.roster().rosterEntries().stream()
+                                        .nodeId(updatedRosterAndCerts.getRoster().rosterEntries().stream()
                                                         .mapToLong(RosterEntry::nodeId)
                                                         .max()
                                                         .getAsLong()
@@ -95,7 +103,7 @@ class TlsFactoryTest extends ConnectivityTestBase {
                         })
                         .toList())
                 .build();
-        final Map<NodeId, KeysAndCerts> updatedKeysAndCerts = updatedRosterAndCerts.nodeIdKeysAndCertsMap();
+        final Map<NodeId, KeysAndCerts> updatedKeysAndCerts = updatedRosterAndCerts.getAllKeysAndCerts();
         assertTrue(updatedRoster.rosterEntries().size() > 1, "Roster must contain at least 2 nodes");
 
         peersA = Utilities.createPeerInfoList(updatedRoster, nodeA); // Peers of A as in updated addressBook
@@ -105,6 +113,20 @@ class TlsFactoryTest extends ConnectivityTestBase {
         final List<PeerInfo> peersC = Utilities.createPeerInfoList(updatedRoster, nodeC);
         socketFactoryC =
                 NetworkUtils.createSocketFactory(nodeC, peersC, updatedKeysAndCerts.get(nodeC), TLS_NO_IP_TOS_CONFIG);
+    }
+
+    @AfterEach
+    void tearDown() throws IOException, InterruptedException {
+        closeSeverConnection.set(true);
+        if (serverSocket != null && !serverSocket.isClosed()) {
+            serverSocket.close();
+        }
+        if (serverThread != null && serverThread.isAlive()) {
+            serverThread.join();
+        }
+        if (clientSocketB != null && !clientSocketB.isClosed()) {
+            clientSocketB.close();
+        }
     }
 
     /**
@@ -129,25 +151,51 @@ class TlsFactoryTest extends ConnectivityTestBase {
         Assertions.assertTrue(serverSocket.isClosed());
     }
 
+    @Test
+    void tlsFactoryThrowsIfKeystorePasswordIsNull() {
+        final Configuration configuration = mock(Configuration.class);
+        when(configuration.getConfigData(CryptoConfig.class)).thenReturn(new CryptoConfig(null));
+
+        final IllegalArgumentException exception = assertThrows(
+                IllegalArgumentException.class,
+                () -> new TlsFactory(
+                        mock(Certificate.class), mock(PrivateKey.class), List.of(), NodeId.of(0), configuration));
+
+        final String expectedMessage = CryptoConfig_.KEYSTORE_PASSWORD + " must not be null or blank";
+        final String assertionMessage =
+                "TlsFactory should fail fast when " + CryptoConfig_.KEYSTORE_PASSWORD + " is null";
+
+        assertEquals(expectedMessage, exception.getMessage(), assertionMessage);
+    }
+
+    @Test
+    void tlsFactoryThrowsIfKeystorePasswordIsBlank() {
+        final Configuration configuration = mock(Configuration.class);
+        when(configuration.getConfigData(CryptoConfig.class)).thenReturn(new CryptoConfig("   "));
+
+        final IllegalArgumentException exception = assertThrows(
+                IllegalArgumentException.class,
+                () -> new TlsFactory(
+                        mock(Certificate.class), mock(PrivateKey.class), List.of(), NodeId.of(0), configuration));
+
+        final String expectedMessage = CryptoConfig_.KEYSTORE_PASSWORD + " must not be null or blank";
+        final String assertionMessage =
+                "TlsFactory should fail fast when " + CryptoConfig_.KEYSTORE_PASSWORD + " is blank";
+
+        assertEquals(expectedMessage, exception.getMessage(), assertionMessage);
+    }
+
     /**
      * Creates a roster.
      *
      * @param size the size of the required roster
      */
     @NonNull
-    private static RosterAndCerts genRosterLoadKeys(final int size) {
-        final RandomRosterBuilder rosterBuilder = RandomRosterBuilder.create(Randotron.create())
+    private static RosterWithKeys genRosterLoadKeys(final int size) {
+        return RandomRosterBuilder.create(Randotron.create())
                 .withSize(size)
                 .withRealKeysEnabled(true)
-                .withWeightGenerator(WeightGenerators.BALANCED_1000_PER_NODE);
-        final Roster genRoster = rosterBuilder.build();
-        final Map<NodeId, KeysAndCerts> genKac = genRoster.rosterEntries().stream()
-                .map(RosterEntry::nodeId)
-                .map(NodeId::of)
-                .collect(Collectors.toMap(Function.identity(), rosterBuilder::getPrivateKeys));
-        return new RosterAndCerts(genRoster, genKac);
+                .withWeightGenerator(WeightGenerators.BALANCED_1000_PER_NODE)
+                .buildWithKeys();
     }
-
-    public record RosterAndCerts(
-            @NonNull Roster roster, @NonNull Map<NodeId, KeysAndCerts> nodeIdKeysAndCertsMap) {}
 }
