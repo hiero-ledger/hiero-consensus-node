@@ -186,6 +186,7 @@ public class ProcessUtils {
                 "-Dfile.encoding=UTF-8",
                 "-Dprometheus.endpointPortNumber=" + metadata.prometheusPort(),
                 "-Dhedera.recordStream.logDir=" + DATA_DIR + "/" + RECORD_STREAMS_DIR,
+                "-Dhedera.recordStream.wrappedRecordHashesDir=" + DATA_DIR + "/wrappedRecordHashes",
                 "-Dhedera.profiles.active=DEV",
                 "--module",
                 "com.hedera.node.app/com.hedera.node.app.ServicesMain",

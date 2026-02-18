@@ -1,11 +1,27 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.hapi.fees;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_CREATE_TOPIC;
+import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_APPROVE_ALLOWANCE;
+import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_TRANSFER;
+import static com.hedera.hapi.node.base.HederaFunctionality.FILE_APPEND;
+import static com.hedera.hapi.node.base.HederaFunctionality.FILE_CREATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.HOOK_STORE;
+import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_CREATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_AIRDROP;
+import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_ASSOCIATE_TO_ACCOUNT;
+import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_CLAIM_AIRDROP;
+import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_CREATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_MINT;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.node.base.HederaFunctionality;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
+import java.util.Set;
 import org.hiero.hapi.support.fees.PiecewiseLinearCurve;
 import org.hiero.hapi.support.fees.PiecewiseLinearPoint;
 import org.hiero.hapi.support.fees.PricingCurve;
@@ -31,10 +47,29 @@ import org.hiero.hapi.support.fees.VariableRateDefinition;
 public final class HighVolumePricingCalculator {
 
     /** The scale factor for utilization percentage (10,000 = 100%). */
-    public static final int UTILIZATION_SCALE = 10_000;
+    public static final int HIGH_VOLUME_UTILIZATION_SCALE = 10_000;
 
     /** The scale factor for multiplier values (1,000 = 1x). */
-    public static final long MULTIPLIER_SCALE = 1_000L;
+    public static final long HIGH_VOLUME_MULTIPLIER_SCALE = 1_000L;
+
+    /** The default multiplier scaled by 1,000 (1,000 = 1x). */
+    public static final long DEFAULT_HIGH_VOLUME_MULTIPLIER = 1_000L;
+    /** The set of high-volume functions. */
+    public static final Set<HederaFunctionality> HIGH_VOLUME_FUNCTIONS = Set.of(
+            CRYPTO_CREATE,
+            CONSENSUS_CREATE_TOPIC,
+            SCHEDULE_CREATE,
+            CRYPTO_APPROVE_ALLOWANCE,
+            FILE_CREATE,
+            FILE_APPEND,
+            CONTRACT_CREATE,
+            HOOK_STORE,
+            TOKEN_ASSOCIATE_TO_ACCOUNT,
+            TOKEN_AIRDROP,
+            TOKEN_CLAIM_AIRDROP,
+            TOKEN_MINT,
+            TOKEN_CREATE,
+            CRYPTO_TRANSFER);
 
     private HighVolumePricingCalculator() {
         // Utility class
@@ -52,14 +87,14 @@ public final class HighVolumePricingCalculator {
             @Nullable final VariableRateDefinition variableRateDefinition, final int utilizationBasisPoints) {
         // If no variable rate definition, return base multiplier (1x = 1000 in scaled form)
         if (variableRateDefinition == null) {
-            return MULTIPLIER_SCALE;
+            return HIGH_VOLUME_MULTIPLIER_SCALE;
         }
 
-        final int maxMultiplier = Math.max(variableRateDefinition.maxMultiplier(), (int) MULTIPLIER_SCALE);
+        final int maxMultiplier = Math.max(variableRateDefinition.maxMultiplier(), (int) HIGH_VOLUME_MULTIPLIER_SCALE);
         final PricingCurve pricingCurve = variableRateDefinition.pricingCurve();
 
         // Clamp utilization to valid range
-        final int clampedUtilization = Math.max(0, Math.min(utilizationBasisPoints, UTILIZATION_SCALE));
+        final int clampedUtilization = Math.max(0, Math.min(utilizationBasisPoints, HIGH_VOLUME_UTILIZATION_SCALE));
 
         long rawMultiplier;
         if (pricingCurve == null
@@ -69,8 +104,12 @@ public final class HighVolumePricingCalculator {
                         .points()
                         .isEmpty()) {
             // No pricing curve specified - use linear interpolation between 1x (1000) and max_multiplier
-            rawMultiplier =
-                    linearInterpolate(0, (int) MULTIPLIER_SCALE, UTILIZATION_SCALE, maxMultiplier, clampedUtilization);
+            rawMultiplier = linearInterpolate(
+                    0,
+                    (int) HIGH_VOLUME_MULTIPLIER_SCALE,
+                    HIGH_VOLUME_UTILIZATION_SCALE,
+                    maxMultiplier,
+                    clampedUtilization);
         } else {
             // Use piecewise linear curve
             rawMultiplier =
@@ -78,7 +117,7 @@ public final class HighVolumePricingCalculator {
         }
 
         // Cap at max multiplier, enforce minimum multiplier
-        return Math.max(MULTIPLIER_SCALE, Math.min(rawMultiplier, maxMultiplier));
+        return Math.max(HIGH_VOLUME_MULTIPLIER_SCALE, Math.min(rawMultiplier, maxMultiplier));
     }
 
     /**
@@ -88,7 +127,7 @@ public final class HighVolumePricingCalculator {
      * @param utilizationBasisPoints the utilization percentage (0 to 10,000)
      * @return the interpolated multiplier (scaled)
      */
-    private static long interpolatePiecewiseLinear(
+    public static long interpolatePiecewiseLinear(
             @NonNull final PiecewiseLinearCurve curve, final int utilizationBasisPoints) {
         final List<PiecewiseLinearPoint> points = curve.points();
         // If there is only one point, return that point's multiplier
@@ -136,7 +175,7 @@ public final class HighVolumePricingCalculator {
     /**
      * Performs linear interpolation between two points.
      */
-    private static long linearInterpolate(
+    public static long linearInterpolate(
             final int lowerUtilization,
             final long lowerMultiplier,
             final int upperUtilization,
@@ -156,6 +195,6 @@ public final class HighVolumePricingCalculator {
      * Enforces the minimum multiplier of 1x (1,000 scaled).
      */
     private static long normalizeMultiplier(final long multiplier) {
-        return Math.max(multiplier, MULTIPLIER_SCALE);
+        return Math.max(multiplier, HIGH_VOLUME_MULTIPLIER_SCALE);
     }
 }

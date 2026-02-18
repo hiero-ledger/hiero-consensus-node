@@ -27,7 +27,7 @@ import com.hedera.hapi.util.HapiUtils;
 import com.hedera.hapi.util.UnknownHederaFunctionality;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.fees.FeeManager;
-import com.hedera.node.app.fees.SimpleFeeContextImpl;
+import com.hedera.node.app.fees.context.SimpleFeeContextImpl;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.fees.ExchangeRateInfo;
@@ -269,8 +269,8 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                                     queryFees,
                                     cryptoTransferTxnFee);
 
-                            // 3.vi Submit payment to platform
-                            submissionManager.submit(txBody, txInfo.serializedSignedTxOrThrow());
+                            // 3.vi Submit payment to platform with priority=false vs network consensus and TSS txs
+                            submissionManager.submit(txBody, txInfo.serializedSignedTxOrThrow(), false);
                         }
                     } catch (Exception e) {
                         checkerResult.throttleUsages().forEach(ThrottleUsage::reclaimCapacity);

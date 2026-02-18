@@ -1,9 +1,24 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.hapi.fees;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_CREATE_TOPIC;
+import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_APPROVE_ALLOWANCE;
+import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_TRANSFER;
+import static com.hedera.hapi.node.base.HederaFunctionality.FILE_APPEND;
+import static com.hedera.hapi.node.base.HederaFunctionality.FILE_CREATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.HOOK_STORE;
+import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_CREATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_AIRDROP;
+import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_ASSOCIATE_TO_ACCOUNT;
+import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_CLAIM_AIRDROP;
+import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_CREATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_MINT;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.util.List;
+import java.util.Set;
 import org.hiero.hapi.support.fees.PiecewiseLinearCurve;
 import org.hiero.hapi.support.fees.PiecewiseLinearPoint;
 import org.hiero.hapi.support.fees.PricingCurve;
@@ -17,6 +32,39 @@ import org.junit.jupiter.api.Test;
  * Tests the fee multiplier calculation based on throttle utilization and pricing curves per HIP-1313.
  */
 class HighVolumePricingCalculatorTest {
+    @Test
+    @DisplayName("Exposes the expected set of high-volume functions")
+    void hasExpectedHighVolumeFunctions() {
+        assertEquals(
+                Set.of(
+                        CRYPTO_CREATE,
+                        CONSENSUS_CREATE_TOPIC,
+                        SCHEDULE_CREATE,
+                        CRYPTO_APPROVE_ALLOWANCE,
+                        FILE_CREATE,
+                        FILE_APPEND,
+                        CONTRACT_CREATE,
+                        HOOK_STORE,
+                        TOKEN_ASSOCIATE_TO_ACCOUNT,
+                        TOKEN_AIRDROP,
+                        TOKEN_CLAIM_AIRDROP,
+                        TOKEN_MINT,
+                        TOKEN_CREATE,
+                        CRYPTO_TRANSFER),
+                HighVolumePricingCalculator.HIGH_VOLUME_FUNCTIONS);
+    }
+
+    @Test
+    @DisplayName("Interpolates linearly between utilization points")
+    void linearlyInterpolatesBetweenPoints() {
+        assertEquals(3_000L, HighVolumePricingCalculator.linearInterpolate(0, 1_000L, 10_000, 5_000L, 5_000));
+    }
+
+    @Test
+    @DisplayName("Returns lower multiplier when interpolation range is degenerate")
+    void returnsLowerWhenInterpolationRangeIsDegenerate() {
+        assertEquals(1_234L, HighVolumePricingCalculator.linearInterpolate(7_000, 1_234L, 7_000, 9_999L, 7_000));
+    }
 
     @Nested
     @DisplayName("Null and edge case handling")
@@ -75,6 +123,16 @@ class HighVolumePricingCalculatorTest {
     @Nested
     @DisplayName("Linear interpolation without pricing curve")
     class LinearInterpolationWithoutCurve {
+
+        @Test
+        @DisplayName("Uses linear interpolation when pricing curve exists without piecewise points")
+        void linearInterpolationWhenPricingCurvePresentWithoutPiecewiseLinear() {
+            final var variableRate = VariableRateDefinition.newBuilder()
+                    .maxMultiplier(5000)
+                    .pricingCurve(PricingCurve.newBuilder().build())
+                    .build();
+            assertEquals(3000, HighVolumePricingCalculator.calculateMultiplier(variableRate, 5000));
+        }
 
         @Test
         @DisplayName("Linear interpolation at 0% utilization")

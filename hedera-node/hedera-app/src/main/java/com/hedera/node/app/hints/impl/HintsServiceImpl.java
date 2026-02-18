@@ -31,7 +31,6 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -45,9 +44,6 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
 
     private final HintsLibrary library;
 
-    @NonNull
-    private final AtomicReference<Roster> currentRoster = new AtomicReference<>();
-
     @Nullable
     private OnHintsFinished cb;
 
@@ -60,19 +56,13 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
         this.library = requireNonNull(library);
         // Fully qualified for benefit of javadoc
         this.component = com.hedera.node.app.hints.impl.DaggerHintsServiceComponent.factory()
-                .create(library, appContext, executor, metrics, currentRoster, blockPeriod, this);
+                .create(library, appContext, executor, metrics, blockPeriod, this);
     }
 
     @VisibleForTesting
     HintsServiceImpl(@NonNull final HintsServiceComponent component, @NonNull final HintsLibrary library) {
         this.component = requireNonNull(component);
         this.library = requireNonNull(library);
-    }
-
-    @Override
-    public void initCurrentRoster(@NonNull final Roster roster) {
-        requireNonNull(roster);
-        currentRoster.set(roster);
     }
 
     @Override
@@ -165,7 +155,6 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
                 // No-op
             }
         }
-        currentRoster.set(activeRosters.findRelatedRoster(activeRosters.currentRosterHash()));
     }
 
     @Override

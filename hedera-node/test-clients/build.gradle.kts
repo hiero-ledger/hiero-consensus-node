@@ -237,6 +237,7 @@ tasks.register<Test>("testSubprocess") {
                 "(${ciTagExpression})&!(EMBEDDED|REPEATABLE)"
             else "(${ciTagExpression}|STREAM_VALIDATION|LOG_VALIDATION)&!(EMBEDDED|REPEATABLE|ISS)"
         )
+        excludeTags("CONCURRENT_SUBPROCESS_VALIDATION")
     }
 
     // Choose a different initial port for each test task if running as PR check
@@ -507,7 +508,7 @@ val embeddedCryptoTasks = setOf("hapiTestCryptoEmbedded")
 
 val embeddedBaseTags =
     mapOf(
-        "hapiEmbeddedMisc" to "EMBEDDED&!(SIMPLE_FEES)",
+        "hapiEmbeddedMisc" to "EMBEDDED&!(SIMPLE_FEES|CRYPTO)",
         "hapiEmbeddedSimpleFees" to "EMBEDDED&SIMPLE_FEES",
         "hapiTestCryptoEmbedded" to "EMBEDDED&CRYPTO",
     )
@@ -624,7 +625,7 @@ tasks.register<Test>("testRepeatable") {
         includeTags(
             if (ciTagExpression.isBlank())
                 "none()|!(RESTART|ND_RECONNECT|UPGRADE|EMBEDDED|NOT_REPEATABLE|ONLY_SUBPROCESS|ISS)"
-            else "(${ciTagExpression}|STREAM_VALIDATION|LOG_VALIDATION)&!(INTEGRATION|ISS)"
+            else "(${ciTagExpression}|STREAM_VALIDATION|LOG_VALIDATION)&!(INTEGRATION|ISS|EMBEDDED)"
         )
     }
 
@@ -645,19 +646,15 @@ tasks.register<Test>("testRepeatable") {
 
 application.mainClass = "com.hedera.services.bdd.suites.SuiteRunner"
 
-// allow shadow Jar files to have more than 64k entries
-tasks.withType<ShadowJar>().configureEach { isZip64 = true }
-
 tasks.shadowJar { archiveFileName.set("SuiteRunner.jar") }
 
 val rcdiffJar =
     tasks.register<ShadowJar>("rcdiffJar") {
-        exclude(listOf("META-INF/*.DSA", "META-INF/*.RSA", "META-INF/*.SF", "META-INF/INDEX.LIST"))
         from(sourceSets["main"].output)
         from(sourceSets["rcdiff"].output)
-        destinationDirectory.set(project.file("rcdiff"))
-        archiveFileName.set("rcdiff.jar")
-        configurations = listOf(project.configurations.getByName("rcdiffRuntimeClasspath"))
+        destinationDirectory = layout.projectDirectory.dir("rcdiff")
+        archiveFileName = "rcdiff.jar"
+        configurations = listOf(project.configurations["rcdiffRuntimeClasspath"])
 
         manifest { attributes("Main-Class" to "com.hedera.services.rcdiff.RcDiffCmdWrapper") }
     }

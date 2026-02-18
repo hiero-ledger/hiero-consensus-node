@@ -27,6 +27,7 @@ import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.TransactionFactory;
 import org.hiero.otter.fixtures.network.transactions.BenchmarkTransaction;
 import org.hiero.otter.fixtures.network.transactions.OtterTransaction;
+import org.hiero.otter.fixtures.specs.ContainerSpecs;
 import org.hiero.otter.fixtures.specs.OtterSpecs;
 import org.hiero.otter.test.performance.benchmark.fixtures.BenchmarkServiceLogParser;
 import org.hiero.otter.test.performance.benchmark.fixtures.LoadThrottler;
@@ -56,6 +57,7 @@ public class ConsensusLayerBenchmark {
      */
     @OtterTest
     @OtterSpecs(randomNodeIds = false)
+    @ContainerSpecs(proxyEnabled = false)
     void benchmark(@NonNull final TestEnvironment env) {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
@@ -103,7 +105,6 @@ public class ConsensusLayerBenchmark {
         // Wait for all transactions to be processed
         timeManager.waitFor(Duration.ofSeconds(10L));
         log.info("Benchmark transactions submitted, collecting results...");
-
         // Validations
         assertThat(network.newPlatformStatusResults())
                 .haveSteps(target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING));
@@ -117,7 +118,9 @@ public class ConsensusLayerBenchmark {
                 collector.computeStatistics().totalMeasurements(),
                 "The benchmark is invalid as some of the transactions sent were not measured");
         log.info("Benchmark complete. Results:");
-        log.info(collector.generateReport());
+        final String report = collector.generateReport();
+        log.info(report);
+        System.out.println(report);
     }
 
     /**

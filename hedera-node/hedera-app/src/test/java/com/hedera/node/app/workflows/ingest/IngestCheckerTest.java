@@ -496,6 +496,7 @@ class IngestCheckerTest extends AppTestBase {
             final var enabledConfig = new VersionedConfigImpl(
                     HederaTestConfigBuilder.create()
                             .withValue("networkAdmin.highVolumeThrottlesEnabled", true)
+                            .withValue("fees.simpleFeesEnabled", true)
                             .getOrCreateConfig(),
                     1L);
 
