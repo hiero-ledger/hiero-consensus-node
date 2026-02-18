@@ -241,7 +241,14 @@ public class VirtualLeafBytes<V> {
                 : "pos=" + pos + ", out.position()=" + out.position() + ", size=" + getSizeInBytes();
     }
 
-    // Output size must be at least getSizeInBytesForHashing()
+    /**
+     * Writes this virtual leaf bytes object to the given sequential data for hashing.
+     * <p>
+     * Note that the bytes to hash include the 0x00 prefix byte, key bytes, and value bytes (if present).
+     * Path is not included.
+     *
+     * @param out the sequential data to write to
+     */
     public void writeToForHashing(final WritableSequentialData out) {
         // The 0x00 prefix byte is added to all leaf hashes in the Hiero Merkle tree,
         // so that there is a clear guaranteed domain separation of hash space between leaves and internal nodes.

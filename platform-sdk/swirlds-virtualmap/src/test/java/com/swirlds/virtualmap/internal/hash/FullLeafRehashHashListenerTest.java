@@ -21,13 +21,14 @@ class FullLeafRehashHashListenerTest extends VirtualTestBase {
     private InMemoryDataSource dataSource;
     private VirtualMapStatistics statistics;
     private FullLeafRehashHashListener listener;
+    private int flushInterval = 1000;
 
     @BeforeEach
     void setUp() {
         dataSource = new InMemoryDataSource("test");
         statistics = new VirtualMapStatistics("test");
         // Use a range that will allow us to test the flush interval
-        listener = new FullLeafRehashHashListener(1, 1000000, dataSource, statistics);
+        listener = new FullLeafRehashHashListener(1, 1000000, dataSource, statistics, flushInterval);
     }
 
     @Test
@@ -75,7 +76,7 @@ class FullLeafRehashHashListenerTest extends VirtualTestBase {
     @DisplayName("Test flush when interval is reached")
     void testFlushInterval() throws IOException {
         // Let's try 500,001 records to trigger at least one intermediate flush.
-        int count = 500001;
+        int count = flushInterval + 1;
         listener.onHashingStarted(1, count);
         for (int i = 1; i <= count; i++) {
             VirtualLeafBytes<TestValue> leaf = leaf(i, i, i);
@@ -85,9 +86,9 @@ class FullLeafRehashHashListenerTest extends VirtualTestBase {
 
         // At least one flush should have happened by now for the first 500,000 records.
         assertNotNull(dataSource.loadHash(1), "First record should be flushed by interval");
-        assertNotNull(dataSource.loadHash(500000), "500,000th record should be flushed by interval");
-        assertNull(dataSource.loadHash(500001), "500,001st record should not be flushed yet");
+        assertNotNull(dataSource.loadHash(flushInterval), "500,000th record should be flushed by interval");
+        assertNull(dataSource.loadHash(count), "500,001st record should not be flushed yet");
         listener.onHashingCompleted();
-        assertNotNull(dataSource.loadHash(500001), "500,001st record should be flushed on completion");
+        assertNotNull(dataSource.loadHash(count), "500,001st record should be flushed on completion");
     }
 }

@@ -7,7 +7,6 @@ import static java.util.Objects.requireNonNull;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;
-import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.Path;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapStatistics;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -33,15 +32,13 @@ import org.hiero.base.crypto.Hash;
  */
 public class FullLeafRehashHashListener implements VirtualHashListener {
 
-    private static final int DEFAULT_FLUSH_INTERVAL = 500000;
-
     private static final Logger logger = LogManager.getLogger(FullLeafRehashHashListener.class);
 
     private final VirtualDataSource dataSource;
     private final long firstLeafPath;
     private final long lastLeafPath;
-    private List<VirtualLeafBytes> leaves;
     private List<VirtualHashRecord> hashes;
+    private final int flushInterval;
 
     // Flushes are initiated from onNodeHashed(). While a flush is in progress, other nodes
     // are still hashed in parallel, so it may happen that enough nodes are hashed to
@@ -67,7 +64,8 @@ public class FullLeafRehashHashListener implements VirtualHashListener {
             final long firstLeafPath,
             final long lastLeafPath,
             @NonNull final VirtualDataSource dataSource,
-            @NonNull final VirtualMapStatistics statistics) {
+            @NonNull final VirtualMapStatistics statistics,
+            final int flushInterval) {
 
         if (firstLeafPath != Path.INVALID_PATH && !(firstLeafPath > 0 && firstLeafPath <= lastLeafPath)) {
             throw new IllegalArgumentException("The first leaf path is invalid. firstLeafPath=" + firstLeafPath
@@ -83,13 +81,13 @@ public class FullLeafRehashHashListener implements VirtualHashListener {
         this.lastLeafPath = lastLeafPath;
         this.dataSource = requireNonNull(dataSource);
         this.statistics = requireNonNull(statistics);
+        this.flushInterval = flushInterval;
     }
 
     @Override
     public synchronized void onHashingStarted(final long firstLeafPath, final long lastLeafPath) {
-        assert (hashes == null) && (leaves == null) : "Hashing must not be started yet";
+        assert (hashes == null) : "Hashing must not be started yet";
         hashes = new ArrayList<>();
-        leaves = new ArrayList<>();
     }
 
     /**
@@ -97,69 +95,45 @@ public class FullLeafRehashHashListener implements VirtualHashListener {
      */
     @Override
     public void onNodeHashed(final long path, final Hash hash) {
-        assert hashes != null && leaves != null : "onNodeHashed called without onHashingStarted";
+        assert hashes != null : "onNodeHashed called without onHashingStarted";
         final List<VirtualHashRecord> dirtyHashesToFlush;
-        final List<VirtualLeafBytes> dirtyLeavesToFlush;
         synchronized (this) {
             hashes.add(new VirtualHashRecord(path, hash));
-            if ((hashes.size() >= DEFAULT_FLUSH_INTERVAL) && flushInProgress.compareAndSet(false, true)) {
+            if ((hashes.size() >= flushInterval) && flushInProgress.compareAndSet(false, true)) {
                 dirtyHashesToFlush = hashes;
                 hashes = new ArrayList<>();
-                dirtyLeavesToFlush = leaves;
-                leaves = new ArrayList<>();
             } else {
                 dirtyHashesToFlush = null;
-                dirtyLeavesToFlush = null;
             }
         }
-        if ((dirtyHashesToFlush != null) && (dirtyLeavesToFlush != null)) {
-            flush(dirtyHashesToFlush, dirtyLeavesToFlush);
+        if ((dirtyHashesToFlush != null)) {
+            flush(dirtyHashesToFlush);
         }
-    }
-
-    @Override
-    public synchronized void onLeafHashed(final VirtualLeafBytes<?> leaf) {
-        leaves.add(leaf);
     }
 
     @Override
     public void onHashingCompleted() {
         final List<VirtualHashRecord> finalNodesToFlush;
-        final List<VirtualLeafBytes> finalLeavesToFlush;
         synchronized (this) {
             finalNodesToFlush = hashes;
             hashes = null;
-            finalLeavesToFlush = leaves;
-            leaves = null;
         }
         assert !flushInProgress.get() : "Flush must not be in progress when hashing is complete";
         flushInProgress.set(true);
-        // Nodes / leaves lists may be empty, but a flush is still needed to make sure
-        // all stale leaves are removed from the data source
-        flush(finalNodesToFlush, finalLeavesToFlush);
+        flush(finalNodesToFlush);
     }
 
     // Since flushes may take quite some time, this method is called outside synchronized blocks,
     // otherwise all hashing tasks would be blocked on listener calls until flush is completed.
-    private void flush(
-            @NonNull final List<VirtualHashRecord> hashesToFlush, @NonNull final List<VirtualLeafBytes> leavesToFlush) {
+    private void flush(@NonNull final List<VirtualHashRecord> hashesToFlush) {
         assert flushInProgress.get() : "Flush in progress flag must be set";
         try {
-            logger.debug(
-                    VIRTUAL_MERKLE_STATS.getMarker(),
-                    "Flushing {} hashes and {} leaves",
-                    hashesToFlush.size(),
-                    leavesToFlush.size());
+            logger.debug(VIRTUAL_MERKLE_STATS.getMarker(), "Flushing {} hashes", hashesToFlush.size());
             // flush it down
             final long start = System.currentTimeMillis();
             try {
                 dataSource.saveRecords(
-                        firstLeafPath,
-                        lastLeafPath,
-                        hashesToFlush.stream(),
-                        leavesToFlush.stream(),
-                        Stream.empty(),
-                        true);
+                        firstLeafPath, lastLeafPath, hashesToFlush.stream(), Stream.empty(), Stream.empty(), true);
                 final long end = System.currentTimeMillis();
                 statistics.recordFlush(end - start);
                 logger.debug(VIRTUAL_MERKLE_STATS.getMarker(), "Flushed in {} ms", end - start);

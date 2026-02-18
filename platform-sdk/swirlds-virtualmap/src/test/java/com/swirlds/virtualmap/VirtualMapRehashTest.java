@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
+import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
 import com.swirlds.virtualmap.test.fixtures.InMemoryBuilder;
 import com.swirlds.virtualmap.test.fixtures.InMemoryDataSource;
 import com.swirlds.virtualmap.test.fixtures.TestValue;
@@ -52,6 +53,9 @@ class VirtualMapRehashTest extends VirtualTestBase {
                 1, 1, Stream.of(new VirtualHashRecord(1, hash1)), Stream.of(leaf1), Stream.empty(), false);
 
         VirtualMap vm = new VirtualMap(builder, CONFIGURATION);
+        VirtualMapMetadata metadata = vm.getMetadata();
+        metadata.setLastLeafPath(1);
+        metadata.setFirstLeafPath(1);
         vm.fullLeafRehashIfNecessary();
 
         // Hash should still be the same
@@ -83,6 +87,9 @@ class VirtualMapRehashTest extends VirtualTestBase {
                 false);
 
         VirtualMap vm = new VirtualMap(builder, CONFIGURATION);
+        VirtualMapMetadata metadata = vm.getMetadata();
+        metadata.setLastLeafPath(2);
+        metadata.setFirstLeafPath(1);
 
         vm.fullLeafRehashIfNecessary();
 
