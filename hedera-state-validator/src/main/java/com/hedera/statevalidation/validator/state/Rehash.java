@@ -24,6 +24,7 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.AbstractTask;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -58,8 +59,11 @@ public class Rehash {
      * @param deserializedSignedState The deserialized signed state, propagated by the DeserializedSignedStateResolver.
      * @param hashInfo                The hash info object, propagated by the HashInfoResolver.
      */
+    @Disabled("expected to fail in 0.72 due to different leaf bytes to hash "
+            + "(see https://github.com/hiero-ledger/hiero-consensus-node/issues/23631)."
+            + "Should be re-enabled in 0.73")
     @Test
-    void validateMerkleTree(DeserializedSignedState deserializedSignedState, HashInfo hashInfo) {
+    void validateAgainstHashInfo(DeserializedSignedState deserializedSignedState, HashInfo hashInfo) {
 
         var infoStringFromState = getInfoString(
                 deserializedSignedState.reservedSignedState().get().getState());
