@@ -17,14 +17,11 @@ import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.specs.ContainerSpecs;
 import org.hiero.otter.fixtures.specs.OtterSpecs;
 import org.hiero.otter.test.performance.benchmark.ConsensusLayerBenchmark.BenchmarkParameters;
-import org.junit.jupiter.api.MethodOrderer;
-import org.junit.jupiter.api.TestMethodOrder;
 
 /**
  * Experiment testing the effect of signature scheme on consensus latency.
  */
 @SuppressWarnings("NewClassNamingConvention")
-@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 @OtterSpecs(randomNodeIds = false)
 @ContainerSpecs(proxyEnabled = false)
 public class SignatureSchemeExperiment {

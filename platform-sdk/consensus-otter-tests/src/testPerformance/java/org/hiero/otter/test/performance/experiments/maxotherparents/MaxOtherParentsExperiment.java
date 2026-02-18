@@ -31,8 +31,6 @@ public class MaxOtherParentsExperiment {
      * Test maxOtherParents=2.
      */
     @OtterTest
-    @OtterSpecs(randomNodeIds = false)
-    @ContainerSpecs(proxyEnabled = false)
     @Order(1)
     void maxOtherParentsHalf(@NonNull final TestEnvironment env) {
         log.info("=== MaxOtherParents Experiment: maxOtherParents=half ===");
@@ -42,8 +40,6 @@ public class MaxOtherParentsExperiment {
     }
 
     @OtterTest
-    @OtterSpecs(randomNodeIds = false)
-    @ContainerSpecs(proxyEnabled = false)
     @Order(2)
     void maxOtherParentsTwoThirdsPlusOne(@NonNull final TestEnvironment env) {
         log.info("=== MaxOtherParents Experiment: maxOtherParents=2/3+1 ===");
