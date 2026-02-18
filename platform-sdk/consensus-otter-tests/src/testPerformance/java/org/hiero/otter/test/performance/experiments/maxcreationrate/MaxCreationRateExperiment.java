@@ -49,4 +49,16 @@ public class MaxCreationRateExperiment {
             network.withConfigValue("event.creation.maxCreationRate", 100);
         });
     }
+
+    /**
+     * Test maxCreationRate=100.
+     */
+    @OtterTest
+    @Order(2)
+    void maxCreationRateUnbounded(@NonNull final TestEnvironment env) {
+        log.info("=== MaxCreationRate Experiment: maxCreationRate=Unbounded ===");
+        runBenchmark(env, "maxCreationRateUnbounded", BenchmarkParameters.defaults(), network -> {
+            network.withConfigValue("event.creation.maxCreationRate", 9999);
+        });
+    }
 }
