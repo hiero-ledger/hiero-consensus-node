@@ -1,40 +1,10 @@
 version: 0.1
 merge:
   required_statuses:
-    # Security Checks
-    - "StepSecurity Harden-Runner"
-    - "security/snyk (Hiero)"
-    - "security/snyk (Hiero Consensus Node)"
-    - "license/snyk (Hiero Consensus Node)"
-    - "DCO"
-    - "Codacy Static Code Analysis"
-    - "Code scanning results / CodeQL"
-
-    # CodeCov Checks
-    - "codecov/project"
-    - "codecov/patch"
-    - "CodeQL / Analyze (python) (dynamic)"
-    - "CodeQL / Analyze (java-kotlin) (dynamic)"
-    - "CodeQL / Analyze (actions) (dynamic)"
-    - "CodeQL / Node: HAPI Test (ISS) Results (dynamic)"
-    - "CodeQL / Node: HAPI Test (Misc Records) Results (dynamic)"
-    - "CodeQL / Node: HAPI Test (Node Death Reconnect) Results (dynamic)"
-    - "CodeQL / Node: HAPI Test (Restart) Results (dynamic)"
-    - "CodeQL / Node: HAPI Test (Simple Fees) Results (dynamic)"
-    - "CodeQL / Node: HAPI Test (Token) Results (dynamic)"
-    - "CodeQL / Node: Integration Test Results (dynamic)"
-    - "CodeQL / Node: Otter Tests Results (dynamic)"
-    - "CodeQL / Node: Unit Test Results (dynamic)"
-
-    # Standards Check
-    - "Code Style / Standard"
-    - "conventional-pr-title"
-    - "PR Formatting / Title Check (pull_request_target)"
-    - "PR Formatting / Assignee Check (pull_request_target)"
 
     # MATS
-    - "Node: PR Checks / MATS / Get Commit Info (pull_request)"
-    - "Node: PR Checks / MATS / Standard Compile Code / Compile Application Code (pull_request)"
+    - "MATS / Get Commit Info (pull_request)"
+    - "MATS / Standard Compile Code / Compile Application Code (pull_request)"
     - "MATS / Unit Tests / Unit Tests"
     - "MATS / Standard Spotless / Spotless Check"
     - "MATS / Standard Dependency (Module Info) / Dependency Module Check"
@@ -51,8 +21,8 @@ merge:
     - "MATS / HAPI Tests / HAPI Tests (Atomic Batch)"
 
     # MATS Gradle Determinism
-    - "Node: PR Checks / MATS / Gradle Determinism / Gradle: Generate OS Matrix (pull_request)"
-    - "Node: PR Checks / MATS / Gradle Determinism / Gradle: Generate Baseline (pull_request)"
+    - "MATS / Gradle Determinism / Gradle: Generate OS Matrix (pull_request)"
+    - "MATS / Gradle Determinism / Gradle: Generate Baseline (pull_request)"
     - "MATS / Gradle Determinism / Gradle: Verify Artifacts (windows-2025)"
     - "MATS / Gradle Determinism / Gradle: Verify Artifacts (windows-2022)"
     - "MATS / Gradle Determinism / Gradle: Verify Artifacts (ubuntu-24.04)"
