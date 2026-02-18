@@ -277,29 +277,31 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
     }
 
     @Test
-    void setDelegationAddressToZeroTest() {
-        final var txn =
-                new CryptoUpdateBuilder().withDelegationAddress(Bytes.EMPTY).build();
-        givenTxnWith(txn);
-
-        subject.handle(handleContext);
-
-        assertEquals(Bytes.EMPTY, writableStore.get(updateAccountId).delegationAddress());
-    }
-
-    @Test
-    void setDelegationAddressToAddressTest() {
-        final Bytes LONG_ZERO_ADDRESS_BYTES = Bytes.fromHex("0000000000000000000000000000000000000123");
-        final var txn = new CryptoUpdateBuilder()
-                .withDelegationAddress(LONG_ZERO_ADDRESS_BYTES)
+    void setAndClearDelegationAddressTest() {
+        final var validAddressBytes = Bytes.fromHex("0000000000000000000000000000000000000123");
+        final var setTxn = new CryptoUpdateBuilder()
+                .withDelegationAddress(validAddressBytes)
                 .build();
-        givenTxnWith(txn);
-
-        assertEquals(Bytes.EMPTY, writableStore.get(updateAccountId).delegationAddress());
-
+        givenTxnWith(setTxn);
         subject.handle(handleContext);
+        assertEquals(validAddressBytes, writableStore.get(updateAccountId).delegationAddress());
 
-        assertEquals(LONG_ZERO_ADDRESS_BYTES, writableStore.get(updateAccountId).delegationAddress());
+        // Setting delegationAddress to empty should be a no-op (neither set nor clear the delegation address)
+        final var noOpTxn =
+                new CryptoUpdateBuilder().withDelegationAddress(Bytes.EMPTY).build();
+        givenTxnWith(noOpTxn);
+        subject.handle(handleContext);
+        // The delegation address is unchanged
+        assertEquals(validAddressBytes, writableStore.get(updateAccountId).delegationAddress());
+
+        // Setting delegationAddress to 0x00..00 should clear the delegation address
+        final var clearTxn = new CryptoUpdateBuilder()
+                .withDelegationAddress(Bytes.fromHex("0000000000000000000000000000000000000000"))
+                .build();
+        givenTxnWith(clearTxn);
+        subject.handle(handleContext);
+        // The delegation address should be cleared
+        assertEquals(Bytes.EMPTY, writableStore.get(updateAccountId).delegationAddress());
     }
 
     @Test

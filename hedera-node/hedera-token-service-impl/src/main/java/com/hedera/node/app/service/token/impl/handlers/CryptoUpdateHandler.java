@@ -273,12 +273,16 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
                     + op.hookCreationDetails().size());
         }
 
-        if (ByteUtils.isEmptyOrAllZeros(op.delegationAddress())) {
-            builder.delegationAddress(Bytes.EMPTY);
-        } else {
-            // check for EVM address size is done in pureChecks
-            builder.delegationAddress(op.delegationAddress());
+        if (op.delegationAddress().length() != 0) {
+            if (ByteUtils.isEmptyOrAllZeros(op.delegationAddress())) {
+                // Address is 0x00..00 -> clear the delegation
+                builder.delegationAddress(Bytes.EMPTY);
+            } else {
+                // Set the delegation (note: the correct EVM addres length is verified in pureChecks)
+                builder.delegationAddress(op.delegationAddress());
+            }
         }
+
         return builder;
     }
 
