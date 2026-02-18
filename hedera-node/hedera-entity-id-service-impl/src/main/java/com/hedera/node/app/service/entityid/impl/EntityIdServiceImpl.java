@@ -46,7 +46,10 @@ public class EntityIdServiceImpl extends EntityIdService {
         writableStates.<EntityNumber>getSingleton(ENTITY_ID_STATE_ID).put(new EntityNumber(entityNum));
         // And initialize entity counts to zeros
         writableStates.<EntityCounts>getSingleton(ENTITY_COUNTS_STATE_ID).put(EntityCounts.DEFAULT);
-        writableStates.<NodeId>getSingleton(NODE_ID_STATE_ID).put(NodeId.DEFAULT);
+        // First node id should be 0, so init the state with -1
+        writableStates
+                .<NodeId>getSingleton(NODE_ID_STATE_ID)
+                .put(NodeId.newBuilder().id(-1).build());
         return true;
     }
 }
