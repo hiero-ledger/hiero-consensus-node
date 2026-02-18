@@ -14,10 +14,12 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.function.Function;
+import org.hiero.hapi.interledger.state.clpr.ClprBundleShape;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerId;
 import org.hiero.hapi.interledger.state.clpr.ClprMessageBundle;
 import org.hiero.hapi.interledger.state.clpr.ClprMessageKey;
 import org.hiero.hapi.interledger.state.clpr.ClprMessagePayload;
+import org.hiero.hapi.interledger.state.clpr.ClprMessageQueueMetadata;
 import org.hiero.hapi.interledger.state.clpr.ClprMessageValue;
 
 /**
@@ -97,6 +99,45 @@ public class ClprMessageUtils {
         }
 
         return bundleBuilder.build();
+    }
+
+    public static long bundleFirstMsgId(@NonNull ClprMessageQueueMetadata remoteQueue) {
+        return remoteQueue.receivedMessageId() + 1;
+    }
+
+    public static long bundleLastMsgId(
+            long firstBundleMsg,
+            long lastQueueMsg,
+            @NonNull ClprBundleShape bundleShape,
+            @NonNull ClprLedgerId remoteLedgerId,
+            @NonNull Function<ClprMessageKey, ClprMessageValue> getMessageFunction) {
+
+        final long countLimit = Math.min(firstBundleMsg + bundleShape.maxNumberOfMessages() - 1, lastQueueMsg);
+        final long maxBundleBytes = bundleShape.maxBundleBytes();
+        if (maxBundleBytes <= 0) {
+            return countLimit;
+        }
+
+        long accumulatedBytes = 0;
+        // Iterate potential payload messages (first to countLimit-1);
+        // the message at countLimit serves as the state proof source
+        for (long i = firstBundleMsg; i < countLimit; i++) {
+            final var messageKey = ClprMessageKey.newBuilder()
+                    .messageId(i)
+                    .ledgerId(remoteLedgerId)
+                    .build();
+            final var messageValue = getMessageFunction.apply(messageKey);
+            if (messageValue == null) {
+                return Math.max(firstBundleMsg, i);
+            }
+            final int msgSize = ClprMessagePayload.PROTOBUF.measureRecord(messageValue.payloadOrThrow());
+            if (accumulatedBytes + msgSize > maxBundleBytes && i > firstBundleMsg) {
+                // This message would exceed the byte limit; use previous msg as last one
+                return i - 1;
+            }
+            accumulatedBytes += msgSize;
+        }
+        return countLimit;
     }
 
     /**

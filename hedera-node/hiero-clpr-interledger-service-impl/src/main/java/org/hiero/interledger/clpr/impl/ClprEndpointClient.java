@@ -7,6 +7,8 @@ import static org.hiero.interledger.clpr.ClprStateProofUtils.buildLocalClprState
 import static org.hiero.interledger.clpr.ClprStateProofUtils.extractMessageKey;
 import static org.hiero.interledger.clpr.ClprStateProofUtils.extractMessageQueueMetadata;
 import static org.hiero.interledger.clpr.ClprStateProofUtils.validateStateProof;
+import static org.hiero.interledger.clpr.impl.ClprMessageUtils.bundleFirstMsgId;
+import static org.hiero.interledger.clpr.impl.ClprMessageUtils.bundleLastMsgId;
 import static org.hiero.interledger.clpr.impl.ClprMessageUtils.createBundle;
 import static org.hiero.interledger.clpr.impl.ClprServiceImpl.RUNNING_HASH_SIZE;
 
@@ -535,11 +537,17 @@ public class ClprEndpointClient {
         } else {
             // Find which messages to publish
             if (remoteQueue.receivedMessageId() + 1 < localQueue.nextMessageId()) {
-                final var firstPendingMessage = remoteQueue.receivedMessageId() + 1;
-                final var lastMessageInBundle =
-                        Math.min(firstPendingMessage + BUNDLE_SIZE - 1, localQueue.nextMessageId() - 1);
+                final var firstBundleMessage = bundleFirstMsgId(remoteQueue);
+                final var lastQueueMessage = localQueue.nextMessageId() - 1;
+                final var lastMessageInBundle = bundleLastMsgId(
+                        firstBundleMessage,
+                        lastQueueMessage,
+                        remoteQueue.bundleShapeOrThrow(),
+                        remoteLedgerId,
+                        stateProofManager::getMessage);
+
                 final var bundle = createBundle(
-                        firstPendingMessage,
+                        firstBundleMessage,
                         lastMessageInBundle,
                         localLedgerId,
                         remoteLedgerId,
@@ -549,7 +557,7 @@ public class ClprEndpointClient {
                     log.debug(
                             "{} Push bundle msgs {}..{} to remote",
                             ledgerLogPrefix,
-                            firstPendingMessage,
+                            firstBundleMessage,
                             lastMessageInBundle);
                     final var submitStatus = remoteClient.submitProcessMessageBundleTxn(
                             selfAccount, nodeAccount, remoteLedgerId, bundle);
