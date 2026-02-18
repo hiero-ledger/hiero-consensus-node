@@ -876,16 +876,16 @@ public class FeesChargingUtils {
      * @return the bytes-dependent portion of the node fee in USD
      *         (0.0 if transaction fits within included bytes)
      */
-    public static double expectedFeeFromBytesFor(HapiSpec spec, Logger opLog, String txnName) {
-        final var txnBytes = spec.registry().getBytes(txnName);
-        final var txnSize = txnBytes.length;
+    public static double expectedFeeFromBytesFor(HapiSpec spec, Logger opLog, String txnName)
+            throws InvalidProtocolBufferException {
+        final var signedTxnSize = signedTxnSizeFor(spec, txnName);
 
-        final var nodeBytesOverage = Math.max(0, txnSize - NODE_INCLUDED_BYTES);
+        final var nodeBytesOverage = Math.max(0, signedTxnSize - NODE_INCLUDED_BYTES);
         double expectedFee = nodeBytesOverage * PROCESSING_BYTES_FEE_USD * (1 + NETWORK_MULTIPLIER);
 
         opLog.info(
                 "Transaction size: {} bytes, node bytes overage: {}, expected fee: {}",
-                txnSize,
+                signedTxnSize,
                 nodeBytesOverage,
                 expectedFee);
         return expectedFee;
