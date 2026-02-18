@@ -9,9 +9,25 @@ on:
       branch_name:
         type: string
         description: "The branch name, for JRS Panel output"
-      enable-extended-test-suite:
+      enable-timing-sensitive-test-suite:
         type: string
-        description: "Run Extended Test Suite"
+        description: "Run Timing Sensitive Test Suite"
+        default: "false"
+      enable-hammer-test-suite:
+        type: string
+        description: "Run Hammer Test Suite"
+        default: "false"
+      enable-hapi-test-suite:
+        type: string
+        description: "Run HAPI Test Suite"
+        default: "false"
+      enable-otter-test-suite:
+        type: string
+        description: "Run Otter Test Suite"
+        default: "false"
+      enable-chaos-otter-test-suite:
+        type: string
+        description: "Run Chaos Otter Test Suite"
         default: "false"
       enable-hedera-node-jrs-panel:
         type: string
@@ -119,7 +135,7 @@ defaults:
 jobs:
   commit-info:
     name: Get Commit Info
-    runs-on: hl-cn-citr-lin-sm
+    runs-on: hl-cn-default-lin-sm
     outputs:
       sha: ${{ steps.commit-info.outputs.sha }}
     steps:
@@ -157,7 +173,7 @@ jobs:
     needs:
       - commit-info
       - build
-    if: ${{ needs.build.result == 'success' && inputs.enable-extended-test-suite == 'true' }}
+    if: ${{ needs.build.result == 'success' && inputs.enable-timing-sensitive-test-suite == 'true' }}
     uses: ./.github/workflows/zxc-execute-timing-sensitive-tests.yaml
     with:
       ref: ${{ needs.commit-info.outputs.sha }}
@@ -171,7 +187,7 @@ jobs:
     needs:
       - commit-info
       - build
-    if: ${{ needs.build.result == 'success' && inputs.enable-extended-test-suite == 'true' }}
+    if: ${{ needs.build.result == 'success' && inputs.enable-hammer-test-suite == 'true' }}
     uses: ./.github/workflows/zxc-execute-hammer-tests.yaml
     with:
       ref: ${{ needs.commit-info.outputs.sha }}
@@ -185,18 +201,19 @@ jobs:
     needs:
       - commit-info
       - build
-    if: ${{ needs.build.result == 'success' && inputs.enable-extended-test-suite == 'true' }}
+    if: ${{ needs.build.result == 'success' && inputs.enable-hapi-test-suite == 'true' }}
     uses: ./.github/workflows/zxc-execute-hapi-tests.yaml
     with:
       ref: ${{ needs.commit-info.outputs.sha }}
       enable-hapi-tests-time-consuming: "true"
       enable-hapi-tests-misc: "true"
       enable-hapi-tests-misc-records: "true"
-      enable-hapi-tests-crypto: "true"
+      enable-hapi-tests-crypto: "false"
       enable-hapi-tests-simplefees: "true"
       enable-hapi-tests-token: "true"
       enable-hapi-tests-smart-contract: "true"
       enable-hapi-tests-bn-communication: "true"
+      enable-hapi-tests-atomic-batch: "true"
       enable-network-log-capture: "true"
     secrets:
       access-token: ${{ secrets.access-token }}
@@ -208,10 +225,11 @@ jobs:
     needs:
       - commit-info
       - build
-    if: ${{ needs.build.result == 'success' && inputs.enable-extended-test-suite == 'true' }}
+    if: ${{ needs.build.result == 'success' && inputs.enable-otter-test-suite == 'true' }}
     uses: ./.github/workflows/zxc-execute-otter-tests.yaml
     with:
       enable-full-otter-tests: true
+      enable-chaos-otter-tests: false # enable chaos otter tests here when they become a required check.
       enable-network-log-capture: true
       ref: ${{ needs.commit-info.outputs.sha }}
     secrets:
@@ -224,7 +242,7 @@ jobs:
     needs:
       - commit-info
       - build
-    if: ${{ needs.build.result == 'success' && inputs.enable-extended-test-suite == 'true' && contains(inputs.custom-job-label, 'Dry Run') }}
+    if: ${{ needs.build.result == 'success' && inputs.enable-chaos-otter-test-suite == 'true' }}
     uses: ./.github/workflows/zxc-execute-otter-tests.yaml
     with:
       enable-chaos-otter-tests: true
@@ -326,7 +344,7 @@ jobs:
 
   set-failure-mode:
     name: Set Failure Mode
-    runs-on: hl-cn-citr-lin-sm
+    runs-on: hl-cn-default-lin-sm
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
       failed-tests: ${{ steps.set-failure-mode.outputs.failed-tests }}

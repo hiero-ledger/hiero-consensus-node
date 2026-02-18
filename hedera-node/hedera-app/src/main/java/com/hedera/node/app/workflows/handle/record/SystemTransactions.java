@@ -11,6 +11,9 @@ import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSch
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
 import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.dispatchSynthFileUpdate;
 import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.parseConfigList;
+import static com.hedera.node.app.service.token.impl.handlers.staking.EndOfStakingPeriodUpdater.END_OF_PERIOD_MEMO;
+import static com.hedera.node.app.service.token.impl.handlers.staking.EndOfStakingPeriodUtils.fromStakingInfo;
+import static com.hedera.node.app.service.token.impl.handlers.staking.EndOfStakingPeriodUtils.lastInstantOfPreviousPeriodFor;
 import static com.hedera.node.app.service.token.impl.schemas.V0610TokenSchema.dispatchSynthNodeRewards;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.NODE;
 import static com.hedera.node.app.util.FileUtilities.createFileID;
@@ -21,7 +24,8 @@ import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static com.swirlds.platform.system.InitTrigger.GENESIS;
 import static java.util.Objects.requireNonNull;
-import static org.hiero.consensus.roster.RosterUtils.formatNodeName;
+import static org.hiero.consensus.node.NodeUtilities.formatNodeName;
+import static org.hiero.consensus.platformstate.V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID;
 
 import com.hedera.hapi.node.addressbook.NodeCreateTransactionBody;
 import com.hedera.hapi.node.addressbook.NodeDeleteTransactionBody;
@@ -38,14 +42,15 @@ import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.history.ProofKey;
 import com.hedera.hapi.node.state.roster.RosterEntry;
-import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.StakingNodeInfo;
 import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
+import com.hedera.hapi.node.transaction.NodeStake;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.node.transaction.TransactionReceipt;
 import com.hedera.hapi.node.tss.LedgerIdNodeContribution;
 import com.hedera.hapi.node.tss.LedgerIdPublicationTransactionBody;
+import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.records.BlockRecordManager;
@@ -60,7 +65,8 @@ import com.hedera.node.app.service.file.impl.schemas.V0490FileSchema;
 import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.service.token.impl.BlocklistParser;
 import com.hedera.node.app.service.token.impl.WritableStakingInfoStore;
-import com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema;
+import com.hedera.node.app.service.token.impl.handlers.staking.EndOfStakingPeriodUtils;
+import com.hedera.node.app.services.ServicesRegistry;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
@@ -70,7 +76,7 @@ import com.hedera.node.app.spi.records.SelfNodeAccountIdManager;
 import com.hedera.node.app.spi.workflows.SystemContext;
 import com.hedera.node.app.state.HederaRecordCache;
 import com.hedera.node.app.state.recordcache.LegacyListRecordSource;
-import com.hedera.node.app.store.ReadableStoreFactory;
+import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.app.workflows.handle.Dispatch;
 import com.hedera.node.app.workflows.handle.DispatchProcessor;
 import com.hedera.node.app.workflows.handle.HandleOutput;
@@ -96,7 +102,9 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.WritableSingletonState;
+import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
@@ -119,6 +127,7 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.platformstate.PlatformStateService;
 import org.hiero.consensus.roster.ReadableRosterStore;
 import org.hiero.hapi.support.fees.FeeSchedule;
 
@@ -153,6 +162,7 @@ public class SystemTransactions {
     private final DispatchProcessor dispatchProcessor;
     private final ConfigProvider configProvider;
     private final EntityIdFactory idFactory;
+    private final ServicesRegistry servicesRegistry;
     private final BlockRecordManager blockRecordManager;
     private final BlockStreamManager blockStreamManager;
     private final ExchangeRateManager exchangeRateManager;
@@ -162,6 +172,14 @@ public class SystemTransactions {
     private final SelfNodeAccountIdManager selfNodeAccountIdManager;
 
     private int nextDispatchNonce = 1;
+
+    @FunctionalInterface
+    public interface StateChangeStreaming {
+        void doStreamingChanges(
+                @NonNull WritableStates writableStates,
+                @Nullable WritableStates entityIdWritableStates,
+                @NonNull Runnable action);
+    }
 
     /**
      * Constructs a new {@link SystemTransactions}.
@@ -175,6 +193,7 @@ public class SystemTransactions {
             @NonNull final ConfigProvider configProvider,
             @NonNull final DispatchProcessor dispatchProcessor,
             @NonNull final AppContext appContext,
+            @NonNull final ServicesRegistry servicesRegistry,
             @NonNull final BlockRecordManager blockRecordManager,
             @NonNull final BlockStreamManager blockStreamManager,
             @NonNull final ExchangeRateManager exchangeRateManager,
@@ -193,6 +212,7 @@ public class SystemTransactions {
                 .getConfigData(BlockStreamConfig.class)
                 .streamMode();
         this.idFactory = appContext.idFactory();
+        this.servicesRegistry = requireNonNull(servicesRegistry);
         this.blockRecordManager = requireNonNull(blockRecordManager);
         this.blockStreamManager = requireNonNull(blockStreamManager);
         this.exchangeRateManager = requireNonNull(exchangeRateManager);
@@ -214,10 +234,34 @@ public class SystemTransactions {
      *
      * @param now the current time
      * @param state the state to set up
+     * @param stateChangeStreaming the callback to stream KV state changes
      */
-    public void doGenesisSetup(@NonNull final Instant now, @NonNull final State state) {
+    public void doGenesisSetup(
+            @NonNull final Instant now,
+            @NonNull final State state,
+            @NonNull final StateChangeStreaming stateChangeStreaming) {
         requireNonNull(now);
         requireNonNull(state);
+        final var config = configProvider.getConfiguration();
+        // Do genesis setup per-service, forcing the PlatformState singleton to be externalized first
+        final var writablePlatformStates = state.getWritableStates(PlatformStateService.NAME);
+        stateChangeStreaming.doStreamingChanges(writablePlatformStates, null, () -> {
+            // Externalize the platform state singleton as it is with a little in-place write
+            final var platformStateSingleton =
+                    writablePlatformStates.<PlatformState>getSingleton(PLATFORM_STATE_STATE_ID);
+            platformStateSingleton.put(platformStateSingleton.get());
+        });
+        for (final var r : servicesRegistry.registrations()) {
+            final var service = r.service();
+            if (PlatformStateService.NAME.equals(service.getServiceName())) {
+                continue;
+            }
+            // Maybe EmptyWritableStates if the service's schemas register no state definitions at all
+            final var writableStates = state.getWritableStates(service.getServiceName());
+            stateChangeStreaming.doStreamingChanges(
+                    writableStates, null, () -> service.doGenesisSetup(writableStates, config));
+        }
+
         final AtomicReference<Consumer<Dispatch>> onSuccess = new AtomicReference<>(DEFAULT_DISPATCH_ON_SUCCESS);
         final var systemContext = newSystemContext(
                 now,
@@ -226,7 +270,6 @@ public class SystemTransactions {
                 UseReservedConsensusTimes.YES,
                 TriggerStakePeriodSideEffects.NO);
 
-        final var config = configProvider.getConfiguration();
         final var ledgerConfig = config.getConfigData(LedgerConfig.class);
         final var accountsConfig = config.getConfigData(AccountsConfig.class);
         final var bootstrapConfig = config.getConfigData(BootstrapConfig.class);
@@ -310,6 +353,7 @@ public class SystemTransactions {
         final var stakingConfig = config.getConfigData(StakingConfig.class);
         final var numStoredPeriods = stakingConfig.rewardHistoryNumStoredPeriods();
         final var nodeAdminKeys = parseEd25519NodeAdminKeysFrom(bootstrapConfig.nodeAdminKeysPath());
+        final List<NodeStake> nodeStakes = new ArrayList<>();
         for (final var nodeInfo : networkInfo.addressBook()) {
             final var adminKey = nodeAdminKeys.getOrDefault(nodeInfo.nodeId(), systemKey);
             if (adminKey != systemKey) {
@@ -322,21 +366,20 @@ public class SystemTransactions {
                 final var writableStakingInfoStore = new WritableStakingInfoStore(
                         stack.getWritableStates(TokenService.NAME),
                         new WritableEntityIdStoreImpl(stack.getWritableStates(EntityIdService.NAME)));
-                // Writing genesis staking info to state after the node create dispatch is only necessary if the created
-                // node's staking info isn't already present in state
                 if (writableStakingInfoStore.get(nodeInfo.nodeId()) == null) {
+                    log.info("Creating staking info for node{}", nodeInfo.nodeId());
                     final var rewardSumHistory = new Long[numStoredPeriods + 1];
                     Arrays.fill(rewardSumHistory, 0L);
-                    writableStakingInfoStore.putAndIncrementCount(
-                            nodeInfo.nodeId(),
-                            StakingNodeInfo.newBuilder()
-                                    .nodeNumber(nodeInfo.nodeId())
-                                    .maxStake(stakingConfig.maxStake())
-                                    .minStake(stakingConfig.minStake())
-                                    .rewardSumHistory(Arrays.asList(rewardSumHistory))
-                                    .weight(DEFAULT_GENESIS_WEIGHT)
-                                    .build());
+                    final var stakingNodeInfo = StakingNodeInfo.newBuilder()
+                            .nodeNumber(nodeInfo.nodeId())
+                            .maxStake(stakingConfig.maxStake())
+                            .minStake(stakingConfig.minStake())
+                            .rewardSumHistory(Arrays.asList(rewardSumHistory))
+                            .weight(DEFAULT_GENESIS_WEIGHT)
+                            .build();
+                    writableStakingInfoStore.putAndIncrementCount(nodeInfo.nodeId(), stakingNodeInfo);
                     stack.commitFullStack();
+                    nodeStakes.add(fromStakingInfo(0L, stakingNodeInfo));
                 }
             });
             systemContext.dispatchCreation(
@@ -361,8 +404,13 @@ public class SystemTransactions {
         onSuccess.set(DEFAULT_DISPATCH_ON_SUCCESS);
 
         // Now that the node metadata is correct, create the system files
-        final var nodeStore = new ReadableStoreFactory(state).getStore(ReadableNodeStore.class);
+        final var nodeStore = new ReadableStoreFactoryImpl(state).readableStore(ReadableNodeStore.class);
         fileService.createSystemEntities(systemContext, nodeStore);
+
+        // And dispatch a node stake update transaction for mirror node benefit
+        final var nodeStakeUpdate = EndOfStakingPeriodUtils.newNodeStakeUpdate(
+                lastInstantOfPreviousPeriodFor(now), nodeStakes, stakingConfig, 0L, 0L, 0L, 0L);
+        systemContext.dispatchAdmin(b -> b.memo(END_OF_PERIOD_MEMO).nodeStakeUpdate(nodeStakeUpdate));
     }
 
     /**
@@ -378,7 +426,7 @@ public class SystemTransactions {
         // We update the node details file from the address book that resulted from all pre-upgrade HAPI node changes
         final var nodesConfig = config.getConfigData(NodesConfig.class);
         if (nodesConfig.enableDAB()) {
-            final var nodeStore = new ReadableStoreFactory(state).getStore(ReadableNodeStore.class);
+            final var nodeStore = new ReadableStoreFactoryImpl(state).readableStore(ReadableNodeStore.class);
             fileService.updateAddressBookAndNodeDetailsAfterFreeze(systemContext, nodeStore);
         }
         selfNodeAccountIdManager.setSelfNodeAccountId(networkInfo.selfNodeInfo().accountId());
@@ -427,31 +475,6 @@ public class SystemTransactions {
                 adminConfig.upgradeNodeAdminKeysFile(),
                 SystemTransactions::parseNodeAdminKeys);
         autoNodeAdminKeyUpdates.tryIfPresent(adminConfig.upgradeSysFilesLoc(), systemContext);
-
-        // TODO: Delete this in release 0.71
-        // If fee collection account is enabled, we need to create the fee collection account only for release 0.70
-        if (nodesConfig.feeCollectionAccountEnabled()) {
-            final var accountsConfig = config.getConfigData(AccountsConfig.class);
-            final var feeCollectionAccount = accountsConfig.feeCollectionAccount();
-            // check if account 802 exists
-            final var accounts = state.getWritableStates(TokenService.NAME)
-                    .<AccountID, Account>get(V0490TokenSchema.ACCOUNTS_STATE_ID);
-            if (accounts.contains(idFactory.newAccountId(feeCollectionAccount))) {
-                log.info("Fee collection account already exists, skipping creation");
-                return;
-            }
-
-            final var ledgerConfig = config.getConfigData(LedgerConfig.class);
-            final var systemAutoRenewPeriod = new Duration(ledgerConfig.autoRenewPeriodMaxDuration());
-            systemContext.dispatchCreation(
-                    b -> b.memo("Fee collection account creation for v0.70")
-                            .cryptoCreateAccount(CryptoCreateTransactionBody.newBuilder()
-                                    .key(IMMUTABILITY_SENTINEL_KEY)
-                                    .autoRenewPeriod(systemAutoRenewPeriod)
-                                    .build())
-                            .build(),
-                    feeCollectionAccount);
-        }
     }
 
     /**
@@ -606,9 +629,9 @@ public class SystemTransactions {
     public boolean dispatchTransplantUpdates(final State state, final Instant now, final long currentRoundNum) {
         requireNonNull(state);
         requireNonNull(now);
-        final var readableStoreFactory = new ReadableStoreFactory(state);
-        final var rosterStore = readableStoreFactory.getStore(ReadableRosterStore.class);
-        final var nodeStore = readableStoreFactory.getStore(ReadableNodeStore.class);
+        final var readableStoreFactory = new ReadableStoreFactoryImpl(state);
+        final var rosterStore = readableStoreFactory.readableStore(ReadableRosterStore.class);
+        final var nodeStore = readableStoreFactory.readableStore(ReadableNodeStore.class);
         final var systemContext = newSystemContext(
                 now, state, dispatch -> {}, UseReservedConsensusTimes.YES, TriggerStakePeriodSideEffects.YES);
         final var network = startupNetworks.overrideNetworkFor(currentRoundNum - 1, configProvider.getConfiguration());
@@ -660,8 +683,9 @@ public class SystemTransactions {
                     log.info("Node {} in state is part of the override network and is being updated", node.nodeId());
                 }
             }
-            final var numNodes =
-                    readableStoreFactory.getStore(ReadableEntityIdStore.class).numNodes();
+            final var numNodes = readableStoreFactory
+                    .readableStore(ReadableEntityIdStore.class)
+                    .numNodes();
             for (var i = 0; i < numNodes; i++) {
                 final long nodeId = i;
                 final var existingNode = nodeStore.get(i);
@@ -822,8 +846,6 @@ public class SystemTransactions {
                         .toList();
                 if (!SUCCESSES.containsAll(statuses)) {
                     log.warn("Failed to dispatch system transaction {} - {}", body, statuses);
-                } else {
-                    log.info("Successfully dispatched admin transaction {}", body);
                 }
             }
 

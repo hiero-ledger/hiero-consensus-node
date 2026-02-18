@@ -2,9 +2,13 @@
 package com.swirlds.platform.crypto;
 
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
+import static java.util.Objects.requireNonNull;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.mockito.Mockito.lenient;
 
+import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.platform.test.fixtures.resource.ResourceLoader;
@@ -13,24 +17,34 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.KeyStoreException;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.Set;
 import java.util.stream.Stream;
+import org.hiero.base.crypto.config.CryptoConfig_;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.roster.ReadableRosterStore;
+import org.hiero.consensus.roster.test.fixtures.RandomRosterEntryBuilder;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 /**
  * A suite of unit tests to verify the functionality of the {@link EnhancedKeyStoreLoader} class.
  */
+@ExtendWith(MockitoExtension.class)
 @Execution(ExecutionMode.CONCURRENT)
 class EnhancedKeyStoreLoaderTest {
     private static final Set<NodeId> NODE_IDS = Set.of(NodeId.of(0), NodeId.of(1), NodeId.of(2));
@@ -39,6 +53,9 @@ class EnhancedKeyStoreLoaderTest {
     @TempDir
     Path testDataDirectory;
 
+    @Mock
+    private ReadableRosterStore rosterStore;
+
     @BeforeEach
     void testSetup() throws IOException {
         final ResourceLoader<EnhancedKeyStoreLoaderTest> loader =
@@ -46,6 +63,8 @@ class EnhancedKeyStoreLoaderTest {
         final Path tempDir = loader.loadDirectory("com/swirlds/platform/crypto/EnhancedKeyStoreLoader");
 
         Files.move(tempDir, testDataDirectory, REPLACE_EXISTING);
+
+        lenient().when(rosterStore.getActiveRoster()).thenReturn(createRoster());
     }
 
     /**
@@ -57,24 +76,14 @@ class EnhancedKeyStoreLoaderTest {
     void validateTestDataDirectory() {
         assertThat(testDataDirectory).exists().isDirectory().isReadable();
         assertThat(testDataDirectory.resolve("legacy-valid")).exists().isNotEmptyDirectory();
-        assertThat(testDataDirectory.resolve("legacy-invalid-case-1")).exists().isNotEmptyDirectory();
-        assertThat(testDataDirectory.resolve("legacy-invalid-case-2")).exists().isNotEmptyDirectory();
+        assertThat(testDataDirectory.resolve("legacy-invalid-case")).exists().isNotEmptyDirectory();
         assertThat(testDataDirectory.resolve("hybrid-valid")).exists().isNotEmptyDirectory();
-        assertThat(testDataDirectory.resolve("hybrid-invalid-case-1")).exists().isNotEmptyDirectory();
-        assertThat(testDataDirectory.resolve("hybrid-invalid-case-2")).exists().isNotEmptyDirectory();
+        assertThat(testDataDirectory.resolve("hybrid-invalid-case")).exists().isNotEmptyDirectory();
         assertThat(testDataDirectory.resolve("enhanced-valid")).exists().isNotEmptyDirectory();
         assertThat(testDataDirectory.resolve("enhanced-valid-no-agreement-key"))
                 .exists()
                 .isNotEmptyDirectory();
-        assertThat(testDataDirectory.resolve("enhanced-invalid-case-1"))
-                .exists()
-                .isNotEmptyDirectory();
-        assertThat(testDataDirectory.resolve("enhanced-invalid-case-2"))
-                .exists()
-                .isNotEmptyDirectory();
-        assertThat(testDataDirectory.resolve("legacy-valid").resolve("public.pfx"))
-                .exists()
-                .isNotEmptyFile();
+        assertThat(testDataDirectory.resolve("enhanced-invalid-case")).exists().isNotEmptyDirectory();
         assertThat(testDataDirectory.resolve("config.txt")).exists().isNotEmptyFile();
         assertThat(testDataDirectory.resolve("settings.txt")).exists().isNotEmptyFile();
     }
@@ -101,7 +110,10 @@ class EnhancedKeyStoreLoaderTest {
             throws IOException, KeyLoadingException, KeyStoreException {
         final Path keyDirectory = testDataDirectory.resolve(directoryName);
 
-        final EnhancedKeyStoreLoader loader = EnhancedKeyStoreLoader.using(configure(keyDirectory), NODE_IDS);
+        final List<RosterEntry> rosterEntries =
+                requireNonNull(rosterStore.getActiveRoster()).rosterEntries();
+        final EnhancedKeyStoreLoader loader =
+                EnhancedKeyStoreLoader.using(configure(keyDirectory), NODE_IDS, rosterEntries);
 
         assertThat(keyDirectory).exists().isDirectory().isReadable().isNotEmptyDirectory();
 
@@ -126,41 +138,21 @@ class EnhancedKeyStoreLoaderTest {
     }
 
     /**
-     * The Negative Type 1 tests are designed to test the case where the key store loader is able to scan the key
-     * directory, but one or more public keys are either corrupt or missing.
-     *
-     * @param directoryName the directory name containing the test data being used to cover a given test case.
-     * @throws IOException if an I/O error occurs during test setup.
-     */
-    @ParameterizedTest
-    @DisplayName("KeyStore Loader Negative Type 1 Test")
-    @ValueSource(strings = {"legacy-invalid-case-1", "hybrid-invalid-case-1", "enhanced-invalid-case-1"})
-    void keyStoreLoaderNegativeCase1Test(final String directoryName) throws IOException {
-        final Path keyDirectory = testDataDirectory.resolve(directoryName);
-        final EnhancedKeyStoreLoader loader = EnhancedKeyStoreLoader.using(configure(keyDirectory), NODE_IDS);
-
-        assertThat(keyDirectory).exists().isDirectory().isReadable().isNotEmptyDirectory();
-
-        assertThat(loader).isNotNull();
-        assertThatCode(loader::migrate).doesNotThrowAnyException();
-        assertThatCode(loader::scan).doesNotThrowAnyException();
-        assertThatCode(loader::verify).isInstanceOf(KeyLoadingException.class);
-        assertThatCode(loader::keysAndCerts).isInstanceOf(KeyLoadingException.class);
-    }
-
-    /**
-     * The Negative Type 2 tests are designed to test the case where the key store loader is able to scan the key
+     * The Negative Type tests are designed to test the case where the key store loader is able to scan the key
      * directory, but one or more private keys are either corrupt or missing.
      *
      * @param directoryName the directory name containing the test data being used to cover a given test case.
      * @throws IOException if an I/O error occurs during test setup.
      */
     @ParameterizedTest
-    @DisplayName("KeyStore Loader Negative Type 2 Test")
-    @ValueSource(strings = {"legacy-invalid-case-2", "hybrid-invalid-case-2", "enhanced-invalid-case-2"})
+    @DisplayName("KeyStore Loader Negative Type Test")
+    @ValueSource(strings = {"legacy-invalid-case", "hybrid-invalid-case", "enhanced-invalid-case"})
     void keyStoreLoaderNegativeCase2Test(final String directoryName) throws IOException {
         final Path keyDirectory = testDataDirectory.resolve(directoryName);
-        final EnhancedKeyStoreLoader loader = EnhancedKeyStoreLoader.using(configure(keyDirectory), NODE_IDS);
+        final List<RosterEntry> rosterEntries =
+                requireNonNull(rosterStore.getActiveRoster()).rosterEntries();
+        final EnhancedKeyStoreLoader loader =
+                EnhancedKeyStoreLoader.using(configure(keyDirectory), NODE_IDS, rosterEntries);
 
         assertThat(keyDirectory).exists().isDirectory().isReadable().isNotEmptyDirectory();
 
@@ -185,6 +177,7 @@ class EnhancedKeyStoreLoaderTest {
         BootstrapUtils.setupConfigBuilder(builder, testDataDirectory.resolve("settings.txt"));
 
         builder.withValue("paths.keysDirPath", keyDirectory.toAbsolutePath().toString());
+        builder.withValue(CryptoConfig_.KEYSTORE_PASSWORD, "password");
 
         return builder.build();
     }
@@ -202,10 +195,13 @@ class EnhancedKeyStoreLoaderTest {
      */
     @ParameterizedTest
     @DisplayName("Migration Negative Cases Test")
-    @ValueSource(strings = {"migration-invalid-missing-private-key", "migration-invalid-missing-public-key"})
-    void migraitonNegativeCaseTest(final String directoryName) throws IOException {
+    @ValueSource(strings = {"migration-invalid-missing-private-key"})
+    void migrationNegativeCaseTest(final String directoryName) throws IOException {
         final Path keyDirectory = testDataDirectory.resolve(directoryName);
-        final EnhancedKeyStoreLoader loader = EnhancedKeyStoreLoader.using(configure(keyDirectory), NODE_IDS);
+        final List<RosterEntry> rosterEntries =
+                requireNonNull(rosterStore.getActiveRoster()).rosterEntries();
+        final EnhancedKeyStoreLoader loader =
+                EnhancedKeyStoreLoader.using(configure(keyDirectory), NODE_IDS, rosterEntries);
 
         assertThat(keyDirectory).exists().isDirectory().isReadable().isNotEmptyDirectory();
 
@@ -235,5 +231,16 @@ class EnhancedKeyStoreLoaderTest {
                 }
             });
         }
+    }
+
+    private static Roster createRoster() {
+        final List<RosterEntry> rosterEntries = new ArrayList<>();
+        rosterEntries.add(
+                RandomRosterEntryBuilder.create(new Random()).withNodeId(0L).build());
+        rosterEntries.add(
+                RandomRosterEntryBuilder.create(new Random()).withNodeId(1L).build());
+        rosterEntries.add(
+                RandomRosterEntryBuilder.create(new Random()).withNodeId(2L).build());
+        return new Roster(rosterEntries);
     }
 }

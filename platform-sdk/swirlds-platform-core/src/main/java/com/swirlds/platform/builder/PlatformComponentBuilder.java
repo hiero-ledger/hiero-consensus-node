@@ -3,33 +3,21 @@ package com.swirlds.platform.builder;
 
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMetricsProvider;
 import static com.swirlds.platform.state.iss.IssDetector.DO_NOT_IGNORE_ROUNDS;
-import static com.swirlds.platform.state.service.PlatformStateUtils.latestFreezeRoundOf;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.latestFreezeRoundOf;
 
-import com.swirlds.base.time.Time;
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.merkle.utility.SerializableLong;
 import com.swirlds.component.framework.component.ComponentWiring;
-import com.swirlds.config.api.Configuration;
-import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.SwirldsPlatform;
-import com.swirlds.platform.components.appcomm.DefaultLatestCompleteStateNotifier;
-import com.swirlds.platform.components.appcomm.LatestCompleteStateNotifier;
-import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.event.branching.BranchDetector;
 import com.swirlds.platform.event.branching.BranchReporter;
 import com.swirlds.platform.event.branching.DefaultBranchDetector;
 import com.swirlds.platform.event.branching.DefaultBranchReporter;
-import com.swirlds.platform.event.preconsensus.DefaultInlinePcesWriter;
-import com.swirlds.platform.event.preconsensus.InlinePcesWriter;
 import com.swirlds.platform.event.stream.ConsensusEventStream;
 import com.swirlds.platform.event.stream.DefaultConsensusEventStream;
 import com.swirlds.platform.eventhandling.DefaultTransactionHandler;
 import com.swirlds.platform.eventhandling.DefaultTransactionPrehandler;
 import com.swirlds.platform.eventhandling.TransactionHandler;
 import com.swirlds.platform.eventhandling.TransactionPrehandler;
-import com.swirlds.platform.gossip.SyncGossipModular;
-import com.swirlds.platform.network.protocol.Protocol;
-import com.swirlds.platform.reconnect.api.ProtocolFactory;
 import com.swirlds.platform.state.hasher.DefaultStateHasher;
 import com.swirlds.platform.state.hasher.StateHasher;
 import com.swirlds.platform.state.hashlogger.DefaultHashLogger;
@@ -40,10 +28,7 @@ import com.swirlds.platform.state.iss.IssHandler;
 import com.swirlds.platform.state.iss.IssScratchpad;
 import com.swirlds.platform.state.iss.internal.DefaultIssHandler;
 import com.swirlds.platform.state.signed.DefaultSignedStateSentinel;
-import com.swirlds.platform.state.signed.DefaultStateGarbageCollector;
-import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedStateSentinel;
-import com.swirlds.platform.state.signed.StateGarbageCollector;
 import com.swirlds.platform.state.signer.DefaultStateSigner;
 import com.swirlds.platform.state.signer.StateSigner;
 import com.swirlds.platform.state.snapshot.DefaultStateSnapshotManager;
@@ -52,21 +37,15 @@ import com.swirlds.platform.system.DefaultPlatformMonitor;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.PlatformMonitor;
 import com.swirlds.platform.system.SystemExitUtils;
-import com.swirlds.platform.wiring.components.Gossip;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.Objects;
-import java.util.ServiceLoader;
-import java.util.function.Supplier;
-import org.hiero.consensus.concurrent.manager.AdHocThreadManager;
-import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.model.event.CesEvent;
-import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.pces.config.PcesConfig;
-import org.hiero.consensus.pces.impl.common.PcesFileManager;
-import org.hiero.consensus.pces.impl.common.PcesUtilities;
+import org.hiero.consensus.state.config.StateConfig;
+import org.hiero.consensus.state.signed.DefaultStateGarbageCollector;
+import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.state.signed.StateGarbageCollector;
 
 /**
  * The advanced platform builder is responsible for constructing platform components. This class is exposed so that
@@ -95,10 +74,8 @@ public class PlatformComponentBuilder {
     private SignedStateSentinel signedStateSentinel;
     private PlatformMonitor platformMonitor;
     private TransactionPrehandler transactionPrehandler;
-    private InlinePcesWriter inlinePcesWriter;
     private IssDetector issDetector;
     private IssHandler issHandler;
-    private Gossip gossip;
     private StateHasher stateHasher;
     private StateSnapshotManager stateSnapshotManager;
     private HashLogger hashLogger;
@@ -106,11 +83,8 @@ public class PlatformComponentBuilder {
     private BranchReporter branchReporter;
     private StateSigner stateSigner;
     private TransactionHandler transactionHandler;
-    private LatestCompleteStateNotifier latestCompleteStateNotifier;
 
     private SwirldsPlatform swirldsPlatform;
-
-    private boolean metricsDocumentationEnabled = true;
 
     /**
      * False if this builder has not yet been used to build a platform (or platform component builder), true if it has.
@@ -191,7 +165,8 @@ public class PlatformComponentBuilder {
     @NonNull
     public StateGarbageCollector buildStateGarbageCollector() {
         if (stateGarbageCollector == null) {
-            stateGarbageCollector = new DefaultStateGarbageCollector(blocks.platformContext());
+            stateGarbageCollector =
+                    new DefaultStateGarbageCollector(blocks.platformContext().getMetrics());
         }
         return stateGarbageCollector;
     }
@@ -336,56 +311,6 @@ public class PlatformComponentBuilder {
     }
 
     /**
-     * Provide an Inline PCES writer in place of the platform's default Inline PCES writer.
-     *
-     * @param inlinePcesWriter the PCES writer to use
-     * @return this builder
-     */
-    @NonNull
-    public PlatformComponentBuilder withInlinePcesWriter(@NonNull final InlinePcesWriter inlinePcesWriter) {
-        throwIfAlreadyUsed();
-        if (this.inlinePcesWriter != null) {
-            throw new IllegalStateException("Inline PCES writer has already been set");
-        }
-        this.inlinePcesWriter = Objects.requireNonNull(inlinePcesWriter);
-        return this;
-    }
-
-    /**
-     * Build the Inline PCES writer if it has not yet been built. If one has been provided via
-     * {@link #withInlinePcesWriter(InlinePcesWriter)}, that writer will be used. If this method is called more than
-     * once, only the first call will build the Inline PCES writer. Otherwise, the default writer will be created and
-     * returned.
-     *
-     * @return the Inline PCES writer
-     */
-    @NonNull
-    public InlinePcesWriter buildInlinePcesWriter() {
-        if (inlinePcesWriter == null) {
-            try {
-                final PlatformContext platformContext = blocks.platformContext();
-                final Configuration configuration = platformContext.getConfiguration();
-                final Metrics metrics = platformContext.getMetrics();
-                final Time time = platformContext.getTime();
-                final NodeId selfId = blocks.selfId();
-                final PcesFileManager preconsensusEventFileManager = new PcesFileManager(
-                        configuration,
-                        metrics,
-                        time,
-                        blocks.initialPcesFiles(),
-                        PcesUtilities.getDatabaseDirectory(configuration, selfId),
-                        blocks.initialState().get().getRound());
-                inlinePcesWriter =
-                        new DefaultInlinePcesWriter(configuration, metrics, time, preconsensusEventFileManager, selfId);
-
-            } catch (final IOException e) {
-                throw new UncheckedIOException(e);
-            }
-        }
-        return inlinePcesWriter;
-    }
-
-    /**
      * Provide an ISS detector in place of the platform's default ISS detector.
      *
      * @param issDetector the ISS detector to use
@@ -486,60 +411,6 @@ public class PlatformComponentBuilder {
                     blocks.platformContext(), SystemExitUtils::handleFatalError, blocks.issScratchpad());
         }
         return issHandler;
-    }
-
-    /**
-     * Provide a gossip in place of the platform's default gossip.
-     *
-     * @param gossip the gossip to use
-     * @return this builder
-     */
-    @NonNull
-    public PlatformComponentBuilder withGossip(@NonNull final Gossip gossip) {
-        throwIfAlreadyUsed();
-        if (this.gossip != null) {
-            throw new IllegalStateException("Gossip has already been set");
-        }
-        this.gossip = Objects.requireNonNull(gossip);
-        return this;
-    }
-
-    /**
-     * Build the gossip if it has not yet been built. If one has been provided via {@link #withGossip(Gossip)}, that
-     * gossip will be used. If this method is called more than once, only the first call will build the gossip.
-     * Otherwise, the default gossip will be created and returned.
-     *
-     * @return the gossip
-     */
-    @NonNull
-    public Gossip buildGossip() {
-        if (gossip == null) {
-            final ThreadManager threadManager = AdHocThreadManager.getStaticThreadManager();
-            final Supplier<ReservedSignedState> latestCompleteState =
-                    () -> blocks.getLatestCompleteStateReference().get().get();
-
-            final ProtocolFactory factory =
-                    ServiceLoader.load(ProtocolFactory.class).findFirst().orElseThrow();
-            final Protocol reconnectProtocol = factory.createProtocol(
-                    blocks.platformContext(),
-                    threadManager,
-                    latestCompleteState,
-                    blocks.reservedSignedStateResultPromise(),
-                    blocks.fallenBehindMonitor(),
-                    blocks.stateLifecycleManager());
-
-            gossip = new SyncGossipModular(
-                    blocks.platformContext(),
-                    threadManager,
-                    blocks.keysAndCerts(),
-                    blocks.rosterHistory().getCurrentRoster(),
-                    blocks.selfId(),
-                    blocks.appVersion(),
-                    blocks.intakeEventCounter(),
-                    blocks.fallenBehindMonitor(),
-                    reconnectProtocol);
-        }
-        return gossip;
     }
 
     /**
@@ -776,38 +647,5 @@ public class PlatformComponentBuilder {
                     blocks.selfId());
         }
         return transactionHandler;
-    }
-
-    /**
-     * Provide a latest complete state notifier in place of the platform's default latest complete state notifier.
-     *
-     * @param latestCompleteStateNotifier the latest complete state notifier to use
-     * @return this builder
-     */
-    @NonNull
-    public PlatformComponentBuilder withLatestCompleteStateNotifier(
-            @NonNull final LatestCompleteStateNotifier latestCompleteStateNotifier) {
-        throwIfAlreadyUsed();
-        if (this.latestCompleteStateNotifier != null) {
-            throw new IllegalStateException("Latest complete state notifier has already been set");
-        }
-        this.latestCompleteStateNotifier = Objects.requireNonNull(latestCompleteStateNotifier);
-        return this;
-    }
-
-    /**
-     * Build the latest complete state notifier if it has not yet been built. If one has been provided via
-     * {@link #withLatestCompleteStateNotifier(LatestCompleteStateNotifier)}, that notifier will be used. If this method
-     * is called more than once, only the first call will build the latest complete state notifier. Otherwise, the
-     * default notifier will be created and returned.
-     *
-     * @return the latest complete state notifier
-     */
-    @NonNull
-    public LatestCompleteStateNotifier buildLatestCompleteStateNotifier() {
-        if (latestCompleteStateNotifier == null) {
-            latestCompleteStateNotifier = new DefaultLatestCompleteStateNotifier();
-        }
-        return latestCompleteStateNotifier;
     }
 }

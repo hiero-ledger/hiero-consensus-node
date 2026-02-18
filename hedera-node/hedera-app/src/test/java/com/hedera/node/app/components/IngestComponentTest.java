@@ -134,8 +134,8 @@ class IngestComponentTest {
                 appContext,
                 new HintsLibraryImpl(),
                 DEFAULT_CONFIG.getConfigData(BlockStreamConfig.class).blockPeriod());
-        final var historyService = new HistoryServiceImpl(
-                NO_OP_METRICS, ForkJoinPool.commonPool(), appContext, new HistoryLibraryImpl(), DEFAULT_CONFIG);
+        final var historyService =
+                new HistoryServiceImpl(NO_OP_METRICS, ForkJoinPool.commonPool(), appContext, new HistoryLibraryImpl());
         final var state = new FakeState();
         final var networkInfo = mock(NetworkInfo.class);
         final var selfNodeAccountIdManagerImpl = new SelfNodeAccountIdManagerImpl(configProvider, networkInfo, state);

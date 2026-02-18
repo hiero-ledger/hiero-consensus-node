@@ -113,7 +113,7 @@ permissions:
 jobs:
   validate:
     name: Validate
-    runs-on: hiero-network-node-linux-large
+    runs-on: hl-cn-default-lin-md
     if: ${{ !github.event.workflow_call.repository.fork }}
     outputs:
       branch-name: ${{ steps.parameters.outputs.branch-name }}
@@ -245,7 +245,7 @@ jobs:
 
   build-artifact:
     name: Build Artifact
-    runs-on: hiero-network-node-linux-large
+    runs-on: hl-cn-default-lin-md
     needs:
       - validate
     steps:
@@ -406,7 +406,7 @@ jobs:
 
   local-node-images:
     name: Publish Local Node Images
-    runs-on: hiero-network-node-linux-large
+    runs-on: hl-cn-default-lin-lg
     needs:
       - validate
       - build-artifact
@@ -584,9 +584,25 @@ jobs:
       jf-docker-registry: ${{ secrets.jf-docker-registry }}
       jf-access-token: ${{ secrets.jf-access-token }}
 
+  yahcli-image:
+    name: Publish Yahcli Image
+    uses: ./.github/workflows/zxc-publish-yahcli-image.yaml
+    needs:
+      - validate
+    with:
+      version: ${{ needs.validate.outputs.version }}
+      version-policy: ${{ inputs.version-policy }}
+      dry-run-enabled: ${{ inputs.dry-run-enabled }}
+      ref: ${{ needs.validate.outputs.commit-id }}
+      java-distribution: ${{ inputs.java-distribution }}
+      java-version: ${{ inputs.java-version }}
+      gradle-version: ${{ inputs.gradle-version }}
+    secrets:
+      access-token: ${{ secrets.access-token }}
+
   validate-production-image:
     name: Validate Production Image
-    runs-on: hiero-network-node-linux-large
+    runs-on: hl-cn-default-lin-md
     needs:
       - gcp-production-image
       - jfr-production-image
@@ -704,7 +720,7 @@ jobs:
 
   publish:
     name: Publish to ${{ inputs.version-policy == 'specified' && 'Maven Central' || 'GCP Registry' }}
-    runs-on: hiero-network-node-linux-large
+    runs-on: hl-cn-default-lin-lg
     outputs:
       create-release: ${{ steps.set-gh-release-flag.outputs.create-release }}
     needs:
@@ -927,7 +943,7 @@ jobs:
 
   send-notifications:
     name: Send Release Notifications
-    runs-on: hiero-network-node-linux-large
+    runs-on: hl-cn-default-lin-sm
     needs:
       - validate
       - local-node-images

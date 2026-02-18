@@ -3,7 +3,7 @@
     "baseFee": 100000,
     "extras": [
       {
-        "name": "BYTES", "includedCount": 1024
+        "name": "PROCESSING_BYTES", "includedCount": 1024
       },
       {
         "name": "SIGNATURES", "includedCount": 1
@@ -18,20 +18,23 @@
   },
 
   "extras": [
-    { "name":  "SIGNATURES",                     "fee": 1000000 },
-    { "name":  "BYTES",                          "fee": 110000 },
+    { "name":  "SIGNATURES",                     "fee": 100000 },
+    { "name":  "STATE_BYTES",                    "fee": 1000000 },
+    { "name":  "PROCESSING_BYTES",               "fee": 10000 },
     { "name":  "KEYS",                           "fee": 100000000 },
     { "name":  "NFT_SERIALS",                    "fee": 8900000 },
     { "name":  "ACCOUNTS",                       "fee": 1000000 },
-    { "name":  "FUNGIBLE_TOKENS",                 "fee": 1000000 },
-    { "name":  "NON_FUNGIBLE_TOKENS",            "fee": 1000000 },
+    { "name":  "TOKEN_TYPES",                    "fee": 1000000 },
     { "name":  "GAS",                            "fee": 852 },
     { "name":  "ALLOWANCES",                     "fee": 500000000 },
     { "name":  "TOKEN_ASSOCIATE",                "fee": 500000000 },
     { "name":  "TOKEN_CREATE_WITH_CUSTOM_FEE",   "fee": 10000000000 },
-    { "name":  "TOKEN_MINT_NFT",                 "fee": 199000000 },
+    { "name":  "TOKEN_MINT_NFT_BASE",            "fee": 190000000 },
+    { "name":  "TOKEN_MINT_NFT",                 "fee": 200000000 },
+    { "name":  "NFT_UPDATE",                     "fee": 10000000 },
     { "name":  "AIRDROPS",                       "fee": 500000000 },
     { "name":  "HOOK_UPDATES",                   "fee": 10000000000 },
+    { "name":  "RECORDS",                        "fee": 1000000 },
     { "name":  "TOKEN_TRANSFER_BASE",                       "fee": 9000000 },
     { "name":  "TOKEN_TRANSFER_BASE_CUSTOM_FEES",           "fee": 19000000 },
     { "name":  "CONSENSUS_CREATE_TOPIC_WITH_CUSTOM_FEE",    "fee": 19900000000 },
@@ -97,8 +100,7 @@
             {  "name": "HOOK_EXECUTION",                  "includedCount": 0 },
             {  "name": "GAS",                             "includedCount": 0 },
             {  "name": "ACCOUNTS",                        "includedCount": 2 },
-            {  "name": "FUNGIBLE_TOKENS",                 "includedCount": 1 },
-            {  "name": "NON_FUNGIBLE_TOKENS",             "includedCount": 1 }
+            {  "name": "TOKEN_TYPES",                     "includedCount": 1 }
           ]
         },
         {
@@ -127,6 +129,16 @@
         },
         {
           "name": "CryptoGetAccountBalance",
+          "baseFee": 0,
+          "extras": []
+        },
+        {
+          "name": "CryptoGetInfo",
+          "baseFee": 0,
+          "extras": []
+        },
+        {
+          "name": "CryptoGetAccountRecords",
           "baseFee": 0,
           "extras": []
         }
@@ -176,7 +188,7 @@
           "name": "ConsensusSubmitMessage",
           "baseFee": 7000000,
           "extras": [
-            { "name": "BYTES",      "includedCount": 1024 },
+            { "name": "STATE_BYTES",      "includedCount": 1024 },
             { "name": "CONSENSUS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE", "includedCount": 0 }
           ]
         },
@@ -190,16 +202,6 @@
           "name": "ConsensusGetTopicInfo",
           "baseFee": 0,
           "extras": []
-        },
-        {
-          "name": "CryptoGetInfo",
-          "baseFee": 0,
-          "extras": []
-        },
-        {
-          "name": "CryptoGetAccountRecords",
-          "baseFee": 0,
-          "extras": []
         }
       ]
     },
@@ -211,7 +213,7 @@
           "baseFee": 499000000,
           "extras": [
             { "name": "KEYS", "includedCount": 1},
-            { "name": "BYTES", "includedCount": 1000}
+            { "name": "STATE_BYTES", "includedCount": 1000}
           ],
           "highVolumeRates": {
             "maxMultiplier": 200000,
@@ -241,14 +243,14 @@
           "baseFee": 499000000,
           "extras": [
             { "name": "KEYS", "includedCount": 1},
-            { "name": "BYTES", "includedCount": 1000}
+            { "name": "STATE_BYTES", "includedCount": 1000}
           ]
         },
         {
           "name": "FileAppend",
           "baseFee": 499000000,
           "extras": [
-            { "name": "BYTES", "includedCount": 1000}
+            { "name": "STATE_BYTES", "includedCount": 1000}
           ],
           "highVolumeRates": {
             "maxMultiplier": 200000,
@@ -282,7 +284,7 @@
           "name": "FileGetContents",
           "baseFee": 0,
           "extras": [
-            { "name": "BYTES", "includedCount": 1000}
+            { "name": "STATE_BYTES", "includedCount": 1000}
           ]
         },
         {
@@ -326,7 +328,8 @@
           "name": "TokenMint",
           "baseFee": 9000000,
           "extras": [
-            {"name": "TOKEN_MINT_NFT", "includedCount": 0 }
+            {"name": "TOKEN_MINT_NFT_BASE", "includedCount": 0 },
+            {"name": "TOKEN_MINT_NFT", "includedCount": 1 }
           ],
           "highVolumeRates": {
             "maxMultiplier": 150000,
@@ -505,6 +508,7 @@
           "name": "TokenUpdateNfts",
           "baseFee": 9000000,
           "extras": [
+            {"name": "NFT_UPDATE", "includedCount": 1}
           ]
         },
         {
@@ -579,7 +583,12 @@
         {
           "name": "TransactionGetRecord",
           "baseFee": 0,
-          "extras": []
+          "extras": [
+            {
+              "name": "RECORDS",
+              "includedCount": 1
+            }
+          ]
         },
         {
           "name": "TransactionGetReceipt",
@@ -638,12 +647,7 @@
         {
           "name": "EthereumTransaction",
           "baseFee": 0,
-          "extras": [
-            {
-              "name": "BYTES",
-              "includedCount": 6144
-            }
-          ]
+          "extras": []
         },
         {
           "name": "ContractCreate",
@@ -711,15 +715,15 @@
         },
         {
           "name": "ContractCallLocal",
-          "baseFee": 0,
+          "baseFee": 9000000,
           "extras": []
         },
         {
           "name": "ContractGetBytecode",
-          "baseFee": 0,
+          "baseFee": 499000000,
           "extras": [
             {
-              "name": "BYTES", "includedCount": 1000
+              "name": "STATE_BYTES", "includedCount": 1000
             }
           ]
         },

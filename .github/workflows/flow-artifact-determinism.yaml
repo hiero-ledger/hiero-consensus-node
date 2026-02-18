@@ -30,7 +30,7 @@ permissions:
 jobs:
   commit-info:
     name: Get Commit Info
-    runs-on: hl-cn-citr-lin-sm
+    runs-on: hl-cn-default-lin-sm
     outputs:
       sha: ${{ steps.commit-info.outputs.sha }}
     steps:
@@ -72,5 +72,6 @@ jobs:
       java-distribution: ${{ inputs.java-distribution || 'temurin' }}
       java-version: ${{ inputs.java-version || '21.0.6' }}
     secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
       gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}

@@ -5,6 +5,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
 import com.hedera.node.config.ConfigProvider;
+import com.hedera.pbj.runtime.grpc.GrpcException;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.EnumMap;
@@ -18,7 +19,7 @@ import org.apache.logging.log4j.Logger;
 /**
  * Base implementation for a connection to a block node.
  */
-public abstract class AbstractBlockNodeConnection {
+public abstract class AbstractBlockNodeConnection implements AutoCloseable {
 
     private static final Logger logger = LogManager.getLogger(AbstractBlockNodeConnection.class);
 
@@ -189,7 +190,7 @@ public abstract class AbstractBlockNodeConnection {
      * Closes this connection. The connection should transition to a CLOSING state upon entering this method and then
      * at the conclusion of this method (either successful or failed) the state should transition to CLOSED.
      */
-    abstract void close();
+    public abstract void close();
 
     /**
      * @return the configuration provider used by this connection
@@ -210,6 +211,26 @@ public abstract class AbstractBlockNodeConnection {
      */
     public final @NonNull BlockNodeConfiguration configuration() {
         return configuration;
+    }
+
+    /**
+     * Given a throwable, determine if the throwable or one of its causes is a {@link GrpcException}.
+     *
+     * @param t the throwable to search
+     * @return the {@link GrpcException} associated with this throwable, or null if one is not found
+     */
+    protected GrpcException findGrpcException(final Throwable t) {
+        Throwable th = t;
+
+        while (th != null) {
+            if (th instanceof final GrpcException grpcException) {
+                return grpcException;
+            }
+
+            th = th.getCause();
+        }
+
+        return null;
     }
 
     @Override

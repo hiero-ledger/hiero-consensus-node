@@ -58,7 +58,7 @@ env:
 jobs:
   compile-application-code:
     name: "Compile Application Code"
-    runs-on: hiero-network-node-linux-medium
+    runs-on: hl-cn-compile-app-lin
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:

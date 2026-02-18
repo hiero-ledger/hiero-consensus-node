@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform;
 
-import static com.swirlds.platform.state.service.PlatformStateUtils.consensusSnapshotOf;
-import static com.swirlds.platform.state.service.PlatformStateUtils.legacyRunningEventHashOf;
 import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.CONSENSUS_TIMESTAMP;
 import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.FREEZE_STATE;
 import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.HASH;
@@ -20,6 +18,8 @@ import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.TOTAL_
 import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.WALL_CLOCK_TIME;
 import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomHash;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.consensusSnapshotOf;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.legacyRunningEventHashOf;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -30,13 +30,10 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.common.utility.Mnemonics;
-import com.swirlds.platform.state.service.PlatformStateUtils;
-import com.swirlds.platform.state.signed.SigSet;
-import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.snapshot.SavedStateMetadata;
 import com.swirlds.platform.state.snapshot.SavedStateMetadataField;
 import com.swirlds.platform.test.fixtures.roster.RosterServiceStateMock;
-import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.merkle.VirtualMapState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -52,6 +49,9 @@ import java.util.stream.Collectors;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.platformstate.PlatformStateUtils;
+import org.hiero.consensus.state.signed.SigSet;
+import org.hiero.consensus.state.signed.SignedState;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -204,7 +204,7 @@ class SavedStateMetadataTests {
 
         final SignedState signedState = mock(SignedState.class);
         final SigSet sigSet = mock(SigSet.class);
-        final MerkleNodeState state = mock(MerkleNodeState.class);
+        final VirtualMapState state = mock(VirtualMapState.class);
         final ConsensusSnapshot consensusSnapshot = mock(ConsensusSnapshot.class);
         when(state.getHash()).thenReturn(randomHash(random));
         when(state.getHash()).thenReturn(randomHash(random));

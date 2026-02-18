@@ -4,7 +4,6 @@ package com.hedera.node.app;
 import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
 import static com.swirlds.common.io.utility.FileUtils.rethrowIO;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
-import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.platform.builder.PlatformBuildConstants.DEFAULT_OVERRIDES_YAML_FILE_NAME;
 import static com.swirlds.platform.builder.PlatformBuildConstants.DEFAULT_SETTINGS_FILE_NAME;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMetricsProvider;
@@ -15,15 +14,14 @@ import static com.swirlds.platform.crypto.CryptoStatic.initNodeSecurity;
 import static com.swirlds.platform.state.signed.StartupStateUtils.loadInitialState;
 import static com.swirlds.platform.system.InitTrigger.GENESIS;
 import static com.swirlds.platform.system.InitTrigger.RESTART;
-import static com.swirlds.platform.system.SystemExitCode.NODE_ADDRESS_MISMATCH;
+import static com.swirlds.platform.system.SystemExitCode.NODE_ID_NOT_PROVIDED;
 import static com.swirlds.platform.system.SystemExitUtils.exitSystem;
-import static com.swirlds.platform.util.BootstrapUtils.getNodesToRun;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.node.app.hints.impl.HintsLibraryImpl;
 import com.hedera.node.app.hints.impl.HintsServiceImpl;
 import com.hedera.node.app.history.impl.HistoryLibraryImpl;
@@ -35,6 +33,7 @@ import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.service.entityid.impl.ReadableEntityIdStoreImpl;
 import com.hedera.node.app.services.OrderedServiceMigrator;
 import com.hedera.node.app.services.ServicesRegistryImpl;
+import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.app.tss.TssBlockHashSigner;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.internal.network.Network;
@@ -53,29 +52,27 @@ import com.swirlds.platform.builder.PlatformBuilder;
 import com.swirlds.platform.config.legacy.ConfigurationException;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
-import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.SwirldMain;
 import com.swirlds.platform.util.BootstrapUtils;
-import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
 import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.state.merkle.VirtualMapStateImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.InstantSource;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Predicate;
-import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.RuntimeConstructable;
-import org.hiero.consensus.config.BasicConfig;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.roster.ReadableRosterStore;
+import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterStateUtils;
+import org.hiero.consensus.state.signed.ReservedSignedState;
 
 /**
  * Main entry point.
@@ -84,18 +81,6 @@ import org.hiero.consensus.roster.RosterStateUtils;
  */
 public class ServicesMain {
     private static final Logger logger = LogManager.getLogger(ServicesMain.class);
-
-    /**
-     * A supplier that refuses to satisfy fallback requests for a set of node ids to run
-     * simultaneously; this is only useful for certain platform testing applications
-     */
-    private static final Supplier<Set<NodeId>> ILLEGAL_FALLBACK_NODE_IDS = () -> {
-        throw new IllegalStateException("The node id must be configured explicitly");
-    };
-    /**
-     * Upfront validation on node ids is only useful for certain platform testing applications
-     */
-    private static final Predicate<NodeId> NOOP_NODE_VALIDATOR = nodeId -> true;
 
     /**
      * The {@link Hedera} singleton.
@@ -125,8 +110,8 @@ public class ServicesMain {
      *     and the working directory <i>settings.txt</i>, providing the same
      *     {@link SwirldMain#newStateRoot()} method reference as the genesis state
      *     factory. (<b>IMPORTANT:</b> This step instantiates and invokes
-     *     {@link ConsensusStateEventHandler#onStateInitialized(MerkleNodeState, Platform, InitTrigger, SemanticVersion)}
-     *     on a {@link MerkleNodeState} instance that delegates the call back to our
+     *     {@link ConsensusStateEventHandler#onStateInitialized(State, Platform, InitTrigger, SemanticVersion)}
+     *     on a {@link VirtualMapState} instance that delegates the call back to our
      *     Hedera instance.)</li>
      *     <li>Call {@link Hedera#init(Platform, NodeId)} to complete startup phase
      *     validation and register notification listeners on the platform.</li>
@@ -153,7 +138,7 @@ public class ServicesMain {
      *      method with the {@link ConstructableRegistry} as the factory for the Services state root
      *      class id.</li>
      * </ol>
-     *  Now, note that {@link SwirldMain#newStateRoot()} returns {@link MerkleNodeState}
+     *  Now, note that {@link SwirldMain#newStateRoot()} returns {@link VirtualMapState}
      *  instances that delegate their lifecycle methods to an injected instance of
      *  {@link ConsensusStateEventHandler}---and the implementation of that
      *  injected by {@link SwirldMain#newStateRoot()} delegates these calls back to the Hedera
@@ -176,24 +161,20 @@ public class ServicesMain {
             logger.error(
                     EXCEPTION.getMarker(),
                     "Multiple nodes were supplied via the command line. Only one node can be started per java process.");
-            exitSystem(NODE_ADDRESS_MISMATCH);
+            exitSystem(NODE_ID_NOT_PROVIDED);
             // the following throw is not reachable in production,
             // but reachable in testing with static mocked system exit calls.
             throw new ConfigurationException();
         }
         final var platformConfig = buildPlatformConfig();
 
-        // Determine which nodes were _requested_ to run from the command line
-        final var cliNodesToRun = commandLineArgs.localNodesToStart();
-        // Determine which nodes are _configured_ to run from the config file(s)
-        final var configNodesToRun =
-                platformConfig.getConfigData(BasicConfig.class).nodesToRun();
-        // Using the requested nodes to run from the command line, the nodes configured to run, and now the
-        // address book on disk, reconcile the list of nodes to run
-        final List<NodeId> nodesToRun =
-                getNodesToRun(cliNodesToRun, configNodesToRun, ILLEGAL_FALLBACK_NODE_IDS, NOOP_NODE_VALIDATOR);
-        // Finally, verify that the reconciliation of above node IDs yields exactly one node to run
-        final var selfId = ensureSingleNode(nodesToRun);
+        final var selfId = commandLineArgs.localNodesToStart().stream()
+                .findFirst()
+                .orElseThrow(() -> {
+                    final String msg = "No node id specified on command line. Use -local <nodeId>";
+                    exitSystem(NODE_ID_NOT_PROVIDED, msg);
+                    return new ConfigurationException(msg);
+                });
 
         // --- Initialize the platform metrics and the Hedera instance ---
         setupGlobalMetrics(platformConfig);
@@ -208,8 +189,7 @@ public class ServicesMain {
         final var fileSystemManager = FileSystemManager.create(platformConfig);
         final var recycleBin = RecycleBinImpl.create(
                 metrics, platformConfig, getStaticThreadManager(), time, fileSystemManager, selfId);
-        final ConsensusStateEventHandler<MerkleNodeState> consensusStateEventHandler =
-                hedera.newConsensusStateEvenHandler();
+        final ConsensusStateEventHandler consensusStateEventHandler = hedera.newConsensusStateEvenHandler();
         final PlatformContext platformContext =
                 PlatformContext.create(platformConfig, Time.getCurrent(), metrics, fileSystemManager, recycleBin);
         final HashedReservedSignedState reservedState = loadInitialState(
@@ -227,16 +207,25 @@ public class ServicesMain {
                 platformContext,
                 hedera.getStateLifecycleManager());
         final ReservedSignedState initialState = reservedState.state();
-        final MerkleNodeState state = initialState.get().getState();
+        final VirtualMapState state = initialState.get().getState();
         if (!genesisNetwork.get()) {
             hedera.initializeStatesApi(state, RESTART, platformConfig);
         }
         hedera.setInitialStateHash(reservedState.hash());
+        logger.info("Initial state hash: {}", reservedState.hash().toHex());
 
-        // --- Create the platform context and initialize the cryptography ---
-        final var rosterHistory = RosterStateUtils.createRosterHistory(state);
-
-        final var keysAndCerts = initNodeSecurity(platformConfig, selfId);
+        final RosterHistory rosterHistory;
+        final List<RosterEntry> rosterEntries;
+        if (genesisNetwork.get()) {
+            final var genesisRoster = hedera.genesisRosterOrThrow();
+            rosterHistory = RosterHistory.fromGenesis(genesisRoster);
+            rosterEntries = genesisRoster.rosterEntries();
+        } else {
+            rosterHistory = RosterStateUtils.createRosterHistory(state);
+            final var rosterStore = new ReadableStoreFactoryImpl(state).readableStore(ReadableRosterStore.class);
+            rosterEntries = requireNonNull(rosterStore.getActiveRoster()).rosterEntries();
+        }
+        final var keysAndCerts = initNodeSecurity(platformConfig, selfId, rosterEntries);
 
         final String consensusEventStreamName = genesisNetwork.get()
                 // If at genesis, base the event stream location on the genesis network metadata
@@ -340,12 +329,12 @@ public class ServicesMain {
                         new HintsLibraryImpl(),
                         bootstrapConfig.getConfigData(BlockStreamConfig.class).blockPeriod()),
                 (appContext, bootstrapConfig) -> new HistoryServiceImpl(
-                        metrics, ForkJoinPool.commonPool(), appContext, new HistoryLibraryImpl(), bootstrapConfig),
+                        metrics, ForkJoinPool.commonPool(), appContext, new HistoryLibraryImpl()),
                 TssBlockHashSigner::new,
                 configuration,
                 metrics,
                 time,
-                () -> new VirtualMapState(configuration, metrics));
+                () -> new VirtualMapStateImpl(configuration, metrics));
     }
 
     /**
@@ -368,44 +357,7 @@ public class ServicesMain {
         return configuration;
     }
 
-    /**
-     * Ensures there is exactly 1 node to run.
-     *
-     * @param nodesToRun        the list of nodes configured to run.
-     * @return the node which should be run locally.
-     * @throws ConfigurationException if more than one node would be started or the requested node is not configured.
-     */
-    private static NodeId ensureSingleNode(@NonNull final List<NodeId> nodesToRun) {
-        requireNonNull(nodesToRun);
-
-        logger.info(STARTUP.getMarker(), "The following nodes {} are set to run locally", nodesToRun);
-        if (nodesToRun.isEmpty()) {
-            final String errorMessage = "No nodes are configured to run locally.";
-            logger.error(STARTUP.getMarker(), errorMessage);
-            exitSystem(NODE_ADDRESS_MISMATCH, errorMessage);
-            // the following throw is not reachable in production,
-            // but reachable in testing with static mocked system exit calls.
-            throw new ConfigurationException(errorMessage);
-        }
-
-        if (nodesToRun.size() > 1) {
-            final String errorMessage = "Multiple nodes are configured to run locally.";
-            logger.error(EXCEPTION.getMarker(), errorMessage);
-            exitSystem(NODE_ADDRESS_MISMATCH, errorMessage);
-            // the following throw is not reachable in production,
-            // but reachable in testing with static mocked system exit calls.
-            throw new ConfigurationException(errorMessage);
-        }
-        return nodesToRun.getFirst();
-    }
-
     private static @NonNull Hedera hederaOrThrow() {
         return requireNonNull(hedera);
-    }
-
-    @VisibleForTesting
-    static void initGlobal(@NonNull final Hedera hedera, @NonNull final Metrics metrics) {
-        ServicesMain.hedera = hedera;
-        ServicesMain.metrics = metrics;
     }
 }

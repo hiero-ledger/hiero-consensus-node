@@ -4,7 +4,6 @@ package com.hedera.services.bdd.suites.contract.fees;
 import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SIMPLE_FEES;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
-import static com.hedera.services.bdd.spec.transactions.HapiTxnOp.serializedSignedTxFrom;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.accountAllowanceHook;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.accountEvmHookStore;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
@@ -28,6 +27,15 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SOURCE_KEY;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedFeeFromBytesFor;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONTRACT_CALL_BASE_FEE;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONTRACT_CREATE_BASE_FEE;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONTRACT_DELETE_BASE_FEE;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONTRACT_UPDATE_BASE_FEE;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.ETHEREUM_CALL_BASE_FEE;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.HOOK_SLOT_UPDATE_BASE_FEE;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.HOOK_SLOT_UPDATE_FEE;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SIGNATURE_FEE_AFTER_MULTIPLIER;
 
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -39,7 +47,6 @@ import com.hedera.services.bdd.spec.dsl.annotations.Account;
 import com.hedera.services.bdd.spec.dsl.annotations.Contract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecAccount;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
-import com.hederahashgraph.api.proto.java.Transaction;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -50,18 +57,6 @@ import org.junit.jupiter.api.Tag;
 @Tag(SIMPLE_FEES)
 @HapiTestLifecycle
 public class SimpleSmartContractServiceFeesTest {
-    static final double CONTRACT_CREATE_BASE_FEE = 1.0;
-    static final double CONTRACT_DELETE_BASE_FEE = 0.007;
-    static final double CONTRACT_CALL_BASE_FEE = 0;
-    static final double CONTRACT_UPDATE_BASE_FEE = 0.026;
-    static final double ETHEREUM_CALL_BASE_FEE = 0.0001;
-    static final double HOOK_STORE_BASE_FEE = 0.005;
-    // EXTRAS
-    static final double EXTRA_HOOK_SLOT_UPDATE_FEE = 0.0050;
-    static final double SINGLE_SIGNATURE_COST = 0.001;
-    static final double SINGLE_BYTE_FEE = 0.000011;
-    static final int NODE_INCLUDED_BYTES = 1024;
-    static final int NETWORK_MULTIPLIER = 9;
     static final double EXPECTED_GAS_USED = 0.00184;
 
     @Contract(contract = "SmartContractsFees")
@@ -109,8 +104,8 @@ public class SimpleSmartContractServiceFeesTest {
                         .signedBy(civilian.name(), "EmptyOne")
                         .via("deleteTxn"),
                 validateChargedUsd("createTxn", CONTRACT_CREATE_BASE_FEE),
-                validateChargedUsd("updateTxn", CONTRACT_UPDATE_BASE_FEE + SINGLE_SIGNATURE_COST),
-                validateChargedUsd("deleteTxn", CONTRACT_DELETE_BASE_FEE + SINGLE_SIGNATURE_COST));
+                validateChargedUsd("updateTxn", CONTRACT_UPDATE_BASE_FEE + SIGNATURE_FEE_AFTER_MULTIPLIER),
+                validateChargedUsd("deleteTxn", CONTRACT_DELETE_BASE_FEE + SIGNATURE_FEE_AFTER_MULTIPLIER));
     }
 
     @HapiTest
@@ -142,9 +137,9 @@ public class SimpleSmartContractServiceFeesTest {
                         .nonce(0)
                         .via("ethCall"),
                 // Estimated base fee for EthereumCall is 0.0001 USD and is paid by the relayer account
-                validateChargedUsdWithin("ethCall", EXPECTED_GAS_USED + ETHEREUM_CALL_BASE_FEE, 1),
-                validateChargedUsdForGasOnly("ethCall", EXPECTED_GAS_USED, 1),
-                validateChargedUsdWithoutGas("ethCall", ETHEREUM_CALL_BASE_FEE, 1));
+                validateChargedUsdWithin("ethCall", EXPECTED_GAS_USED + ETHEREUM_CALL_BASE_FEE, 0.1),
+                validateChargedUsdForGasOnly("ethCall", EXPECTED_GAS_USED, 0.1),
+                validateChargedUsdWithoutGas("ethCall", ETHEREUM_CALL_BASE_FEE, 0.1));
     }
 
     @LeakyHapiTest(overrides = "contracts.evm.ethTransaction.zeroHapiFees.enabled")
@@ -152,14 +147,12 @@ public class SimpleSmartContractServiceFeesTest {
     final Stream<DynamicTest> jumboEthTransactionBaseUSDFee() {
         final var payloadSize = 10 * 1024;
         final var jumboPayload = new byte[payloadSize];
-        // (ethData - includedBytes) * byteFee
-        final var expectedFeeFromBytes = (10480 - 6144) * SINGLE_BYTE_FEE;
         final var jumboGasUsed = 0.0054;
         return hapiTest(
                 overriding("contracts.evm.ethTransaction.zeroHapiFees.enabled", "false"),
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
                 cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS)),
-                ethereumCall(calldataContract.name(), "callme", jumboPayload)
+                ethereumCall(calldataContract.name(), "callme", (Object) jumboPayload)
                         .fee(ONE_HUNDRED_HBARS)
                         .memo("TESTT")
                         .type(EthTxData.EthTransactionType.EIP1559)
@@ -170,15 +163,10 @@ public class SimpleSmartContractServiceFeesTest {
                         .via("ethCall"),
                 // Estimated base fee for EthereumCall is 0.0001 USD and is paid by the relayer account
                 withOpContext((spec, log) -> {
-                    final var txnBytes = spec.registry().getBytes("ethCall");
-                    final var transaction = Transaction.parseFrom(txnBytes);
-                    final var signedTxnBytes = serializedSignedTxFrom(transaction);
-                    final var nodeBytesOverage = Math.max(0, signedTxnBytes.length - NODE_INCLUDED_BYTES);
-                    final var nodeBytesFeeTotal = nodeBytesOverage * SINGLE_BYTE_FEE * (1 + NETWORK_MULTIPLIER);
+                    final var expectedFeeFromBytes = expectedFeeFromBytesFor(spec, log, "ethCall");
 
-                    final var totalExpected =
-                            jumboGasUsed + ETHEREUM_CALL_BASE_FEE + expectedFeeFromBytes + nodeBytesFeeTotal;
-                    final var withoutGasExpected = ETHEREUM_CALL_BASE_FEE + expectedFeeFromBytes + nodeBytesFeeTotal;
+                    final var totalExpected = jumboGasUsed + ETHEREUM_CALL_BASE_FEE + expectedFeeFromBytes;
+                    final var withoutGasExpected = ETHEREUM_CALL_BASE_FEE + expectedFeeFromBytes;
 
                     allRunFor(
                             spec,
@@ -204,7 +192,7 @@ public class SimpleSmartContractServiceFeesTest {
                         .payingWith("ownerAccount")
                         .signedBy("ownerAccount")
                         .via("hookStoreTxn"),
-                validateChargedUsd("hookStoreTxn", HOOK_STORE_BASE_FEE + 2 * EXTRA_HOOK_SLOT_UPDATE_FEE));
+                validateChargedUsd("hookStoreTxn", HOOK_SLOT_UPDATE_BASE_FEE + 2 * HOOK_SLOT_UPDATE_FEE));
     }
 
     @LeakyHapiTest(overrides = "hooks.hooksEnabled")
@@ -219,6 +207,6 @@ public class SimpleSmartContractServiceFeesTest {
                         .payingWith("ownerAccount")
                         .signedBy("ownerAccount")
                         .via("hookStoreTxn"),
-                validateChargedUsd("hookStoreTxn", HOOK_STORE_BASE_FEE));
+                validateChargedUsd("hookStoreTxn", HOOK_SLOT_UPDATE_BASE_FEE));
     }
 }

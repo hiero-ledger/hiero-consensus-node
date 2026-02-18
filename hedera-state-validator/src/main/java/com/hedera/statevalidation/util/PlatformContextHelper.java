@@ -53,6 +53,10 @@ public final class PlatformContextHelper {
         };
     }
 
+    public static void resetPlatformContext() {
+        platformContext = null;
+    }
+
     public static PlatformContext getPlatformContext() {
         if (platformContext == null) {
             platformContext = createPlatformContext();

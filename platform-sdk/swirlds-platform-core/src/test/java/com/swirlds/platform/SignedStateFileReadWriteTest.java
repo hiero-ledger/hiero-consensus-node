@@ -25,20 +25,16 @@ import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.common.config.StateCommonConfig_;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
-import com.swirlds.common.merkle.utility.MerkleTreeVisualizer;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
+import com.swirlds.common.utility.Mnemonics;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import com.swirlds.platform.config.StateConfig;
-import com.swirlds.platform.state.signed.SigSet;
-import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.platform.state.snapshot.SignedStateFileUtils;
-import com.swirlds.platform.state.snapshot.StateToDiskReason;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
-import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.StateLifecycleManagerImpl;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
@@ -53,6 +49,9 @@ import org.hiero.base.crypto.SignatureType;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.state.signed.SigSet;
+import org.hiero.consensus.state.signed.SignedState;
+import org.hiero.consensus.state.snapshot.StateToDiskReason;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -64,7 +63,7 @@ class SignedStateFileReadWriteTest {
     Path testDirectory;
 
     private static SemanticVersion platformVersion;
-    private StateLifecycleManager stateLifecycleManager;
+    private StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager;
 
     @BeforeAll
     static void beforeAll() throws ConstructableRegistryException {
@@ -99,17 +98,13 @@ class SignedStateFileReadWriteTest {
         final SignedState signedState = new RandomSignedStateGenerator()
                 .setSoftwareVersion(platformVersion)
                 .build();
-        final MerkleNodeState state = signedState.getState();
+        final VirtualMapState state = signedState.getState();
         writeHashInfoFile(platformContext, testDirectory, state);
-        final StateConfig stateConfig =
-                new TestConfigBuilder().getOrCreateConfig().getConfigData(StateConfig.class);
 
         final Path hashInfoFile = testDirectory.resolve(SignedStateFileUtils.HASH_INFO_FILE_NAME);
         assertTrue(exists(hashInfoFile), "file should exist");
 
-        final String hashInfoString = new MerkleTreeVisualizer(state.getRoot())
-                .setDepth(stateConfig.debugHashDepth())
-                .render();
+        final String mnemonicString = Mnemonics.generateMnemonic(state.getHash());
 
         final StringBuilder sb = new StringBuilder();
         try (final BufferedReader br = new BufferedReader(new FileReader(hashInfoFile.toFile()))) {
@@ -117,7 +112,7 @@ class SignedStateFileReadWriteTest {
         }
 
         final String fileString = sb.toString();
-        assertTrue(fileString.contains(hashInfoString), "hash info string not found");
+        assertTrue(fileString.contains(mnemonicString), "hash info string not found");
         state.release();
     }
 
@@ -132,7 +127,7 @@ class SignedStateFileReadWriteTest {
 
         assertFalse(exists(signatureSetFile), "signature set file should not yet exist");
 
-        MerkleNodeState state = signedState.getState();
+        VirtualMapState state = signedState.getState();
         state.copy().release();
         hashState(signedState);
         stateLifecycleManager.createSnapshot(signedState.getState(), testDirectory);
@@ -147,12 +142,12 @@ class SignedStateFileReadWriteTest {
         hashState(deserializedSignedState.reservedSignedState().get());
 
         final VirtualMapMetadata originalMetadata =
-                ((VirtualMap) signedState.getState().getRoot()).getMetadata();
-        final VirtualMapMetadata loadedMetadata = ((VirtualMap) deserializedSignedState
-                        .reservedSignedState()
-                        .get()
-                        .getState()
-                        .getRoot())
+                signedState.getState().getRoot().getMetadata();
+        final VirtualMapMetadata loadedMetadata = deserializedSignedState
+                .reservedSignedState()
+                .get()
+                .getState()
+                .getRoot()
                 .getMetadata();
 
         assertEquals(originalMetadata, loadedMetadata, "metadata should be equal");

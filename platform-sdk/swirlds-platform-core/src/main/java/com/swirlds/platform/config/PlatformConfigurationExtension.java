@@ -1,11 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.config;
 
-import com.google.auto.service.AutoService;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.io.config.FileSystemManagerConfig;
 import com.swirlds.common.io.config.TemporaryFileConfig;
-import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.platform.NodeIdConverter;
 import com.swirlds.component.framework.WiringConfig;
 import com.swirlds.component.framework.schedulers.builders.TaskSchedulerConfiguration;
@@ -25,7 +23,6 @@ import org.hiero.consensus.model.node.NodeId;
 /**
  * Registers configuration types for the platform.
  */
-@AutoService(ConfigurationExtension.class)
 public class PlatformConfigurationExtension implements ConfigurationExtension {
 
     /**
@@ -44,9 +41,7 @@ public class PlatformConfigurationExtension implements ConfigurationExtension {
                 PlatformMetricsConfig.class,
                 PlatformSchedulersConfig.class,
                 PlatformStatusConfig.class,
-                ReconnectConfig.class,
                 StateCommonConfig.class,
-                StateConfig.class,
                 TemporaryFileConfig.class,
                 FileSystemManagerConfig.class,
                 UptimeConfig.class,

@@ -3,9 +3,6 @@ package org.hiero.consensus.pcli.graph.utils;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.Randotron;
-import com.swirlds.platform.test.fixtures.event.emitter.EventEmitterFactory;
-import com.swirlds.platform.test.fixtures.event.emitter.StandardEventEmitter;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -20,7 +17,8 @@ import java.util.function.Function;
 import java.util.stream.Stream;
 import org.hiero.base.crypto.Signer;
 import org.hiero.consensus.crypto.PlatformSigner;
-import org.hiero.consensus.hashgraph.impl.EventImpl;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.event.emitter.EventEmitterFactory;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.event.emitter.StandardEventEmitter;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.event.UnsignedEvent;
 import org.hiero.consensus.model.node.KeysAndCerts;
@@ -28,6 +26,7 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.pces.impl.common.CommonPcesWriter;
 import org.hiero.consensus.pces.impl.common.PcesFileManager;
 import org.hiero.consensus.pces.impl.common.PcesFileTracker;
+import org.hiero.consensus.test.fixtures.Randotron;
 
 /**
  * Platform level unit test base class for common setup and teardown.
@@ -37,6 +36,7 @@ public class TestEventUtils {
     /**
      * Creates signers for a map of keysAndCerts
      */
+    @NonNull
     public static <S extends Signer> Map<NodeId, S> generateSigners(
             @NonNull final Map<NodeId, KeysAndCerts> keysAndCertsMap, @NonNull final Function<KeysAndCerts, S> toS) {
         final Map<NodeId, S> signers = new HashMap<>();
@@ -56,8 +56,7 @@ public class TestEventUtils {
             @Nullable final Map<NodeId, KeysAndCerts> keysAndCertsMap) {
         final StandardEventEmitter eventEmitter = new EventEmitterFactory(context, random, roster).newStandardEmitter();
 
-        Stream<PlatformEvent> stream =
-                eventEmitter.emitEvents(numEvents).stream().map(EventImpl::getBaseEvent);
+        Stream<PlatformEvent> stream = eventEmitter.emitEvents(numEvents).stream();
 
         if (keysAndCertsMap != null) {
             final var signers = generateSigners(keysAndCertsMap, v -> (Signer) new PlatformSigner(v));

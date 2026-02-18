@@ -43,7 +43,7 @@ permissions:
 jobs:
   validate-input-version:
     name: Validate Input Version
-    runs-on: hiero-network-node-linux-medium
+    runs-on: hl-cn-default-lin-sm
     outputs:
       release-identifier: ${{ steps.validate.outputs.release-identifier }}
     steps:
@@ -55,6 +55,7 @@ jobs:
       - name: Print Parameters
         run: |
           echo "Input Parameters:"
+          echo "  Ref: ${{ inputs.ref }}"
           echo "  Release Version: ${{ inputs.release-version }}"
           echo "  Create Release Notes: ${{ inputs.create-release-notes }}"
           echo "  Create Release: ${{ inputs.create-release }}"
@@ -81,7 +82,6 @@ jobs:
           echo "Input release identifier: '${release_identifier}'"
 
           is_valid=$(semver validate "${release_identifier}")
-
           if [[ "$is_valid" != "valid" ]]; then
             echo "Invalid semantic version: ${release_identifier}"
             exit 1
@@ -117,7 +117,7 @@ jobs:
   generate-release-notes:
     name: Generate Release Notes File
     needs: validate-input-version
-    runs-on: hiero-network-node-linux-medium
+    runs-on: hl-cn-default-lin-sm
     if: ${{ inputs.create-release-notes == true }}
     steps:
       - name: Harden Runner
@@ -166,7 +166,7 @@ jobs:
   full-commit-history:
     name: Full Commit History
     needs: validate-input-version
-    runs-on: hiero-network-node-linux-medium
+    runs-on: hl-cn-default-lin-sm
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
@@ -192,7 +192,7 @@ jobs:
   create-github-release:
     name: Create Github Release
     needs: generate-release-notes
-    runs-on: hiero-network-node-linux-medium
+    runs-on: hl-cn-default-lin-sm
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0

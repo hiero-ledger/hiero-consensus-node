@@ -64,7 +64,7 @@ env:
 jobs:
   execute-integration-tests:
     name: "Integration Tests"
-    runs-on: hiero-cn-integration-linux
+    runs-on: hl-cn-integration-lin
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
@@ -90,7 +90,7 @@ jobs:
 
       - name: Publish Integration Test Report
         id: publish-test-report
-        uses: step-security/publish-unit-test-result-action@5d195d4dec0b9fa7b51a3dbc4298362a021247c7 # v2.20.4
+        uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
         with:
           check_name: "Node: Integration Test Results"
           json_thousands_separator: ","
@@ -141,7 +141,7 @@ jobs:
           failure_mode="none"
 
           has_failure() {
-            local arr=("@")
+            local arr=("$@")
             for status in "${arr[@]}"; do
               [[ "${status}" == "failure" ]] && return 0
             done

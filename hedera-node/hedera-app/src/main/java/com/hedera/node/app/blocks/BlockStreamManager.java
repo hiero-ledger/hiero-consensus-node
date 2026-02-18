@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks;
 
+import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
+
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.node.app.spi.records.BlockRecordInfo;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.system.state.notifications.StateHashedListener;
-import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -29,7 +30,12 @@ import org.hiero.consensus.model.hashgraph.Round;
  * Merkle trees will be in the order they are written.
  */
 public interface BlockStreamManager extends BlockRecordInfo, StateHashedListener {
-    Bytes ZERO_BLOCK_HASH = Bytes.wrap(new byte[StreamingTreeHasher.HASH_LENGTH]);
+    byte[] HASH_OF_ZERO_BYTES = noThrowSha384HashOf(new byte[] {0x0});
+    Bytes HASH_OF_ZERO = Bytes.wrap(HASH_OF_ZERO_BYTES);
+
+    /*
+     * Typically there are four siblings per block, but in our case the right penultimate root (i.e. the right child of a block's root hash) is merely a composition of its left child hash, requiring no other inputs. <b>This must change if we ever use one of the reserved roots for anything.</b>
+     */
     int NUM_SIBLINGS_PER_BLOCK = 3;
 
     /**
@@ -81,7 +87,7 @@ public interface BlockStreamManager extends BlockRecordInfo, StateHashedListener
     /**
      * Initializes the block stream manager after a restart or during reconnect with the hashes necessary to
      * infer the starting block tree states and the last block hash used in the restart or reconnect. At
-     * genesis, the last block hash should be the {@link #ZERO_BLOCK_HASH}. For migration scenarios, the last
+     * genesis, the last block hash should be the {@link #HASH_OF_ZERO}. For migration scenarios, the last
      * block hash should be the migrated block hash from {@link BlockStreamService#migratedLastBlockHash()}.
      * In all other cases, this value should be null, and the method should calculate it from the intermediate
      * subtree states.
@@ -98,7 +104,7 @@ public interface BlockStreamManager extends BlockRecordInfo, StateHashedListener
      * @param state the state of the network at the beginning of the round
      * @throws IllegalStateException if the last block hash was not explicitly initialized
      */
-    void startRound(@NonNull Round round, @NonNull MerkleNodeState state);
+    void startRound(@NonNull Round round, @NonNull State state);
 
     /**
      * Confirms that the post-upgrade work has been completed.
@@ -155,7 +161,7 @@ public interface BlockStreamManager extends BlockRecordInfo, StateHashedListener
      * @param roundNum the number of the round that has just ended
      * @return returns true if the round is the last round in the block
      */
-    boolean endRound(@NonNull MerkleNodeState state, long roundNum);
+    boolean endRound(@NonNull State state, long roundNum);
 
     /**
      * Writes a block item to the stream.

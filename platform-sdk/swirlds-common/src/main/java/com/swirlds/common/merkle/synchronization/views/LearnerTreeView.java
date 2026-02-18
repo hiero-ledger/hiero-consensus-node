@@ -16,10 +16,8 @@ import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
  * A "view" into a merkle tree (or subtree) used to perform a reconnect operation. This view is used to access
  * the tree by the learner.
  *
- * @param <T>
- * 		the type of an object which signifies a merkle node (T may or may not actually be a MerkleNode type)
  */
-public interface LearnerTreeView<T> extends LearnerExpectedLessonQueue<T>, TreeView<T> {
+public interface LearnerTreeView extends LearnerExpectedLessonQueue, TreeView {
 
     /**
      * For this tree view, start all required reconnect tasks in the given work group. Learning synchronizer
@@ -58,7 +56,7 @@ public interface LearnerTreeView<T> extends LearnerExpectedLessonQueue<T>, TreeV
      * @throws MerkleSynchronizationException
      * 		if the parent is not an internal node
      */
-    void setChild(T parent, int childIndex, T child);
+    void setChild(Long parent, int childIndex, Long child);
 
     /**
      * Get the child of a node.
@@ -71,21 +69,21 @@ public interface LearnerTreeView<T> extends LearnerExpectedLessonQueue<T>, TreeV
      * @throws MerkleSynchronizationException
      * 		if the parent is a leaf or if the child index is invalid
      */
-    T getChild(T parent, int childIndex);
+    Long getChild(Long parent, int childIndex);
 
     /**
      * Get the hash of a node. If this view represents a tree that has null nodes within it, those nodes should cause
      * this method to return a {@link Cryptography#NULL_HASH null hash}.
      *
-     * @param node
-     * 		the node
+     * @param path
+     * 		the node path
      * @return the hash of the node
      */
-    Hash getNodeHash(T node);
+    Hash getNodeHash(Long path);
 
     /**
      * Read a merkle leaf from the stream (as written by
-     * {@link TeacherTreeView#serializeLeaf(SerializableDataOutputStream, Object)}).
+     * {@link TeacherTreeView#serializeLeaf(SerializableDataOutputStream, Long)}).
      *
      * @param in
      * 		the input stream
@@ -93,11 +91,11 @@ public interface LearnerTreeView<T> extends LearnerExpectedLessonQueue<T>, TreeV
      * @throws IOException
      * 		if a problem is encountered with the stream
      */
-    T deserializeLeaf(SerializableDataInputStream in) throws IOException;
+    Long deserializeLeaf(SerializableDataInputStream in) throws IOException;
 
     /**
      * Read a merkle internal from the stream (as written by
-     * {@link TeacherTreeView#serializeInternal(SerializableDataOutputStream, Object)}).
+     * {@link TeacherTreeView#serializeInternal(SerializableDataOutputStream, Long)}).
      *
      * @param in
      * 		the input stream
@@ -105,7 +103,7 @@ public interface LearnerTreeView<T> extends LearnerExpectedLessonQueue<T>, TreeV
      * @throws IOException
      * 		if a problem is encountered with the stream
      */
-    T deserializeInternal(SerializableDataInputStream in) throws IOException;
+    Long deserializeInternal(SerializableDataInputStream in) throws IOException;
 
     /**
      * Record metrics related to queries about children of a given parent during reconnect.
@@ -123,7 +121,7 @@ public interface LearnerTreeView<T> extends LearnerExpectedLessonQueue<T>, TreeV
      */
     default void recordHashStats(
             @NonNull final ReconnectMapStats mapStats,
-            @NonNull final T parent,
+            @NonNull final Long parent,
             final int childIndex,
             final boolean nodeAlreadyPresent) {
         // no-op

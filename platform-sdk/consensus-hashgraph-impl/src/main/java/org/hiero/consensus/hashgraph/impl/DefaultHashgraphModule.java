@@ -3,7 +3,6 @@ package org.hiero.consensus.hashgraph.impl;
 
 import static java.util.Objects.requireNonNull;
 
-import com.google.auto.service.AutoService;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.base.time.Time;
@@ -18,7 +17,6 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import org.hiero.consensus.hashgraph.FreezePeriodChecker;
 import org.hiero.consensus.hashgraph.HashgraphModule;
 import org.hiero.consensus.hashgraph.config.HashgraphWiringConfig;
-import org.hiero.consensus.hashgraph.impl.metrics.EventCounter;
 import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
@@ -28,7 +26,6 @@ import org.hiero.consensus.model.status.PlatformStatus;
 /**
  * Default implementation of the {@link HashgraphModule}.
  */
-@AutoService(HashgraphModule.class)
 public class DefaultHashgraphModule implements HashgraphModule {
 
     @Nullable
@@ -83,8 +80,6 @@ public class DefaultHashgraphModule implements HashgraphModule {
 
         // Force not soldered wires to be built
         consensusEngineWiring.getInputWire(ConsensusEngine::outOfBandSnapshotUpdate);
-
-        EventCounter.registerEventCounterMetrics(metrics);
 
         // Create and bind components
         final ConsensusEngine consensusEngine =

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.app.state;
 
-import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
+import org.hiero.consensus.platformstate.V0540PlatformStateSchema;
 import org.hiero.consensus.roster.RosterStateId;
 
 /**

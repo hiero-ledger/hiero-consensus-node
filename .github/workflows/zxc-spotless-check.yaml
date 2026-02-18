@@ -59,7 +59,7 @@ env:
 jobs:
   spotless-check:
     name: "Spotless Check"
-    runs-on: hiero-network-node-linux-medium
+    runs-on: hl-cn-spotless-check-lin
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:

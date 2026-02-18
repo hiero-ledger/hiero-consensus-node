@@ -117,7 +117,7 @@ class FileGetContentsHandlerTest extends FileTestBase {
     @Test
     void returnsGenesisExchangeRatesIfMissing() {
         given(context.configuration()).willReturn(DEFAULT_CONFIG);
-        given(genesisSchema.genesisExchangeRates(DEFAULT_CONFIG)).willReturn(contentsBytes);
+        given(genesisSchema.genesisExchangeRatesBytes(DEFAULT_CONFIG)).willReturn(contentsBytes);
 
         final var query = createGetFileContentQuery(
                 DEFAULT_CONFIG.getConfigData(FilesConfig.class).exchangeRates());

@@ -57,8 +57,7 @@ public class V053AddressBookSchema extends Schema<SemanticVersion> {
     @NonNull
     @Override
     public Set<StateDefinition> statesToCreate() {
-        return Set.of(
-                StateDefinition.onDisk(NODES_STATE_ID, NODES_KEY, EntityNumber.PROTOBUF, Node.PROTOBUF, MAX_NODES));
+        return Set.of(StateDefinition.keyValue(NODES_STATE_ID, NODES_KEY, EntityNumber.PROTOBUF, Node.PROTOBUF));
     }
 
     /**

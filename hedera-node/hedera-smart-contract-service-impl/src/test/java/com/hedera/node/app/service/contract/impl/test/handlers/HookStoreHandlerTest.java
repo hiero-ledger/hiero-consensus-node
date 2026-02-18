@@ -13,6 +13,7 @@ import com.hedera.hapi.node.hooks.EvmHookStorageSlot;
 import com.hedera.hapi.node.hooks.EvmHookStorageUpdate;
 import com.hedera.hapi.node.hooks.HookStoreTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.fees.context.SimpleFeeContextImpl;
 import com.hedera.node.app.service.contract.impl.handlers.HookStoreHandler;
 import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
@@ -113,7 +114,7 @@ public class HookStoreHandlerTest {
         final var subject = new HookStoreHandler.FeeCalculator();
 
         final var feeResult = new FeeResult();
-        subject.accumulateServiceFee(tx, feeContext, feeResult, feeSchedule);
+        subject.accumulateServiceFee(tx, new SimpleFeeContextImpl(feeContext, null), feeResult, feeSchedule);
         Assertions.assertThat(feeResult.getServiceTotalTinycents()).isEqualTo(1000000000L);
     }
 }

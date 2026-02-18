@@ -9,8 +9,9 @@ import com.hedera.hapi.node.base.*;
 import com.hedera.hapi.node.token.CryptoDeleteAllowanceTransactionBody;
 import com.hedera.hapi.node.token.NftRemoveAllowance;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.fees.SimpleFeeCalculatorImpl;
+import com.hedera.node.app.fees.context.SimpleFeeContextImpl;
 import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.SimpleFeeCalculatorImpl;
 import java.util.List;
 import java.util.Set;
 import org.hiero.hapi.support.fees.*;
@@ -38,6 +39,7 @@ class CryptoDeleteAllowanceFeeCalculatorTest {
     void setUp() {
         final var testSchedule = createTestFeeSchedule();
         feeCalculator = new SimpleFeeCalculatorImpl(testSchedule, Set.of(new CryptoDeleteAllowanceFeeCalculator()));
+        lenient().when(feeContext.functionality()).thenReturn(HederaFunctionality.CRYPTO_DELETE_ALLOWANCE);
     }
 
     @Nested
@@ -60,7 +62,7 @@ class CryptoDeleteAllowanceFeeCalculatorTest {
                     TransactionBody.newBuilder().cryptoDeleteAllowance(op).build();
 
             // When
-            final var result = feeCalculator.calculateTxFee(body, feeContext);
+            final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(feeContext, null));
 
             // Then: Base fee (500000000) with 1 allowance included (includedCount=1)
             assertThat(result.getServiceTotalTinycents()).isEqualTo(500000000L);
@@ -95,7 +97,7 @@ class CryptoDeleteAllowanceFeeCalculatorTest {
                     TransactionBody.newBuilder().cryptoDeleteAllowance(op).build();
 
             // When
-            final var result = feeCalculator.calculateTxFee(body, feeContext);
+            final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(feeContext, null));
 
             // Then: Base fee (500000000) + 2 extra allowances (2 * 500000000 = 1000000000)
             assertThat(result.getServiceTotalTinycents()).isEqualTo(1500000000L);
@@ -121,7 +123,7 @@ class CryptoDeleteAllowanceFeeCalculatorTest {
                     TransactionBody.newBuilder().cryptoDeleteAllowance(op).build();
 
             // When
-            final var result = feeCalculator.calculateTxFee(body, feeContext);
+            final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(feeContext, null));
 
             // Then: Base fee (500000000) + 9 extra allowances (9 * 500000000 = 4500000000)
             assertThat(result.getServiceTotalTinycents()).isEqualTo(5000000000L);
@@ -152,7 +154,7 @@ class CryptoDeleteAllowanceFeeCalculatorTest {
                 .extras(
                         makeExtraDef(Extra.SIGNATURES, 1000000L),
                         makeExtraDef(Extra.ALLOWANCES, 500000000L),
-                        makeExtraDef(Extra.BYTES, 110000L))
+                        makeExtraDef(Extra.STATE_BYTES, 110000L))
                 .services(makeService(
                         "CryptoService",
                         makeServiceFee(

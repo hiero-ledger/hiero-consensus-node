@@ -1,6 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.calculator;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
+import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_DELETE;
+import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_UPDATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.ETHEREUM_TRANSACTION;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hiero.hapi.fees.FeeScheduleUtils.makeExtraDef;
 import static org.hiero.hapi.fees.FeeScheduleUtils.makeExtraIncluded;
@@ -24,6 +29,8 @@ import com.hedera.hapi.node.hooks.HookCreationDetails;
 import com.hedera.hapi.node.state.contract.Bytecode;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.fees.SimpleFeeCalculatorImpl;
+import com.hedera.node.app.fees.context.SimpleFeeContextImpl;
 import com.hedera.node.app.service.contract.impl.calculator.ContractCallFeeCalculator;
 import com.hedera.node.app.service.contract.impl.calculator.ContractCallLocalFeeCalculator;
 import com.hedera.node.app.service.contract.impl.calculator.ContractCreateFeeCalculator;
@@ -34,7 +41,6 @@ import com.hedera.node.app.service.contract.impl.calculator.ContractUpdateFeeCal
 import com.hedera.node.app.service.contract.impl.calculator.EthereumFeeCalculator;
 import com.hedera.node.app.service.contract.impl.state.ContractStateStore;
 import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.SimpleFeeCalculatorImpl;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.List;
@@ -83,8 +89,9 @@ public class ContractServiceFeeCalculatorsTest {
                         ContractCreateTransactionBody.newBuilder().build())
                 .build();
         when(feeContext.numTxnSignatures()).thenReturn(1);
+        when(feeContext.functionality()).thenReturn(CONTRACT_CREATE);
 
-        final var result = feeCalculator.calculateTxFee(body, feeContext);
+        final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(feeContext, null));
 
         assertThat(result.getNodeTotalTinycents()).isEqualTo(100000L);
         assertThat(result.getServiceTotalTinycents()).isEqualTo(499000000L);
@@ -101,8 +108,9 @@ public class ContractServiceFeeCalculatorsTest {
                         .build())
                 .build();
         when(feeContext.numTxnSignatures()).thenReturn(1);
+        when(feeContext.functionality()).thenReturn(CONTRACT_CREATE);
 
-        final var result = feeCalculator.calculateTxFee(body, feeContext);
+        final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(feeContext, null));
 
         assertThat(result.getNodeTotalTinycents()).isEqualTo(100000L);
         assertThat(result.getServiceTotalTinycents()).isEqualTo(509000000L);
@@ -117,8 +125,9 @@ public class ContractServiceFeeCalculatorsTest {
                         .build())
                 .build();
         when(feeContext.numTxnSignatures()).thenReturn(1);
+        when(feeContext.functionality()).thenReturn(CONTRACT_CREATE);
 
-        final var result = feeCalculator.calculateTxFee(body, feeContext);
+        final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(feeContext, null));
 
         assertThat(result.getNodeTotalTinycents()).isEqualTo(100000L);
         assertThat(result.getServiceTotalTinycents()).isEqualTo(519000000L);
@@ -132,8 +141,9 @@ public class ContractServiceFeeCalculatorsTest {
                         ContractUpdateTransactionBody.newBuilder().build())
                 .build();
         when(feeContext.numTxnSignatures()).thenReturn(3);
+        when(feeContext.functionality()).thenReturn(CONTRACT_UPDATE);
 
-        final var result = feeCalculator.calculateTxFee(body, feeContext);
+        final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(feeContext, null));
 
         assertThat(result.getNodeTotalTinycents()).isEqualTo(2100000L);
         assertThat(result.getServiceTotalTinycents()).isEqualTo(499000000L);
@@ -150,8 +160,9 @@ public class ContractServiceFeeCalculatorsTest {
                         .build())
                 .build();
         when(feeContext.numTxnSignatures()).thenReturn(3);
+        when(feeContext.functionality()).thenReturn(CONTRACT_UPDATE);
 
-        final var result = feeCalculator.calculateTxFee(body, feeContext);
+        final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(feeContext, null));
 
         assertThat(result.getNodeTotalTinycents()).isEqualTo(2100000L);
         assertThat(result.getServiceTotalTinycents()).isEqualTo(509000000L);
@@ -167,8 +178,9 @@ public class ContractServiceFeeCalculatorsTest {
                         .build())
                 .build();
         when(feeContext.numTxnSignatures()).thenReturn(3);
+        when(feeContext.functionality()).thenReturn(CONTRACT_UPDATE);
 
-        final var result = feeCalculator.calculateTxFee(body, feeContext);
+        final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(feeContext, null));
 
         assertThat(result.getNodeTotalTinycents()).isEqualTo(2100000L);
         assertThat(result.getServiceTotalTinycents()).isEqualTo(539000000L);
@@ -182,8 +194,8 @@ public class ContractServiceFeeCalculatorsTest {
                         ContractDeleteTransactionBody.newBuilder().build())
                 .build();
         when(feeContext.numTxnSignatures()).thenReturn(2);
-
-        final var result = feeCalculator.calculateTxFee(body, feeContext);
+        when(feeContext.functionality()).thenReturn(CONTRACT_DELETE);
+        final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(feeContext, null));
 
         assertThat(result.getNodeTotalTinycents()).isEqualTo(1100000L);
         assertThat(result.getServiceTotalTinycents()).isEqualTo(69000000L);
@@ -196,8 +208,9 @@ public class ContractServiceFeeCalculatorsTest {
                 .contractCall(ContractCallTransactionBody.newBuilder().build())
                 .build();
         when(feeContext.numTxnSignatures()).thenReturn(1);
+        when(feeContext.functionality()).thenReturn(CONTRACT_CALL);
 
-        final var result = feeCalculator.calculateTxFee(body, feeContext);
+        final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(feeContext, null));
 
         assertThat(result.getNodeTotalTinycents()).isEqualTo(0L);
         assertThat(result.getServiceTotalTinycents()).isEqualTo(0L);
@@ -210,8 +223,9 @@ public class ContractServiceFeeCalculatorsTest {
                 .ethereumTransaction(EthereumTransactionBody.newBuilder().build())
                 .build();
         when(feeContext.numTxnSignatures()).thenReturn(1);
+        when(feeContext.functionality()).thenReturn(ETHEREUM_TRANSACTION);
 
-        final var result = feeCalculator.calculateTxFee(body, feeContext);
+        final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(feeContext, null));
 
         assertThat(result.getNodeTotalTinycents()).isEqualTo(100000L);
         assertThat(result.getServiceTotalTinycents()).isEqualTo(0L);
@@ -223,9 +237,9 @@ public class ContractServiceFeeCalculatorsTest {
         final var query = Query.newBuilder()
                 .contractCallLocal(ContractCallLocalQuery.newBuilder())
                 .build();
-        final var result = feeCalculator.calculateQueryFee(query, queryContext);
+        final var result = feeCalculator.calculateQueryFee(query, new SimpleFeeContextImpl(null, queryContext));
 
-        assertThat(result).isEqualTo(555);
+        assertThat(result.totalTinycents()).isEqualTo(555);
     }
 
     @Test
@@ -239,9 +253,9 @@ public class ContractServiceFeeCalculatorsTest {
         final var query = Query.newBuilder()
                 .contractGetBytecode(ContractGetBytecodeQuery.newBuilder().contractID(contractId))
                 .build();
-        final var result = feeCalculator.calculateQueryFee(query, queryContext);
+        final var result = feeCalculator.calculateQueryFee(query, new SimpleFeeContextImpl(null, queryContext));
 
-        assertThat(result).isEqualTo(666);
+        assertThat(result.totalTinycents()).isEqualTo(666);
     }
 
     @Test
@@ -249,9 +263,9 @@ public class ContractServiceFeeCalculatorsTest {
         final var query = Query.newBuilder()
                 .contractGetInfo(ContractGetInfoQuery.newBuilder())
                 .build();
-        final var result = feeCalculator.calculateQueryFee(query, queryContext);
+        final var result = feeCalculator.calculateQueryFee(query, new SimpleFeeContextImpl(null, queryContext));
 
-        assertThat(result).isEqualTo(777);
+        assertThat(result.totalTinycents()).isEqualTo(777);
     }
 
     private static FeeSchedule createTestFeeSchedule() {
@@ -265,25 +279,25 @@ public class ContractServiceFeeCalculatorsTest {
                 .extras(
                         makeExtraDef(Extra.SIGNATURES, 1000000),
                         makeExtraDef(Extra.KEYS, 10000000),
-                        makeExtraDef(Extra.BYTES, 10),
+                        makeExtraDef(Extra.STATE_BYTES, 10),
                         makeExtraDef(Extra.HOOK_UPDATES, 20000000))
                 .services(makeService(
                         "ContractService",
                         makeServiceFee(
-                                HederaFunctionality.CONTRACT_CREATE,
+                                CONTRACT_CREATE,
                                 499000000,
                                 makeExtraIncluded(Extra.KEYS, 0),
-                                makeExtraIncluded(Extra.BYTES, 1000),
+                                makeExtraIncluded(Extra.STATE_BYTES, 1000),
                                 makeExtraIncluded(Extra.HOOK_UPDATES, 0)),
-                        makeServiceFee(HederaFunctionality.CONTRACT_CALL, 0),
+                        makeServiceFee(CONTRACT_CALL, 0),
                         makeServiceFee(
-                                HederaFunctionality.CONTRACT_UPDATE,
+                                CONTRACT_UPDATE,
                                 499000000,
                                 makeExtraIncluded(Extra.KEYS, 0),
-                                makeExtraIncluded(Extra.BYTES, 1000),
+                                makeExtraIncluded(Extra.STATE_BYTES, 1000),
                                 makeExtraIncluded(Extra.HOOK_UPDATES, 0)),
-                        makeServiceFee(HederaFunctionality.CONTRACT_DELETE, 69000000),
-                        makeServiceFee(HederaFunctionality.ETHEREUM_TRANSACTION, 0),
+                        makeServiceFee(CONTRACT_DELETE, 69000000),
+                        makeServiceFee(ETHEREUM_TRANSACTION, 0),
                         makeServiceFee(HederaFunctionality.CONTRACT_CALL_LOCAL, 555),
                         makeServiceFee(HederaFunctionality.CONTRACT_GET_BYTECODE, 666),
                         makeServiceFee(HederaFunctionality.CONTRACT_GET_INFO, 777)))

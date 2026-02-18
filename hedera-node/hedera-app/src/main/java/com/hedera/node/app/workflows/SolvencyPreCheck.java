@@ -26,12 +26,13 @@ import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.fees.Fees;
+import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.hedera.node.app.spi.workflows.InsufficientBalanceException;
 import com.hedera.node.app.spi.workflows.InsufficientNetworkFeeException;
 import com.hedera.node.app.spi.workflows.InsufficientNonFeeDebitsException;
 import com.hedera.node.app.spi.workflows.InsufficientServiceFeeException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
-import com.hedera.node.app.store.ReadableStoreFactory;
+import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.app.validation.ExpiryValidation;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
@@ -69,14 +70,14 @@ public class SolvencyPreCheck {
     /**
      * Reads the payer account from state and validates it.
      *
-     * @param storeFactory the {@link ReadableStoreFactory} used to access readable state
+     * @param storeFactory the {@link ReadableStoreFactoryImpl} used to access readable state
      * @param accountID the {@link AccountID} of the payer
      * @throws PreCheckException if the payer account is invalid
      */
     @NonNull
     public Account getPayerAccount(@NonNull final ReadableStoreFactory storeFactory, @NonNull final AccountID accountID)
             throws PreCheckException {
-        final var accountStore = storeFactory.getStore(ReadableAccountStore.class);
+        final var accountStore = storeFactory.readableStore(ReadableAccountStore.class);
         final var account = accountStore.getAccountById(accountID);
 
         if (account == null) {

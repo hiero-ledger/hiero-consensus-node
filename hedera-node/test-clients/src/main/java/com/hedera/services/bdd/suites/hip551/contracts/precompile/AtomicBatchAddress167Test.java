@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.hip551.contracts.precompile;
 
 import static com.hedera.node.app.hapi.utils.contracts.ParsingConstants.FunctionType.HAPI_IS_TOKEN;
+import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
@@ -40,7 +41,9 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
 
+@Tag(ATOMIC_BATCH)
 @HapiTestLifecycle
 class AtomicBatchAddress167Test {
     private static final String DEFAULT_BATCH_OPERATOR = "defaultBatchOperator";

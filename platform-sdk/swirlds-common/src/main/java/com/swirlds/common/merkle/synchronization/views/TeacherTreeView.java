@@ -13,11 +13,8 @@ import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
  * A "view" into a merkle tree (or subtree) used to perform a reconnect operation. This view is used to access
  * the tree by the teacher.
  *
- * @param <T>
- * 		the type of an object which signifies a merkle node (T may or may not actually be a MerkleNode type)
  */
-public interface TeacherTreeView<T>
-        extends TeacherHandleQueue<T>, TeacherResponseQueue<T>, TeacherResponseTracker<T>, TreeView<T> {
+public interface TeacherTreeView extends TeacherHandleQueue, TeacherResponseQueue, TeacherResponseTracker, TreeView {
 
     /**
      * For this tree view, start all required reconnect tasks in the given work group. Teaching synchronizer
@@ -42,14 +39,14 @@ public interface TeacherTreeView<T>
      *
      * @param out
      * 		the output stream
-     * @param leaf
-     * 		the merkle leaf
+     * @param leafPath
+     * 		the merkle leaf path
      * @throws IOException
      * 		if an IO problem occurs
      * @throws MerkleSynchronizationException
      * 		if the node is not a leaf
      */
-    void serializeLeaf(SerializableDataOutputStream out, T leaf) throws IOException;
+    void serializeLeaf(SerializableDataOutputStream out, Long leafPath) throws IOException;
 
     /**
      * Serialize data required to reconstruct an internal node. Should not contain any
@@ -57,20 +54,20 @@ public interface TeacherTreeView<T>
      *
      * @param out
      * 		the output stream
-     * @param internal
-     * 		the internal node to serialize
+     * @param internalPath
+     * 		the internal node path to serialize
      * @throws IOException
      * 		if a problem is encountered with the stream
      */
-    void serializeInternal(SerializableDataOutputStream out, T internal) throws IOException;
+    void serializeInternal(SerializableDataOutputStream out, Long internalPath) throws IOException;
 
     /**
      * Serialize all child hashes for a given node into a stream. Serialized bytes must be
      * identical to what out.writeSerializableList(hashesList, false, true) method writes.
      *
-     * @param parent Merkle node
+     * @param parentPath node path
      * @param out The output stream
      * @throws IOException If an I/O error occurred
      */
-    void writeChildHashes(T parent, SerializableDataOutputStream out) throws IOException;
+    void writeChildHashes(Long parentPath, SerializableDataOutputStream out) throws IOException;
 }

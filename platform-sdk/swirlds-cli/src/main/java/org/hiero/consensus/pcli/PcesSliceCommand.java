@@ -17,6 +17,7 @@ import com.swirlds.platform.config.DefaultConfiguration;
 import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.crypto.EnhancedKeyStoreLoader;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.Console;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -36,8 +37,8 @@ import org.hiero.base.crypto.Signer;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.node.NodeUtilities;
 import org.hiero.consensus.pcli.graph.PcesGraphSlicer;
-import org.hiero.consensus.roster.RosterUtils;
 import picocli.CommandLine;
 
 /**
@@ -46,14 +47,14 @@ import picocli.CommandLine;
  *
  * <h2>Purpose</h2>
  * <p>When debugging or testing consensus behavior, it's often useful to take a specific section of
- * an existing event graph (e.g., from a certain birth round onwards) and replay it in isolation.
+ * an existing event graph (e.g., events from a certain birth round or ngen onwards) and replay it in isolation.
  * However, events in the middle of a graph have birth rounds and parent references that assume
  * the existence of earlier events. This tool extracts a slice of the graph and transforms it to
  * be self-contained and replayable from genesis.
  *
  * <h2>Transformations Applied</h2>
  * <ul>
- *   <li><b>Filtering:</b> Events are filtered by birth round to extract only the portion of the
+ *   <li><b>Filtering:</b> Events are filtered by birth round or ngen (with the ability to determine individual values per creator) to extract only the portion of the
  *       graph that is of interest.</li>
  *   <li><b>Birth round adjustment:</b> Birth rounds are modified (offset to start from 1) so the
  *       sliced graph appears to start from genesis.</li>
@@ -78,7 +79,7 @@ import picocli.CommandLine;
         name = "slice",
         mixinStandardHelpOptions = true,
         description = "Extract a section of an event graph from PCES files and transform it to be "
-                + "replayable from genesis. Events are filtered by birth round, birth rounds are "
+                + "replayable from genesis. Events are filtered by birth round or ngen for each creator, birth rounds are "
                 + "adjusted, and all events are re-hashed and re-signed with newly generated keys.")
 @SubcommandOf(PcesCommand.class)
 public class PcesSliceCommand extends AbstractCommand {
@@ -137,7 +138,7 @@ public class PcesSliceCommand extends AbstractCommand {
     @CommandLine.Option(
             names = {"--genesis-birth-round"},
             description =
-                    "All events within this birth round or lower receive a new birthRound of 1. All events after, de substraction of its current value and this value")
+                    "Value by which all events' birth rounds are adjusted. Events with br lower or equals to this value receive a new br of 1. The rest it's actual BR value minus this value.")
     private void setGenesisBirthRound(final Long genesisBirthRound) {
         this.genesisBirthRound = genesisBirthRound;
     }
@@ -163,7 +164,8 @@ public class PcesSliceCommand extends AbstractCommand {
      * @param optionName the name of the option (for error messages)
      * @return a record containing the parsed nodeId and value
      */
-    private NodeFilterValue parseNodeFilter(final String nodeFilter, final String optionName) {
+    @NonNull
+    private NodeFilterValue parseNodeFilter(final @NonNull String nodeFilter, final @NonNull String optionName) {
         final String[] parts = nodeFilter.split(":");
         if (parts.length != 2) {
             throw buildParameterException(
@@ -226,6 +228,9 @@ public class PcesSliceCommand extends AbstractCommand {
         if (consensusSnapshot != null) {
             System.out.println("Using consensus snapshot from: " + snapshotPath);
             System.out.println("Snapshot round: " + consensusSnapshot.round());
+        } else {
+
+            System.out.println("Using a genesys consensus snapshot");
         }
 
         // Generate node IDs and keys
@@ -252,8 +257,8 @@ public class PcesSliceCommand extends AbstractCommand {
                 .existingPcesFilesLocation(inputDirectory)
                 .exportPcesFileLocation(outputDirectory)
                 .graphEventFilter(this::filterEvent)
-                .graphEventOverwriter(e -> e.copyBuilder()
-                        .birthRound(Long.max(e.birthRound() - genesisBirthRound, 1))
+                .graphEventCoreModifier(e -> e.copyBuilder()
+                        .birthRound(Long.max(e.birthRound() - (genesisBirthRound == null ? 0 : genesisBirthRound), 1))
                         .build())
                 .consensusSnapshot(consensusSnapshot)
                 .build();
@@ -272,7 +277,7 @@ public class PcesSliceCommand extends AbstractCommand {
      * @param event the event to filter
      * @return true if the event should be included, false otherwise
      */
-    private boolean filterEvent(final PlatformEvent event) {
+    private boolean filterEvent(final @NonNull PlatformEvent event) {
         final long birthRound = event.getBirthRound();
         final long ngen = event.getNGen();
         final long creatorNodeId = event.getCreatorId().id();
@@ -359,6 +364,7 @@ public class PcesSliceCommand extends AbstractCommand {
      * @throws IOException if an error occurs while reading the file
      * @throws ParseException if an error occurs while parsing the JSON
      */
+    @Nullable
     private ConsensusSnapshot parseConsensusSnapshot() throws IOException, ParseException {
         if (snapshotPath == null) {
             return null;
@@ -374,7 +380,7 @@ public class PcesSliceCommand extends AbstractCommand {
      * @param roster the roster to write
      * @throws IOException if an error occurs while writing the file
      */
-    private void writeRosterJson(final Roster roster) throws IOException {
+    private void writeRosterJson(final @NonNull Roster roster) throws IOException {
         final Path rosterPath = outputDirectory.resolve(ROSTER_JSON_FILENAME);
         try (final FileOutputStream fos = new FileOutputStream(rosterPath.toFile())) {
             Roster.JSON.write(roster, new WritableStreamingData(fos));
@@ -394,14 +400,15 @@ public class PcesSliceCommand extends AbstractCommand {
      * @throws IOException if an error occurs while writing the files
      * @throws CertificateEncodingException if an error occurs while encoding a certificate
      */
-    private void writeKeysPem(final Map<NodeId, KeysAndCerts> keysAndCertsMap, final Path keysDirectory)
+    private void writeKeysPem(
+            final @NonNull Map<NodeId, KeysAndCerts> keysAndCertsMap, final @NonNull Path keysDirectory)
             throws IOException, CertificateEncodingException {
         Files.createDirectories(keysDirectory);
 
         for (final Map.Entry<NodeId, KeysAndCerts> entry : keysAndCertsMap.entrySet()) {
             final NodeId nodeId = entry.getKey();
             final KeysAndCerts keysAndCerts = entry.getValue();
-            final String nodeName = RosterUtils.formatNodeName(nodeId);
+            final String nodeName = NodeUtilities.formatNodeName(nodeId);
 
             // Write private key PEM file
             final Path privateKeyPath = keysDirectory.resolve(String.format("s-private-%s.pem", nodeName));

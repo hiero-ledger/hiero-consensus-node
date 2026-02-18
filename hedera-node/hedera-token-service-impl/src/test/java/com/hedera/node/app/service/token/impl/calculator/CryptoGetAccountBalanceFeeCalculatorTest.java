@@ -10,8 +10,8 @@ import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.QueryHeader;
 import com.hedera.hapi.node.token.CryptoGetAccountBalanceQuery;
 import com.hedera.hapi.node.transaction.Query;
+import com.hedera.node.app.fees.SimpleFeeCalculatorImpl;
 import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.SimpleFeeCalculatorImpl;
 import java.util.List;
 import java.util.Set;
 import org.hiero.hapi.support.fees.*;
@@ -62,7 +62,7 @@ class CryptoGetAccountBalanceFeeCalculatorTest {
 
             // Then: service=0 (free query)
             assertThat(result).isNotNull();
-            assertThat(result).isEqualTo(0L);
+            assertThat(result.getServiceTotalTinycents()).isEqualTo(0L);
         }
 
         @Test
@@ -80,7 +80,7 @@ class CryptoGetAccountBalanceFeeCalculatorTest {
             final var result = feeCalculator.calculateQueryFee(query, null);
 
             // Then: Same fees - context is optional
-            assertThat(result).isEqualTo(0L);
+            assertThat(result.getServiceTotalTinycents()).isEqualTo(0L);
         }
     }
 

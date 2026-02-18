@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.hedera.embedded.fakes;
 
-import com.hedera.hapi.block.stream.ChainOfTrustProof;
 import com.hedera.hapi.node.state.hints.HintsConstruction;
+import com.hedera.hapi.node.state.history.ChainOfTrustProof;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.node.app.history.HistoryService;
@@ -15,7 +15,6 @@ import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.config.api.Configuration;
 import com.swirlds.state.lifecycle.SchemaRegistry;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -29,13 +28,9 @@ public class FakeHistoryService implements HistoryService {
     private final HistoryService delegate;
     private final Queue<Runnable> pendingHintsSubmissions = new ArrayDeque<>();
 
-    public FakeHistoryService(@NonNull final AppContext appContext, @NonNull final Configuration bootstrapConfig) {
+    public FakeHistoryService(@NonNull final AppContext appContext) {
         delegate = new HistoryServiceImpl(
-                new NoOpMetrics(),
-                pendingHintsSubmissions::offer,
-                appContext,
-                new HistoryLibraryImpl(),
-                bootstrapConfig);
+                new NoOpMetrics(), pendingHintsSubmissions::offer, appContext, new HistoryLibraryImpl());
     }
 
     @Override

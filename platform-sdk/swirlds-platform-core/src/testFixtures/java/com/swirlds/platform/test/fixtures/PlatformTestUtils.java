@@ -10,9 +10,6 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.config.PathsConfig_;
-import com.swirlds.platform.test.fixtures.event.generator.StandardGraphGenerator;
-import com.swirlds.platform.test.fixtures.event.source.EventSource;
-import com.swirlds.platform.test.fixtures.event.source.StandardEventSource;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -22,14 +19,15 @@ import java.nio.file.Path;
 import java.security.cert.CertificateEncodingException;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.function.Function;
 import org.hiero.base.crypto.Signature;
-import org.hiero.base.crypto.Signer;
 import org.hiero.consensus.crypto.PlatformSigner;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.StandardGraphGenerator;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.event.source.EventSource;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.event.source.StandardEventSource;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
@@ -97,8 +95,13 @@ public class PlatformTestUtils {
         return platformContextBuilder.build();
     }
 
+    @NonNull
     public static List<PlatformEvent> generateEvents(
-            PlatformContext context, int numEvents, long seed, Roster roster, final KeysAndCerts keysAndCerts) {
+            @NonNull final PlatformContext context,
+            int numEvents,
+            long seed,
+            @NonNull final Roster roster,
+            @NonNull final KeysAndCerts keysAndCerts) {
         List<PlatformEvent> events = new ArrayList<>(numEvents);
 
         final List<EventSource> sources = roster.rosterEntries().stream()
@@ -112,7 +115,7 @@ public class PlatformTestUtils {
         final var signer = new PlatformSigner(keysAndCerts);
         for (int i = 0; i < numEvents; i++) {
             // Generate event with hash but fake signature
-            final PlatformEvent unsignedEvent = generator.generateBaseEvent();
+            final PlatformEvent unsignedEvent = generator.generateEvent();
 
             // Sign the ACTUAL hash
             final Signature signature =
@@ -137,22 +140,9 @@ public class PlatformTestUtils {
     }
 
     /**
-     * Creates platform signers for 7 nodes
-     *
-     * @return
-     */
-    public static <S extends Signer> Map<NodeId, S> generateSigners(
-            final Map<NodeId, KeysAndCerts> keysAndCertsMap, Function<KeysAndCerts, S> toS) {
-        final Map<NodeId, S> signers = new HashMap<>();
-        keysAndCertsMap.forEach((nodeId, keysAndCerts) -> signers.put(nodeId, toS.apply(keysAndCerts)));
-        return signers;
-    }
-
-    /**
      * Create a Roster for the given signers
-     *
-     * @return
      */
+    @NonNull
     public static Roster generateRoster(@NonNull final Map<NodeId, KeysAndCerts> signers) {
         final List<RosterEntry> rosterEntries = new ArrayList<>();
         for (final Entry<NodeId, KeysAndCerts> signer : signers.entrySet()) {
@@ -162,7 +152,9 @@ public class PlatformTestUtils {
         return Roster.newBuilder().rosterEntries(rosterEntries).build();
     }
 
-    private static RosterEntry createRosterEntry(final NodeId nodeId, final KeysAndCerts keysAndCerts) {
+    @NonNull
+    private static RosterEntry createRosterEntry(
+            @NonNull final NodeId nodeId, @NonNull final KeysAndCerts keysAndCerts) {
         try {
             final long id = nodeId.id();
             final byte[] certificate = keysAndCerts.sigCert().getEncoded();

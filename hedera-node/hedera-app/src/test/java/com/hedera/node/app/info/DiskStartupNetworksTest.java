@@ -6,11 +6,11 @@ import static com.hedera.node.app.info.DiskStartupNetworks.ARCHIVE;
 import static com.hedera.node.app.info.DiskStartupNetworks.GENESIS_NETWORK_JSON;
 import static com.hedera.node.app.info.DiskStartupNetworks.OVERRIDE_NETWORK_JSON;
 import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_STATE_ID;
-import static com.swirlds.platform.state.service.PlatformStateService.PLATFORM_STATE_SERVICE;
 import static java.util.Objects.requireNonNull;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatNoException;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
+import static org.hiero.consensus.platformstate.V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID;
 import static org.hiero.consensus.roster.RosterStateId.ROSTERS_STATE_ID;
 import static org.hiero.consensus.roster.RosterStateId.ROSTER_STATE_STATE_ID;
 import static org.mockito.BDDMockito.given;
@@ -22,6 +22,7 @@ import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterState;
 import com.hedera.hapi.node.state.roster.RoundRosterPair;
+import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.node.app.config.BootstrapConfigProviderImpl;
 import com.hedera.node.app.config.ConfigProviderImpl;
 import com.hedera.node.app.fixtures.state.FakeServiceMigrator;
@@ -35,7 +36,6 @@ import com.hedera.node.app.service.entityid.impl.EntityIdServiceImpl;
 import com.hedera.node.app.service.roster.RosterService;
 import com.hedera.node.app.service.roster.impl.RosterServiceImpl;
 import com.hedera.node.app.spi.migrate.StartupNetworks;
-import com.hedera.node.app.tss.TssBaseServiceImpl;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.data.VersionConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
@@ -47,6 +47,7 @@ import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
+import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.CommittableWritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -59,6 +60,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import org.assertj.core.api.Assertions;
+import org.hiero.consensus.platformstate.PlatformStateService;
 import org.hiero.consensus.roster.RosterUtils;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -233,18 +235,13 @@ class DiskStartupNetworksTest {
     private State stateContainingInfoFrom(@NonNull final Network network) {
         final var state = new FakeState();
         final var servicesRegistry = new FakeServicesRegistry();
-        final var tssBaseService = new TssBaseServiceImpl();
-        given(startupNetworks.genesisNetworkOrThrow(DEFAULT_CONFIG)).willReturn(network);
         final var bootstrapConfig = new BootstrapConfigProviderImpl().getConfiguration();
         SemanticVersion currentVersion =
                 bootstrapConfig.getConfigData(VersionConfig.class).servicesVersion();
-        PLATFORM_STATE_SERVICE.setAppVersionFn(
-                config -> config.getConfigData(VersionConfig.class).servicesVersion());
         Set.of(
-                        tssBaseService,
-                        PLATFORM_STATE_SERVICE,
+                        new PlatformStateService(),
                         new EntityIdServiceImpl(),
-                        new RosterServiceImpl(roster -> true, (r, b) -> {}, () -> state),
+                        new RosterServiceImpl(roster -> true, (r, b) -> {}, () -> state, () -> startupNetworks),
                         new AddressBookServiceImpl())
                 .forEach(servicesRegistry::register);
         final var migrator = new FakeServiceMigrator();
@@ -257,9 +254,13 @@ class DiskStartupNetworksTest {
                 DEFAULT_CONFIG,
                 startupNetworks,
                 storeMetricsService,
-                configProvider);
+                configProvider,
+                InitTrigger.GENESIS);
         addRosterInfo(state, network);
         addAddressBookInfo(state, network);
+        final var writableStates = state.getWritableStates(PlatformStateService.NAME);
+        writableStates.getSingleton(PLATFORM_STATE_STATE_ID).put(PlatformState.DEFAULT);
+        ((CommittableWritableStates) writableStates).commit();
         return state;
     }
 
