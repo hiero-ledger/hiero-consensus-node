@@ -76,6 +76,7 @@ class HintsContextTest {
                 false,
                 false,
                 false,
+                false,
                 2,
                 Duration.ofSeconds(5));
     }
@@ -111,6 +112,12 @@ class HintsContextTest {
         final var future = signing.future();
 
         signing.incorporateValid(CRS, A_NODE_PARTY_ID.nodeId(), signature);
+        assertFalse(future.isDone());
+        // Duplicates don't accumulate weight
+        for (int i = 0; i < 10; i++) {
+            signing.incorporateValid(CRS, A_NODE_PARTY_ID.nodeId(), signature);
+            assertFalse(future.isDone());
+        }
         assertFalse(future.isDone());
         signing.incorporateValid(CRS, B_NODE_PARTY_ID.nodeId(), signature);
         assertFalse(future.isDone());
