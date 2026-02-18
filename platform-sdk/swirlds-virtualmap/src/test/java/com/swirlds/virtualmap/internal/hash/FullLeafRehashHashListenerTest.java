@@ -19,14 +19,13 @@ import org.junit.jupiter.api.Test;
 class FullLeafRehashHashListenerTest extends VirtualTestBase {
 
     private InMemoryDataSource dataSource;
-    private VirtualMapStatistics statistics;
     private FullLeafRehashHashListener listener;
-    private int flushInterval = 1000;
+    private final int flushInterval = 1000;
 
     @BeforeEach
     void setUp() {
         dataSource = new InMemoryDataSource("test");
-        statistics = new VirtualMapStatistics("test");
+        VirtualMapStatistics statistics = new VirtualMapStatistics("test");
         // Use a range that will allow us to test the flush interval
         listener = new FullLeafRehashHashListener(1, 1000000, dataSource, statistics, flushInterval);
     }
@@ -39,14 +38,12 @@ class FullLeafRehashHashListenerTest extends VirtualTestBase {
         VirtualLeafBytes<TestValue> leaf1 = appleLeaf(1);
         Hash hash1 = hash(leaf1);
 
-        listener.onLeafHashed(leaf1);
         listener.onNodeHashed(1, hash1);
 
         listener.onHashingCompleted();
 
         // Verify that the record was saved to the data source
         assertEquals(hash1, dataSource.loadHash(1), "Hash should be saved to data source");
-        assertEquals(leaf1, dataSource.loadLeafRecord(1), "Leaf should be saved to data source");
     }
 
     @Test
@@ -59,17 +56,13 @@ class FullLeafRehashHashListenerTest extends VirtualTestBase {
         VirtualLeafBytes<TestValue> leaf2 = bananaLeaf(2);
         Hash hash2 = hash(leaf2);
 
-        listener.onLeafHashed(leaf1);
         listener.onNodeHashed(1, hash1);
-        listener.onLeafHashed(leaf2);
         listener.onNodeHashed(2, hash2);
 
         listener.onHashingCompleted();
 
         assertEquals(hash1, dataSource.loadHash(1));
-        assertEquals(leaf1, dataSource.loadLeafRecord(1));
         assertEquals(hash2, dataSource.loadHash(2));
-        assertEquals(leaf2, dataSource.loadLeafRecord(2));
     }
 
     @Test
@@ -80,7 +73,6 @@ class FullLeafRehashHashListenerTest extends VirtualTestBase {
         listener.onHashingStarted(1, count);
         for (int i = 1; i <= count; i++) {
             VirtualLeafBytes<TestValue> leaf = leaf(i, i, i);
-            listener.onLeafHashed(leaf);
             listener.onNodeHashed(i, hash(leaf));
         }
 
