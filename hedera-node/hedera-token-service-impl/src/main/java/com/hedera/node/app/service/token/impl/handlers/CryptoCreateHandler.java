@@ -87,6 +87,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import org.hiero.base.utility.ByteUtils;
 
 /**
  * This class contains all workflow-related functionality regarding {@link HederaFunctionality#CRYPTO_CREATE}. A
@@ -455,6 +456,7 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
         final var autoRenewPeriod = op.autoRenewPeriodOrThrow().seconds();
         final var consensusTime = handleContext.consensusNow().getEpochSecond();
         final var expiry = consensusTime + autoRenewPeriod;
+
         var builder = Account.newBuilder()
                 .memo(op.memo())
                 .expirationSecond(expiry)
@@ -466,12 +468,15 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
                 .key(op.keyOrThrow())
                 .stakeAtStartOfLastRewardedPeriod(NOT_REWARDED_SINCE_LAST_STAKING_META_CHANGE)
                 .stakePeriodStart(NO_STAKE_PERIOD_START)
-                .alias(op.alias())
-                .delegationAddress(op.delegationAddress());
+                .alias(op.alias());
         if (!op.hookCreationDetails().isEmpty()) {
             builder.firstHookId(op.hookCreationDetails().getFirst().hookId());
             builder.numberHooksInUse(op.hookCreationDetails().size());
             builder.numberEvmHookStorageSlots(updatedSlots);
+        }
+
+        if (!ByteUtils.isEmptyOrAllZeros(op.delegationAddress())) {
+            builder.delegationAddress(op.delegationAddress());
         }
 
         // We do this separately because we want to let the protobuf object remain UNSET for the staked ID if neither
