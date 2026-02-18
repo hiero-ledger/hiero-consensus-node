@@ -27,6 +27,7 @@ import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.TransactionFactory;
 import org.hiero.otter.fixtures.network.transactions.BenchmarkTransaction;
 import org.hiero.otter.fixtures.network.transactions.OtterTransaction;
+import org.hiero.otter.fixtures.specs.ContainerSpecs;
 import org.hiero.otter.fixtures.specs.OtterSpecs;
 import org.hiero.otter.test.performance.benchmark.fixtures.BenchmarkServiceLogParser;
 import org.hiero.otter.test.performance.benchmark.fixtures.LoadThrottler;
@@ -56,6 +57,7 @@ public class ConsensusLayerBenchmark {
      */
     @OtterTest
     @OtterSpecs(randomNodeIds = false)
+    @ContainerSpecs(proxyEnabled = false)
     void benchmark(@NonNull final TestEnvironment env) {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
