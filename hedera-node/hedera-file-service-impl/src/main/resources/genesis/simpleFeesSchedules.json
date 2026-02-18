@@ -20,7 +20,7 @@
   "extras": [
     { "name":  "SIGNATURES",                     "fee": 100000 },
     { "name":  "STATE_BYTES",                    "fee": 1000000 },
-    { "name":  "PROCESSING_BYTES",               "fee": 100000 },
+    { "name":  "PROCESSING_BYTES",               "fee": 10000 },
     { "name":  "KEYS",                           "fee": 100000000 },
     { "name":  "NFT_SERIALS",                    "fee": 8900000 },
     { "name":  "ACCOUNTS",                       "fee": 1000000 },
