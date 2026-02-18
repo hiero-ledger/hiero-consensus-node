@@ -24,8 +24,7 @@ import java.nio.file.Path;
 import java.util.Map;
 import java.util.stream.Stream;
 import java.util.zip.GZIPInputStream;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
 
 /*
 to use this first download historical data.
@@ -140,34 +139,82 @@ public class SimpleFeesRecordStreamTest {
         }
     }
 
-    private static CSVWriter csv;
-    private static JSONFormatter json;
 
-    /**
-     * Initialize the test class with simple fees enabled.
-     * This ensures the SimpleFeeCalculator is initialized at startup,
-     * which is required for switching between simple and legacy fees mid-test.
-     */
-    @BeforeAll
-    static void beforeAll() throws IOException {
-        csv = new CSVWriter(new FileWriter("simple-fees-historical-comparison.csv"));
+    static void process_dir(String records_dir) throws IOException {
+        CSVWriter csv = new CSVWriter(new FileWriter(records_dir+".csv"));
+        JSONFormatter json = new JSONFormatter(new FileWriter(records_dir+".json"));
         csv.write(
-                "Service Name, Simple Fee, Old Fees, Comparison, SF Service, SF Node, SF Network, Timestamp, Details, rate cents, rate hbar");
+                "Service Name, AccountID, Txn Seconds, Txn Nanos, Txn Nonce, Transaction Fee, Status, Signed Txn Bytes, Custom Fees Count, Memo");
         csv.endLine();
-        json = new JSONFormatter(new FileWriter("simple-fees-historical-comparison.json"));
-    }
-
-    @AfterAll
-    static void afterAll() throws IOException {
-        if (csv != null) {
-            csv.close();
+        try (Stream<Path> paths = Files.list(Path.of(records_dir))) {
+            paths.filter(Files::isRegularFile).forEach(file -> {
+                if (!file.toString().endsWith("rcd.gz")) {
+                    return;
+                }
+                try (final var fin = new GZIPInputStream(new FileInputStream(file.toFile()))) {
+                    // we have to read the first 4 bytes
+                    final var recordFileVersion =
+                            ByteBuffer.wrap(fin.readNBytes(4)).getInt();
+                    final var recordStreamFile = RecordStreamFile.parseFrom(fin);
+                    recordStreamFile.getRecordStreamItemsList().stream().forEach(item -> {
+                        try {
+                            final var signedTxnBytes = item.getTransaction().getSignedTransactionBytes();
+                            final var signedTxn = SignedTransaction.parseFrom(signedTxnBytes);
+                            final var body = TransactionBody.PROTOBUF.parse(
+                                    Bytes.wrap(signedTxn.getBodyBytes().toByteArray()));
+                            final Transaction txn = Transaction.newBuilder().body(body).build();
+                            if (txn.body().data().kind() == TransactionBody.DataOneOfType.UNSET) {
+                                System.out.println("skipping unset");
+                                // skip unset types
+                                return;
+                            }
+                            final var record = item.getRecord();
+                            final var txnFee = record.getTransactionFee();
+                            final var rate = record.getReceipt().getExchangeRate();
+                            json.startRecord();
+                            csv.field(body.data().kind().name());
+                            json.key("name", body.data().kind().name());
+                            var txnId = body.transactionID();
+                            csv.field(txnId.accountID().accountNum());
+                            json.key("account",txnId.accountID().accountNum());
+                            csv.field(txnId.transactionValidStart().seconds());
+                            json.key("seconds",txnId.transactionValidStart().seconds());
+                            csv.field(txnId.transactionValidStart().nanos());
+                            json.key("nanos",txnId.transactionValidStart().nanos());
+                            csv.field(txnId.nonce());
+                            json.key("nonce",txnId.nonce());
+                            csv.field(txnFee);
+                            json.key("fee",txnFee);
+                            csv.field(item.getRecord().getReceipt().getStatus().name());
+                            json.key("status",item.getRecord().getReceipt().getStatus().name());
+                            csv.field(signedTxnBytes.size());
+                            json.key("signedTxnBytes",signedTxnBytes.size());
+                            csv.field(item.getRecord().getAssessedCustomFeesCount());
+                            json.key("custom_fees_count",item.getRecord().getAssessedCustomFeesCount());
+                            csv.field(item.getRecord().getMemo());
+                            json.key("memo",item.getRecord().getMemo());
+                            csv.endLine();
+                            json.endRecord();
+                        } catch (Exception e) {
+                            System.out.println("exception " + e);
+                        }
+                    });
+                } catch (FileNotFoundException e) {
+                    throw new RuntimeException(e);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            });
         }
-        if (json != null) {
-            json.close();
-        }
+        csv.close();
+        json.close();
     }
-
-    //    @Test
+    @Test
+    void recordsToCSV() throws IOException {
+        process_dir("../../sftest/legacy_fees_record");
+        process_dir("../../sftest/simple_fees_record");
+    }
+    @Test
     void streamingSimpleFees() throws IOException {
         // set the overrides
         final var overrides = Map.of("hedera.transaction.maxMemoUtf8Bytes", "101", "fees.simpleFeesEnabled", "true");
@@ -183,6 +230,12 @@ public class SimpleFeesRecordStreamTest {
 
         final String records_dir = "../../temp/2025-11-10-9";
 
+        CSVWriter csv = new CSVWriter(new FileWriter("simple-fees-historical-comparison.csv"));
+        csv.write(
+                "Service Name, Simple Fee, Old Fees, Comparison, SF Service, SF Node, SF Network, Timestamp, Details, rate cents, rate hbar");
+        csv.endLine();
+        JSONFormatter json = new JSONFormatter(new FileWriter("simple-fees-historical-comparison.json"));
+
         try (Stream<Path> paths = Files.list(Path.of(records_dir))) {
             paths.filter(Files::isRegularFile).forEach(file -> {
                 if (!file.toString().endsWith("rcd.gz")) {
@@ -195,7 +248,7 @@ public class SimpleFeesRecordStreamTest {
                     final var recordStreamFile = RecordStreamFile.parseFrom(fin);
                     recordStreamFile.getRecordStreamItemsList().stream().forEach(item -> {
                         try {
-                            process_item(item, calc);
+                            process_item(item, calc, csv, json);
                         } catch (Exception e) {
                             System.out.println("exception " + e);
                         }
@@ -207,9 +260,16 @@ public class SimpleFeesRecordStreamTest {
                 }
             });
         }
+        if (csv != null) {
+            csv.close();
+        }
+        if (json != null) {
+            json.close();
+        }
+
     }
 
-    private void process_item(RecordStreamItem item, StandaloneFeeCalculator calc) throws ParseException, IOException {
+    private void process_item(RecordStreamItem item, StandaloneFeeCalculator calc, CSVWriter csv, JSONFormatter json) throws ParseException, IOException {
         final var signedTxnBytes = item.getTransaction().getSignedTransactionBytes();
         final var signedTxn = SignedTransaction.parseFrom(signedTxnBytes);
         final var body = TransactionBody.PROTOBUF.parse(

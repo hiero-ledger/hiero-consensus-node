@@ -13,6 +13,7 @@ import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.FileID;
+import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.blockstream.BlockStreamInfo;
 import com.hedera.hapi.node.state.file.File;
@@ -217,7 +218,7 @@ public interface FacilityInitModule {
             requireNonNull(streamMode);
             if (hasHandledGenesisTxn(state, streamMode)) {
                 initializeExchangeRateManager(state, configProvider, exchangeRateManager);
-                initializeFeeManager(state, configProvider, feeManager);
+                initializeFeeManager(state, configProvider, feeManager, fileService, bootstrapConfigProvider);
                 observePropertiesAndPermissions(state, configProvider.getConfiguration(), (properties, permissions) -> {
                     if (!Bytes.EMPTY.equals(properties) || !Bytes.EMPTY.equals(permissions)) {
                         configProvider.update(properties, permissions);
@@ -261,7 +262,7 @@ public interface FacilityInitModule {
     private static void initializeFeeManager(
             @NonNull final State state,
             @NonNull final ConfigProvider configProvider,
-            @NonNull final FeeManager feeManager) {
+            @NonNull final FeeManager feeManager, FileServiceImpl fileService, BootstrapConfigProviderImpl bootstrapConfigProvider) {
         log.info("Initializing fee schedules");
         final var filesConfig = configProvider.getConfiguration().getConfigData(FilesConfig.class);
         final var fileNum = filesConfig.feeSchedules();
@@ -279,11 +280,17 @@ public interface FacilityInitModule {
         {
             final var feesConfig = configProvider.getConfiguration().getConfigData(FeesConfig.class);
             if (feesConfig.simpleFeesEnabled()) {
+                final var bootstrapConfig = bootstrapConfigProvider.getConfiguration();
+                final var schema = fileService.fileSchema();
                 final var simpleFileNum = filesConfig.simpleFeesSchedules();
-                final var simpleFile = requireNonNull(
-                        getFileFromStorage(state, configProvider, simpleFileNum),
-                        "The initialized state had no fee schedule file 0.0." + simpleFileNum);
-                final var simpleStatus = feeManager.updateSimpleFees(simpleFile.contents());
+                var simpleFile = getFileFromStorage(state, configProvider, simpleFileNum);
+                ResponseCodeEnum simpleStatus;
+                if(simpleFile == null) {
+                    final var bytes = schema.genesisSimpleFeesSchedules(bootstrapConfig);
+                    simpleStatus = feeManager.updateSimpleFees(bytes);
+                } else {
+                    simpleStatus = feeManager.updateSimpleFees(simpleFile.contents());
+                }
                 if (simpleStatus != SUCCESS) {
                     // (FUTURE) Ideally this would be a fatal error, but unlike the exchange rates file, it
                     // is possible with the current design for state to include a partial fee schedules file,
