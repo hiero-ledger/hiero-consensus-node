@@ -26,6 +26,7 @@ import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fix
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
@@ -96,6 +97,8 @@ class AtomicBatchEndToEndConsensusAndTokenServiceTests {
     private static final String irrelevantKey1 = "irrelevantKey1";
     private static final String irrelevantKey2 = "irrelevantKey2";
     private static final String irrelevantKey3 = "irrelevantKey3";
+
+    private static final double BASE_FEE_BATCH_TRANSACTION = 0.001;
 
     @Nested
     @DisplayName(
