@@ -114,17 +114,15 @@ public class ChunkedFileIterator implements AutoCloseable {
             this.bufferSizeBytes = bufferSizeBytes;
 
             if (startByte > 0) {
-                // Find boundary, then position channel and open streams
+                // Find boundary, then adjust startByte
                 final long startTime = System.currentTimeMillis();
                 this.startByte += findBoundaryOffset();
                 totalBoundarySearchTime.addAndGet(System.currentTimeMillis() - startTime);
-                channel.position(this.startByte);
-                openStreams();
-            } else {
-                // At file start
-                channel.position(startByte);
-                openStreams();
             }
+
+            // Position channel and open streams
+            channel.position(this.startByte);
+            openStreams();
         } catch (final Exception e) {
             // Ensure channel is closed if constructor fails after opening
             try {
@@ -263,13 +261,11 @@ public class ChunkedFileIterator implements AutoCloseable {
 
                     if (dataItemSize > 0 && (dataStartPosition + dataItemSize <= bufferData.limit())) {
                         bufferData.limit(dataStartPosition + dataItemSize);
-                        final long savedPos = bufferData.position();
 
                         if (isValidDataItem(bufferData)) {
                             return positionInBuffer;
                         }
 
-                        bufferData.position(savedPos);
                         bufferData.limit(bytesRead);
                     }
                 }

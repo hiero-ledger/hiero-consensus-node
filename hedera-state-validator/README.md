@@ -128,11 +128,11 @@ classDiagram
 
 Every validator follows a three-phase lifecycle:
 
-| Phase | Method | Description                                                                                                    |
-|---|---|----------------------------------------------------------------------------------------------------------------|
-| **Initialize** | `initialize(VirtualMapState)` | Extract state references, set up atomic counters.                                                              |
-| **Process** | `processHashRecord` / `processLeafBytes` / `processBucket` | Receive streamed data items (pipeline validators only).                                                        |
-| **Validate** | `validate()` | Assert accumulated results; throw [ValidationException](src/main/java/com/hedera/statevalidation/validator/util/ValidationException.java) on failure. |
+|     Phase      |                           Method                           |                                                                      Description                                                                      |
+|----------------|------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **Initialize** | `initialize(VirtualMapState)`                              | Extract state references, set up atomic counters.                                                                                                     |
+| **Process**    | `processHashRecord` / `processLeafBytes` / `processBucket` | Receive streamed data items (pipeline validators only).                                                                                               |
+| **Validate**   | `validate()`                                               | Assert accumulated results; throw [ValidationException](src/main/java/com/hedera/statevalidation/validator/util/ValidationException.java) on failure. |
 
 Individual validators (those implementing only the base [Validator](src/main/java/com/hedera/statevalidation/validator/Validator.java) interface) skip the process phase and perform their own logic directly in `validate()`.
 
@@ -141,19 +141,21 @@ Individual validators (those implementing only the base [Validator](src/main/jav
 1. **State loading** — [ValidateCommand](src/main/java/com/hedera/statevalidation/ValidateCommand.java) initializes the state directory and obtains the `VirtualMapState`.
 2. **Individual validators** — [ValidatorRegistry](src/main/java/com/hedera/statevalidation/validator/ValidatorRegistry.java) filters, initializes, and runs individual validators sequentially (e.g., [RehashValidator](src/main/java/com/hedera/statevalidation/validator/RehashValidator.java) performs a full task-based tree rehash, [RootHashValidator](src/main/java/com/hedera/statevalidation/validator/RootHashValidator.java) compares the root hash against a reference file).
 3. **Pipeline execution** — [ValidationPipelineExecutor](src/main/java/com/hedera/statevalidation/validator/pipeline/ValidationPipelineExecutor.java) orchestrates the parallel pipeline:
-  - **Task planning** — Data files are divided into chunks; in-memory hash ranges are partitioned.
-  - **IO threads** read chunks via [ChunkedFileIterator](src/main/java/com/hedera/statevalidation/validator/pipeline/ChunkedFileIterator.java) (disk) or directly from `HashList` (memory), producing batches into a bounded queue.
-  - **Processor threads** ([ProcessorTask](src/main/java/com/hedera/statevalidation/validator/pipeline/ProcessorTask.java)) consume batches, check liveness against location indexes, and dispatch live items to the appropriate validators by data type.
-  - After all data is consumed, `validate()` is called on each pipeline validator.
+
+- **Task planning** — Data files are divided into chunks; in-memory hash ranges are partitioned.
+- **IO threads** read chunks via [ChunkedFileIterator](src/main/java/com/hedera/statevalidation/validator/pipeline/ChunkedFileIterator.java) (disk) or directly from `HashList` (memory), producing batches into a bounded queue.
+- **Processor threads** ([ProcessorTask](src/main/java/com/hedera/statevalidation/validator/pipeline/ProcessorTask.java)) consume batches, check liveness against location indexes, and dispatch live items to the appropriate validators by data type.
+- After all data is consumed, `validate()` is called on each pipeline validator.
+
 4. **Reporting** — [ValidationExecutionListener](src/main/java/com/hedera/statevalidation/validator/listener/ValidationExecutionListener.java) tracks failures. On failure, [SlackReportBuilder](src/main/java/com/hedera/statevalidation/report/SlackReportBuilder.java) generates a report.
 
 ### Pipeline Data Types
 
-| Type | Source | Content        | Dispatched To |
-|---|---|----------------|---|
-| **P2KV** | Leaf data files | `VirtualLeafBytes` | [LeafBytesValidator](src/main/java/com/hedera/statevalidation/validator/LeafBytesValidator.java) impls |
-| **P2H** | Hash data files + in-memory `HashList` | `VirtualHashRecord` | [HashRecordValidator](src/main/java/com/hedera/statevalidation/validator/HashRecordValidator.java) impls |
-| **K2P** | HDHM bucket files | `ParsedBucket` | [HdhmBucketValidator](src/main/java/com/hedera/statevalidation/validator/HdhmBucketValidator.java) impls |
+|   Type   |                 Source                 |       Content       |                                              Dispatched To                                               |
+|----------|----------------------------------------|---------------------|----------------------------------------------------------------------------------------------------------|
+| **P2KV** | Leaf data files                        | `VirtualLeafBytes`  | [LeafBytesValidator](src/main/java/com/hedera/statevalidation/validator/LeafBytesValidator.java) impls   |
+| **P2H**  | Hash data files + in-memory `HashList` | `VirtualHashRecord` | [HashRecordValidator](src/main/java/com/hedera/statevalidation/validator/HashRecordValidator.java) impls |
+| **K2P**  | HDHM bucket files                      | `ParsedBucket`      | [HdhmBucketValidator](src/main/java/com/hedera/statevalidation/validator/HdhmBucketValidator.java) impls |
 
 ### Thread Safety
 
@@ -176,7 +178,6 @@ The registry automatically categorizes validators by their interface type.
 - **Individual validators:** Each performs its own traversal → **O(T × M)**.
 
 Where `T` = time for one full traversal, `N` = pipeline validators, `M` = individual validators.
-
 
 ## Introspect
 

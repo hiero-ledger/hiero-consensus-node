@@ -17,6 +17,7 @@ import com.hedera.statevalidation.validator.model.ValidationItem;
 import com.hedera.statevalidation.validator.util.ValidationException;
 import com.swirlds.merkledb.MerkleDbDataSource;
 import com.swirlds.merkledb.collections.LongList;
+import com.swirlds.merkledb.files.DataFileCommon;
 import com.swirlds.merkledb.files.hashmap.ParsedBucket;
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
@@ -56,8 +57,8 @@ public class ProcessorTask implements Callable<Void> {
 
     private static final Logger log = LogManager.getLogger(ProcessorTask.class);
 
-    /** List of listeners to notify about validation failure in this context */
-    private final List<ValidationListener> validationListeners;
+    /** Set of listeners to notify about validation failure in this context */
+    private final Set<ValidationListener> validationListeners;
 
     /** Set of validators for P2KV (Path to Key/Value) data items; may be null if no P2KV validators configured */
     private final Set<Validator> p2kvValidators;
@@ -93,7 +94,7 @@ public class ProcessorTask implements Callable<Void> {
      */
     public ProcessorTask(
             @NonNull final Map<Type, Set<Validator>> validators,
-            @NonNull final List<ValidationListener> validationListeners,
+            @NonNull final Set<ValidationListener> validationListeners,
             @NonNull final BlockingQueue<List<ValidationItem>> dataQueue,
             @NonNull final MerkleDbDataSource vds,
             @NonNull final DataStats dataStats) {
@@ -188,7 +189,7 @@ public class ProcessorTask implements Callable<Void> {
         dataStats.getP2hMemory().incrementItemCount();
 
         // Cross-check with a threshold
-        if (hashRecord.path() > vds.getHashesRamToDiskThreshold()) {
+        if (hashRecord.path() >= vds.getHashesRamToDiskThreshold()) {
             dataStats.getP2hMemory().incrementInvalidLocationCount();
             log.error(
                     "Path found in P2H memory (p:{}) exceeds hashes ram to disc threshold (p:{})",
@@ -236,6 +237,7 @@ public class ProcessorTask implements Callable<Void> {
             dataStats.getP2kv().addSpaceSize(data.bytes().length());
             dataStats.getP2kv().incrementItemCount();
 
+            final int fileIndex = DataFileCommon.fileIndexFromDataLocation(data.location());
             final VirtualLeafBytes<?> virtualLeafBytes =
                     VirtualLeafBytes.parseFrom(data.bytes().toReadableSequentialData());
 
@@ -252,9 +254,9 @@ public class ProcessorTask implements Callable<Void> {
                                 validator.getName(), "Unexpected exception: " + e.getMessage(), e)));
                     }
                 });
-            } else if (data.location() == -1) {
+            } else if (data.location() < fileIndex) {
                 dataStats.getP2kv().incrementInvalidLocationCount();
-                LogUtils.printFileDataLocationError(log, "data.location() was -1 for P2KV entry", data);
+                LogUtils.printFileDataLocationError(log, "data.location() was invalid for P2KV entry", data.location());
             } else {
                 // Add to wasted items/space
                 dataStats.getP2kv().addObsoleteSpaceSize(data.bytes().length());
@@ -282,14 +284,15 @@ public class ProcessorTask implements Callable<Void> {
             dataStats.getP2h().addSpaceSize(data.bytes().length());
             dataStats.getP2h().incrementItemCount();
 
+            final int fileIndex = DataFileCommon.fileIndexFromDataLocation(data.location());
             final VirtualHashRecord virtualHashRecord =
                     VirtualHashRecord.parseFrom(data.bytes().toReadableSequentialData());
             final long path = virtualHashRecord.path();
 
-            // Index sanity check (should not contain `-1` entry for a live object)
-            if (path >= 0 && path <= vds.getLastLeafPath() && pathToDiskLocationInternalNodes.get(path) == -1) {
+            // Index sanity check
+            if (path >= 0 && path <= vds.getLastLeafPath() && pathToDiskLocationInternalNodes.get(path) < fileIndex) {
                 dataStats.getP2h().incrementInvalidLocationCount();
-                LogUtils.printFileDataLocationError(log, "data.location() was -1 for P2H entry", data);
+                LogUtils.printFileDataLocationError(log, "data.location() was invalid for P2H entry", data.location());
                 return;
             }
 
@@ -306,9 +309,9 @@ public class ProcessorTask implements Callable<Void> {
                                 validator.getName(), "Unexpected exception: " + e.getMessage(), e)));
                     }
                 });
-            } else if (data.location() == -1) {
+            } else if (data.location() < fileIndex) {
                 dataStats.getP2h().incrementInvalidLocationCount();
-                LogUtils.printFileDataLocationError(log, "data.location() was -1 for P2H entry", data);
+                LogUtils.printFileDataLocationError(log, "data.location() was invalid for P2H entry", data.location());
             } else {
                 // Add to wasted items/space
                 dataStats.getP2h().addObsoleteSpaceSize(data.bytes().length());
@@ -336,6 +339,8 @@ public class ProcessorTask implements Callable<Void> {
             dataStats.getK2p().addSpaceSize(data.bytes().length());
             dataStats.getK2p().incrementItemCount();
 
+            final int fileIndex = DataFileCommon.fileIndexFromDataLocation(data.location());
+
             try (final ParsedBucket bucket = new ParsedBucket()) {
                 bucket.readFrom(data.bytes().toReadableSequentialData());
 
@@ -352,9 +357,10 @@ public class ProcessorTask implements Callable<Void> {
                                     validator.getName(), "Unexpected exception: " + e.getMessage(), e)));
                         }
                     });
-                } else if (data.location() == -1) {
+                } else if (data.location() < fileIndex) {
                     dataStats.getK2p().incrementInvalidLocationCount();
-                    LogUtils.printFileDataLocationError(log, "data.location() was -1 for K2P entry", data);
+                    LogUtils.printFileDataLocationError(
+                            log, "data.location() was invalid for K2P entry", data.location());
                 } else {
                     // Add to wasted items/space
                     dataStats.getK2p().addObsoleteSpaceSize(data.bytes().length());

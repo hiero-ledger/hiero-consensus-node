@@ -121,7 +121,7 @@ public final class ValidatorRegistry {
     public static Map<Type, Set<Validator>> createAndInitValidators(
             @NonNull final VirtualMapState state,
             @NonNull final String[] validationGroups,
-            @NonNull final List<ValidationListener> validationListeners) {
+            @NonNull final Set<ValidationListener> validationListeners) {
 
         final Set<String> groupSet = Set.of(validationGroups);
         final boolean runAll = groupSet.contains(ALL_GROUP);
@@ -159,7 +159,7 @@ public final class ValidatorRegistry {
     public static List<Validator> createAndInitIndividualValidators(
             @NonNull final VirtualMapState state,
             @NonNull final String[] validationGroups,
-            @NonNull final List<ValidationListener> validationListeners) {
+            @NonNull final Set<ValidationListener> validationListeners) {
 
         final Set<String> groupSet = Set.of(validationGroups);
         final boolean runAll = groupSet.contains(ALL_GROUP);
@@ -188,7 +188,7 @@ public final class ValidatorRegistry {
     public static boolean tryInitialize(
             @NonNull final Validator validator,
             @NonNull final VirtualMapState state,
-            @NonNull final List<ValidationListener> listeners) {
+            @NonNull final Set<ValidationListener> listeners) {
         listeners.forEach(l -> l.onValidationStarted(validator.getName()));
         try {
             validator.initialize(state);

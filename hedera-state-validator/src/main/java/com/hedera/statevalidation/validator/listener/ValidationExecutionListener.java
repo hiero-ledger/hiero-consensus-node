@@ -18,6 +18,7 @@ public class ValidationExecutionListener implements ValidationListener {
 
     private static final Logger log = LogManager.getLogger(ValidationExecutionListener.class);
 
+    /** Keyed by validator name, value is the validation exception encountered */
     private final Map<String, ValidationException> failedValidations = new ConcurrentHashMap<>();
 
     /**

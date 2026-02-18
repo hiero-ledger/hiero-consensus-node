@@ -72,7 +72,7 @@ public final class ValidationPipelineExecutor {
     // Input data
     private final MerkleDbDataSource vds;
     private final Map<Type, Set<Validator>> validators;
-    private final List<ValidationListener> validationListeners;
+    private final Set<ValidationListener> validationListeners;
 
     // Runtime state (initialized in execute())
     private HashList pathToHashRam;
@@ -83,7 +83,7 @@ public final class ValidationPipelineExecutor {
     private ValidationPipelineExecutor(
             @NonNull final MerkleDbDataSource vds,
             @NonNull final Map<Type, Set<Validator>> validators,
-            @NonNull final List<ValidationListener> validationListeners,
+            @NonNull final Set<ValidationListener> validationListeners,
             final int ioThreads,
             final int processThreads,
             final int queueCapacity,
@@ -122,7 +122,7 @@ public final class ValidationPipelineExecutor {
     public static boolean run(
             @NonNull final MerkleDbDataSource vds,
             @NonNull final Map<Type, Set<Validator>> validators,
-            @NonNull final List<ValidationListener> validationListeners,
+            @NonNull final Set<ValidationListener> validationListeners,
             final int ioThreads,
             final int processThreads,
             final int queueCapacity,
@@ -320,6 +320,9 @@ public final class ValidationPipelineExecutor {
         for (final DataFileReader reader : dfc.getAllCompletedFiles()) {
             final long fileSize = reader.getSize();
             if (fileSize == 0) {
+                log.warn(
+                        "Unexpected empty data file (size 0): {}",
+                        reader.getPath().getFileName());
                 continue;
             }
 
@@ -337,10 +340,6 @@ public final class ValidationPipelineExecutor {
             for (int i = 0; i < chunks; i++) {
                 final long startByte = i * chunkSize;
                 final long endByte = Math.min(startByte + chunkSize, fileSize);
-
-                if (startByte >= fileSize) {
-                    continue;
-                }
 
                 tasks.add(new FileReadTaskConfig(reader, dataType, startByte, endByte));
             }

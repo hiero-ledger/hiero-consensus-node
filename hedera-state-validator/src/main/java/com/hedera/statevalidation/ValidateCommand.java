@@ -126,7 +126,7 @@ public class ValidateCommand implements Callable<Integer> {
 
             // Initialize validators and listeners
             final var validationExecutionListener = new ValidationExecutionListener();
-            final List<ValidationListener> validationListeners = List.of(validationExecutionListener);
+            final Set<ValidationListener> validationListeners = Set.of(validationExecutionListener);
 
             final long startTime = System.currentTimeMillis();
 
