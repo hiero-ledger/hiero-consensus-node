@@ -3,8 +3,8 @@ merge:
   required_statuses:
 
     # MATS
-    - "MATS / Get Commit Info (pull_request)"
-    - "MATS / Standard Compile Code / Compile Application Code (pull_request)"
+    - "MATS / Get Commit Info"
+    - "MATS / Standard Compile Code / Compile Application Code"
     - "MATS / Unit Tests / Unit Tests"
     - "MATS / Standard Spotless / Spotless Check"
     - "MATS / Standard Dependency (Module Info) / Dependency Module Check"
@@ -21,8 +21,8 @@ merge:
     - "MATS / HAPI Tests / HAPI Tests (Atomic Batch)"
 
     # MATS Gradle Determinism
-    - "MATS / Gradle Determinism / Gradle: Generate OS Matrix (pull_request)"
-    - "MATS / Gradle Determinism / Gradle: Generate Baseline (pull_request)"
+    - "MATS / Gradle Determinism / Gradle: Generate OS Matrix"
+    - "MATS / Gradle Determinism / Gradle: Generate Baseline"
     - "MATS / Gradle Determinism / Gradle: Verify Artifacts (windows-2025)"
     - "MATS / Gradle Determinism / Gradle: Verify Artifacts (windows-2022)"
     - "MATS / Gradle Determinism / Gradle: Verify Artifacts (ubuntu-24.04)"
@@ -31,7 +31,7 @@ merge:
     - "MATS / Gradle Determinism / Gradle: Verify Artifacts (hl-cn-gradle-determinism-lin-lg)"
 
     # MATS Docker Determinism
-    - "MATS / Docker Determinism / Docker: Generate Baseline (pull_request)"
+    - "MATS / Docker Determinism / Docker: Generate Baseline"
     - "MATS / Docker Determinism / Docker: Verify Artifacts (ubuntu-24.04)"
     - "MATS / Docker Determinism / Docker: Verify Artifacts (hl-cn-docker-determinism-lin-lg)"
 
