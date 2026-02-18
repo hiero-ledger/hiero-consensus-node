@@ -22,7 +22,7 @@ public class SimpleFeesScheduleConstantsInUsd {
 
     public static final double SIGNATURE_FEE_USD = 0.00001;
     public static final double STATE_BYTES_FEE_USD = 0.0001;
-    public static final double PROCESSING_BYTES_FEE_USD = 0.00001;
+    public static final double PROCESSING_BYTES_FEE_USD = 0.000001;
     public static final long STATE_BYTES_INCLUDED = 1000L;
     public static final long PROCESSING_BYTES_INCLUDED = 1024L;
     public static final double KEYS_FEE_USD = 0.01;
