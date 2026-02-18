@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.node.app.fees;
+package com.hedera.node.app.fees.context;
 
 import static java.util.Objects.requireNonNull;
 

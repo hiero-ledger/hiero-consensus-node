@@ -105,7 +105,7 @@ jobs:
         run: ${GRADLE_EXEC} :consensus-otter-tests:testContainer
 
       - name: Publish Full Otter Testing Report
-        uses: step-security/publish-unit-test-result-action@5d195d4dec0b9fa7b51a3dbc4298362a021247c7 # v2.20.4
+        uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
         if: ${{ inputs.enable-full-otter-tests && !cancelled() }}
         with:
           check_name: "Node: Otter Tests Results"
@@ -158,7 +158,7 @@ jobs:
         run: ${GRADLE_EXEC} :consensus-otter-tests:testOtter
 
       - name: Publish Fast Otter Testing Report
-        uses: step-security/publish-unit-test-result-action@5d195d4dec0b9fa7b51a3dbc4298362a021247c7 # v2.20.4
+        uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
         if: ${{ inputs.enable-fast-otter-tests && !cancelled() }}
         with:
           check_name: "Node: Otter Tests Results"
@@ -219,7 +219,7 @@ jobs:
         run: ${GRADLE_EXEC} :consensus-otter-tests:testChaos
 
       - name: Publish Chaos Otter Testing Report
-        uses: step-security/publish-unit-test-result-action@5d195d4dec0b9fa7b51a3dbc4298362a021247c7 # v2.20.4
+        uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
         if: ${{ inputs.enable-chaos-otter-tests && !cancelled() }}
         with:
           check_name: "Node: Chaos Otter Tests Result"
