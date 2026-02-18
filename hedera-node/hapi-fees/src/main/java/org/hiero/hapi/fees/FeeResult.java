@@ -3,6 +3,7 @@ package org.hiero.hapi.fees;
 
 import static com.hedera.node.app.hapi.utils.CommonUtils.clampedAdd;
 import static com.hedera.node.app.hapi.utils.CommonUtils.clampedMultiply;
+import static org.hiero.hapi.fees.HighVolumePricingCalculator.DEFAULT_HIGH_VOLUME_MULTIPLIER;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -20,6 +21,7 @@ public class FeeResult {
     private final List<FeeDetail> nodeExtrasDetails = new ArrayList<>();
     private long nodeTotal = 0;
     private int networkMultiplier = 0;
+    private long highVolumeMultiplier = DEFAULT_HIGH_VOLUME_MULTIPLIER;
 
     public FeeResult() {}
 
@@ -27,6 +29,7 @@ public class FeeResult {
         this.serviceTotal = serviceTotal;
         this.nodeTotal = nodeTotal;
         this.networkMultiplier = networkMultiplier;
+        this.highVolumeMultiplier = DEFAULT_HIGH_VOLUME_MULTIPLIER;
     }
 
     /**
@@ -187,6 +190,22 @@ public class FeeResult {
         return clampedMultiply(this.getNodeTotalTinycents(), this.networkMultiplier);
     }
 
+    public long getHighVolumeMultiplier() {
+        return highVolumeMultiplier;
+    }
+
+    /**
+     * Set the high-volume multiplier metadata applied to this fee result.
+     *
+     * @param highVolumeMultiplier the raw high-volume multiplier
+     */
+    public void setHighVolumeMultiplier(final long highVolumeMultiplier) {
+        if (highVolumeMultiplier <= 0) {
+            throw new IllegalArgumentException("High-volume multiplier must be positive");
+        }
+        this.highVolumeMultiplier = highVolumeMultiplier;
+    }
+
     public void clearFees() {
         this.serviceExtrasDetails.clear();
         this.serviceBase = 0;
@@ -195,6 +214,7 @@ public class FeeResult {
         this.nodeBase = 0;
         this.nodeTotal = 0;
         this.networkMultiplier = 0;
+        this.highVolumeMultiplier = DEFAULT_HIGH_VOLUME_MULTIPLIER;
     }
 
     /**
@@ -267,6 +287,7 @@ public class FeeResult {
                 + getNodeBaseFeeTinycents() + ", nodeDetails="
                 + getNodeExtraDetails() + ", networkMultiplier="
                 + getNetworkMultiplier() + ", networkFee="
-                + getNetworkTotalTinycents() + '}';
+                + getNetworkTotalTinycents() + ", highVolumeMultiplier="
+                + getHighVolumeMultiplier() + '}';
     }
 }

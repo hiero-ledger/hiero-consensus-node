@@ -19,7 +19,7 @@ import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.util.UnknownHederaFunctionality;
 import com.hedera.node.app.fees.SimpleFeeCalculatorImpl;
-import com.hedera.node.app.fees.SimpleFeeContextImpl;
+import com.hedera.node.app.fees.context.SimpleFeeContextImpl;
 import com.hedera.node.app.service.addressbook.impl.calculator.NodeCreateFeeCalculator;
 import com.hedera.node.app.service.addressbook.impl.calculator.NodeDeleteFeeCalculator;
 import com.hedera.node.app.service.addressbook.impl.calculator.NodeUpdateFeeCalculator;
