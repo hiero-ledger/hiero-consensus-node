@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.fees;
 
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SIMPLE_FEES;
 import static com.hedera.services.bdd.spec.HapiSpec.customizedHapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
@@ -22,7 +21,6 @@ import org.junit.jupiter.api.Tag;
  * Tests for simple fee calculations in the Network Admin service
  * (GetVersionInfo, TransactionGetRecord, TransactionGetReceipt).
  */
-@Tag(MATS)
 @Tag(SIMPLE_FEES)
 public class NetworkServiceSimpleFeesTest {
     private static final String ALICE = "alice";
