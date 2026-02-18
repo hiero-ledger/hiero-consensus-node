@@ -14,6 +14,7 @@ antiselfishness:AntiSelfishnessExperiment
 maxcreationrate:MaxCreationRateExperiment
 signature:SignatureSchemeExperiment
 combined:CombinedOptimizationsExperiment
+benchmark:ConsensusLayerBenchmark
 "
 
 # Parse arguments
