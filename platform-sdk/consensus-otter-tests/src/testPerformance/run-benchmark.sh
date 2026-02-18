@@ -175,9 +175,9 @@ for EXPERIMENT in "${EXPERIMENTS_TO_RUN[@]}"; do
                 echo -e "${GREEN}Avg: $AVG_VALUE μs${NC}"
             fi
 
-            # Create results directory
+            # Create results directory (experiment name appended to folder)
             TIMESTAMP=$(date +%Y%m%d-%H%M%S)
-            DEST_DIR="${RESULTS_BASE_DIR}/${EXPERIMENT}/${TIMESTAMP}_${TEST_NAME}_avg-${AVG_VALUE}"
+            DEST_DIR="${RESULTS_BASE_DIR}/${TIMESTAMP}_${TEST_NAME}_${EXPERIMENT}_avg-${AVG_VALUE}"
             mkdir -p "$DEST_DIR"
             STATS_DIR="${DEST_DIR}/stats"
             mkdir -p "$STATS_DIR"
@@ -241,6 +241,6 @@ echo "Results directory: $RESULTS_BASE_DIR"
 echo ""
 echo -e "${BLUE}Summary by experiment:${NC}"
 for EXPERIMENT in "${EXPERIMENTS_TO_RUN[@]}"; do
-    RESULT_COUNT=$(find "$RESULTS_BASE_DIR/$EXPERIMENT" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l || echo 0)
+    RESULT_COUNT=$(find "$RESULTS_BASE_DIR" -mindepth 1 -maxdepth 1 -type d -name "*_${EXPERIMENT}_*" 2>/dev/null | wc -l || echo 0)
     echo "  $EXPERIMENT: $RESULT_COUNT result(s)"
 done

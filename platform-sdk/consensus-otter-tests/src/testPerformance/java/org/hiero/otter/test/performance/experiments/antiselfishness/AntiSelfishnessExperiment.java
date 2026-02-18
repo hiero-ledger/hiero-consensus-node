@@ -20,6 +20,8 @@ import org.junit.jupiter.api.TestMethodOrder;
  */
 @SuppressWarnings("NewClassNamingConvention")
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
+@OtterSpecs(randomNodeIds = false)
+@ContainerSpecs(proxyEnabled = false)
 public class AntiSelfishnessExperiment {
 
     private static final Logger log = LogManager.getLogger(AntiSelfishnessExperiment.class);
@@ -28,8 +30,6 @@ public class AntiSelfishnessExperiment {
      * Test antiSelfishnessFactor=8.
      */
     @OtterTest
-    @OtterSpecs(randomNodeIds = false)
-    @ContainerSpecs(proxyEnabled = false)
     @Order(1)
     void antiSelfishnessFactor8(@NonNull final TestEnvironment env) {
         log.info("=== AntiSelfishness Experiment: antiSelfishnessFactor=8 ===");
@@ -42,8 +42,6 @@ public class AntiSelfishnessExperiment {
      * Test antiSelfishnessFactor=5.
      */
     @OtterTest
-    @OtterSpecs(randomNodeIds = false)
-    @ContainerSpecs(proxyEnabled = false)
     @Order(2)
     void antiSelfishnessFactor5(@NonNull final TestEnvironment env) {
         log.info("=== AntiSelfishness Experiment: antiSelfishnessFactor=5 ===");
