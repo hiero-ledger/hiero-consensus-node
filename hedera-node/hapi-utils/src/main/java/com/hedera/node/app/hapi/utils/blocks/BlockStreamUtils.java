@@ -25,6 +25,7 @@ public final class BlockStreamUtils {
             case UNRECOGNIZED -> throw new IllegalArgumentException("Unrecognized state identifier " + stateId);
             case UNKNOWN -> throw new IllegalArgumentException("Unknown state identifier");
             case STATE_ID_NODES -> "AddressBookService.NODES";
+            case STATE_ID_REGISTERED_NODES -> "AddressBookService.REGISTERED_NODES";
             case STATE_ID_ACCOUNT_NODE_REL -> "AddressBookService.ACCOUNT_NODE_REL";
             case STATE_ID_BLOCKS -> "BlockRecordService.BLOCKS";
             case STATE_ID_RUNNING_HASHES -> "BlockRecordService.RUNNING_HASHES";
@@ -192,6 +193,7 @@ public final class BlockStreamUtils {
             case PROOF_KEY_SET_VALUE -> mapChangeValue.proofKeySetValue();
             case EVM_HOOK_STATE_VALUE -> mapChangeValue.evmHookStateValueOrThrow();
             case NODE_ID_VALUE -> mapChangeValue.nodeIdValueOrThrow();
+            case REGISTERED_NODE_VALUE -> mapChangeValue.registeredNodeValueOrThrow();
             case WRAPS_MESSAGE_HISTORY_VALUE -> mapChangeValue.wrapsMessageHistoryValueOrThrow();
         };
     }

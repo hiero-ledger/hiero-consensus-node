@@ -27,6 +27,7 @@ import "google/protobuf/wrappers.proto";
 import "services/basic_types.proto";
 import "services/exchange_rate.proto";
 import "services/state/addressbook/node.proto";
+import "services/state/addressbook/registered_node.proto";
 import "services/state/blockrecords/block_info.proto";
 import "services/state/blockrecords/running_hashes.proto";
 import "services/state/blockstream/block_stream_info.proto";
@@ -489,9 +490,14 @@ enum StateIdentifier {
     STATE_ID_NODE_PAYMENTS = 55;
 
     /**
+    * A state identifier for registered nodes. Key/value state.
+    */
+    STATE_ID_REGISTERED_NODES = 56;
+
+    /**
      * A state identifier for the highest node identifier allocated so far.
      */
-    STATE_ID_HIGHEST_NODE_ID = 56;
+    STATE_ID_HIGHEST_NODE_ID = 57;
 
     /**
      * A state identifier for the round receipts queue. Queue state.
@@ -1115,6 +1121,11 @@ message MapChangeValue {
          * A WRAPS message history.
          */
         com.hedera.hapi.node.state.history.WrapsMessageHistory wraps_message_history_value = 31;
+
+        /**
+         * A registered node value.
+         */
+        com.hedera.hapi.node.state.addressbook.RegisteredNode registered_node_value = 32;
     }
 }
 
