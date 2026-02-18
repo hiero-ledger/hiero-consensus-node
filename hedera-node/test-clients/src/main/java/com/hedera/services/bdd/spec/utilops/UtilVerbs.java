@@ -133,6 +133,7 @@ import com.hedera.services.bdd.spec.utilops.checks.VerifyGetLiveHashNotSupported
 import com.hedera.services.bdd.spec.utilops.checks.VerifyUserFreezeNotAuthorized;
 import com.hedera.services.bdd.spec.utilops.embedded.MutateAccountOp;
 import com.hedera.services.bdd.spec.utilops.embedded.MutateNodeOp;
+import com.hedera.services.bdd.spec.utilops.embedded.ViewAccountOp;
 import com.hedera.services.bdd.spec.utilops.grouping.GroupedOps;
 import com.hedera.services.bdd.spec.utilops.grouping.InBlockingOrder;
 import com.hedera.services.bdd.spec.utilops.grouping.ParallelSpecOps;
@@ -2156,6 +2157,25 @@ public class UtilVerbs {
                 return validateChargedUsdWithin(txnName, oldPrice, oldAllowedPercentDiff);
             }
         });
+    }
+
+    public static SpecOperation recordCurrentOwnerEvmHookSlotUsage(
+            @NonNull final String accountName, @NonNull final LongConsumer cb) {
+        requireNonNull(accountName);
+        requireNonNull(cb);
+        return new ViewAccountOp(accountName, account -> cb.accept(account.numberEvmHookStorageSlots()));
+    }
+
+    public static SpecOperation assertOwnerHasEvmHookSlotUsageChange(
+            @NonNull final String accountName, @NonNull final AtomicLong origCount, final int delta) {
+        requireNonNull(accountName);
+        requireNonNull(origCount);
+        return sourcing(() -> new ViewAccountOp(
+                accountName,
+                account -> assertEquals(
+                        origCount.get() + delta,
+                        account.numberEvmHookStorageSlots(),
+                        "Wrong # of EVM hook storage slots for '" + accountName + "'")));
     }
 
     @FunctionalInterface

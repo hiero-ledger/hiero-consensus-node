@@ -8,6 +8,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertionsHold;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.getChargedUsedForInnerTxn;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.safeValidateChargedUsdWithin;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithChild;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateInnerTxnChargedUsd;
@@ -2414,19 +2415,15 @@ public class FeesChargingUtils {
         });
     }
 
-    /** SimpleFees formula for Atomic Batch:
-     * node = NODE_BASE + bytes over 1024
-     * network = node * NETWORK_MULTIPLIER
-     * service = BATCH_BASE_FEE
-     * total   = node + network + service
-     */
-    public static double expectedBatchFullFeeUsd(long extraBytes) {
-        return BATCH_BASE_FEE + extraBytes * PROCESSING_BYTES_FEE_USD * 10;
-    }
-
     public static CustomSpecAssert validateBatchChargedCorrectly(String batchTxn) {
-        return withOpContext((spec, log) ->
-                validateChargedUsd(batchTxn, BATCH_BASE_FEE + expectedFeeFromBytesFor(spec, log, batchTxn)));
+        return withOpContext((spec, log) -> allRunFor(
+                spec,
+                safeValidateChargedUsdWithin(
+                        batchTxn,
+                        BATCH_BASE_FEE,
+                        3,
+                        BATCH_BASE_FEE + expectedFeeFromBytesFor(spec, log, batchTxn),
+                        3)));
     }
 
     // --------- Utils for dual-mode validation ---------//

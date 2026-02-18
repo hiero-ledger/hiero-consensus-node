@@ -22,7 +22,6 @@ import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movi
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
@@ -57,7 +56,6 @@ import org.junit.jupiter.api.Tag;
 
 @Tag(ATOMIC_BATCH)
 class AtomicBatchEndToEndCryptoAndTokenServiceTests {
-    private static final double BASE_FEE_BATCH_TRANSACTION = 0.001;
     private static final String FT_FOR_END_TO_END = "ftForEndToEnd";
     private static final String NFT_FOR_END_TO_END = "nftForEndToEnd";
     private static final String OWNER = "owner";
