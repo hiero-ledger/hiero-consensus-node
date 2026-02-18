@@ -20,6 +20,7 @@ import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movi
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewAccount;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewHook;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewSingleton;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertOwnerHasEvmHookSlotUsageChange;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
@@ -72,6 +73,7 @@ import com.hedera.services.bdd.spec.dsl.annotations.Account;
 import com.hedera.services.bdd.spec.dsl.annotations.Contract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecAccount;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
+import com.hedera.services.bdd.spec.utilops.UtilVerbs;
 import com.hedera.services.bdd.spec.utilops.embedded.MutateStatesStoreOp;
 import com.hedera.services.bdd.spec.utilops.embedded.ViewAccountOp;
 import com.hedera.services.bdd.spec.utilops.embedded.ViewKVStateOp;
@@ -82,7 +84,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
-import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
@@ -170,7 +171,7 @@ public class RepeatableEvmHookStoreTests {
     Stream<DynamicTest> mustUseMinimalRepresentationsExceptForMappingPreimage() {
         final AtomicLong origCount = new AtomicLong();
         return hapiTest(
-                recordCurrentOwnerEvmHookSlotUsage(origCount::set),
+                UtilVerbs.recordCurrentOwnerEvmHookSlotUsage(HOOK_OWNER.name(), origCount::set),
                 accountEvmHookStore(HOOK_OWNER.name(), EVM_HOOK_ID)
                         .putSlot(leftPad32(Bytes.EMPTY), Bytes.EMPTY)
                         .hasPrecheck(EVM_HOOK_STORAGE_UPDATE_BYTES_MUST_USE_MINIMAL_REPRESENTATION),
@@ -189,7 +190,7 @@ public class RepeatableEvmHookStoreTests {
                         .putMappingEntryWithPreimage(Bytes.EMPTY, Bytes.EMPTY, leftPad32(Bytes.EMPTY))
                         .hasPrecheck(EVM_HOOK_STORAGE_UPDATE_BYTES_MUST_USE_MINIMAL_REPRESENTATION),
                 accountEvmHookStore(HOOK_OWNER.name(), EVM_HOOK_ID).putMappingEntry(Bytes.EMPTY, PREIMAGE_ZERO_A_ENTRY),
-                assertOwnerHasEvmHookSlotUsageChange(origCount, 1),
+                assertOwnerHasEvmHookSlotUsageChange(HOOK_OWNER.name(), origCount, 1),
                 assertEvmHookHasFirstOrderedSlots(
                         EVM_HOOK_ID, List.of(Pair.of(slotKeyOfMappingEntry(ZERO, PREIMAGE_ZERO_A_ENTRY), A))));
     }
@@ -210,7 +211,7 @@ public class RepeatableEvmHookStoreTests {
     Stream<DynamicTest> newEntriesInsertedAtHead() {
         final AtomicLong origCount = new AtomicLong();
         return hapiTest(
-                recordCurrentOwnerEvmHookSlotUsage(origCount::set),
+                UtilVerbs.recordCurrentOwnerEvmHookSlotUsage(HOOK_OWNER.name(), origCount::set),
                 accountEvmHookStore(HOOK_OWNER.name(), EVM_HOOK_ID)
                         .putSlot(B, C)
                         .putSlot(D, E),
@@ -218,7 +219,7 @@ public class RepeatableEvmHookStoreTests {
                         .signedBy(DEFAULT_PAYER, HOOK_ADMIN.name())
                         .putMappingEntry(A, F_E_ENTRY)
                         .putSlot(F, E),
-                assertOwnerHasEvmHookSlotUsageChange(origCount, 4),
+                assertOwnerHasEvmHookSlotUsageChange(HOOK_OWNER.name(), origCount, 4),
                 assertEvmHookHasFirstOrderedSlots(EVM_HOOK_ID, List.of(Pair.of(D, E), Pair.of(B, C))),
                 assertEvmHookHasFirstOrderedSlots(
                         EVM_HOOK_WITH_ADMIN_ID,
@@ -233,11 +234,11 @@ public class RepeatableEvmHookStoreTests {
                 accountEvmHookStore(HOOK_OWNER.name(), EVM_HOOK_ID)
                         .putSlot(A, F)
                         .putSlot(B, F),
-                recordCurrentOwnerEvmHookSlotUsage(origCount::set),
+                UtilVerbs.recordCurrentOwnerEvmHookSlotUsage(HOOK_OWNER.name(), origCount::set),
                 accountEvmHookStore(HOOK_OWNER.name(), EVM_HOOK_ID)
                         .putSlot(A, E)
                         .putSlot(B, E),
-                assertOwnerHasEvmHookSlotUsageChange(origCount, 0));
+                assertOwnerHasEvmHookSlotUsageChange(HOOK_OWNER.name(), origCount, 0));
     }
 
     @Order(9)
@@ -245,7 +246,7 @@ public class RepeatableEvmHookStoreTests {
     Stream<DynamicTest> clearingAllSlotsLeavesZeroUsage() {
         final AtomicLong origCount = new AtomicLong();
         return hapiTest(
-                recordCurrentOwnerEvmHookSlotUsage(origCount::set),
+                UtilVerbs.recordCurrentOwnerEvmHookSlotUsage(HOOK_OWNER.name(), origCount::set),
                 accountEvmHookStore(HOOK_OWNER.name(), EVM_HOOK_ID)
                         .removeSlot(A)
                         .removeSlot(B)
@@ -479,19 +480,6 @@ public class RepeatableEvmHookStoreTests {
                 key = slotValue.nextKey();
             }
         });
-    }
-
-    private static SpecOperation recordCurrentOwnerEvmHookSlotUsage(LongConsumer cb) {
-        return new ViewAccountOp(HOOK_OWNER.name(), account -> cb.accept(account.numberEvmHookStorageSlots()));
-    }
-
-    private static SpecOperation assertOwnerHasEvmHookSlotUsageChange(AtomicLong origCount, final int delta) {
-        return sourcing(() -> new ViewAccountOp(
-                HOOK_OWNER.name(),
-                account -> assertEquals(
-                        origCount.get() + delta,
-                        account.numberEvmHookStorageSlots(),
-                        "Wrong # of EVM hook storage slots")));
     }
 
     private static SpecOperation assertEvmHookHasSlotUsage(final long hookId, final long numSlots) {
