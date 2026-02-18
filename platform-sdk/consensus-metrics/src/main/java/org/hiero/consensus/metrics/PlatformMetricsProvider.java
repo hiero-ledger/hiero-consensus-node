@@ -3,6 +3,8 @@ package org.hiero.consensus.metrics;
 
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.function.Consumer;
+import org.hiero.consensus.metrics.platform.SnapshotEvent;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
@@ -39,4 +41,10 @@ public interface PlatformMetricsProvider {
      * @param nodeId the {@link NodeId} of the platform
      */
     void removePlatformMetrics(final @NonNull NodeId nodeId) throws InterruptedException;
+
+    /**
+     * Allows adding a custom snapshot processor
+     * @param subscriber the snapshot processor
+     */
+    void subscribeSnapshot(final @NonNull Consumer<? super SnapshotEvent> subscriber);
 }

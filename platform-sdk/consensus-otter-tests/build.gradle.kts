@@ -99,3 +99,39 @@ tasks.compileTestFixturesJava {
     options.compilerArgs.add("-Alog4j.graalvm.groupId=${project.group}")
     options.compilerArgs.add("-Alog4j.graalvm.artifactId=${project.name}")
 }
+
+// Task to start Grafana and import metrics after performance tests
+tasks.register<Exec>("startGrafana") {
+    group = "visualization"
+    description = "Start Grafana with VictoriaMetrics and import benchmark metrics"
+
+    val metricsPath =
+        providers
+            .gradleProperty("metricsPath")
+            .orElse(
+                "build/container/ConsensusLayerBenchmark/benchmark/node-*/data/stats/metrics.txt"
+            )
+
+    workingDir = projectDir
+    commandLine("bash", "-c", "src/testPerformance/start-grafana.sh ${metricsPath.get()}")
+
+    // Mark as not compatible with configuration cache to avoid serialization issues
+    notCompatibleWithConfigurationCache("Uses external shell script with dynamic file paths")
+}
+
+// Task to stop Grafana and VictoriaMetrics containers
+tasks.register<Exec>("stopGrafana") {
+    group = "visualization"
+    description = "Stop Grafana and VictoriaMetrics containers and remove data"
+
+    workingDir = projectDir
+    commandLine("bash", "-c", "src/testPerformance/start-grafana.sh --shutdown")
+}
+
+// Task to run performance tests and immediately visualize results
+tasks.register("benchmarkAndVisualize") {
+    group = "visualization"
+    description = "Run performance benchmark and start Grafana visualization"
+    dependsOn("testPerformance")
+    finalizedBy("startGrafana")
+}
