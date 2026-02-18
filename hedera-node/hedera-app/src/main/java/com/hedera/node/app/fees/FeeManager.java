@@ -24,12 +24,15 @@ import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.TransactionFeeSchedule;
+import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.fees.congestion.CongestionMultipliers;
 import com.hedera.node.app.spi.fees.FeeCalculator;
+import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.QueryFeeCalculator;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculator;
+import com.hedera.node.app.spi.fees.SimpleFeeContext;
 import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -47,7 +50,9 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.hapi.fees.FeeResult;
 import org.hiero.hapi.fees.HighVolumePricingCalculator;
+import org.hiero.hapi.support.fees.Extra;
 import org.hiero.hapi.support.fees.ServiceFeeDefinition;
 
 /**
@@ -59,10 +64,38 @@ import org.hiero.hapi.support.fees.ServiceFeeDefinition;
 @Singleton
 public final class FeeManager {
     private static final Logger logger = LogManager.getLogger(FeeManager.class);
+    private static final String SIMPLE_FEES_UNAVAILABLE =
+            "Simple fees are unavailable because no valid simple fee schedule is initialized";
+    private static final SimpleFeeCalculator UNINITIALIZED_SIMPLE_FEE_CALCULATOR = new SimpleFeeCalculator() {
+        @NonNull
+        @Override
+        public FeeResult calculateTxFee(
+                @NonNull final TransactionBody txnBody, @NonNull final SimpleFeeContext simpleFeeContext) {
+            throw new IllegalStateException(SIMPLE_FEES_UNAVAILABLE);
+        }
+
+        @NonNull
+        @Override
+        public FeeResult calculateQueryFee(
+                @NonNull final Query query, @NonNull final SimpleFeeContext simpleFeeContext) {
+            throw new IllegalStateException(SIMPLE_FEES_UNAVAILABLE);
+        }
+
+        @Override
+        public long getExtraFee(final Extra extra) {
+            throw new IllegalStateException(SIMPLE_FEES_UNAVAILABLE);
+        }
+
+        @Override
+        public long highVolumeRawMultiplier(
+                @NonNull final TransactionBody txnBody, @NonNull final FeeContext feeContext) {
+            throw new IllegalStateException(SIMPLE_FEES_UNAVAILABLE);
+        }
+    };
+
     private org.hiero.hapi.support.fees.FeeSchedule simpleFeesSchedule;
 
-    @Nullable
-    private SimpleFeeCalculator simpleFeeCalculator;
+    private SimpleFeeCalculator simpleFeeCalculator = UNINITIALIZED_SIMPLE_FEE_CALCULATOR;
 
     private final Set<ServiceFeeCalculator> serviceFeeCalculators;
     private final Set<QueryFeeCalculator> queryFeeCalculators;
@@ -369,7 +402,7 @@ public final class FeeManager {
         });
     }
 
-    @Nullable
+    @NonNull
     public SimpleFeeCalculator getSimpleFeeCalculator() {
         return simpleFeeCalculator;
     }
