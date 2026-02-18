@@ -75,7 +75,6 @@ public class IntakeBenchmark {
     @Param({"1","100","1000"})
     public int shuffleBatchSize;
 
-    private PlatformContext platformContext;
     private List<PlatformEvent> events;
     private DefaultEventIntakeModule intake;
     private EventCounter counter;
@@ -106,7 +105,7 @@ public class IntakeBenchmark {
      */
     @Setup(Level.Invocation)
     public void beforeInvocation() {
-        platformContext = TestPlatformContextBuilder.create().build();
+        final PlatformContext platformContext = TestPlatformContextBuilder.create().build();
         final RosterWithKeys rosterWithKeys = RandomRosterBuilder.create(new Random(SEED))
                 .withSize(numNodes)
                 .withRealKeysEnabled(true)
@@ -177,22 +176,22 @@ public class IntakeBenchmark {
     }
 
     /**
-     * Creates a new list that contains all unique events plus duplicate copies of randomly selected events. The
+     * Creates a new list that contains all unique elements plus duplicate copies of randomly selected elements. The
      * number of duplicates is determined by the {@link #duplicateRate}: for example, a rate of 0.5 means that for
-     * every unique event, there is a 50% chance it will be immediately followed by a duplicate. The resulting list
+     * every unique elements, there is a 50% chance it will be immediately followed by a duplicate. The resulting list
      * preserves the original order with duplicates interleaved.
      *
-     * @param uniqueEvents the list of unique events to use as source
-     * @return a new list containing unique events with duplicates interleaved
+     * @param list the list of unique elements to use as source
+     * @return a new list containing unique elements with duplicates interleaved
      */
-    private List<PlatformEvent> injectDuplicates(
-            @NonNull final List<PlatformEvent> uniqueEvents) {
+    private <T> List<T> injectDuplicates(
+            @NonNull final List<T> list) {
         final Random random = new Random(SEED);
         if (duplicateRate <= 0.0) {
-            return uniqueEvents;
+            return list;
         }
-        final List<PlatformEvent> result = new ArrayList<>();
-        for (final PlatformEvent event : uniqueEvents) {
+        final List<T> result = new ArrayList<>();
+        for (final T event : list) {
             result.add(event);
             if (random.nextDouble() < duplicateRate) {
                 result.add(event);
@@ -201,16 +200,16 @@ public class IntakeBenchmark {
         return result;
     }
 
-    private List<PlatformEvent> shuffleBatches(@NonNull final List<PlatformEvent> events) {
+    private <T> List<T> shuffleBatches(@NonNull final List<T> events) {
         if (shuffleBatchSize <= 1) {
             return events;
         }
-        final List<PlatformEvent> result = new ArrayList<>(events.size());
+        final List<T> result = new ArrayList<>(events.size());
         final Random random = new Random(SEED);
         for (int i = 0; i < events.size(); i += shuffleBatchSize) {
             final int end = Math.min(i + shuffleBatchSize, events.size());
             // shuffle the sublist in place
-            final List<PlatformEvent> batch = events.subList(i, end);
+            final List<T> batch = events.subList(i, end);
             Collections.shuffle(batch, random);
             result.addAll(batch);
         }
