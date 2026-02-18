@@ -625,7 +625,7 @@ message StateValue {
     /**
      * A state identifier for the next node Identifier.
      */
-    com.hedera.hapi.platform.state.NodeId EntityIdService_I_NODE_ID = 57;
+    com.hedera.hapi.platform.state.NodeId EntityIdService_I_NODE_ID = 56;
 
     /**
      * Metadata of the round receipts queue.
@@ -814,7 +814,7 @@ enum SingletonType {
   /**
    * A state identifier for the highest node identifier allocated so far.
    */
-  EntityIdService_I_NODE_ID = 57;
+  EntityIdService_I_NODE_ID = 56;
 
   // Queue metadata
 
