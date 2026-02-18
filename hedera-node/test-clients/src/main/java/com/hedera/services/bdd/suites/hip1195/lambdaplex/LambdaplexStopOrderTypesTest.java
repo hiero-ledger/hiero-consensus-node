@@ -3,6 +3,8 @@ package com.hedera.services.bdd.suites.hip1195.lambdaplex;
 
 import static com.hedera.hapi.node.hooks.HookExtensionPoint.ACCOUNT_ALLOWANCE_HOOK;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asLongZeroAddress;
+import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION;
+import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.REPEATABLE;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.changeFromSnapshot;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.tokenChangeFromSnapshot;
@@ -34,9 +36,10 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REJECTED_BY_AC
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.OrderedInIsolation;
+import com.hedera.services.bdd.junit.RepeatableHapiTest;
+import com.hedera.services.bdd.junit.TargetEmbeddedMode;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.dsl.annotations.Account;
@@ -89,6 +92,7 @@ import org.junit.jupiter.api.DynamicTest;
  * Annotated as {@link OrderedInIsolation} because the mock Supra pull oracle is stateful (keeps the next expected
  * {@code PriceInfo} in storage).
  */
+@TargetEmbeddedMode(REPEATABLE)
 @HapiTestLifecycle
 @OrderedInIsolation
 public class LambdaplexStopOrderTypesTest implements InitcodeTransform {
@@ -203,7 +207,7 @@ public class LambdaplexStopOrderTypesTest implements InitcodeTransform {
                                 .between(USDC.treasury().name(), COUNTERPARTY.name())));
     }
 
-    @HapiTest
+    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     final Stream<DynamicTest> hbarHtsStopTriggerAndImmediateFullFillNoFeeInRangeSlippage() {
         final var makerBuySalt = randomB64Salt();
         final var stopSellSalt = randomB64Salt();
@@ -243,7 +247,7 @@ public class LambdaplexStopOrderTypesTest implements InitcodeTransform {
                 lv.assertNoSuchOrder(PARTY, stopSellSalt));
     }
 
-    @HapiTest
+    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     final Stream<DynamicTest> hbarHtsStopTriggerAndImmediateSatisficingPartialFillWithFeeInRangeSlippage() {
         final var makerBuySalt = randomB64Salt();
         final var stopSellSalt = randomB64Salt();
@@ -297,7 +301,7 @@ public class LambdaplexStopOrderTypesTest implements InitcodeTransform {
                                                 inBaseUnits(quantity(0.81), USDC_DECIMALS) * TAKER_BPS / 10_000))));
     }
 
-    @HapiTest
+    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     final Stream<DynamicTest> hbarHtsSingleStopMarketOrderRevertsWhenConfiguredMinFillIsNotMet() {
         final var makerBuySalt = randomB64Salt();
         final var stopSellSalt = randomB64Salt();
@@ -343,7 +347,7 @@ public class LambdaplexStopOrderTypesTest implements InitcodeTransform {
                 assertFirstError("stopMinFillTx", "min fill"));
     }
 
-    @HapiTest
+    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     final Stream<DynamicTest> hbarHtsStopPokeConvertsOrderToMarket() {
         final var stopSellSalt = randomB64Salt();
         final var makerBuySalt = randomB64Salt();
@@ -390,7 +394,7 @@ public class LambdaplexStopOrderTypesTest implements InitcodeTransform {
                 lv.assertNoSuchOrder(PARTY, stopSellSalt));
     }
 
-    @HapiTest
+    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     final Stream<DynamicTest> htsHtsStopTriggerAndImmediateFullFillNoFeeInRangeSlippage() {
         final var makerBuySalt = randomB64Salt();
         final var stopSellSalt = randomB64Salt();
@@ -430,7 +434,7 @@ public class LambdaplexStopOrderTypesTest implements InitcodeTransform {
                 lv.assertNoSuchOrder(PARTY, stopSellSalt));
     }
 
-    @HapiTest
+    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     final Stream<DynamicTest> htsHtsStopTriggerAndImmediateSatisficingPartialFillWithFeeInRangeSlippage() {
         final var makerBuySalt = randomB64Salt();
         final var stopSellSalt = randomB64Salt();
@@ -491,7 +495,7 @@ public class LambdaplexStopOrderTypesTest implements InitcodeTransform {
                                                 inBaseUnits(quantity(3.60), USDC_DECIMALS) * TAKER_BPS / 10_000))));
     }
 
-    @HapiTest
+    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     final Stream<DynamicTest> htsHtsStopPokeConvertsOrderToMarket() {
         final var stopSellSalt = randomB64Salt();
         final var makerBuySalt = randomB64Salt();
@@ -538,7 +542,7 @@ public class LambdaplexStopOrderTypesTest implements InitcodeTransform {
                 lv.assertNoSuchOrder(PARTY, stopSellSalt));
     }
 
-    @HapiTest
+    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     final Stream<DynamicTest> hbarHtsStopLimitTriggerAndImmediateFullFillNoFee() {
         final var makerBuySalt = randomB64Salt();
         final var stopSellSalt = randomB64Salt();
@@ -577,7 +581,7 @@ public class LambdaplexStopOrderTypesTest implements InitcodeTransform {
                 lv.assertNoSuchOrder(PARTY, stopSellSalt));
     }
 
-    @HapiTest
+    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     final Stream<DynamicTest> hbarHtsStopLimitTriggerAndImmediatePartialFillNoFeeConvertedWriteback() {
         final var makerBuySalt = randomB64Salt();
         final var makerBuyRemainderSalt = randomB64Salt();
@@ -641,7 +645,7 @@ public class LambdaplexStopOrderTypesTest implements InitcodeTransform {
                 lv.assertNoSuchOrder(PARTY, stopSellSalt));
     }
 
-    @HapiTest
+    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     final Stream<DynamicTest> hbarHtsStopLimitTriggerAndImmediatePartialFillWithFeeConvertedWriteback() {
         final var makerBuySalt = randomB64Salt();
         final var stopSellSalt = randomB64Salt();
@@ -701,7 +705,7 @@ public class LambdaplexStopOrderTypesTest implements InitcodeTransform {
                                                 inBaseUnits(quantity(0.81), USDC_DECIMALS) * TAKER_BPS / 10_000))));
     }
 
-    @HapiTest
+    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     final Stream<DynamicTest> hbarHtsStopLimitPokeConvertsOrderToLimitFullQuantity() {
         final var stopSellSalt = randomB64Salt();
         final var makerBuySalt = randomB64Salt();
@@ -747,7 +751,7 @@ public class LambdaplexStopOrderTypesTest implements InitcodeTransform {
                 lv.assertNoSuchOrder(PARTY, stopSellSalt));
     }
 
-    @HapiTest
+    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     final Stream<DynamicTest> htsHtsStopLimitTriggerAndImmediateFullFillNoFee() {
         final var makerBuySalt = randomB64Salt();
         final var stopSellSalt = randomB64Salt();
@@ -786,7 +790,7 @@ public class LambdaplexStopOrderTypesTest implements InitcodeTransform {
                 lv.assertNoSuchOrder(PARTY, stopSellSalt));
     }
 
-    @HapiTest
+    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     final Stream<DynamicTest> htsHtsStopLimitTriggerAndImmediatePartialFillNoFeeConvertedRemainder() {
         final var makerBuySalt = randomB64Salt();
         final var makerBuyRemainderSalt = randomB64Salt();
@@ -850,7 +854,7 @@ public class LambdaplexStopOrderTypesTest implements InitcodeTransform {
                 lv.assertNoSuchOrder(PARTY, stopSellSalt));
     }
 
-    @HapiTest
+    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     final Stream<DynamicTest> htsHtsStopLimitTriggerAndImmediatePartialFillWithFeeConvertedRemainder() {
         final var makerBuySalt = randomB64Salt();
         final var stopSellSalt = randomB64Salt();
@@ -917,7 +921,7 @@ public class LambdaplexStopOrderTypesTest implements InitcodeTransform {
                                                 inBaseUnits(quantity(3.60), USDC_DECIMALS) * TAKER_BPS / 10_000))));
     }
 
-    @HapiTest
+    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     final Stream<DynamicTest> htsHtsStopLimitPokeConvertsOrderToLimitFullQuantity() {
         final var stopSellSalt = randomB64Salt();
         final var makerBuySalt = randomB64Salt();
@@ -963,7 +967,7 @@ public class LambdaplexStopOrderTypesTest implements InitcodeTransform {
                 lv.assertNoSuchOrder(PARTY, stopSellSalt));
     }
 
-    @HapiTest
+    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     final Stream<DynamicTest> multipleHtsHtsStopLimitGtTriggersToFullPlusPartialNoFees() {
         final var makerBuySalt = randomB64Salt();
         final var stopSellSaltA = randomB64Salt();
@@ -1046,7 +1050,7 @@ public class LambdaplexStopOrderTypesTest implements InitcodeTransform {
                                         + bd)));
     }
 
-    @HapiTest
+    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     final Stream<DynamicTest> multipleHtsHtsStopLimitLtTriggersToFullPlusPartialWithFees() {
         final var makerBuySalt = randomB64Salt();
         final var stopSellSaltA = randomB64Salt();
@@ -1141,7 +1145,7 @@ public class LambdaplexStopOrderTypesTest implements InitcodeTransform {
                                                 inBaseUnits(quantity(5.40), USDC_DECIMALS) * TAKER_BPS / 10_000))));
     }
 
-    @HapiTest
+    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     final Stream<DynamicTest> multipleHbarHtsStopLimitGtTriggersToFullPlusPartialNoFees() {
         final var makerBuySalt = randomB64Salt();
         final var stopSellSaltA = randomB64Salt();
@@ -1223,7 +1227,7 @@ public class LambdaplexStopOrderTypesTest implements InitcodeTransform {
                                 "Wrong STOP_LIMIT remainder after multi-leg conversion: expected 1 HBAR, got " + bd)));
     }
 
-    @HapiTest
+    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     final Stream<DynamicTest> multipleHbarHtsStopLimitLtTriggersToFullPlusPartialWithFees() {
         final var makerBuySalt = randomB64Salt();
         final var stopSellSaltA = randomB64Salt();
@@ -1316,7 +1320,7 @@ public class LambdaplexStopOrderTypesTest implements InitcodeTransform {
                                                 inBaseUnits(quantity(0.27), USDC_DECIMALS) * TAKER_BPS / 10_000))));
     }
 
-    @HapiTest
+    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     final Stream<DynamicTest> multipleHbarHtsStopMarketLtTriggersToFullPlusSatisficingPartialNoFeesAllDeleted() {
         final var makerBuySalt = randomB64Salt();
         final var stopSellSaltA = randomB64Salt();
@@ -1394,7 +1398,7 @@ public class LambdaplexStopOrderTypesTest implements InitcodeTransform {
                 lv.assertNoSuchOrder(PARTY, stopSellSaltC));
     }
 
-    @HapiTest
+    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     final Stream<DynamicTest> multipleHtsHtsStopMarketGtTriggersToFullPlusSatisficingPartialNoFeesAllDeleted() {
         final var makerBuySalt = randomB64Salt();
         final var stopSellSaltA = randomB64Salt();
@@ -1472,7 +1476,7 @@ public class LambdaplexStopOrderTypesTest implements InitcodeTransform {
                 lv.assertNoSuchOrder(PARTY, stopSellSaltC));
     }
 
-    @HapiTest
+    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     final Stream<DynamicTest> failsIfOracleRegistryDoesNotSupportPair() {
         final var stopSellSalt = randomB64Salt();
         return hapiTest(
@@ -1496,7 +1500,7 @@ public class LambdaplexStopOrderTypesTest implements InitcodeTransform {
                 assertFirstError("unsupportedPairTx", "oracle: wrong pair"));
     }
 
-    @HapiTest
+    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     final Stream<DynamicTest> failsOnMissingOracleProofLength() {
         final var makerBuySalt = randomB64Salt();
         final var stopSellSalt = randomB64Salt();
@@ -1542,7 +1546,7 @@ public class LambdaplexStopOrderTypesTest implements InitcodeTransform {
                                 0, notional(1).compareTo(bd), "Order should remain open after malformed proof")));
     }
 
-    @HapiTest
+    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     final Stream<DynamicTest> failsOnExcessiveOracleProofLength() {
         final var makerBuySalt = randomB64Salt();
         final var stopSellSalt = randomB64Salt();
@@ -1588,7 +1592,7 @@ public class LambdaplexStopOrderTypesTest implements InitcodeTransform {
                                 0, notional(1).compareTo(bd), "Order should remain open after malformed proof")));
     }
 
-    @HapiTest
+    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     final Stream<DynamicTest> failsOnTruncatedOracleProof() {
         final var makerBuySalt = randomB64Salt();
         final var stopSellSalt = randomB64Salt();
@@ -1634,7 +1638,7 @@ public class LambdaplexStopOrderTypesTest implements InitcodeTransform {
                                 0, notional(1).compareTo(bd), "Order should remain open after malformed proof")));
     }
 
-    @HapiTest
+    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     final Stream<DynamicTest> failsOnStaleOracleTimestamp() {
         final var stopSellSalt = randomB64Salt();
         return hapiTest(
@@ -1658,7 +1662,7 @@ public class LambdaplexStopOrderTypesTest implements InitcodeTransform {
                 assertFirstError("staleOracleTx", "oracle: stale"));
     }
 
-    @HapiTest
+    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     final Stream<DynamicTest> failsToTriggerLtStopIfOrderPriceAboveOracle() {
         final var stopSellSalt = randomB64Salt();
         return hapiTest(
@@ -1682,7 +1686,7 @@ public class LambdaplexStopOrderTypesTest implements InitcodeTransform {
                 assertFirstError("ltNotTriggeredTx", "op > tr"));
     }
 
-    @HapiTest
+    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     final Stream<DynamicTest> failsToTriggerGtStopIfOrderPriceBelowOracle() {
         final var stopSellSalt = randomB64Salt();
         return hapiTest(

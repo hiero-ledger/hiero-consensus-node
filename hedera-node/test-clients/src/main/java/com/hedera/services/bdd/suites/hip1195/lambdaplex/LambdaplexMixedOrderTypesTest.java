@@ -3,6 +3,8 @@ package com.hedera.services.bdd.suites.hip1195.lambdaplex;
 
 import static com.hedera.hapi.node.hooks.HookExtensionPoint.ACCOUNT_ALLOWANCE_HOOK;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asLongZeroAddress;
+import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION;
+import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.REPEATABLE;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.SomeFungibleTransfers.changingFungibleBalances;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
@@ -41,9 +43,10 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REJECTED_BY_AC
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.OrderedInIsolation;
+import com.hedera.services.bdd.junit.RepeatableHapiTest;
+import com.hedera.services.bdd.junit.TargetEmbeddedMode;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.dsl.annotations.Account;
@@ -102,6 +105,7 @@ import org.junit.jupiter.api.DynamicTest;
  * Annotated as {@link OrderedInIsolation} because the mock Supra pull oracle is stateful (keeps the next expected
  * {@code PriceInfo} in storage).
  */
+@TargetEmbeddedMode(REPEATABLE)
 @HapiTestLifecycle
 @OrderedInIsolation
 public class LambdaplexMixedOrderTypesTest implements InitcodeTransform {
@@ -213,7 +217,7 @@ public class LambdaplexMixedOrderTypesTest implements InitcodeTransform {
                                 .between(USDC.treasury().name(), COUNTERPARTY.name())));
     }
 
-    @HapiTest
+    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     final Stream<DynamicTest> batchOrderHbarHtsMixedLimitAndMarketFullFillNoFees() {
         final var makerLimitSalt = randomB64Salt();
         final var makerMarketSalt = randomB64Salt();
@@ -264,7 +268,7 @@ public class LambdaplexMixedOrderTypesTest implements InitcodeTransform {
                 lv.assertNoSuchOrder(PARTY.name(), partyBuySalt));
     }
 
-    @HapiTest
+    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     final Stream<DynamicTest> batchOrderHbarHtsMixedLimitAndMarketOrderingMatters() {
         final var makerLimitSalt = randomB64Salt();
         final var makerMarketSalt = randomB64Salt();
@@ -330,7 +334,7 @@ public class LambdaplexMixedOrderTypesTest implements InitcodeTransform {
                                 "Wrong SELL out token amount after mixed batch fill: expected one HBAR, got " + bd)));
     }
 
-    @HapiTest
+    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     final Stream<DynamicTest> batchOrderHbarHtsMixedRevertsWhenProposedDebitExceedsTotalAuthorized() {
         final var makerLimitSalt = randomB64Salt();
         final var makerMarketSalt = randomB64Salt();
@@ -385,7 +389,7 @@ public class LambdaplexMixedOrderTypesTest implements InitcodeTransform {
                 assertFirstError("mixedExcessDebitTx", "debit too high"));
     }
 
-    @HapiTest
+    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     final Stream<DynamicTest> batchOrderHbarHtsMixedRevertsWhenProposedCreditLessThanTotalAuthorized() {
         final var makerLimitSalt = randomB64Salt();
         final var makerMarketSalt = randomB64Salt();
@@ -440,7 +444,7 @@ public class LambdaplexMixedOrderTypesTest implements InitcodeTransform {
                 assertFirstError("mixedUnderCreditTx", "credit too low"));
     }
 
-    @HapiTest
+    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     final Stream<DynamicTest> batchOrderHbarHtsMixedRevertsWhenFeeExceedsPermittedBps() {
         final var makerSellSalt = randomB64Salt();
         final var partyLimitBuySalt = randomB64Salt();
@@ -497,7 +501,7 @@ public class LambdaplexMixedOrderTypesTest implements InitcodeTransform {
                 assertSecondError("mixedFeeTooHighTx", "credit too low"));
     }
 
-    @HapiTest
+    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     final Stream<DynamicTest> batchOrderHtsHtsMixedStopMarketRevertsWhenConfiguredMinFillNotMet() {
         final var makerBuySalt = randomB64Salt();
         final var stopSellSalt = randomB64Salt();
@@ -553,7 +557,7 @@ public class LambdaplexMixedOrderTypesTest implements InitcodeTransform {
                 assertFirstError("mixedStopMinFillTx", "min fill"));
     }
 
-    @HapiTest
+    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     final Stream<DynamicTest> batchOrderHbarHtsThreePartyMixedLimitAndMarketWithFees() {
         final var makerLimitSalt = randomB64Salt();
         final var makerMarketSalt = randomB64Salt();
@@ -630,7 +634,7 @@ public class LambdaplexMixedOrderTypesTest implements InitcodeTransform {
                                                 inBaseUnits(quantity(3.0), USDC_DECIMALS) * MAKER_BPS / 10_000))));
     }
 
-    @HapiTest
+    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     final Stream<DynamicTest> batchOrderHtsHtsThreePartyMixedLimitAndMarketWithFees() {
         final var makerLimitSalt = randomB64Salt();
         final var makerMarketSalt = randomB64Salt();
@@ -712,7 +716,7 @@ public class LambdaplexMixedOrderTypesTest implements InitcodeTransform {
                                                 inBaseUnits(quantity(10.0), BANANAS_DECIMALS) * MAKER_BPS / 10_000))));
     }
 
-    @HapiTest
+    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     final Stream<DynamicTest> batchOrderHbarHtsThreePartyMixedBuyerBatchPartialFillNoFees() {
         final var makerLimitBuySalt = randomB64Salt();
         final var makerMarketBuySalt = randomB64Salt();
@@ -784,7 +788,7 @@ public class LambdaplexMixedOrderTypesTest implements InitcodeTransform {
                                 "Wrong BUY out token amount after mixed batch fill: expected $1.00, got " + bd)));
     }
 
-    @HapiTest
+    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     final Stream<DynamicTest> customFeesNotAllowed() {
         final var sellSalt = randomB64Salt();
         final var buySalt = randomB64Salt();
@@ -861,7 +865,7 @@ public class LambdaplexMixedOrderTypesTest implements InitcodeTransform {
                 tokenFeeScheduleUpdate(USDC.name()));
     }
 
-    @HapiTest
+    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     final Stream<DynamicTest> nftTransfersNotAllowed(
             @NonFungibleToken(
                             keys = {SUPPLY_KEY},
