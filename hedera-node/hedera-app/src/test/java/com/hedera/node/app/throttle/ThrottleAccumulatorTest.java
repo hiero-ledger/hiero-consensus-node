@@ -7,6 +7,7 @@ import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_GET_ACCOUNT_BALANCE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_TRANSFER;
+import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_UPDATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.ETHEREUM_TRANSACTION;
 import static com.hedera.hapi.node.base.HederaFunctionality.GET_VERSION_INFO;
 import static com.hedera.hapi.node.base.HederaFunctionality.HOOK_DISPATCH;
@@ -2043,18 +2044,11 @@ class ThrottleAccumulatorTest {
         // when
         subject.rebuildFor(defs);
 
-        // then
-        // Normal throttles should exist for CRYPTO_CREATE
         assertFalse(subject.activeThrottles().isEmpty(), "Normal throttles should be populated");
-        // High-volume throttles should exist for CRYPTO_CREATE
         assertFalse(subject.highVolumeActiveThrottles().isEmpty(), "High-volume throttles should be populated");
-        // Should have high-volume throttle for CRYPTO_CREATE
         assertTrue(
                 subject.hasHighVolumeThrottleFor(CRYPTO_CREATE), "Should have high-volume throttle for CRYPTO_CREATE");
-        // Should NOT have high-volume throttle for CRYPTO_TRANSFER (not in high-volume bucket)
-        assertFalse(
-                subject.hasHighVolumeThrottleFor(CRYPTO_TRANSFER),
-                "Should NOT have high-volume throttle for CRYPTO_TRANSFER");
+        assertFalse(subject.hasHighVolumeThrottleFor(CRYPTO_UPDATE), "Should NOT have high-volume throttle for CRYPTO_UPDATE");
     }
 
     @ParameterizedTest
@@ -2200,7 +2194,7 @@ class ThrottleAccumulatorTest {
         given(entitiesConfig.unlimitedAutoAssociationsEnabled()).willReturn(false);
         given(state.getReadableStates(any())).willReturn(readableStates);
 
-        final var defs = getThrottleDefs("bootstrap/high-volume-throttles.json");
+        final var defs = getThrottleDefs("bootstrap/throttles.json");
         subject.rebuildFor(defs);
 
         // Create a high-volume CryptoTransfer transaction (no high-volume bucket exists for this)
@@ -2239,8 +2233,8 @@ class ThrottleAccumulatorTest {
 
     @ParameterizedTest
     @EnumSource(value = ThrottleAccumulator.ThrottleType.class, mode = EnumSource.Mode.EXCLUDE, names = "NOOP_THROTTLE")
-    void highVolumeCryptoTransferWithoutImplicitCreationUsesNormalBucket(
-            ThrottleAccumulator.ThrottleType throttleType) throws IOException, ParseException {
+    void highVolumeCryptoTransferWithoutImplicitCreationUsesNormalBucket(ThrottleAccumulator.ThrottleType throttleType)
+            throws IOException, ParseException {
         // given
         subject = new ThrottleAccumulator(
                 () -> CAPACITY_SPLIT,
@@ -2261,7 +2255,7 @@ class ThrottleAccumulatorTest {
         given(entitiesConfig.unlimitedAutoAssociationsEnabled()).willReturn(false);
         given(state.getReadableStates(any())).willReturn(readableStates);
 
-        final var defs = getThrottleDefs("bootstrap/high-volume-transfer-throttles.json");
+        final var defs = getThrottleDefs("bootstrap/high-volume-throttles.json");
         subject.rebuildFor(defs);
 
         // Create a high-volume CryptoTransfer transaction with no aliases / no implicit creations

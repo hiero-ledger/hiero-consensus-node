@@ -181,13 +181,12 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
      * @param result the fee result to modify
      */
     private void applyHighVolumeMultiplier(
-            @NonNull final SimpleFeeContext feeContext,
-            @NonNull final FeeResult result) {
+            @NonNull final SimpleFeeContext feeContext, @NonNull final FeeResult result) {
         // For standalone fee calculator simpleFeeContext.feeContext() is null
         if (feeContext.feeContext() == null) {
             return;
         }
-       final var rawMultiplier = highVolumeRawMultiplier(feeContext.body(), requireNonNull(feeContext.feeContext()));
+        final var rawMultiplier = highVolumeRawMultiplier(feeContext.body(), requireNonNull(feeContext.feeContext()));
         result.applyMultiplier(rawMultiplier, HIGH_VOLUME_MULTIPLIER_SCALE);
     }
 

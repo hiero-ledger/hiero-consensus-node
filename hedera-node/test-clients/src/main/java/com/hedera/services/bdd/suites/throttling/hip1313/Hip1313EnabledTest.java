@@ -60,6 +60,7 @@ import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItemsValidator;
 import com.hederahashgraph.api.proto.java.TransactionRecord;
 import edu.umd.cs.findbugs.annotations.NonNull;
+
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
@@ -67,6 +68,7 @@ import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
+
 import org.hiero.hapi.support.fees.FeeSchedule;
 import org.hiero.hapi.support.fees.PiecewiseLinearCurve;
 import org.hiero.hapi.support.fees.PiecewiseLinearPoint;
@@ -194,10 +196,10 @@ public class Hip1313EnabledTest {
                 getAutoCreatedAccountBalance("alias").hasTokenBalance("token", 10),
                 getTxnRecord("autoCreation")
                         .andAllChildRecords()
-                        .exposingAllTo(records -> assertRecordHasHighVolumeMultiplier(records, "autoCreation", 1000L))
+                        .exposingAllTo(records -> assertRecordHasHighVolumeMultiplier(records, "autoCreation", 4000L))
                         .logged(),
-                validateChargedUsdWithChild("autoCreation", (0.05 * 4) + (0.001 * 4) +(0.1 * 4), 0.01)
-                );
+                validateChargedUsdWithChild("autoCreation", (0.05 * 4) + (0.001 * 4) + (0.1 * 4), 0.01)
+        );
     }
 
     @HapiTest
@@ -340,9 +342,9 @@ public class Hip1313EnabledTest {
                         final var fee = entry.txnRecord().getTransactionFee();
                         final var observedMultiplier = observedMultiplier(spec, fee, CRYPTO_CREATE_BASE_FEE);
                         final var expectedMultiplier = getInterpolatedMultiplier(
-                                        CRYPTO_TOPIC_CREATE_MULTIPLIER_MAP, utilizationBasisPointsBefore)
+                                CRYPTO_TOPIC_CREATE_MULTIPLIER_MAP, utilizationBasisPointsBefore)
                                 / 1000.0;
-                        assertMultiplierAtLeastFour(observedMultiplier, "crypto create");
+                        assertMultiplierAtLeast(observedMultiplier, "crypto create");
                         assertMultiplierMatchesExpectation(
                                 expectedMultiplier, observedMultiplier, utilizationBasisPointsBefore, "crypto create");
                     }
@@ -380,9 +382,9 @@ public class Hip1313EnabledTest {
                             assertHighVolumeMultiplierSet(entry, "topic create");
                             final var observedMultiplier = observedMultiplier(spec, fee, TOPIC_CREATE_BASE_FEE);
                             final var expectedMultiplier = getInterpolatedMultiplier(
-                                            CRYPTO_TOPIC_CREATE_MULTIPLIER_MAP, utilizationBasisPointsBefore)
+                                    CRYPTO_TOPIC_CREATE_MULTIPLIER_MAP, utilizationBasisPointsBefore)
                                     / 1000.0;
-                            assertMultiplierAtLeastFour(observedMultiplier, "topic create");
+                            assertMultiplierAtLeast(observedMultiplier, "topic create");
                             assertMultiplierMatchesExpectation(
                                     expectedMultiplier,
                                     observedMultiplier,
@@ -395,7 +397,7 @@ public class Hip1313EnabledTest {
                             assertHighVolumeMultiplierSet(entry, "schedule create");
                             final var observedMultiplier = observedMultiplier(spec, fee, SCHEDULE_CREATE_BASE_FEE);
                             final var expectedMultiplier = getInterpolatedMultiplier(
-                                            SCHEDULE_CREATE_MULTIPLIER_MAP, utilizationBasisPointsBefore)
+                                    SCHEDULE_CREATE_MULTIPLIER_MAP, utilizationBasisPointsBefore)
                                     / 1000.0;
                             assertMultiplierMatchesExpectation(
                                     expectedMultiplier,
@@ -576,9 +578,9 @@ public class Hip1313EnabledTest {
         return spec.ratesProvider().toUsdWithActiveRates(feeInTinybars) / baseFeeUsd;
     }
 
-    private static void assertMultiplierAtLeastFour(final double observedMultiplier, @NonNull final String operation) {
+    private static void assertMultiplierAtLeast(final double observedMultiplier, @NonNull final String operation) {
         assertTrue(
-                observedMultiplier >= 4000,
+                observedMultiplier >= 4,
                 "Observed " + operation + " multiplier should be >= 4, but was " + observedMultiplier);
     }
 
