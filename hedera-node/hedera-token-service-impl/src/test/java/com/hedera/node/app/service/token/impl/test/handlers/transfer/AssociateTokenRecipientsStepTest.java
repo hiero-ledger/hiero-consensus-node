@@ -192,7 +192,10 @@ public class AssociateTokenRecipientsStepTest extends StepsBase {
                 .build();
         given(handleContext.configuration()).willReturn(configuration);
         given(handleContext.expiryValidator()).willReturn(expiryValidator);
-        given(handleContext.body()).willReturn(TransactionBody.newBuilder().cryptoTransfer(txnNFTWithApproval).build());
+        given(handleContext.body())
+                .willReturn(TransactionBody.newBuilder()
+                        .cryptoTransfer(txnNFTWithApproval)
+                        .build());
         given(handleContext.dispatchComputeFees(any(), any(), any())).willReturn(new Fees(1L, 2L, 3L));
         lenient()
                 .when(expiryValidator.expirationStatus(any(), anyBoolean(), anyLong()))

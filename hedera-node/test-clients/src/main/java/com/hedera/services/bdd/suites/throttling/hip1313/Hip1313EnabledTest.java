@@ -60,7 +60,6 @@ import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItemsValidator;
 import com.hederahashgraph.api.proto.java.TransactionRecord;
 import edu.umd.cs.findbugs.annotations.NonNull;
-
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
@@ -68,7 +67,6 @@ import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
-
 import org.hiero.hapi.support.fees.FeeSchedule;
 import org.hiero.hapi.support.fees.PiecewiseLinearCurve;
 import org.hiero.hapi.support.fees.PiecewiseLinearPoint;
@@ -165,17 +163,14 @@ public class Hip1313EnabledTest {
     final Stream<DynamicTest> cryptoTransferAutoCreationWithoutHighVolumeUsesDefaultPricing() {
         return hapiTest(
                 newKeyNamed("alias"),
-                cryptoCreate("nonHvCreate")
-                        .payingWith(CIVILIAN_PAYER)
-                        .via("createAccount"),
+                cryptoCreate("nonHvCreate").payingWith(CIVILIAN_PAYER).via("createAccount"),
                 cryptoTransfer(TokenMovement.movingHbar(ONE_HBAR).between(CIVILIAN_PAYER, "alias"))
                         .payingWith(CIVILIAN_PAYER)
                         .via("autoCreationNoHv"),
                 getTxnRecord("autoCreationNoHv")
                         .andAllChildRecords()
-                        .exposingAllTo(
-                                records ->
-                                        assertNoRecordHasHighVolumeMultiplier(records, "autoCreationWithoutHighVolume"))
+                        .exposingAllTo(records ->
+                                assertNoRecordHasHighVolumeMultiplier(records, "autoCreationWithoutHighVolume"))
                         .logged());
     }
 
@@ -198,8 +193,7 @@ public class Hip1313EnabledTest {
                         .andAllChildRecords()
                         .exposingAllTo(records -> assertRecordHasHighVolumeMultiplier(records, "autoCreation", 4000L))
                         .logged(),
-                validateChargedUsdWithChild("autoCreation", (0.05 * 4) + (0.001 * 4) + (0.1 * 4), 0.01)
-        );
+                validateChargedUsdWithChild("autoCreation", (0.05 * 4) + (0.001 * 4) + (0.1 * 4), 0.01));
     }
 
     @HapiTest
@@ -244,7 +238,8 @@ public class Hip1313EnabledTest {
                 getAutoCreatedAccountBalance(hollowReceiver).hasTokenBalance("token", 10),
                 getTxnRecord("claimAirdrop")
                         .andAllChildRecords()
-                        .exposingAllTo(records -> assertRecordHasHighVolumeMultiplierGreaterThan(records, "claimAirdrop", 1000L))
+                        .exposingAllTo(records ->
+                                assertRecordHasHighVolumeMultiplierGreaterThan(records, "claimAirdrop", 1000L))
                         .logged(),
                 validateChargedUsdWithChild("claimAirdrop", 0.001 * 4, 0.01));
     }
@@ -270,8 +265,8 @@ public class Hip1313EnabledTest {
                 getAutoCreatedAccountBalance(hollowReceiver).hasTokenBalance("tokenNoHv", 10),
                 getTxnRecord("claimAirdropNoHv")
                         .andAllChildRecords()
-                        .exposingAllTo(
-                                records -> assertNoRecordHasHighVolumeMultiplier(records, "claimAirdropWithoutHighVolume"))
+                        .exposingAllTo(records ->
+                                assertNoRecordHasHighVolumeMultiplier(records, "claimAirdropWithoutHighVolume"))
                         .logged());
     }
 
@@ -342,7 +337,7 @@ public class Hip1313EnabledTest {
                         final var fee = entry.txnRecord().getTransactionFee();
                         final var observedMultiplier = observedMultiplier(spec, fee, CRYPTO_CREATE_BASE_FEE);
                         final var expectedMultiplier = getInterpolatedMultiplier(
-                                CRYPTO_TOPIC_CREATE_MULTIPLIER_MAP, utilizationBasisPointsBefore)
+                                        CRYPTO_TOPIC_CREATE_MULTIPLIER_MAP, utilizationBasisPointsBefore)
                                 / 1000.0;
                         assertMultiplierAtLeast(observedMultiplier, "crypto create");
                         assertMultiplierMatchesExpectation(
@@ -382,7 +377,7 @@ public class Hip1313EnabledTest {
                             assertHighVolumeMultiplierSet(entry, "topic create");
                             final var observedMultiplier = observedMultiplier(spec, fee, TOPIC_CREATE_BASE_FEE);
                             final var expectedMultiplier = getInterpolatedMultiplier(
-                                    CRYPTO_TOPIC_CREATE_MULTIPLIER_MAP, utilizationBasisPointsBefore)
+                                            CRYPTO_TOPIC_CREATE_MULTIPLIER_MAP, utilizationBasisPointsBefore)
                                     / 1000.0;
                             assertMultiplierAtLeast(observedMultiplier, "topic create");
                             assertMultiplierMatchesExpectation(
@@ -397,7 +392,7 @@ public class Hip1313EnabledTest {
                             assertHighVolumeMultiplierSet(entry, "schedule create");
                             final var observedMultiplier = observedMultiplier(spec, fee, SCHEDULE_CREATE_BASE_FEE);
                             final var expectedMultiplier = getInterpolatedMultiplier(
-                                    SCHEDULE_CREATE_MULTIPLIER_MAP, utilizationBasisPointsBefore)
+                                            SCHEDULE_CREATE_MULTIPLIER_MAP, utilizationBasisPointsBefore)
                                     / 1000.0;
                             assertMultiplierMatchesExpectation(
                                     expectedMultiplier,
@@ -503,8 +498,8 @@ public class Hip1313EnabledTest {
                         .via("defaultMultiplierCreateTxn"),
                 getTxnRecord("defaultMultiplierCreateTxn")
                         .andAllChildRecords()
-                        .exposingAllTo(records -> assertRecordHasHighVolumeMultiplier(
-                                records, "defaultMultiplierCreateTxn", 1000L))
+                        .exposingAllTo(records ->
+                                assertRecordHasHighVolumeMultiplier(records, "defaultMultiplierCreateTxn", 1000L))
                         .logged(),
                 withOpContext((spec, opLog) -> {
                     final var snapshot = originalSimpleFeeSchedule.get();
@@ -682,7 +677,8 @@ public class Hip1313EnabledTest {
             highVolumeRates.put("maxMultiplier", 1000);
             highVolumeRates.remove("pricingCurve");
             final var pbjSimpleFees = FeeSchedule.JSON.parse(Bytes.wrap(MAPPER.writeValueAsBytes(root)));
-            return ByteString.copyFrom(FeeSchedule.PROTOBUF.toBytes(pbjSimpleFees).toByteArray());
+            return ByteString.copyFrom(
+                    FeeSchedule.PROTOBUF.toBytes(pbjSimpleFees).toByteArray());
         } catch (final Exception e) {
             throw new IllegalStateException("Unable to build simple fee schedule with 1x CryptoCreate multiplier", e);
         }

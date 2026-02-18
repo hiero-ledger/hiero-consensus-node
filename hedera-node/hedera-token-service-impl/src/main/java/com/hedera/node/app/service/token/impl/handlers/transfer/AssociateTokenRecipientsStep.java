@@ -197,7 +197,11 @@ public class AssociateTokenRecipientsStep extends BaseTokenHandler implements Tr
                         config.getConfigData(EntitiesConfig.class).unlimitedAutoAssociationsEnabled();
                 // And the "sender pays" fee model only applies when using unlimited auto-associations
                 if (unlimitedAssociationsEnabled) {
-                    final var autoAssociationFee = associationFeeFor(context, context.body().highVolume() ? PLACEHOLDER_SYNTHETIC_ASSOCIATION_HV : PLACEHOLDER_SYNTHETIC_ASSOCIATION);
+                    final var autoAssociationFee = associationFeeFor(
+                            context,
+                            context.body().highVolume()
+                                    ? PLACEHOLDER_SYNTHETIC_ASSOCIATION_HV
+                                    : PLACEHOLDER_SYNTHETIC_ASSOCIATION);
                     if (!context.tryToChargePayer(autoAssociationFee)) {
                         throw new HandleException(INSUFFICIENT_PAYER_BALANCE);
                     }

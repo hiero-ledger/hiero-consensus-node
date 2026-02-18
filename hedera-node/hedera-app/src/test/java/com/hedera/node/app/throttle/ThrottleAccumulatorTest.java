@@ -2048,7 +2048,9 @@ class ThrottleAccumulatorTest {
         assertFalse(subject.highVolumeActiveThrottles().isEmpty(), "High-volume throttles should be populated");
         assertTrue(
                 subject.hasHighVolumeThrottleFor(CRYPTO_CREATE), "Should have high-volume throttle for CRYPTO_CREATE");
-        assertFalse(subject.hasHighVolumeThrottleFor(CRYPTO_UPDATE), "Should NOT have high-volume throttle for CRYPTO_UPDATE");
+        assertFalse(
+                subject.hasHighVolumeThrottleFor(CRYPTO_UPDATE),
+                "Should NOT have high-volume throttle for CRYPTO_UPDATE");
     }
 
     @ParameterizedTest
@@ -2259,7 +2261,8 @@ class ThrottleAccumulatorTest {
         subject.rebuildFor(defs);
 
         // Create a high-volume CryptoTransfer transaction with no aliases / no implicit creations
-        final var cryptoTransferBody = CryptoTransferTransactionBody.newBuilder().build();
+        final var cryptoTransferBody =
+                CryptoTransferTransactionBody.newBuilder().build();
         final var highVolumeTxBody = TransactionBody.newBuilder()
                 .transactionID(TransactionID.newBuilder().accountID(PAYER_ID).build())
                 .cryptoTransfer(cryptoTransferBody)

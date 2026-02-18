@@ -64,7 +64,6 @@ import com.hedera.node.config.data.FeesConfig;
 import com.hedera.node.config.data.TokensConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
@@ -72,7 +71,6 @@ import java.util.LinkedList;
 import java.util.List;
 import javax.inject.Inject;
 import javax.inject.Singleton;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.hapi.support.fees.Extra;
@@ -163,7 +161,7 @@ public class TokenAirdropHandler extends TransferExecutor implements Transaction
                 final var fungibleLists = separateFungibleTransfers(context, tokenId, xfers.transfers());
                 validateTrue(
                         pendingStore.sizeOfState()
-                                + fungibleLists.pendingFungibleAmounts().size()
+                                        + fungibleLists.pendingFungibleAmounts().size()
                                 <= tokensConfig.maxAllowedPendingAirdrops(),
                         MAX_ENTITIES_IN_PRICE_REGIME_HAVE_BEEN_CREATED);
                 // pureChecks validates there is only one debit, so findFirst should return one item
@@ -260,10 +258,11 @@ public class TokenAirdropHandler extends TransferExecutor implements Transaction
             case UNSET -> throw new IllegalStateException("Key kind cannot be UNSET");
             case CONTRACT_ID, ED25519, ECDSA_SECP256K1 -> true;
             case RSA_3072, ECDSA_384, DELEGATABLE_CONTRACT_ID -> false;
-            case THRESHOLD_KEY -> key.thresholdKeyOrThrow().keysOrThrow().keys().stream()
-                    .filter(TokenAirdropHandler::canClaimAirdrop)
-                    .count()
-                    >= key.thresholdKeyOrThrow().threshold();
+            case THRESHOLD_KEY ->
+                key.thresholdKeyOrThrow().keysOrThrow().keys().stream()
+                                .filter(TokenAirdropHandler::canClaimAirdrop)
+                                .count()
+                        >= key.thresholdKeyOrThrow().threshold();
             case KEY_LIST -> key.keyListOrThrow().keys().stream().allMatch(TokenAirdropHandler::canClaimAirdrop);
         };
     }
@@ -299,24 +298,26 @@ public class TokenAirdropHandler extends TransferExecutor implements Transaction
         // calculate fee, including association fee for new pending airdrops
         var pendingAirdropFeeIncludingAssociationsFee = 0L;
         if (pendingAirdropsSize > existingPendingAirdropsCount) {
-            pendingAirdropFeeIncludingAssociationsFee = airdropFeeForPendingAirdrop(context) * (pendingAirdropsSize - existingPendingAirdropsCount);
+            pendingAirdropFeeIncludingAssociationsFee =
+                    airdropFeeForPendingAirdrop(context) * (pendingAirdropsSize - existingPendingAirdropsCount);
         }
         // calculate fee, without association fee for airdrops that already exist in the pending state
         // this is applicable only for fungible tokens
         var pendingAirdropFeeWithoutAssociationsFee = 0L;
         if (existingPendingAirdropsCount > 0) {
-            pendingAirdropFeeWithoutAssociationsFee = airdropFeeForPendingAirdrop(context, false) * existingPendingAirdropsCount;
+            pendingAirdropFeeWithoutAssociationsFee =
+                    airdropFeeForPendingAirdrop(context, false) * existingPendingAirdropsCount;
         }
 
         var airdropFeeForUnlimitedAssociations = 0L;
         if (numUnlimitedAssociationTransfers > 0) {
             airdropFeeForUnlimitedAssociations = airdropFee(context) * numUnlimitedAssociationTransfers;
         }
-//        final var highVolumeAssociationScalingDelta =
-//                associationHighVolumeScalingDelta(context) * numUnlimitedAssociationTransfers;
+        //        final var highVolumeAssociationScalingDelta =
+        //                associationHighVolumeScalingDelta(context) * numUnlimitedAssociationTransfers;
         final var totalFee = pendingAirdropFeeIncludingAssociationsFee
                 + airdropFeeForUnlimitedAssociations
-//                + highVolumeAssociationScalingDelta
+                //                + highVolumeAssociationScalingDelta
                 + pendingAirdropFeeWithoutAssociationsFee;
         // There are three cases for the fee charged in an airdrop transaction
         // 1. If there are no pending airdrops created and token is explicitly associated, only the CryptoTransferFee is
@@ -348,7 +349,8 @@ public class TokenAirdropHandler extends TransferExecutor implements Transaction
         }
 
         final var associationFeeTinycents = simpleFeeCalculator.getExtraFee(Extra.TOKEN_ASSOCIATE);
-        final var scaledAssociationFeeTinycents = (associationFeeTinycents * rawMultiplier) / HIGH_VOLUME_MULTIPLIER_SCALE;
+        final var scaledAssociationFeeTinycents =
+                (associationFeeTinycents * rawMultiplier) / HIGH_VOLUME_MULTIPLIER_SCALE;
         final var activeRate = fromPbj(context.activeRate());
         final var associationFeeTinybars = tinycentsToTinybars(associationFeeTinycents, activeRate);
         final var scaledAssociationFeeTinybars = tinycentsToTinybars(scaledAssociationFeeTinycents, activeRate);
@@ -544,7 +546,11 @@ public class TokenAirdropHandler extends TransferExecutor implements Transaction
     private long airdropFeeForPendingAirdrop(@NonNull final HandleContext feeContext, boolean includeAssociationFee) {
         var airdropFee = airdropFee(feeContext);
         if (includeAssociationFee) {
-            final var associationFee = associationFeeFor(feeContext, feeContext.body().highVolume() ? PLACEHOLDER_SYNTHETIC_ASSOCIATION_HV : PLACEHOLDER_SYNTHETIC_ASSOCIATION);
+            final var associationFee = associationFeeFor(
+                    feeContext,
+                    feeContext.body().highVolume()
+                            ? PLACEHOLDER_SYNTHETIC_ASSOCIATION_HV
+                            : PLACEHOLDER_SYNTHETIC_ASSOCIATION);
             airdropFee += associationFee;
         }
         return airdropFee;

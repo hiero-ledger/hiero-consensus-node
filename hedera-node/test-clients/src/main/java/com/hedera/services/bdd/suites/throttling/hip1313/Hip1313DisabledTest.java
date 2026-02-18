@@ -43,7 +43,9 @@ public class Hip1313DisabledTest {
                 .hasPrecheck(NOT_SUPPORTED));
     }
 
-    @LeakyHapiTest(requirement = {PROPERTY_OVERRIDES}, overrides = {"fees.simpleFeesEnabled"})
+    @LeakyHapiTest(
+            requirement = {PROPERTY_OVERRIDES},
+            overrides = {"fees.simpleFeesEnabled"})
     final Stream<DynamicTest> highVolumeTxnRejectedWhenSimpleFeesEnabledButHighVolumeThrottlesDisabled() {
         return hapiTest(
                 overridingTwo("fees.simpleFeesEnabled", "true", "networkAdmin.highVolumeThrottlesEnabled", "false"),
@@ -53,7 +55,9 @@ public class Hip1313DisabledTest {
                         .hasPrecheck(NOT_SUPPORTED));
     }
 
-    @LeakyHapiTest(requirement = {PROPERTY_OVERRIDES}, overrides = {"networkAdmin.highVolumeThrottlesEnabled"})
+    @LeakyHapiTest(
+            requirement = {PROPERTY_OVERRIDES},
+            overrides = {"networkAdmin.highVolumeThrottlesEnabled"})
     final Stream<DynamicTest> highVolumeTxnRejectedWhenHighVolumeThrottlesEnabledButSimpleFeesDisabled() {
         return hapiTest(
                 overridingTwo("fees.simpleFeesEnabled", "false", "networkAdmin.highVolumeThrottlesEnabled", "true"),
