@@ -26,12 +26,14 @@ import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyListNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usableTxnIdNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedCryptoCreateFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedCryptoCreateNetworkFeeOnlyUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.signedTxnSizeFor;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedFeeToUsdWithTxnSize;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdWithinWithTxnSize;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.DUPLICATE_TRANSACTION;
@@ -1246,18 +1248,9 @@ public class CryptoCreateSimpleFeesTest {
             @LeakyHapiTest
             @DisplayName("CryptoCreate with duplicate transaction fails on handle")
             Stream<DynamicTest> cryptoCreateWithDuplicateTransactionFailsOnHandlePayerChargedFullFee() {
-                final AtomicLong initialBalance = new AtomicLong();
-                final AtomicLong afterBalance = new AtomicLong();
-                final AtomicLong initialNodeBalance = new AtomicLong();
-                final AtomicLong afterNodeBalance = new AtomicLong();
-
                 return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-
-                        // Save balances before
-                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
                         cryptoTransfer(movingHbar(ONE_HBAR).between(GENESIS, "3")),
-                        getAccountBalance("3").exposingBalanceTo(initialNodeBalance::set),
 
                         // Register a TxnId for the inner txn
                         usableTxnIdNamed(DUPLICATE_TXN_ID).payerId(PAYER),
@@ -1281,26 +1274,12 @@ public class CryptoCreateSimpleFeesTest {
                                 .setNode(3)
                                 .via("cryptoCreateDuplicateTxn")
                                 .hasPrecheck(DUPLICATE_TRANSACTION),
-
-                        // Save balances after and assert node was not charged
-                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                        getAccountBalance("3").exposingBalanceTo(afterNodeBalance::set),
-                        withOpContext((spec, log) -> {
-                            long payerDelta = initialBalance.get() - afterBalance.get();
-                            log.info("Payer balance change: {}", payerDelta);
-                            log.info("Recorded fee: {}", expectedCryptoCreateFullFeeUsd(1, 1));
-                            assertEquals(initialNodeBalance.get(), afterNodeBalance.get());
-                            assertTrue(initialBalance.get() > afterBalance.get());
-                        }),
-                        validateChargedFeeToUsdWithTxnSize(
-                                "cryptoCreateTxn",
-                                initialBalance,
-                                afterBalance,
-                                txnSize -> expectedCryptoCreateFullFeeUsd(Map.of(
-                                        SIGNATURES, 1L,
-                                        KEYS, 1L,
-                                        PROCESSING_BYTES, (long) txnSize)),
-                                0.0001));
+                        withOpContext((spec, log) -> allRunFor(
+                                spec,
+                                validateChargedUsd(
+                                        "cryptoCreateTxn",
+                                        expectedCryptoCreateFullFeeUsd(
+                                                1L, 0L, signedTxnSizeFor(spec, "cryptoCreateTxn"))))));
             }
         }
 
