@@ -20,6 +20,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUnique;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.*;
+import static com.hedera.services.bdd.spec.utilops.mod.ModificationUtils.withClearedField;
 import static com.hedera.services.bdd.suites.HapiSuite.CIVILIAN_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
@@ -35,6 +36,8 @@ import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
 import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.keys.KeyShape;
+import com.hedera.services.bdd.spec.utilops.mod.QueryMutation;
+import com.hederahashgraph.api.proto.java.QueryHeader;
 import com.hederahashgraph.api.proto.java.TokenSupplyType;
 import com.hederahashgraph.api.proto.java.TokenType;
 import java.util.ArrayList;
@@ -261,6 +264,14 @@ public class CryptoGetInfoRegression {
     final Stream<DynamicTest> failsForMissingPayment() {
         return hapiTest(
                 getAccountInfo(GENESIS).useEmptyTxnAsAnswerPayment().hasAnswerOnlyPrecheck(INVALID_TRANSACTION_BODY));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> paidQueryWithMissingPaymentFieldReturnsInvalidTransactionBody() {
+        final var paymentField = requireNonNull(QueryHeader.getDescriptor().findFieldByName("payment"));
+        return hapiTest(getAccountInfo(GENESIS)
+                .withQueryMutation(QueryMutation.withTransform(q -> withClearedField(q, paymentField, 0)))
+                .hasAnswerOnlyPrecheck(INVALID_TRANSACTION_BODY));
     }
 
     @HapiTest

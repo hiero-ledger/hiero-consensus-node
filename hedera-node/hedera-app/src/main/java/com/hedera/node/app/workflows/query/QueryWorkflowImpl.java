@@ -5,6 +5,7 @@ import static com.hedera.hapi.node.base.HederaFunctionality.GET_ACCOUNT_DETAILS;
 import static com.hedera.hapi.node.base.HederaFunctionality.NETWORK_GET_EXECUTION_TIME;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.BUSY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.FAIL_INVALID;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PAYER_ACCOUNT_NOT_FOUND;
@@ -198,7 +199,12 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                 AccountID payerID = null;
                 if (shouldCharge && paymentRequired) {
                     final var configuration = configProvider.getConfiguration();
-                    final var paymentBytes = ProtobufUtils.extractPaymentBytes(requestBuffer);
+                    final Bytes paymentBytes;
+                    try {
+                        paymentBytes = ProtobufUtils.extractPaymentBytes(requestBuffer);
+                    } catch (IOException | ParseException e) {
+                        throw new PreCheckException(INVALID_TRANSACTION_BODY);
+                    }
 
                     final var checkerResult = new IngestChecker.Result();
                     try {
