@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+import org.gradle.testing.jacoco.plugins.JacocoTaskExtension
 import org.gradlex.javamodule.dependencies.dsl.GradleOnlyDirectives
 
 plugins {
@@ -98,6 +99,11 @@ tasks.withType<Test>().configureEach {
 tasks.compileTestFixturesJava {
     options.compilerArgs.add("-Alog4j.graalvm.groupId=${project.group}")
     options.compilerArgs.add("-Alog4j.graalvm.artifactId=${project.name}")
+}
+
+// Disable Jacoco (code coverage) for performance tests to avoid overhead
+tasks.named<Test>("testPerformance") {
+    extensions.configure<JacocoTaskExtension> { isEnabled = false }
 }
 
 // Task to start Grafana and import metrics after performance tests
