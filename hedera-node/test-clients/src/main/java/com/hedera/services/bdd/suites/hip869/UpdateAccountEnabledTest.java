@@ -110,7 +110,7 @@ public class UpdateAccountEnabledTest {
                         .via("failedUpdate"),
                 getTxnRecord("failedUpdate").logged(),
                 // The fee is charged here because the payer is not privileged
-                validateChargedUsdWithin("failedUpdate", 0.001, 3.0),
+                safeValidateChargedUsdWithin("failedUpdate", 0.001, 1.0, NODE_UPDATE_BASE_FEE_USD, 1.0),
                 nodeUpdate("node100")
                         .adminKey("testKey")
                         .accountId(nodeAccount2)
