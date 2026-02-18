@@ -107,7 +107,7 @@ jobs:
           gradle-version: ${{ inputs.gradle-version || 'wrapper' }}
 
       - name: Download Build Version
-        if: ${{ github.event_name == 'workflow_call' }}
+        if: ${{ inputs.version != '' }}
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: version.txt
@@ -115,7 +115,7 @@ jobs:
       - name: Resolve Version
         id: resolve-version
         run: |
-          if [[ "${{ github.event_name }}" == "workflow_call" ]]; then
+          if [[ -n "${{ inputs.version }}" ]]; then
             VERSION="${{ inputs.version }}"
             echo "version=${VERSION}" >>"${GITHUB_OUTPUT}"
             echo "Using provided version: ${VERSION}"
