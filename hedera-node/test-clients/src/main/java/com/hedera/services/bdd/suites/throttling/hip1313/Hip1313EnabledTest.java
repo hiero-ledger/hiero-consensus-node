@@ -561,6 +561,9 @@ public class Hip1313EnabledTest {
         return highVolumeTxns.get().stream()
                 .filter(e -> e.body().getHighVolume())
                 .filter(additionalFilter)
+                // Expected multipliers are derived from utilization progression; process
+                // records in consensus order to avoid nondeterministic flakiness.
+                .sorted()
                 .toList();
     }
 
