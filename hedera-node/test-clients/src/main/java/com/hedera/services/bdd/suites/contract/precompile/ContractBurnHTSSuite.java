@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.contract.precompile;
 
 import static com.google.protobuf.ByteString.copyFromUtf8;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
@@ -54,7 +53,6 @@ public class ContractBurnHTSSuite {
     private static final String NFT = "NFT";
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> burnFungibleV1andV2WithZeroAndNegativeValues() {
         final AtomicReference<Address> tokenAddress = new AtomicReference<>();
         return hapiTest(
@@ -105,7 +103,6 @@ public class ContractBurnHTSSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> burnNonFungibleV1andV2WithNegativeValues() {
         final AtomicReference<Address> tokenAddress = new AtomicReference<>();
         return hapiTest(

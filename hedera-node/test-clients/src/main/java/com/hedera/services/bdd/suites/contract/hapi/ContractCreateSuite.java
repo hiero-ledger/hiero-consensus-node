@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.hapi;
 
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
@@ -170,7 +169,6 @@ public class ContractCreateSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> createContractWithStakingFields() {
         final var contract = "CreateTrivial";
         return hapiTest(
@@ -367,7 +365,6 @@ public class ContractCreateSuite {
     }
 
     @LeakyHapiTest(overrides = {"contracts.evm.version"})
-    @Tag(MATS)
     final Stream<DynamicTest> childCreationsHaveExpectedKeysWithOmittedAdminKey() {
         final AtomicLong firstStickId = new AtomicLong();
         final AtomicLong secondStickId = new AtomicLong();
@@ -538,7 +535,6 @@ public class ContractCreateSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> rejectsInvalidBytecode() {
         final var contract = "InvalidBytecode";
         return hapiTest(

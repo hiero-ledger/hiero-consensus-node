@@ -38,6 +38,11 @@ on:
         type: string
         required: false
         default: "false"
+      enable-hapi-tests-smart-contract:
+        description: "HAPI Testing (Smart Contract) Enabled"
+        type: string
+        required: false
+        default: "false"
       enable-otter-tests:
         description: "Otter Tests Enabled"
         type: string
@@ -227,7 +232,7 @@ jobs:
       enable-hapi-tests-simplefees: "${{ inputs.enable-hapi-tests == 'true' }}"
       enable-hapi-tests-iss: "${{ inputs.enable-hapi-tests == 'true' }}"
       enable-hapi-tests-token: "${{ inputs.enable-hapi-tests == 'true' }}"
-      enable-hapi-tests-smart-contract: "${{ inputs.enable-hapi-tests == 'true' }}"
+      enable-hapi-tests-smart-contract: "${{ inputs.enable-hapi-tests-smart-contract == 'true' }}"
       enable-hapi-tests-restart: "${{ inputs.enable-hapi-tests == 'true' }}"
       enable-hapi-tests-nd-reconnect: "${{ inputs.enable-hapi-tests == 'true' }}"
       enable-hapi-tests-atomic-batch: "${{ inputs.enable-hapi-tests == 'true' }}"

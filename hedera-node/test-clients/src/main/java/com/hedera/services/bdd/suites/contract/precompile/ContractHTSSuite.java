@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.contract.precompile;
 
 import static com.google.protobuf.ByteString.copyFromUtf8;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
@@ -89,7 +88,6 @@ public class ContractHTSSuite {
     private static final String UNIVERSAL_KEY = "multipurpose";
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> transferDontWorkWithoutTopLevelSignatures() {
         final var transferTokenTxn = "transferTokenTxn";
         final var transferTokensTxn = "transferTokensTxn";
@@ -270,7 +268,6 @@ public class ContractHTSSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> nonZeroTransfersFail() {
         final var theSecondReceiver = "somebody2";
         return hapiTest(
