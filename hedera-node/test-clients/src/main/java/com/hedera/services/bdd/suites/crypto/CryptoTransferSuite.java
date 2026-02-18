@@ -4,7 +4,6 @@ package com.hedera.services.bdd.suites.crypto;
 import static com.google.protobuf.ByteString.copyFromUtf8;
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccountString;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asTopicString;
@@ -174,8 +173,7 @@ public class CryptoTransferSuite {
     private static final String VALID_TXN = "validTxn";
     private static final String UNCHECKED_TXN = "uncheckedTxn";
     private static final String PAYEE_SIG_REQ = "payeeSigReq";
-    private static final String TOKENS_INVOLVED_LOG_MESSAGE =
-            """
+    private static final String TOKENS_INVOLVED_LOG_MESSAGE = """
                     0 tokens involved,
                       2 account adjustments: {} tb, ${}"
                     1 tokens involved,
@@ -317,7 +315,6 @@ public class CryptoTransferSuite {
     }
 
     @HapiTest // fees differ expected 46889349 actual 46887567
-    @Tag(MATS)
     final Stream<DynamicTest> canUseAliasAndAccountCombinations() {
         final AtomicReference<TokenID> ftId = new AtomicReference<>();
         final AtomicReference<TokenID> nftId = new AtomicReference<>();
@@ -397,7 +394,6 @@ public class CryptoTransferSuite {
 
     // https://github.com/hashgraph/hedera-services/issues/2875
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> canUseMirrorAliasesForNonContractXfers() {
         final AtomicReference<TokenID> ftId = new AtomicReference<>();
         final AtomicReference<TokenID> nftId = new AtomicReference<>();
@@ -481,7 +477,6 @@ public class CryptoTransferSuite {
 
     @SuppressWarnings("java:S5669")
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> canUseEip1014AliasesForXfers() {
         final var partyCreation2 = "partyCreation2";
         final var counterCreation2 = "counterCreation2";
@@ -604,7 +599,6 @@ public class CryptoTransferSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> cannotTransferFromImmutableAccounts() {
         final var contract = "PayableConstructor";
         final var multiKey = "swiss";
@@ -765,7 +759,6 @@ public class CryptoTransferSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> nftTransfersCannotRepeatSerialNos() {
         final var aParty = "aParty";
         final var bParty = "bParty";
@@ -1044,7 +1037,6 @@ public class CryptoTransferSuite {
 
     @SuppressWarnings("java:S5960")
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> tokenTransferFeesScaleAsExpected() {
         return hapiTest(
                 cryptoCreate("a"),
@@ -1165,9 +1157,12 @@ public class CryptoTransferSuite {
                     double pureOneTokenTwoAccountsUsd = rates.toUsdWithActiveRates(t1a2Fee);
                     double pureTwoTokensFourAccountsUsd = rates.toUsdWithActiveRates(t2a4Fee);
                     double pureThreeTokensSixAccountsUsd = rates.toUsdWithActiveRates(t3a6Fee);
-                    assertEquals(10.0, pureOneTokenTwoAccountsUsd / pureHbarUsd, 1.0);
-                    assertEquals(20.0, pureTwoTokensFourAccountsUsd / pureHbarUsd, 2.0);
-                    assertEquals(30.0, pureThreeTokensSixAccountsUsd / pureHbarUsd, 3.0);
+                    double expectedFeeOneToken = 10.0;
+                    double expectedFeeTwoToken = spec.simpleFeesEnabled() ? 14.0 : 20.0;
+                    double expectedFeeThreeToken = spec.simpleFeesEnabled() ? 18.0 : 30.0;
+                    assertEquals(expectedFeeOneToken, pureOneTokenTwoAccountsUsd / pureHbarUsd, 1.0);
+                    assertEquals(expectedFeeTwoToken, pureTwoTokensFourAccountsUsd / pureHbarUsd, 2.0);
+                    assertEquals(expectedFeeThreeToken, pureThreeTokensSixAccountsUsd / pureHbarUsd, 3.0);
                 }));
     }
 
@@ -1240,7 +1235,6 @@ public class CryptoTransferSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> specialAccountsBalanceCheck() {
         return hapiTest(IntStream.concat(IntStream.range(1, 101), IntStream.range(900, 1001))
                 .mapToObj(i -> withOpContext((spec, log) -> allRunFor(spec, getAccountBalance(String.valueOf(i))))
@@ -1423,7 +1417,6 @@ public class CryptoTransferSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> hapiTransferFromForFungibleTokenWithCustomFeesWithAllowance() {
         final var FUNGIBLE_TOKEN_WITH_FIXED_HBAR_FEE = "fungibleTokenWithFixedHbarFee";
         final var FUNGIBLE_TOKEN_WITH_FIXED_TOKEN_FEE = "fungibleTokenWithFixedTokenFee";
@@ -1647,9 +1640,9 @@ public class CryptoTransferSuite {
                     final var bogusTokenId = TokenID.newBuilder().setTokenNum(acctCreate.numOfCreatedAccount());
                     spec.registry().saveTokenId("nonexistent", bogusTokenId.build());
                 }),
-                sourcing(() -> cryptoTransfer(
-                                movingWithDecimals(1L, "nonexistent", 2).betweenWithDecimals(PAYER, TREASURY))
-                        .hasKnownStatus(INVALID_TOKEN_ID)));
+                cryptoTransfer(movingWithDecimals(1L, "nonexistent", 2).betweenWithDecimals(PAYER, TREASURY))
+                        .hasPrecheckFrom(OK, INVALID_TOKEN_ID)
+                        .hasKnownStatus(INVALID_TOKEN_ID));
     }
 
     @HapiTest
@@ -1667,7 +1660,6 @@ public class CryptoTransferSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> netAdjustmentsMustBeZero() {
         final AtomicReference<AccountID> partyId = new AtomicReference<>();
         final AtomicReference<AccountID> counterId = new AtomicReference<>();
@@ -1703,7 +1695,6 @@ public class CryptoTransferSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> customFeesCannotCauseOverflow() {
         final var secondFeeCollector = "secondFeeCollector";
         return hapiTest(
@@ -1724,7 +1715,6 @@ public class CryptoTransferSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> createHollowAccountWithNftTransferAndCompleteIt() {
         final var tokenA = "tokenA";
         final var hollowAccountKey = "hollowAccountKey";

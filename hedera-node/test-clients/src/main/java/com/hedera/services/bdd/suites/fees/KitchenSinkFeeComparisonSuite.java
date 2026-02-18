@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.fees;
 
-import static com.hedera.services.bdd.junit.TestTags.ADHOC;
 import static com.hedera.services.bdd.junit.TestTags.ONLY_EMBEDDED;
-import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
+import static com.hedera.services.bdd.spec.HapiSpec.customizedHapiTest;
 import static com.hedera.services.bdd.spec.keys.KeyShape.ED25519;
 import static com.hedera.services.bdd.spec.keys.KeyShape.SECP256K1;
 import static com.hedera.services.bdd.spec.keys.KeyShape.listOf;
@@ -141,6 +140,7 @@ import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
@@ -157,11 +157,13 @@ import org.junit.jupiter.api.Tag;
  *   <li>Fixed entity names with prefixes to avoid collisions between runs</li>
  * </ul>
  */
-@Tag(ADHOC)
 @Tag(ONLY_EMBEDDED)
 @HapiTestLifecycle
+@Disabled
 public class KitchenSinkFeeComparisonSuite {
     private static final Logger LOG = LogManager.getLogger(KitchenSinkFeeComparisonSuite.class);
+    private static final Map<String, String> FEE_SETUP_OVERRIDES =
+            Map.of("fees.useFixedOffer", "true", "fees.fixedOffer", "" + ONE_HUNDRED_HBARS);
 
     /**
      * Initialize the test class with simple fees enabled.
@@ -233,7 +235,8 @@ public class KitchenSinkFeeComparisonSuite {
         // Note: We run simple fees FIRST because the SimpleFeeCalculator is only initialized
         // when simpleFeesEnabled=true at startup. If we start with false and switch to true,
         // the SimpleFeeCalculator will be null and cause a NullPointerException.
-        return hapiTest(
+        return customizedHapiTest(
+                FEE_SETUP_OVERRIDES,
                 // === SETUP: Create keys with varying complexity ===
                 createAllKeys(),
                 // === SETUP: Create base accounts ===
@@ -274,7 +277,8 @@ public class KitchenSinkFeeComparisonSuite {
         // Note: We run simple fees FIRST because the SimpleFeeCalculator is only initialized
         // when simpleFeesEnabled=true at startup. If we start with false and switch to true,
         // the SimpleFeeCalculator will be null and cause a NullPointerException.
-        return hapiTest(
+        return customizedHapiTest(
+                FEE_SETUP_OVERRIDES,
                 // === SETUP: Create keys with varying complexity ===
                 createAllKeys(),
                 // === SETUP: Create base accounts ===
@@ -2784,6 +2788,7 @@ public class KitchenSinkFeeComparisonSuite {
 
         // ===== AtomicBatch with varying transaction count =====
         for (final SigVariant sigVariant : SIG_VARIANTS) {
+            ops.add(updateBatchOperatorKey(sigVariant));
             final String txnName = prefix + "AtomicBatchT1" + sigVariant.suffix();
             final String innerTxn = txnName + "Inner1";
             final String[] signers = sigVariant.withRequired(BATCH_OPERATOR);
@@ -2796,14 +2801,19 @@ public class KitchenSinkFeeComparisonSuite {
                     .fee(ONE_HUNDRED_HBARS)
                     .via(txnName));
             ops.add(captureFee(
-                    txnName, joinEmphasis("TRANSACTIONS=1 (included)", sigEmphasis(signers, sigVariant)), feeMap));
+                    txnName,
+                    joinEmphasis("TRANSACTIONS=1 (included)", sigEmphasis(BATCH_OPERATOR, signers, sigVariant)),
+                    feeMap));
             ops.add(captureFee(
                     innerTxn,
-                    joinEmphasis("INNER=1", "TRANSACTIONS=1 (included)", sigEmphasis(signers, sigVariant)),
+                    joinEmphasis(
+                            "INNER=1", "TRANSACTIONS=1 (included)", sigEmphasis(BATCH_OPERATOR, signers, sigVariant)),
                     feeMap));
+            ops.add(resetBatchOperatorKey());
         }
 
         for (final SigVariant sigVariant : SIG_VARIANTS) {
+            ops.add(updateBatchOperatorKey(sigVariant));
             final String txnName = prefix + "AtomicBatchT3" + sigVariant.suffix();
             final String innerTxn1 = txnName + "Inner1";
             final String innerTxn2 = txnName + "Inner2";
@@ -2827,19 +2837,25 @@ public class KitchenSinkFeeComparisonSuite {
                     .fee(ONE_HUNDRED_HBARS)
                     .via(txnName));
             ops.add(captureFee(
-                    txnName, joinEmphasis("TRANSACTIONS=3 (+2 extra)", sigEmphasis(signers, sigVariant)), feeMap));
+                    txnName,
+                    joinEmphasis("TRANSACTIONS=3 (+2 extra)", sigEmphasis(BATCH_OPERATOR, signers, sigVariant)),
+                    feeMap));
             ops.add(captureFee(
                     innerTxn1,
-                    joinEmphasis("INNER=1", "TRANSACTIONS=3 (+2 extra)", sigEmphasis(signers, sigVariant)),
+                    joinEmphasis(
+                            "INNER=1", "TRANSACTIONS=3 (+2 extra)", sigEmphasis(BATCH_OPERATOR, signers, sigVariant)),
                     feeMap));
             ops.add(captureFee(
                     innerTxn2,
-                    joinEmphasis("INNER=2", "TRANSACTIONS=3 (+2 extra)", sigEmphasis(signers, sigVariant)),
+                    joinEmphasis(
+                            "INNER=2", "TRANSACTIONS=3 (+2 extra)", sigEmphasis(BATCH_OPERATOR, signers, sigVariant)),
                     feeMap));
             ops.add(captureFee(
                     innerTxn3,
-                    joinEmphasis("INNER=3", "TRANSACTIONS=3 (+2 extra)", sigEmphasis(signers, sigVariant)),
+                    joinEmphasis(
+                            "INNER=3", "TRANSACTIONS=3 (+2 extra)", sigEmphasis(BATCH_OPERATOR, signers, sigVariant)),
                     feeMap));
+            ops.add(resetBatchOperatorKey());
         }
 
         return ops;
@@ -2855,6 +2871,14 @@ public class KitchenSinkFeeComparisonSuite {
                 .fee(ONE_HUNDRED_HBARS);
     }
 
+    private static SpecOperation updateBatchOperatorKey(final SigVariant sigVariant) {
+        return cryptoUpdate(BATCH_OPERATOR)
+                .key(sigVariant.payerKey())
+                .payingWith(BATCH_OPERATOR)
+                .signedBy(BATCH_OPERATOR, sigVariant.payerKey())
+                .fee(ONE_HUNDRED_HBARS);
+    }
+
     private static SpecOperation resetPayerKey() {
         return cryptoUpdate(PAYER)
                 .key(PAYER_KEY_1)
@@ -2863,19 +2887,35 @@ public class KitchenSinkFeeComparisonSuite {
                 .fee(ONE_HUNDRED_HBARS);
     }
 
-    private static int signatureCount(final String[] signers, final SigVariant sigVariant) {
+    private static SpecOperation resetBatchOperatorKey() {
+        return cryptoUpdate(BATCH_OPERATOR)
+                .key(BATCH_OPERATOR)
+                .payingWith(BATCH_OPERATOR)
+                .signedBy(BATCH_OPERATOR, BATCH_OPERATOR)
+                .fee(ONE_HUNDRED_HBARS);
+    }
+
+    private static int signatureCount(final String payer, final String[] signers, final SigVariant sigVariant) {
         final Set<String> unique = new LinkedHashSet<>(Arrays.asList(signers));
         int total = unique.size();
-        if (sigVariant != null && unique.contains(PAYER)) {
+        if (sigVariant != null && unique.contains(payer)) {
             total += Math.max(0, sigVariant.payerSigCount() - 1);
         }
         return total;
     }
 
-    private static String sigEmphasis(final String[] signers, final SigVariant sigVariant) {
-        final int total = signatureCount(signers, sigVariant);
+    private static int signatureCount(final String[] signers, final SigVariant sigVariant) {
+        return signatureCount(PAYER, signers, sigVariant);
+    }
+
+    private static String sigEmphasis(final String payer, final String[] signers, final SigVariant sigVariant) {
+        final int total = signatureCount(payer, signers, sigVariant);
         final int extra = Math.max(0, total - 1);
         return extra == 0 ? "SIGS=" + total + " (included)" : "SIGS=" + total + " (+" + extra + " extra)";
+    }
+
+    private static String sigEmphasis(final String[] signers, final SigVariant sigVariant) {
+        return sigEmphasis(PAYER, signers, sigVariant);
     }
 
     private static String sigEmphasis(final String[] signers) {

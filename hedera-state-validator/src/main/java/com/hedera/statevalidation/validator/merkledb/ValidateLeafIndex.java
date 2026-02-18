@@ -13,7 +13,7 @@ import com.hedera.statevalidation.report.SlackReportGenerator;
 import com.hedera.statevalidation.util.junit.MerkleNodeStateResolver;
 import com.hedera.statevalidation.util.reflect.MemoryIndexDiskKeyValueStoreAccessor;
 import com.swirlds.merkledb.MerkleDbDataSource;
-import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
@@ -41,8 +41,8 @@ public class ValidateLeafIndex {
             ThreadLocal.withInitial(() -> new WritableMessageDigest(Cryptography.DEFAULT_DIGEST_TYPE.buildDigest()));
 
     @Test
-    public void validateIndex(final MerkleNodeState merkleNodeState) {
-        final VirtualMap virtualMap = (VirtualMap) merkleNodeState.getRoot();
+    public void validateIndex(final VirtualMapState virtualMapState) {
+        final VirtualMap virtualMap = virtualMapState.getRoot();
         assertNotNull(virtualMap);
         MerkleDbDataSource vds = (MerkleDbDataSource) virtualMap.getDataSource();
 

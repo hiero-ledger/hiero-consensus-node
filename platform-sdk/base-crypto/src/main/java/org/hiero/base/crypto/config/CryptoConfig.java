@@ -9,7 +9,8 @@ import com.swirlds.config.api.ConfigProperty;
  *
  * @param keystorePassword       the password used to protect the PKCS12 key stores containing the nodes RSA keys. The
  *                               password used to protect the PKCS12 key stores containing the node RSA public/private
- *                               key pairs.
+ *                               key pairs. There is intentionally no usable default; components that require this
+ *                               password will fail fast if it is not configured.
  */
 @ConfigData("crypto")
 public record CryptoConfig(

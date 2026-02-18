@@ -223,12 +223,17 @@ public class VirtualLeafBytes<V> {
             ProtoWriterTools.writeTag(out, FIELD_LEAFRECORD_PATH);
             out.writeLong(path);
         }
-        ProtoWriterTools.writeDelimited(
-                out, FIELD_LEAFRECORD_KEY, Math.toIntExact(keyBytes.length()), keyBytes::writeTo);
-        final Bytes localValueBytes = valueBytes();
-        if (localValueBytes != null) {
-            ProtoWriterTools.writeDelimited(
-                    out, FIELD_LEAFRECORD_VALUE, Math.toIntExact(localValueBytes.length()), localValueBytes::writeTo);
+        final Bytes kb = keyBytes();
+        // ProtoWriterTools.writeDelimited() is not used to avoid using kb::writeTo method handle
+        ProtoWriterTools.writeTag(out, FIELD_LEAFRECORD_KEY);
+        out.writeVarInt(Math.toIntExact(kb.length()), false);
+        kb.writeTo(out);
+        final Bytes vb = valueBytes();
+        if (vb != null) {
+            // ProtoWriterTools.writeDelimited() is not used to avoid using vb::writeTo method handle
+            ProtoWriterTools.writeTag(out, FIELD_LEAFRECORD_VALUE);
+            out.writeVarInt(Math.toIntExact(vb.length()), false);
+            vb.writeTo(out);
         }
         assert out.position() == pos + getSizeInBytes()
                 : "pos=" + pos + ", out.position()=" + out.position() + ", size=" + getSizeInBytes();

@@ -15,10 +15,6 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import com.swirlds.platform.test.fixtures.event.generator.StandardGraphGenerator;
-import com.swirlds.platform.test.fixtures.event.source.StandardEventSource;
-import com.swirlds.platform.test.fixtures.graph.SimpleGraph;
-import com.swirlds.platform.test.fixtures.graph.SimpleGraphs;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
@@ -32,6 +28,11 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.hashgraph.impl.EventImpl;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.StandardGraphGenerator;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.event.source.StandardEventSource;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.graph.SimpleGraph;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.graph.SimpleGraphs;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.graph.SimplePlatformEventGraph;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -191,7 +192,8 @@ class ConsensusLinkerTests {
     void multipleOtherParents() {
         inOrderLinkerSetup();
 
-        final SimpleGraph graph = SimpleGraphs.mopGraph(random);
+        final SimpleGraphs<PlatformEvent> graphs = new SimpleGraphs<>(SimplePlatformEventGraph::new);
+        final SimpleGraph<PlatformEvent> graph = graphs.mopGraph(random);
         assertParentsMop(linker.linkEvent(graph.event(0)), null, List.of());
         assertParentsMop(linker.linkEvent(graph.event(1)), null, List.of());
         assertParentsMop(linker.linkEvent(graph.event(2)), null, List.of());

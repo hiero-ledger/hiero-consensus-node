@@ -13,16 +13,13 @@ import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.platform.state.service.PlatformStateService;
-import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
 import com.swirlds.platform.state.service.schemas.V0540RosterBaseSchema;
-import com.swirlds.platform.state.signed.SigSet;
-import com.swirlds.platform.state.signed.SignedState;
-import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StateDefinition;
 import com.swirlds.state.lifecycle.StateMetadata;
+import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.BufferedInputStream;
 import java.io.File;
@@ -32,7 +29,11 @@ import java.nio.file.Path;
 import java.util.Comparator;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.consensus.crypto.ConsensusCryptoUtils;
+import org.hiero.consensus.platformstate.PlatformStateService;
+import org.hiero.consensus.platformstate.V0540PlatformStateSchema;
 import org.hiero.consensus.roster.RosterStateId;
+import org.hiero.consensus.state.signed.SigSet;
+import org.hiero.consensus.state.signed.SignedState;
 
 /**
  * Utility methods for reading a signed state from disk.
@@ -52,7 +53,7 @@ public final class SignedStateFileReader {
     public static @NonNull DeserializedSignedState readState(
             @NonNull final Path stateDir,
             @NonNull final PlatformContext platformContext,
-            @NonNull final StateLifecycleManager stateLifecycleManager)
+            @NonNull final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager)
             throws IOException, ParseException {
 
         requireNonNull(stateDir);
@@ -62,8 +63,8 @@ public final class SignedStateFileReader {
         checkSignedStateFilePath(stateDir);
 
         final DeserializedSignedState returnState;
-        final MerkleNodeState merkleNodeState;
-        merkleNodeState = stateLifecycleManager.loadSnapshot(stateDir);
+        final VirtualMapState virtualMapState;
+        virtualMapState = stateLifecycleManager.loadSnapshot(stateDir);
 
         final SigSet sigSet;
         final File pbjFile = stateDir.resolve(SIGNATURE_SET_FILE_NAME).toFile();
@@ -86,7 +87,7 @@ public final class SignedStateFileReader {
         final SignedState newSignedState = new SignedState(
                 conf,
                 ConsensusCryptoUtils::verifySignature,
-                merkleNodeState,
+                virtualMapState,
                 "SignedStateFileReader.readState()",
                 false,
                 false,
@@ -97,7 +98,7 @@ public final class SignedStateFileReader {
         newSignedState.setSigSet(sigSet);
 
         returnState = new DeserializedSignedState(
-                newSignedState.reserve("SignedStateFileReader.readState()"), merkleNodeState.getHash());
+                newSignedState.reserve("SignedStateFileReader.readState()"), virtualMapState.getHash());
 
         return returnState;
     }
@@ -158,24 +159,24 @@ public final class SignedStateFileReader {
      * See the doc for registerServiceStates(SignedState) above for more details.
      * @param state a State to register schemas in
      */
-    public static void registerServiceStates(@NonNull final MerkleNodeState state) {
+    public static void registerServiceStates(@NonNull final VirtualMapState state) {
         registerServiceState(state, new V0540PlatformStateSchema(), PlatformStateService.NAME);
         registerServiceState(state, new V0540RosterBaseSchema(), RosterStateId.SERVICE_NAME);
     }
 
     private static void registerServiceState(
-            @NonNull final MerkleNodeState state,
+            @NonNull final VirtualMapState state,
             @NonNull final Schema<SemanticVersion> schema,
             @NonNull final String name) {
         schema.statesToCreate().stream()
                 .sorted(Comparator.comparing(StateDefinition::stateKey))
                 .forEach(def -> {
                     final var md = new StateMetadata<>(name, def);
-                    if (def.singleton() || def.onDisk()) {
+                    if (def.singleton() || def.keyValue()) {
                         state.initializeState(md);
                     } else {
                         throw new IllegalStateException(
-                                "Only singletons and onDisk virtual maps are supported as stub states");
+                                "Only singletons and keyValue virtual maps are supported as stub states");
                     }
                 });
     }

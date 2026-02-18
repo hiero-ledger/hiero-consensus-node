@@ -24,6 +24,7 @@ import com.hedera.hapi.node.base.TokenAssociation;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TopicID;
 import com.hedera.hapi.node.state.addressbook.Node;
+import com.hedera.hapi.node.state.addressbook.RegisteredNode;
 import com.hedera.hapi.node.state.common.EntityIDPair;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.consensus.Topic;
@@ -92,7 +93,7 @@ public class ImmediateStateChangeListener implements StateChangeListener {
     private Predicate<Object> logicallyIdenticalMapping;
 
     /**
-     * Resets kv state changes.
+     * Resets keyValue state changes.
      */
     public void resetKvStateChanges(@Nullable final Predicate<Object> logicallyIdenticalMapping) {
         this.logicallyIdenticalMapping = logicallyIdenticalMapping;
@@ -161,8 +162,8 @@ public class ImmediateStateChangeListener implements StateChangeListener {
     }
 
     /**
-     * Returns the list of kv state changes.
-     * @return the list of kv state changes
+     * Returns the list of keyValue state changes.
+     * @return the list of keyValue state changes
      */
     public List<StateChange> getKvStateChanges() {
         return kvStateChanges;
@@ -315,6 +316,9 @@ public class ImmediateStateChangeListener implements StateChangeListener {
             case WrapsMessageHistory wrapsMessageHistory ->
                 new MapChangeValue(new OneOf<>(
                         MapChangeValue.ValueChoiceOneOfType.WRAPS_MESSAGE_HISTORY_VALUE, wrapsMessageHistory));
+            case RegisteredNode registeredNode ->
+                new MapChangeValue(
+                        new OneOf<>(MapChangeValue.ValueChoiceOneOfType.REGISTERED_NODE_VALUE, registeredNode));
             default ->
                 throw new IllegalStateException(
                         "Unexpected value: " + value.getClass().getSimpleName());

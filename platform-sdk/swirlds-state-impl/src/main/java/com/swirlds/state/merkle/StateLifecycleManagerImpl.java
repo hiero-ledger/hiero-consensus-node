@@ -8,18 +8,15 @@ import static com.swirlds.logging.legacy.LogMarker.STATE_TO_DISK;
 import static java.util.Objects.requireNonNull;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
@@ -30,16 +27,16 @@ import org.apache.logging.log4j.Logger;
  * It also updates these references upon request.
  * This implementation is NOT thread-safe. However, it provides the following guarantees:
  * <ul>
- * <li>After {@link #initState(MerkleNodeState)}, calls to {@link #getMutableState()} and {@link #getLatestImmutableState()} will always return
+ * <li>After {@link #initState(VirtualMapState)}, calls to {@link #getMutableState()} and {@link #getLatestImmutableState()} will always return
  * non-null values.</li>
  * <li>After {@link #copyMutableState()}, the updated mutable state will be visible and available to all threads via {@link #getMutableState()}, and
  * the updated latest immutable state will be visible and available to all threads via {@link #getLatestImmutableState()}.</li>
  * </ul>
  *
- * <b>Important:</b> {@link #initState(MerkleNodeState)} and {@link #copyMutableState()} are NOT supposed to be called from multiple threads.
+ * <b>Important:</b> {@link #initState(VirtualMapState)} and {@link #copyMutableState()} are NOT supposed to be called from multiple threads.
  * They only provide the happens-before guarantees that are described above.
  */
-public class StateLifecycleManagerImpl implements StateLifecycleManager {
+public class StateLifecycleManagerImpl implements StateLifecycleManager<VirtualMapState, VirtualMap> {
 
     private static final Logger log = LogManager.getLogger(StateLifecycleManagerImpl.class);
 
@@ -64,19 +61,19 @@ public class StateLifecycleManagerImpl implements StateLifecycleManager {
     private final Metrics metrics;
 
     /**
-     * A factory object to create an instance of a class implementing {@link MerkleNodeState} from a {@link VirtualMap}
+     * A factory object to create an instance of a class implementing {@link VirtualMapState} from a {@link VirtualMap}
      */
-    private final Function<VirtualMap, MerkleNodeState> stateSupplier;
+    private final Function<VirtualMap, VirtualMapState> stateSupplier;
 
     /**
      * reference to the state that reflects all known consensus transactions
      */
-    private final AtomicReference<MerkleNodeState> stateRef = new AtomicReference<>();
+    private final AtomicReference<VirtualMapState> stateRef = new AtomicReference<>();
 
     /**
      * The most recent immutable state. No value until the first fast copy is created.
      */
-    private final AtomicReference<MerkleNodeState> latestImmutableStateRef = new AtomicReference<>();
+    private final AtomicReference<VirtualMapState> latestImmutableStateRef = new AtomicReference<>();
 
     @NonNull
     private final Configuration configuration;
@@ -86,12 +83,12 @@ public class StateLifecycleManagerImpl implements StateLifecycleManager {
      *
      * @param metrics the metrics object to gather state metrics
      * @param time the time object
-     * @param stateSupplier a factory object to create an instance of a class implementing {@link MerkleNodeState} from a {@link VirtualMap}
+     * @param stateSupplier a factory object to create an instance of a class implementing {@link VirtualMapState} from a {@link VirtualMap}
      */
     public StateLifecycleManagerImpl(
             @NonNull final Metrics metrics,
             @NonNull final Time time,
-            @NonNull final Function<VirtualMap, MerkleNodeState> stateSupplier,
+            @NonNull final Function<VirtualMap, VirtualMapState> stateSupplier,
             @NonNull final Configuration configuration) {
         this.configuration = requireNonNull(configuration);
         this.metrics = requireNonNull(metrics);
@@ -105,14 +102,14 @@ public class StateLifecycleManagerImpl implements StateLifecycleManager {
      * {@inheritDoc}
      */
     @Override
-    public MerkleNodeState createStateFrom(@NonNull MerkleNode rootNode) {
-        return stateSupplier.apply((VirtualMap) rootNode);
+    public VirtualMapState createStateFrom(@NonNull VirtualMap rootNode) {
+        return stateSupplier.apply(rootNode);
     }
 
     /**
      * {@inheritDoc}
      */
-    public void initState(@NonNull final MerkleNodeState state) {
+    public void initState(@NonNull final VirtualMapState state) {
         requireNonNull(state);
 
         state.throwIfDestroyed("state must not be destroyed");
@@ -129,7 +126,7 @@ public class StateLifecycleManagerImpl implements StateLifecycleManager {
      * {@inheritDoc}
      */
     @Override
-    public void initStateOnReconnect(@NonNull MerkleNodeState state) {
+    public void initStateOnReconnect(@NonNull VirtualMapState state) {
         requireNonNull(state);
         state.throwIfDestroyed("rootNode must not be destroyed");
         state.throwIfImmutable("rootNode must be mutable");
@@ -142,8 +139,8 @@ public class StateLifecycleManagerImpl implements StateLifecycleManager {
      */
     @NonNull
     @Override
-    public MerkleNodeState getMutableState() {
-        final MerkleNodeState mutableState = stateRef.get();
+    public VirtualMapState getMutableState() {
+        final VirtualMapState mutableState = stateRef.get();
         if (mutableState == null) {
             throw new IllegalStateException("StateLifecycleManager has not been initialized.");
         }
@@ -155,8 +152,8 @@ public class StateLifecycleManagerImpl implements StateLifecycleManager {
      */
     @Override
     @NonNull
-    public MerkleNodeState getLatestImmutableState() {
-        final MerkleNodeState latestImmutableState = latestImmutableStateRef.get();
+    public VirtualMapState getLatestImmutableState() {
+        final VirtualMapState latestImmutableState = latestImmutableStateRef.get();
         if (latestImmutableState == null) {
             throw new IllegalStateException("StateLifecycleManager has not been initialized.");
         }
@@ -168,8 +165,8 @@ public class StateLifecycleManagerImpl implements StateLifecycleManager {
      */
     @Override
     @NonNull
-    public MerkleNodeState copyMutableState() {
-        final MerkleNodeState state = stateRef.get();
+    public VirtualMapState copyMutableState() {
+        final VirtualMapState state = stateRef.get();
         copyAndUpdateStateRefs(state);
         return stateRef.get();
     }
@@ -178,9 +175,9 @@ public class StateLifecycleManagerImpl implements StateLifecycleManager {
      * Copies the provided to and updates both the latest immutable to and the mutable to reference.
      * @param stateToCopy the state to copy and update references for
      */
-    private void copyAndUpdateStateRefs(final @NonNull MerkleNodeState stateToCopy) {
+    private void copyAndUpdateStateRefs(final @NonNull VirtualMapState stateToCopy) {
         final long copyStart = System.nanoTime();
-        final MerkleNodeState newMutableState = stateToCopy.copy();
+        final VirtualMapState newMutableState = stateToCopy.copy();
         // Increment the reference count because this reference becomes the new value
         newMutableState.getRoot().reserve();
         final long copyEnd = System.nanoTime();
@@ -197,7 +194,7 @@ public class StateLifecycleManagerImpl implements StateLifecycleManager {
         }
         stateToCopy.getRoot().reserve();
         latestImmutableStateRef.set(stateToCopy);
-        final MerkleNodeState previousMutableState = stateRef.get();
+        final VirtualMapState previousMutableState = stateRef.get();
         if (previousMutableState != null) {
             assert !previousMutableState.isDestroyed();
             if (previousMutableState.isDestroyed()) {
@@ -216,13 +213,13 @@ public class StateLifecycleManagerImpl implements StateLifecycleManager {
      * {@inheritDoc}
      */
     @Override
-    public void createSnapshot(final @NonNull MerkleNodeState state, final @NonNull Path targetPath) {
+    public void createSnapshot(final @NonNull VirtualMapState state, final @NonNull Path targetPath) {
         state.throwIfMutable();
         state.throwIfDestroyed();
         final long startTime = time.currentTimeMillis();
         try {
             log.info(STATE_TO_DISK.getMarker(), "Creating a snapshot on demand in {} for {}", targetPath, state);
-            VirtualMap virtualMap = (VirtualMap) state.getRoot();
+            VirtualMap virtualMap = state.getRoot();
             virtualMap.createSnapshot(targetPath);
             log.info(
                     STATE_TO_DISK.getMarker(),
@@ -231,11 +228,7 @@ public class StateLifecycleManagerImpl implements StateLifecycleManager {
                     state);
         } catch (final Throwable e) {
             log.error(
-                    EXCEPTION.getMarker(),
-                    "Unable to write a snapshot on demand for {} to {}: {}",
-                    state,
-                    targetPath,
-                    e);
+                    EXCEPTION.getMarker(), "Unable to write a snapshot on demand for {} to {}.", state, targetPath, e);
         }
 
         snapshotMetrics.updateWriteStateToDiskTimeMetric(time.currentTimeMillis() - startTime);
@@ -244,41 +237,9 @@ public class StateLifecycleManagerImpl implements StateLifecycleManager {
     /**
      * {@inheritDoc}
      */
-    @Override
-    public Future<Void> createSnapshotAsync(final @NonNull MerkleNodeState state, final @NonNull Path targetPath) {
-        state.throwIfMutable();
-        state.throwIfDestroyed();
-
-        // includes pipeline queue wait, not just snapshot I/O
-        final long startTime = time.currentTimeMillis();
-        log.info(STATE_TO_DISK.getMarker(), "Creating a snapshot on demand (async) in {} for {}", targetPath, state);
-
-        final VirtualMap virtualMap = (VirtualMap) state.getRoot();
-        return virtualMap.createSnapshotAsync(targetPath).whenComplete((result, error) -> {
-            if (error != null) {
-                log.error(
-                        EXCEPTION.getMarker(),
-                        "Unable to write a snapshot on demand (async) for {} to {}: {}",
-                        state,
-                        targetPath,
-                        error);
-            } else {
-                log.info(
-                        STATE_TO_DISK.getMarker(),
-                        "Successfully created a snapshot on demand (async) in {} for {}",
-                        targetPath,
-                        state);
-            }
-            snapshotMetrics.updateWriteStateToDiskTimeMetric(time.currentTimeMillis() - startTime);
-        });
-    }
-
-    /**
-     * {@inheritDoc}
-     */
     @NonNull
     @Override
-    public MerkleNodeState loadSnapshot(@NonNull final Path targetPath) throws IOException {
+    public VirtualMapState loadSnapshot(@NonNull final Path targetPath) throws IOException {
         final VirtualMap virtualMap;
         log.info(STARTUP.getMarker(), "Loading snapshot from disk {}", targetPath);
         virtualMap = VirtualMap.loadFromDirectory(

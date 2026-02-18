@@ -4,16 +4,13 @@ package com.swirlds.platform.state.snapshot;
 import static com.swirlds.common.io.utility.FileUtils.deleteDirectoryAndLog;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STATE_TO_DISK;
-import static com.swirlds.platform.state.snapshot.StateToDiskReason.UNKNOWN;
+import static org.hiero.consensus.state.snapshot.StateToDiskReason.UNKNOWN;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.logging.legacy.payload.InsufficientSignaturesPayload;
-import com.swirlds.platform.config.StateConfig;
-import com.swirlds.platform.state.signed.ReservedSignedState;
-import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.state.StateLifecycleManager;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -30,6 +27,10 @@ import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.state.StateSavingResult;
 import org.hiero.consensus.roster.RosterUtils;
+import org.hiero.consensus.state.config.StateConfig;
+import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.state.signed.SignedState;
+import org.hiero.consensus.state.snapshot.StateToDiskReason;
 
 /**
  * This class is responsible for managing the state writing pipeline.
@@ -119,11 +120,8 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
         final long start = time.nanoTime();
         final StateSavingResult stateSavingResult;
 
-        // The state is reserved before it is handed to this method, and it is released in the snapshot
-        // saving process (see SignedStateFileWriter#writeSignedStateFilesToDirectory).
-        // This try-finally ensures the state is closed on early returns (e.g., already saved to disk)
-        // or if an error occurs before reaching the inner close logic.
-        try {
+        // the state is reserved before it is handed to this method, and it is released when we are done
+        try (reservedSignedState) {
             final SignedState signedState = reservedSignedState.get();
             if (signedState.hasStateBeenSavedToDisk()) {
                 logger.info(
@@ -133,7 +131,7 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
                 return null;
             }
             checkSignatures(signedState);
-            final boolean success = saveStateTask(reservedSignedState, getSignedStateDir(signedState.getRound()));
+            final boolean success = saveStateTask(signedState, getSignedStateDir(signedState.getRound()));
             if (!success) {
                 return null;
             }
@@ -144,12 +142,7 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
                     signedState.isFreezeState(),
                     signedState.getConsensusTimestamp(),
                     minBirthRound);
-        } finally {
-            if (!reservedSignedState.isClosed()) {
-                reservedSignedState.close();
-            }
         }
-
         metrics.getStateToDiskTimeMetric().update(TimeUnit.NANOSECONDS.toMillis(time.nanoTime() - start));
         metrics.getWriteStateToDiskTimeMetric().update(TimeUnit.NANOSECONDS.toMillis(time.nanoTime() - start));
 
@@ -161,26 +154,17 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
      */
     @Override
     public void dumpStateTask(@NonNull final StateDumpRequest request) {
-        final ReservedSignedState reservedSignedState = request.reservedSignedState();
-        final SignedState signedState = reservedSignedState.get();
-
-        // The state is reserved before it is handed to this method, and it is released in the snapshot
-        // saving process (see SignedStateFileWriter#writeSignedStateFilesToDirectory);
-        // additionally, this try-finally ensures cleanup if an error occurs before reaching that point.
-        try {
+        // the state is reserved before it is handed to this method, and it is released when we are done
+        try (final ReservedSignedState reservedSignedState = request.reservedSignedState()) {
+            final SignedState signedState = reservedSignedState.get();
             // states requested to be written out-of-band are always written to disk
             saveStateTask(
-                    reservedSignedState,
+                    reservedSignedState.get(),
                     signedStateFilePath
                             .getSignedStatesBaseDirectory()
                             .resolve(getReason(signedState).getDescription())
                             .resolve(String.format("node%d_round%d", selfId.id(), signedState.getRound())));
-        } finally {
-            if (!reservedSignedState.isClosed()) {
-                reservedSignedState.close();
-            }
         }
-
         request.finishedCallback().run();
     }
 
@@ -189,24 +173,16 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
         return Optional.ofNullable(state.getStateToDiskReason()).orElse(UNKNOWN);
     }
 
-    private boolean saveStateTask(
-            @NonNull final ReservedSignedState reservedSignedState, @NonNull final Path directory) {
-        final SignedState signedState = reservedSignedState.get();
-
+    private boolean saveStateTask(@NonNull final SignedState state, @NonNull final Path directory) {
         try {
             SignedStateFileWriter.writeSignedStateToDisk(
-                    platformContext,
-                    selfId,
-                    directory,
-                    getReason(signedState),
-                    reservedSignedState,
-                    stateLifecycleManager);
+                    platformContext, selfId, directory, getReason(state), state, stateLifecycleManager);
             return true;
         } catch (final Throwable e) {
             logger.error(
                     EXCEPTION.getMarker(),
                     "Unable to write signed state to disk for round {} to {}.",
-                    signedState.getRound(),
+                    state.getRound(),
                     directory,
                     e);
             return false;

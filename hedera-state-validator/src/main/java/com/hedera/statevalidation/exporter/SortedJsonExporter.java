@@ -14,7 +14,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.statevalidation.util.JsonUtils;
 import com.hedera.statevalidation.util.StateUtils;
 import com.swirlds.base.utility.Pair;
-import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
@@ -50,7 +50,7 @@ public class SortedJsonExporter {
     public static final String SINGLE_STATE_TMPL = "%s_%s_%d.json";
 
     private final File resultDir;
-    private final MerkleNodeState state;
+    private final VirtualMapState state;
     private final long suppliedFirstLeafPath;
     private final long suppliedLastLeafPath;
     private final ExecutorService executorService;
@@ -62,7 +62,7 @@ public class SortedJsonExporter {
 
     public SortedJsonExporter(
             @NonNull final File resultDir,
-            @NonNull final MerkleNodeState state,
+            @NonNull final VirtualMapState state,
             @Nullable final String serviceName,
             @Nullable final String stateKey,
             long suppliedFirstLeafPath,
@@ -72,7 +72,7 @@ public class SortedJsonExporter {
 
     public SortedJsonExporter(
             @NonNull final File resultDir,
-            @NonNull final MerkleNodeState state,
+            @NonNull final VirtualMapState state,
             @NonNull final List<Pair<String, String>> serviceNameStateKeyList,
             long suppliedFirstLeafPath,
             long suppliedLastLeafPath) {
@@ -127,7 +127,7 @@ public class SortedJsonExporter {
 
     public void export() {
         final long startTimestamp = System.currentTimeMillis();
-        final VirtualMap vm = (VirtualMap) state.getRoot();
+        final VirtualMap vm = state.getRoot();
         totalNumber = vm.size();
         log.debug("Collecting keys from the state...");
         collectKeys(vm);
@@ -223,7 +223,7 @@ public class SortedJsonExporter {
 
     private void processRange(
             @NonNull final List<Pair<Long, Bytes>> keys, @NonNull final String fileName, int start, int end) {
-        final VirtualMap vm = (VirtualMap) state.getRoot();
+        final VirtualMap vm = state.getRoot();
         final File file = new File(resultDir, fileName);
         boolean emptyFile = true;
         try (final BufferedWriter writer = new BufferedWriter(new FileWriter(file))) {

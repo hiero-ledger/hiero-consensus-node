@@ -7,7 +7,7 @@ import org.hiero.consensus.model.node.NodeId;
 /**
  * A utility class to help with node-related operations.
  */
-public class NodeUtilities {
+public final class NodeUtilities {
 
     private NodeUtilities() {}
 

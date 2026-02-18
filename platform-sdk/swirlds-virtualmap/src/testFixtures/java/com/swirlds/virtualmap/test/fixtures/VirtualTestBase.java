@@ -2,18 +2,10 @@
 package com.swirlds.virtualmap.test.fixtures;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.merkle.MerkleInternal;
-import com.swirlds.common.merkle.MerkleLeaf;
-import com.swirlds.common.merkle.impl.PartialBinaryMerkleInternal;
-import com.swirlds.common.merkle.impl.PartialMerkleLeaf;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
-import java.io.IOException;
-import org.hiero.base.constructable.ClassConstructorPair;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.CryptographyProvider;
-import org.hiero.base.io.streams.SerializableDataInputStream;
-import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.junit.jupiter.api.BeforeAll;
 
 @SuppressWarnings("jol")
@@ -101,8 +93,6 @@ public class VirtualTestBase {
         registry.registerConstructables("org.hiero");
         registry.registerConstructables("com.swirlds.virtualmap");
         registry.registerConstructables("com.swirlds.virtualmap.test.fixtures");
-        registry.registerConstructable(new ClassConstructorPair(TestInternal.class, TestInternal::new));
-        registry.registerConstructable(new ClassConstructorPair(TestLeaf.class, TestLeaf::new));
     }
 
     protected VirtualLeafBytes<TestValue> leaf(long path, long key, long value) {
@@ -209,88 +199,5 @@ public class VirtualTestBase {
 
     private VirtualLeafBytes<TestValue> copyWithPath(VirtualLeafBytes<TestValue> leaf, TestValue value, long path) {
         return new VirtualLeafBytes<>(path, leaf.keyBytes(), value, TestValueCodec.INSTANCE);
-    }
-
-    public static final class TestInternal extends PartialBinaryMerkleInternal implements MerkleInternal {
-        private String label;
-
-        public TestInternal() {
-            // For serialization
-        }
-
-        public TestInternal(String label) {
-            this.label = label;
-        }
-
-        private TestInternal(TestInternal other) {
-            super(other);
-            this.label = other.label;
-        }
-
-        @Override
-        public long getClassId() {
-            return 1234;
-        }
-
-        @Override
-        public int getVersion() {
-            return 1;
-        }
-
-        @Override
-        public TestInternal copy() {
-            return new TestInternal(this);
-        }
-
-        @Override
-        public String toString() {
-            return "TestInternal{" + "label='" + label + '\'' + '}';
-        }
-    }
-
-    public static final class TestLeaf extends PartialMerkleLeaf implements MerkleLeaf {
-        private String value;
-
-        // For serialization engine
-        public TestLeaf() {}
-
-        public TestLeaf(String value) {
-            this.value = value;
-        }
-
-        private TestLeaf(TestLeaf other) {
-            super(other);
-            this.value = other.value;
-        }
-
-        @Override
-        public long getClassId() {
-            return 2345;
-        }
-
-        @Override
-        public int getVersion() {
-            return 1;
-        }
-
-        @Override
-        public void serialize(SerializableDataOutputStream out) throws IOException {
-            out.writeUTF(value);
-        }
-
-        @Override
-        public void deserialize(SerializableDataInputStream in, int version) throws IOException {
-            this.value = in.readUTF();
-        }
-
-        @Override
-        public TestLeaf copy() {
-            return new TestLeaf(this);
-        }
-
-        @Override
-        public String toString() {
-            return "TestLeaf{" + "value='" + value + '\'' + '}';
-        }
     }
 }

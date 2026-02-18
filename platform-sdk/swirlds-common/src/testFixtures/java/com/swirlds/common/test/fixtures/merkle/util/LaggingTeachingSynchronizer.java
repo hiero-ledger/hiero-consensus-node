@@ -26,7 +26,7 @@ public class LaggingTeachingSynchronizer extends TeachingSynchronizer {
     public LaggingTeachingSynchronizer(
             final SerializableDataInputStream in,
             final SerializableDataOutputStream out,
-            final TeacherTreeView<?> view,
+            final TeacherTreeView view,
             final int latencyMilliseconds,
             final Runnable breakConnection,
             final ReconnectConfig reconnectConfig) {

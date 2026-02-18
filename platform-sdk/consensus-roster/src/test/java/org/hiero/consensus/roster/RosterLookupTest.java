@@ -4,10 +4,10 @@ package org.hiero.consensus.roster;
 import static org.junit.jupiter.api.Assertions.*;
 
 import com.hedera.hapi.node.state.roster.Roster;
-import com.swirlds.common.test.fixtures.Randotron;
-import com.swirlds.common.test.fixtures.WeightGenerators;
-import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
+import org.hiero.consensus.test.fixtures.Randotron;
+import org.hiero.consensus.test.fixtures.WeightGenerators;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 

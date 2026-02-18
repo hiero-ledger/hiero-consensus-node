@@ -2,8 +2,8 @@
 package com.swirlds.platform.state.hashlogger;
 
 import static com.swirlds.logging.legacy.LogMarker.STATE_HASH;
-import static com.swirlds.platform.state.service.PlatformStateService.NAME;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hiero.consensus.platformstate.PlatformStateService.NAME;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -15,26 +15,26 @@ import static org.mockito.Mockito.when;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import com.swirlds.platform.config.StateConfig_;
-import com.swirlds.platform.state.PlatformStateAccessor;
-import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
-import com.swirlds.platform.state.signed.ReservedSignedState;
-import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
-import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.test.fixtures.merkle.VirtualMapUtils;
+import com.swirlds.virtualmap.VirtualMap;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.MessageSupplier;
+import org.hiero.consensus.platformstate.PlatformStateAccessor;
+import org.hiero.consensus.platformstate.V0540PlatformStateSchema;
+import org.hiero.consensus.state.config.StateConfig_;
+import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.state.signed.SignedState;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -43,7 +43,7 @@ public class HashLoggerTest {
     private Logger mockLogger;
     private HashLogger hashLogger;
     private List<String> logged;
-    private Set<MerkleNode> stateRoots = new HashSet<>();
+    private final Set<VirtualMap> stateRoots = new HashSet<>();
 
     /**
      * Get a regex that will match a log message containing the given round number
@@ -139,8 +139,8 @@ public class HashLoggerTest {
 
     private ReservedSignedState createSignedState(final long round) {
         final SignedState signedState = mock(SignedState.class);
-        final MerkleNodeState state = mock(MerkleNodeState.class);
-        final MerkleNode stateRoot = VirtualMapUtils.createVirtualMap();
+        final VirtualMapState state = mock(VirtualMapState.class);
+        final VirtualMap stateRoot = VirtualMapUtils.createVirtualMap();
         stateRoot.getHash();
         stateRoots.add(stateRoot);
         final ReadableStates readableStates = mock(ReadableStates.class);
@@ -171,7 +171,7 @@ public class HashLoggerTest {
 
     @AfterEach
     void tearDown() {
-        for (MerkleNode stateRoot : stateRoots) {
+        for (VirtualMap stateRoot : stateRoots) {
             stateRoot.release();
         }
         stateRoots.clear();

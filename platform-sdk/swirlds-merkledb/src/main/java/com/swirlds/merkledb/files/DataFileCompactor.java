@@ -250,13 +250,13 @@ public class DataFileCompactor {
                         snapshotCompactionLock.lock();
                         try {
                             final DataFileWriter newFileWriter = currentWriter.get();
-                            final BufferedData itemBytes = reader.readDataItem(fileOffset);
-                            assert itemBytes != null;
+                            final BufferedData itemBytesWithTag = reader.readDataItemWithTag(fileOffset);
+                            assert itemBytesWithTag != null;
                             // Check if the index was changed while this thread was reading data. If
                             // changed, there is no need to write the data as the following CAS call
                             // would fail anyway
                             if (index.get(path) == dataLocation) {
-                                long newLocation = newFileWriter.storeDataItem(itemBytes);
+                                long newLocation = newFileWriter.storeDataItemWithTag(itemBytesWithTag);
                                 // update the index
                                 index.putIfEqual(path, dataLocation, newLocation);
                             }

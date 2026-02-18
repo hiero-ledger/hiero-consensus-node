@@ -59,9 +59,14 @@ import org.bouncycastle.pkcs.PKCSException;
 import org.bouncycastle.util.encoders.DecoderException;
 import org.bouncycastle.util.io.pem.PemObject;
 import org.bouncycastle.util.io.pem.PemWriter;
+import org.hiero.base.crypto.KeystorePasswordPolicy;
 import org.hiero.base.crypto.config.CryptoConfig;
+import org.hiero.base.crypto.config.CryptoConfig_;
+import org.hiero.consensus.crypto.CertificateUtils;
 import org.hiero.consensus.crypto.CryptoConstants;
 import org.hiero.consensus.crypto.KeyCertPurpose;
+import org.hiero.consensus.crypto.KeyGeneratingException;
+import org.hiero.consensus.crypto.KeysAndCertsGenerator;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.node.NodeUtilities;
@@ -235,6 +240,8 @@ public class EnhancedKeyStoreLoader {
             throw new IllegalArgumentException("keyStorePassphrase must not be null or blank");
         }
 
+        KeystorePasswordPolicy.warnIfNonCompliant(CryptoConfig_.KEYSTORE_PASSWORD, keyStorePassphrase);
+
         return new EnhancedKeyStoreLoader(
                 keyStoreDirectory, keyStorePassphrase.toCharArray(), localNodes, rosterEntries);
     }
@@ -292,8 +299,8 @@ public class EnhancedKeyStoreLoader {
                 final KeyPair signingKeyPair = new KeyPair(publicSigningKey, privateSigningKey);
 
                 // generate the agreement certificate
-                final String dnA = CryptoStatic.distinguishedName(KeyCertPurpose.AGREEMENT.storeName(nodeId));
-                final X509Certificate agrCert = CryptoStatic.generateCertificate(
+                final String dnA = CertificateUtils.distinguishedName(KeyCertPurpose.AGREEMENT.storeName(nodeId));
+                final X509Certificate agrCert = CertificateUtils.generateCertificate(
                         dnA,
                         agrKeyPair,
                         signingCert.getSubjectX500Principal().getName(),

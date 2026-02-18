@@ -6,14 +6,15 @@ import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.platform.builder.ConsensusModuleBuilder.createEventCreatorModule;
 import static com.swirlds.platform.builder.ConsensusModuleBuilder.createEventIntakeModule;
+import static com.swirlds.platform.builder.ConsensusModuleBuilder.createGossipModule;
 import static com.swirlds.platform.builder.ConsensusModuleBuilder.createHashgraphModule;
 import static com.swirlds.platform.builder.ConsensusModuleBuilder.createPcesModule;
 import static com.swirlds.platform.builder.PlatformBuildConstants.DEFAULT_SETTINGS_FILE_NAME;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.doStaticSetup;
 import static com.swirlds.platform.config.internal.PlatformConfigUtils.checkConfiguration;
-import static com.swirlds.platform.state.service.PlatformStateUtils.isInFreezePeriod;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.isInFreezePeriod;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
@@ -30,12 +31,12 @@ import com.swirlds.platform.metrics.PlatformMetricsConfig;
 import com.swirlds.platform.scratchpad.Scratchpad;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.iss.IssScratchpad;
-import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.wiring.PlatformComponents;
 import com.swirlds.platform.wiring.PlatformWiring;
-import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.StateLifecycleManager;
+import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.lang.Thread.UncaughtExceptionHandler;
@@ -54,12 +55,14 @@ import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.base.crypto.Signature;
 import org.hiero.consensus.crypto.ConsensusCryptoUtils;
 import org.hiero.consensus.crypto.PlatformSigner;
+import org.hiero.consensus.event.DefaultIntakeEventCounter;
 import org.hiero.consensus.event.IntakeEventCounter;
+import org.hiero.consensus.event.NoOpIntakeEventCounter;
 import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.event.intake.EventIntakeModule;
+import org.hiero.consensus.gossip.GossipModule;
+import org.hiero.consensus.gossip.ReservedSignedStateResult;
 import org.hiero.consensus.gossip.config.SyncConfig;
-import org.hiero.consensus.gossip.impl.gossip.DefaultIntakeEventCounter;
-import org.hiero.consensus.gossip.impl.gossip.NoOpIntakeEventCounter;
 import org.hiero.consensus.hashgraph.HashgraphModule;
 import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -68,6 +71,7 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.roster.RosterHistory;
+import org.hiero.consensus.state.signed.ReservedSignedState;
 
 /**
  * Builds a {@link SwirldsPlatform} instance.
@@ -80,8 +84,8 @@ public final class PlatformBuilder {
     private final SemanticVersion softwareVersion;
     private final ReservedSignedState initialState;
 
-    private final ConsensusStateEventHandler<MerkleNodeState> consensusStateEventHandler;
-    private final StateLifecycleManager stateLifecycleManager;
+    private final ConsensusStateEventHandler consensusStateEventHandler;
+    private final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager;
 
     private final NodeId selfId;
     private final String swirldName;
@@ -93,6 +97,7 @@ public final class PlatformBuilder {
     private EventIntakeModule eventIntakeModule;
     private HashgraphModule hashgraphModule;
     private PcesModule pcesModule;
+    private GossipModule gossipModule;
 
     private static final UncaughtExceptionHandler DEFAULT_UNCAUGHT_EXCEPTION_HANDLER =
             (t, e) -> logger.error(EXCEPTION.getMarker(), "Uncaught exception on thread {}: {}", t, e);
@@ -429,6 +434,44 @@ public final class PlatformBuilder {
     }
 
     /**
+     * Provide the consensus event creator to use for this platform.
+     *
+     * @param gossipModule the consensus event creator
+     * @return this
+     */
+    @NonNull
+    public PlatformBuilder withGossipModule(@NonNull final GossipModule gossipModule) {
+        throwIfAlreadyUsed();
+        this.gossipModule = requireNonNull(gossipModule);
+        return this;
+    }
+
+    private void initializeGossipModule(
+            @NonNull final IntakeEventCounter intakeEventCounter,
+            @NonNull final AtomicReference<Supplier<ReservedSignedState>> getLatestCompleteStateReference,
+            @NonNull final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise,
+            @NonNull final FallenBehindMonitor fallenBehindMonitor) {
+        if (this.gossipModule == null) {
+            this.gossipModule = createGossipModule();
+        }
+
+        gossipModule.initialize(
+                model,
+                platformContext.getConfiguration(),
+                platformContext.getMetrics(),
+                platformContext.getTime(),
+                keysAndCerts,
+                rosterHistory.getCurrentRoster(),
+                selfId,
+                softwareVersion,
+                intakeEventCounter,
+                () -> getLatestCompleteStateReference.get().get(),
+                reservedSignedStateResultPromise,
+                fallenBehindMonitor,
+                stateLifecycleManager);
+    }
+
+    /**
      * Throw an exception if this builder has been used to build a platform or a platform factory.
      */
     private void throwIfAlreadyUsed() {
@@ -505,14 +548,30 @@ public final class PlatformBuilder {
                 .eventPipelineMetricsEnabled();
         final EventPipelineTracker pipelineTracker =
                 eventPipelineMetricsEnabled ? new EventPipelineTracker(platformContext.getMetrics()) : null;
+        final AtomicReference<Supplier<ReservedSignedState>> getLatestCompleteStateReference = new AtomicReference<>();
+        final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise =
+                new BlockingResourceProvider<>();
+        final FallenBehindMonitor fallenBehindMonitor =
+                new FallenBehindMonitor(currentRoster, configuration, platformContext.getMetrics());
 
         initializeEventCreatorModule();
         initializeEventIntakeModule(intakeEventCounter, pipelineTracker);
         initializePcesModule(pipelineTracker);
         initializeHashgraphModule(pipelineTracker);
+        initializeGossipModule(
+                intakeEventCounter,
+                getLatestCompleteStateReference,
+                reservedSignedStateResultPromise,
+                fallenBehindMonitor);
 
         final PlatformComponents platformComponents = PlatformComponents.create(
-                platformContext, model, eventCreatorModule, eventIntakeModule, pcesModule, hashgraphModule);
+                platformContext,
+                model,
+                eventCreatorModule,
+                eventIntakeModule,
+                pcesModule,
+                hashgraphModule,
+                gossipModule);
 
         PlatformWiring.wire(platformContext, execution, platformComponents, callbacks);
 
@@ -539,12 +598,12 @@ public final class PlatformBuilder {
                 NotificationEngine.buildEngine(getStaticThreadManager()),
                 new AtomicReference<>(),
                 stateLifecycleManager,
-                new AtomicReference<>(),
+                getLatestCompleteStateReference,
                 firstPlatform,
                 consensusStateEventHandler,
                 execution,
-                new FallenBehindMonitor(rosterHistory.getCurrentRoster(), configuration, platformContext.getMetrics()),
-                new BlockingResourceProvider<>());
+                fallenBehindMonitor,
+                reservedSignedStateResultPromise);
 
         return new PlatformComponentBuilder(buildingBlocks);
     }

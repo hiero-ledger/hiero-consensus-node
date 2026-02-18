@@ -985,6 +985,13 @@ public class RecordStreamBuilder
         return this;
     }
 
+    @NonNull
+    @Override
+    public StreamBuilder highVolumePricingMultiplier(long highVolumePricingMultiplier) {
+        // No-op
+        return this;
+    }
+
     /**
      * Sets the receipt topicID.
      *

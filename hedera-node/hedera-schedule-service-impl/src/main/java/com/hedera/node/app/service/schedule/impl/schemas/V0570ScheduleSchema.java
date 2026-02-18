@@ -24,12 +24,6 @@ import java.util.Set;
  * General schema for the schedule service.
  */
 public final class V0570ScheduleSchema extends Schema<SemanticVersion> {
-
-    private static final long MAX_SCHEDULED_COUNTS = 50_000L;
-    private static final long MAX_SCHEDULED_ORDERS = 50_000L;
-    private static final long MAX_SCHEDULED_USAGES = 50_000L;
-    private static final long MAX_SCHEDULE_ID_BY_EQUALITY = 50_000L;
-
     private static final SemanticVersion VERSION =
             SemanticVersion.newBuilder().major(0).minor(57).patch(0).build();
 
@@ -74,9 +68,6 @@ public final class V0570ScheduleSchema extends Schema<SemanticVersion> {
     public static final int SCHEDULE_ID_BY_EQUALITY_STATE_ID =
             StateKey.KeyOneOfType.SCHEDULESERVICE_I_SCHEDULE_ID_BY_EQUALITY.protoOrdinal();
 
-    public static final String SCHEDULE_ID_BY_EQUALITY_STATE_LABEL =
-            computeLabel(ScheduleService.NAME, SCHEDULE_ID_BY_EQUALITY_KEY);
-
     /**
      * Instantiates a new V0570 (version 0.57.0) schedule schema.
      */
@@ -96,38 +87,28 @@ public final class V0570ScheduleSchema extends Schema<SemanticVersion> {
     }
 
     private static StateDefinition<TimestampSeconds, ScheduledCounts> scheduledCounts() {
-        return StateDefinition.onDisk(
-                SCHEDULED_COUNTS_STATE_ID,
-                SCHEDULED_COUNTS_KEY,
-                TimestampSeconds.PROTOBUF,
-                ScheduledCounts.PROTOBUF,
-                MAX_SCHEDULED_COUNTS);
+        return StateDefinition.keyValue(
+                SCHEDULED_COUNTS_STATE_ID, SCHEDULED_COUNTS_KEY, TimestampSeconds.PROTOBUF, ScheduledCounts.PROTOBUF);
     }
 
     private static StateDefinition<ScheduledOrder, ScheduleID> scheduledOrders() {
-        return StateDefinition.onDisk(
-                SCHEDULED_ORDERS_STATE_ID,
-                SCHEDULED_ORDERS_KEY,
-                ScheduledOrder.PROTOBUF,
-                ScheduleID.PROTOBUF,
-                MAX_SCHEDULED_ORDERS);
+        return StateDefinition.keyValue(
+                SCHEDULED_ORDERS_STATE_ID, SCHEDULED_ORDERS_KEY, ScheduledOrder.PROTOBUF, ScheduleID.PROTOBUF);
     }
 
     private static StateDefinition<TimestampSeconds, ThrottleUsageSnapshots> scheduledUsages() {
-        return StateDefinition.onDisk(
+        return StateDefinition.keyValue(
                 SCHEDULED_USAGES_STATE_ID,
                 SCHEDULED_USAGES_KEY,
                 TimestampSeconds.PROTOBUF,
-                ThrottleUsageSnapshots.PROTOBUF,
-                MAX_SCHEDULED_USAGES);
+                ThrottleUsageSnapshots.PROTOBUF);
     }
 
     private static StateDefinition<ProtoBytes, ScheduleID> scheduleIdByEquality() {
-        return StateDefinition.onDisk(
+        return StateDefinition.keyValue(
                 SCHEDULE_ID_BY_EQUALITY_STATE_ID,
                 SCHEDULE_ID_BY_EQUALITY_KEY,
                 ProtoBytes.PROTOBUF,
-                ScheduleID.PROTOBUF,
-                MAX_SCHEDULE_ID_BY_EQUALITY);
+                ScheduleID.PROTOBUF);
     }
 }

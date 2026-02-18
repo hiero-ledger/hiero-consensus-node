@@ -35,7 +35,7 @@ import org.hiero.consensus.reconnect.config.ReconnectConfig;
  * <p>This implementation is supposed to work with {@link TeacherPullVirtualTreeView} on the
  * teacher side.
  */
-public final class LearnerPullVirtualTreeView extends VirtualTreeViewBase implements LearnerTreeView<Long> {
+public final class LearnerPullVirtualTreeView extends VirtualTreeViewBase implements LearnerTreeView {
 
     /**
      * Reconnect configuration.
@@ -231,7 +231,7 @@ public final class LearnerPullVirtualTreeView extends VirtualTreeViewBase implem
      */
     @Override
     public void expectLessonFor(
-            final Long parent, final int childIndex, final Long original, final boolean nodeAlreadyPresent) {
+            final Long parentPath, final int childIndex, final Long originalPath, final boolean nodeAlreadyPresent) {
         throw new UnsupportedOperationException("LearnerPullVirtualTreeView.expectLessonFor()");
     }
 
@@ -239,7 +239,7 @@ public final class LearnerPullVirtualTreeView extends VirtualTreeViewBase implem
      * {@inheritDoc}
      */
     @Override
-    public ExpectedLesson<Long> getNextExpectedLesson() {
+    public ExpectedLesson getNextExpectedLesson() {
         throw new UnsupportedOperationException("LearnerPullVirtualTreeView.getNextExpectedLesson()");
     }
 

@@ -17,7 +17,7 @@ import org.hiero.base.io.streams.SerializableDataOutputStream;
 /**
  * Used during the synchronization protocol to send data needed to reconstruct a single node.
  */
-public class Lesson<T> implements Releasable, SelfSerializable {
+public class Lesson implements Releasable, SelfSerializable {
 
     private static final long CLASS_ID = 0x98bc0d340d9bca1dL;
 
@@ -28,7 +28,7 @@ public class Lesson<T> implements Releasable, SelfSerializable {
     private byte lessonType;
     private SelfSerializable subLesson;
 
-    private LearnerTreeView<T> learnerView;
+    private LearnerTreeView learnerView;
 
     /**
      * Zero-arg constructor for constructable registry.
@@ -54,7 +54,7 @@ public class Lesson<T> implements Releasable, SelfSerializable {
      * @param learnerTreeView
      * 		the learner's view
      */
-    public Lesson(final LearnerTreeView<T> learnerTreeView) {
+    public Lesson(final LearnerTreeView learnerTreeView) {
         this.learnerView = learnerTreeView;
     }
 
@@ -80,10 +80,10 @@ public class Lesson<T> implements Releasable, SelfSerializable {
             case NODE_IS_UP_TO_DATE:
                 return;
             case LEAF_NODE_DATA:
-                subLesson = new LeafDataLesson<>(learnerView);
+                subLesson = new LeafDataLesson(learnerView);
                 break;
             case INTERNAL_NODE_DATA:
-                subLesson = new InternalDataLesson<>(learnerView);
+                subLesson = new InternalDataLesson(learnerView);
                 break;
             default:
                 throw new IllegalStateException("unsupported lesson type " + lessonType);
@@ -131,7 +131,7 @@ public class Lesson<T> implements Releasable, SelfSerializable {
      */
     @SuppressWarnings("unchecked")
     public List<Hash> getQueries() {
-        return ((InternalDataLesson<T>) subLesson).getQueries();
+        return ((InternalDataLesson) subLesson).getQueries();
     }
 
     /**
@@ -140,11 +140,11 @@ public class Lesson<T> implements Releasable, SelfSerializable {
      * @return the leaf node, or null if unset
      */
     @SuppressWarnings("unchecked")
-    public T getNode() {
+    public Long getNode() {
         if (lessonType == LEAF_NODE_DATA) {
-            return ((LeafDataLesson<T>) subLesson).getLeaf();
+            return ((LeafDataLesson) subLesson).getLeaf();
         }
-        return ((InternalDataLesson<T>) subLesson).getInternal();
+        return ((InternalDataLesson) subLesson).getInternal();
     }
 
     /**

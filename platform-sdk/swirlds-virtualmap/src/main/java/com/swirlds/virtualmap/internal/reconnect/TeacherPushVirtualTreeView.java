@@ -38,7 +38,7 @@ import org.hiero.consensus.reconnect.config.ReconnectConfig;
 /**
  * An implementation of {@link TeacherTreeView} designed for virtual merkle trees.
  */
-public final class TeacherPushVirtualTreeView extends VirtualTreeViewBase implements TeacherTreeView<Long> {
+public final class TeacherPushVirtualTreeView extends VirtualTreeViewBase implements TeacherTreeView {
 
     private static final Logger logger = LogManager.getLogger(TeacherPushVirtualTreeView.class);
 
@@ -145,7 +145,7 @@ public final class TeacherPushVirtualTreeView extends VirtualTreeViewBase implem
         final AsyncInputStream<QueryResponse> in =
                 new AsyncInputStream<>(inputStream, workGroup, QueryResponse::new, reconnectConfig);
         in.start();
-        final AsyncOutputStream<Lesson<Long>> out = teachingSynchronizer.buildOutputStream(workGroup, outputStream);
+        final AsyncOutputStream<Lesson> out = teachingSynchronizer.buildOutputStream(workGroup, outputStream);
         out.start();
 
         final AtomicBoolean senderIsFinished = new AtomicBoolean(false);

@@ -2,6 +2,7 @@
 package com.swirlds.state;
 
 import com.swirlds.common.FastCopyable;
+import com.swirlds.state.lifecycle.StateMetadata;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableStates;
@@ -98,4 +99,24 @@ public interface State extends FastCopyable, Hashable {
     default String getInfoJson() {
         return "";
     }
+
+    /**
+     * Commit all singleton states for every registered service.
+     */
+    default void commitSingletons() {}
+
+    /**
+     * Initializes the defined service state.
+     *
+     * @param md The metadata associated with the state.
+     */
+    default void initializeState(@NonNull StateMetadata<?, ?> md) {}
+
+    /**
+     * Removes the node and metadata from the state merkle tree.
+     *
+     * @param serviceName The service name. Cannot be null.
+     * @param stateId The state ID
+     */
+    default void removeServiceState(@NonNull String serviceName, int stateId) {}
 }

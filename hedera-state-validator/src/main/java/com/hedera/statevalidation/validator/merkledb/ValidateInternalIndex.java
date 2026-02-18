@@ -14,7 +14,7 @@ import com.hedera.statevalidation.util.reflect.MemoryIndexDiskKeyValueStoreAcces
 import com.swirlds.merkledb.MerkleDbDataSource;
 import com.swirlds.merkledb.collections.LongList;
 import com.swirlds.merkledb.files.DataFileCollection;
-import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import java.io.IOException;
@@ -41,8 +41,8 @@ public class ValidateInternalIndex {
     private static final Logger log = LogManager.getLogger(ValidateInternalIndex.class);
 
     @Test
-    public void validateIndex(final MerkleNodeState merkleNodeState) {
-        final VirtualMap virtualMap = (VirtualMap) merkleNodeState.getRoot();
+    public void validateIndex(final VirtualMapState virtualMapState) {
+        final VirtualMap virtualMap = virtualMapState.getRoot();
         assertNotNull(virtualMap);
         MerkleDbDataSource dataSource = (MerkleDbDataSource) virtualMap.getDataSource();
 

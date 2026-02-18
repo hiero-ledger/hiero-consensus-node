@@ -21,11 +21,10 @@ import com.hedera.hapi.block.stream.SiblingNode;
 import com.hedera.hapi.block.stream.StateProof;
 import com.hedera.hapi.block.stream.TssSignedBlockProof;
 import com.hedera.hapi.node.base.Timestamp;
-import com.hedera.hapi.node.state.blockstream.MerkleLeaf;
 import com.hedera.node.app.blocks.impl.BlockImplUtils;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.utility.Pair;
-import com.swirlds.state.SiblingHash;
+import com.swirlds.state.binary.SiblingHash;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Arrays;
@@ -78,9 +77,9 @@ class IndirectProofSequenceValidator {
      * <p>
      * <b>FOR DEVELOPMENT PURPOSES ONLY</b>
      *
-     * @param args
+     * @param ignore not used
      */
-    public static void main(String[] args) {
+    public static void main(String[] ignore) {
         TestCase.run();
     }
 
@@ -127,7 +126,7 @@ class IndirectProofSequenceValidator {
         // Block's Merkle Path 1: timestamp path (left child of the SIGNED block's (sub)root)
         final var timestampBytes = Timestamp.PROTOBUF.toBytes(expectedBlockTimestamp);
         final var mp1 = new PartialMerklePath(
-                MerkleLeaf.newBuilder().blockConsensusTimestamp(timestampBytes).build(), null, null);
+                MerklePath.newBuilder().timestampLeaf(timestampBytes).build(), null, null);
 
         // Block's Merkle Path 2: block contents path
         // Technically we could roll the timestamp into the sibling hashes here, but for clarity we keep them
@@ -312,10 +311,8 @@ class IndirectProofSequenceValidator {
 
         // Merkle Path 1: the block timestamp path (should be the same for all proofs in this sequence)
         final var signedTsBytes = Timestamp.PROTOBUF.toBytes(signedBlockTimestamp);
-        final var signedTsLeaf =
-                MerkleLeaf.newBuilder().blockConsensusTimestamp(signedTsBytes).build();
         final var mp1 = MerklePath.newBuilder()
-                .leaf(signedTsLeaf)
+                .timestampLeaf(signedTsBytes)
                 .nextPathIndex(FINAL_MERKLE_PATH_INDEX)
                 .build();
 
@@ -338,20 +335,20 @@ class IndirectProofSequenceValidator {
 
             // Convert sibling hashes
             final var blockSiblings = currentBlockPaths.right().siblingHashes().stream()
-                    .map(s -> new SiblingHash(!s.isFirst(), new Hash(s.siblingHash())))
+                    .map(s -> new SiblingHash(s.isFirst(), new Hash(s.siblingHash())))
                     .toList();
             // Copy into the sibling hashes array
             final var firstSiblingIndex = i * UNSIGNED_BLOCK_SIBLING_COUNT;
             for (int j = 0; j < blockSiblings.size(); j++) {
                 final var blockSibling = blockSiblings.get(j);
                 allSiblingHashes[firstSiblingIndex + j] = SiblingNode.newBuilder()
-                        .isLeft(!blockSibling.isRight())
+                        .isLeft(blockSibling.isLeft())
                         .hash(blockSibling.hash().getBytes())
                         .build();
             }
 
             // Combine with the current block's timestamp
-            final var unsignedTsBytes = currentBlockPaths.left().leaf().blockConsensusTimestampOrThrow();
+            final var unsignedTsBytes = currentBlockPaths.left().leaf().timestampLeafOrThrow();
             final var hashedUnsignedTsBytes = BlockImplUtils.hashLeaf(unsignedTsBytes);
             allSiblingHashes[firstSiblingIndex + blockSiblings.size()] = SiblingNode.newBuilder()
                     .isLeft(true)
@@ -364,14 +361,14 @@ class IndirectProofSequenceValidator {
         // Convert and add the sibling hashes for the signed block (excluding the signed block's timestamp)
         final var currentBlockPaths = partialPathsByBlock.get(signedBlockNum);
         final var blockSiblings = currentBlockPaths.right().siblingHashes().stream()
-                .map(s -> new SiblingHash(!s.isFirst(), new Hash(s.siblingHash())))
+                .map(s -> new SiblingHash(s.isFirst(), new Hash(s.siblingHash())))
                 .toList();
         // Copy the signed block's siblings into the sibling hashes array
         final var firstSiblingIndex = allSiblingHashes.length - UNSIGNED_BLOCK_SIBLING_COUNT + 1;
         for (int j = 0; j < blockSiblings.size(); j++) {
             final var blockSibling = blockSiblings.get(j);
             allSiblingHashes[firstSiblingIndex + j] = SiblingNode.newBuilder()
-                    .isLeft(!blockSibling.isRight())
+                    .isLeft(blockSibling.isLeft())
                     .hash(blockSibling.hash().getBytes())
                     .build();
         }
@@ -485,18 +482,20 @@ class IndirectProofSequenceValidator {
 
         // Verify the first and last paths (timestamp path and final root path), they're easier to check
         final var mp1 = paths.getFirst();
-        assertTrue(mp1.hasLeaf(), "Expected leaf in Merkle timestamp path at index %s".formatted(signedBlockTimestamp));
+        assertTrue(
+                mp1.hasTimestampLeaf(),
+                "Expected leaf in Merkle timestamp path at index %s".formatted(signedBlockTimestamp));
         assertTrue(mp1.siblings().isEmpty(), "Expected no siblings in final Merkle timestamp path");
         assertEquals(
                 FINAL_MERKLE_PATH_INDEX, mp1.nextPathIndex(), "Mismatch in next path index of timestamp merkle path");
 
         final var mp3 = paths.getLast();
         assertFalse(mp3.hasHash(), "Expected no previousBlockHash in parent root path");
-        assertFalse(mp3.hasLeaf(), "Expected no leaf in parent root path");
+        assertFalse(mp3.hasTimestampLeaf(), "Expected no leaf in parent root path");
 
         // Verify merkle path 2 and compute the block contents hash
         final var mp2 = paths.get(BLOCK_CONTENTS_PATH_INDEX);
-        assertFalse(mp2.hasLeaf(), "Expected no leaf in block contents Merkle path");
+        assertFalse(mp2.hasTimestampLeaf(), "Expected no leaf in block contents Merkle path");
         assertEquals(
                 FINAL_MERKLE_PATH_INDEX,
                 mp2.nextPathIndex(),
@@ -506,8 +505,7 @@ class IndirectProofSequenceValidator {
         final var allSiblings = mp2.siblings();
         var hash = mp2.hashOrThrow();
         var sibPerBlockCounter = 0;
-        for (int i = 0; i < allSiblings.size(); i++) {
-            final var sibling = allSiblings.get(i);
+        for (final SiblingNode sibling : allSiblings) {
             sibPerBlockCounter++;
             if (sibPerBlockCounter == UNSIGNED_BLOCK_SIBLING_COUNT) {
                 // Since this node has no siblings (this is expected), hash the current node as a single-node child
@@ -528,7 +526,7 @@ class IndirectProofSequenceValidator {
         // Perform final single-node child hash
         hash = BlockImplUtils.hashInternalNodeSingleChild(hash);
         // Combine the signed block's timestamp with the computed block contents hash to get the final block hash
-        final var signedTimestamp = paths.getFirst().leafOrThrow().blockConsensusTimestampOrThrow();
+        final var signedTimestamp = paths.getFirst().timestampLeafOrThrow();
         final var signedTimestampBytes = Timestamp.PROTOBUF.toBytes(signedBlockTimestamp);
         assertEquals(signedTimestampBytes, signedTimestamp, "Mismatch in signed block's timestamp bytes");
         final var hashedTsBytes = BlockImplUtils.hashLeaf(signedTimestampBytes);
@@ -553,7 +551,7 @@ class IndirectProofSequenceValidator {
     // represents. For example, the timestamp path will have a leaf but no hash, the block contents path will have a
     // hash but no leaf, and the parent path will have neither.
     private record PartialMerklePath(
-            @Nullable MerkleLeaf leaf,
+            @Nullable MerklePath leaf,
             @Nullable Bytes previousBlockHash,
             @Nullable List<MerkleSiblingHash> siblingHashes) {}
 
@@ -740,9 +738,7 @@ class IndirectProofSequenceValidator {
                             .paths(List.of(
                                     MerklePath.newBuilder()
                                             .nextPathIndex(2)
-                                            .leaf(MerkleLeaf.newBuilder()
-                                                    .blockConsensusTimestamp(BLOCK_10.timestampBytes())
-                                                    .build())
+                                            .timestampLeaf(BLOCK_10.timestampBytes())
                                             .build(),
                                     MerklePath.newBuilder()
                                             .hash(BLOCK_8_HASH)
@@ -839,9 +835,7 @@ class IndirectProofSequenceValidator {
                             .paths(List.of(
                                     MerklePath.newBuilder()
                                             .nextPathIndex(2)
-                                            .leaf(MerkleLeaf.newBuilder()
-                                                    .blockConsensusTimestamp(BLOCK_10.timestampBytes())
-                                                    .build())
+                                            .timestampLeaf(BLOCK_10.timestampBytes())
                                             .build(),
                                     MerklePath.newBuilder()
                                             .hash(INITIAL_PREV_BLOCK_HASH)

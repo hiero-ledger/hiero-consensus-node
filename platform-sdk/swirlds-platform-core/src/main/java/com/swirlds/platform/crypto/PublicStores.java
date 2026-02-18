@@ -90,7 +90,7 @@ public record PublicStores(KeyStore sigTrustStore, KeyStore agrTrustStore) {
      */
     public X509Certificate getCertificate(final KeyCertPurpose type, final NodeId nodeId) throws KeyLoadingException {
         final Certificate certificate;
-        final var name = type.storeName(nodeId);
+        final String name = type.storeName(nodeId);
         try {
             certificate = switch (type) {
                 case SIGNING -> sigTrustStore.getCertificate(name);
