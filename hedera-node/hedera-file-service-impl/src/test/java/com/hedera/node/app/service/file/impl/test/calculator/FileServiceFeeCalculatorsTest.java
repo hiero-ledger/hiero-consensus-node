@@ -12,10 +12,12 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.KeyList;
+import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.file.FileAppendTransactionBody;
 import com.hedera.hapi.node.file.FileCreateTransactionBody;
 import com.hedera.hapi.node.file.FileDeleteTransactionBody;
@@ -39,6 +41,8 @@ import com.hedera.node.app.service.file.impl.calculator.FileGetInfoFeeCalculator
 import com.hedera.node.app.service.file.impl.calculator.FileSystemDeleteFeeCalculator;
 import com.hedera.node.app.service.file.impl.calculator.FileSystemUndeleteFeeCalculator;
 import com.hedera.node.app.service.file.impl.calculator.FileUpdateFeeCalculator;
+import com.hedera.node.app.spi.authorization.Authorizer;
+import com.hedera.node.app.spi.authorization.SystemPrivilege;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.hedera.node.app.spi.workflows.QueryContext;
@@ -59,6 +63,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.mockito.ArgumentMatchers;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -67,6 +72,9 @@ class FileServiceFeeCalculatorsTest {
 
     @Mock
     private FeeContext feeContext;
+
+    @Mock
+    private Authorizer authorizer;
 
     private SimpleFeeCalculatorImpl feeCalculator;
 
@@ -86,10 +94,14 @@ class FileServiceFeeCalculatorsTest {
     }
 
     static Stream<TestCase> provideTestCases() {
+        final var transactionID = TransactionID.newBuilder()
+                .accountID(AccountID.newBuilder().accountNum(1001).build())
+                .build();
         return Stream.of(
                 new TestCase(
                         new FileCreateFeeCalculator(),
                         TransactionBody.newBuilder()
+                                .transactionID(transactionID)
                                 .fileCreate(
                                         FileCreateTransactionBody.newBuilder().build())
                                 .build(),
@@ -100,6 +112,7 @@ class FileServiceFeeCalculatorsTest {
                 new TestCase(
                         new FileDeleteFeeCalculator(),
                         TransactionBody.newBuilder()
+                                .transactionID(transactionID)
                                 .fileDelete(
                                         FileDeleteTransactionBody.newBuilder().build())
                                 .build(),
@@ -110,6 +123,7 @@ class FileServiceFeeCalculatorsTest {
                 new TestCase(
                         new FileCreateFeeCalculator(),
                         TransactionBody.newBuilder()
+                                .transactionID(transactionID)
                                 .fileCreate(FileCreateTransactionBody.newBuilder()
                                         .keys(KeyList.newBuilder()
                                                 .keys(
@@ -129,6 +143,7 @@ class FileServiceFeeCalculatorsTest {
                 new TestCase(
                         new FileUpdateFeeCalculator(),
                         TransactionBody.newBuilder()
+                                .transactionID(transactionID)
                                 .fileUpdate(FileUpdateTransactionBody.newBuilder()
                                         .keys(KeyList.newBuilder()
                                                 .keys(
@@ -148,6 +163,7 @@ class FileServiceFeeCalculatorsTest {
                 new TestCase(
                         new FileAppendFeeCalculator(),
                         TransactionBody.newBuilder()
+                                .transactionID(transactionID)
                                 .fileAppend(
                                         FileAppendTransactionBody.newBuilder().build())
                                 .build(),
@@ -158,6 +174,7 @@ class FileServiceFeeCalculatorsTest {
                 new TestCase(
                         new FileSystemDeleteFeeCalculator(),
                         TransactionBody.newBuilder()
+                                .transactionID(transactionID)
                                 .systemDelete(
                                         SystemDeleteTransactionBody.newBuilder().build())
                                 .build(),
@@ -168,6 +185,7 @@ class FileServiceFeeCalculatorsTest {
                 new TestCase(
                         new FileSystemUndeleteFeeCalculator(),
                         TransactionBody.newBuilder()
+                                .transactionID(transactionID)
                                 .systemUndelete(SystemUndeleteTransactionBody.newBuilder()
                                         .build())
                                 .build(),
@@ -183,6 +201,12 @@ class FileServiceFeeCalculatorsTest {
     void testFeeCalculators(TestCase testCase) throws UnknownHederaFunctionality {
         lenient().when(feeContext.numTxnSignatures()).thenReturn(testCase.numSignatures);
         when(feeContext.functionality()).thenReturn(functionOf(testCase.body()));
+        lenient().when(feeContext.authorizer()).thenReturn(authorizer);
+        lenient().when(feeContext.body()).thenReturn(testCase.body());
+        lenient()
+                .when(authorizer.hasPrivilegedAuthorization(
+                        ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.any()))
+                .thenReturn(SystemPrivilege.UNNECESSARY);
 
         final var result = feeCalculator.calculateTxFee(testCase.body, new SimpleFeeContextImpl(feeContext, null));
 
