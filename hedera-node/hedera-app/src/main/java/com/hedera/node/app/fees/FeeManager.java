@@ -182,7 +182,6 @@ public final class FeeManager {
         return SUCCESS;
     }
 
-
     /**
      * Updates the simple fee schedule based on the given file content. This is called on genesis and whenever
      * the simple fee schedule file is updated.

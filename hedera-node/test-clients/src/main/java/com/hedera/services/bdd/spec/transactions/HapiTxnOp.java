@@ -154,8 +154,9 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
     }
 
     public T withHighVolume() {
-        return self().fee(ONE_HUNDRED_HBARS).withBodyMutation(BodyMutation.withTransform(
-                body -> body.toBuilder().setHighVolume(true).build()));
+        return self().fee(ONE_HUNDRED_HBARS)
+                .withBodyMutation(BodyMutation.withTransform(
+                        body -> body.toBuilder().setHighVolume(true).build()));
     }
 
     /**
