@@ -106,6 +106,11 @@ tasks.compileTestFixturesJava {
 tasks.named<Test>("testPerformance") {
     extensions.configure<JacocoTaskExtension> { isEnabled = false }
     outputs.upToDateWhen { false } // Always run, never consider up-to-date
+
+    // Allow filtering experiments via -PtestFilter="*.SomeExperiment"
+    providers.gradleProperty("testFilter").orNull?.let { filter ->
+        this.filter.includeTestsMatching(filter)
+    }
 }
 
 // Task to start Grafana and import metrics after performance tests
@@ -117,7 +122,7 @@ tasks.register<Exec>("startGrafana") {
         providers
             .gradleProperty("metricsPath")
             .orElse(
-                "build/container/ConsensusLayerBenchmark/benchmark/node-*/data/stats/metrics.txt"
+                "build/container/*/*/node-*/data/stats/metrics.txt"
             )
 
     workingDir = projectDir

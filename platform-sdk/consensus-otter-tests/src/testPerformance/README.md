@@ -36,6 +36,39 @@ You can also point to a custom metrics location:
 ./gradlew :consensus-otter-tests:benchmarkAndVisualize -PmetricsPath="path/to/metrics.txt"
 ```
 
+To run only a specific experiment and then visualize, use `-PtestFilter` (note the `=` is required):
+
+```bash
+./gradlew :consensus-otter-tests:benchmarkAndVisualize -PtestFilter="*.CombinedOptimizationsExperiment"
+```
+
+### Running a single experiment
+
+Use `--tests` to run a specific experiment (or `-PtestFilter` which also works with `benchmarkAndVisualize`):
+
+```bash
+# Run only the baseline benchmark
+./gradlew :consensus-otter-tests:testPerformance --tests "*.ConsensusLayerBenchmark"
+
+# Run only a specific experiment
+./gradlew :consensus-otter-tests:testPerformance --tests "*.CombinedOptimizationsExperiment"
+
+# Equivalent using -PtestFilter (works with both testPerformance and benchmarkAndVisualize)
+./gradlew :consensus-otter-tests:testPerformance -PtestFilter="*.MaxOtherParentsExperiment"
+
+# Run a single test method within an experiment
+./gradlew :consensus-otter-tests:testPerformance --tests "*.CombinedOptimizationsExperiment.benchmarkCombinedOptimizations"
+```
+
+Available experiments:
+- `ConsensusLayerBenchmark` — Baseline benchmark (defaults)
+- `AntiSelfishnessExperiment` — Anti-selfishness factor variations
+- `CreationAttemptRateExperiment` — Event creation attempt rate variations
+- `MaxCreationRateExperiment` — Max event creation rate variations
+- `MaxOtherParentsExperiment` — Max other parents variations
+- `SignatureSchemeExperiment` — Signature scheme comparisons (RSA vs EC)
+- `CombinedOptimizationsExperiment` — Combined best settings
+
 ### Multiple runs via shell script
 
 The `run-benchmark.sh` script runs the benchmark N times, extracts the average latency from each
