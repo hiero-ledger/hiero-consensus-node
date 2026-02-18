@@ -20,6 +20,10 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedFeeFromBytesFor;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.FILE_APPEND_BASE_FEE;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.FILE_CREATE_BASE_FEE;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.FILE_DELETE_BASE_FEE;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.FILE_UPDATE_BASE_FEE;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SIGNATURE_FEE_AFTER_MULTIPLIER;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.STATE_BYTES_FEE_USD;
 
@@ -37,10 +41,6 @@ import org.junit.jupiter.api.Tag;
 public class FileServiceSimpleFeesTest {
     private static final String CIVILIAN = "civilian";
     private static final String KEY = "key";
-    private static final double BASE_FEE_FILE_CREATE = 0.05;
-    private static final double BASE_FEE_FILE_UPDATE = 0.05;
-    private static final double BASE_FEE_FILE_DELETE = 0.007;
-    private static final double BASE_FEE_FILE_APPEND = 0.05;
     private static final double SINGLE_KEY_FEE = 0.01;
     private static final double BASE_FEE_FILE_GET_CONTENT = 0.0001;
     private static final double BASE_FEE_FILE_GET_FILE = 0.0001;
@@ -61,7 +61,7 @@ public class FileServiceSimpleFeesTest {
                         .fee(ONE_HUNDRED_HBARS)
                         .signedBy(CIVILIAN)
                         .via("fileCreateBasic"),
-                validateChargedUsd("fileCreateBasic", BASE_FEE_FILE_CREATE));
+                validateChargedUsd("fileCreateBasic", FILE_CREATE_BASE_FEE));
     }
 
     @HapiTest
@@ -88,7 +88,7 @@ public class FileServiceSimpleFeesTest {
                         .via("fileCreateExtraNodeBytes"),
                 withOpContext((spec, opLog) -> validateChargedUsd(
                         "fileCreateExtraNodeBytes",
-                        BASE_FEE_FILE_CREATE
+                        FILE_CREATE_BASE_FEE
                                 + serviceFeeFromBytes
                                 + expectedFeeFromBytesFor(spec, opLog, "fileCreateExtraNodeBytes"))));
     }
@@ -115,7 +115,7 @@ public class FileServiceSimpleFeesTest {
                         .contents(contents)
                         .payingWith(CIVILIAN)
                         .via("fileCreateExtraKeys"),
-                validateChargedUsd("fileCreateExtraKeys", BASE_FEE_FILE_CREATE + feeFromKeys + feeFromSignatures));
+                validateChargedUsd("fileCreateExtraKeys", FILE_CREATE_BASE_FEE + feeFromKeys + feeFromSignatures));
     }
 
     @HapiTest
@@ -134,7 +134,7 @@ public class FileServiceSimpleFeesTest {
                         .signedBy(CIVILIAN)
                         .fee(ONE_HUNDRED_HBARS)
                         .via("fileUpdateBasic"),
-                validateChargedUsd("fileUpdateBasic", BASE_FEE_FILE_UPDATE));
+                validateChargedUsd("fileUpdateBasic", FILE_UPDATE_BASE_FEE));
     }
 
     @HapiTest
@@ -150,7 +150,7 @@ public class FileServiceSimpleFeesTest {
                         .payingWith(CIVILIAN)
                         .signedBy(CIVILIAN)
                         .via("fileDeleteBasic"),
-                validateChargedUsd("fileDeleteBasic", BASE_FEE_FILE_DELETE));
+                validateChargedUsd("fileDeleteBasic", FILE_DELETE_BASE_FEE));
     }
 
     @HapiTest
@@ -178,7 +178,7 @@ public class FileServiceSimpleFeesTest {
                         .content("A".repeat(800))
                         .payingWith(civilian)
                         .via(baseAppend),
-                validateChargedUsd(baseAppend, BASE_FEE_FILE_APPEND));
+                validateChargedUsd(baseAppend, FILE_APPEND_BASE_FEE));
     }
 
     @HapiTest

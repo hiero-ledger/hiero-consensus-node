@@ -133,6 +133,7 @@ import com.hedera.services.bdd.spec.utilops.checks.VerifyGetLiveHashNotSupported
 import com.hedera.services.bdd.spec.utilops.checks.VerifyUserFreezeNotAuthorized;
 import com.hedera.services.bdd.spec.utilops.embedded.MutateAccountOp;
 import com.hedera.services.bdd.spec.utilops.embedded.MutateNodeOp;
+import com.hedera.services.bdd.spec.utilops.embedded.ViewAccountOp;
 import com.hedera.services.bdd.spec.utilops.grouping.GroupedOps;
 import com.hedera.services.bdd.spec.utilops.grouping.InBlockingOrder;
 import com.hedera.services.bdd.spec.utilops.grouping.ParallelSpecOps;
@@ -2122,15 +2123,14 @@ public class UtilVerbs {
     public static CustomSpecAssert validateChargedSimpleFees(
             String name, String txn, double expectedUsd, double allowedPercentDiff) {
         return assertionsHold((spec, assertLog) -> {
-            final var effectivePercentDiff = Math.max(allowedPercentDiff, 1.0);
             final var actualUsdCharged = getChargedUsed(spec, txn);
             assertEquals(
                     expectedUsd,
                     actualUsdCharged,
-                    (effectivePercentDiff / 100.0) * expectedUsd,
+                    (allowedPercentDiff / 100.0) * expectedUsd,
                     String.format(
                             "%s: %s fee (%s) more than %.2f percent different than expected!",
-                            name, sdec(actualUsdCharged, 4), txn, effectivePercentDiff));
+                            name, sdec(actualUsdCharged, 4), txn, allowedPercentDiff));
         });
     }
 
@@ -2159,6 +2159,25 @@ public class UtilVerbs {
         });
     }
 
+    public static SpecOperation recordCurrentOwnerEvmHookSlotUsage(
+            @NonNull final String accountName, @NonNull final LongConsumer cb) {
+        requireNonNull(accountName);
+        requireNonNull(cb);
+        return new ViewAccountOp(accountName, account -> cb.accept(account.numberEvmHookStorageSlots()));
+    }
+
+    public static SpecOperation assertOwnerHasEvmHookSlotUsageChange(
+            @NonNull final String accountName, @NonNull final AtomicLong origCount, final int delta) {
+        requireNonNull(accountName);
+        requireNonNull(origCount);
+        return sourcing(() -> new ViewAccountOp(
+                accountName,
+                account -> assertEquals(
+                        origCount.get() + delta,
+                        account.numberEvmHookStorageSlots(),
+                        "Wrong # of EVM hook storage slots for '" + accountName + "'")));
+    }
+
     @FunctionalInterface
     public interface OpsProvider {
         List<SpecOperation> provide();
@@ -2182,44 +2201,41 @@ public class UtilVerbs {
     public static CustomSpecAssert validateChargedUsdWithChild(
             String txn, double expectedUsd, double allowedPercentDiff) {
         return assertionsHold((spec, assertLog) -> {
-            final var effectivePercentDiff = Math.max(allowedPercentDiff, 1.0);
             final var actualUsdCharged = getChargedUsdFromChild(spec, txn);
             assertEquals(
                     expectedUsd,
                     actualUsdCharged,
-                    (effectivePercentDiff / 100.0) * expectedUsd,
+                    (allowedPercentDiff / 100.0) * expectedUsd,
                     String.format(
                             "%s fee (%s) more than %.2f percent different than expected!",
-                            sdec(actualUsdCharged, 4), txn, effectivePercentDiff));
+                            sdec(actualUsdCharged, 4), txn, allowedPercentDiff));
         });
     }
 
     public static CustomSpecAssert validateChargedUsdWithin(String txn, double expectedUsd, double allowedPercentDiff) {
         return assertionsHold((spec, assertLog) -> {
-            final var effectivePercentDiff = Math.max(allowedPercentDiff, 1.0);
             final var actualUsdCharged = getChargedUsed(spec, txn);
             assertEquals(
                     expectedUsd,
                     actualUsdCharged,
-                    (effectivePercentDiff / 100.0) * expectedUsd,
+                    (allowedPercentDiff / 100.0) * expectedUsd,
                     String.format(
                             "%s fee (%s) more than %.2f percent different than expected!",
-                            sdec(actualUsdCharged, 4), txn, effectivePercentDiff));
+                            sdec(actualUsdCharged, 4), txn, allowedPercentDiff));
         });
     }
 
     public static CustomSpecAssert validateChargedUsdForQueries(
             String txn, double expectedUsd, double allowedPercentDiff) {
         return assertionsHold((spec, assertLog) -> {
-            final var effectivePercentDiff = Math.max(allowedPercentDiff, 1.0);
             final var actualUsdCharged = getChargedUsedQuery(spec, txn);
             assertEquals(
                     expectedUsd,
                     actualUsdCharged,
-                    (effectivePercentDiff / 100.0) * expectedUsd,
+                    (allowedPercentDiff / 100.0) * expectedUsd,
                     String.format(
                             "%s fee (%s) more than %.2f percent different than expected!",
-                            sdec(actualUsdCharged, 4), txn, effectivePercentDiff));
+                            sdec(actualUsdCharged, 4), txn, allowedPercentDiff));
         });
     }
 
@@ -2230,15 +2246,14 @@ public class UtilVerbs {
     public static CustomSpecAssert validateInnerTxnChargedUsd(
             String txn, String parent, double expectedUsd, double allowedPercentDiff) {
         return assertionsHold((spec, assertLog) -> {
-            final var effectivePercentDiff = Math.max(allowedPercentDiff, 1.0);
             final var actualUsdCharged = getChargedUsedForInnerTxn(spec, parent, txn);
             assertEquals(
                     expectedUsd,
                     actualUsdCharged,
-                    (effectivePercentDiff / 100.0) * expectedUsd,
+                    (allowedPercentDiff / 100.0) * expectedUsd,
                     String.format(
                             "%s fee (%s) more than %.2f percent different than expected!",
-                            sdec(actualUsdCharged, 4), txn, effectivePercentDiff));
+                            sdec(actualUsdCharged, 4), txn, allowedPercentDiff));
         });
     }
 

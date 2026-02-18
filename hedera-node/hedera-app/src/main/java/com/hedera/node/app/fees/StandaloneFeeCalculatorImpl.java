@@ -19,6 +19,7 @@ import com.hedera.node.config.types.StreamMode;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.swirlds.state.State;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.base.exceptions.NotImplementedException;
 import org.hiero.hapi.fees.FeeResult;
 
@@ -106,6 +107,7 @@ public class StandaloneFeeCalculatorImpl implements StandaloneFeeCalculator {
             return null;
         }
 
+        @NonNull
         public TransactionBody body() {
             return this.body;
         }

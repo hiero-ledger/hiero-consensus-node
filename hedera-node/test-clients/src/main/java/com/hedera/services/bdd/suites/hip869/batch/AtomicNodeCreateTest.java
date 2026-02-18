@@ -14,12 +14,14 @@ import static com.hedera.services.bdd.spec.transactions.TxnUtils.WRONG_LENGTH_ED
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeCreate;
+import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewNode;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingTwo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateInnerTxnChargedUsd;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ADDRESS_BOOK_CONTROL;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
@@ -28,6 +30,10 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.SYSTEM_ADMIN;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedFeeFromBytesFor;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateInnerTxnFees;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NODE_CREATE_BASE_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SIGNATURE_FEE_AFTER_MULTIPLIER;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.GOSSIP_ENDPOINTS_EXCEEDED_LIMIT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.GOSSIP_ENDPOINT_CANNOT_HAVE_FQDN;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.GRPC_WEB_PROXY_NOT_SUPPORTED;
@@ -502,7 +508,14 @@ class AtomicNodeCreateTest {
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
                 getTxnRecord("nodeCreationFailed").logged(),
                 // Validate that the failed transaction charges the correct fees.
-                validateInnerTxnChargedUsd("nodeCreationFailed", "atomic", 0.001, 3),
+                withOpContext((spec, log) -> allRunFor(
+                        spec,
+                        validateInnerTxnFees(
+                                "nodeCreationFailed",
+                                "atomic",
+                                0.001,
+                                NODE_CREATE_BASE_FEE_USD + expectedFeeFromBytesFor(spec, log, "nodeCreationFailed"),
+                                1.0))),
                 atomicBatch(nodeCreate("ntb", nodeAccount)
                                 .adminKey(ED_25519_KEY)
                                 .fee(ONE_HBAR)
@@ -531,7 +544,16 @@ class AtomicNodeCreateTest {
                         .via("atomic")
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                validateInnerTxnChargedUsd("multipleSigsCreation", "atomic", 0.0011276316, 3.0));
+                withOpContext((spec, log) -> allRunFor(
+                        spec,
+                        validateInnerTxnFees(
+                                "multipleSigsCreation",
+                                "atomic",
+                                0.0011276316,
+                                NODE_CREATE_BASE_FEE_USD
+                                        + 2 * SIGNATURE_FEE_AFTER_MULTIPLIER
+                                        + expectedFeeFromBytesFor(spec, log, "multipleSigsCreation"),
+                                1.0))));
     }
 
     /**
