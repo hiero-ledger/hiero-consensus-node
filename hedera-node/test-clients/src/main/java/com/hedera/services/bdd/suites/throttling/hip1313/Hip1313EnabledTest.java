@@ -182,9 +182,8 @@ public class Hip1313EnabledTest {
                         .via("autoCreationNoHv"),
                 getTxnRecord("autoCreationNoHv")
                         .andAllChildRecords()
-                        .exposingAllTo(records -> assertNoRecordMatches(
-                                records,
-                                record -> record.getHighVolumePricingMultiplier() > 0L))
+                        .exposingAllTo(records ->
+                                assertNoRecordMatches(records, record -> record.getHighVolumePricingMultiplier() > 0L))
                         .logged());
     }
 
@@ -207,11 +206,9 @@ public class Hip1313EnabledTest {
                         .andAllChildRecords()
                         .exposingAllTo(records -> {
                             assertAnyRecordMatches(
-                                    records,
-                                    record -> record.getHighVolumePricingMultiplier() == FOUR_X_MULTIPLIER);
+                                    records, record -> record.getHighVolumePricingMultiplier() == FOUR_X_MULTIPLIER);
                             assertNoRecordMatches(
-                                    records,
-                                    record -> record.getHighVolumePricingMultiplier() > FOUR_X_MULTIPLIER);
+                                    records, record -> record.getHighVolumePricingMultiplier() > FOUR_X_MULTIPLIER);
                         })
                         .logged(),
                 validateChargedUsdWithChild("autoCreation", (0.05 * 4) + (0.001 * 4) + (0.1 * 4), 0.01));
@@ -232,9 +229,8 @@ public class Hip1313EnabledTest {
                         .via("airdropNoHv"),
                 getTxnRecord("airdropNoHv")
                         .andAllChildRecords()
-                        .exposingAllTo(records -> assertNoRecordMatches(
-                                records,
-                                record -> record.getHighVolumePricingMultiplier() > 0L))
+                        .exposingAllTo(records ->
+                                assertNoRecordMatches(records, record -> record.getHighVolumePricingMultiplier() > 0L))
                         .logged());
     }
 
@@ -261,8 +257,7 @@ public class Hip1313EnabledTest {
                 getTxnRecord("claimAirdrop")
                         .andAllChildRecords()
                         .exposingAllTo(records -> assertAnyRecordMatches(
-                                records,
-                                record -> record.getHighVolumePricingMultiplier() > ONE_X_MULTIPLIER))
+                                records, record -> record.getHighVolumePricingMultiplier() > ONE_X_MULTIPLIER))
                         .logged(),
                 validateChargedUsdWithChild("claimAirdrop", 0.001 * 4, 0.01));
     }
@@ -288,9 +283,8 @@ public class Hip1313EnabledTest {
                 getAutoCreatedAccountBalance(hollowReceiver).hasTokenBalance("tokenNoHv", 10),
                 getTxnRecord("claimAirdropNoHv")
                         .andAllChildRecords()
-                        .exposingAllTo(records -> assertNoRecordMatches(
-                                records,
-                                record -> record.getHighVolumePricingMultiplier() > 0L))
+                        .exposingAllTo(records ->
+                                assertNoRecordMatches(records, record -> record.getHighVolumePricingMultiplier() > 0L))
                         .logged());
     }
 
@@ -303,9 +297,8 @@ public class Hip1313EnabledTest {
                         .via("highVolumeUpdate"),
                 getTxnRecord("highVolumeUpdate")
                         .andAllChildRecords()
-                        .exposingAllTo(records -> assertNoRecordMatches(
-                                records,
-                                record -> record.getHighVolumePricingMultiplier() > 0L))
+                        .exposingAllTo(records ->
+                                assertNoRecordMatches(records, record -> record.getHighVolumePricingMultiplier() > 0L))
                         .logged());
     }
 
@@ -322,8 +315,7 @@ public class Hip1313EnabledTest {
                         .exposingAllTo(records -> {
                             assertNoRecordMatches(records, record -> record.getHighVolumePricingMultiplier() > 0L);
                             assertNoRecordMatches(
-                                    records,
-                                    record -> record.getHighVolumePricingMultiplier() > ONE_X_MULTIPLIER);
+                                    records, record -> record.getHighVolumePricingMultiplier() > ONE_X_MULTIPLIER);
                         })
                         .logged(),
                 validateChargedUsdWithChild("plainTransfer", 0.0001, 0.01));
@@ -531,11 +523,9 @@ public class Hip1313EnabledTest {
                         .andAllChildRecords()
                         .exposingAllTo(records -> {
                             assertAnyRecordMatches(
-                                    records,
-                                    record -> record.getHighVolumePricingMultiplier() == ONE_X_MULTIPLIER);
+                                    records, record -> record.getHighVolumePricingMultiplier() == ONE_X_MULTIPLIER);
                             assertNoRecordMatches(
-                                    records,
-                                    record -> record.getHighVolumePricingMultiplier() > ONE_X_MULTIPLIER);
+                                    records, record -> record.getHighVolumePricingMultiplier() > ONE_X_MULTIPLIER);
                         })
                         .logged(),
                 withOpContext((spec, opLog) -> {
@@ -653,15 +643,13 @@ public class Hip1313EnabledTest {
     }
 
     private static void assertAnyRecordMatches(
-            @NonNull final List<TransactionRecord> records,
-            @NonNull final Predicate<TransactionRecord> predicate) {
+            @NonNull final List<TransactionRecord> records, @NonNull final Predicate<TransactionRecord> predicate) {
         final var conditionMatched = records.stream().anyMatch(predicate);
         assertTrue(conditionMatched);
     }
 
     private static void assertNoRecordMatches(
-            @NonNull final List<TransactionRecord> records,
-            @NonNull final Predicate<TransactionRecord> predicate) {
+            @NonNull final List<TransactionRecord> records, @NonNull final Predicate<TransactionRecord> predicate) {
         final var conditionMatched = records.stream().anyMatch(predicate);
         assertFalse(conditionMatched);
     }
