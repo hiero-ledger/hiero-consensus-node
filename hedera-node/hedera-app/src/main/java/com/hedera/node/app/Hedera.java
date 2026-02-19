@@ -91,7 +91,7 @@ import com.hedera.node.app.spi.migrate.StartupNetworks;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.state.recordcache.RecordCacheService;
 import com.hedera.node.app.store.ReadableStoreFactoryImpl;
-import com.hedera.node.app.throttle.AppThrottleFactory;
+import com.hedera.node.app.throttle.AppScheduleThrottleFactory;
 import com.hedera.node.app.throttle.CongestionThrottleService;
 import com.hedera.node.app.throttle.ThrottleAccumulator;
 import com.hedera.node.app.workflows.TransactionInfo;
@@ -124,12 +124,12 @@ import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.SwirldMain;
 import com.swirlds.platform.system.state.notifications.AsyncFatalIssListener;
 import com.swirlds.platform.system.state.notifications.StateHashedListener;
-import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
 import com.swirlds.state.StateChangeListener;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.state.merkle.VirtualMapStateImpl;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.WritableSingletonStateBase;
 import com.swirlds.virtualmap.VirtualMap;
@@ -199,10 +199,7 @@ import org.hiero.consensus.transaction.TransactionPoolNexus;
  * controls execution of the node. If you want to understand our system, this is a great place to start!
  */
 public final class Hedera
-        implements SwirldMain<MerkleNodeState>,
-                AppContext.Gossip,
-                Consumer<PlatformEvent>,
-                ConsensusStateEventHandler<MerkleNodeState> {
+        implements SwirldMain, AppContext.Gossip, Consumer<PlatformEvent>, ConsensusStateEventHandler {
 
     private static final Logger logger = LogManager.getLogger(Hedera.class);
 
@@ -340,7 +337,7 @@ public final class Hedera
      * When initializing the State API, the state being initialized.
      */
     @Nullable
-    private MerkleNodeState initState;
+    private State initState;
 
     /**
      * The metrics object being used for reporting.
@@ -349,7 +346,7 @@ public final class Hedera
 
     /**
      * A {@link StateChangeListener} that accumulates state changes that are only reported once per block; in the
-     * current system, these are the singleton and queue updates. Every {@link MerkleNodeState} will have this
+     * current system, these are the singleton and queue updates. Every {@link VirtualMapState} will have this
      * listener registered.
      */
     private final BoundaryStateChangeListener boundaryStateChangeListener;
@@ -363,12 +360,12 @@ public final class Hedera
     /**
      * The state root supplier to use for creating a new state root.
      */
-    private final Supplier<MerkleNodeState> stateRootSupplier;
+    private final Supplier<VirtualMapState> stateRootSupplier;
 
     /**
      * The action to take, if any, when a consensus round is sealed.
      */
-    private final BiPredicate<Round, MerkleNodeState> onSealConsensusRound;
+    private final BiPredicate<Round, State> onSealConsensusRound;
 
     private final boolean quiescenceEnabled;
 
@@ -393,7 +390,7 @@ public final class Hedera
     private final StoreMetricsServiceImpl storeMetricsService;
 
     @NonNull
-    private final StateLifecycleManager stateLifecycleManager;
+    private final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager;
 
     private boolean onceOnlyServiceInitializationPostDaggerHasHappened = false;
 
@@ -435,7 +432,7 @@ public final class Hedera
      * with the given {@link ConstructableRegistry}.
      *
      * <p>This registration is a critical side effect that must happen called before any Platform initialization
-     * steps that try to create or deserialize a {@link MerkleNodeState}.
+     * steps that try to create or deserialize a {@link VirtualMapState}.
      *
      * @param constructableRegistry the registry to register {@link RuntimeConstructable} factories with
      * @param registryFactory the factory to use for creating the services registry
@@ -461,7 +458,7 @@ public final class Hedera
             @NonNull final Configuration configuration,
             @NonNull final Metrics metrics,
             @NonNull final Time time,
-            @NonNull final Supplier<MerkleNodeState> baseSupplier) {
+            @NonNull final Supplier<VirtualMapState> baseSupplier) {
         requireNonNull(registryFactory);
         requireNonNull(constructableRegistry);
         requireNonNull(hintsServiceFactory);
@@ -510,7 +507,7 @@ public final class Hedera
                 configSupplier,
                 () -> daggerApp.networkInfo().selfNodeInfo(),
                 () -> this.metrics,
-                new AppThrottleFactory(
+                new AppScheduleThrottleFactory(
                         configSupplier,
                         () -> daggerApp.workingStateAccessor().getState(),
                         () -> daggerApp.throttleServiceManager().activeThrottleDefinitionsOrThrow(),
@@ -568,7 +565,7 @@ public final class Hedera
         stateRootSupplier = blockStreamsEnabled ? () -> withListeners(baseSupplier.get()) : baseSupplier;
         onSealConsensusRound = blockStreamsEnabled ? this::manageBlockEndRound : (round, state) -> true;
         stateLifecycleManager = new StateLifecycleManagerImpl(
-                metrics, time, virtualMap -> new VirtualMapState(virtualMap, metrics), configuration);
+                metrics, time, virtualMap -> new VirtualMapStateImpl(virtualMap, metrics), configuration);
     }
 
     /**
@@ -595,7 +592,7 @@ public final class Hedera
      */
     @Override
     @NonNull
-    public MerkleNodeState<VirtualMap> newStateRoot() {
+    public VirtualMapState newStateRoot() {
         return stateRootSupplier.get();
     }
 
@@ -603,7 +600,7 @@ public final class Hedera
      * {@inheritDoc}
      */
     @Override
-    public ConsensusStateEventHandler<MerkleNodeState> newConsensusStateEvenHandler() {
+    public ConsensusStateEventHandler newConsensusStateEvenHandler() {
         return this;
     }
 
@@ -659,6 +656,9 @@ public final class Hedera
             case FREEZE_COMPLETE -> {
                 logger.info("Platform status is now FREEZE_COMPLETE");
                 shutdownGrpcServer();
+                if (daggerApp != null) {
+                    daggerApp.blockRecordManager().writeFreezeBlockWrappedRecordFileBlockHashes();
+                }
                 closeRecordStreams();
                 if (streamToBlockNodes && isNotEmbedded()) {
                     logger.info("FREEZE_COMPLETE - Shutting down connections to Block Nodes");
@@ -697,7 +697,7 @@ public final class Hedera
      * @param platformConfig the platform configuration
      */
     public void initializeStatesApi(
-            @NonNull final MerkleNodeState state,
+            @NonNull final State state,
             @NonNull final InitTrigger trigger,
             @NonNull final Configuration platformConfig) {
         requireNonNull(state);
@@ -747,7 +747,7 @@ public final class Hedera
     @Override
     @SuppressWarnings("java:S1181") // catching Throwable instead of Exception when we do a direct System.exit()
     public void onStateInitialized(
-            @NonNull final MerkleNodeState state,
+            @NonNull final State state,
             @NonNull final Platform platform,
             @NonNull final InitTrigger trigger,
             @Nullable final SemanticVersion previousVersion) {
@@ -799,7 +799,7 @@ public final class Hedera
      * @param platformConfig platform configuration
      */
     private void migrateSchemas(
-            @NonNull final MerkleNodeState state,
+            @NonNull final State state,
             @Nullable final SemanticVersion deserializedVersion,
             @NonNull final InitTrigger trigger,
             @NonNull final Configuration platformConfig) {
@@ -851,11 +851,11 @@ public final class Hedera
      * {@inheritDoc}
      *
      * <p>Called <b>AFTER</b> init and migrate have been called on the state (either the new state created from
-     * {@link SwirldMain#newStateRoot()} or an instance of {@link MerkleNodeState} created by the platform and
+     * {@link SwirldMain#newStateRoot()} or an instance of {@link VirtualMapState} created by the platform and
      * loaded from the saved state).
      *
-     * <p>(FUTURE) Consider moving this initialization into {@link #onStateInitialized(MerkleNodeState, Platform, InitTrigger, SemanticVersion)}
-     * instead, as there is no special significance to having it here instead.
+     * <p>(FUTURE) Consider moving this initialization into {@code onStateInitialized()} instead, as there is no
+     * special significance to having it here instead.
      */
     @SuppressWarnings("java:S1181") // catching Throwable instead of Exception when we do a direct System.exit()
     @Override
@@ -889,7 +889,8 @@ public final class Hedera
                 throw new IllegalArgumentException("" + NOT_SUPPORTED);
             }
             final var payload = SignedTransaction.PROTOBUF.toBytes(nodeSignedTxWith(body));
-            requireNonNull(daggerApp).submissionManager().submit(body, payload);
+            // Always use priority=true for node gossip submissions
+            requireNonNull(daggerApp).submissionManager().submit(body, payload, true);
             if (quiescenceEnabled && isRelevantTransaction(body)) {
                 daggerApp.txPipelineTracker().incrementInFlight();
             }
@@ -976,7 +977,7 @@ public final class Hedera
 
             logger.debug("Shutting down the state");
             final var state = daggerApp.workingStateAccessor().getState();
-            if (state instanceof VirtualMapState msr) {
+            if (state instanceof VirtualMapStateImpl msr) {
                 msr.close();
             }
 
@@ -994,7 +995,7 @@ public final class Hedera
     @Override
     public void onPreHandle(
             @NonNull final Event event,
-            @NonNull final MerkleNodeState state,
+            @NonNull final State state,
             @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> stateSignatureTxnCallback) {
         final var readableStoreFactory = new ReadableStoreFactoryImpl(state);
         // Will be null if the submitting node is no longer in the address book
@@ -1022,7 +1023,7 @@ public final class Hedera
     }
 
     @Override
-    public void onNewRecoveredState(@NonNull final MerkleNodeState recoveredStateRoot) {
+    public void onNewRecoveredState(@NonNull final State recoveredStateRoot) {
         // Always close the block manager so replay will end with a complete record file
         daggerApp.blockRecordManager().close();
     }
@@ -1034,7 +1035,7 @@ public final class Hedera
     @Override
     public void onHandleConsensusRound(
             @NonNull final Round round,
-            @NonNull final MerkleNodeState state,
+            @NonNull final State state,
             @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> stateSignatureTxnCallback) {
         daggerApp.workingStateAccessor().setState(state);
         daggerApp.handleWorkflow().handleRound(state, round, stateSignatureTxnCallback);
@@ -1049,7 +1050,7 @@ public final class Hedera
      * of transactions in the event of an incident
      */
     @Override
-    public boolean onSealConsensusRound(@NonNull final Round round, @NonNull final MerkleNodeState state) {
+    public boolean onSealConsensusRound(@NonNull final Round round, @NonNull final State state) {
         requireNonNull(state);
         requireNonNull(round);
         return onSealConsensusRound.test(round, state);
@@ -1220,7 +1221,7 @@ public final class Hedera
      */
     @NonNull
     @Override
-    public StateLifecycleManager getStateLifecycleManager() {
+    public StateLifecycleManager<VirtualMapState, VirtualMap> getStateLifecycleManager() {
         return stateLifecycleManager;
     }
 
@@ -1274,7 +1275,6 @@ public final class Hedera
                 configProvider,
                 () -> requireNonNull(genesisNetworkSupplier).get());
         final var selfNodeAccountIdManager = new SelfNodeAccountIdManagerImpl(configProvider, networkInfo, state);
-        hintsService.initCurrentRoster(currentRoster);
         final var blockHashSigner = blockHashSignerFactory.apply(hintsService, historyService, configProvider);
         // Fully qualified so as to not confuse javadoc
         daggerApp = DaggerHederaInjectionComponent.builder()
@@ -1375,13 +1375,13 @@ public final class Hedera
         }
     }
 
-    private MerkleNodeState withListeners(@NonNull final MerkleNodeState root) {
-        root.registerCommitListener(boundaryStateChangeListener);
-        root.registerCommitListener(immediateStateChangeListener);
-        return root;
+    private <T extends State> T withListeners(@NonNull final T state) {
+        state.registerCommitListener(boundaryStateChangeListener);
+        state.registerCommitListener(immediateStateChangeListener);
+        return state;
     }
 
-    private boolean manageBlockEndRound(@NonNull final Round round, @NonNull final MerkleNodeState state) {
+    private boolean manageBlockEndRound(@NonNull final Round round, @NonNull final State state) {
         daggerApp.nodeRewardManager().updateJudgesOnEndRound(state);
         return daggerApp.blockStreamManager().endRound(state, round.getRoundNum());
     }

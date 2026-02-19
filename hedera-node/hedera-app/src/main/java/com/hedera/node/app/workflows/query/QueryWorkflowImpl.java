@@ -27,7 +27,7 @@ import com.hedera.hapi.util.HapiUtils;
 import com.hedera.hapi.util.UnknownHederaFunctionality;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.fees.FeeManager;
-import com.hedera.node.app.fees.SimpleFeeContextImpl;
+import com.hedera.node.app.fees.context.SimpleFeeContextImpl;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.fees.ExchangeRateInfo;
@@ -180,14 +180,18 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
 
             try (final var wrappedState = stateAccessor.apply(responseType)) {
                 // 2. Do some general pre-checks
-                ingestChecker.verifyPlatformActive();
+                final var paymentRequired = handler.requiresNodePayment(responseType);
+                if (paymentRequired) {
+                    ingestChecker.verifyPlatformActive();
+                } else {
+                    ingestChecker.verifyFreeQueryable();
+                }
                 if (UNSUPPORTED_RESPONSE_TYPES.contains(responseType)) {
                     throw new PreCheckException(NOT_SUPPORTED);
                 }
 
                 final var state = wrappedState.get();
                 final var storeFactory = new ReadableStoreFactoryImpl(state);
-                final var paymentRequired = handler.requiresNodePayment(responseType);
                 final var feeCalculator = feeManager.createFeeCalculator(function, consensusTime, storeFactory);
                 final QueryContext context;
                 TransactionBody txBody;
@@ -265,8 +269,8 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                                     queryFees,
                                     cryptoTransferTxnFee);
 
-                            // 3.vi Submit payment to platform
-                            submissionManager.submit(txBody, txInfo.serializedSignedTxOrThrow());
+                            // 3.vi Submit payment to platform with priority=false vs network consensus and TSS txs
+                            submissionManager.submit(txBody, txInfo.serializedSignedTxOrThrow(), false);
                         }
                     } catch (Exception e) {
                         checkerResult.throttleUsages().forEach(ThrottleUsage::reclaimCapacity);

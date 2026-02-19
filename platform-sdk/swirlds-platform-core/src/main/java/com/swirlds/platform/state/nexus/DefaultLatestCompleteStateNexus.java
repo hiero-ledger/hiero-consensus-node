@@ -5,13 +5,14 @@ import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.config.StateConfig;
-import com.swirlds.platform.state.signed.ReservedSignedState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import org.hiero.consensus.metrics.RunningAverageMetric;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.hashgraph.EventWindow;
+import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.consensus.state.config.StateConfig;
+import org.hiero.consensus.state.signed.ReservedSignedState;
 
 /**
  * The default implementation of {@link LatestCompleteStateNexus}.
@@ -59,6 +60,19 @@ public class DefaultLatestCompleteStateNexus implements LatestCompleteStateNexus
             setState(reservedSignedState);
         } else {
             reservedSignedState.close();
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void updatePlatformStatus(@NonNull final PlatformStatus platformStatus) {
+        if (PlatformStatus.FREEZING.equals(platformStatus)) {
+            synchronized (this) {
+                currentState.close();
+                currentState = null;
+            }
         }
     }
 

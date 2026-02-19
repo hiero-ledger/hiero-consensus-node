@@ -7,6 +7,7 @@ import static org.hiero.hapi.fees.FeeScheduleUtils.makeExtraIncluded;
 import static org.hiero.hapi.fees.FeeScheduleUtils.makeService;
 import static org.hiero.hapi.fees.FeeScheduleUtils.makeServiceFee;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
@@ -14,7 +15,7 @@ import com.hedera.hapi.node.consensus.ConsensusSubmitMessageTransactionBody;
 import com.hedera.hapi.node.state.consensus.Topic;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.fees.SimpleFeeCalculatorImpl;
-import com.hedera.node.app.fees.SimpleFeeContextImpl;
+import com.hedera.node.app.fees.context.SimpleFeeContextImpl;
 import com.hedera.node.app.service.consensus.ReadableTopicStore;
 import com.hedera.node.app.service.consensus.impl.calculator.ConsensusSubmitMessageFeeCalculator;
 import com.hedera.node.app.service.consensus.impl.test.handlers.ConsensusTestBase;
@@ -50,6 +51,7 @@ public class ConsensusSubmitMessageFeeCalculatorTest extends ConsensusTestBase {
     void setUp() {
         testSchedule = createTestFeeSchedule();
         feeCalculator = new SimpleFeeCalculatorImpl(testSchedule, Set.of(new ConsensusSubmitMessageFeeCalculator()));
+        lenient().when(feeContext.functionality()).thenReturn(HederaFunctionality.CONSENSUS_SUBMIT_MESSAGE);
     }
 
     @Nested
@@ -69,6 +71,7 @@ public class ConsensusSubmitMessageFeeCalculatorTest extends ConsensusTestBase {
                     TransactionBody.newBuilder().consensusSubmitMessage(op).build();
 
             final var feeCtx = mock(FeeContext.class);
+            lenient().when(feeCtx.functionality()).thenReturn(HederaFunctionality.CONSENSUS_SUBMIT_MESSAGE);
             ReadableTopicStore readableStore = mock(ReadableTopicStore.class);
             given(storeFactory.readableStore(ReadableTopicStore.class)).willReturn(readableStore);
             given(feeCtx.readableStore(ReadableTopicStore.class)).willReturn(readableStore);
@@ -98,6 +101,7 @@ public class ConsensusSubmitMessageFeeCalculatorTest extends ConsensusTestBase {
                     TransactionBody.newBuilder().consensusSubmitMessage(op).build();
 
             final var feeCtx = mock(FeeContext.class);
+            lenient().when(feeCtx.functionality()).thenReturn(HederaFunctionality.CONSENSUS_SUBMIT_MESSAGE);
             ReadableTopicStore readableStore = mock(ReadableTopicStore.class);
             given(storeFactory.readableStore(ReadableTopicStore.class)).willReturn(readableStore);
             given(feeCtx.readableStore(ReadableTopicStore.class)).willReturn(readableStore);
@@ -124,7 +128,7 @@ public class ConsensusSubmitMessageFeeCalculatorTest extends ConsensusTestBase {
                 .extras(
                         makeExtraDef(Extra.SIGNATURES, 1000000L),
                         makeExtraDef(Extra.KEYS, 100000000L),
-                        makeExtraDef(Extra.BYTES, 110L),
+                        makeExtraDef(Extra.STATE_BYTES, 110L),
                         makeExtraDef(Extra.CONSENSUS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE, 500000000))
                 .services(makeService(
                         "Consensus",

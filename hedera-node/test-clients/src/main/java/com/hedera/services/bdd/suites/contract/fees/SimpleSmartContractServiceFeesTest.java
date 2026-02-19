@@ -28,6 +28,13 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SOURCE_KEY;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedFeeFromBytesFor;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONTRACT_CALL_BASE_FEE;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONTRACT_CREATE_BASE_FEE;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONTRACT_DELETE_BASE_FEE;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONTRACT_UPDATE_BASE_FEE;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.ETHEREUM_CALL_BASE_FEE;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.HOOK_SLOT_UPDATE_BASE_FEE;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.HOOK_SLOT_UPDATE_FEE;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SIGNATURE_FEE_AFTER_MULTIPLIER;
 
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
@@ -50,18 +57,6 @@ import org.junit.jupiter.api.Tag;
 @Tag(SIMPLE_FEES)
 @HapiTestLifecycle
 public class SimpleSmartContractServiceFeesTest {
-    static final double CONTRACT_CREATE_BASE_FEE = 1.0;
-    static final double CONTRACT_DELETE_BASE_FEE = 0.007;
-    static final double CONTRACT_CALL_BASE_FEE = 0;
-    static final double CONTRACT_UPDATE_BASE_FEE = 0.026;
-    static final double ETHEREUM_CALL_BASE_FEE = 0.0001;
-    static final double HOOK_STORE_BASE_FEE = 0.005;
-    // EXTRAS
-    static final double EXTRA_HOOK_SLOT_UPDATE_FEE = 0.0050;
-    static final double SINGLE_SIGNATURE_COST = 0.001;
-    static final double SINGLE_BYTE_FEE = 0.000011;
-    static final int NODE_INCLUDED_BYTES = 1024;
-    static final int NETWORK_MULTIPLIER = 9;
     static final double EXPECTED_GAS_USED = 0.00184;
 
     @Contract(contract = "SmartContractsFees")
@@ -142,9 +137,9 @@ public class SimpleSmartContractServiceFeesTest {
                         .nonce(0)
                         .via("ethCall"),
                 // Estimated base fee for EthereumCall is 0.0001 USD and is paid by the relayer account
-                validateChargedUsdWithin("ethCall", EXPECTED_GAS_USED + ETHEREUM_CALL_BASE_FEE, 1),
-                validateChargedUsdForGasOnly("ethCall", EXPECTED_GAS_USED, 1),
-                validateChargedUsdWithoutGas("ethCall", ETHEREUM_CALL_BASE_FEE, 1));
+                validateChargedUsdWithin("ethCall", EXPECTED_GAS_USED + ETHEREUM_CALL_BASE_FEE, 0.1),
+                validateChargedUsdForGasOnly("ethCall", EXPECTED_GAS_USED, 0.1),
+                validateChargedUsdWithoutGas("ethCall", ETHEREUM_CALL_BASE_FEE, 0.1));
     }
 
     @LeakyHapiTest(overrides = "contracts.evm.ethTransaction.zeroHapiFees.enabled")
@@ -157,7 +152,7 @@ public class SimpleSmartContractServiceFeesTest {
                 overriding("contracts.evm.ethTransaction.zeroHapiFees.enabled", "false"),
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
                 cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS)),
-                ethereumCall(calldataContract.name(), "callme", jumboPayload)
+                ethereumCall(calldataContract.name(), "callme", (Object) jumboPayload)
                         .fee(ONE_HUNDRED_HBARS)
                         .memo("TESTT")
                         .type(EthTxData.EthTransactionType.EIP1559)
@@ -197,7 +192,7 @@ public class SimpleSmartContractServiceFeesTest {
                         .payingWith("ownerAccount")
                         .signedBy("ownerAccount")
                         .via("hookStoreTxn"),
-                validateChargedUsd("hookStoreTxn", HOOK_STORE_BASE_FEE + 2 * EXTRA_HOOK_SLOT_UPDATE_FEE));
+                validateChargedUsd("hookStoreTxn", HOOK_SLOT_UPDATE_BASE_FEE + 2 * HOOK_SLOT_UPDATE_FEE));
     }
 
     @LeakyHapiTest(overrides = "hooks.hooksEnabled")
@@ -212,6 +207,6 @@ public class SimpleSmartContractServiceFeesTest {
                         .payingWith("ownerAccount")
                         .signedBy("ownerAccount")
                         .via("hookStoreTxn"),
-                validateChargedUsd("hookStoreTxn", HOOK_STORE_BASE_FEE));
+                validateChargedUsd("hookStoreTxn", HOOK_SLOT_UPDATE_BASE_FEE));
     }
 }

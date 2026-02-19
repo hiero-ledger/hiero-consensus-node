@@ -228,7 +228,7 @@ public interface StreamBuilder {
     StreamBuilder congestionMultiplier(long congestionMultiplier);
 
     /**
-     * Sets the high-volume pricing multiplier used for charging the fees for this transaction.
+     * Sets the high-volume pricing multiplier used for charging the fees for this transaction.This is scaled by 1000.
      * @param highVolumePricingMultiplier the high-volume pricing multiplier
      * @return this builder
      */

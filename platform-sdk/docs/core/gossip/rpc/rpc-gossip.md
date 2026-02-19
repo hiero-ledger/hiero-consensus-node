@@ -79,6 +79,7 @@ EVENT = 3;
 EVENTS_FINISHED = 4;
 PING = 5;
 PING_REPLY = 6;
+BROADCAST_EVENT = 7;
 ```
 
 Messages are getting deserialized and passed into following methods
@@ -88,6 +89,7 @@ void receiveSyncData(@NonNull SyncData syncMessage);
 void receiveTips(@NonNull List<Boolean> tips);
 void receiveEvents(@NonNull List<GossipEvent> gossipEvents);
 void receiveEventsFinished();
+void receiveBroadcastEvent(GossipEvent gossipEvent);
 ```
 
 There is also corresponding send message interface. Writing messages is asynchronous, they are mostly prepared from the socket read thread and put into a queue, which is later processed by socket write thread.

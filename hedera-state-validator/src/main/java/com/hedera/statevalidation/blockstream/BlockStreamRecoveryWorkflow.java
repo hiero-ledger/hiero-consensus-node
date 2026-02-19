@@ -13,12 +13,11 @@ import com.hedera.node.app.hapi.utils.blocks.BlockStreamUtils;
 import com.hedera.statevalidation.util.PlatformContextHelper;
 import com.hedera.statevalidation.util.StateUtils;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.snapshot.SignedStateFileWriter;
-import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.state.merkle.VirtualMapStateImpl;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -29,6 +28,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 import org.hiero.consensus.crypto.ConsensusCryptoUtils;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.state.signed.SignedState;
 
 /**
  * This workflow applies a set of blocks to a given state and creates a new snapshot once the state
@@ -36,13 +36,13 @@ import org.hiero.consensus.model.node.NodeId;
  */
 public class BlockStreamRecoveryWorkflow {
 
-    private final MerkleNodeState<VirtualMap> state;
+    private final VirtualMapState state;
     private final long targetRound;
     private final Path outputPath;
     private final String expectedRootHash;
 
     public BlockStreamRecoveryWorkflow(
-            @NonNull final MerkleNodeState state,
+            @NonNull final VirtualMapState state,
             long targetRound,
             @NonNull final Path outputPath,
             @NonNull final String expectedRootHash) {
@@ -59,7 +59,7 @@ public class BlockStreamRecoveryWorkflow {
             @NonNull final Path outputPath,
             @NonNull final String expectedHash)
             throws IOException {
-        final MerkleNodeState state = StateUtils.getDefaultState();
+        final VirtualMapState state = StateUtils.getDefaultState();
         final var blocks = BlockStreamAccess.readBlocks(blockStreamDirectory, false);
         final BlockStreamRecoveryWorkflow workflow =
                 new BlockStreamRecoveryWorkflow(state, targetRound, outputPath, expectedHash);
@@ -126,7 +126,7 @@ public class BlockStreamRecoveryWorkflow {
 
         // To make sure that VirtualMapMetadata is persisted after all changes from the block stream were applied
         state.copy();
-        state.getRoot().getHash();
+        state.getHash();
         final var rootHash = requireNonNull(state.getHash()).getBytes();
 
         if (!expectedRootHash.isEmpty() && !expectedRootHash.equals(rootHash.toString())) {
@@ -143,10 +143,10 @@ public class BlockStreamRecoveryWorkflow {
                 false,
                 false);
 
-        final StateLifecycleManager stateLifecycleManager = new StateLifecycleManagerImpl(
+        final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager = new StateLifecycleManagerImpl(
                 platformContext.getMetrics(),
                 platformContext.getTime(),
-                vm -> new VirtualMapState(vm, platformContext.getMetrics()),
+                vm -> new VirtualMapStateImpl(vm, platformContext.getMetrics()),
                 platformContext.getConfiguration());
         try {
             SignedStateFileWriter.writeSignedStateFilesToDirectory(

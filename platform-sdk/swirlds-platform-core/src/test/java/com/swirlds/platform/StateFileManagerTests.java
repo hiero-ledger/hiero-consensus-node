@@ -3,12 +3,12 @@ package com.swirlds.platform;
 
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyEquals;
 import static com.swirlds.platform.state.snapshot.SignedStateFileReader.readState;
-import static com.swirlds.platform.state.snapshot.StateToDiskReason.FATAL_ERROR;
-import static com.swirlds.platform.state.snapshot.StateToDiskReason.ISS;
-import static com.swirlds.platform.state.snapshot.StateToDiskReason.PERIODIC_SNAPSHOT;
 import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
 import static java.nio.file.Files.exists;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
+import static org.hiero.consensus.state.snapshot.StateToDiskReason.FATAL_ERROR;
+import static org.hiero.consensus.state.snapshot.StateToDiskReason.ISS;
+import static org.hiero.consensus.state.snapshot.StateToDiskReason.PERIODIC_SNAPSHOT;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -25,10 +25,7 @@ import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.components.DefaultSavedStateController;
 import com.swirlds.platform.components.SavedStateController;
-import com.swirlds.platform.config.StateConfig_;
 import com.swirlds.platform.eventhandling.StateWithHashComplexity;
-import com.swirlds.platform.state.signed.ReservedSignedState;
-import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.snapshot.DefaultStateSnapshotManager;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.platform.state.snapshot.SavedStateInfo;
@@ -41,7 +38,9 @@ import com.swirlds.platform.state.snapshot.StateSnapshotManager;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.StateLifecycleManagerImpl;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils;
+import com.swirlds.virtualmap.VirtualMap;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -57,6 +56,9 @@ import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.state.StateSavingResult;
+import org.hiero.consensus.state.config.StateConfig_;
+import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.state.signed.SignedState;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -75,7 +77,7 @@ class StateFileManagerTests {
     private SignedStateFilePath signedStateFilePath;
 
     Path testDirectory;
-    private StateLifecycleManager stateLifecycleManager;
+    private StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager;
 
     @BeforeAll
     static void beforeAll() throws ConstructableRegistryException {

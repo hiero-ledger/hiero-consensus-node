@@ -11,7 +11,7 @@ import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.consensus.ConsensusGetTopicInfoQuery;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.node.app.fees.SimpleFeeCalculatorImpl;
-import com.hedera.node.app.fees.SimpleFeeContextImpl;
+import com.hedera.node.app.fees.context.SimpleFeeContextImpl;
 import com.hedera.node.app.service.consensus.impl.calculator.ConsensusGetTopicInfoFeeCalculator;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import java.util.List;
@@ -63,7 +63,7 @@ public class ConsensusGetTopicInfoFeeCalculatorTest {
                 .extras(
                         makeExtraDef(Extra.SIGNATURES, 1000000L),
                         makeExtraDef(Extra.KEYS, 100000000L),
-                        makeExtraDef(Extra.BYTES, 110L))
+                        makeExtraDef(Extra.STATE_BYTES, 110L))
                 .services(makeService(
                         "Consensus",
                         makeServiceFee(

@@ -10,7 +10,7 @@ import com.hedera.hapi.node.token.CryptoDeleteAllowanceTransactionBody;
 import com.hedera.hapi.node.token.NftRemoveAllowance;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.fees.SimpleFeeCalculatorImpl;
-import com.hedera.node.app.fees.SimpleFeeContextImpl;
+import com.hedera.node.app.fees.context.SimpleFeeContextImpl;
 import com.hedera.node.app.spi.fees.FeeContext;
 import java.util.List;
 import java.util.Set;
@@ -39,6 +39,7 @@ class CryptoDeleteAllowanceFeeCalculatorTest {
     void setUp() {
         final var testSchedule = createTestFeeSchedule();
         feeCalculator = new SimpleFeeCalculatorImpl(testSchedule, Set.of(new CryptoDeleteAllowanceFeeCalculator()));
+        lenient().when(feeContext.functionality()).thenReturn(HederaFunctionality.CRYPTO_DELETE_ALLOWANCE);
     }
 
     @Nested
@@ -153,7 +154,7 @@ class CryptoDeleteAllowanceFeeCalculatorTest {
                 .extras(
                         makeExtraDef(Extra.SIGNATURES, 1000000L),
                         makeExtraDef(Extra.ALLOWANCES, 500000000L),
-                        makeExtraDef(Extra.BYTES, 110000L))
+                        makeExtraDef(Extra.STATE_BYTES, 110000L))
                 .services(makeService(
                         "CryptoService",
                         makeServiceFee(

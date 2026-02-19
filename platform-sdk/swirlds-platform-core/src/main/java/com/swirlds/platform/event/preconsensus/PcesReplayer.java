@@ -12,7 +12,6 @@ import com.swirlds.base.time.Time;
 import com.swirlds.component.framework.wires.input.NoInput;
 import com.swirlds.component.framework.wires.output.StandardOutputWire;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.platform.state.signed.ReservedSignedState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -27,6 +26,7 @@ import org.hiero.consensus.io.IOIterator;
 import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.pces.config.PcesConfig;
+import org.hiero.consensus.state.signed.ReservedSignedState;
 
 /**
  * This class encapsulates the logic for replaying preconsensus events at boot up time.

@@ -47,7 +47,7 @@ import com.hedera.node.app.signature.impl.SignatureVerifierImpl;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.fixtures.info.FakeNetworkInfo;
 import com.hedera.node.app.state.recordcache.RecordCacheService;
-import com.hedera.node.app.throttle.AppThrottleFactory;
+import com.hedera.node.app.throttle.AppScheduleThrottleFactory;
 import com.hedera.node.app.throttle.CongestionThrottleService;
 import com.hedera.node.app.throttle.ThrottleAccumulator;
 import com.hedera.node.app.workflows.standalone.ExecutorComponent;
@@ -59,10 +59,8 @@ import com.hedera.pbj.runtime.OneOf;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
-import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.platform.system.InitTrigger;
-import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.lifecycle.MigrationContext;
@@ -70,6 +68,7 @@ import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StateMetadata;
 import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.state.merkle.VirtualMapStateImpl;
 import com.swirlds.state.spi.ReadableKVStateBase;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.virtualmap.VirtualMap;
@@ -88,6 +87,7 @@ import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.platformstate.PlatformStateService;
+import org.hiero.consensus.state.signed.SignedState;
 
 /**
  * Utility for loading and initializing state from disk. Manages the complete initialization
@@ -103,7 +103,7 @@ public final class StateUtils {
      */
     private static final String DEFAULT = "DEFAULT";
 
-    private static final Map<String, MerkleNodeState> states = new ConcurrentHashMap<>();
+    private static final Map<String, VirtualMapState> states = new ConcurrentHashMap<>();
     private static final Map<String, DeserializedSignedState> deserializedSignedStates = new ConcurrentHashMap<>();
 
     // Static JSON codec cache
@@ -113,19 +113,19 @@ public final class StateUtils {
     private StateUtils() {}
 
     /**
-     * Returns <b>mutable</b> instance of {@link MerkleNodeState} loaded from disk.
-     * @return mutable instance of {@link MerkleNodeState}
+     * Returns <b>mutable</b> instance of {@link VirtualMapState} loaded from disk.
+     * @return mutable instance of {@link VirtualMapState}
      */
-    public static MerkleNodeState getDefaultState() {
+    public static VirtualMapState getDefaultState() {
         return getState(DEFAULT);
     }
 
     /**
-     * Returns <b>mutable</b> instance of {@link MerkleNodeState} loaded from disk for a given key.
+     * Returns <b>mutable</b> instance of {@link VirtualMapState} loaded from disk for a given key.
      * @param key the key identifying the state
-     * @return mutable instance of {@link MerkleNodeState}
+     * @return mutable instance of {@link VirtualMapState}
      */
-    public static MerkleNodeState getState(String key) {
+    public static VirtualMapState getState(String key) {
         if (!states.containsKey(key)) {
             initState(key);
         }
@@ -139,7 +139,7 @@ public final class StateUtils {
         if (states.get(DEFAULT) == null) {
             throw new IllegalStateException("State is not initialized yet");
         }
-        VirtualMapState defaultState = (VirtualMapState) getDefaultState();
+        VirtualMapStateImpl defaultState = (VirtualMapStateImpl) getDefaultState();
         Set<Map.Entry<String, Map<Integer, StateMetadata<?, ?>>>> serviceEntries =
                 defaultState.getServices().entrySet();
         // resetting readable state caches
@@ -148,7 +148,7 @@ public final class StateUtils {
             for (Map.Entry<Integer, StateMetadata<?, ?>> stateEntry :
                     serviceEntry.getValue().entrySet()) {
                 StateMetadata<?, ?> md = stateEntry.getValue();
-                if (md.stateDefinition().onDisk()) {
+                if (md.stateDefinition().keyValue()) {
                     ReadableKVStateBase<?, ?> readableState =
                             (ReadableKVStateBase) readableStates.get(stateEntry.getKey());
                     readableState.reset();
@@ -185,11 +185,12 @@ public final class StateUtils {
 
             final PlatformContext platformContext = getPlatformContext();
             final ServicesRegistryImpl serviceRegistry = initServiceRegistry();
-            final StateLifecycleManager stateLifecycleManager = new StateLifecycleManagerImpl(
-                    platformContext.getMetrics(),
-                    platformContext.getTime(),
-                    virtualMap -> new VirtualMapState(virtualMap, platformContext.getMetrics()),
-                    platformContext.getConfiguration());
+            final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =
+                    new StateLifecycleManagerImpl(
+                            platformContext.getMetrics(),
+                            platformContext.getTime(),
+                            virtualMap -> new VirtualMapStateImpl(virtualMap, platformContext.getMetrics()),
+                            platformContext.getConfiguration());
 
             serviceRegistry.register(
                     new RosterServiceImpl(roster -> true, (r, b) -> {}, () -> StateUtils.getState(key), () -> {
@@ -205,10 +206,10 @@ public final class StateUtils {
             // need to create copy of the loaded state to make it mutable
             final HashedReservedSignedState hashedSignedState =
                     copyInitialSignedState(signedState, PlatformContextHelper.getPlatformContext());
-            final MerkleNodeState state = hashedSignedState.state().get().getState();
+            final VirtualMapState state = hashedSignedState.state().get().getState();
             states.put(key, state);
             initServiceMigrator(state, platformContext, serviceRegistry);
-            ((VirtualMap) state.getRoot()).getDataSource().stopAndDisableBackgroundCompaction();
+            (state.getRoot()).getDataSource().stopAndDisableBackgroundCompaction();
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -245,7 +246,7 @@ public final class StateUtils {
                 configSupplier,
                 fakeNetworkInfo::selfNodeInfo,
                 NoOpMetrics::new,
-                new AppThrottleFactory(
+                new AppScheduleThrottleFactory(
                         configSupplier, () -> null, () -> ThrottleDefinitions.DEFAULT, ThrottleAccumulator::new),
                 () -> UNIVERSAL_NOOP_FEE_CHARGING,
                 new AppEntityIdFactory(config));
@@ -306,7 +307,7 @@ public final class StateUtils {
         final SemanticVersion version = creationSoftwareVersionOf(state);
         // previousVersion and currentVersion are the same!
         serviceMigrator.doMigrations(
-                (MerkleNodeState) state,
+                (VirtualMapState) state,
                 servicesRegistry,
                 version,
                 version,

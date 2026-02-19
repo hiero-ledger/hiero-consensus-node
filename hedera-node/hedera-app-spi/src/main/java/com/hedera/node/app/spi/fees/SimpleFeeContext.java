@@ -19,15 +19,35 @@ import edu.umd.cs.findbugs.annotations.Nullable;
  * will throw {@link UnsupportedOperationException}.
  */
 public interface SimpleFeeContext extends FeeContext {
-    int numTxnSignatures(); // number of signatures in the transaction
+    /**
+     * Returns the number of signatures in the transaction.
+     *
+     * @return the number of signatures in the transaction
+     */
+    int numTxnSignatures();
 
-    int numTxnBytes(); // added in a different PR so we can have BYTE extras in the node fees
+    /**
+     * Returns the number of bytes in the transaction.
+     *
+     * @return the number of bytes in the transaction
+     */
+    int numTxnBytes();
 
+    /**
+     * Returns the wrapped {@link FeeContext} or null if none is available while handling a query.
+     *
+     * @return the wrapped fee context, or null if none is available
+     */
     @Nullable
-    FeeContext feeContext(); // may be null
+    FeeContext feeContext();
 
+    /**
+     * Returns the wrapped {@link QueryContext} or null if none is available while handling a transaction.
+     *
+     * @return the wrapped query context, or null if none is available
+     */
     @Nullable
-    QueryContext queryContext(); // may be null
+    QueryContext queryContext();
 
     /**
      * Returns the wrapped {@link FeeContext} or throws if none is available.
