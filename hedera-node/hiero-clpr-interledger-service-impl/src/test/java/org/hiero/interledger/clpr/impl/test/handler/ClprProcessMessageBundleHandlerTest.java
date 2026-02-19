@@ -35,6 +35,7 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
+import com.hedera.node.config.ConfigProvider;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.List;
 import org.hiero.hapi.interledger.clpr.ClprHandleMessagePayloadTransactionBody;
@@ -62,6 +63,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class ClprProcessMessageBundleHandlerTest extends ClprHandlerTestBase {
     @Mock
     private ClprStateProofManager stateProofManager;
+
+    @Mock
+    private ConfigProvider configProvider;
 
     @Mock
     private PureChecksContext pureChecksContext;
@@ -92,13 +96,14 @@ class ClprProcessMessageBundleHandlerTest extends ClprHandlerTestBase {
     @BeforeEach
     void setUp() {
         setupStates();
-        subject = new ClprProcessMessageBundleHandler(stateProofManager);
+        subject = new ClprProcessMessageBundleHandler(stateProofManager, configProvider);
     }
 
     @Test
     @DisplayName("Constructor throws NullPointerException when stateProofManager is null")
     void constructorThrowsForNullStateProofManager() {
-        assertThatThrownBy(() -> new ClprProcessMessageBundleHandler(null)).isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> new ClprProcessMessageBundleHandler(null, configProvider))
+                .isInstanceOf(NullPointerException.class);
     }
 
     @Test
