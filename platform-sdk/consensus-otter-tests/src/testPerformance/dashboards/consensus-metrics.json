@@ -7,7 +7,7 @@
     "schemaVersion": 16,
     "version": 0,
     "refresh": "5s",
-    "time": {"from": "now-7d", "to": "now"},
+    "time": {"from": "now-1d", "to": "now"},
     "templating": {
       "list": [
         {
