@@ -27,7 +27,7 @@ import org.hyperledger.besu.evm.operation.Operation;
 public class CustomExtCodeSizeOperation extends ExtCodeSizeOperation {
     private static final Operation.OperationResult UNDERFLOW_RESPONSE =
             new Operation.OperationResult(0, ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS);
-    private final AddressChecks addressChecks;
+    public final AddressChecks addressChecks;
     private final FeatureFlags featureFlags;
 
     /**
@@ -68,4 +68,6 @@ public class CustomExtCodeSizeOperation extends ExtCodeSizeOperation {
             return UNDERFLOW_RESPONSE;
         }
     }
+
+    public boolean enableEIP3540() { return enableEIP3540(); }
 }

@@ -1,11 +1,18 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.hevm;
 
+import com.hedera.node.app.service.contract.impl.bonneville.SB;
+import com.hedera.node.app.service.contract.impl.bonneville.BonnevilleEVM;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
 import com.hedera.node.app.service.contract.impl.exec.utils.OpsDurationCounter;
+
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.FileDescriptor;
+import java.io.FileOutputStream;
+import java.io.PrintStream;
 import java.util.Optional;
-import org.hyperledger.besu.evm.EVM;
+
+import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.evm.EvmSpecVersion;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
 import org.hyperledger.besu.evm.frame.MessageFrame;
@@ -55,7 +62,7 @@ import org.slf4j.LoggerFactory;
 /**
  * Adds support for calculating an alternate ops gas schedule tracking.
  */
-public class HederaEVM extends EVM {
+public class HederaEVM extends HEVM {
     private static final Logger LOG = LoggerFactory.getLogger(HederaEVM.class);
 
     private final OperationRegistry operations;
@@ -97,27 +104,43 @@ public class HederaEVM extends EVM {
         Operation[] operationArray = this.operations.getOperations();
 
         final OpsDurationCounter opsDurationCounter = FrameUtils.opsDurationCounter(frame);
-        final OpsDurationSchedule opsDurationSchedule = opsDurationCounter.schedule();
-        final long opsDurationMultiplier = opsDurationSchedule.opsGasBasedDurationMultiplier();
-        final long opsDurationDenominator = opsDurationSchedule.multipliersDenominator();
+        final OpsDurationSchedule opsDurationSchedule = opsDurationCounter==null ? null : opsDurationCounter.schedule();
+        final long opsDurationMultiplier = opsDurationCounter==null ? 0 : opsDurationSchedule.opsGasBasedDurationMultiplier();
+        final long opsDurationDenominator = opsDurationCounter==null ? 1 : opsDurationSchedule.multipliersDenominator();
 
+        SB trace = null; // new SB();
+        PrintStream oldSysOut = System.out;
+        if( trace != null ) {
+            System.setOut(new PrintStream(new FileOutputStream( FileDescriptor.out)));
+            if( frame.getDepth()==0 )
+                System.out.println(BonnevilleEVM.TOP_SEP);
+            int pc = frame.getPC();
+            if( pc != 0 ) {
+                String str = contractStr(code[pc-1]&0xFF);
+                System.out.println(trace.p("RETURN ").p(str).nl());
+                trace.clear();
+            }
+        }
+
+        ExceptionalHaltReason haltReason = null;
+        int opcode = 0;
         while (frame.getState() == State.CODE_EXECUTING) {
             int pc = frame.getPC();
 
             Operation currentOperation;
-            int opcode;
-            try {
-                opcode = code[pc] & 255;
-                currentOperation = operationArray[opcode];
-            } catch (ArrayIndexOutOfBoundsException var15) {
+            if( pc >= code.length ) {
                 opcode = 0;
                 currentOperation = this.endOfScriptStop;
+            } else {
+                opcode = code[pc] & 255;
+                currentOperation = operationArray[opcode];
             }
 
             frame.setCurrentOperation(currentOperation);
             if (operationTracer != null) {
                 operationTracer.tracePreExecution(frame);
             }
+            preTrace(frame,trace,pc,opcode);
 
             Operation.OperationResult result;
             try {
@@ -198,7 +221,7 @@ public class HederaEVM extends EVM {
                 result = UNDERFLOW_RESPONSE;
             }
 
-            ExceptionalHaltReason haltReason = result.getHaltReason();
+            haltReason = result.getHaltReason();
             if (haltReason != null) {
                 LOG.trace("MessageFrame evaluation halted because of {}", haltReason);
                 frame.setExceptionalHaltReason(Optional.of(haltReason));
@@ -212,11 +235,21 @@ public class HederaEVM extends EVM {
                  ** As the code is in a while loop it is difficult to isolate.  We will need to maintain these changes
                  ** against new versions of the EVM class.
                  */
-                final var opCodeCost = opsDurationSchedule.opCodeCost(opcode);
-                final var opsDurationUnitsCost = opCodeCost == 0
+                if( opsDurationCounter!=null ) {
+                    final var opCodeCost = opsDurationSchedule.opCodeCost(opcode);
+                    final var opsDurationUnitsCost = opCodeCost == 0
                         ? result.getGasCost() * opsDurationMultiplier / opsDurationDenominator
                         : opCodeCost;
-                opsDurationCounter.recordOpsDurationUnitsConsumed(opsDurationUnitsCost);
+                    opsDurationCounter.recordOpsDurationUnitsConsumed(opsDurationUnitsCost);
+                }
+            }
+
+            if( trace != null ) {
+                postTrace(frame,trace);
+                if( haltReason!=null )
+                    trace.p(" ").p(haltReason.toString());
+                System.out.println(trace);
+                trace.clear();
             }
 
             if (frame.getState() == State.CODE_EXECUTING) {
@@ -229,5 +262,43 @@ public class HederaEVM extends EVM {
                 operationTracer.tracePostExecution(frame, result);
             }
         }
+
+        if( trace != null ) {
+            System.out.println();
+            if( frame.getDepth()==0 )
+                System.out.println(BonnevilleEVM.TOP_SEP);
+            String contractStr = contractStr(opcode);
+            if( contractStr != null )
+                System.out.println(trace.p("CONTRACT ").p(contractStr).nl());
+            System.setOut(oldSysOut);
+        }
     }
+
+    private void preTrace(MessageFrame frame, SB trace, int pc, int op) {
+        if( trace !=null )
+            trace.p("0x").hex2(pc).p(" ").p(BonnevilleEVM.OPNAME(op)).p(" ").hex4((int)frame.getRemainingGas()).p(" ").hex2(frame.stackSize()).p(" -> ");
+    }
+
+    private SB postTrace(MessageFrame frame, SB trace) {
+        trace.hex2(frame.stackSize());
+        // Dump TOS
+        if( frame.stackSize() > 0 ) {
+            trace.p(" 0x");
+            Bytes bs = frame.getStackItem(0);
+            int len = bs.size();
+            for( int i=0; i<32-len; i++ )  trace.hex1(0);
+            for( int i=0; i<   len; i++ )  trace.hex1(bs.get(i));
+        }
+        return trace;
+    }
+    private static String contractStr(int opcode) {
+        return
+            opcode==0xF0 ? "CREATE"  :
+            opcode==0xF1 ? "CUSTCALL":
+            opcode==0xF4 ? "DELEGATE":
+            opcode==0xF5 ? "CREATE2" :
+            opcode==0xFA ? "STATIC"  :
+            null;
+    }
+
 }
