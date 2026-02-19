@@ -99,7 +99,10 @@ for metrics_file in "${METRICS_FILES[@]}"; do
   if [ -f "$metrics_file" ]; then
     echo "  Importing $(basename "$metrics_file")..."
     line_count=$(wc -l < "$metrics_file")
-    curl -s -X POST http://localhost:8428/api/v1/import/prometheus --data-binary @"$metrics_file"
+    # Timestamps in the metrics files are milliseconds; the Prometheus import
+    # endpoint expects seconds, so divide the third field by 1000.
+    awk 'NF==3 { $3 = int($3/1000) } 1' "$metrics_file" \
+      | curl -s -X POST http://localhost:8428/api/v1/import/prometheus --data-binary @-
     if [ $? -eq 0 ]; then
       ((imported_count++))
       ((total_lines+=line_count))
@@ -167,6 +170,7 @@ DASHBOARD_JSON=$(cat <<EOF
     "schemaVersion": 16,
     "version": 0,
     "refresh": "5s",
+    "time": {"from": "now-7d", "to": "now"},
     "panels": [],
     "templating": {
       "list": [
@@ -175,9 +179,10 @@ DASHBOARD_JSON=$(cat <<EOF
           "type": "query",
           "datasource": {"uid": "$DATASOURCE_UID"},
           "query": "label_values(node)",
-          "refresh": 1,
+          "refresh": 2,
           "multi": true,
           "includeAll": true,
+          "timeRangeFilter": true,
           "current": {"value": "\${VAR_NODE}", "text": "\${VAR_NODE}"}
         },
         {
@@ -185,9 +190,10 @@ DASHBOARD_JSON=$(cat <<EOF
           "type": "query",
           "datasource": {"uid": "$DATASOURCE_UID"},
           "query": "label_values(__name__)",
-          "refresh": 1,
+          "refresh": 2,
           "multi": false,
           "includeAll": false,
+          "timeRangeFilter": true,
           "current": {"value": "secSC2T", "text": "secSC2T"}
         }
       ]
