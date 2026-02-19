@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.throttling.hip1313;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.THROTTLE_OVERRIDES;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SIMPLE_FEES;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFullPrefixesFor;
@@ -75,6 +76,7 @@ import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
 @Tag(SIMPLE_FEES)
+@Tag(MATS)
 @HapiTestLifecycle
 public class Hip1313EnabledTest {
     private static final ObjectMapper MAPPER = new ObjectMapper();

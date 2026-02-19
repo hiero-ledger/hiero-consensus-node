@@ -5,7 +5,6 @@ import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_CREATE_TOP
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_APPROVE_ALLOWANCE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
-import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_TRANSFER;
 import static com.hedera.hapi.node.base.HederaFunctionality.FILE_APPEND;
 import static com.hedera.hapi.node.base.HederaFunctionality.FILE_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.HOOK_STORE;
@@ -68,8 +67,7 @@ public final class HighVolumePricingCalculator {
             TOKEN_AIRDROP,
             TOKEN_CLAIM_AIRDROP,
             TOKEN_MINT,
-            TOKEN_CREATE,
-            CRYPTO_TRANSFER);
+            TOKEN_CREATE);
 
     private HighVolumePricingCalculator() {
         // Utility class

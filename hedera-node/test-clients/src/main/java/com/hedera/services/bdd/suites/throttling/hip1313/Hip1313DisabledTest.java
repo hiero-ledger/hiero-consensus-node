@@ -3,6 +3,7 @@ package com.hedera.services.bdd.suites.throttling.hip1313;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.PROPERTY_OVERRIDES;
 import static com.hedera.services.bdd.junit.ContextRequirement.THROTTLE_OVERRIDES;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SIMPLE_FEES;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.createTopic;
@@ -27,6 +28,7 @@ import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
 @Tag(SIMPLE_FEES)
+@Tag(MATS)
 @HapiTestLifecycle
 public class Hip1313DisabledTest {
 
@@ -59,7 +61,7 @@ public class Hip1313DisabledTest {
 
     @LeakyHapiTest(
             requirement = {PROPERTY_OVERRIDES},
-            overrides = {"networkAdmin.highVolumeThrottlesEnabled"})
+            overrides = {"networkAdmin.highVolumeThrottlesEnabled", "fees.simpleFeesEnabled"})
     final Stream<DynamicTest> highVolumeTxnRejectedWhenHighVolumeThrottlesEnabledButSimpleFeesDisabled() {
         return hapiTest(
                 overridingTwo("fees.simpleFeesEnabled", "false", "networkAdmin.highVolumeThrottlesEnabled", "true"),
