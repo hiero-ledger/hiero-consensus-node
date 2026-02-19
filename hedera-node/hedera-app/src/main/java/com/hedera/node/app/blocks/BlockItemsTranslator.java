@@ -144,6 +144,9 @@ public class BlockItemsTranslator {
                 .automaticTokenAssociations(result.automaticTokenAssociations())
                 .assessedCustomFees(result.assessedCustomFees())
                 .paidStakingRewards(result.paidStakingRewards());
+        if (result.highVolumePricingMultiplier() != 0) {
+            recordBuilder.highVolumePricingMultiplier(result.highVolumePricingMultiplier());
+        }
         final var function = context.functionality();
         switch (function) {
             case HOOK_DISPATCH,

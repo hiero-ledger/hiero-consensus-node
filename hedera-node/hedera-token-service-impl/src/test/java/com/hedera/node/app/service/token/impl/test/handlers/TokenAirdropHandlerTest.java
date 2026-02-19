@@ -42,7 +42,7 @@ import com.hedera.hapi.node.transaction.FixedFee;
 import com.hedera.hapi.node.transaction.FractionalFee;
 import com.hedera.hapi.node.transaction.PendingAirdropRecord;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.fees.FeeContextImpl;
+import com.hedera.node.app.fees.context.IngestFeeContext;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
@@ -82,7 +82,7 @@ class TokenAirdropHandlerTest extends CryptoTransferHandlerTestBase {
     private TokensConfig tokensConfig;
 
     @Mock
-    private FeeContextImpl feeContext;
+    private IngestFeeContext feeContext;
 
     @Mock
     private TransactionBody transactionBody;
