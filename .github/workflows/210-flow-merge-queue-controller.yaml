@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 name: "210: [FLOW] Merge Queue Controller"
 on:
   push:
@@ -10,7 +11,8 @@ permissions:
   pull-requests: write
 
 jobs:
-  trigger-xts-tests:
+  # Trigger the MQ XTS Tests
+  trigger-merge-queue-xts-tests:
     name: Merge Queue XTS Required Tests
     uses: ./.github/workflows/zxc-xts-tests.yaml
     with:
@@ -41,3 +43,8 @@ jobs:
       slack-api-token: ${{ secrets.PLATFORM_SLACK_API_TOKEN }}
       slack-citr-details-token: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
       slack-tck-report-webhook: ${{ secrets.SLACK_TCK_MONITOR_WEBHOOK }}
+
+  # Trigger the MQ Performance/Longevity Tests
+#  trigger-merge-queue-performance-longevity-tests:
+#    name: Merge Queue Performance/Longevity Tests
+#    uses: ./.github/workflows/zxc-performance-tests.yaml
