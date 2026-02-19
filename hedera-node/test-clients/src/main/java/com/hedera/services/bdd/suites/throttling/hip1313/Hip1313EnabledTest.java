@@ -18,6 +18,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAirdrop;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenClaimAirdrop;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.token.HapiTokenClaimAirdrop.pendingAirdrop;
+import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.allVisibleItems;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.createHollow;
@@ -512,6 +513,31 @@ public class Hip1313EnabledTest {
                                 "Failed to reinitialize fees after restoring simple fee schedule");
                     }
                 }));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> onlyCryptoCreateChildHasHigherFeesWhileTransferStaysBaseFee() {
+        return hapiTest(
+                newKeyNamed("aliasFee"),
+                cryptoTransfer(movingHbar(ONE_HBAR).between(CIVILIAN_PAYER, "aliasFee"))
+                        .payingWith(CIVILIAN_PAYER)
+                        .withHighVolume()
+                        .via("feeSplitTransfer"),
+                getTxnRecord("feeSplitTransfer")
+                        .andAllChildRecords()
+                        .exposingAllTo(Hip1313EnabledTest::assertOnlyChildHasBoostedHighVolumeMultiplier),
+                validateChargedUsdWithChild("feeSplitTransfer", 0.0001 + (0.05 * 4), 0.01));
+    }
+
+    private static void assertOnlyChildHasBoostedHighVolumeMultiplier(@NonNull final List<TransactionRecord> records) {
+        final var parentHasBoostedMultiplier = records.stream()
+                .anyMatch(record ->
+                        record.getTransactionID().getNonce() == 0 && record.getHighVolumePricingMultiplier() > 1000L);
+        final var childHasBoostedMultiplier = records.stream()
+                .anyMatch(record ->
+                        record.getTransactionID().getNonce() > 0 && record.getHighVolumePricingMultiplier() > 1000L);
+        assertFalse(parentHasBoostedMultiplier, "Expected parent CryptoTransfer to keep base (non-boosted) pricing");
+        assertTrue(childHasBoostedMultiplier, "Expected child CryptoCreate to have boosted high-volume pricing");
     }
 
     public static long getInterpolatedMultiplier(

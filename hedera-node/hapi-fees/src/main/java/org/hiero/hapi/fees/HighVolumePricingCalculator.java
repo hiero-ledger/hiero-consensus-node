@@ -5,6 +5,7 @@ import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_CREATE_TOP
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_APPROVE_ALLOWANCE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_TRANSFER;
 import static com.hedera.hapi.node.base.HederaFunctionality.FILE_APPEND;
 import static com.hedera.hapi.node.base.HederaFunctionality.FILE_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.HOOK_STORE;
@@ -53,8 +54,8 @@ public final class HighVolumePricingCalculator {
 
     /** The default multiplier scaled by 1,000 (1,000 = 1x). */
     public static final long DEFAULT_HIGH_VOLUME_MULTIPLIER = 1_000L;
-    /** The set of high-volume functions. */
-    public static final Set<HederaFunctionality> HIGH_VOLUME_FUNCTIONS = Set.of(
+    /** The set of operations eligible for high-volume pricing multipliers. CryptoTransfer is not included */
+    public static final Set<HederaFunctionality> HIGH_VOLUME_PRICING_FUNCTIONS = Set.of(
             CRYPTO_CREATE,
             CONSENSUS_CREATE_TOPIC,
             SCHEDULE_CREATE,
@@ -68,6 +69,22 @@ public final class HighVolumePricingCalculator {
             TOKEN_CLAIM_AIRDROP,
             TOKEN_MINT,
             TOKEN_CREATE);
+    /** The set of operations eligible for high-volume throttle bucket routing. */
+    public static final Set<HederaFunctionality> HIGH_VOLUME_THROTTLE_FUNCTIONS = Set.of(
+            CRYPTO_CREATE,
+            CONSENSUS_CREATE_TOPIC,
+            SCHEDULE_CREATE,
+            CRYPTO_APPROVE_ALLOWANCE,
+            FILE_CREATE,
+            FILE_APPEND,
+            CONTRACT_CREATE,
+            HOOK_STORE,
+            TOKEN_ASSOCIATE_TO_ACCOUNT,
+            TOKEN_AIRDROP,
+            TOKEN_CLAIM_AIRDROP,
+            TOKEN_MINT,
+            TOKEN_CREATE,
+            CRYPTO_TRANSFER);
 
     private HighVolumePricingCalculator() {
         // Utility class

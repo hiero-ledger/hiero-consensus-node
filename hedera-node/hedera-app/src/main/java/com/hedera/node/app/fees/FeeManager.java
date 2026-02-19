@@ -13,7 +13,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.FEE_DIVISOR_FACTOR;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.hapi.fees.FeeScheduleUtils.isValid;
-import static org.hiero.hapi.fees.FeeScheduleUtils.lookupServiceFee;
 
 import com.hedera.hapi.node.base.CurrentAndNextFeeSchedule;
 import com.hedera.hapi.node.base.FeeComponents;
@@ -47,8 +46,6 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.hapi.fees.HighVolumePricingCalculator;
-import org.hiero.hapi.support.fees.ServiceFeeDefinition;
 
 /**
  * Creates {@link FeeCalculator} instances based on the current fee schedule. Whenever the fee schedule is updated,
@@ -258,32 +255,6 @@ public final class FeeManager {
             @NonNull final HederaFunctionality functionality,
             @NonNull final ReadableStoreFactory storeFactory) {
         return congestionMultipliers.maxCurrentMultiplier(body, functionality, storeFactory);
-    }
-
-    /**
-     * Returns the high volume multiplier for the given transaction and current instantaneous utilization.
-     *
-     * @param transactionBody the transaction body
-     * @param functionality the functionality of the transaction
-     * @param utilizationBasisPoints the current utilization percentage in hundredths of one percent (0 to 10,000)
-     * @return the high volume multiplier
-     */
-    public long highVolumeMultiplierFor(
-            @NonNull final TransactionBody transactionBody,
-            @NonNull final HederaFunctionality functionality,
-            final int utilizationBasisPoints) {
-        if (!transactionBody.highVolume()
-                || !HighVolumePricingCalculator.HIGH_VOLUME_FUNCTIONS.contains(functionality)
-                || simpleFeesSchedule == null) {
-            return HighVolumePricingCalculator.DEFAULT_HIGH_VOLUME_MULTIPLIER;
-        }
-        final ServiceFeeDefinition serviceFeeDefinition = lookupServiceFee(simpleFeesSchedule, functionality);
-        if (serviceFeeDefinition == null) {
-            logger.warn("No service fee definition found for {}", functionality);
-            return HighVolumePricingCalculator.DEFAULT_HIGH_VOLUME_MULTIPLIER;
-        }
-        return HighVolumePricingCalculator.calculateMultiplier(
-                serviceFeeDefinition.highVolumeRates(), utilizationBasisPoints);
     }
 
     @NonNull
