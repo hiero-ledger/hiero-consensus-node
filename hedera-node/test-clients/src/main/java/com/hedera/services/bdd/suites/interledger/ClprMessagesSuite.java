@@ -26,6 +26,7 @@ import com.esaulpaugh.headlong.abi.Address;
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.services.bdd.junit.ConfigOverride;
 import com.hedera.services.bdd.junit.MultiNetworkHapiTest;
+import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.TestTags;
 import com.hedera.services.bdd.junit.hedera.HederaNode;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
@@ -47,6 +48,7 @@ import org.hiero.hapi.interledger.state.clpr.ClprLedgerId;
 import org.hiero.hapi.interledger.state.clpr.ClprMessageQueueMetadata;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 
 /**
@@ -56,6 +58,7 @@ import org.junit.jupiter.api.Tag;
  * start of {@link #twoNetworkMessagesExchange(SubProcessNetwork, SubProcessNetwork)}.
  */
 @Tag(TestTags.MULTINETWORK)
+@OrderedInIsolation
 public class ClprMessagesSuite {
 
     private static final Duration AWAIT_TIMEOUT = Duration.ofMinutes(10);
@@ -67,39 +70,7 @@ public class ClprMessagesSuite {
     private static final String PUBLIC_LEDGER_S = "smallBundleLedger";
     private static final String PUBLIC_LEDGER_L = "largeBundleLedger";
 
-    private static final String CLPR_MIDDLEWARE = "ClprMiddleware";
-    private static final String CLPR_CONNECTOR = "MockClprConnector";
-    private static final String SOURCE_APP = "SourceApplication";
-    private static final String ECHO_APP = "EchoApplication";
-
-    private static final String UNIT = "HBAR";
-    private static final String ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
-    private static final String CLPR_QUEUE_SYSTEM_CONTRACT = "0x000000000000000000000000000000000000016e";
-
-    private static final byte[] SOURCE_CONNECTOR_ID = bytes32("01");
-    private static final byte[] DESTINATION_CONNECTOR_ID = bytes32("02");
-
-    private static final byte[] PAYLOAD_ONE = "hello-clpr-1".getBytes(StandardCharsets.UTF_8);
-    private static final byte[] PAYLOAD_TWO = "hello-clpr-2".getBytes(StandardCharsets.UTF_8);
-
-    private static final String ABI_REGISTER_LOCAL_APPLICATION =
-            getABIFor(FUNCTION, "registerLocalApplication", CLPR_MIDDLEWARE);
-    private static final String ABI_SET_TRUSTED_CALLBACK_CALLER =
-            getABIFor(FUNCTION, "setTrustedCallbackCaller", CLPR_MIDDLEWARE);
-    private static final String ABI_SET_CONNECTOR_REMOTE_MIDDLEWARE =
-            getABIFor(FUNCTION, "setConnectorRemoteMiddleware", CLPR_MIDDLEWARE);
-    private static final String ABI_REGISTER_WITH_MIDDLEWARE =
-            getABIFor(FUNCTION, "registerWithMiddleware", CLPR_CONNECTOR);
-    private static final String ABI_CONNECTOR_ID = getABIFor(FUNCTION, "connectorId", CLPR_CONNECTOR);
-    private static final String ABI_CONNECTOR_ADMIN = getABIFor(FUNCTION, "admin", CLPR_CONNECTOR);
-    private static final String ABI_SEND_WITH_FAILOVER_FROM_FIRST =
-            getABIFor(FUNCTION, "sendWithFailoverFromFirst", SOURCE_APP);
-    private static final String ABI_LAST_RECEIVED_APP_MSG_ID = getABIFor(FUNCTION, "lastReceivedAppMsgId", SOURCE_APP);
-    private static final String ABI_GET_RESPONSE = getABIFor(FUNCTION, "getResponse", SOURCE_APP);
-    private static final String ABI_GET_CONNECTOR_IDS = getABIFor(FUNCTION, "getConnectorIds", SOURCE_APP);
-    private static final String ABI_CONNECTORS = getABIFor(FUNCTION, "connectors", CLPR_MIDDLEWARE);
-    private static final String ABI_REQUEST_COUNT = getABIFor(FUNCTION, "requestCount", ECHO_APP);
-
+    @Order(1)
     @MultiNetworkHapiTest(
             networks = {
                 @MultiNetworkHapiTest.Network(
@@ -586,6 +557,7 @@ public class ClprMessagesSuite {
         return builder.asDynamicTests();
     }
 
+    @Order(2)
     @MultiNetworkHapiTest(
             networks = {
                 @MultiNetworkHapiTest.Network(
