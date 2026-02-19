@@ -18,8 +18,10 @@ import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.config.ConfigProvider;
+import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.ClprConfig;
 import com.hedera.node.config.data.GrpcConfig;
+import com.hedera.node.config.data.HederaConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -109,7 +111,7 @@ public class ClprEndpointClient {
             }
 
             final var localLedgerId = stateProofManager.getLocalLedgerId();
-            if (localLedgerId == null || localLedgerId.ledgerId() == Bytes.EMPTY) {
+            if (localLedgerId == null || localLedgerId.ledgerId().length() == 0) {
                 log.debug("CLPR endpoint maintenance awaiting local ledgerId bootstrap");
                 return;
             }
@@ -250,13 +252,16 @@ public class ClprEndpointClient {
             final org.hiero.hapi.interledger.state.clpr.ClprLedgerId remoteLedgerId,
             final org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration storedRemoteConfig) {
         try (final ClprClient remoteClient = connectionManager.createClient(remoteEndpoint.endpoint())) {
-            final var selfAccount = selfNodeInfo.accountId();
+            // CLPR endpoint operations submit HAPI transactions; in SOLO/dev-mode, the node account (0.0.3) is often
+            // unfunded, so we use a funded payer (treasury) for transaction submission.
+            final var payerAccountId = protocolPayerAccountId(selfNodeInfo);
+            final var defaultNodeAccountId = selfNodeInfo.accountId();
             final var nodeAccountId =
-                    remoteEndpoint.nodeAccountId() != null ? remoteEndpoint.nodeAccountId() : selfAccount;
+                    remoteEndpoint.nodeAccountId() != null ? remoteEndpoint.nodeAccountId() : defaultNodeAccountId;
             final var protocolOutcome = runProtocolWithRemote(
                     remoteClient,
                     localLedgerId,
-                    selfAccount,
+                    payerAccountId,
                     nodeAccountId,
                     localEndpoint,
                     localProof,
@@ -354,7 +359,7 @@ public class ClprEndpointClient {
                         remoteLedgerId);
             } else if (isNewerConfig(storedRemoteConfig, fetchedRemoteConfig)) {
                 try (final ClprClient localClient = connectionManager.createClient(localEndpoint)) {
-                    localClient.setConfiguration(selfAccount, selfAccount, fetchedProof);
+                    localClient.setConfiguration(selfAccount, nodeAccountId, fetchedProof);
                     pullSucceeded = true;
                 } catch (final UnknownHostException e) {
                     log.warn(
@@ -390,9 +395,18 @@ public class ClprEndpointClient {
             final var localQueueMetadata = initialMessageQueueMetadata(remoteLedgerId);
             final var localQueueStateProof = buildLocalClprStateProofWrapper(localQueueMetadata);
             log.debug("{} Init new local message queue for remote ledger {}", ledgerLogPrefix, remoteLedgerId);
-            localClient.updateMessageQueueMetadata(selfAccount, nodeAccount, remoteLedgerId, localQueueStateProof);
+            final var localInitStatus = localClient.updateMessageQueueMetadata(
+                    selfAccount, nodeAccount, remoteLedgerId, localQueueStateProof);
             log.debug("{} Update remote message queue for ledger {}", ledgerLogPrefix, localLedgerId);
-            remoteClient.updateMessageQueueMetadata(selfAccount, nodeAccount, localLedgerId, localQueueStateProof);
+            final var remoteInitStatus = remoteClient.updateMessageQueueMetadata(
+                    selfAccount, nodeAccount, localLedgerId, localQueueStateProof);
+            if (!isSuccessful(localInitStatus) || !isSuccessful(remoteInitStatus)) {
+                log.warn(
+                        "{} Queue init returned non-success statuses (local={}, remote={})",
+                        ledgerLogPrefix,
+                        localInitStatus,
+                        remoteInitStatus);
+            }
 
             // no messages to exchange at this point
             return true;
@@ -418,14 +432,28 @@ public class ClprEndpointClient {
 
         if (localQueue.receivedMessageId() > remoteQueue.sentMessageId()) {
             log.debug("{} Update remote message queue sent id {}", ledgerLogPrefix, localQueue.receivedMessageId());
-            remoteClient.updateMessageQueueMetadata(selfAccount, nodeAccount, localLedgerId, localQueueProof);
+            final var updateRemoteStatus =
+                    remoteClient.updateMessageQueueMetadata(selfAccount, nodeAccount, localLedgerId, localQueueProof);
+            if (!isSuccessful(updateRemoteStatus)) {
+                log.warn(
+                        "{} Remote queue sent-id update returned non-success status {}",
+                        ledgerLogPrefix,
+                        updateRemoteStatus);
+            }
         }
 
         if (remoteQueue.receivedMessageId() > localQueueSentMessageId) {
             // Submit remote Queue (to this ledger) to update the quantity sent msg in state
             localQueueSentMessageId = remoteQueue.receivedMessageId();
             log.debug("{} Update local message queue sent id {}", ledgerLogPrefix, localQueueSentMessageId);
-            localClient.updateMessageQueueMetadata(selfAccount, nodeAccount, remoteLedgerId, remoteQueueProof);
+            final var updateLocalStatus =
+                    localClient.updateMessageQueueMetadata(selfAccount, nodeAccount, remoteLedgerId, remoteQueueProof);
+            if (!isSuccessful(updateLocalStatus)) {
+                log.warn(
+                        "{} Local queue sent-id update returned non-success status {}",
+                        ledgerLogPrefix,
+                        updateLocalStatus);
+            }
         }
 
         // Push local messages to remote
@@ -452,7 +480,18 @@ public class ClprEndpointClient {
 
                 if (bundle != null) {
                     log.debug("{} Submit bundle {} - {}", ledgerLogPrefix, firstBundleMessage, lastMessageInBundle);
-                    remoteClient.submitProcessMessageBundleTxn(selfAccount, nodeAccount, remoteLedgerId, bundle);
+                    final var submitStatus = remoteClient.submitProcessMessageBundleTxn(
+                            selfAccount, nodeAccount, remoteLedgerId, bundle);
+                    if (!isSuccessful(submitStatus)) {
+                        log.warn(
+                                "{} SubmitProcessMessageBundle returned non-success precheck (status={}, msgs={}..{}, local.next={}, remote.recv={})",
+                                ledgerLogPrefix,
+                                submitStatus,
+                                firstPendingMessage,
+                                lastMessageInBundle,
+                                localQueue.nextMessageId(),
+                                remoteQueue.receivedMessageId());
+                    }
                 } else {
                     log.error("{} Error while constructing a bundle!", ledgerLogPrefix);
                 }
@@ -466,7 +505,7 @@ public class ClprEndpointClient {
             final var maxBundleBytes = clprConfig.maxBundleBytes();
             final var fetchedBundle = remoteClient.getMessages(localLedgerId, maxNumberOfMsg, maxBundleBytes);
             if (fetchedBundle != null) {
-                // TODO: This code is needed only for debug logging. Remove it in future!
+                // Log bundle IDs at debug to aid troubleshooting.
                 if (fetchedBundle.hasStateProof()) {
                     final var stateProof = fetchedBundle.stateProofOrThrow();
                     final var key = extractMessageKey(stateProof);
@@ -488,7 +527,14 @@ public class ClprEndpointClient {
                     }
                 }
                 // process messages from remote
-                localClient.submitProcessMessageBundleTxn(selfAccount, nodeAccount, localLedgerId, fetchedBundle);
+                final var processLocalStatus = localClient.submitProcessMessageBundleTxn(
+                        selfAccount, nodeAccount, localLedgerId, fetchedBundle);
+                if (!isSuccessful(processLocalStatus)) {
+                    log.warn(
+                            "{} Process inbound bundle returned non-success precheck (status={})",
+                            ledgerLogPrefix,
+                            processLocalStatus);
+                }
             } else {
                 log.warn("{} Remote queue has messages, but can't fetch bundle", ledgerLogPrefix);
             }
@@ -561,5 +607,21 @@ public class ClprEndpointClient {
                     e);
             return null;
         }
+    }
+
+    private AccountID protocolPayerAccountId(@NonNull final com.hedera.node.app.spi.info.NodeInfo selfNodeInfo) {
+        requireNonNull(selfNodeInfo);
+        final var config = configProvider.getConfiguration();
+        final var clprConfig = config.getConfigData(ClprConfig.class);
+        if (!clprConfig.devModeEnabled()) {
+            return selfNodeInfo.accountId();
+        }
+        final var hederaConfig = config.getConfigData(HederaConfig.class);
+        final var accountsConfig = config.getConfigData(AccountsConfig.class);
+        return AccountID.newBuilder()
+                .shardNum(hederaConfig.shard())
+                .realmNum(hederaConfig.realm())
+                .accountNum(accountsConfig.treasury())
+                .build();
     }
 }

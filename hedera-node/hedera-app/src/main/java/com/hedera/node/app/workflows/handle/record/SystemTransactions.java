@@ -91,6 +91,7 @@ import com.hedera.node.config.data.ClprConfig;
 import com.hedera.node.config.data.ConsensusConfig;
 import com.hedera.node.config.data.FeesConfig;
 import com.hedera.node.config.data.FilesConfig;
+import com.hedera.node.config.data.GrpcConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.NetworkAdminConfig;
@@ -98,7 +99,6 @@ import com.hedera.node.config.data.NodesConfig;
 import com.hedera.node.config.data.SchedulingConfig;
 import com.hedera.node.config.data.StakingConfig;
 import com.hedera.node.config.types.StreamMode;
-import com.hedera.node.internal.network.Network;
 import com.hedera.node.internal.network.NodeMetadata;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
@@ -113,6 +113,8 @@ import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -561,21 +563,22 @@ public class SystemTransactions {
      * <ul>
      *     <li>Payer is always the system-admin account so the synthetic transaction ID matches on every node.</li>
      *     <li>Endpoints are included only when {@code publicizeNetworkAddresses} is true; they are sourced from
-     *     {@link Network} metadata when available, otherwise from the {@link ReadableNodeStore}.</li>
-     *     <li>Runs only if metadata is absent or the stored roster hash differs; when refreshing, the previous
-     *     ledgerId is reused so ledger identity is stable across restarts.</li>
+     *     {@link ReadableNodeStore} when available, otherwise derived from the roster's gossip endpoints.</li>
+     *     <li>Runs only when the roster changes or endpoint visibility mismatches the publicize flag; when refreshing,
+     *     the previous ledgerId is reused so ledger identity is stable across restarts.</li>
      * </ul>
      */
     private void maybeDispatchClprBootstrap(@NonNull final SystemContext systemContext, @NonNull final State state) {
         final var storeFactory = new ReadableStoreFactoryImpl(state);
         final ReadableRosterStore rosterStore;
         final ReadableClprMetadataStore metadataStore;
-        ReadableClprLedgerConfigurationStore configStore = null;
+        final ReadableClprLedgerConfigurationStore configStore;
         try {
             rosterStore = storeFactory.readableStore(ReadableRosterStore.class);
             metadataStore = storeFactory.readableStore(ReadableClprMetadataStore.class);
             configStore = storeFactory.readableStore(ReadableClprLedgerConfigurationStore.class);
         } catch (final IllegalArgumentException e) {
+            // CLPR stores are not readable yet at genesis; retry on a subsequent cycle.
             return;
         }
         final var activeRoster = rosterStore.getActiveRoster();
@@ -590,25 +593,38 @@ public class SystemTransactions {
         final var existingMetadata = metadataStore.get();
         final var existingRosterHash = existingMetadata != null ? existingMetadata.rosterHash() : null;
 
-        final Network network = safeGetNetwork(storeFactory);
         final ReadableNodeStore nodeStore = safeGetNodeStore(storeFactory);
 
         final var includeServiceEndpoint = clprConfig.publicizeNetworkAddresses();
         final Map<Long, ServiceEndpoint> endpointByNodeId;
         final Map<Long, AccountID> accountIdByNodeId;
         if (nodeStore != null) {
-            endpointByNodeId = includeServiceEndpoint
-                    ? nodeStore.keys().stream()
-                            .map(key -> nodeStore.get(key.number()))
-                            .filter(Objects::nonNull)
-                            .filter(node -> !node.serviceEndpoint().isEmpty())
-                            .collect(
-                                    HashMap::new,
-                                    (map, node) -> map.put(
-                                            node.nodeId(),
-                                            node.serviceEndpoint().getFirst()),
-                                    HashMap::putAll)
-                    : Map.of();
+            endpointByNodeId = includeServiceEndpoint ? new HashMap<>() : Map.of();
+            if (includeServiceEndpoint) {
+                // Prefer explicit service endpoints from state (when available).
+                nodeStore.keys().stream()
+                        .map(key -> nodeStore.get(key.number()))
+                        .filter(Objects::nonNull)
+                        .filter(node -> !node.serviceEndpoint().isEmpty())
+                        .forEach(node -> endpointByNodeId.put(
+                                node.nodeId(), node.serviceEndpoint().getFirst()));
+
+                // SOLO frequently has no node.serviceEndpoint() data; fall back to the roster's gossip IP and use the
+                // node's primary gRPC port. This keeps the resulting CLPR configuration deterministic because roster
+                // data is part of state.
+                final int grpcPort = configProvider
+                        .getConfiguration()
+                        .getConfigData(GrpcConfig.class)
+                        .port();
+                activeRoster.rosterEntries().forEach(rosterEntry -> {
+                    if (!endpointByNodeId.containsKey(rosterEntry.nodeId())) {
+                        final var derived = deriveGrpcEndpointFromGossip(rosterEntry, grpcPort);
+                        if (derived != null) {
+                            endpointByNodeId.put(rosterEntry.nodeId(), derived);
+                        }
+                    }
+                });
+            }
             accountIdByNodeId = nodeStore.keys().stream()
                     .map(key -> nodeStore.get(key.number()))
                     .filter(Objects::nonNull)
@@ -624,13 +640,13 @@ public class SystemTransactions {
                 includeServiceEndpoint ? endpointByNodeId::get : nodeId -> null;
         final Function<Long, AccountID> accountIdProvider = accountIdByNodeId::get;
 
-        final Bytes ledgerId = existingMetadata != null && existingMetadata.ledgerId() != null
+        final Bytes rawLedgerId = existingMetadata != null && existingMetadata.ledgerId() != null
                 ? existingMetadata.ledgerId().ledgerId()
                 : rosterHash;
+        final Bytes ledgerId = normalizeClprLedgerId(rawLedgerId, clprConfig.devModeEnabled());
 
-        final var existingConfig = configStore != null
-                ? configStore.get(ClprLedgerId.newBuilder().ledgerId(ledgerId).build())
-                : null;
+        final var existingConfig =
+                configStore.get(ClprLedgerId.newBuilder().ledgerId(ledgerId).build());
         final var rosterChanged = existingRosterHash == null || !rosterHash.equals(existingRosterHash);
         final var hasAdvertisedEndpoints = existingConfig != null
                 && existingConfig.endpoints().stream()
@@ -663,19 +679,55 @@ public class SystemTransactions {
                 builder -> builder.clprSetLedgerConfiguration(transactionBody.clprSetLedgerConfigurationOrThrow()), 0L);
     }
 
-    private Network safeGetNetwork(@NonNull final ReadableStoreFactory storeFactory) {
-        try {
-            return storeFactory.readableStore(Network.class);
-        } catch (final IllegalArgumentException e) {
-            return null;
-        }
-    }
-
     private ReadableNodeStore safeGetNodeStore(@NonNull final ReadableStoreFactory storeFactory) {
         try {
             return storeFactory.readableStore(ReadableNodeStore.class);
         } catch (final IllegalArgumentException e) {
             return null;
+        }
+    }
+
+    private static @Nullable ServiceEndpoint deriveGrpcEndpointFromGossip(
+            @NonNull final RosterEntry rosterEntry, final int grpcPort) {
+        final var gossipEndpoints = rosterEntry.gossipEndpoint();
+        if (gossipEndpoints == null || gossipEndpoints.isEmpty()) {
+            return null;
+        }
+        final var gossip = gossipEndpoints.getFirst();
+        if (gossip == null) {
+            return null;
+        }
+        final var builder = ServiceEndpoint.newBuilder().port(grpcPort);
+        final var domainName = gossip.domainName();
+        if (domainName != null && !domainName.isBlank()) {
+            builder.domainName(domainName.trim());
+            return builder.build();
+        }
+        final var ipV4 = gossip.ipAddressV4();
+        if (ipV4 != null && ipV4.length() == 4) {
+            builder.ipAddressV4(ipV4);
+            return builder.build();
+        }
+        return null;
+    }
+
+    private static final int CLPR_LEDGER_ID_BYTES = 32;
+
+    private static Bytes normalizeClprLedgerId(@NonNull final Bytes rawLedgerId, final boolean devModeEnabled) {
+        if (!devModeEnabled) {
+            return rawLedgerId;
+        }
+        if (rawLedgerId.length() == 0 || rawLedgerId.length() == CLPR_LEDGER_ID_BYTES) {
+            return rawLedgerId;
+        }
+        return Bytes.wrap(sha256(rawLedgerId.toByteArray()));
+    }
+
+    private static byte[] sha256(@NonNull final byte[] input) {
+        try {
+            return MessageDigest.getInstance("SHA-256").digest(input);
+        } catch (final NoSuchAlgorithmException fatal) {
+            throw new IllegalStateException(fatal);
         }
     }
 

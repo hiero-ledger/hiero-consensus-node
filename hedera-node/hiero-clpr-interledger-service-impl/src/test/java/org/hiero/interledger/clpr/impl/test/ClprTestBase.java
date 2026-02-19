@@ -31,6 +31,8 @@ import com.swirlds.state.test.fixtures.MapWritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -58,8 +60,8 @@ import org.mockito.Mock;
 public class ClprTestBase {
 
     // data instances
-    protected final byte[] rawLocalLedgerId = "localLedgerId".getBytes();
-    protected final byte[] rawRemoteLedgerId = "remoteLedgerId".getBytes();
+    protected final byte[] rawLocalLedgerId = Arrays.copyOf("localLedgerId".getBytes(StandardCharsets.UTF_8), 32);
+    protected final byte[] rawRemoteLedgerId = Arrays.copyOf("remoteLedgerId".getBytes(StandardCharsets.UTF_8), 32);
     protected ClprLedgerId localClprLedgerId;
     protected ClprLedgerConfiguration localClprConfig;
     protected ClprLedgerId remoteClprLedgerId;

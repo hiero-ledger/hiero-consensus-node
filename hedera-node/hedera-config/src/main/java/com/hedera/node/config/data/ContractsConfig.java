@@ -87,6 +87,8 @@ public record ContractsConfig(
         @ConfigProperty(value = "systemContract.setUnlimitedAutoAssociations.enabled", defaultValue = "true")
                 @NetworkProperty
                 boolean systemContractSetUnlimitedAutoAssociationsEnabled,
+        @ConfigProperty(value = "systemContract.clprQueue.enabled", defaultValue = "false") @NetworkProperty
+                boolean systemContractClprQueueEnabled,
         @ConfigProperty(value = "systemContract.hts.addresses", defaultValue = "359") // 359 = 0x167, 364 = 0x16C
                 Set<Long> callableHTSAddresses,
         @ConfigProperty(value = "evm.ethTransaction.zeroHapiFees.enabled", defaultValue = "true") @NetworkProperty

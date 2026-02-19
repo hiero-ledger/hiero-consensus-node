@@ -7,16 +7,19 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_INVALID_STATE_PROO
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_MESSAGE_QUEUE_NOT_AVAILABLE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
-import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
+import static com.hedera.node.app.spi.workflows.DispatchOptions.stepDispatch;
+import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
+import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.interledger.clpr.ClprStateProofUtils.extractMessageKey;
 import static org.hiero.interledger.clpr.ClprStateProofUtils.extractMessageValue;
 import static org.hiero.interledger.clpr.ClprStateProofUtils.validateStateProof;
 import static org.hiero.interledger.clpr.impl.ClprMessageUtils.nextRunningHash;
 
-import com.hedera.node.app.spi.info.NetworkInfo;
+import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -25,46 +28,37 @@ import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.ClprConfig;
+import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.inject.Inject;
-import org.hiero.hapi.interledger.state.clpr.ClprMessageKey;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.hiero.hapi.interledger.clpr.ClprHandleMessagePayloadTransactionBody;
+import org.hiero.hapi.interledger.state.clpr.ClprLedgerId;
 import org.hiero.hapi.interledger.state.clpr.ClprMessagePayload;
-import org.hiero.hapi.interledger.state.clpr.ClprMessageReply;
-import org.hiero.hapi.interledger.state.clpr.ClprMessageValue;
 import org.hiero.interledger.clpr.WritableClprMessageQueueMetadataStore;
-import org.hiero.interledger.clpr.WritableClprMessageStore;
 import org.hiero.interledger.clpr.impl.ClprStateProofManager;
 
 public class ClprProcessMessageBundleHandler implements TransactionHandler {
-
+    private static final Logger log = LogManager.getLogger(ClprProcessMessageBundleHandler.class);
     private final ClprStateProofManager stateProofManager;
-    private final NetworkInfo networkInfo;
-    private final ConfigProvider configProvider;
 
     @Inject
-    public ClprProcessMessageBundleHandler(
-            @NonNull final ClprStateProofManager stateProofManager,
-            @NonNull final NetworkInfo networkInfo,
-            @NonNull final ConfigProvider configProvider) {
+    public ClprProcessMessageBundleHandler(@NonNull final ClprStateProofManager stateProofManager) {
         this.stateProofManager = requireNonNull(stateProofManager);
-        this.networkInfo = requireNonNull(networkInfo);
-        this.configProvider = requireNonNull(configProvider);
     }
 
     @Override
-    public void pureChecks(@NonNull PureChecksContext context) throws PreCheckException {
+    public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
         validateTruePreCheck(stateProofManager.clprEnabled(), NOT_SUPPORTED);
         final var body = context.body();
-
-        // validate mandatory fields
         validateTruePreCheck(body.clprProcessMessageBundleOrThrow().hasMessageBundle(), INVALID_TRANSACTION_BODY);
         final var bundle = body.clprProcessMessageBundleOrThrow().messageBundleOrThrow();
 
-        // validate bundle shape
         final var config = configProvider.getConfiguration().getConfigData(ClprConfig.class);
         validateTruePreCheck(bundle.protobufSize() <= config.maxBundleBytes(), CLPR_INVALID_BUNDLE);
         validateTruePreCheck(bundle.messages().size() + 1 <= config.maxBundleMessages(), CLPR_INVALID_BUNDLE);
@@ -72,11 +66,9 @@ public class ClprProcessMessageBundleHandler implements TransactionHandler {
         // bundle must have at least state proof
         validateTruePreCheck(bundle.hasStateProof(), CLPR_INVALID_STATE_PROOF);
 
-        // validate the state proof
         final var stateProof = bundle.stateProofOrThrow();
         validateTruePreCheck(validateStateProof(stateProof), CLPR_INVALID_STATE_PROOF);
 
-        // validate respective queue exist
         final var messageQueue = stateProofManager.getLocalMessageQueueMetadata(bundle.ledgerIdOrThrow());
         validateTruePreCheck(messageQueue != null, CLPR_MESSAGE_QUEUE_NOT_AVAILABLE);
 
@@ -86,17 +78,14 @@ public class ClprProcessMessageBundleHandler implements TransactionHandler {
         final var lastBundleMessageId = lastBundleMessageKey.messageId();
         final var firstBundleMessageId = lastBundleMessageId - bundle.messages().size();
 
-        // validate if the bundle has misaligned message ids
         validateFalsePreCheck(lastBundleMessageId <= receivedMessageId, CLPR_INVALID_BUNDLE);
         validateFalsePreCheck(firstBundleMessageId > firstNonProcessedMsgId, CLPR_INVALID_BUNDLE);
 
-        // validate the running hash
-        // In case the bundle contain some messages that are already processed, we should skip those
         final var skipCount = firstNonProcessedMsgId - firstBundleMessageId;
 
         final var lastBundleMessageValue = extractMessageValue(stateProof);
         final var lastBundleMessageRunningHash = lastBundleMessageValue.runningHashAfterProcessing();
-        AtomicReference<Bytes> runningHash = new AtomicReference<>(messageQueue.receivedRunningHash());
+        final AtomicReference<Bytes> runningHash = new AtomicReference<>(messageQueue.receivedRunningHash());
         bundle.messages().stream()
                 .skip(skipCount)
                 .forEach(msg -> runningHash.set(nextRunningHash(msg, runningHash.get())));
@@ -105,23 +94,28 @@ public class ClprProcessMessageBundleHandler implements TransactionHandler {
     }
 
     @Override
-    public void preHandle(@NonNull PreHandleContext context) throws PreCheckException {
+    public void preHandle(@NonNull final PreHandleContext context) throws PreCheckException {
         validateTruePreCheck(stateProofManager.clprEnabled(), NOT_SUPPORTED);
         // TODO: Implement preHandle once the payer and required signatures requirements are clear!
     }
 
     @Override
-    public void handle(@NonNull HandleContext context) throws HandleException {
-        final var writableMessagesStore = context.storeFactory().writableStore(WritableClprMessageStore.class);
+    public void handle(@NonNull final HandleContext context) throws HandleException {
+        requireNonNull(context);
         final var writableMessageQueueStore =
                 context.storeFactory().writableStore(WritableClprMessageQueueMetadataStore.class);
 
         final var txn = context.body();
         final var bundle = txn.clprProcessMessageBundleOrThrow().messageBundleOrThrow();
-        final var ledgerId = bundle.ledgerIdOrThrow();
+        final var sourceLedgerId = bundle.ledgerIdOrThrow();
+        // TEMP-OBSERVABILITY (delete before production): traces bundle-handler entry and bundle size.
+        log.info(
+                "CLPR_OBS|component=clpr_process_message_bundle_handler|stage=handle_start|sourceLedgerId={}|bundleMessages={}",
+                sourceLedgerId.ledgerId(),
+                bundle.messages().size());
 
-        final var messageQueue = writableMessageQueueStore.get(ledgerId);
-        final var updatedQueueBuilder = messageQueue.copyBuilder();
+        final var messageQueue = writableMessageQueueStore.get(sourceLedgerId);
+        validateTrue(messageQueue != null, CLPR_MESSAGE_QUEUE_NOT_AVAILABLE);
 
         final var lastBundleMessageKey = extractMessageKey(bundle.stateProofOrThrow());
         final var lastBundleMessageValue = extractMessageValue(bundle.stateProofOrThrow());
@@ -131,66 +125,66 @@ public class ClprProcessMessageBundleHandler implements TransactionHandler {
         final var firstNonProcessedMsgId = receivedMessageId + 1;
         final var lastBundleMessageId = lastBundleMessageKey.messageId();
         final var firstBundleMessageId = lastBundleMessageId - bundle.messages().size();
-
-        // validate if there are missing messages between the last received and the first in this bundle
         validateFalse(firstBundleMessageId > firstNonProcessedMsgId, CLPR_INVALID_BUNDLE);
 
-        // we may have already received a part of this bundle (or entire bundle).
-        // In this case we should skip processing these messages
         final var skipCount = firstNonProcessedMsgId - firstBundleMessageId;
+        // TEMP-OBSERVABILITY (delete before production): traces bundle replay window and skip calculation.
+        log.info(
+                "CLPR_OBS|component=clpr_process_message_bundle_handler|stage=bundle_window|receivedMessageId={}|firstBundleMessageId={}|lastBundleMessageId={}|skipCount={}",
+                receivedMessageId,
+                firstBundleMessageId,
+                lastBundleMessageId,
+                skipCount);
 
-        // 1. Handle all messages (including the last message, extracted from the state proof)
         final var bundleMessages = new ArrayList<>(bundle.messages());
         bundleMessages.add(lastBundleMessageValue.payload());
 
         final var receivedMsgId = new AtomicLong(messageQueue.receivedMessageId());
-        final var nextMessageId = new AtomicLong(messageQueue.nextMessageId());
+        final int startIndex = Math.toIntExact(skipCount);
+        for (int i = startIndex; i < bundleMessages.size(); i++) {
+            final var payload = bundleMessages.get(i);
+            final var inboundMessageId = receivedMsgId.incrementAndGet();
+            dispatchHandlePayload(context, sourceLedgerId, inboundMessageId, payload);
+        }
 
-        // Use last message's running hash for initial hash of the reply.
-        final var lastQueuedMessageKey = ClprMessageKey.newBuilder()
-                .messageId(messageQueue.nextMessageId() - 1)
-                .ledgerId(ledgerId)
-                .build();
-        final var lastQueuedMessage = writableMessagesStore.get(lastQueuedMessageKey);
-        final var initHash = lastQueuedMessage == null
-                ? messageQueue.sentRunningHash()
-                : lastQueuedMessage.runningHashAfterProcessing();
-        AtomicReference<Bytes> replyRunningHash = new AtomicReference<>(initHash);
-
-        bundleMessages.stream().skip(skipCount).forEach(msg -> {
-            // create and save msg reply
-            if (msg.hasMessage()) {
-                final var id = nextMessageId.getAndIncrement();
-                final var key = ClprMessageKey.newBuilder()
-                        .messageId(id)
-                        .ledgerId(ledgerId)
-                        .build();
-
-                final var payload = ClprMessagePayload.newBuilder()
-                        .messageReply(ClprMessageReply.newBuilder()
-                                .messageId(receivedMsgId.incrementAndGet())
-                                // TODO: Handle message data and generate actual reply data
-                                .messageReplyData(msg.messageOrThrow().messageData()))
-                        .build();
-                final var lastRunningHash = replyRunningHash.get();
-                replyRunningHash.set(nextRunningHash(payload, lastRunningHash));
-
-                final var value = ClprMessageValue.newBuilder()
-                        .runningHashAfterProcessing(replyRunningHash.get())
-                        .payload(payload)
-                        .build();
-                writableMessagesStore.put(key, value);
-
-            } else {
-                receivedMsgId.getAndIncrement();
-                // TODO: handle msg reply data
-            }
-        });
-
-        // update message queue
+        final var updatedQueueBuilder =
+                writableMessageQueueStore.get(sourceLedgerId).copyBuilder();
         updatedQueueBuilder.receivedMessageId(receivedMsgId.get());
         updatedQueueBuilder.receivedRunningHash(lastBundleMessageRunningHash);
-        updatedQueueBuilder.nextMessageId(nextMessageId.get());
-        writableMessageQueueStore.put(ledgerId, updatedQueueBuilder.build());
+        writableMessageQueueStore.put(sourceLedgerId, updatedQueueBuilder.build());
+        // TEMP-OBSERVABILITY (delete before production): confirms bundle replay completion and queue cursor advance.
+        log.info(
+                "CLPR_OBS|component=clpr_process_message_bundle_handler|stage=handle_success|newReceivedMessageId={}|receivedRunningHash={}",
+                receivedMsgId.get(),
+                lastBundleMessageRunningHash);
+    }
+
+    private void dispatchHandlePayload(
+            @NonNull final HandleContext context,
+            @NonNull final ClprLedgerId sourceLedgerId,
+            final long inboundMessageId,
+            @NonNull final ClprMessagePayload payload)
+            throws HandleException {
+        validateTrue(payload.hasMessage() || payload.hasMessageReply(), INVALID_TRANSACTION_BODY);
+        final var op = ClprHandleMessagePayloadTransactionBody.newBuilder()
+                .sourceLedgerId(sourceLedgerId)
+                .inboundMessageId(inboundMessageId)
+                .payload(payload)
+                .build();
+        // TEMP-OBSERVABILITY (delete before production): traces per-payload internal dispatch from bundle handler.
+        log.info(
+                "CLPR_OBS|component=clpr_process_message_bundle_handler|stage=dispatch_payload|inboundMessageId={}|payloadType={}",
+                inboundMessageId,
+                payload.hasMessage() ? "message" : "messageReply");
+        final var syntheticTxn =
+                TransactionBody.newBuilder().clprHandleMessagePayload(op).build();
+        final var streamBuilder = context.dispatch(
+                stepDispatch(context.payer(), syntheticTxn, StreamBuilder.class, NOOP_SIGNED_TX_CUSTOMIZER));
+        // TEMP-OBSERVABILITY (delete before production): traces per-payload dispatch completion status.
+        log.info(
+                "CLPR_OBS|component=clpr_process_message_bundle_handler|stage=dispatch_payload_result|inboundMessageId={}|status={}",
+                inboundMessageId,
+                streamBuilder.status());
+        validateTrue(streamBuilder.status() == SUCCESS, streamBuilder.status());
     }
 }

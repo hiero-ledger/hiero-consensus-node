@@ -1,0 +1,1182 @@
+[
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "connectorId_",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "expectedRemoteConnectorId_",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "remoteLedgerId_",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "string",
+        "name": "localUnit_",
+        "type": "string"
+      },
+      {
+        "internalType": "address",
+        "name": "tokenAddress",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "safetyThresholdValue",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "minimumChargeValue",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "maximumChargeValue",
+        "type": "uint256"
+      },
+      {
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "value",
+            "type": "uint256"
+          },
+          {
+            "internalType": "string",
+            "name": "unit",
+            "type": "string"
+          }
+        ],
+        "internalType": "struct ClprTypes.ClprAmount",
+        "name": "outboundMaxCharge",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "payable",
+    "type": "constructor"
+  },
+  {
+    "inputs": [],
+    "name": "AdminOnly",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InsufficientFunds",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidUnit",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
+      }
+    ],
+    "name": "SafeERC20FailedOperation",
+    "type": "error"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "middleware",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "uint64",
+        "name": "appMsgId",
+        "type": "uint64"
+      },
+      {
+        "indexed": false,
+        "internalType": "bytes32",
+        "name": "payloadHash",
+        "type": "bytes32"
+      }
+    ],
+    "name": "ApplicationResponseHandled",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "middleware",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "senderApplicationId",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "destinationConnectorId",
+        "type": "bytes32"
+      },
+      {
+        "indexed": false,
+        "internalType": "bool",
+        "name": "approve",
+        "type": "bool"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "maxChargeValue",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "bytes32",
+        "name": "applicationPayloadHash",
+        "type": "bytes32"
+      }
+    ],
+    "name": "Authorized",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "middleware",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "bytes32",
+        "name": "payloadHash",
+        "type": "bytes32"
+      }
+    ],
+    "name": "ConnectorResponseHandled",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "middleware",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "bytes32",
+        "name": "balanceHash",
+        "type": "bytes32"
+      }
+    ],
+    "name": "Reimbursed",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "middleware",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "uint64",
+        "name": "appMsgId",
+        "type": "uint64"
+      },
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "destinationConnectorId",
+        "type": "bytes32"
+      },
+      {
+        "indexed": false,
+        "internalType": "enum ClprTypes.ClprSendFailureReason",
+        "name": "reason",
+        "type": "uint8"
+      },
+      {
+        "indexed": false,
+        "internalType": "enum ClprTypes.ClprSendFailureSide",
+        "name": "side",
+        "type": "uint8"
+      }
+    ],
+    "name": "SendRejected",
+    "type": "event"
+  },
+  {
+    "inputs": [],
+    "name": "admin",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "senderApplicationId",
+            "type": "address"
+          },
+          {
+            "components": [
+              {
+                "internalType": "address",
+                "name": "recipientId",
+                "type": "address"
+              },
+              {
+                "internalType": "bytes32",
+                "name": "connectorId",
+                "type": "bytes32"
+              },
+              {
+                "components": [
+                  {
+                    "internalType": "uint256",
+                    "name": "value",
+                    "type": "uint256"
+                  },
+                  {
+                    "internalType": "string",
+                    "name": "unit",
+                    "type": "string"
+                  }
+                ],
+                "internalType": "struct ClprTypes.ClprAmount",
+                "name": "maxCharge",
+                "type": "tuple"
+              },
+              {
+                "internalType": "bytes",
+                "name": "data",
+                "type": "bytes"
+              }
+            ],
+            "internalType": "struct ClprTypes.ClprApplicationMessage",
+            "name": "applicationMessage",
+            "type": "tuple"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "destinationConnectorId",
+            "type": "bytes32"
+          }
+        ],
+        "internalType": "struct ClprTypes.ClprMessageDraft",
+        "name": "draft",
+        "type": "tuple"
+      }
+    ],
+    "name": "authorize",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "bool",
+            "name": "approve",
+            "type": "bool"
+          },
+          {
+            "components": [
+              {
+                "internalType": "uint256",
+                "name": "value",
+                "type": "uint256"
+              },
+              {
+                "internalType": "string",
+                "name": "unit",
+                "type": "string"
+              }
+            ],
+            "internalType": "struct ClprTypes.ClprAmount",
+            "name": "maxCharge",
+            "type": "tuple"
+          },
+          {
+            "internalType": "bytes",
+            "name": "data",
+            "type": "bytes"
+          }
+        ],
+        "internalType": "struct ClprTypes.ClprConnectorMessage",
+        "name": "connectorMessage",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "authorizeCount",
+    "outputs": [
+      {
+        "internalType": "uint64",
+        "name": "",
+        "type": "uint64"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "connectorId",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "enabled",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "pure",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "expectedRemoteConnectorId",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "outstandingCommitments",
+        "type": "uint256"
+      }
+    ],
+    "name": "getBalanceReport",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "bytes32",
+            "name": "connectorId",
+            "type": "bytes32"
+          },
+          {
+            "components": [
+              {
+                "internalType": "uint256",
+                "name": "value",
+                "type": "uint256"
+              },
+              {
+                "internalType": "string",
+                "name": "unit",
+                "type": "string"
+              }
+            ],
+            "internalType": "struct ClprTypes.ClprAmount",
+            "name": "availableBalance",
+            "type": "tuple"
+          },
+          {
+            "components": [
+              {
+                "internalType": "uint256",
+                "name": "value",
+                "type": "uint256"
+              },
+              {
+                "internalType": "string",
+                "name": "unit",
+                "type": "string"
+              }
+            ],
+            "internalType": "struct ClprTypes.ClprAmount",
+            "name": "safetyThreshold",
+            "type": "tuple"
+          },
+          {
+            "components": [
+              {
+                "internalType": "uint256",
+                "name": "value",
+                "type": "uint256"
+              },
+              {
+                "internalType": "string",
+                "name": "unit",
+                "type": "string"
+              }
+            ],
+            "internalType": "struct ClprTypes.ClprAmount",
+            "name": "outstandingCommitments",
+            "type": "tuple"
+          }
+        ],
+        "internalType": "struct ClprTypes.ClprBalanceReport",
+        "name": "report",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "bytes",
+            "name": "data",
+            "type": "bytes"
+          }
+        ],
+        "internalType": "struct ClprTypes.ClprApplicationResponse",
+        "name": "response",
+        "type": "tuple"
+      },
+      {
+        "internalType": "uint64",
+        "name": "appMsgId",
+        "type": "uint64"
+      }
+    ],
+    "name": "handleApplicationResponse",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "bytes",
+            "name": "data",
+            "type": "bytes"
+          }
+        ],
+        "internalType": "struct ClprTypes.ClprConnectorResponse",
+        "name": "connectorResponse",
+        "type": "tuple"
+      }
+    ],
+    "name": "handleConnectorResponse",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "senderApplicationId",
+            "type": "address"
+          },
+          {
+            "components": [
+              {
+                "internalType": "address",
+                "name": "recipientId",
+                "type": "address"
+              },
+              {
+                "internalType": "bytes32",
+                "name": "connectorId",
+                "type": "bytes32"
+              },
+              {
+                "components": [
+                  {
+                    "internalType": "uint256",
+                    "name": "value",
+                    "type": "uint256"
+                  },
+                  {
+                    "internalType": "string",
+                    "name": "unit",
+                    "type": "string"
+                  }
+                ],
+                "internalType": "struct ClprTypes.ClprAmount",
+                "name": "maxCharge",
+                "type": "tuple"
+              },
+              {
+                "internalType": "bytes",
+                "name": "data",
+                "type": "bytes"
+              }
+            ],
+            "internalType": "struct ClprTypes.ClprApplicationMessage",
+            "name": "applicationMessage",
+            "type": "tuple"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "destinationConnectorId",
+            "type": "bytes32"
+          },
+          {
+            "components": [
+              {
+                "internalType": "bool",
+                "name": "approve",
+                "type": "bool"
+              },
+              {
+                "components": [
+                  {
+                    "internalType": "uint256",
+                    "name": "value",
+                    "type": "uint256"
+                  },
+                  {
+                    "internalType": "string",
+                    "name": "unit",
+                    "type": "string"
+                  }
+                ],
+                "internalType": "struct ClprTypes.ClprAmount",
+                "name": "maxCharge",
+                "type": "tuple"
+              },
+              {
+                "internalType": "bytes",
+                "name": "data",
+                "type": "bytes"
+              }
+            ],
+            "internalType": "struct ClprTypes.ClprConnectorMessage",
+            "name": "connectorMessage",
+            "type": "tuple"
+          },
+          {
+            "components": [
+              {
+                "components": [
+                  {
+                    "internalType": "bytes32",
+                    "name": "connectorId",
+                    "type": "bytes32"
+                  },
+                  {
+                    "components": [
+                      {
+                        "internalType": "uint256",
+                        "name": "value",
+                        "type": "uint256"
+                      },
+                      {
+                        "internalType": "string",
+                        "name": "unit",
+                        "type": "string"
+                      }
+                    ],
+                    "internalType": "struct ClprTypes.ClprAmount",
+                    "name": "availableBalance",
+                    "type": "tuple"
+                  },
+                  {
+                    "components": [
+                      {
+                        "internalType": "uint256",
+                        "name": "value",
+                        "type": "uint256"
+                      },
+                      {
+                        "internalType": "string",
+                        "name": "unit",
+                        "type": "string"
+                      }
+                    ],
+                    "internalType": "struct ClprTypes.ClprAmount",
+                    "name": "safetyThreshold",
+                    "type": "tuple"
+                  },
+                  {
+                    "components": [
+                      {
+                        "internalType": "uint256",
+                        "name": "value",
+                        "type": "uint256"
+                      },
+                      {
+                        "internalType": "string",
+                        "name": "unit",
+                        "type": "string"
+                      }
+                    ],
+                    "internalType": "struct ClprTypes.ClprAmount",
+                    "name": "outstandingCommitments",
+                    "type": "tuple"
+                  }
+                ],
+                "internalType": "struct ClprTypes.ClprBalanceReport",
+                "name": "balanceReport",
+                "type": "tuple"
+              },
+              {
+                "internalType": "bytes",
+                "name": "data",
+                "type": "bytes"
+              }
+            ],
+            "internalType": "struct ClprTypes.ClprMiddlewareMessage",
+            "name": "middlewareMessage",
+            "type": "tuple"
+          }
+        ],
+        "internalType": "struct ClprTypes.ClprMessage",
+        "name": "message",
+        "type": "tuple"
+      },
+      {
+        "components": [
+          {
+            "internalType": "uint64",
+            "name": "originalMessageId",
+            "type": "uint64"
+          },
+          {
+            "components": [
+              {
+                "internalType": "bytes",
+                "name": "data",
+                "type": "bytes"
+              }
+            ],
+            "internalType": "struct ClprTypes.ClprApplicationResponse",
+            "name": "applicationResponse",
+            "type": "tuple"
+          },
+          {
+            "components": [
+              {
+                "internalType": "bytes",
+                "name": "data",
+                "type": "bytes"
+              }
+            ],
+            "internalType": "struct ClprTypes.ClprConnectorResponse",
+            "name": "connectorResponse",
+            "type": "tuple"
+          },
+          {
+            "components": [
+              {
+                "internalType": "enum ClprTypes.ClprMiddlewareStatus",
+                "name": "status",
+                "type": "uint8"
+              },
+              {
+                "components": [
+                  {
+                    "internalType": "uint256",
+                    "name": "value",
+                    "type": "uint256"
+                  },
+                  {
+                    "internalType": "string",
+                    "name": "unit",
+                    "type": "string"
+                  }
+                ],
+                "internalType": "struct ClprTypes.ClprAmount",
+                "name": "minimumCharge",
+                "type": "tuple"
+              },
+              {
+                "components": [
+                  {
+                    "internalType": "uint256",
+                    "name": "value",
+                    "type": "uint256"
+                  },
+                  {
+                    "internalType": "string",
+                    "name": "unit",
+                    "type": "string"
+                  }
+                ],
+                "internalType": "struct ClprTypes.ClprAmount",
+                "name": "maximumCharge",
+                "type": "tuple"
+              },
+              {
+                "components": [
+                  {
+                    "components": [
+                      {
+                        "internalType": "bytes32",
+                        "name": "connectorId",
+                        "type": "bytes32"
+                      },
+                      {
+                        "components": [
+                          {
+                            "internalType": "uint256",
+                            "name": "value",
+                            "type": "uint256"
+                          },
+                          {
+                            "internalType": "string",
+                            "name": "unit",
+                            "type": "string"
+                          }
+                        ],
+                        "internalType": "struct ClprTypes.ClprAmount",
+                        "name": "availableBalance",
+                        "type": "tuple"
+                      },
+                      {
+                        "components": [
+                          {
+                            "internalType": "uint256",
+                            "name": "value",
+                            "type": "uint256"
+                          },
+                          {
+                            "internalType": "string",
+                            "name": "unit",
+                            "type": "string"
+                          }
+                        ],
+                        "internalType": "struct ClprTypes.ClprAmount",
+                        "name": "safetyThreshold",
+                        "type": "tuple"
+                      },
+                      {
+                        "components": [
+                          {
+                            "internalType": "uint256",
+                            "name": "value",
+                            "type": "uint256"
+                          },
+                          {
+                            "internalType": "string",
+                            "name": "unit",
+                            "type": "string"
+                          }
+                        ],
+                        "internalType": "struct ClprTypes.ClprAmount",
+                        "name": "outstandingCommitments",
+                        "type": "tuple"
+                      }
+                    ],
+                    "internalType": "struct ClprTypes.ClprBalanceReport",
+                    "name": "balanceReport",
+                    "type": "tuple"
+                  },
+                  {
+                    "internalType": "bytes",
+                    "name": "data",
+                    "type": "bytes"
+                  }
+                ],
+                "internalType": "struct ClprTypes.ClprMiddlewareMessage",
+                "name": "middlewareMessage",
+                "type": "tuple"
+              }
+            ],
+            "internalType": "struct ClprTypes.ClprMiddlewareResponse",
+            "name": "middlewareResponse",
+            "type": "tuple"
+          }
+        ],
+        "internalType": "struct ClprTypes.ClprMessageResponse",
+        "name": "response",
+        "type": "tuple"
+      },
+      {
+        "components": [
+          {
+            "components": [
+              {
+                "internalType": "uint256",
+                "name": "value",
+                "type": "uint256"
+              },
+              {
+                "internalType": "string",
+                "name": "unit",
+                "type": "string"
+              }
+            ],
+            "internalType": "struct ClprTypes.ClprAmount",
+            "name": "charge",
+            "type": "tuple"
+          }
+        ],
+        "internalType": "struct ClprTypes.ClprBilling",
+        "name": "billing",
+        "type": "tuple"
+      }
+    ],
+    "name": "handleMessage",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "bytes",
+            "name": "data",
+            "type": "bytes"
+          }
+        ],
+        "internalType": "struct ClprTypes.ClprConnectorResponse",
+        "name": "connectorResponse",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "handleMessageCount",
+    "outputs": [
+      {
+        "internalType": "uint64",
+        "name": "",
+        "type": "uint64"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "lastInboundRequestRouteData",
+    "outputs": [
+      {
+        "internalType": "bytes",
+        "name": "",
+        "type": "bytes"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "lastInboundResponseRouteData",
+    "outputs": [
+      {
+        "internalType": "bytes",
+        "name": "",
+        "type": "bytes"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "maximumCharge",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "value",
+            "type": "uint256"
+          },
+          {
+            "internalType": "string",
+            "name": "unit",
+            "type": "string"
+          }
+        ],
+        "internalType": "struct ClprTypes.ClprAmount",
+        "name": "amount",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "minimumCharge",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "value",
+            "type": "uint256"
+          },
+          {
+            "internalType": "string",
+            "name": "unit",
+            "type": "string"
+          }
+        ],
+        "internalType": "struct ClprTypes.ClprAmount",
+        "name": "amount",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "senderApplicationId",
+            "type": "address"
+          },
+          {
+            "components": [
+              {
+                "internalType": "address",
+                "name": "recipientId",
+                "type": "address"
+              },
+              {
+                "internalType": "bytes32",
+                "name": "connectorId",
+                "type": "bytes32"
+              },
+              {
+                "components": [
+                  {
+                    "internalType": "uint256",
+                    "name": "value",
+                    "type": "uint256"
+                  },
+                  {
+                    "internalType": "string",
+                    "name": "unit",
+                    "type": "string"
+                  }
+                ],
+                "internalType": "struct ClprTypes.ClprAmount",
+                "name": "maxCharge",
+                "type": "tuple"
+              },
+              {
+                "internalType": "bytes",
+                "name": "data",
+                "type": "bytes"
+              }
+            ],
+            "internalType": "struct ClprTypes.ClprApplicationMessage",
+            "name": "applicationMessage",
+            "type": "tuple"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "destinationConnectorId",
+            "type": "bytes32"
+          }
+        ],
+        "internalType": "struct ClprTypes.ClprMessageDraft",
+        "name": "draft",
+        "type": "tuple"
+      },
+      {
+        "internalType": "uint64",
+        "name": "appMsgId",
+        "type": "uint64"
+      },
+      {
+        "internalType": "enum ClprTypes.ClprSendFailureReason",
+        "name": "reason",
+        "type": "uint8"
+      },
+      {
+        "internalType": "enum ClprTypes.ClprSendFailureSide",
+        "name": "side",
+        "type": "uint8"
+      }
+    ],
+    "name": "notifySendRejected",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "middleware",
+        "type": "address"
+      }
+    ],
+    "name": "registerWithMiddleware",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "remoteLedgerId",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "sendRejectedCount",
+    "outputs": [
+      {
+        "internalType": "uint64",
+        "name": "",
+        "type": "uint64"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "newMinCharge",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "newMaxCharge",
+        "type": "uint256"
+      }
+    ],
+    "name": "setChargePolicy",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bool",
+        "name": "deny",
+        "type": "bool"
+      }
+    ],
+    "name": "setDenyAuthorize",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "value",
+            "type": "uint256"
+          },
+          {
+            "internalType": "string",
+            "name": "unit",
+            "type": "string"
+          }
+        ],
+        "internalType": "struct ClprTypes.ClprAmount",
+        "name": "newOutboundMaxCharge",
+        "type": "tuple"
+      }
+    ],
+    "name": "setOutboundMaxCharge",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "newThreshold",
+        "type": "uint256"
+      }
+    ],
+    "name": "setSafetyThreshold",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "token",
+    "outputs": [
+      {
+        "internalType": "contract IERC20",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  }
+]

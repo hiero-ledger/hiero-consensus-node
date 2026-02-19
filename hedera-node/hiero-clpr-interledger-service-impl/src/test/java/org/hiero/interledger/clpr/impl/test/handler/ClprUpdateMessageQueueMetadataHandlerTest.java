@@ -275,8 +275,6 @@ class ClprUpdateMessageQueueMetadataHandlerTest extends ClprHandlerTestBase {
         given(handleContext.storeFactory()).willReturn(storeFactory);
         given(storeFactory.writableStore(WritableClprMessageQueueMetadataStore.class))
                 .willReturn(writableClprMessageQueueMetadataStore);
-        given(storeFactory.writableStore(WritableClprMessageStore.class))
-                .willReturn(writableClprMessageStore); // For initQueue
 
         try (MockedStatic<ClprStateProofUtils> stateProofUtils = mockStatic(ClprStateProofUtils.class)) {
             stateProofUtils

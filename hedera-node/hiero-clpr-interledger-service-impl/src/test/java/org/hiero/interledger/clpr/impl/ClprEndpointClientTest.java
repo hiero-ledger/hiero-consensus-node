@@ -13,8 +13,10 @@ import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfiguration;
+import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.ClprConfig;
 import com.hedera.node.config.data.GrpcConfig;
+import com.hedera.node.config.data.HederaConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.time.Clock;
 import java.time.Instant;
@@ -67,6 +69,7 @@ class ClprEndpointClientTest extends ClprTestBase {
     private ServiceEndpoint localEndpoint;
     private ServiceEndpoint remoteEndpoint;
     private AccountID selfAccountId;
+    private AccountID payerAccountId;
     private AccountID remoteAccountId;
 
     @BeforeEach
@@ -85,10 +88,18 @@ class ClprEndpointClientTest extends ClprTestBase {
         when(configuration.getConfigData(ClprConfig.class)).thenReturn(new ClprConfig(true, 5000, true, true, 5, 6144));
         when(configuration.getConfigData(GrpcConfig.class))
                 .thenReturn(new GrpcConfig(50211, 50212, true, 50213, 60211, 60212, 4194304, 4194304, 4194304));
+        final var hederaConfig = org.mockito.Mockito.mock(HederaConfig.class);
+        when(hederaConfig.shard()).thenReturn(0L);
+        when(hederaConfig.realm()).thenReturn(0L);
+        when(configuration.getConfigData(HederaConfig.class)).thenReturn(hederaConfig);
+        final var accountsConfig = org.mockito.Mockito.mock(AccountsConfig.class);
+        when(accountsConfig.treasury()).thenReturn(2L);
+        when(configuration.getConfigData(AccountsConfig.class)).thenReturn(accountsConfig);
 
         when(networkInfo.selfNodeInfo()).thenReturn(selfNodeInfo);
         when(selfNodeInfo.nodeId()).thenReturn(1L);
         selfAccountId = AccountID.newBuilder().accountNum(3).build();
+        payerAccountId = AccountID.newBuilder().accountNum(2).build();
         when(selfNodeInfo.accountId()).thenReturn(selfAccountId);
 
         subject = new ClprEndpointClient(
@@ -142,16 +153,16 @@ class ClprEndpointClientTest extends ClprTestBase {
                 .thenReturn(java.util.Map.of(localClprLedgerId, localConfig, remoteClprLedgerId, remoteStored));
         when(connectionManager.createClient(remoteEndpoint)).thenReturn(remoteClient);
         when(connectionManager.createClient(localEndpoint)).thenReturn(localClient);
-        when(remoteClient.setConfiguration(selfAccountId, remoteNodeAccountId, localProof))
+        when(remoteClient.setConfiguration(payerAccountId, remoteNodeAccountId, localProof))
                 .thenReturn(ResponseCodeEnum.OK);
         final var remoteProof = buildLocalClprStateProofWrapper(remoteUpdated);
         when(remoteClient.getConfiguration(remoteClprLedgerId)).thenReturn(remoteProof);
 
         subject.runOnce();
 
-        verify(remoteClient).setConfiguration(selfAccountId, remoteNodeAccountId, localProof);
+        verify(remoteClient).setConfiguration(payerAccountId, remoteNodeAccountId, localProof);
         verify(remoteClient).getConfiguration(remoteClprLedgerId);
-        verify(localClient).setConfiguration(selfAccountId, selfAccountId, remoteProof);
+        verify(localClient).setConfiguration(payerAccountId, remoteNodeAccountId, remoteProof);
     }
 
     @Test
@@ -178,15 +189,15 @@ class ClprEndpointClientTest extends ClprTestBase {
                 .thenReturn(java.util.Map.of(localClprLedgerId, localConfig, remoteClprLedgerId, remoteStored));
         when(connectionManager.createClient(remoteEndpoint)).thenReturn(remoteClient);
         when(connectionManager.createClient(localEndpoint)).thenReturn(localClient);
-        when(remoteClient.setConfiguration(selfAccountId, remoteNodeAccountId, localProof))
+        when(remoteClient.setConfiguration(payerAccountId, remoteNodeAccountId, localProof))
                 .thenReturn(ResponseCodeEnum.INVALID_TRANSACTION);
         final var remoteProof = buildLocalClprStateProofWrapper(remoteUpdated);
         when(remoteClient.getConfiguration(remoteClprLedgerId)).thenReturn(remoteProof);
 
         subject.runOnce();
 
-        verify(remoteClient).setConfiguration(selfAccountId, remoteNodeAccountId, localProof);
+        verify(remoteClient).setConfiguration(payerAccountId, remoteNodeAccountId, localProof);
         verify(remoteClient).getConfiguration(remoteClprLedgerId);
-        verify(localClient).setConfiguration(selfAccountId, selfAccountId, remoteProof);
+        verify(localClient).setConfiguration(payerAccountId, remoteNodeAccountId, remoteProof);
     }
 }

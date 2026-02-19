@@ -19,6 +19,7 @@ import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import javax.inject.Inject;
+import org.hiero.interledger.clpr.ReadableClprMessageQueueMetadataStore;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 
 /**
@@ -88,6 +89,14 @@ public class QueryHederaNativeOperations implements HederaNativeOperations {
     @Override
     public @NonNull WritableEvmHookStore writableEvmHookStore() {
         return context.createStore(WritableEvmHookStore.class);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public @NonNull ReadableClprMessageQueueMetadataStore readableClprMessageQueueMetadataStore() {
+        return context.createStore(ReadableClprMessageQueueMetadataStore.class);
     }
 
     /**

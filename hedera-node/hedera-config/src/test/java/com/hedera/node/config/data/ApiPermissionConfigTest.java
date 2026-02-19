@@ -27,6 +27,8 @@ final class ApiPermissionConfigTest {
                 "HISTORY_PROOF_VOTE",
                 "CRS_PUBLICATION",
                 "HOOK_DISPATCH",
+                "CLPR_ENQUEUE_MESSAGE",
+                "CLPR_HANDLE_MESSAGE_PAYLOAD",
                 "NODE_STAKE_UPDATE",
                 "LEDGER_ID_PUBLICATION",
             })
