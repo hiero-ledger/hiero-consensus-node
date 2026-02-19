@@ -125,6 +125,199 @@ public class FeesChargingUtils {
         return nodeFee + networkFee;
     }
 
+    // -------- Validation utils ---------//
+
+    public static HapiSpecOperation validateChargedUsdWithinWithTxnSize(
+            String txnId, IntToDoubleFunction expectedFeeUsd, double allowedPercentDifference) {
+        return withOpContext((spec, log) -> {
+            final int signedTxnSize = signedTxnSizeFor(spec, txnId);
+            final double expected = expectedFeeUsd.applyAsDouble(signedTxnSize);
+            allRunFor(spec, validateChargedUsdWithin(txnId, expected, allowedPercentDifference));
+        });
+    }
+
+    public static CustomSpecAssert validateInnerChargedUsdWithinWithTxnSize(
+            final String innerTxnId,
+            final String parentTxnId,
+            final IntToDoubleFunction expectedFeeUsd,
+            final double allowedPercentDifference) {
+
+        return assertionsHold((spec, assertLog) -> {
+            final int signedInnerTxnSize = signedInnerTxnSizeFor(spec, innerTxnId);
+
+            final double expectedUsd = expectedFeeUsd.applyAsDouble(signedInnerTxnSize);
+
+            final double actualUsdCharged = getChargedUsedForInnerTxn(spec, parentTxnId, innerTxnId);
+
+            assertLog.info(
+                    "Inner txn '{}' (parent '{}') signed size={} bytes, expectedUsd={}, actualUsd={}",
+                    innerTxnId,
+                    parentTxnId,
+                    signedInnerTxnSize,
+                    expectedUsd,
+                    actualUsdCharged);
+
+            assertEquals(
+                    expectedUsd,
+                    actualUsdCharged,
+                    (allowedPercentDifference / 100.0) * expectedUsd,
+                    String.format(
+                            "%s fee (%s) more than %.2f percent different than expected!",
+                            sdec(actualUsdCharged, 4), innerTxnId, allowedPercentDifference));
+        });
+    }
+
+    public static int signedInnerTxnSizeFor(final HapiSpec spec, final String innerTxnId)
+            throws InvalidProtocolBufferException {
+        final var txnBytes = spec.registry().getBytes(innerTxnId);
+        final var transaction = Transaction.parseFrom(txnBytes);
+
+        final var signedTxnBytes = serializedSignedTxFrom(transaction);
+        return signedTxnBytes.length;
+    }
+
+    public static HapiSpecOperation validateChargedFeeToUsdWithTxnSize(
+            String txnId,
+            AtomicLong initialBalance,
+            AtomicLong afterBalance,
+            IntToDoubleFunction expectedFeeUsd,
+            double allowedPercentDifference) {
+        return withOpContext((spec, log) -> {
+            final int signedTxnSize = signedTxnSizeFor(spec, txnId);
+            final double expected = expectedFeeUsd.applyAsDouble(signedTxnSize);
+            allRunFor(
+                    spec,
+                    validateChargedFeeToUsd(txnId, initialBalance, afterBalance, expected, allowedPercentDifference));
+        });
+    }
+
+    public static int signedTxnSizeFor(final HapiSpec spec, final String txnId) throws InvalidProtocolBufferException {
+        final var txnBytes = spec.registry().getBytes(txnId);
+        final var transaction = Transaction.parseFrom(txnBytes);
+        final var signedTxnBytes = serializedSignedTxFrom(transaction);
+        return signedTxnBytes.length;
+    }
+
+    public static double nodeFeeFromBytesUsd(final int txnSize) {
+        final var nodeBytesOverage = Math.max(0, txnSize - NODE_INCLUDED_BYTES);
+        return nodeBytesOverage * PROCESSING_BYTES_FEE_USD;
+    }
+
+    /**
+     * Adds node+network byte overage to a precomputed SimpleFees expected total.
+     *
+     * <p>Bytes above {@code NODE_INCLUDED_BYTES} are charged in the node fee and then multiplied
+     * into the network fee; so we add {@code bytesFee * (NETWORK_MULTIPLIER + 1)}.
+     */
+    private static double addNodeAndNetworkBytes(final double baseExpectedUsd, final int txnSize) {
+        return baseExpectedUsd + nodeFeeFromBytesUsd(txnSize) * (NETWORK_MULTIPLIER + 1);
+    }
+
+    private static double extra(long actual, long included, double feePerUnit) {
+        final long extras = Math.max(0L, actual - included);
+        return extras * feePerUnit;
+    }
+
+    public static HapiSpecOperation validateChargedFeeToUsd(
+            String txnId,
+            AtomicLong initialBalance,
+            AtomicLong afterBalance,
+            double expectedUsd,
+            double allowedPercentDifference) {
+        return withOpContext((spec, log) -> {
+            final var effectivePercentDiff = Math.max(allowedPercentDifference, 1.0);
+
+            // Calculate actual fee in tinybars (negative delta)
+            final long initialBalanceTinybars = initialBalance.get();
+            final long afterBalanceTinybars = afterBalance.get();
+            final long deltaTinybars = initialBalanceTinybars - afterBalanceTinybars;
+
+            log.info("---- Balance validation ----");
+            log.info("Balance before (tinybars): {}", initialBalanceTinybars);
+            log.info("Balance after (tinybars): {}", afterBalanceTinybars);
+            log.info("Delta (tinybars): {}", deltaTinybars);
+
+            if (deltaTinybars <= 0) {
+                throw new AssertionError("Payer was not charged — delta: " + deltaTinybars);
+            }
+
+            // Fetch the inner record to get the exchange rate
+            final var subOp = getTxnRecord(txnId).assertingNothingAboutHashes();
+            allRunFor(spec, subOp);
+            final var record = subOp.getResponseRecord();
+
+            log.info("Inner txn status: {}", record.getReceipt().getStatus());
+
+            final var rate = record.getReceipt().getExchangeRate().getCurrentRate();
+            final long hbarEquiv = rate.getHbarEquiv();
+            final long centEquiv = rate.getCentEquiv();
+
+            // Convert tinybars to USD
+            final double chargedUsd = (1.0 * deltaTinybars)
+                    / ONE_HBAR // tinybars -> HBAR
+                    / hbarEquiv // HBAR -> "rate HBAR"
+                    * centEquiv // "rate HBAR" -> cents
+                    / 100.0; // cents -> USD
+
+            log.info("ExchangeRate current: hbarEquiv={}, centEquiv={}", hbarEquiv, centEquiv);
+            log.info("Charged (approx) USD = {}", chargedUsd);
+            log.info("Expected USD fee    = {}", expectedUsd);
+
+            final double diff = Math.abs(chargedUsd - expectedUsd);
+            final double pctDiff = (expectedUsd == 0.0)
+                    ? (chargedUsd == 0.0 ? 0.0 : Double.POSITIVE_INFINITY)
+                    : (diff / expectedUsd) * 100.0;
+
+            log.info("Node fee difference: abs={} USD, pct={}%", diff, pctDiff);
+
+            assertEquals(
+                    expectedUsd,
+                    chargedUsd,
+                    (effectivePercentDiff / 100.0) * expectedUsd,
+                    String.format(
+                            "%s fee (%s) more than %.2f percent different than expected!",
+                            sdec(chargedUsd, 4), txnId, effectivePercentDiff));
+        });
+    }
+
+    /**
+     * Calculates the <em>bytes-dependent portion</em> of the node fee for a transaction.
+     *
+     * <p>This method retrieves the transaction bytes from the spec registry using the provided
+     * {@code txnName}, then computes only the byte-size component of the node fee as follows:</p>
+     * <ul>
+     *   <li>Node bytes overage = {@code max(0, txnSize - NODE_INCLUDED_BYTES)}</li>
+     *   <li>Bytes fee = {@code nodeBytesOverage × PROCESSING_BYTES_FEE_USD × (1 + NETWORK_MULTIPLIER)}</li>
+     * </ul>
+     *
+     * <p><strong>Note:</strong> This returns <em>only</em> the bytes-overage fee portion.
+     * The complete node fee includes additional fixed components not calculated here.
+     * The first {@code NODE_INCLUDED_BYTES} bytes incur no byte-based fee. Logs transaction
+     * details including size, overage bytes, and this bytes-dependent fee.</p>
+     *
+     * @param spec the HapiSpec containing the transaction registry
+     * @param opLog the logger for operation logging
+     * @param txnName the transaction name key in the registry
+     * @return the bytes-dependent portion of the node fee in USD
+     *         (0.0 if transaction fits within included bytes)
+     */
+    public static double expectedFeeFromBytesFor(HapiSpec spec, Logger opLog, String txnName)
+            throws InvalidProtocolBufferException {
+        final var signedTxnSize = signedTxnSizeFor(spec, txnName);
+
+        final var nodeBytesOverage = Math.max(0, signedTxnSize - NODE_INCLUDED_BYTES);
+        double expectedFee = nodeBytesOverage * PROCESSING_BYTES_FEE_USD * (1 + NETWORK_MULTIPLIER);
+
+        opLog.info(
+                "Transaction size: {} bytes, node bytes overage: {}, expected fee: {}",
+                signedTxnSize,
+                nodeBytesOverage,
+                expectedFee);
+        return expectedFee;
+    }
+
+    // -------- CryptoCreate simple fees utils ---------//
+
     /**
      * SimpleFees formula for CryptoCreate:
      * node    = NODE_BASE + SIGNATURE_FEE * max(0, sigs - includedSigsNode)

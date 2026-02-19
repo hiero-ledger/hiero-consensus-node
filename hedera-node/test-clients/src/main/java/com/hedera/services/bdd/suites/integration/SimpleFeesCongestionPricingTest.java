@@ -5,6 +5,7 @@ import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SIMPLE_FEES;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
+import static com.hedera.services.bdd.spec.transactions.TxnUtils.resourceAsString;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uncheckedSubmit;
@@ -43,40 +44,6 @@ public class SimpleFeesCongestionPricingTest {
 
     private static final String CIVILIAN_ACCOUNT = "civilian";
 
-    /**
-     * Throttle config with low throughput limits (500 milliOps/sec, 60s burst) to
-     * trigger congestion pricing in virtual time mode.
-     */
-    private static final String CONGESTION_THROTTLES = """
-            {
-              "buckets": [
-                {
-                  "name": "ThroughputLimits",
-                  "burstPeriod": 60,
-                  "throttleGroups": [
-                    {
-                      "milliOpsPerSec": 500,
-                      "operations": ["CryptoTransfer"]
-                    }
-                  ]
-                },
-                {
-                  "name": "QueryLimits",
-                  "burstPeriod": 60,
-                  "throttleGroups": [
-                    {
-                      "opsPerSec": 100,
-                      "operations": [
-                        "CryptoGetAccountBalance", "FileGetContents",
-                        "FileGetInfo", "TransactionGetRecord",
-                        "TransactionGetReceipt"
-                      ]
-                    }
-                  ]
-                }
-              ]
-            }""";
-
     @LeakyHapiTest(overrides = {"fees.percentCongestionMultipliers", "fees.minCongestionPeriod"})
     Stream<DynamicTest> simpleFeesApplyCongestionMultiplierToTransfers() {
         AtomicLong normalPrice = new AtomicLong();
@@ -94,7 +61,7 @@ public class SimpleFeesCongestionPricingTest {
                         })
                         .logged(),
                 overridingTwo("fees.percentCongestionMultipliers", "1,7x", "fees.minCongestionPeriod", "0"),
-                new SysFileOverrideOp(THROTTLES, () -> CONGESTION_THROTTLES),
+                new SysFileOverrideOp(THROTTLES, () -> resourceAsString("testSystemFiles/extreme-limits.json")),
                 sleepFor(2_000),
                 blockingOrder(IntStream.range(0, 20)
                         .mapToObj(i -> new HapiSpecOperation[] {
