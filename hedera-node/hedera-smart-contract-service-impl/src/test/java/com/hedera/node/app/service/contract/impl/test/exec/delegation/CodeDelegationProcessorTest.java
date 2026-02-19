@@ -62,6 +62,8 @@ class CodeDelegationProcessorTest {
         return Optional.of(mock(EthTxSigs.class, invocation -> {
             if ("address".equals(invocation.getMethod().getName())) {
                 return addr.toArrayUnsafe();
+            } else if ("publicKey".equals(invocation.getMethod().getName())) {
+                return new byte[32];
             }
             return null; // unused
         }));
@@ -210,7 +212,7 @@ class CodeDelegationProcessorTest {
 
         when(proxyWorldUpdater.getAccount(authAddr)).thenReturn(null, acct);
         when(proxyWorldUpdater.lazyCreationCostInGas(authAddr)).thenReturn(25000L);
-        when(proxyWorldUpdater.createAccountWithCodeDelegation(authAddr, contractAddr))
+        when(proxyWorldUpdater.createAccountWithKeyAndCodeDelegation(authAddr, new byte[32], contractAddr))
                 .thenReturn(true);
 
         try (MockedStatic<EthTxSigs> mocked = mockStatic(EthTxSigs.class)) {
@@ -222,7 +224,7 @@ class CodeDelegationProcessorTest {
 
             assertNotNull(result);
             verify(proxyWorldUpdater, times(2)).getAccount(authAddr);
-            verify(proxyWorldUpdater).createAccountWithCodeDelegation(authAddr, contractAddr);
+            verify(proxyWorldUpdater).createAccountWithKeyAndCodeDelegation(authAddr, new byte[32], contractAddr);
             verify(acct).incrementNonce();
             verify(proxyWorldUpdater).commit();
         }

@@ -307,12 +307,16 @@ public interface HederaWorldUpdater extends WorldUpdater {
     boolean setAccountCodeDelegation(@NonNull final AccountID accountID, @NonNull final Address delegationAddress);
 
     /**
-     * Create a new account with code delegation to the given address for the new account.
+     * Create a new account with the given key and code delegation to the given address.
      * @param authority the alias address of the new account to create
+     * @param publicKey the ECDSA public key of the new account to create
      * @param delegationAddress the address to set as the delegation indicator
      * @return true if the account was created and the code delegation was set successfully, false otherwise
      */
-    boolean createAccountWithCodeDelegation(@NonNull final Address authority, @NonNull final Address delegationAddress);
+    boolean createAccountWithKeyAndCodeDelegation(
+            @NonNull final Address authority,
+            @NonNull final byte[] ecdsaPublicKey,
+            @NonNull final Address delegationAddress);
 
     /**
      * Returns the lazy creation cost in gas for the given recipient address.
