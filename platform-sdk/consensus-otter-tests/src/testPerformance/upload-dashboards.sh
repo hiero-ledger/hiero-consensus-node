@@ -37,8 +37,10 @@ failed_count=0
 for dashboard_file in "$DASHBOARDS_DIR"/*.json; do
   [ -f "$dashboard_file" ] || continue
   echo "  Uploading $(basename "$dashboard_file")..."
+
   # Substitute DATASOURCE_UID_PLACEHOLDER with the actual UID
   dashboard_json=$(sed "s/DATASOURCE_UID_PLACEHOLDER/$DATASOURCE_UID/g" "$dashboard_file")
+
   response=$(curl -s -w "\n%{http_code}" -X POST "$GRAFANA_URL/api/dashboards/db" \
     -H "Content-Type: application/json" \
     -d "$dashboard_json")
