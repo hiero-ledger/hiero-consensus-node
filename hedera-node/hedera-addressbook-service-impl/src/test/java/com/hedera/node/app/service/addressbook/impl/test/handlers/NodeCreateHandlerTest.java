@@ -14,6 +14,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -31,6 +32,7 @@ import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.base.TransactionID;
+import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.service.addressbook.impl.WritableAccountNodeRelStore;
@@ -628,6 +630,131 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
         given(feeCalc.calculate()).willReturn(new Fees(1, 0, 0));
 
         assertThat(subject.calculateFees(feeCtx)).isEqualTo(new Fees(1, 0, 0));
+    }
+
+    @Test
+    void constructorThrowsOnNullValidator() {
+        assertThrows(NullPointerException.class, () -> new NodeCreateHandler(null));
+    }
+
+    @Test
+    void pureChecksThrowsOnNullContext() {
+        assertThrows(NullPointerException.class, () -> subject.pureChecks(null));
+    }
+
+    @Test
+    void failsWhenGrpcProxyEndpointSetButNotEnabled() {
+        txn = new NodeCreateBuilder()
+                .withAccountId(accountId)
+                .withGossipEndpoint(List.of(endpoint1, endpoint2))
+                .withServiceEndpoint(List.of(endpoint1, endpoint3))
+                .withGrpcWebProxyEndpoint(endpoint3)
+                .withAdminKey(key)
+                .build(payerId);
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("nodes.maxGossipEndpoint", 2)
+                .withValue("nodes.maxServiceEndpoint", 2)
+                .withValue("nodes.maxFqdnSize", 100)
+                .withValue("nodes.webProxyEndpointsEnabled", false)
+                .getOrCreateConfig();
+        setupHandle(config);
+
+        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        assertEquals(ResponseCodeEnum.GRPC_WEB_PROXY_NOT_SUPPORTED, msg.getStatus());
+    }
+
+    @Test
+    void handleWorksForSystemTxnWithExistingNode() throws CertificateEncodingException {
+        // Set up state with 1 node at WELL_KNOWN_NODE_ID
+        rebuildState(1);
+
+        // Use a different account not linked to an existing node
+        final var systemAccountId = AccountID.newBuilder().accountNum(99L).build();
+
+        txn = new NodeCreateBuilder()
+                .withAccountId(systemAccountId)
+                .withDescription("System node")
+                .withGossipEndpoint(List.of(endpoint1, endpoint2))
+                .withServiceEndpoint(List.of(endpoint1, endpoint3))
+                .withGossipCaCertificate(Bytes.wrap(certList.get(0).getEncoded()))
+                .withAdminKey(key)
+                .build(payerId);
+
+        // Create dispatch metadata with the existing node ID
+        final var dispatchMetadata = new HandleContext.DispatchMetadata(
+                HandleContext.DispatchMetadata.Type.SYSTEM_TXN_CREATION_ENTITY_NUM, WELL_KNOWN_NODE_ID);
+
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("nodes.nodeMaxDescriptionUtf8Bytes", 100)
+                .withValue("nodes.maxGossipEndpoint", 4)
+                .withValue("nodes.maxServiceEndpoint", 3)
+                .withValue("nodes.maxFqdnSize", 100)
+                .withValue("nodes.maxNumber", 1) // max is 1 but system txn bypasses this
+                .getOrCreateConfig();
+
+        given(handleContext.body()).willReturn(txn);
+        given(handleContext.storeFactory()).willReturn(storeFactory);
+        given(handleContext.configuration()).willReturn(config);
+        given(handleContext.expiryValidator()).willReturn(expiryValidator);
+        given(handleContext.dispatchMetadata()).willReturn(dispatchMetadata);
+        given(handleContext.nodeIdGenerator()).willReturn(nodeIdGenerator);
+
+        final var systemAccount = mock(Account.class);
+        given(accountStore.getAccountById(systemAccountId)).willReturn(systemAccount);
+        given(expiryValidator.expirationStatus(EntityType.ACCOUNT, false, 0L)).willReturn(OK);
+
+        given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
+        given(storeFactory.writableStore(WritableAccountNodeRelStore.class)).willReturn(writableAccountNodeRelStore);
+        given(storeFactory.writableStore(WritableNodeStore.class)).willReturn(writableStore);
+
+        given(handleContext.attributeValidator()).willReturn(validator);
+        final var stack = mock(HandleContext.SavepointStack.class);
+        given(handleContext.savepointStack()).willReturn(stack);
+        given(stack.getBaseBuilder(any())).willReturn(recordBuilder);
+
+        assertDoesNotThrow(() -> subject.handle(handleContext));
+
+        // Verify node was created at the existing node ID (using put, not putAndIncrementCount)
+        final var createdNode = writableStore.get(WELL_KNOWN_NODE_ID);
+        assertNotNull(createdNode);
+        assertEquals(WELL_KNOWN_NODE_ID, createdNode.nodeId());
+        assertEquals("System node", createdNode.description());
+        verify(recordBuilder).nodeID(WELL_KNOWN_NODE_ID);
+    }
+
+    @Test
+    void handleWorksWithoutGrpcProxyEndpoint() throws CertificateEncodingException {
+        txn = new NodeCreateBuilder()
+                .withAccountId(accountId)
+                .withDescription("Description")
+                .withGossipEndpoint(List.of(endpoint1, endpoint2))
+                .withServiceEndpoint(List.of(endpoint1, endpoint3))
+                .withGossipCaCertificate(Bytes.wrap(certList.get(0).getEncoded()))
+                .withGrpcCertificateHash(Bytes.wrap("hash"))
+                .withAdminKey(key)
+                .build(payerId);
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("nodes.nodeMaxDescriptionUtf8Bytes", 12)
+                .withValue("nodes.maxGossipEndpoint", 4)
+                .withValue("nodes.maxServiceEndpoint", 3)
+                .getOrCreateConfig();
+        setupHandle(config);
+
+        final long expectedNodeId = 0L;
+        given(handleContext.nodeIdGenerator()).willReturn(nodeIdGenerator);
+        given(nodeIdGenerator.newNodeId()).willReturn(expectedNodeId);
+
+        given(handleContext.attributeValidator()).willReturn(validator);
+        final var stack = mock(HandleContext.SavepointStack.class);
+        given(handleContext.savepointStack()).willReturn(stack);
+        given(stack.getBaseBuilder(any())).willReturn(recordBuilder);
+
+        assertDoesNotThrow(() -> subject.handle(handleContext));
+        final var createdNode = writableStore.get(expectedNodeId);
+        assertNotNull(createdNode);
+        verify(recordBuilder).nodeID(expectedNodeId);
+        // Verify no grpcProxyEndpoint set on the created node
+        assertFalse(createdNode.hasGrpcProxyEndpoint());
     }
 
     private void setupHandle() {
