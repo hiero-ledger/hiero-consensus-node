@@ -160,6 +160,12 @@ public class DefaultEventSignatureValidator implements EventSignatureValidator {
             return null;
         }
 
+        // Self-created events have no senderId and were just signed by this node,
+        // so there is no need to verify the signature.
+        if (event.getSenderId() == null) {
+            return event;
+        }
+
         if (isSignatureValid(event)) {
             return event;
         } else {

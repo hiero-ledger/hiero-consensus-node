@@ -140,6 +140,7 @@ class EventSignatureValidatorTests {
                 .setCreatorId(PREVIOUS_ROSTER_NODE_ID)
                 .setBirthRound(PREVIOUS_ROSTER_ROUND - 1)
                 .build();
+        event.setSenderId(NodeId.of(1));
 
         assertNull(signatureValidator.validateSignature(event));
         assertEquals(1, exitedIntakePipelineCount.get());
@@ -153,6 +154,7 @@ class EventSignatureValidatorTests {
                 .setCreatorId(NodeId.of(99))
                 .setBirthRound(PREVIOUS_ROSTER_ROUND)
                 .build();
+        event.setSenderId(NodeId.of(1));
 
         assertNull(validatorWithTrueVerifier.validateSignature(event));
         assertEquals(1, exitedIntakePipelineCount.get());
@@ -173,6 +175,7 @@ class EventSignatureValidatorTests {
 
         final PlatformEvent event =
                 new TestingEventBuilder(random).setCreatorId(nodeId).build();
+        event.setSenderId(NodeId.of(1));
 
         assertNull(validator.validateSignature(event));
         assertEquals(1, exitedIntakePipelineCount.get());
@@ -186,6 +189,7 @@ class EventSignatureValidatorTests {
                 .setCreatorId(CURRENT_ROSTER_NODE_ID)
                 .setBirthRound(CURRENT_ROSTER_ROUND)
                 .build();
+        event1Valid.setSenderId(NodeId.of(1));
 
         assertNotNull(validatorWithTrueVerifier.validateSignature(event1Valid));
         assertEquals(0, exitedIntakePipelineCount.get());
@@ -195,6 +199,7 @@ class EventSignatureValidatorTests {
                 .setCreatorId(PREVIOUS_ROSTER_NODE_ID)
                 .setBirthRound(PREVIOUS_ROSTER_ROUND)
                 .build();
+        event2.setSenderId(NodeId.of(1));
 
         assertNotNull(validatorWithTrueVerifier.validateSignature(event2));
         assertEquals(0, exitedIntakePipelineCount.get());
@@ -204,10 +209,12 @@ class EventSignatureValidatorTests {
                 .setCreatorId(NodeId.of(CURRENT_ROSTER_NODE_ID.id() + 1))
                 .setBirthRound(CURRENT_ROSTER_ROUND)
                 .build();
+        event1Invalid.setSenderId(NodeId.of(1));
         final PlatformEvent event2Invalid = new TestingEventBuilder(random)
                 .setCreatorId(NodeId.of(PREVIOUS_ROSTER_NODE_ID.id() + 1))
                 .setBirthRound(PREVIOUS_ROSTER_ROUND)
                 .build();
+        event2Invalid.setSenderId(NodeId.of(1));
 
         assertNull(validatorWithTrueVerifier.validateSignature(event1Invalid));
         assertNull(validatorWithTrueVerifier.validateSignature(event2Invalid));
@@ -219,10 +226,14 @@ class EventSignatureValidatorTests {
         random.ints(CURRENT_ROSTER_ROUND, Integer.MAX_VALUE)
                 .limit(10)
                 .boxed()
-                .map(r -> new TestingEventBuilder(this.random)
-                        .setCreatorId(CURRENT_ROSTER_NODE_ID)
-                        .setBirthRound(r)
-                        .build())
+                .map(r -> {
+                    final PlatformEvent e = new TestingEventBuilder(this.random)
+                            .setCreatorId(CURRENT_ROSTER_NODE_ID)
+                            .setBirthRound(r)
+                            .build();
+                    e.setSenderId(NodeId.of(1));
+                    return e;
+                })
                 .forEach(e -> assertNotNull(validatorWithTrueVerifier.validateSignature(e)));
 
         // make sure that events from any round number higher than PREVIOUS_ROSTER_ROUND and lower than
@@ -231,10 +242,14 @@ class EventSignatureValidatorTests {
         random.ints(PREVIOUS_ROSTER_ROUND, CURRENT_ROSTER_ROUND)
                 .limit(10)
                 .boxed()
-                .map(r -> new TestingEventBuilder(this.random)
-                        .setCreatorId(PREVIOUS_ROSTER_NODE_ID)
-                        .setBirthRound(r)
-                        .build())
+                .map(r -> {
+                    final PlatformEvent e = new TestingEventBuilder(this.random)
+                            .setCreatorId(PREVIOUS_ROSTER_NODE_ID)
+                            .setBirthRound(r)
+                            .build();
+                    e.setSenderId(NodeId.of(1));
+                    return e;
+                })
                 .forEach(e -> assertNotNull(validatorWithTrueVerifier.validateSignature(e)));
     }
 
@@ -245,6 +260,7 @@ class EventSignatureValidatorTests {
                 .setCreatorId(CURRENT_ROSTER_NODE_ID)
                 .setBirthRound(CURRENT_ROSTER_ROUND)
                 .build();
+        event.setSenderId(NodeId.of(1));
 
         assertNotNull(validatorWithTrueVerifier.validateSignature(event));
         assertEquals(0, exitedIntakePipelineCount.get());
@@ -263,6 +279,7 @@ class EventSignatureValidatorTests {
                 .setCreatorId(CURRENT_ROSTER_NODE_ID)
                 .setBirthRound(CURRENT_ROSTER_ROUND)
                 .build();
+        event.setSenderId(NodeId.of(1));
 
         assertNotNull(validator.validateSignature(event));
         assertEquals(0, exitedIntakePipelineCount.get());
