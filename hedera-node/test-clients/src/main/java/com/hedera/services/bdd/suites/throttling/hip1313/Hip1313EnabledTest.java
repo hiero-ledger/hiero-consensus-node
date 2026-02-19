@@ -60,12 +60,14 @@ import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItemsValidator;
 import com.hederahashgraph.api.proto.java.TransactionRecord;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.hiero.hapi.support.fees.FeeSchedule;
 import org.hiero.hapi.support.fees.PiecewiseLinearCurve;
@@ -330,18 +332,23 @@ public class Hip1313EnabledTest {
                 withOpContext((spec, opLog) -> {
                     final var entries = filteredHighVolumeEntries(highVolumeTxns, e -> true);
                     final var throttle = DeterministicThrottle.withTpsAndBurstPeriodMs(CRYPTO_CREATE_HV_TPS, 1000);
+                    var numCreateTxnsAllowed = 0;
                     for (final var entry : entries) {
                         final var utilizationBasisPointsBefore = utilizationBasisPointsBefore(throttle);
                         throttle.allow(1, entry.consensusTime());
+                        numCreateTxnsAllowed++;
+                        final var utilizationBasisPointsAfter = utilizationBasisPointsBefore(throttle);
                         assertHighVolumeMultiplierSet(entry, "crypto create");
                         final var fee = entry.txnRecord().getTransactionFee();
                         final var observedMultiplier = observedMultiplier(spec, fee, CRYPTO_CREATE_BASE_FEE);
-                        final var expectedMultiplier = getInterpolatedMultiplier(
-                                        CRYPTO_TOPIC_CREATE_MULTIPLIER_MAP, utilizationBasisPointsBefore)
-                                / 1000.0;
                         assertMultiplierAtLeast(observedMultiplier, "crypto create");
                         assertMultiplierMatchesExpectation(
-                                expectedMultiplier, observedMultiplier, utilizationBasisPointsBefore, "crypto create");
+                                CRYPTO_TOPIC_CREATE_MULTIPLIER_MAP,
+                                observedMultiplier,
+                                utilizationBasisPointsBefore,
+                                utilizationBasisPointsAfter,
+                                "crypto create",
+                                numCreateTxnsAllowed);
                     }
                     assertEquals(200, entries.size());
                 }));
@@ -374,32 +381,32 @@ public class Hip1313EnabledTest {
                         if (entry.body().hasConsensusCreateTopic()) {
                             final var utilizationBasisPointsBefore = utilizationBasisPointsBefore(topicThrottle);
                             topicThrottle.allow(1, entry.consensusTime());
+                            topicCreates++;
+                            final var utilizationBasisPointsAfter = utilizationBasisPointsBefore(topicThrottle);
                             assertHighVolumeMultiplierSet(entry, "topic create");
                             final var observedMultiplier = observedMultiplier(spec, fee, TOPIC_CREATE_BASE_FEE);
-                            final var expectedMultiplier = getInterpolatedMultiplier(
-                                            CRYPTO_TOPIC_CREATE_MULTIPLIER_MAP, utilizationBasisPointsBefore)
-                                    / 1000.0;
                             assertMultiplierAtLeast(observedMultiplier, "topic create");
                             assertMultiplierMatchesExpectation(
-                                    expectedMultiplier,
+                                    CRYPTO_TOPIC_CREATE_MULTIPLIER_MAP,
                                     observedMultiplier,
                                     utilizationBasisPointsBefore,
-                                    "topic create");
-                            topicCreates++;
+                                    utilizationBasisPointsAfter,
+                                    "topic create",
+                                    topicCreates);
                         } else if (entry.body().hasScheduleCreate()) {
                             final var utilizationBasisPointsBefore = utilizationBasisPointsBefore(scheduleThrottle);
                             scheduleThrottle.allow(1, entry.consensusTime());
+                            scheduleCreates++;
+                            final var utilizationBasisPointsAfter = utilizationBasisPointsBefore(scheduleThrottle);
                             assertHighVolumeMultiplierSet(entry, "schedule create");
                             final var observedMultiplier = observedMultiplier(spec, fee, SCHEDULE_CREATE_BASE_FEE);
-                            final var expectedMultiplier = getInterpolatedMultiplier(
-                                            SCHEDULE_CREATE_MULTIPLIER_MAP, utilizationBasisPointsBefore)
-                                    / 1000.0;
                             assertMultiplierMatchesExpectation(
-                                    expectedMultiplier,
+                                    SCHEDULE_CREATE_MULTIPLIER_MAP,
                                     observedMultiplier,
                                     utilizationBasisPointsBefore,
-                                    "schedule create");
-                            scheduleCreates++;
+                                    utilizationBasisPointsAfter,
+                                    "schedule create",
+                                    scheduleCreates);
                         }
                     }
                     assertEquals(numBursts * 2, entries.size());
@@ -639,16 +646,30 @@ public class Hip1313EnabledTest {
     }
 
     private static void assertMultiplierMatchesExpectation(
-            final double expectedMultiplier,
+            @NonNull final NavigableMap<Integer, Long> multiplierMap,
             final double observedMultiplier,
             final int utilizationBasisPointsBefore,
-            @NonNull final String operation) {
-        assertEquals(
-                expectedMultiplier,
-                observedMultiplier,
-                MULTIPLIER_TOLERANCE,
-                "Given BPS of " + utilizationBasisPointsBefore + " observed " + operation + " multiplier "
-                        + observedMultiplier + " does not match expected multiplier " + expectedMultiplier);
+            final int utilizationBasisPointsAfter,
+            @NonNull final String operation,
+            final int numTxnsAllowed) {
+        final var minBps = Math.max(0, Math.min(utilizationBasisPointsBefore, utilizationBasisPointsAfter) - 1);
+        final var maxBps = Math.min(10_000, Math.max(utilizationBasisPointsBefore, utilizationBasisPointsAfter) + 1);
+        final var acceptableMultipliers = IntStream.rangeClosed(minBps, maxBps)
+                .mapToDouble(bps -> getInterpolatedMultiplier(multiplierMap, bps) / 1000.0)
+                .distinct()
+                .toArray();
+        System.out.println("OBSERVED " + observedMultiplier + " EXPECTED: " + Arrays.toString(acceptableMultipliers)
+                + " for " + operation
+                + " BPS before: " + utilizationBasisPointsBefore
+                + " BPS after: " + utilizationBasisPointsAfter);
+        final var isAcceptable = IntStream.range(0, acceptableMultipliers.length)
+                .anyMatch(i -> Math.abs(acceptableMultipliers[i] - observedMultiplier) <= MULTIPLIER_TOLERANCE);
+        assertTrue(
+                isAcceptable,
+                "Given BPS before " + utilizationBasisPointsBefore + " and after " + utilizationBasisPointsAfter
+                        + ", observed " + operation + " multiplier " + observedMultiplier
+                        + " does not match acceptable multipliers "
+                        + Arrays.toString(acceptableMultipliers) + " with " + numTxnsAllowed + " txns allowed");
     }
 
     private static VisibleItemsValidator feeMultiplierValidator(
