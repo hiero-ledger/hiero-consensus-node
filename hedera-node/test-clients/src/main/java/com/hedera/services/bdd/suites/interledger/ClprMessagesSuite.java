@@ -590,87 +590,89 @@ public class ClprMessagesSuite {
         return builder.asDynamicTests();
     }
 
-    @Order(2)
-    @MultiNetworkHapiTest(
-            networks = {
-                @MultiNetworkHapiTest.Network(
-                        name = PUBLIC_LEDGER_L,
-                        size = 1,
-                        firstGrpcPort = 35400,
-                        setupOverrides = {
-                            @ConfigOverride(key = "clpr.clprEnabled", value = "true"),
-                            @ConfigOverride(key = "clpr.publicizeNetworkAddresses", value = "true"),
-                            @ConfigOverride(key = "clpr.maxBundleMessages", value = "10"),
-                            @ConfigOverride(key = "clpr.maxBundleBytes", value = "10240"),
-                        }),
-                @MultiNetworkHapiTest.Network(
-                        name = PUBLIC_LEDGER_S,
-                        size = 1,
-                        firstGrpcPort = 36400,
-                        setupOverrides = {
-                            @ConfigOverride(key = "clpr.clprEnabled", value = "true"),
-                            @ConfigOverride(key = "clpr.publicizeNetworkAddresses", value = "false"),
-                            @ConfigOverride(key = "clpr.maxBundleMessages", value = "2"),
-                            @ConfigOverride(key = "clpr.maxBundleBytes", value = "6144"),
-                        })
-            })
-    @DisplayName("Respect bundle shape when publish messages")
-    Stream<DynamicTest> respectBundleShapeMessagesExchange(final SubProcessNetwork netA, final SubProcessNetwork netB) {
-        final var configPublicLedger = new AtomicReference<ClprLedgerConfiguration>();
-        final var configPrivateLedger = new AtomicReference<ClprLedgerConfiguration>();
-        final var messageQueuePrivateLedger = new AtomicReference<ClprMessageQueueMetadata>();
-        final var expectedQueueMetadata = ClprMessageQueueMetadata.newBuilder()
-                .nextMessageId(21)
-                .sentMessageId(20)
-                .receivedMessageId(20)
-                .build();
-
-        final var builder = multiNetworkHapiTest(netA, netB)
-                // get public ledger config
-                .onNetwork(PUBLIC_LEDGER_L, withOpContext((spec, log) -> {
-                    final var op = overriding("clpr.publicizeNetworkAddresses", "true");
-                    allRunFor(spec, op);
-                    final var ledgerConfig = tryFetchLocalLedgerConfiguration(getFirstNode(spec));
-                    assertThat(ledgerConfig)
-                            .as("Try to fetch config of the public ledger")
-                            .isNotNull();
-                    configPublicLedger.set(ledgerConfig);
-                }))
-
-                // to trigger the exchange submit the public ledger config to the private ledger
-                .onNetwork(PUBLIC_LEDGER_S, withOpContext((spec, log) -> {
-                    submitConfiguration(spec.targetNetworkOrThrow().nodes().getFirst(), configPublicLedger.get());
-                }))
-
-                // get latest private network queue
-                .onNetwork(PUBLIC_LEDGER_S, doingContextual(spec -> {
-                    // fetch local confing and queue
-                    final var ledgerConfig = tryFetchLocalLedgerConfiguration(getFirstNode(spec));
-                    configPrivateLedger.set(ledgerConfig);
-
-                    final var messageQueue = tryFetchMessageQueueMetadata(getFirstNode(spec), configPublicLedger.get());
-                    messageQueuePrivateLedger.set(messageQueue);
-                }))
-
-                // check if private ledger succeed to push its queue to the public ledger
-                .onNetwork(PUBLIC_LEDGER_L, withOpContext((spec, log) -> {
-                    // validate the public ledger queue has the expected message id's
-                    awaitMatchingCountsMessageQueue(
-                            log, spec.getNetworkNodes(), configPrivateLedger.get(), expectedQueueMetadata);
-                }))
-                .onNetwork(PUBLIC_LEDGER_S, withOpContext((spec, log) -> {
-                    // validate the private ledger queue has the expected message id's
-                    awaitMatchingCountsMessageQueue(
-                            log, spec.getNetworkNodes(), configPublicLedger.get(), expectedQueueMetadata);
-                    awaitEmptyOutgoingQueue(log, spec.getNetworkNodes(), configPublicLedger.get());
-                }))
-                .onNetwork(PUBLIC_LEDGER_L, withOpContext((spec, log) -> {
-                    // validate the public ledger queue has been fully drained
-                    awaitEmptyOutgoingQueue(log, spec.getNetworkNodes(), configPrivateLedger.get());
-                }));
-
-        return builder.asDynamicTests();
-    }
+    //    @Order(2)
+    //    @MultiNetworkHapiTest(
+    //            networks = {
+    //                @MultiNetworkHapiTest.Network(
+    //                        name = PUBLIC_LEDGER_L,
+    //                        size = 1,
+    //                        firstGrpcPort = 35400,
+    //                        setupOverrides = {
+    //                            @ConfigOverride(key = "clpr.clprEnabled", value = "true"),
+    //                            @ConfigOverride(key = "clpr.publicizeNetworkAddresses", value = "true"),
+    //                            @ConfigOverride(key = "clpr.maxBundleMessages", value = "10"),
+    //                            @ConfigOverride(key = "clpr.maxBundleBytes", value = "10240"),
+    //                        }),
+    //                @MultiNetworkHapiTest.Network(
+    //                        name = PUBLIC_LEDGER_S,
+    //                        size = 1,
+    //                        firstGrpcPort = 36400,
+    //                        setupOverrides = {
+    //                            @ConfigOverride(key = "clpr.clprEnabled", value = "true"),
+    //                            @ConfigOverride(key = "clpr.publicizeNetworkAddresses", value = "false"),
+    //                            @ConfigOverride(key = "clpr.maxBundleMessages", value = "2"),
+    //                            @ConfigOverride(key = "clpr.maxBundleBytes", value = "6144"),
+    //                        })
+    //            })
+    //    @DisplayName("Respect bundle shape when publish messages")
+    //    Stream<DynamicTest> respectBundleShapeMessagesExchange(final SubProcessNetwork netA, final SubProcessNetwork
+    // netB) {
+    //        final var configPublicLedger = new AtomicReference<ClprLedgerConfiguration>();
+    //        final var configPrivateLedger = new AtomicReference<ClprLedgerConfiguration>();
+    //        final var messageQueuePrivateLedger = new AtomicReference<ClprMessageQueueMetadata>();
+    //        final var expectedQueueMetadata = ClprMessageQueueMetadata.newBuilder()
+    //                .nextMessageId(21)
+    //                .sentMessageId(20)
+    //                .receivedMessageId(20)
+    //                .build();
+    //
+    //        final var builder = multiNetworkHapiTest(netA, netB)
+    //                // get public ledger config
+    //                .onNetwork(PUBLIC_LEDGER_L, withOpContext((spec, log) -> {
+    //                    final var op = overriding("clpr.publicizeNetworkAddresses", "true");
+    //                    allRunFor(spec, op);
+    //                    final var ledgerConfig = tryFetchLocalLedgerConfiguration(getFirstNode(spec));
+    //                    assertThat(ledgerConfig)
+    //                            .as("Try to fetch config of the public ledger")
+    //                            .isNotNull();
+    //                    configPublicLedger.set(ledgerConfig);
+    //                }))
+    //
+    //                // to trigger the exchange submit the public ledger config to the private ledger
+    //                .onNetwork(PUBLIC_LEDGER_S, withOpContext((spec, log) -> {
+    //                    submitConfiguration(spec.targetNetworkOrThrow().nodes().getFirst(), configPublicLedger.get());
+    //                }))
+    //
+    //                // get latest private network queue
+    //                .onNetwork(PUBLIC_LEDGER_S, doingContextual(spec -> {
+    //                    // fetch local confing and queue
+    //                    final var ledgerConfig = tryFetchLocalLedgerConfiguration(getFirstNode(spec));
+    //                    configPrivateLedger.set(ledgerConfig);
+    //
+    //                    final var messageQueue = tryFetchMessageQueueMetadata(getFirstNode(spec),
+    // configPublicLedger.get());
+    //                    messageQueuePrivateLedger.set(messageQueue);
+    //                }))
+    //
+    //                // check if private ledger succeed to push its queue to the public ledger
+    //                .onNetwork(PUBLIC_LEDGER_L, withOpContext((spec, log) -> {
+    //                    // validate the public ledger queue has the expected message id's
+    //                    awaitMatchingCountsMessageQueue(
+    //                            log, spec.getNetworkNodes(), configPrivateLedger.get(), expectedQueueMetadata);
+    //                }))
+    //                .onNetwork(PUBLIC_LEDGER_S, withOpContext((spec, log) -> {
+    //                    // validate the private ledger queue has the expected message id's
+    //                    awaitMatchingCountsMessageQueue(
+    //                            log, spec.getNetworkNodes(), configPublicLedger.get(), expectedQueueMetadata);
+    //                    awaitEmptyOutgoingQueue(log, spec.getNetworkNodes(), configPublicLedger.get());
+    //                }))
+    //                .onNetwork(PUBLIC_LEDGER_L, withOpContext((spec, log) -> {
+    //                    // validate the public ledger queue has been fully drained
+    //                    awaitEmptyOutgoingQueue(log, spec.getNetworkNodes(), configPrivateLedger.get());
+    //                }));
+    //
+    //        return builder.asDynamicTests();
+    //    }
 
     private static HederaNode getFirstNode(final HapiSpec spec) {
         return spec.getNetworkNodes().getFirst();

@@ -487,7 +487,7 @@ public class ClprEndpointClient {
                                 "{} SubmitProcessMessageBundle returned non-success precheck (status={}, msgs={}..{}, local.next={}, remote.recv={})",
                                 ledgerLogPrefix,
                                 submitStatus,
-                                firstPendingMessage,
+                                lastMessageInBundle,
                                 lastMessageInBundle,
                                 localQueue.nextMessageId(),
                                 remoteQueue.receivedMessageId());

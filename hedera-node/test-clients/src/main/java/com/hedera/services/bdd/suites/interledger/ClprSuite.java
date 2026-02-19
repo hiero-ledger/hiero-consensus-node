@@ -42,13 +42,13 @@ import com.hedera.services.bdd.spec.utilops.FakeNmt;
 import com.hedera.services.bdd.suites.HapiSuite;
 import com.hedera.services.bdd.suites.regression.system.LifecycleTest;
 import com.hederahashgraph.api.proto.java.ContractID;
+import java.math.BigInteger;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
-import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -97,10 +97,10 @@ public class ClprSuite implements LifecycleTest {
     private static final TupleType<Tuple> REQUEST_ROUTE_HEADER_TYPE =
             TupleType.parse("(uint8,bytes32,address,address)");
     private static final int ABI_SELECTOR_LENGTH = 4;
-    private static final Map<String, String> PUBLICIZE_DISABLED = Map.of(
-            "clpr.publicizeNetworkAddresses", "false", "contracts.systemContract.clprQueue.enabled", "true");
-    private static final Map<String, String> PUBLICIZE_ENABLED = Map.of(
-            "clpr.publicizeNetworkAddresses", "true", "contracts.systemContract.clprQueue.enabled", "true");
+    private static final Map<String, String> PUBLICIZE_DISABLED =
+            Map.of("clpr.publicizeNetworkAddresses", "false", "contracts.systemContract.clprQueue.enabled", "true");
+    private static final Map<String, String> PUBLICIZE_ENABLED =
+            Map.of("clpr.publicizeNetworkAddresses", "true", "contracts.systemContract.clprQueue.enabled", "true");
     private static final Duration CLPR_QUERY_TIMEOUT = Duration.ofSeconds(10);
     private static final Duration CLPR_QUERY_POLL_INTERVAL = Duration.ofMillis(200);
 
@@ -369,8 +369,9 @@ public class ClprSuite implements LifecycleTest {
                     final var tNode = spec.getNetworkNodes().getFirst();
                     assertThat(tNode).isNotNull();
                     targetNode.set(tNode);
-                    remoteLedgerIdRef.set(
-                            ClprLedgerId.newBuilder().ledgerId(Bytes.wrap(remoteLedgerBytes)).build());
+                    remoteLedgerIdRef.set(ClprLedgerId.newBuilder()
+                            .ledgerId(Bytes.wrap(remoteLedgerBytes))
+                            .build());
                 }),
                 // ensure queue is initialized
                 updateMessageQueueMetadataForLedger(
@@ -389,20 +390,27 @@ public class ClprSuite implements LifecycleTest {
                             contractCreate(CLPR_MIDDLEWARE, queueAddress, remoteLedgerBytes)
                                     .gas(8_000_000L)
                                     .exposingContractIdTo(middlewareIdRef::set));
-                    final var middlewareAddress =
-                            asHeadlongAddress(asAddress(requireNonNull(middlewareIdRef.get(), "Middleware id required")));
-                    allRunFor(spec, contractCreate(ECHO_APP, middlewareAddress).gas(3_000_000L).exposingContractIdTo(echoAppIdRef::set));
-                    final var echoAddress = asHeadlongAddress(asAddress(requireNonNull(echoAppIdRef.get(), "Echo app id required")));
+                    final var middlewareAddress = asHeadlongAddress(
+                            asAddress(requireNonNull(middlewareIdRef.get(), "Middleware id required")));
+                    allRunFor(
+                            spec,
+                            contractCreate(ECHO_APP, middlewareAddress)
+                                    .gas(3_000_000L)
+                                    .exposingContractIdTo(echoAppIdRef::set));
+                    final var echoAddress =
+                            asHeadlongAddress(asAddress(requireNonNull(echoAppIdRef.get(), "Echo app id required")));
                     final var payerAddress = asHeadlongAddress(asAddress(asAccount(spec, 2)));
                     allRunFor(
                             spec,
                             contractCallWithFunctionAbi(
-                                            asContractIdLiteral(requireNonNull(middlewareIdRef.get(), "Middleware id required")),
+                                            asContractIdLiteral(
+                                                    requireNonNull(middlewareIdRef.get(), "Middleware id required")),
                                             ABI_SET_TRUSTED_CALLBACK_CALLER,
                                             payerAddress)
                                     .gas(500_000L),
                             contractCallWithFunctionAbi(
-                                            asContractIdLiteral(requireNonNull(middlewareIdRef.get(), "Middleware id required")),
+                                            asContractIdLiteral(
+                                                    requireNonNull(middlewareIdRef.get(), "Middleware id required")),
                                             ABI_REGISTER_LOCAL_APPLICATION,
                                             echoAddress)
                                     .gas(500_000L));
@@ -425,7 +433,8 @@ public class ClprSuite implements LifecycleTest {
                                 destinationMiddlewareAddress,
                                 destinationAppAddress,
                                 "Hello CLPR".getBytes(StandardCharsets.UTF_8));
-                        final var hashAfterProcessing = ClprMessageUtils.nextRunningHash(payload, queue.receivedRunningHash());
+                        final var hashAfterProcessing =
+                                ClprMessageUtils.nextRunningHash(payload, queue.receivedRunningHash());
 
                         final var messageId = queue.receivedMessageId() + 1;
                         final var lastKey = ClprMessageKey.newBuilder()
@@ -467,7 +476,8 @@ public class ClprSuite implements LifecycleTest {
                         remoteLedgerIdRef::get,
                         fetchResult,
                         1,
-                        bundle -> bundle.messages() != null && !bundle.messages().isEmpty(),
+                        bundle ->
+                                bundle.messages() != null && !bundle.messages().isEmpty(),
                         "contain at least one outbound message"),
 
                 // validate the result
@@ -477,7 +487,8 @@ public class ClprSuite implements LifecycleTest {
                     final var firstMsg = result.messages().getFirst();
                     assertThat(firstMsg).isNotNull();
                     assertThat(firstMsg.hasMessageReply()).isTrue();
-                    assertThat(firstMsg.messageReply().messageReplyData().length()).isGreaterThan(0);
+                    assertThat(firstMsg.messageReply().messageReplyData().length())
+                            .isGreaterThan(0);
                 }));
     }
 
@@ -488,23 +499,22 @@ public class ClprSuite implements LifecycleTest {
             final Address destinationApplicationAddress,
             final byte[] applicationPayloadData) {
         final var amount = Tuple.of(BigInteger.ZERO, "HBAR");
-        final var routeHeaderBytes = toArray(REQUEST_ROUTE_HEADER_TYPE.encode(Tuple.of(
-                1, sourceLedgerId, sourceMiddlewareAddress, destinationMiddlewareAddress)));
+        final var routeHeaderBytes = toArray(REQUEST_ROUTE_HEADER_TYPE.encode(
+                Tuple.of(1, sourceLedgerId, sourceMiddlewareAddress, destinationMiddlewareAddress)));
         final var applicationMessage =
                 Tuple.of(destinationApplicationAddress, new byte[32], amount, applicationPayloadData);
         final var connectorMessage = Tuple.of(true, amount, new byte[0]);
         final var balanceReport = Tuple.of(new byte[32], amount, amount, amount);
         final var middlewareMessage = Tuple.of(balanceReport, routeHeaderBytes);
         final var clprMessage = Tuple.of(
-                sourceMiddlewareAddress,
-                applicationMessage,
-                new byte[32],
-                connectorMessage,
-                middlewareMessage);
+                sourceMiddlewareAddress, applicationMessage, new byte[32], connectorMessage, middlewareMessage);
         final var enqueueCallData = toArray(ENQUEUE_MESSAGE.encodeCall(Tuple.singleton(clprMessage)));
-        final var canonicalMessageData = Arrays.copyOfRange(enqueueCallData, ABI_SELECTOR_LENGTH, enqueueCallData.length);
+        final var canonicalMessageData =
+                Arrays.copyOfRange(enqueueCallData, ABI_SELECTOR_LENGTH, enqueueCallData.length);
         return ClprMessagePayload.newBuilder()
-                .message(ClprMessage.newBuilder().messageData(Bytes.wrap(canonicalMessageData)).build())
+                .message(ClprMessage.newBuilder()
+                        .messageData(Bytes.wrap(canonicalMessageData))
+                        .build())
                 .build();
     }
 
@@ -676,7 +686,8 @@ public class ClprSuite implements LifecycleTest {
             final String reason) {
         return doingContextual(spec -> {
             try (final var client = createClient(node.get())) {
-                final var messageBundle = awaitMessageBundle(client, ledgerIdSupplier.get(), maxNumMsg, predicate, reason);
+                final var messageBundle =
+                        awaitMessageBundle(client, ledgerIdSupplier.get(), maxNumMsg, predicate, reason);
                 exposingMessageBundle.set(requireNonNull(messageBundle, "Message bundle required"));
             }
         });

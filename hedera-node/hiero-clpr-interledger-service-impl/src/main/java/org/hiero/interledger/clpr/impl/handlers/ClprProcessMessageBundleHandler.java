@@ -9,6 +9,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BOD
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.stepDispatch;
+import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
@@ -26,9 +27,9 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
+import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.ClprConfig;
-import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
@@ -46,10 +47,13 @@ import org.hiero.interledger.clpr.impl.ClprStateProofManager;
 public class ClprProcessMessageBundleHandler implements TransactionHandler {
     private static final Logger log = LogManager.getLogger(ClprProcessMessageBundleHandler.class);
     private final ClprStateProofManager stateProofManager;
+    private final ConfigProvider configProvider;
 
     @Inject
-    public ClprProcessMessageBundleHandler(@NonNull final ClprStateProofManager stateProofManager) {
+    public ClprProcessMessageBundleHandler(
+            @NonNull final ClprStateProofManager stateProofManager, @NonNull final ConfigProvider configProvider) {
         this.stateProofManager = requireNonNull(stateProofManager);
+        this.configProvider = requireNonNull(configProvider);
     }
 
     @Override

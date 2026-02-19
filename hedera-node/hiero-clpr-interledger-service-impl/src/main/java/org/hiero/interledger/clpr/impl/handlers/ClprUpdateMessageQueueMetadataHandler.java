@@ -21,7 +21,6 @@ import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.ClprConfig;
-import com.hedera.node.config.data.ClprConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
@@ -153,7 +152,7 @@ public class ClprUpdateMessageQueueMetadataHandler implements TransactionHandler
                 .sentRunningHash(Bytes.wrap(new byte[RUNNING_HASH_SIZE]))
                 .receivedMessageId(0)
                 .receivedRunningHash(Bytes.wrap(new byte[RUNNING_HASH_SIZE]))
-                .bundleShape(bundleShape);
+                .bundleShape(bundleShape)
                 .build();
     }
 }
