@@ -67,10 +67,10 @@ import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.util.UnknownHederaFunctionality;
-import com.hedera.node.app.fees.ChildFeeContextImpl;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.fees.FeeAccumulator;
 import com.hedera.node.app.fees.FeeManager;
+import com.hedera.node.app.fees.context.ChildFeeContext;
 import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.service.entityid.EntityNumGenerator;
@@ -570,7 +570,7 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
             final var result = subject.dispatchComputeFees(txBody, account1002, ComputeDispatchFeesAsTopLevel.NO);
             verify(dispatcher).dispatchComputeFees(captor.capture());
             final var feeContext = captor.getValue();
-            assertInstanceOf(ChildFeeContextImpl.class, feeContext);
+            assertInstanceOf(ChildFeeContext.class, feeContext);
             assertSame(fees, result);
         }
 
@@ -584,7 +584,7 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
                     subject.dispatchComputeFees(txnBodyWithoutId, account1002, ComputeDispatchFeesAsTopLevel.NO);
             verify(dispatcher).dispatchComputeFees(captor.capture());
             final var feeContext = captor.getValue();
-            assertInstanceOf(ChildFeeContextImpl.class, feeContext);
+            assertInstanceOf(ChildFeeContext.class, feeContext);
             assertSame(fees, result);
         }
     }
