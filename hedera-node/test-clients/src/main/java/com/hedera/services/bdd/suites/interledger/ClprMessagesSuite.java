@@ -61,8 +61,8 @@ import org.junit.jupiter.api.Tag;
 @OrderedInIsolation
 public class ClprMessagesSuite {
 
-    private static final Duration AWAIT_TIMEOUT = Duration.ofMinutes(10);
-    private static final Duration AWAIT_POLL_INTERVAL = Duration.ofSeconds(20);
+    private static final Duration AWAIT_TIMEOUT = Duration.ofMinutes(2);
+    private static final Duration AWAIT_POLL_INTERVAL = Duration.ofSeconds(1);
     private static final long CONNECTOR_INITIAL_BALANCE_TINYBARS = 100_000_000L;
 
     private static final String PRIVATE_LEDGER = "private";
@@ -113,9 +113,11 @@ public class ClprMessagesSuite {
                         setupOverrides = {
                             @ConfigOverride(key = "clpr.clprEnabled", value = "true"),
                             @ConfigOverride(key = "clpr.devModeEnabled", value = "true"),
-                            @ConfigOverride(key = "clpr.publicizeNetworkAddresses", value = "true"),
-                            @ConfigOverride(key = "clpr.connectionFrequency", value = "1000"),
-                            @ConfigOverride(key = "contracts.systemContract.clprQueue.enabled", value = "true")
+                            @ConfigOverride(key = "clpr.publicizeNetworkAddresses", value = "false"),
+                            @ConfigOverride(key = "clpr.connectionFrequency", value = "5000"),
+                            @ConfigOverride(key = "contracts.systemContract.clprQueue.enabled", value = "true"),
+                            @ConfigOverride(key = "clpr.maxBundleMessages", value = "10"),
+                            @ConfigOverride(key = "clpr.maxBundleBytes", value = "10240")
                         }),
                 @MultiNetworkHapiTest.Network(
                         name = PUBLIC_LEDGER,
@@ -126,7 +128,9 @@ public class ClprMessagesSuite {
                             @ConfigOverride(key = "clpr.devModeEnabled", value = "true"),
                             @ConfigOverride(key = "clpr.publicizeNetworkAddresses", value = "true"),
                             @ConfigOverride(key = "clpr.connectionFrequency", value = "1000"),
-                            @ConfigOverride(key = "contracts.systemContract.clprQueue.enabled", value = "true")
+                            @ConfigOverride(key = "contracts.systemContract.clprQueue.enabled", value = "true"),
+                            @ConfigOverride(key = "clpr.maxBundleMessages", value = "2"),
+                            @ConfigOverride(key = "clpr.maxBundleBytes", value = "6144")
                         })
             })
     @DisplayName("Two-network middleware/system-contract round-trip")
@@ -175,6 +179,9 @@ public class ClprMessagesSuite {
          * Stage 10 (queue convergence):
          * - Assert queue counters on both ledgers reflect sent/received progress.
          * - Assert outgoing queue is empty in both directions, proving consumption and no stranded work.
+         *
+         * Stage 11 (respect bundle shape)
+         * - Assert that source leger respect the bunle limits set on the destination ledger
          *
          * Observability:
          * - The suite logs transaction records (including child records) and key intermediate snapshots
@@ -585,94 +592,35 @@ public class ClprMessagesSuite {
                     awaitMessageQueueCountersAtLeast(
                             log, spec.getNetworkNodes(), requireNonNull(privateConfig.get()), 2L, 2L);
                     awaitEmptyOutgoingQueue(log, spec.getNetworkNodes(), requireNonNull(privateConfig.get()));
+                }))
+
+                // Validate bundle shape is respected by remote
+                .onNetwork(PRIVATE_LEDGER, withOpContext((spec, log) -> {
+                    // submit 3 msgs
+                    allRunFor(
+                            spec,
+                            contractCallWithFunctionAbi(
+                                            requireNonNull(privateSourceAppContractId.get()),
+                                            ABI_SEND_WITH_FAILOVER_FROM_FIRST,
+                                            "hello-clpr-3".getBytes(StandardCharsets.UTF_8))
+                                    .gas(5_000_000L),
+                            contractCallWithFunctionAbi(
+                                            requireNonNull(privateSourceAppContractId.get()),
+                                            ABI_SEND_WITH_FAILOVER_FROM_FIRST,
+                                            "hello-clpr-4".getBytes(StandardCharsets.UTF_8))
+                                    .gas(5_000_000L),
+                            contractCallWithFunctionAbi(
+                                            requireNonNull(privateSourceAppContractId.get()),
+                                            ABI_SEND_WITH_FAILOVER_FROM_FIRST,
+                                            "hello-clpr-5".getBytes(StandardCharsets.UTF_8))
+                                    .gas(5_000_000L));
+                    awaitMessageQueueCountersAtLeast(
+                            log, spec.getNetworkNodes(), requireNonNull(publicConfig.get()), 5L, 5L);
+                    // TODO Assert the biggest bundle contains 2 msgs
                 }));
 
         return builder.asDynamicTests();
     }
-
-    //    @Order(2)
-    //    @MultiNetworkHapiTest(
-    //            networks = {
-    //                @MultiNetworkHapiTest.Network(
-    //                        name = PUBLIC_LEDGER_L,
-    //                        size = 1,
-    //                        firstGrpcPort = 35400,
-    //                        setupOverrides = {
-    //                            @ConfigOverride(key = "clpr.clprEnabled", value = "true"),
-    //                            @ConfigOverride(key = "clpr.publicizeNetworkAddresses", value = "true"),
-    //                            @ConfigOverride(key = "clpr.maxBundleMessages", value = "10"),
-    //                            @ConfigOverride(key = "clpr.maxBundleBytes", value = "10240"),
-    //                        }),
-    //                @MultiNetworkHapiTest.Network(
-    //                        name = PUBLIC_LEDGER_S,
-    //                        size = 1,
-    //                        firstGrpcPort = 36400,
-    //                        setupOverrides = {
-    //                            @ConfigOverride(key = "clpr.clprEnabled", value = "true"),
-    //                            @ConfigOverride(key = "clpr.publicizeNetworkAddresses", value = "false"),
-    //                            @ConfigOverride(key = "clpr.maxBundleMessages", value = "2"),
-    //                            @ConfigOverride(key = "clpr.maxBundleBytes", value = "6144"),
-    //                        })
-    //            })
-    //    @DisplayName("Respect bundle shape when publish messages")
-    //    Stream<DynamicTest> respectBundleShapeMessagesExchange(final SubProcessNetwork netA, final SubProcessNetwork
-    // netB) {
-    //        final var configPublicLedger = new AtomicReference<ClprLedgerConfiguration>();
-    //        final var configPrivateLedger = new AtomicReference<ClprLedgerConfiguration>();
-    //        final var messageQueuePrivateLedger = new AtomicReference<ClprMessageQueueMetadata>();
-    //        final var expectedQueueMetadata = ClprMessageQueueMetadata.newBuilder()
-    //                .nextMessageId(21)
-    //                .sentMessageId(20)
-    //                .receivedMessageId(20)
-    //                .build();
-    //
-    //        final var builder = multiNetworkHapiTest(netA, netB)
-    //                // get public ledger config
-    //                .onNetwork(PUBLIC_LEDGER_L, withOpContext((spec, log) -> {
-    //                    final var op = overriding("clpr.publicizeNetworkAddresses", "true");
-    //                    allRunFor(spec, op);
-    //                    final var ledgerConfig = tryFetchLocalLedgerConfiguration(getFirstNode(spec));
-    //                    assertThat(ledgerConfig)
-    //                            .as("Try to fetch config of the public ledger")
-    //                            .isNotNull();
-    //                    configPublicLedger.set(ledgerConfig);
-    //                }))
-    //
-    //                // to trigger the exchange submit the public ledger config to the private ledger
-    //                .onNetwork(PUBLIC_LEDGER_S, withOpContext((spec, log) -> {
-    //                    submitConfiguration(spec.targetNetworkOrThrow().nodes().getFirst(), configPublicLedger.get());
-    //                }))
-    //
-    //                // get latest private network queue
-    //                .onNetwork(PUBLIC_LEDGER_S, doingContextual(spec -> {
-    //                    // fetch local confing and queue
-    //                    final var ledgerConfig = tryFetchLocalLedgerConfiguration(getFirstNode(spec));
-    //                    configPrivateLedger.set(ledgerConfig);
-    //
-    //                    final var messageQueue = tryFetchMessageQueueMetadata(getFirstNode(spec),
-    // configPublicLedger.get());
-    //                    messageQueuePrivateLedger.set(messageQueue);
-    //                }))
-    //
-    //                // check if private ledger succeed to push its queue to the public ledger
-    //                .onNetwork(PUBLIC_LEDGER_L, withOpContext((spec, log) -> {
-    //                    // validate the public ledger queue has the expected message id's
-    //                    awaitMatchingCountsMessageQueue(
-    //                            log, spec.getNetworkNodes(), configPrivateLedger.get(), expectedQueueMetadata);
-    //                }))
-    //                .onNetwork(PUBLIC_LEDGER_S, withOpContext((spec, log) -> {
-    //                    // validate the private ledger queue has the expected message id's
-    //                    awaitMatchingCountsMessageQueue(
-    //                            log, spec.getNetworkNodes(), configPublicLedger.get(), expectedQueueMetadata);
-    //                    awaitEmptyOutgoingQueue(log, spec.getNetworkNodes(), configPublicLedger.get());
-    //                }))
-    //                .onNetwork(PUBLIC_LEDGER_L, withOpContext((spec, log) -> {
-    //                    // validate the public ledger queue has been fully drained
-    //                    awaitEmptyOutgoingQueue(log, spec.getNetworkNodes(), configPrivateLedger.get());
-    //                }));
-    //
-    //        return builder.asDynamicTests();
-    //    }
 
     private static HederaNode getFirstNode(final HapiSpec spec) {
         return spec.getNetworkNodes().getFirst();
