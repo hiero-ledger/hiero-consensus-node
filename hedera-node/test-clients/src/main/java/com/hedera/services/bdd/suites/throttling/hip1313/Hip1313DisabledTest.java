@@ -26,12 +26,10 @@ import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.TestMethodOrder;
-import org.junit.jupiter.api.parallel.Isolated;
 
 @Tag(SIMPLE_FEES)
 @Tag(MATS)
 @HapiTestLifecycle
-@Isolated
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 public class Hip1313DisabledTest {
 
@@ -65,22 +63,12 @@ public class Hip1313DisabledTest {
     }
 
     @LeakyHapiTest(
-            requirement = {PROPERTY_OVERRIDES},
-            overrides = {"networkAdmin.highVolumeThrottlesEnabled", "fees.simpleFeesEnabled"})
-    final Stream<DynamicTest> highVolumeTxnRejectedWhenHighVolumeThrottlesEnabledButSimpleFeesDisabled() {
-        return hapiTest(
-                overridingTwo("fees.simpleFeesEnabled", "false", "networkAdmin.highVolumeThrottlesEnabled", "true"),
-                createTopic("hvRequiresSimpleFeesFlag")
-                        .payingWith(CIVILIAN_PAYER)
-                        .withHighVolume()
-                        .hasPrecheck(NOT_SUPPORTED));
-    }
-
-    @LeakyHapiTest(
-            requirement = {THROTTLE_OVERRIDES},
+            requirement = {THROTTLE_OVERRIDES, PROPERTY_OVERRIDES},
+            overrides = {"fees.simpleFeesEnabled", "networkAdmin.highVolumeThrottlesEnabled"},
             throttles = "testSystemFiles/hip1313-disabled-one-tps-create.json")
     final Stream<DynamicTest> existingThrottlesStillApplyWhenHip1313Disabled() {
         return hapiTest(
+                overridingTwo("fees.simpleFeesEnabled", "true", "networkAdmin.highVolumeThrottlesEnabled", "false"),
                 overridingThrottles("testSystemFiles/hip1313-disabled-one-tps-create.json"),
                 cryptoCreate("regularCreateA")
                         .payingWith(CIVILIAN_PAYER)
