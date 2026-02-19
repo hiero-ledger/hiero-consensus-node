@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.event.creator.impl.rules;
 
+import static org.hiero.consensus.event.creator.impl.EventCreationStatus.IDLE;
 import static org.hiero.consensus.event.creator.impl.EventCreationStatus.RATE_LIMITED;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -15,7 +16,7 @@ import org.hiero.consensus.event.creator.impl.EventCreationStatus;
 public class AggregateEventCreationRules implements EventCreationRule {
 
     private final List<EventCreationRule> rules;
-    private EventCreationStatus mostRecentStatus = RATE_LIMITED;
+    private EventCreationStatus mostRecentStatus = IDLE;
 
     /**
      * Create a new {@link AggregateEventCreationRules} from the given list of rules.

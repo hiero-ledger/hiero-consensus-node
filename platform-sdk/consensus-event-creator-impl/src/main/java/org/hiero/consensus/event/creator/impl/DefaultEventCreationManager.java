@@ -147,7 +147,7 @@ public class DefaultEventCreationManager implements EventCreationManager {
         } else {
             eventCreationRules.eventWasCreated();
             // We created an event, we won't be allowed to create another until some time has elapsed.
-            phase.activatePhase(RATE_LIMITED);
+            phase.activatePhase(IDLE);
         }
 
         return newEvent;
