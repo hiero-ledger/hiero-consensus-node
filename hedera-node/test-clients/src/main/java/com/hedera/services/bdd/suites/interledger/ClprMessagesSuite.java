@@ -15,6 +15,7 @@ import static org.hiero.interledger.clpr.ClprStateProofUtils.extractMessageQueue
 
 import com.hedera.services.bdd.junit.ConfigOverride;
 import com.hedera.services.bdd.junit.MultiNetworkHapiTest;
+import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.TestTags;
 import com.hedera.services.bdd.junit.hedera.HederaNode;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
@@ -29,9 +30,11 @@ import org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration;
 import org.hiero.hapi.interledger.state.clpr.ClprMessageQueueMetadata;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 
 @Tag(TestTags.MULTINETWORK)
+@OrderedInIsolation
 public class ClprMessagesSuite {
 
     private static final Duration AWAIT_TIMEOUT = Duration.ofMinutes(10);
@@ -42,6 +45,7 @@ public class ClprMessagesSuite {
     private static final String PUBLIC_LEDGER_S = "smallBundleLedger";
     private static final String PUBLIC_LEDGER_L = "largeBundleLedger";
 
+    @Order(1)
     @MultiNetworkHapiTest(
             networks = {
                 @MultiNetworkHapiTest.Network(
@@ -119,6 +123,7 @@ public class ClprMessagesSuite {
         return builder.asDynamicTests();
     }
 
+    @Order(2)
     @MultiNetworkHapiTest(
             networks = {
                 @MultiNetworkHapiTest.Network(
