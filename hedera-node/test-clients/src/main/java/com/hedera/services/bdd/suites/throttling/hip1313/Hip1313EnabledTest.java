@@ -77,10 +77,12 @@ import org.hiero.hapi.support.fees.PiecewiseLinearPoint;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.parallel.Isolated;
 
 @Tag(SIMPLE_FEES)
 @Tag(MATS)
 @HapiTestLifecycle
+@Isolated
 public class Hip1313EnabledTest {
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final double CRYPTO_CREATE_BASE_FEE = 0.05;
