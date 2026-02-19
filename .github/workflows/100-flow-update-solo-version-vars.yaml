@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "Flow: Update Solo Version Variables"
+name: "100: [FLOW] Update Solo Version Variables"
 on:
   workflow_dispatch:
     inputs:
@@ -103,16 +103,28 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
         run: |
-          echo "### Variables Updated" >> "${GITHUB_STEP_SUMMARY}"
+          CITR_VAL=$(gh api "repos/${{ github.repository }}/actions/variables/CITR_SOLO_VERSION" --jq '.value')
+          XTS_VAL=$(gh api "repos/${{ github.repository }}/actions/variables/ADHOC_XTS_SOLO_VERSION" --jq '.value')
+          ADHOC_VAL=$(gh api "repos/${{ github.repository }}/actions/variables/ADHOC_SOLO_VERSION" --jq '.value')
+
+          echo "### Variable Report" >> "${GITHUB_STEP_SUMMARY}"
+
+          CITR_ICON=":no_entry_sign:"
+          XTS_ICON=":no_entry_sign:"
+          ADHOC_ICON=":no_entry_sign:"
+
           if [[ "${{ inputs.change-citr }}" == "true" ]]; then
-            CITR_VAL=$(gh api "repos/${{ github.repository }}/actions/variables/CITR_SOLO_VERSION" --jq '.value')
-            echo "- CITR_SOLO_VERSION = ${CITR_VAL}" >> "${GITHUB_STEP_SUMMARY}"
+            CITR_ICON=":white_check_mark:"
           fi
           if [[ "${{ inputs.change-xts }}" == "true" ]]; then
-            XTS_VAL=$(gh api "repos/${{ github.repository }}/actions/variables/ADHOC_XTS_SOLO_VERSION" --jq '.value')
-            echo "- ADHOC_XTS_SOLO_VERSION = ${XTS_VAL}" >> "${GITHUB_STEP_SUMMARY}"
+            XTS_ICON=":white_check_mark:"
           fi
           if [[ "${{ inputs.change-adhoc }}" == "true" ]]; then
-            ADHOC_VAL=$(gh api "repos/${{ github.repository }}/actions/variables/ADHOC_SOLO_VERSION" --jq '.value')
-            echo "- ADHOC_SOLO_VERSION = ${ADHOC_VAL}" >> "${GITHUB_STEP_SUMMARY}"
+            ADHOC_ICON=":white_check_mark:"
           fi
+
+          echo "| Variable | Value | Updated |" >> "${GITHUB_STEP_SUMMARY}"
+          echo "| --- | --- | --- |" >> "${GITHUB_STEP_SUMMARY}"
+          echo "| CITR_SOLO_VERSION | ${CITR_VAL} | ${CITR_ICON} |" >> "${GITHUB_STEP_SUMMARY}"
+          echo "| ADHOC_XTS_SOLO_VERSION | ${XTS_VAL} | ${XTS_ICON} |" >> "${GITHUB_STEP_SUMMARY}"
+          echo "| ADHOC_SOLO_VERSION | ${ADHOC_VAL} | ${ADHOC_ICON} |" >> "${GITHUB_STEP_SUMMARY}"
