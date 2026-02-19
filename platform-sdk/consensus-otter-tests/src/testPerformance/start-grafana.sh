@@ -158,81 +158,9 @@ fi
 echo "Fetching available metrics..."
 METRICS=$(curl -s "http://localhost:8428/api/v1/label/__name__/values" | grep -o '"[^"]*"' | tr -d '"' | grep -v "^$")
 
-# Create dashboard with all metrics
-echo "Creating Grafana dashboard..."
-DASHBOARD_JSON=$(cat <<EOF
-{
-  "dashboard": {
-    "uid": "consensus-metrics",
-    "title": "Consensus Metrics Dashboard",
-    "tags": ["consensus", "benchmark"],
-    "timezone": "browser",
-    "schemaVersion": 16,
-    "version": 0,
-    "refresh": "5s",
-    "time": {"from": "now-7d", "to": "now"},
-    "panels": [],
-    "templating": {
-      "list": [
-        {
-          "name": "node",
-          "type": "query",
-          "datasource": {"uid": "$DATASOURCE_UID"},
-          "query": "label_values(node)",
-          "refresh": 2,
-          "multi": true,
-          "includeAll": true,
-          "timeRangeFilter": true,
-          "current": {"value": "\${VAR_NODE}", "text": "\${VAR_NODE}"}
-        },
-        {
-          "name": "metric",
-          "type": "query",
-          "datasource": {"uid": "$DATASOURCE_UID"},
-          "query": "label_values(__name__)",
-          "refresh": 2,
-          "multi": false,
-          "includeAll": false,
-          "timeRangeFilter": true,
-          "current": {"value": "secSC2T", "text": "secSC2T"}
-        }
-      ]
-    },
-    "panels": [
-      {
-        "id": 1,
-        "title": "Metric: \${metric}",
-        "type": "timeseries",
-        "gridPos": {"h": 12, "w": 24, "x": 0, "y": 0},
-        "datasource": {"uid": "$DATASOURCE_UID"},
-        "targets": [
-          {
-            "expr": "\${metric}{node=~\"\$node\"}",
-            "legendFormat": "{{node}}",
-            "refId": "A"
-          }
-        ],
-        "options": {
-          "legend": {"displayMode": "table", "placement": "right", "calcs": ["mean", "max", "min"]},
-          "tooltip": {"mode": "multi"}
-        },
-        "fieldConfig": {
-          "defaults": {
-            "unit": "none",
-            "custom": {"drawStyle": "line", "lineInterpolation": "linear", "showPoints": "never"}
-          }
-        }
-      }
-    ]
-  },
-  "overwrite": true
-}
-EOF
-)
-
-curl -s -X POST http://admin:admin@localhost:3000/api/dashboards/db \
-  -H "Content-Type: application/json" \
-  -d "$DASHBOARD_JSON" > /dev/null
+# Upload all dashboards from the dashboards/ directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+"$SCRIPT_DIR/upload-dashboards.sh" --datasource-uid "$DATASOURCE_UID"
 
 echo ""
 echo "✓ Stack started successfully!"
