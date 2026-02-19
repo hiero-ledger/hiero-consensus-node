@@ -461,7 +461,10 @@ public class ClprEndpointClient {
 
         // Pull messages from remote
         if (remoteQueue.nextMessageId() - 1 > localQueue.receivedMessageId()) {
-            final var fetchedBundle = remoteClient.getMessages(localLedgerId, 5, 6144);
+            final var clprConfig = configProvider.getConfiguration().getConfigData(ClprConfig.class);
+            final var maxNumberOfMsg = clprConfig.maxBundleMessages();
+            final var maxBundleBytes = clprConfig.maxBundleBytes();
+            final var fetchedBundle = remoteClient.getMessages(localLedgerId, maxNumberOfMsg, maxBundleBytes);
             if (fetchedBundle != null) {
                 // TODO: This code is needed only for debug logging. Remove it in future!
                 if (fetchedBundle.hasStateProof()) {

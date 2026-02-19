@@ -15,7 +15,6 @@ import static org.hiero.interledger.clpr.ClprStateProofUtils.extractMessageKey;
 import static org.hiero.interledger.clpr.ClprStateProofUtils.extractMessageValue;
 import static org.hiero.interledger.clpr.ClprStateProofUtils.validateStateProof;
 import static org.hiero.interledger.clpr.impl.ClprMessageUtils.nextRunningHash;
-import static org.hiero.interledger.clpr.impl.ClprServiceImpl.RUNNING_HASH_SIZE;
 
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.workflows.HandleContext;
@@ -154,7 +153,7 @@ public class ClprProcessMessageBundleHandler implements TransactionHandler {
                 .build();
         final var lastQueuedMessage = writableMessagesStore.get(lastQueuedMessageKey);
         final var initHash = lastQueuedMessage == null
-                ? Bytes.wrap(new byte[RUNNING_HASH_SIZE])
+                ? messageQueue.sentRunningHash()
                 : lastQueuedMessage.runningHashAfterProcessing();
         AtomicReference<Bytes> replyRunningHash = new AtomicReference<>(initHash);
 
