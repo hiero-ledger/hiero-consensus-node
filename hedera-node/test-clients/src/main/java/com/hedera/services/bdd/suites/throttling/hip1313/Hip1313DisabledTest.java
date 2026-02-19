@@ -49,7 +49,7 @@ public class Hip1313DisabledTest {
 
     @LeakyHapiTest(
             requirement = {PROPERTY_OVERRIDES},
-            overrides = {"fees.simpleFeesEnabled"})
+            overrides = {"fees.simpleFeesEnabled", "networkAdmin.highVolumeThrottlesEnabled"})
     final Stream<DynamicTest> highVolumeTxnRejectedWhenSimpleFeesEnabledButHighVolumeThrottlesDisabled() {
         return hapiTest(
                 overridingTwo("fees.simpleFeesEnabled", "true", "networkAdmin.highVolumeThrottlesEnabled", "false"),
@@ -72,8 +72,7 @@ public class Hip1313DisabledTest {
     }
 
     @LeakyHapiTest(
-            requirement = {PROPERTY_OVERRIDES, THROTTLE_OVERRIDES},
-            overrides = {"networkAdmin.highVolumeThrottlesEnabled", "fees.simpleFeesEnabled"},
+            requirement = {THROTTLE_OVERRIDES},
             throttles = "testSystemFiles/hip1313-disabled-one-tps-create.json")
     final Stream<DynamicTest> existingThrottlesStillApplyWhenHip1313Disabled() {
         return hapiTest(
