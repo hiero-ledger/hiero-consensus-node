@@ -41,6 +41,7 @@ public class CombinedOptimizationsExperiment {
             network.withConfigValue("event.creation.antiSelfishnessFactor", 8);
             network.withConfigValue("event.creation.maxCreationRate", 0);
             network.withConfigValue("event.creation.creationAttemptRate", 1000);
+            network.withConfigValue("broadcast.enableBroadcast", true);
 
             // Use ED25519 for faster signing
             final SecureRandom secureRandom;
