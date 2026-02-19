@@ -268,7 +268,7 @@ public class CryptoGetInfoRegression {
 
     @HapiTest
     final Stream<DynamicTest> paidQueryWithMissingPaymentFieldReturnsInvalidTransactionBody() {
-        final var paymentField = requireNonNull(QueryHeader.getDescriptor().findFieldByName("paymdent"));
+        final var paymentField = requireNonNull(QueryHeader.getDescriptor().findFieldByName("payment"));
         return hapiTest(getAccountInfo(GENESIS)
                 .withQueryMutation(QueryMutation.withTransform(q -> withClearedField(q, paymentField, 0)))
                 .hasAnswerOnlyPrecheck(INVALID_QUERY_HEADER));
