@@ -5,9 +5,6 @@ plugins {
 }
 
 javaModules {
-    // This "intermediate parent project" should be removed
-    module("platform-sdk") { artifact = "swirlds-platform" }
-
     // The Hedera API module
     directory("hapi") { group = "com.hedera.hashgraph" }
 
