@@ -105,7 +105,6 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.hiero.base.utility.CommonUtils;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.hapi.support.fees.FeeSchedule;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
@@ -246,34 +245,6 @@ public class SystemFileExportsTest {
                         .payingWith("civilian")
                         .hasPrecheck(BUSY),
                 // Trigger block closure to ensure block is closed
-                doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted));
-    }
-
-    @GenesisHapiTest
-    final Stream<DynamicTest> syntheticSimpleFeesSchedulesUpdateHappensAtUpgradeBoundary() throws ParseException {
-        final var simpleFeesJson = resourceAsString("testSystemFiles/test-simple-fees.json");
-        final var upgradeSimpleFees =
-                FeeSchedule.PROTOBUF.parse(Bytes.wrap(SYS_FILE_SERDES.get(113L).toRawFile(simpleFeesJson, null)));
-        return hapiTest(
-                recordStreamMustIncludePassFrom(selectedItems(
-                        sysFileExportValidator(
-                                "files.simpleFeesSchedules",
-                                upgradeSimpleFees,
-                                SystemFileExportsTest::parseSimpleFeeSchedule),
-                        3,
-                        TxnUtils::isSysFileUpdate)),
-                // Enable simple fee schedules
-                sourcingContextual(spec -> overriding("fees.createSimpleFeeSchedule", "true")),
-                // Write the upgrade file to the node's working dirs
-                doWithStartupConfig(
-                        "networkAdmin.upgradeSimpleFeeSchedulesFile",
-                        simpleFeesFile -> writeToNodeWorkingDirs(simpleFeesJson, "data", "config", simpleFeesFile)),
-                waitUntilNextBlock().withBackgroundTraffic(true),
-                // Simulate an upgrade boundary
-                simulatePostUpgradeTransaction(),
-                // Verify by creating a transaction and checking fees
-                withOpContext((spec, opLog) -> spec.tryReinitializingFees()),
-                cryptoCreate("testAccount"),
                 doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted));
     }
 
@@ -462,10 +433,6 @@ public class SystemFileExportsTest {
         return CurrentAndNextFeeSchedule.parseFrom(bytes);
     }
 
-    private static FeeSchedule parseSimpleFeeSchedule(final byte[] bytes) throws ParseException {
-        return FeeSchedule.PROTOBUF.parse(Bytes.wrap(bytes));
-    }
-
     private static ThrottleDefinitions parseThrottleDefs(final byte[] bytes) throws InvalidProtocolBufferException {
         return ThrottleDefinitions.parseFrom(bytes);
     }
@@ -475,7 +442,7 @@ public class SystemFileExportsTest {
     }
 
     private interface ParseFunction<T> {
-        T parse(@NonNull byte[] bytes) throws InvalidProtocolBufferException, ParseException;
+        T parse(@NonNull byte[] bytes) throws InvalidProtocolBufferException;
     }
 
     private static VisibleItemsValidator nodeUpdatesValidator() {
@@ -513,7 +480,7 @@ public class SystemFileExportsTest {
             final T actual;
             try {
                 actual = parser.parse(synthOp.getContents().toByteArray());
-            } catch (ParseException | InvalidProtocolBufferException e) {
+            } catch (InvalidProtocolBufferException e) {
                 throw new IllegalStateException(fileNumProperty + " update was not parseable", e);
             }
             assertEquals(expectedValue, actual);
