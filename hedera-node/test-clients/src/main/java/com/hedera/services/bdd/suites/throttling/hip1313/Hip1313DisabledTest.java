@@ -25,11 +25,15 @@ import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.TestMethodOrder;
 
 @Tag(SIMPLE_FEES)
 @Tag(MATS)
 @HapiTestLifecycle
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 public class Hip1313DisabledTest {
 
     @BeforeAll
@@ -40,6 +44,7 @@ public class Hip1313DisabledTest {
     }
 
     @HapiTest
+    @Order(1)
     final Stream<DynamicTest> highVolumeTxnRejectedWhenFeatureDisabled() {
         return hapiTest(createTopic("hvDisabledTopic")
                 .payingWith(CIVILIAN_PAYER)
@@ -50,6 +55,7 @@ public class Hip1313DisabledTest {
     @LeakyHapiTest(
             requirement = {PROPERTY_OVERRIDES},
             overrides = {"fees.simpleFeesEnabled", "networkAdmin.highVolumeThrottlesEnabled"})
+    @Order(2)
     final Stream<DynamicTest> highVolumeTxnRejectedWhenSimpleFeesEnabledButHighVolumeThrottlesDisabled() {
         return hapiTest(
                 overridingTwo("fees.simpleFeesEnabled", "true", "networkAdmin.highVolumeThrottlesEnabled", "false"),
@@ -62,6 +68,7 @@ public class Hip1313DisabledTest {
     @LeakyHapiTest(
             requirement = {PROPERTY_OVERRIDES},
             overrides = {"networkAdmin.highVolumeThrottlesEnabled", "fees.simpleFeesEnabled"})
+    @Order(4)
     final Stream<DynamicTest> highVolumeTxnRejectedWhenHighVolumeThrottlesEnabledButSimpleFeesDisabled() {
         return hapiTest(
                 overridingTwo("fees.simpleFeesEnabled", "false", "networkAdmin.highVolumeThrottlesEnabled", "true"),
@@ -74,6 +81,7 @@ public class Hip1313DisabledTest {
     @LeakyHapiTest(
             requirement = {THROTTLE_OVERRIDES},
             throttles = "testSystemFiles/hip1313-disabled-one-tps-create.json")
+    @Order(3)
     final Stream<DynamicTest> existingThrottlesStillApplyWhenHip1313Disabled() {
         return hapiTest(
                 overridingThrottles("testSystemFiles/hip1313-disabled-one-tps-create.json"),
