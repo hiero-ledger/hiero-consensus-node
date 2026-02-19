@@ -31,34 +31,7 @@ if [ "$SHUTDOWN" = true ]; then
   exit 0
 fi
 
-# Default metrics files pattern if none provided
-if [ ${#METRICS_ARGS[@]} -eq 0 ]; then
-  METRICS_ARGS=(build/container/ConsensusLayerBenchmark/benchmark/node-*/data/stats/metrics.txt)
-fi
-
-# Expand arguments to actual files (handles directories, globs, and individual files)
-METRICS_FILES=()
-for arg in "${METRICS_ARGS[@]}"; do
-  if [ -d "$arg" ]; then
-    # If it's a directory, find all metrics*.txt files in it
-    while IFS= read -r -d '' file; do
-      METRICS_FILES+=("$file")
-    done < <(find "$arg" -maxdepth 1 -type f -name 'metrics*.txt' -print0)
-  elif [ -f "$arg" ]; then
-    # If it's a file, add it directly
-    METRICS_FILES+=("$arg")
-  else
-    # Try to expand as glob pattern
-    for file in $arg; do
-      if [ -f "$file" ]; then
-        METRICS_FILES+=("$file")
-      fi
-    done
-  fi
-done
-
 echo "Starting metrics visualization stack..."
-echo "Metrics files to import: ${#METRICS_FILES[@]}"
 
 if [ "$KEEP_DATA" = true ]; then
   echo "Keeping existing data (--keep-data flag detected)"
@@ -91,34 +64,8 @@ docker run -d \
 echo "Waiting for VictoriaMetrics to start..."
 sleep 3
 
-# Import metrics data from all files (already in Prometheus format)
-echo "Importing metrics..."
-imported_count=0
-total_lines=0
-for metrics_file in "${METRICS_FILES[@]}"; do
-  if [ -f "$metrics_file" ]; then
-    echo "  Importing $(basename "$metrics_file")..."
-    line_count=$(wc -l < "$metrics_file")
-    # Timestamps in the metrics files are milliseconds; the Prometheus import
-    # endpoint expects seconds, so divide the third field by 1000.
-    awk 'NF==3 { $3 = int($3/1000) } 1' "$metrics_file" \
-      | curl -s -X POST http://localhost:8428/api/v1/import/prometheus --data-binary @-
-    if [ $? -eq 0 ]; then
-      ((imported_count++))
-      ((total_lines+=line_count))
-      echo "    ✓ Imported $line_count metrics"
-    else
-      echo "    ⚠️  Failed to import"
-    fi
-  fi
-done
-
-if [ $imported_count -eq 0 ]; then
-  echo "⚠️  No metrics imported. You can import later with:"
-  echo "   curl -X POST http://localhost:8428/api/v1/import/prometheus --data-binary @metrics.txt"
-else
-  echo "✓ Imported $imported_count files successfully ($total_lines total metrics)"
-fi
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+"$SCRIPT_DIR/import-metrics.sh" "${METRICS_ARGS[@]}"
 
 # Start Grafana
 echo "Starting Grafana..."
@@ -154,12 +101,7 @@ if [ -z "$DATASOURCE_UID" ]; then
   echo "⚠️  Data source might already exist, using default UID"
 fi
 
-# Get list of all metrics from VictoriaMetrics
-echo "Fetching available metrics..."
-METRICS=$(curl -s "http://localhost:8428/api/v1/label/__name__/values" | grep -o '"[^"]*"' | tr -d '"' | grep -v "^$")
-
 # Upload all dashboards from the dashboards/ directory
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 "$SCRIPT_DIR/upload-dashboards.sh" --datasource-uid "$DATASOURCE_UID"
 
 echo ""
@@ -169,16 +111,8 @@ echo "Access points:"
 echo "  Grafana Dashboard: http://localhost:3000/d/consensus-metrics (admin/admin)"
 echo "  VictoriaMetrics:   http://localhost:8428"
 echo ""
-echo "Imported metrics: $imported_count files"
-echo "Total unique metrics: $(echo "$METRICS" | wc -l | tr -d ' ')"
-echo ""
-echo "Dashboard features:"
-echo "  - Variable 'node': Select which nodes to display"
-echo "  - Variable 'metric': Select which metric to visualize"
-echo "  - Auto-refresh every 5 seconds"
-echo ""
 echo "To import more metrics:"
-echo "  curl -X POST http://localhost:8428/api/v1/import/prometheus -d @metrics.txt"
+echo "  ./import-metrics.sh [paths...]"
 echo ""
 echo "To stop and delete all data:"
 echo "  ./start-grafana.sh --shutdown"
