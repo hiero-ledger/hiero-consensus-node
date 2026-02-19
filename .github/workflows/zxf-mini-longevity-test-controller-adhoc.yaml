@@ -149,7 +149,7 @@ jobs:
           echo "commit-email=${EMAIL}" >> "${GITHUB_OUTPUT}"
 
   report-success:
-    name: Report SDLT execution success
+    name: Report MQLT execution success
     runs-on: hl-cn-mqpt-lin-sm
     needs:
       - run-mini-longevity-test

@@ -59,7 +59,7 @@ on:
     outputs:
       result:
         description: "Result of the SDLT Run"
-        value: ${{ jobs.mini-longevity-test-result.outputs.result }}
+        value: ${{ jobs.merge-queue-test-result.outputs.result }}
 
 permissions:
   contents: write
@@ -764,7 +764,7 @@ jobs:
     needs:
       - longevity-tests-start
     outputs:
-      result: ${{ steps.sdpt-status.outputs.result }}
+      result: ${{ steps.mqlt-status.outputs.result }}
     steps:
       - name: Harden the runner (Audit all outbound calls)
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
@@ -772,7 +772,7 @@ jobs:
           egress-policy: audit
 
       - name: Set output
-        id: sdpt-status
+        id: mqlt-status
         env:
           nft_transfer_load_result: ${{ needs.longevity-tests-start.outputs.NFTscore }}
           hcs_load_result: ${{ needs.longevity-tests-start.outputs.HCSscore }}
