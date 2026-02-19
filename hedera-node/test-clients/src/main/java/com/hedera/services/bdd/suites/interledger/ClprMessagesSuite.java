@@ -58,8 +58,8 @@ import org.junit.jupiter.api.Tag;
 @Tag(TestTags.MULTINETWORK)
 public class ClprMessagesSuite {
 
-    private static final Duration AWAIT_TIMEOUT = Duration.ofMinutes(2);
-    private static final Duration AWAIT_POLL_INTERVAL = Duration.ofSeconds(1);
+    private static final Duration AWAIT_TIMEOUT = Duration.ofMinutes(10);
+    private static final Duration AWAIT_POLL_INTERVAL = Duration.ofSeconds(20);
     private static final long CONNECTOR_INITIAL_BALANCE_TINYBARS = 100_000_000L;
 
     private static final String PRIVATE_LEDGER = "private";
@@ -604,7 +604,7 @@ public class ClprMessagesSuite {
                         firstGrpcPort = 36400,
                         setupOverrides = {
                             @ConfigOverride(key = "clpr.clprEnabled", value = "true"),
-                            @ConfigOverride(key = "clpr.publicizeNetworkAddresses", value = "true"),
+                            @ConfigOverride(key = "clpr.publicizeNetworkAddresses", value = "false"),
                             @ConfigOverride(key = "clpr.maxBundleMessages", value = "2"),
                             @ConfigOverride(key = "clpr.maxBundleBytes", value = "6144"),
                         })

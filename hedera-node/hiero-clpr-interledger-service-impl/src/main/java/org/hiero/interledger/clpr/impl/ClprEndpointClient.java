@@ -585,7 +585,10 @@ public class ClprEndpointClient {
                     ledgerLogPrefix,
                     remoteQueue.nextMessageId(),
                     localQueue.receivedMessageId());
-            final var fetchedBundle = remoteClient.getMessages(localLedgerId, 5, 6144);
+            final var clprConfig = configProvider.getConfiguration().getConfigData(ClprConfig.class);
+            final var maxNumberOfMsg = clprConfig.maxBundleMessages();
+            final var maxBundleBytes = clprConfig.maxBundleBytes();
+            final var fetchedBundle = remoteClient.getMessages(localLedgerId, maxNumberOfMsg, maxBundleBytes);
             if (fetchedBundle != null) {
                 // Log bundle IDs at debug to aid troubleshooting.
                 if (fetchedBundle.hasStateProof()) {
