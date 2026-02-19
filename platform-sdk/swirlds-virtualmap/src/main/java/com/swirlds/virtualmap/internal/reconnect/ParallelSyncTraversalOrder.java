@@ -19,7 +19,6 @@ package com.swirlds.virtualmap.internal.reconnect;
 
 import static com.swirlds.virtualmap.internal.Path.ROOT_PATH;
 
-import com.swirlds.common.merkle.synchronization.task.ReconnectNodeCount;
 import com.swirlds.virtualmap.internal.Path;
 import java.util.Deque;
 import java.util.Set;
@@ -61,8 +60,6 @@ public class ParallelSyncTraversalOrder implements NodeTraversalOrder {
     // FUTURE WORK: make it configurable
     private static final int DEFAULT_CHUNK_ROOT_RANK = 16;
 
-    private final ReconnectNodeCount nodeCount;
-
     private volatile long reconnectFirstLeafPath;
     private volatile long reconnectLastLeafPath;
 
@@ -95,12 +92,8 @@ public class ParallelSyncTraversalOrder implements NodeTraversalOrder {
 
     /**
      * Constructor.
-     *
-     * @param nodeCount object to report node stats
      */
-    public ParallelSyncTraversalOrder(final ReconnectNodeCount nodeCount) {
-        this.nodeCount = nodeCount;
-    }
+    public ParallelSyncTraversalOrder() {}
 
     @Override
     public void start(final long firstLeafPath, final long lastLeafPath) {
@@ -152,12 +145,7 @@ public class ParallelSyncTraversalOrder implements NodeTraversalOrder {
     @Override
     public void nodeReceived(final long path, final boolean isClean) {
         final boolean isLeaf = path >= reconnectFirstLeafPath;
-        if (isLeaf) {
-            nodeCount.incrementLeafCount();
-            if (isClean) {
-                nodeCount.incrementRedundantLeafCount();
-            }
-        } else {
+        if (!isLeaf) {
             if (path != 0) {
                 assert chunkCount > 0;
                 final int chunk = getPathChunk(path);
@@ -204,10 +192,6 @@ public class ParallelSyncTraversalOrder implements NodeTraversalOrder {
                     }
                 }
             }
-            nodeCount.incrementInternalCount();
-            if (isClean) {
-                nodeCount.incrementRedundantInternalCount();
-            }
         }
     }
 
@@ -236,7 +220,7 @@ public class ParallelSyncTraversalOrder implements NodeTraversalOrder {
             nextLeafPath.set(path + 1);
             return path;
         }
-        return -2;
+        return Path.INVALID_PATH;
     }
 
     private int getPathChunk(long path) {
@@ -252,16 +236,6 @@ public class ParallelSyncTraversalOrder implements NodeTraversalOrder {
 
     private long getLastChunkPath(final int chunk) {
         return chunkStartPaths.get(chunk) + chunkWidths.get(chunk) - 1;
-    }
-
-    private boolean hasCleanParent(final long path) {
-        long parent = Path.getParentPath(path);
-        boolean clean = false;
-        while ((parent > 0) && !clean) {
-            clean = cleanNodes.contains(parent);
-            parent = Path.getParentPath(parent);
-        }
-        return clean;
     }
 
     /**

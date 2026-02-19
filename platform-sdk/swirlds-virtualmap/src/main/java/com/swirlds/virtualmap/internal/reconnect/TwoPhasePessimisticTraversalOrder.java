@@ -3,7 +3,6 @@ package com.swirlds.virtualmap.internal.reconnect;
 
 import static com.swirlds.virtualmap.internal.Path.ROOT_PATH;
 
-import com.swirlds.common.merkle.synchronization.task.ReconnectNodeCount;
 import com.swirlds.virtualmap.internal.Path;
 import java.util.Deque;
 import java.util.Set;
@@ -41,8 +40,6 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
  */
 public class TwoPhasePessimisticTraversalOrder implements NodeTraversalOrder {
 
-    private final ReconnectNodeCount nodeCount;
-
     private volatile long reconnectFirstLeafPath;
     private volatile long reconnectLastLeafPath;
 
@@ -74,9 +71,7 @@ public class TwoPhasePessimisticTraversalOrder implements NodeTraversalOrder {
     // Used during phase 2
     private long lastLeafPath = Path.INVALID_PATH;
 
-    public TwoPhasePessimisticTraversalOrder(final ReconnectNodeCount nodeCount) {
-        this.nodeCount = nodeCount;
-    }
+    public TwoPhasePessimisticTraversalOrder() {}
 
     @Override
     public void start(final long firstLeafPath, final long lastLeafPath) {
@@ -125,12 +120,7 @@ public class TwoPhasePessimisticTraversalOrder implements NodeTraversalOrder {
     @Override
     public void nodeReceived(final long path, final boolean isClean) {
         final boolean isLeaf = path >= reconnectFirstLeafPath;
-        if (isLeaf) {
-            nodeCount.incrementLeafCount();
-            if (isClean) {
-                nodeCount.incrementRedundantLeafCount();
-            }
-        } else {
+        if (!isLeaf) {
             if (path != 0) {
                 assert chunkCount > 0;
                 final int chunk = getPathChunk(path);
@@ -156,10 +146,6 @@ public class TwoPhasePessimisticTraversalOrder implements NodeTraversalOrder {
                         internalsToCheck.addLast(path + 1);
                     }
                 }
-            }
-            nodeCount.incrementInternalCount();
-            if (isClean) {
-                nodeCount.incrementRedundantInternalCount();
             }
         }
     }

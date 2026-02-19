@@ -28,7 +28,6 @@ public class LearnerPushTask {
     private final AsyncInputStream in;
     private final AsyncOutputStream out;
     private final LearnerTreeView view;
-    private final ReconnectNodeCount nodeCount;
 
     private final Runnable completeListener;
 
@@ -47,8 +46,6 @@ public class LearnerPushTask {
      * 		the output stream, this object is responsible for closing the stream when finished
      * @param view
      * 		a view used to interface with the subtree
-     * @param nodeCount
-     * 		an object used to keep track of the number of nodes sent during the reconnect
      * @param mapStats
      *      a ReconnectMapStats object to collect reconnect metrics
      */
@@ -57,14 +54,12 @@ public class LearnerPushTask {
             final AsyncInputStream in,
             final AsyncOutputStream out,
             final LearnerTreeView view,
-            final ReconnectNodeCount nodeCount,
             final ReconnectMapStats mapStats,
             final Runnable completeListener) {
         this.workGroup = workGroup;
         this.in = in;
         this.out = out;
         this.view = view;
-        this.nodeCount = nodeCount;
         this.mapStats = mapStats;
         this.completeListener = completeListener;
     }
@@ -149,15 +144,9 @@ public class LearnerPushTask {
         }
 
         if (view.isInternal(newChild, false)) {
-            nodeCount.incrementInternalCount();
-            if (expectedLesson.isNodeAlreadyPresent()) {
-                nodeCount.incrementRedundantInternalCount();
-            }
+            mapStats.incrementInternalHashes(1, expectedLesson.isNodeAlreadyPresent() ? 1 : 0);
         } else {
-            nodeCount.incrementLeafCount();
-            if (expectedLesson.isNodeAlreadyPresent()) {
-                nodeCount.incrementRedundantLeafCount();
-            }
+            mapStats.incrementLeafHashes(1, expectedLesson.isNodeAlreadyPresent() ? 1 : 0);
         }
     }
 

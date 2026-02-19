@@ -230,9 +230,8 @@ class AsyncInputStreamTest {
 
         // Unblock the stream, remainder of messages should be read
         blockingIn.unlock();
-        MILLISECONDS.sleep(100);
 
-        assertEquals(count, messagesReceived.get(), "all messages should be read");
+        assertEventuallyEquals(count, messagesReceived::get, Duration.ofSeconds(4), "all messages should be read");
 
         // Send reconnect completion marker
         out.writeInt(-1);

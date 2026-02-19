@@ -69,7 +69,7 @@ public class LearnerPullVirtualTreeReceiveTask {
         this.rootResponseReceived = rootResponseReceived;
         this.completeListener = completeListener;
 
-        this.allMessagesReceivedTimeout = reconnectConfig.allMessagesReceiveTimeout();
+        this.allMessagesReceivedTimeout = reconnectConfig.allMessagesReceivedTimeout();
     }
 
     public void exec() {

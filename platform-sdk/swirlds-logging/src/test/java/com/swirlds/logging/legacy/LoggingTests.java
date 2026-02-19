@@ -50,21 +50,11 @@ public class LoggingTests {
         // A non-trivial LogPayload type
         final String syncCompleteMessage = "synchronizationComplete";
         final double time = 10.0;
-        final int totalNodes = 200;
-        final int leaves = 100;
-        final int redundantLeaves = 10;
-        final int internals = 100;
-        final int redundantInternals = 10;
 
         logBuilder.error(
                 EXCEPTION.getMarker(),
                 new SynchronizationCompletePayload(syncCompleteMessage)
                         .setTimeInSeconds(time)
-                        .setTotalNodes(totalNodes)
-                        .setLeafNodes(leaves)
-                        .setRedundantLeafNodes(redundantLeaves)
-                        .setInternalNodes(internals)
-                        .setRedundantInternalNodes(redundantInternals)
                         .toString());
 
         // Read the logs back and verify the payloads
@@ -81,11 +71,6 @@ public class LoggingTests {
         SynchronizationCompletePayload payload = entry2.getPayload(SynchronizationCompletePayload.class);
         assertEquals(syncCompleteMessage, payload.getMessage());
         assertEquals(time, payload.getTimeInSeconds());
-        assertEquals(totalNodes, payload.getTotalNodes());
-        assertEquals(leaves, payload.getLeafNodes());
-        assertEquals(redundantLeaves, payload.getRedundantLeafNodes());
-        assertEquals(internals, payload.getInternalNodes());
-        assertEquals(redundantInternals, payload.getRedundantInternalNodes());
     }
 
     /**
@@ -160,21 +145,11 @@ public class LoggingTests {
         logger.error(
                 EXCEPTION.getMarker(), () -> new SynchronizationCompletePayload("this message contains auxiliary data")
                         .setTimeInSeconds(10.0)
-                        .setTotalNodes(200)
-                        .setLeafNodes(100)
-                        .setRedundantLeafNodes(10)
-                        .setInternalNodes(100)
-                        .setRedundantInternalNodes(10)
                         .toString());
         logBuilder.error(
                 EXCEPTION.getMarker(),
                 new SynchronizationCompletePayload("this message contains auxiliary data")
                         .setTimeInSeconds(10.0)
-                        .setTotalNodes(200)
-                        .setLeafNodes(100)
-                        .setRedundantLeafNodes(10)
-                        .setInternalNodes(100)
-                        .setRedundantInternalNodes(10)
                         .toString());
 
         logger.error(EXCEPTION.getMarker(), "this log contains an exception", new RuntimeException("err1"));
@@ -184,22 +159,12 @@ public class LoggingTests {
                 EXCEPTION.getMarker(),
                 () -> new SynchronizationCompletePayload("this message contains auxiliary data and an exception")
                         .setTimeInSeconds(10.0)
-                        .setTotalNodes(200)
-                        .setLeafNodes(100)
-                        .setRedundantLeafNodes(10)
-                        .setInternalNodes(100)
-                        .setRedundantInternalNodes(10)
                         .toString(),
                 new RuntimeException("err2"));
         logBuilder.error(
                 EXCEPTION.getMarker(),
                 new SynchronizationCompletePayload("this message contains auxiliary data and an exception")
                         .setTimeInSeconds(10.0)
-                        .setTotalNodes(200)
-                        .setLeafNodes(100)
-                        .setRedundantLeafNodes(10)
-                        .setInternalNodes(100)
-                        .setRedundantInternalNodes(10)
                         .toString(),
                 new RuntimeException("err2"));
 

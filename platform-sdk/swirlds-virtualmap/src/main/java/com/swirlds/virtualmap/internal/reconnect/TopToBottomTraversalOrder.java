@@ -3,7 +3,6 @@ package com.swirlds.virtualmap.internal.reconnect;
 
 import static com.swirlds.virtualmap.internal.Path.ROOT_PATH;
 
-import com.swirlds.common.merkle.synchronization.task.ReconnectNodeCount;
 import com.swirlds.virtualmap.internal.Path;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -23,8 +22,6 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public class TopToBottomTraversalOrder implements NodeTraversalOrder {
 
-    private final ReconnectNodeCount nodeCount;
-
     private volatile long reconnectFirstLeafPath;
     private volatile long reconnectLastLeafPath;
 
@@ -38,9 +35,7 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
 
     private final AtomicInteger lastResponseRank = new AtomicInteger(0);
 
-    public TopToBottomTraversalOrder(final ReconnectNodeCount nodeCount) {
-        this.nodeCount = nodeCount;
-    }
+    public TopToBottomTraversalOrder() {}
 
     @Override
     public void start(final long firstLeafPath, final long lastLeafPath) {
@@ -64,17 +59,6 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
         final boolean isLeaf = path >= reconnectFirstLeafPath;
         if (isClean && !isLeaf && !hasCleanParent(path)) {
             cleanNodes.add(new MutableLong(path));
-        }
-        if (isLeaf) {
-            nodeCount.incrementLeafCount();
-            if (isClean) {
-                nodeCount.incrementRedundantLeafCount();
-            }
-        } else {
-            nodeCount.incrementInternalCount();
-            if (isClean) {
-                nodeCount.incrementRedundantInternalCount();
-            }
         }
     }
 

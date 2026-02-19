@@ -11,7 +11,6 @@ import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.swirlds.common.merkle.synchronization.LearningSynchronizer;
 import com.swirlds.common.merkle.synchronization.stats.ReconnectMapMetrics;
 import com.swirlds.common.merkle.synchronization.stats.ReconnectMapStats;
-import com.swirlds.common.merkle.synchronization.task.ReconnectNodeCount;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
 import com.swirlds.common.merkle.synchronization.views.LearnerTreeView;
 import com.swirlds.config.api.Configuration;
@@ -43,7 +42,7 @@ import org.hiero.consensus.state.signed.SignedStateInvalidException;
 /**
  * This class encapsulates logic for receiving the up-to-date state from a peer when the local node's state is out-of-date.
  */
-public class ReconnectStateLearner implements ReconnectNodeCount {
+public class ReconnectStateLearner {
 
     /** use this for all logging, as controlled by the optional data/log4j2.xml file */
     private static final Logger logger = LogManager.getLogger(ReconnectStateLearner.class);
@@ -69,11 +68,6 @@ public class ReconnectStateLearner implements ReconnectNodeCount {
     private int originalSocketTimeout;
 
     private final ThreadManager threadManager;
-
-    private int leafNodesReceived;
-    private int internalNodesReceived;
-    private int redundantLeafNodes;
-    private int redundantInternalNodes;
 
     /**
      *
@@ -214,7 +208,7 @@ public class ReconnectStateLearner implements ReconnectNodeCount {
         final VirtualMap reconnectRoot = currentState.getRoot().newReconnectRoot();
         final ReconnectMapStats mapStats = new ReconnectMapMetrics(metrics, null, null);
         // The learner view will be closed by LearningSynchronizer
-        final LearnerTreeView learnerView = reconnectRoot.buildLearnerView(reconnectConfig, this, mapStats);
+        final LearnerTreeView learnerView = reconnectRoot.buildLearnerView(reconnectConfig, mapStats);
         final LearningSynchronizer synchronizer = new LearningSynchronizer(
                 threadManager, in, out, reconnectRoot, learnerView, connection::disconnect, reconnectConfig);
         final long syncStartTime = System.currentTimeMillis();
@@ -234,11 +228,6 @@ public class ReconnectStateLearner implements ReconnectNodeCount {
         final long synchronizationTimeMilliseconds = System.currentTimeMillis() - syncStartTime;
         logger.info(RECONNECT.getMarker(), () -> new SynchronizationCompletePayload("Finished synchronization")
                 .setTimeInSeconds(synchronizationTimeMilliseconds * MILLISECONDS_TO_SECONDS)
-                .setTotalNodes(leafNodesReceived + internalNodesReceived)
-                .setLeafNodes(leafNodesReceived)
-                .setRedundantLeafNodes(redundantLeafNodes)
-                .setInternalNodes(internalNodesReceived)
-                .setRedundantInternalNodes(redundantInternalNodes)
                 .toString());
 
         final VirtualMapState receivedState = stateLifecycleManager.createStateFrom(reconnectRoot);
@@ -280,37 +269,5 @@ public class ReconnectStateLearner implements ReconnectNodeCount {
         sb.append("Received signatures from nodes ");
         formattedList(sb, sigSet.iterator());
         logger.info(RECONNECT.getMarker(), sb);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void incrementLeafCount() {
-        leafNodesReceived++;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void incrementRedundantLeafCount() {
-        redundantLeafNodes++;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void incrementInternalCount() {
-        internalNodesReceived++;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void incrementRedundantInternalCount() {
-        redundantInternalNodes++;
     }
 }

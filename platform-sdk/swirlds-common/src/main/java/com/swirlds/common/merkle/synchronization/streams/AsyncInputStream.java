@@ -145,41 +145,6 @@ public class AsyncInputStream {
         logger.debug(RECONNECT.getMarker(), Thread.currentThread().getName() + " done");
     }
 
-    /**
-     * Makes sure that at least {@code bytes} bytes are available to use in the read
-     * buffer. It may require a read from the underlying input stream. This method may
-     * update both {@link #readPos} and {@link #readLimit}.
-     *
-     * @param bytes number of bytes to make available in the read buffer
-     * @throws IOException if an I/O error occurs
-     */
-    private void ensureAvailable(final int bytes) throws IOException {
-        if (bytes > readBuffer.length) {
-            throw new IllegalStateException("Read buffer is too small to read " + bytes + " bytes");
-        }
-        final int currentlyAvailable = readLimit - readPos;
-        if (currentlyAvailable >= bytes) {
-            return;
-        }
-        if (readPos + bytes > readBuffer.length) {
-            System.arraycopy(readBuffer, readPos, readBuffer, 0, currentlyAvailable);
-            readPos = 0;
-            readLimit = currentlyAvailable;
-        }
-        while (readLimit - readPos < bytes) {
-            // Read at least the requested number of bytes
-            int toRead = bytes - (readLimit - readPos);
-            // If more bytes are inputStream.available(), read all of them, but no more than to the
-            // end of the read buffer
-            final int avail = inputStream.available();
-            if (avail > toRead) {
-                toRead = Math.min(avail, readBuffer.length - readLimit);
-            }
-            readLimit += inputStream.read(readBuffer, readLimit, toRead);
-        }
-        assert readPos + bytes <= readBuffer.length;
-    }
-
     public boolean isAlive() {
         return alive.get();
     }
@@ -193,7 +158,8 @@ public class AsyncInputStream {
         return message;
     }
 
-    public <T extends SelfSerializable> T readAnticipatedMessage(final Supplier<T> messageFactory) throws IOException {
+    public <T extends SelfSerializable> T readAnticipatedMessage(@NonNull final Supplier<T> messageFactory)
+            throws IOException {
         final byte[] itemBytes = inputQueue.poll();
         if (itemBytes != null) {
             inputQueueSize.decrementAndGet();
@@ -202,7 +168,7 @@ public class AsyncInputStream {
         return null;
     }
 
-    public <T extends SelfSerializable> T readAnticipatedMessageSync(final Supplier<T> messageFactory)
+    public <T extends SelfSerializable> T readAnticipatedMessageSync(@NonNull final Supplier<T> messageFactory)
             throws IOException {
         T message = readAnticipatedMessage(messageFactory);
         if (message != null) {
@@ -219,11 +185,6 @@ public class AsyncInputStream {
             if (currentThread.isInterrupted() || (now - start > pollTimeout.toMillis())) {
                 break;
             }
-        }
-        try {
-            inputStream.close();
-        } catch (IOException e) {
-            throw new MerkleSynchronizationException("Unable to close stream", e);
         }
         throw new MerkleSynchronizationException("Timed out waiting for data");
     }

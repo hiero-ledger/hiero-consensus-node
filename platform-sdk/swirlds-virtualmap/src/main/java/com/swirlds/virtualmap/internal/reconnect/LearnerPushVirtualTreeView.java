@@ -13,7 +13,6 @@ import com.swirlds.common.merkle.synchronization.streams.AsyncInputStream;
 import com.swirlds.common.merkle.synchronization.streams.AsyncOutputStream;
 import com.swirlds.common.merkle.synchronization.task.ExpectedLesson;
 import com.swirlds.common.merkle.synchronization.task.LearnerPushTask;
-import com.swirlds.common.merkle.synchronization.task.ReconnectNodeCount;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
 import com.swirlds.common.merkle.synchronization.views.LearnerTreeView;
 import com.swirlds.virtualmap.VirtualMap;
@@ -74,8 +73,6 @@ public final class LearnerPushVirtualTreeView extends VirtualTreeViewBase implem
      */
     private final RecordAccessor originalRecords;
 
-    private final ReconnectNodeCount nodeCount;
-
     private final ReconnectMapStats mapStats;
 
     /**
@@ -102,12 +99,10 @@ public final class LearnerPushVirtualTreeView extends VirtualTreeViewBase implem
             @NonNull final VirtualMapMetadata originalState,
             @NonNull final VirtualMapMetadata reconnectState,
             @NonNull final ReconnectNodeRemover nodeRemover,
-            @NonNull final ReconnectNodeCount nodeCount,
             @NonNull final ReconnectMapStats mapStats) {
         super(map, originalState, reconnectState);
         this.originalRecords = requireNonNull(originalRecords);
         this.nodeRemover = requireNonNull(nodeRemover);
-        this.nodeCount = requireNonNull(nodeCount);
         this.mapStats = requireNonNull(mapStats);
     }
 
@@ -117,8 +112,7 @@ public final class LearnerPushVirtualTreeView extends VirtualTreeViewBase implem
             final AsyncInputStream in,
             final AsyncOutputStream out,
             final Runnable completeListener) {
-        final LearnerPushTask learnerThread =
-                new LearnerPushTask(workGroup, in, out, this, nodeCount, mapStats, completeListener);
+        final LearnerPushTask learnerThread = new LearnerPushTask(workGroup, in, out, this, mapStats, completeListener);
         learnerThread.start();
     }
 

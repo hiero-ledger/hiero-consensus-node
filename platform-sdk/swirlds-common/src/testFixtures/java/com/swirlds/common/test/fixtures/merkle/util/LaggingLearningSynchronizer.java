@@ -6,6 +6,7 @@ import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStati
 import com.swirlds.common.merkle.synchronization.LearningSynchronizer;
 import com.swirlds.common.merkle.synchronization.streams.AsyncOutputStream;
 import com.swirlds.common.merkle.synchronization.views.LearnerTreeView;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.function.Supplier;
 import org.hiero.base.crypto.Hashable;
 import org.hiero.base.io.streams.SerializableDataInputStream;
@@ -41,10 +42,10 @@ public class LaggingLearningSynchronizer extends LearningSynchronizer {
      */
     @Override
     protected AsyncOutputStream buildOutputStream(
-            final StandardWorkGroup workGroup,
-            final SerializableDataOutputStream out,
-            final Supplier<Boolean> alive,
-            final ReconnectConfig reconnectConfig) {
+            @NonNull final StandardWorkGroup workGroup,
+            @NonNull final SerializableDataOutputStream out,
+            @NonNull final Supplier<Boolean> alive,
+            @NonNull final ReconnectConfig reconnectConfig) {
         return new LaggingAsyncOutputStream(out, workGroup, alive, latencyMilliseconds, reconnectConfig);
     }
 }

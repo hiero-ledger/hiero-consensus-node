@@ -2,6 +2,7 @@
 package com.swirlds.common.test.fixtures.merkle.util;
 
 import com.swirlds.common.merkle.synchronization.streams.AsyncOutputStream;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -35,7 +36,7 @@ public class LaggingAsyncOutputStream extends AsyncOutputStream {
      * {@inheritDoc}
      */
     @Override
-    public void sendAsync(final SelfSerializable message) throws InterruptedException {
+    public void sendAsync(@NonNull final SelfSerializable message) throws InterruptedException {
         messageTimes.put(System.currentTimeMillis());
         super.sendAsync(message);
     }
@@ -44,7 +45,8 @@ public class LaggingAsyncOutputStream extends AsyncOutputStream {
      * {@inheritDoc}
      */
     @Override
-    protected void serializeMessage(final SelfSerializable message, final SerializableDataOutputStream out)
+    protected void serializeMessage(
+            @NonNull final SelfSerializable message, @NonNull final SerializableDataOutputStream out)
             throws IOException {
         long messageTime = messageTimes.remove();
         long now = System.currentTimeMillis();

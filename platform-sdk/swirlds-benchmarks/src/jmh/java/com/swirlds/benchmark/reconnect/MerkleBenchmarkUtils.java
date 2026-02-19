@@ -11,14 +11,12 @@ import com.swirlds.common.merkle.synchronization.LearningSynchronizer;
 import com.swirlds.common.merkle.synchronization.TeachingSynchronizer;
 import com.swirlds.common.merkle.synchronization.stats.ReconnectMapMetrics;
 import com.swirlds.common.merkle.synchronization.stats.ReconnectMapStats;
-import com.swirlds.common.merkle.synchronization.task.ReconnectNodeCount;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
 import com.swirlds.common.merkle.synchronization.views.LearnerTreeView;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.VirtualMap;
 import java.io.IOException;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
@@ -93,9 +91,8 @@ public class MerkleBenchmarkUtils {
             final TeachingSynchronizer teacher;
 
             final VirtualMap newRoot = startingTree.newReconnectRoot();
-            final BenchmarkNodeCount nodeCount = new BenchmarkNodeCount();
             final ReconnectMapStats mapStats = new ReconnectMapMetrics(metrics, null, null);
-            final LearnerTreeView learnerView = newRoot.buildLearnerView(reconnectConfig, nodeCount, mapStats);
+            final LearnerTreeView learnerView = newRoot.buildLearnerView(reconnectConfig, mapStats);
 
             if (delayStorageMicroseconds == 0 && delayNetworkMicroseconds == 0) {
                 learner = new LearningSynchronizer(
@@ -207,34 +204,6 @@ public class MerkleBenchmarkUtils {
             learner.synchronize();
         } catch (final InterruptedException e) {
             Thread.currentThread().interrupt();
-        }
-    }
-
-    private static class BenchmarkNodeCount implements ReconnectNodeCount {
-
-        private final AtomicLong leafCount = new AtomicLong(0);
-        private final AtomicLong redundantLeafCount = new AtomicLong(0);
-        private final AtomicLong internalCount = new AtomicLong(0);
-        private final AtomicLong redundantInternalCount = new AtomicLong(0);
-
-        @Override
-        public void incrementLeafCount() {
-            leafCount.incrementAndGet();
-        }
-
-        @Override
-        public void incrementRedundantLeafCount() {
-            redundantLeafCount.incrementAndGet();
-        }
-
-        @Override
-        public void incrementInternalCount() {
-            internalCount.incrementAndGet();
-        }
-
-        @Override
-        public void incrementRedundantInternalCount() {
-            redundantInternalCount.incrementAndGet();
         }
     }
 }

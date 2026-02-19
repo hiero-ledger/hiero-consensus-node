@@ -46,9 +46,10 @@ public class AsyncOutputStream {
     private final SerializableDataOutputStream outputStream;
 
     /**
-     * A queue that need to be written to the output stream.
+     * A queue that needs to be written to the output stream. It contains either message
+     * bytes (byte array) or some code to run (Runnable).
      */
-    private final BlockingQueue<QueueItem> streamQueue;
+    private final BlockingQueue<Object> streamQueue;
 
     /**
      * The time that has elapsed since the last flush was attempted.
@@ -83,6 +84,8 @@ public class AsyncOutputStream {
      *
      * @param outputStream the outputStream to which all objects are written
      * @param workGroup    the work group that should be used to execute this thread
+     * @param alive        the condition to check if this output stream should be finished, once
+     *                     all scheduled messages are processed
      * @param config       the reconnect configuration
      */
     public AsyncOutputStream(
@@ -146,14 +149,14 @@ public class AsyncOutputStream {
     /**
      * Send a message asynchronously. Messages are guaranteed to be delivered in the order sent.
      */
-    public void sendAsync(final SelfSerializable message) throws InterruptedException {
+    public void sendAsync(@NonNull final SelfSerializable message) throws InterruptedException {
         final ByteArrayOutputStream bout = new ByteArrayOutputStream(64);
         try (final SerializableDataOutputStream dout = new SerializableDataOutputStream(bout)) {
             serializeMessage(message, dout);
         } catch (final IOException e) {
             throw new MerkleSynchronizationException("Can't serialize message", e);
         }
-        sendAsync(new QueueItem(bout.toByteArray()));
+        sendAsync(bout.toByteArray());
     }
 
     /**
@@ -161,10 +164,10 @@ public class AsyncOutputStream {
      * stream are serialized into the underlying output stream.
      */
     public void whenCurrentMessagesProcessed(final Runnable run) throws InterruptedException {
-        sendAsync(new QueueItem(run));
+        sendAsync(run);
     }
 
-    private void sendAsync(final QueueItem item) throws InterruptedException {
+    private void sendAsync(final Object item) throws InterruptedException {
         final boolean success = streamQueue.offer(item, timeout.toMillis(), TimeUnit.MILLISECONDS);
         if (!success) {
             try {
@@ -182,32 +185,31 @@ public class AsyncOutputStream {
      * @return true if a message was sent.
      */
     private boolean handleQueuedMessages() {
-        QueueItem item = streamQueue.poll();
+        Object item = streamQueue.poll();
         if (item == null) {
             return false;
         }
         try {
-            // bufferedOut.reset();
             while (item != null) {
-                if (item.toNotify() != null) {
-                    assert item.messageBytes() == null;
-                    item.toNotify().run();
-                } else {
-                    final byte[] messageBytes = item.messageBytes();
-                    outputStream.writeInt(messageBytes.length);
-                    outputStream.write(messageBytes);
-                    bufferedMessageCount += 1;
+                switch (item) {
+                    case Runnable runItem -> runItem.run();
+                    case byte[] messageItem -> {
+                        outputStream.writeInt(messageItem.length);
+                        outputStream.write(messageItem);
+                        bufferedMessageCount += 1;
+                    }
+                    default -> throw new RuntimeException("Unknown item type");
                 }
                 item = streamQueue.poll();
             }
-            // bufferedOut.writeTo(outputStream);
         } catch (final IOException e) {
             throw new MerkleSynchronizationException(e);
         }
         return true;
     }
 
-    protected void serializeMessage(final SelfSerializable message, final SerializableDataOutputStream out)
+    protected void serializeMessage(
+            @NonNull final SelfSerializable message, @NonNull final SerializableDataOutputStream out)
             throws IOException {
         message.serialize(out);
     }
@@ -233,17 +235,6 @@ public class AsyncOutputStream {
     private void flushIfRequired() {
         if (timeSinceLastFlush.getElapsedTimeNano() > flushInterval.toNanos()) {
             flush();
-        }
-    }
-
-    private record QueueItem(byte[] messageBytes, Runnable toNotify) {
-
-        public QueueItem(byte[] messageBytes) {
-            this(messageBytes, null);
-        }
-
-        public QueueItem(Runnable toNotify) {
-            this(null, toNotify);
         }
     }
 }

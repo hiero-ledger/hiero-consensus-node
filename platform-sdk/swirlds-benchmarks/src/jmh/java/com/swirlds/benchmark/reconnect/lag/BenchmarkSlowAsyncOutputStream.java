@@ -10,6 +10,7 @@ import org.hiero.base.io.SelfSerializable;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
 import org.hiero.consensus.reconnect.config.ReconnectConfig;
+import org.jspecify.annotations.NonNull;
 
 /**
  * This variant of the async output stream introduces an extra delay for every single
@@ -47,7 +48,7 @@ public class BenchmarkSlowAsyncOutputStream extends AsyncOutputStream {
      * {@inheritDoc}
      */
     @Override
-    public void sendAsync(final SelfSerializable message) throws InterruptedException {
+    public void sendAsync(@NonNull final SelfSerializable message) throws InterruptedException {
         sleepMicros(delayStorageMicrosecondsFuzzer.next());
         super.sendAsync(message);
     }
@@ -56,7 +57,8 @@ public class BenchmarkSlowAsyncOutputStream extends AsyncOutputStream {
      * {@inheritDoc}
      */
     @Override
-    protected void serializeMessage(final SelfSerializable message, final SerializableDataOutputStream out)
+    protected void serializeMessage(
+            @NonNull final SelfSerializable message, @NonNull final SerializableDataOutputStream out)
             throws IOException {
         sleepMicros(delayNetworkMicrosecondsFuzzer.next());
         super.serializeMessage(message, out);

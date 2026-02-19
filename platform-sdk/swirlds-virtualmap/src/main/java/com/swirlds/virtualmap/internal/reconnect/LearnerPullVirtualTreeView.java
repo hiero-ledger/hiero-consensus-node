@@ -228,6 +228,7 @@ public final class LearnerPullVirtualTreeView extends VirtualTreeViewBase implem
         final boolean isClean = response.isClean();
         final boolean isLeaf = isLeaf(path);
         traversalOrder.nodeReceived(path, isClean);
+        mapStats.incrementTransfersFromTeacher();
 
         if (isLeaf) {
             if (!isClean) {
@@ -238,6 +239,8 @@ public final class LearnerPullVirtualTreeView extends VirtualTreeViewBase implem
                 map.handleReconnectLeaf(leaf); // may block if hashing is slower than ingest
             }
             mapStats.incrementLeafData(1, isClean ? 1 : 0);
+        } else {
+            mapStats.incrementInternalData(1, isClean ? 1 : 0);
         }
     }
 

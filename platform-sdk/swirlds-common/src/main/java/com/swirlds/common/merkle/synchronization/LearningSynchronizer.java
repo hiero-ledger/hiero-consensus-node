@@ -156,10 +156,10 @@ public class LearningSynchronizer {
      * Build the output stream. Exposed to allow unit tests to override implementation to simulate latency.
      */
     protected AsyncOutputStream buildOutputStream(
-            final StandardWorkGroup workGroup,
-            final SerializableDataOutputStream out,
-            final Supplier<Boolean> alive,
-            final ReconnectConfig reconnectConfig) {
+            @NonNull final StandardWorkGroup workGroup,
+            @NonNull final SerializableDataOutputStream out,
+            @NonNull final Supplier<Boolean> alive,
+            @NonNull final ReconnectConfig reconnectConfig) {
         return new AsyncOutputStream(out, workGroup, alive, reconnectConfig);
     }
 }

@@ -106,8 +106,8 @@ public class LearnerPullVirtualTreeSendTask {
                 final long path = view.getNextPathToSend();
                 if (path == Path.INVALID_PATH) {
                     if (lastPathSent.compareAndSet(false, true)) {
-                        responsesExpected.incrementAndGet();
                         out.sendAsync(new PullVirtualTreeRequest(path, null));
+                        responsesExpected.incrementAndGet();
                     }
                     break;
                 }
@@ -116,8 +116,8 @@ public class LearnerPullVirtualTreeSendTask {
                     Thread.sleep(0, 1);
                     continue;
                 }
-                responsesExpected.incrementAndGet();
                 out.sendAsync(new PullVirtualTreeRequest(path, view.getNodeHash(path)));
+                responsesExpected.incrementAndGet();
                 view.getMapStats().incrementTransfersFromLearner();
             }
         } catch (final InterruptedException ex) {

@@ -7,11 +7,6 @@ package com.swirlds.logging.legacy.payload;
 public class SynchronizationCompletePayload extends AbstractLogPayload {
 
     private double timeInSeconds;
-    private int totalNodes;
-    private int leafNodes;
-    private int redundantLeafNodes;
-    private int internalNodes;
-    private int redundantInternalNodes;
 
     public SynchronizationCompletePayload() {}
 
@@ -39,101 +34,6 @@ public class SynchronizationCompletePayload extends AbstractLogPayload {
      */
     public SynchronizationCompletePayload setTimeInSeconds(double timeInSeconds) {
         this.timeInSeconds = timeInSeconds;
-        return this;
-    }
-
-    /**
-     * Get the total number of merkel nodes that were sent during synchronization.
-     */
-    public int getTotalNodes() {
-        return totalNodes;
-    }
-
-    /**
-     * Set the total number of merkel nodes that were sent during synchronization.
-     *
-     * @param totalNodes
-     * 		the number of nodes sent during synchronization
-     * @return this object
-     */
-    public SynchronizationCompletePayload setTotalNodes(int totalNodes) {
-        this.totalNodes = totalNodes;
-        return this;
-    }
-
-    /**
-     * Get the total number of merkel leaf nodes that were sent during synchronization.
-     */
-    public int getLeafNodes() {
-        return leafNodes;
-    }
-
-    /**
-     * Set the total number of merkel leaf nodes that were sent during synchronization.
-     *
-     * @param leafNodes
-     * 		the number of leaf nodes sent during synchronization
-     * @return this object
-     */
-    public SynchronizationCompletePayload setLeafNodes(int leafNodes) {
-        this.leafNodes = leafNodes;
-        return this;
-    }
-
-    /**
-     * Get the total number of merkel leaf nodes that were sent unnecessarily during synchronization.
-     */
-    public int getRedundantLeafNodes() {
-        return redundantLeafNodes;
-    }
-
-    /**
-     * Set the total number of merkel leaf nodes that were sent unnecessarily during synchronization.
-     *
-     * @param redundantLeafNodes
-     * 		the number of redundant leaf nodes sent
-     * @return this object
-     */
-    public SynchronizationCompletePayload setRedundantLeafNodes(int redundantLeafNodes) {
-        this.redundantLeafNodes = redundantLeafNodes;
-        return this;
-    }
-
-    /**
-     * Get the total number of internal merkle nodes that were sent during synchronization.
-     */
-    public int getInternalNodes() {
-        return internalNodes;
-    }
-
-    /**
-     * Set the total number of internal merkle nodes that were sent during synchronization.
-     *
-     * @param internalNodes
-     * 		the number of internal nodes sent
-     * @return this object
-     */
-    public SynchronizationCompletePayload setInternalNodes(int internalNodes) {
-        this.internalNodes = internalNodes;
-        return this;
-    }
-
-    /**
-     * Get the total number of internal merkle nodes that were sent unnecessarily during synchronization.
-     */
-    public int getRedundantInternalNodes() {
-        return redundantInternalNodes;
-    }
-
-    /**
-     * Set the total number of internal merkle nodes that were sent unnecessarily during synchronization.
-     *
-     * @param redundantInternalNodes
-     * 		the number of redundant internal nodes
-     * @return this object
-     */
-    public SynchronizationCompletePayload setRedundantInternalNodes(int redundantInternalNodes) {
-        this.redundantInternalNodes = redundantInternalNodes;
         return this;
     }
 }
