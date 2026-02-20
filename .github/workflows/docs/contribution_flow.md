@@ -5,6 +5,15 @@
 This document outlines the top-level flow of a commit from the point of PR creation to the point it is included in a
 release candidate tag (`build-XXXXX`) and the subsequent workflows that are triggered by the release candidate tag.
 
+## MATS-pr PATH
+
+1. PR opened against `main` or `release/major.minor` branch
+2. `Node: PR Checks` workflow runs all `MATS` checks
+3. `MATS` checks pass
+4. Other required checks pass on PRs (`DCO`, `Step security`, `title check`, etc)
+5. PR is approved to merge
+6. PR merged to main
+
 ## MATS-forked-pr PATH
 
 1. PR opened against `main` by a non-contributor* or dependabot**
@@ -24,24 +33,6 @@ release candidate tag (`build-XXXXX`) and the subsequent workflows that are trig
 \* only can run checks that don't use github secrets management
 \*\* only can run checks that dependabot secrets are configured for
 \*\*\* Some checks are explicitly excluded for dependabot/forked PRs for repo security/safety
-
-## MATS-pr PATH
-
-1. PR opened against `main` or `release/major.minor` branch
-2. `Node: PR Checks` workflow runs all `MATS` checks
-3. `MATS` checks pass
-4. Other required checks pass on PRs (`DCO`, `Step security`, `title check`, etc)
-5. PR is approved to merge
-6. PR merged to main
-
-## Release Tag Push PATH
-
-\*When a release tag is pushed it is against a commit that has already passed `MATS` and `XTS`. A different flow is required
-
-1. `ZXF: Deploy Production Release` is triggered on tag applied to `main` or `release/major.minor` branch
-   1. Tag format is required to match `vX.Y.Z*` (allows for alpha, release candidate tags, etc)
-2. `ZXF: Deploy Production Release` runs checks for `tag` path
-3. `ZXF: Deploy Production Release` TRIGGERS a new workflow, `ZXF: [Node] Deploy Integration Network Release`
 
 ## MATS-main PATH
 
@@ -71,3 +62,12 @@ release candidate tag (`build-XXXXX`) and the subsequent workflows that are trig
 4. `ZXCron: [CITR] Promote Build Candidate` TRIGGERS a new workflow, `ZXF: [CITR] Single Day Performance Test Controller (SDPT)`
 5. `ZXCron: [CITR] Promote Build Candidate` TRIGGERS a new workflow, `ZXF: [CITR] Single Day Longevity Test Controller`
 6. `ZXCron: [CITR] Promote Build Candidate` TRIGGERS a new workflow, `ZXF: [CITR] Single Day Canonical Test (SDCT)`
+
+## Release Tag Push PATH
+
+\*When a release-ish tag is pushed it is against a commit that has already passed `MATS` and `XTS`. A different flow is required
+
+1. `ZXF: Deploy Production Release` is triggered on tag applied to `main` or `release/major.minor` branch
+   1. Tag format is required to match `vX.Y.Z*` (allows for alpha, release candidate tags, etc)
+2. `ZXF: Deploy Production Release` runs checks for `tag` path
+3. `ZXF: Deploy Production Release` TRIGGERS a new workflow, `ZXF: [Node] Deploy Integration Network Release`
