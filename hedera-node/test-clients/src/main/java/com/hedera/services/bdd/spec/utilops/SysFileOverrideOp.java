@@ -29,10 +29,10 @@ public class SysFileOverrideOp extends UtilOp {
      */
     public enum Target {
         FEES(111L),
+        SIMPLE_FEES(113L),
         EXCHANGE_RATES(112L),
         THROTTLES(123L),
-        PERMISSIONS(122L),
-        SIMPLE_FEES(113L);
+        PERMISSIONS(122L);
 
         Target(final long number) {
             this.number = number;
