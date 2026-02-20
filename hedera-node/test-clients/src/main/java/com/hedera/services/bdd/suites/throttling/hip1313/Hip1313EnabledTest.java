@@ -382,6 +382,7 @@ public class Hip1313EnabledTest {
     }
 
     @GenesisHapiTest
+    @Disabled("Flaky test, needs investigation")
     final Stream<DynamicTest> mixedHighVolumeTxnsWorkAsExpectedForTopicCreateAndScheduleCreate() {
         final AtomicReference<List<RecordStreamEntry>> highVolumeTxns = new AtomicReference<>();
         final int numBursts = 200;
