@@ -31,7 +31,8 @@ public class SysFileOverrideOp extends UtilOp {
         FEES(111L),
         EXCHANGE_RATES(112L),
         THROTTLES(123L),
-        PERMISSIONS(122L);
+        PERMISSIONS(122L),
+        SIMPLE_FEES(113L);
 
         Target(final long number) {
             this.number = number;
