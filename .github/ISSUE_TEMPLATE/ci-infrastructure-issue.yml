@@ -76,6 +76,14 @@ body:
     validations:
       required: true
   - type: input
+    id: reporter-platform-other
+    attributes:
+      label: If "Other", Please Specify
+      description: If you selected "Other" above, describe the platform where this issue was reported.
+      placeholder: e.g. PagerDuty, email, Jira, etc.
+    validations:
+      required: false
+  - type: input
     id: reporter-identity
     attributes:
       label: Reported By
