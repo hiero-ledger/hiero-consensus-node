@@ -12,6 +12,10 @@ on:
         default: false
         type: boolean
 
+concurrency:
+  group: xts-candidate-tag-operations
+  cancel-in-progress: false
+
 defaults:
   run:
     shell: bash
@@ -192,6 +196,13 @@ jobs:
                       "text": {
                         "type": "mrkdwn",
                         "text": "*Source Commit*: \n<${{ github.server_url }}/${{ github.repository }}/commit/${{ inputs.ref }}>"
+                      }
+                    },
+                    {
+                      "type": "section",
+                      "text": {
+                        "type": "mrkdwn",
+                        "text": "*Workflow Run*: \n<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
                       }
                     }
                   ]
