@@ -1020,17 +1020,19 @@ public class ThrottleAccumulator {
 
     /**
      * Returns the current instantaneous utilization percentage of the high-volume throttle
-     * for the given functionality, without accounting for time-based capacity leakage.
+     * for the given functionality. It leaks the throttle to account for time-based capacity restoration,
+     * but ignores any recorded usage since we're only interested in the instantaneous utilization.
      * The utilization is expressed in basis points (0 to 10,000), where 10,000 = 100%.
      *
      * @param function the functionality to get the utilization for
-     * @param consensusTime
+     * @param consensusTime the consensus time to calculate the utilization at
      * @return the utilization percentage in basis points (0 to 10,000),
      * or 0 if no high-volume throttle exists for the functionality
      */
     public int getHighVolumeThrottleInstantaneousUtilizationBps(
-            @NonNull final HederaFunctionality function, final Instant consensusTime) {
+            @NonNull final HederaFunctionality function, @NonNull final Instant consensusTime) {
         requireNonNull(function);
+        requireNonNull(consensusTime);
 
         final var manager = highVolumeFunctionReqs.get(function);
         if (manager == null) {

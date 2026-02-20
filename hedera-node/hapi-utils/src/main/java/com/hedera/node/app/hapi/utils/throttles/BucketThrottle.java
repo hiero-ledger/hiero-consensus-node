@@ -168,7 +168,11 @@ public class BucketThrottle {
     public double instantaneousPercentUsed() {
         return 100.0 * bucket.capacityUsed() / bucket.brimfulCapacity();
     }
-
+    /**
+     * Returns the percent of the throttle bucket's capacity that is used at this instant, in hundredths of a percent.
+     *
+     * @return the percent of the bucket that is used, in hundredths of a percent
+     */
     public int instantaneousBps() {
         return BigInteger.valueOf(bucket.capacityUsed())
                 .multiply(BigInteger.valueOf(10000))

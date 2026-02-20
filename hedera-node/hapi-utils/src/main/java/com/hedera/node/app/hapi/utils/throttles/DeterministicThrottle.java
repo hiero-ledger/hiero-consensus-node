@@ -218,7 +218,12 @@ public class DeterministicThrottle implements CongestibleThrottle {
         }
         return delegate.instantaneousPercentUsed();
     }
-
+    /**
+     * Returns the percent usage of this throttle in hundredths of a percent, at the time of the last throttling decision, or
+     * zero if no throttling decision has been made.
+     *
+     * @return the percent usage in hundredths of a percent at the time of the last throttling decision
+     */
     public int instantaneousBps() {
         if (lastDecisionTime == null) {
             return 0;
