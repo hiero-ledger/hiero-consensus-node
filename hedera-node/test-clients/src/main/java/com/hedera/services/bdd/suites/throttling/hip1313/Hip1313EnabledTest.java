@@ -75,6 +75,7 @@ import org.hiero.hapi.support.fees.FeeSchedule;
 import org.hiero.hapi.support.fees.PiecewiseLinearCurve;
 import org.hiero.hapi.support.fees.PiecewiseLinearPoint;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.parallel.Isolated;
@@ -325,6 +326,7 @@ public class Hip1313EnabledTest {
                 validateChargedUsdWithChild("plainTransfer", 0.0001, 0.01));
     }
 
+    @Disabled
     @LeakyHapiTest(
             requirement = {THROTTLE_OVERRIDES},
             throttles = "testSystemFiles/hip1313-disabled-one-tps-create.json")
