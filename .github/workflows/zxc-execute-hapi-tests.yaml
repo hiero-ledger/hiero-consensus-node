@@ -153,8 +153,7 @@ jobs:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
         # Run each task in isolation with clean builds because we dynamically reconfigure Log4j for each mode
-        # TODO Remove flags before merge in main
-        run: ${GRADLE_EXEC} hapiTestMisc --no-daemon --rerun-tasks --no-build-cache && ${GRADLE_EXEC} hapiTestMiscEmbedded --no-daemon --rerun-tasks --no-build-cache && ${GRADLE_EXEC} hapiTestMiscRepeatable --no-daemon --rerun-tasks --no-build-cache && ${GRADLE_EXEC} hapiTestMiscSerial --no-daemon --rerun-tasks --no-build-cache
+        run: ${GRADLE_EXEC} hapiTestMisc --no-daemon && ${GRADLE_EXEC} hapiTestMiscEmbedded --no-daemon && ${GRADLE_EXEC} hapiTestMiscRepeatable --no-daemon && ${GRADLE_EXEC} hapiTestMiscSerial --no-daemon
 
       - name: Publish HAPI Test (Misc) Report
         uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
