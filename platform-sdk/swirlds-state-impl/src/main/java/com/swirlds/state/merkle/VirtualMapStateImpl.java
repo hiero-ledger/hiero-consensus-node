@@ -743,7 +743,9 @@ public class VirtualMapStateImpl implements VirtualMapState {
      */
     @Override
     public Hash getHashForPath(long path) {
-        return virtualMap.getRecords().findHash(path);
+        return path == 0
+                ? virtualMap.getRecords().rootHash()
+                : virtualMap.getRecords().findHash(path);
     }
 
     @Override
