@@ -107,7 +107,8 @@ public class ClprSetLedgerConfigurationHandlerTest extends ClprHandlerTestBase {
         given(selfNodeInfo.nodeId()).willReturn(0L);
         given(stateProofManager.clprEnabled()).willReturn(true);
         given(configProvider.getConfiguration()).willReturn(configuration);
-        given(configuration.getConfigData(ClprConfig.class)).willReturn(new ClprConfig(true, 5000, true, true));
+        given(configuration.getConfigData(ClprConfig.class))
+                .willReturn(new ClprConfig(true, 5000, true, true, 5, 6144));
         given(preHandleContext.isUserTransaction()).willReturn(true);
         given(handleContext.storeFactory()).willReturn(storeFactory);
         given(storeFactory.writableStore(WritableClprLedgerConfigurationStore.class))
@@ -463,7 +464,8 @@ public class ClprSetLedgerConfigurationHandlerTest extends ClprHandlerTestBase {
 
         given(pureChecksContext.body()).willReturn(txn);
         given(configProvider.getConfiguration()).willReturn(configuration);
-        given(configuration.getConfigData(ClprConfig.class)).willReturn(new ClprConfig(true, 5000, true, false));
+        given(configuration.getConfigData(ClprConfig.class))
+                .willReturn(new ClprConfig(true, 5000, true, false, 5, 6144));
         given(stateProofManager.getLocalLedgerId()).willReturn(localClprLedgerId);
         given(stateProofManager.readLedgerConfiguration(localClprLedgerId)).willReturn(localClprConfig);
         given(stateProofManager.validateStateProof(any(ClprSetLedgerConfigurationTransactionBody.class)))

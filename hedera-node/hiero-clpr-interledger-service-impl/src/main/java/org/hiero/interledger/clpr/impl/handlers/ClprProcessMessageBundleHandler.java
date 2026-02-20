@@ -9,6 +9,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BOD
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.stepDispatch;
+import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
@@ -27,6 +28,8 @@ import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
+import com.hedera.node.config.ConfigProvider;
+import com.hedera.node.config.data.ClprConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
@@ -44,10 +47,13 @@ import org.hiero.interledger.clpr.impl.ClprStateProofManager;
 public class ClprProcessMessageBundleHandler implements TransactionHandler {
     private static final Logger log = LogManager.getLogger(ClprProcessMessageBundleHandler.class);
     private final ClprStateProofManager stateProofManager;
+    private final ConfigProvider configProvider;
 
     @Inject
-    public ClprProcessMessageBundleHandler(@NonNull final ClprStateProofManager stateProofManager) {
+    public ClprProcessMessageBundleHandler(
+            @NonNull final ClprStateProofManager stateProofManager, @NonNull final ConfigProvider configProvider) {
         this.stateProofManager = requireNonNull(stateProofManager);
+        this.configProvider = requireNonNull(configProvider);
     }
 
     @Override
@@ -56,6 +62,12 @@ public class ClprProcessMessageBundleHandler implements TransactionHandler {
         final var body = context.body();
         validateTruePreCheck(body.clprProcessMessageBundleOrThrow().hasMessageBundle(), INVALID_TRANSACTION_BODY);
         final var bundle = body.clprProcessMessageBundleOrThrow().messageBundleOrThrow();
+
+        final var config = configProvider.getConfiguration().getConfigData(ClprConfig.class);
+        validateTruePreCheck(bundle.protobufSize() <= config.maxBundleBytes(), CLPR_INVALID_BUNDLE);
+        validateTruePreCheck(bundle.messages().size() + 1 <= config.maxBundleMessages(), CLPR_INVALID_BUNDLE);
+
+        // bundle must have at least state proof
         validateTruePreCheck(bundle.hasStateProof(), CLPR_INVALID_STATE_PROOF);
 
         final var stateProof = bundle.stateProofOrThrow();
@@ -117,9 +129,7 @@ public class ClprProcessMessageBundleHandler implements TransactionHandler {
         final var firstNonProcessedMsgId = receivedMessageId + 1;
         final var lastBundleMessageId = lastBundleMessageKey.messageId();
         final var firstBundleMessageId = lastBundleMessageId - bundle.messages().size();
-        if (firstBundleMessageId > firstNonProcessedMsgId) {
-            throw new HandleException(CLPR_INVALID_BUNDLE);
-        }
+        validateFalse(firstBundleMessageId > firstNonProcessedMsgId, CLPR_INVALID_BUNDLE);
 
         final var skipCount = firstNonProcessedMsgId - firstBundleMessageId;
         // TEMP-OBSERVABILITY (delete before production): traces bundle replay window and skip calculation.

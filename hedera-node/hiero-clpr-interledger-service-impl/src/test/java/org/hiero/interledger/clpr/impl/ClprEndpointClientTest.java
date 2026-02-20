@@ -85,7 +85,7 @@ class ClprEndpointClientTest extends ClprTestBase {
                 .build();
 
         when(configProvider.getConfiguration()).thenReturn(configuration);
-        when(configuration.getConfigData(ClprConfig.class)).thenReturn(new ClprConfig(true, 5000, true, true));
+        when(configuration.getConfigData(ClprConfig.class)).thenReturn(new ClprConfig(true, 5000, true, true, 5, 6144));
         when(configuration.getConfigData(GrpcConfig.class))
                 .thenReturn(new GrpcConfig(50211, 50212, true, 50213, 60211, 60212, 4194304, 4194304, 4194304));
         final var hederaConfig = org.mockito.Mockito.mock(HederaConfig.class);
@@ -112,7 +112,8 @@ class ClprEndpointClientTest extends ClprTestBase {
 
     @Test
     void runOnceSkipsWhenClprDisabled() {
-        when(configuration.getConfigData(ClprConfig.class)).thenReturn(new ClprConfig(false, 5000, true, true));
+        when(configuration.getConfigData(ClprConfig.class))
+                .thenReturn(new ClprConfig(false, 5000, true, true, 5, 6144));
 
         subject.runOnce();
 

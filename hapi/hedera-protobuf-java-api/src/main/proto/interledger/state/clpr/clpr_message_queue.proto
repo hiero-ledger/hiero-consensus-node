@@ -83,6 +83,11 @@ message ClprMessageQueueMetadata {
    * outgoing messages to the same ledger.
    */
   uint64 next_message_id = 6;
+
+  /**
+   *
+   */
+  ClprBundleShape bundle_shape = 7;
 }
 
 /**
@@ -228,4 +233,25 @@ message ClprMessageBundle {
    * State Proof
    */
   com.hedera.hapi.block.stream.StateProof state_proof = 3;
+}
+
+/**
+ * Bundle shape
+ *
+ * These are the limits of a single bundle that MUST be respected,
+ * when a remote ledger submits a bundle to be processed.
+ */
+message ClprBundleShape {
+
+  /**
+   * The maximum number of messages to return in the response.
+   * <p>
+   * Implementations MAY return fewer messages if fewer are available.
+   */
+  uint32 max_number_of_messages = 3;
+
+  /**
+   * The maximum bundle length in bytes allowed in the response.
+   */
+  uint64 max_bundle_bytes = 4;
 }
