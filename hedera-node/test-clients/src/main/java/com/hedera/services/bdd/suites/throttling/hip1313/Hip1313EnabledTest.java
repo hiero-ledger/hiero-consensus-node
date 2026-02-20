@@ -359,7 +359,7 @@ public class Hip1313EnabledTest {
                     final var throttle = DeterministicThrottle.withTpsAndBurstPeriodMs(CRYPTO_CREATE_HV_TPS, 1000);
                     var numCreateTxnsAllowed = 0;
                     for (final var entry : entries) {
-                        throttle.allow(0, entry.consensusTime());
+                        throttle.leakUntil(entry.consensusTime());
                         final var utilizationBasisPointsBefore = throttle.instantaneousBps();
                         throttle.allow(1, entry.consensusTime());
                         numCreateTxnsAllowed++;
@@ -405,7 +405,7 @@ public class Hip1313EnabledTest {
                     for (final var entry : entries) {
                         final var fee = entry.txnRecord().getTransactionFee();
                         if (entry.body().hasConsensusCreateTopic()) {
-                            scheduleThrottle.allow(0, entry.consensusTime());
+                            topicThrottle.leakUntil(entry.consensusTime());
                             final var utilizationBasisPointsBefore = topicThrottle.instantaneousBps();
                             topicThrottle.allow(1, entry.consensusTime());
                             topicCreates++;
@@ -423,7 +423,7 @@ public class Hip1313EnabledTest {
                                     "topic create",
                                     topicCreates);
                         } else if (entry.body().hasScheduleCreate()) {
-                            topicThrottle.allow(0, entry.consensusTime());
+                            scheduleThrottle.leakUntil(entry.consensusTime());
                             final var utilizationBasisPointsBefore = scheduleThrottle.instantaneousBps();
                             scheduleThrottle.allow(1, entry.consensusTime());
                             scheduleCreates++;

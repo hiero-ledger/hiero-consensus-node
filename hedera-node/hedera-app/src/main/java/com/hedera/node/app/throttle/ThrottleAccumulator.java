@@ -1028,7 +1028,8 @@ public class ThrottleAccumulator {
      * @return the utilization percentage in basis points (0 to 10,000),
      * or 0 if no high-volume throttle exists for the functionality
      */
-    public int getHighVolumeThrottleInstantaneousUtilizationBps(@NonNull final HederaFunctionality function, final Instant consensusTime) {
+    public int getHighVolumeThrottleInstantaneousUtilizationBps(
+            @NonNull final HederaFunctionality function, final Instant consensusTime) {
         requireNonNull(function);
 
         final var manager = highVolumeFunctionReqs.get(function);
