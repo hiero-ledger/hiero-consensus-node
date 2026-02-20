@@ -38,6 +38,7 @@ loadKeysFromPfxFiles,                          false                        # di
                                           #############################
                                           #          MerkleDb         #
                                           #############################
+merkleDb.initialCapacity,                        5000
 merkleDb.maxNumOfKeys,                           5000
 merkleDb.hashesRamToDiskThreshold,                  0
 merkleDb.hashStoreRamBufferSize,                10000
@@ -48,7 +49,17 @@ merkleDb.maxThreadsPerFileChannel,                  1
 merkleDb.compactionThreads,                         1
 merkleDb.percentHalfDiskHashMapFlushThreads,       50.0
 merkleDb.numHalfDiskHashMapFlushThreads,            1
+merkleDb.iteratorInputBufferBytes,             1048576                      # 1 MB, down from 16 MB default
+merkleDb.longListReservedBufferSize,             65536                      # 64 KB, down from 256 KB default
 virtualMap.copyFlushThreshold,                 500000
+virtualMap.numHashThreads,                          1                      # down from 50% of CPUs
+virtualMap.numCleanerThreads,                       1                      # down from 25% of CPUs
+
+                                          #############################
+                                          #       State Retention     #
+                                          #############################
+state.roundsToKeepForSigning,                       5                      # down from 26, fewer state copies in RAM
+state.signedStateDisk,                              1                      # down from 5, fewer disk copies
 
                                           #############################
                                           #          PCES             #
@@ -75,3 +86,9 @@ platformSchedulers.internalEventValidator, SEQUENTIAL CAPACITY(500) FLUSHABLE UN
 platformSchedulers.eventSignatureValidator, SEQUENTIAL CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC
 platformSchedulers.applicationTransactionPrehandler, SEQUENTIAL CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC
 platformSchedulers.eventHasher, SEQUENTIAL CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC
+platformSchedulers.transactionHandler, SEQUENTIAL_THREAD CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC
+platformSchedulers.stateHasher, SEQUENTIAL_THREAD CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC
+platformSchedulers.consensusEngine, SEQUENTIAL_THREAD CAPACITY(100) FLUSHABLE UNHANDLED_TASK_METRIC
+platformSchedulers.stateSignatureCollector, SEQUENTIAL CAPACITY(100) FLUSHABLE UNHANDLED_TASK_METRIC
+platformSchedulers.futureEventBuffer, SEQUENTIAL CAPACITY(100) FLUSHABLE UNHANDLED_TASK_METRIC
+platformSchedulers.stateGarbageCollector, SEQUENTIAL CAPACITY(10) FLUSHABLE UNHANDLED_TASK_METRIC

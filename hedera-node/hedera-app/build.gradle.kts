@@ -122,10 +122,10 @@ val copyNodeData =
         into("data/onboard") { from(layout.projectDirectory.dir("../data/onboard")) }
         into("data/keys") { from(layout.projectDirectory.dir("../data/keys")) }
 
-        from(layout.projectDirectory.dir("../configuration/dev")) { into("data/config") }
+        from(layout.projectDirectory.dir("../configuration/small-memory")) { into("data/config") }
         from(layout.projectDirectory.file("../config.txt"))
         from(layout.projectDirectory.file("../log4j2.xml"))
-        from(layout.projectDirectory.file("../configuration/dev/settings.txt"))
+        from(layout.projectDirectory.file("../configuration/small-memory/settings.txt"))
     }
 
 tasks.assemble {
@@ -141,19 +141,27 @@ tasks.register<JavaExec>("run") {
     dependsOn(tasks.assemble)
     workingDir = nodeWorkingDir.get().asFile
     val jfcFile = rootProject.file("hedera-node/configuration/small-memory/MemoryLowOverhead.jfc")
-    val jfrFile = rootProject.file("hedera-node/hedera-app/data/recording.jfr")
+    val jfrFile = rootProject.file("hedera-node/hedera-app/data/recording-low-memory.jfr")
 
     jvmArgs =
         listOf(
             "-cp",
             "data/lib/*:data/apps/*",
-            "-Xms1G",
-            "-Xmx1G",
-            "-XX:+UseZGC",
-            "-XX:+ZGenerational",
-//            "-XX:MaxMetaspaceSize=128M",
-//            "-XX:MaxDirectMemorySize=1G",
-//            "-XX:NativeMemoryTracking=summary",
+            "-XX:+UseSerialGC",
+//            "-XX:+UseZGC",
+//            "-XX:+ZGenerational",
+            "-Xms128M",
+            "-Xmx512M",
+            "-XX:MinHeapFreeRatio=10",
+            "-XX:MaxHeapFreeRatio=30",
+            "-XX:MaxMetaspaceSize=96M",
+            "-XX:CompressedClassSpaceSize=48M",
+            "-Xss256K",
+            "-XX:-TieredCompilation",
+            "-XX:CICompilerCount=1",
+            "-XX:ReservedCodeCacheSize=24M",
+            "-XX:MaxDirectMemorySize=16M",
+            "-XX:NativeMemoryTracking=summary",
             "-XX:StartFlightRecording=dumponexit=true,settings=$jfcFile,filename=$jfrFile",
         )
     mainClass.set("com.hedera.node.app.ServicesMain")
