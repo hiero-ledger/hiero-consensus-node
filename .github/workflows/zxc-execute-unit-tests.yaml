@@ -113,11 +113,12 @@ jobs:
           token: ${{ secrets.codecov-token }}
           files: gradle/aggregation/build/reports/jacoco/testCodeCoverageReport/testCodeCoverageReport.xml
 
+      # Disable step while investigating Codacy upload failures (see #23737)
       - name: Publish to Codacy
         id: publish-codacy
         env:
           CODACY_PROJECT_TOKEN: ${{ secrets.codacy-project-token }}
-        if: ${{ !github.event.pull_request.head.repo.fork }}
+        if: ${{ false && !github.event.pull_request.head.repo.fork }}
         run: bash <(curl -Ls https://coverage.codacy.com/get.sh) report -l Java -r gradle/aggregation/build/reports/jacoco/testCodeCoverageReport/testCodeCoverageReport.xml
 
       - name: Upload Test Reports

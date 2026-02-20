@@ -24,9 +24,11 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
+import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.handleAnyRepeatableQueryPayment;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.balanceSnapshot;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
@@ -71,13 +73,22 @@ public class RepeatableOperatorQueryTests extends NodeOperatorQueriesBase {
                         // the grpc client performs the query to different ports
                         getAccountInfo(NODE_OPERATOR).payingWith(PAYER),
                         handleAnyRepeatableQueryPayment(),
-                        // assert payer is charged
-                        getAccountBalance(PAYER).hasTinyBars(changeFromSnapshot("payerInitialBalance", -QUERY_COST)),
-                        // perform free query to local port with asNodeOperator() method
-                        getAccountInfo(NODE_OPERATOR).payingWith(PAYER).asNodeOperator(),
-                        handleAnyRepeatableQueryPayment(),
-                        // assert payer is not charged as the query is performed as node operator
-                        getAccountBalance(PAYER).hasTinyBars(changeFromSnapshot("payerInitialBalance", -QUERY_COST))));
+                        withOpContext((spec, log) -> {
+                            final var queryCost = spec.simpleFeesEnabled() ? QUERY_COST_SIMPLE_FEES : QUERY_COST;
+                            allRunFor(
+                                    spec,
+                                    // assert payer is charged
+                                    getAccountBalance(PAYER)
+                                            .hasTinyBars(changeFromSnapshot("payerInitialBalance", -queryCost)),
+                                    // perform free query to local port with asNodeOperator() method
+                                    getAccountInfo(NODE_OPERATOR)
+                                            .payingWith(PAYER)
+                                            .asNodeOperator(),
+                                    handleAnyRepeatableQueryPayment(),
+                                    // assert payer is not charged as the query is performed as node operator
+                                    getAccountBalance(PAYER)
+                                            .hasTinyBars(changeFromSnapshot("payerInitialBalance", -queryCost)));
+                        })));
     }
 
     @RepeatableHapiTest(NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW)
