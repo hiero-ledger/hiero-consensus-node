@@ -155,17 +155,20 @@ src/testPerformance/scripts/start-grafana.sh --keep-data ~/benchmark-results/202
 ## Helper scripts
 
 To look for metrics from previous runs and choose which ones to import, use:
+
 ```bash
 src/testPerformance/scripts/find-metrics.sh
 ```
 
 To import metrics to an already running Grafana stack without restarting:
+
 ```bash
 src/testPerformance/scripts/import-metrics.sh
 ```
 
 To upload the dashboard JSON to Grafana (only needed if you want to modify the dashboard or start from a clean Grafana
 without preloaded dashboards):
+
 ```bash
 src/testPerformance/scripts/upload-dashboards.sh
 ```
