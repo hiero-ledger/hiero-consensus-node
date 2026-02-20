@@ -24,7 +24,7 @@ done
 
 # Default path if none provided
 if [ ${#METRICS_ARGS[@]} -eq 0 ]; then
-  METRICS_ARGS=(build/container/ConsensusLayerBenchmark/benchmark/node-*/data/stats/metrics.txt)
+  METRICS_ARGS=(../../../build/container/CombinedOptimizationsExperiment/combinedAllOptimizations/node-*/data/stats/metrics.txt)
 fi
 
 # Expand arguments to actual files (handles directories, globs, and individual files)

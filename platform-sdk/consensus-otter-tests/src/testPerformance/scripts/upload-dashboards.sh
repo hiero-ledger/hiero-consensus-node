@@ -5,7 +5,7 @@
 # Defaults:
 #   --grafana-url    http://admin:admin@localhost:3000
 #   --datasource-uid victoriametrics
-#   --dashboards-dir <directory containing this script>/dashboards
+#   --dashboards-dir <scripts directory>/../dashboards
 
 set -e
 
@@ -13,7 +13,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 GRAFANA_URL="http://admin:admin@localhost:3000"
 DATASOURCE_UID="victoriametrics"
-DASHBOARDS_DIR="$SCRIPT_DIR/dashboards"
+DASHBOARDS_DIR="$SCRIPT_DIR/../dashboards"
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do

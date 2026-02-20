@@ -5,12 +5,12 @@
 # Usage: find-metrics.sh [--build-dir DIR]
 #
 # Defaults:
-#   --build-dir  <directory containing this script>/../../../build/container
+#   --build-dir  <scripts directory>/../../../build/container
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-BUILD_DIR="$SCRIPT_DIR/../../build/container"
+BUILD_DIR="$SCRIPT_DIR/../../../build/container"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
