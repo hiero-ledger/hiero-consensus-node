@@ -30,8 +30,8 @@ release candidate tag (`build-XXXXX`) and the subsequent workflows that are trig
 
 ---
 
-\* only can run checks that don't use github secrets management
-\*\* only can run checks that dependabot secrets are configured for
+\* only can run checks that don't use github secrets management<br/>
+\*\* only can run checks that dependabot secrets are configured for<br/>
 \*\*\* Some checks are explicitly excluded for dependabot/forked PRs for repo security/safety
 
 ## MATS-main PATH
