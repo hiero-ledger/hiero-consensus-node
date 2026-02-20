@@ -52,7 +52,7 @@ public class VirtualReconnectUtils {
         } else {
             leafValue = Bytes.EMPTY;
         }
-        return new VirtualLeafBytes(leafPath, leafKey, leafValue);
+        return new VirtualLeafBytes(leafPath, leafPath, leafKey, leafValue);
     }
 
     public static void writeLeafRecord(final SerializableDataOutputStream out, final VirtualLeafBytes leaf)

@@ -102,7 +102,7 @@ public final class VirtualNodeCache implements FastCopyable {
      * will ask the cache for a leaf either by key or path. At such times, if we determine by looking at
      * the mutation that the leaf has been deleted, we will return this singleton instance.
      */
-    public static final VirtualLeafBytes<?> DELETED_LEAF_RECORD = new VirtualLeafBytes<>(-1, Bytes.EMPTY, null, null);
+    public static final VirtualLeafBytes<?> DELETED_LEAF_RECORD = new VirtualLeafBytes<>(-1, -1, Bytes.EMPTY, null, null);
 
     /**
      * Another marker {@link Hash} instance used to store null hashes instead of {@code null}s, which

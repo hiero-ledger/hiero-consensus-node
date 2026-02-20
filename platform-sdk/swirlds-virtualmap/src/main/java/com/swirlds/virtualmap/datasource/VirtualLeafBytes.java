@@ -52,6 +52,7 @@ public class VirtualLeafBytes<V> {
             new FieldDefinition("value", FieldType.BYTES, false, true, false, 3);
 
     private final long path;
+    private final long oldPath;
 
     private final Bytes keyBytes;
 
@@ -61,20 +62,31 @@ public class VirtualLeafBytes<V> {
 
     public VirtualLeafBytes(
             final long path, @NonNull final Bytes keyBytes, @Nullable final V value, @Nullable Codec<V> valueCodec) {
-        this(path, keyBytes, value, valueCodec, null);
+        this(path, -1, keyBytes, value, valueCodec, null);
+    }
+
+    public VirtualLeafBytes(
+            final long path, final long oldPath, @NonNull final Bytes keyBytes, @Nullable final V value, @Nullable Codec<V> valueCodec) {
+        this(path, oldPath, keyBytes, value, valueCodec, null);
     }
 
     public VirtualLeafBytes(final long path, @NonNull final Bytes keyBytes, @Nullable Bytes valueBytes) {
-        this(path, keyBytes, null, null, valueBytes);
+        this(path, -1, keyBytes, null, null, valueBytes);
+    }
+
+    public VirtualLeafBytes(final long path, final long oldPath, @NonNull final Bytes keyBytes, @Nullable Bytes valueBytes) {
+        this(path, oldPath, keyBytes, null, null, valueBytes);
     }
 
     VirtualLeafBytes(
             final long path,
+            final long oldPath,
             @NonNull final Bytes keyBytes,
             @Nullable final V value,
             @Nullable final Codec<V> valueCodec,
             @Nullable final Bytes valueBytes) {
         this.path = path;
+        this.oldPath = oldPath;
         this.keyBytes = Objects.requireNonNull(keyBytes);
         this.value = value;
         this.valueCodec = valueCodec;
@@ -86,6 +98,10 @@ public class VirtualLeafBytes<V> {
 
     public long path() {
         return path;
+    }
+
+    public long oldPath() {
+        return oldPath;
     }
 
     public Bytes keyBytes() {
@@ -137,15 +153,15 @@ public class VirtualLeafBytes<V> {
     }
 
     public VirtualLeafBytes<V> withPath(final long newPath) {
-        return new VirtualLeafBytes<>(newPath, keyBytes, value, valueCodec, valueBytes);
+        return new VirtualLeafBytes<>(newPath, path, keyBytes, value, valueCodec, valueBytes);
     }
 
     public VirtualLeafBytes<V> withValue(final V newValue, final Codec<V> newValueCodec) {
-        return new VirtualLeafBytes<>(path, keyBytes, newValue, newValueCodec);
+        return new VirtualLeafBytes<>(path, oldPath, keyBytes, newValue, newValueCodec);
     }
 
     public VirtualLeafBytes<V> withValueBytes(final Bytes newValueBytes) {
-        return new VirtualLeafBytes<>(path, keyBytes, newValueBytes);
+        return new VirtualLeafBytes<>(path, oldPath, keyBytes, newValueBytes);
     }
 
     /**
@@ -191,7 +207,7 @@ public class VirtualLeafBytes<V> {
         Objects.requireNonNull(keyBytes, "Missing key bytes in the input");
 
         // Key hash code is not deserialized
-        return new VirtualLeafBytes<>(path, keyBytes, valueBytes);
+        return new VirtualLeafBytes<>(path, path, keyBytes, valueBytes);
     }
 
     public int getSizeInBytes() {

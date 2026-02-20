@@ -53,6 +53,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
@@ -646,7 +647,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         if (path == INVALID_PATH) {
             // Cache the result if not already cached
             if (leafRecordCache != null && cached == null) {
-                leafRecordCache[cacheIndex] = new VirtualLeafBytes(path, keyBytes, null);
+                leafRecordCache[cacheIndex] = new VirtualLeafBytes(path, path, keyBytes, null);
             }
             return null;
         }
@@ -722,7 +723,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
 
         if (leafRecordCache != null) {
             // Path may be INVALID_PATH here. Still needs to be cached (negative result)
-            leafRecordCache[cacheIndex] = new VirtualLeafBytes(path, keyBytes, null);
+            leafRecordCache[cacheIndex] = new VirtualLeafBytes(path, path, keyBytes, null);
         }
 
         return path;
@@ -1203,10 +1204,12 @@ public final class MerkleDbDataSource implements VirtualDataSource {
 
         // Iterate over leaf records
         for (final VirtualLeafBytes<?> leafBytes : sortedDirtyLeaves) {
-            final long path = leafBytes.path();
-            // Update key to path index
-            keyToPath.put(leafBytes.keyBytes(), path);
-            statisticsUpdater.countFlushLeafKeysWritten();
+            if (leafBytes.path() != leafBytes.oldPath()) {
+                final long path = leafBytes.path();
+                // Update key to path index
+                keyToPath.put(leafBytes.keyBytes(), path);
+                statisticsUpdater.countFlushLeafKeysWritten();
+            }
 
             // cache the record
             invalidateReadCache(leafBytes.keyBytes());

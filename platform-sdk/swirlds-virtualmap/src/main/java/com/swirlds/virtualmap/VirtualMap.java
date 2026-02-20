@@ -713,8 +713,10 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
         assert currentModifyingThreadRef.compareAndSet(null, Thread.currentThread());
         try {
             requireNonNull(key, NO_NULL_KEYS_ALLOWED_MESSAGE);
-            final long path = records.findPath(key);
-            if (path == INVALID_PATH) {
+            final VirtualLeafBytes<?> existing = records.findLeafRecord(key);
+//            final long path = records.findPath(key);
+//            if (path == INVALID_PATH) {
+            if (existing == null) {
                 // The key is not stored. So add a new entry and return.
                 add(key, value, valueCodec, valueBytes);
                 statistics.countAddedEntities();
@@ -724,8 +726,8 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
 
             // FUTURE WORK: make VirtualLeafBytes.<init>(path, key, value, codec, bytes) public?
             final VirtualLeafBytes<V> leaf = valueCodec != null
-                    ? new VirtualLeafBytes<>(path, key, value, valueCodec)
-                    : new VirtualLeafBytes<>(path, key, valueBytes);
+                    ? new VirtualLeafBytes<>(existing.path(), existing.oldPath(), key, value, valueCodec)
+                    : new VirtualLeafBytes<>(existing.path(), existing.oldPath(), key, valueBytes);
             cache.putLeaf(leaf);
             statistics.countUpdatedEntities();
         } finally {
@@ -1549,8 +1551,8 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
 
         // FUTURE WORK: make VirtualLeafBytes.<init>(path, key, value, codec, bytes) public?
         final VirtualLeafBytes<V> newLeaf = valueCodec != null
-                ? new VirtualLeafBytes<>(leafPath, key, value, valueCodec)
-                : new VirtualLeafBytes<>(leafPath, key, valueBytes);
+                ? new VirtualLeafBytes<>(leafPath, -1, key, value, valueCodec)
+                : new VirtualLeafBytes<>(leafPath, -1, key, valueBytes);
         cache.putLeaf(newLeaf);
     }
 
