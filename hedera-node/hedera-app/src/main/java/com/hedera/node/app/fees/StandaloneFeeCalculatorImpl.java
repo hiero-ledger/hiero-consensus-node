@@ -98,6 +98,11 @@ public class StandaloneFeeCalculatorImpl implements StandaloneFeeCalculator {
         }
 
         @Override
+        public int getHighVolumeThrottleUtilization(final HederaFunctionality functionality) {
+            return 0;
+        }
+
+        @Override
         public FeeContext feeContext() {
             return null;
         }

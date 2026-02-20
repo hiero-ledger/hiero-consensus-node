@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.node.app.fees;
+package com.hedera.node.app.fees.context;
 
 import static com.hedera.hapi.util.HapiUtils.functionOf;
 import static java.util.Objects.requireNonNull;
@@ -11,6 +11,7 @@ import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.util.UnknownHederaFunctionality;
+import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.signature.AppKeyVerifier;
 import com.hedera.node.app.spi.authorization.Authorizer;
@@ -29,7 +30,7 @@ import java.time.Instant;
  * A {@link FeeContext} to use when computing the cost of a child transaction within
  * a given {@link com.hedera.node.app.spi.workflows.HandleContext}.
  */
-public class ChildFeeContextImpl implements FeeContext {
+public class ChildFeeContext implements FeeContext {
     private final FeeManager feeManager;
     private final FeeContext context;
     private final TransactionBody body;
@@ -46,7 +47,7 @@ public class ChildFeeContextImpl implements FeeContext {
     private final int signatureMapSize;
     private final HederaFunctionality functionality;
 
-    public ChildFeeContextImpl(
+    public ChildFeeContext(
             @NonNull final FeeManager feeManager,
             @NonNull final FeeContext context,
             @NonNull final TransactionBody body,
