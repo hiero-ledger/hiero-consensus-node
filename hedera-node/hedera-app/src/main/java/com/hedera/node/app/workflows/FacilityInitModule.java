@@ -46,7 +46,6 @@ import com.hedera.node.app.state.WorkingStateAccessor;
 import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.app.throttle.ThrottleServiceManager;
 import com.hedera.node.config.ConfigProvider;
-import com.hedera.node.config.data.FeesConfig;
 import com.hedera.node.config.data.FilesConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.types.StreamMode;
@@ -232,8 +231,11 @@ public interface FacilityInitModule {
                         schema.genesisExchangeRatesBytes(bootstrapConfig),
                         schema.genesisMidnightRates(bootstrapConfig));
                 feeManager.update(schema.genesisFeeSchedules(bootstrapConfig));
-                if (bootstrapConfig.getConfigData(FeesConfig.class).simpleFeesEnabled()) {
-                    feeManager.updateSimpleFees(schema.genesisSimpleFeesSchedules(bootstrapConfig));
+                final var simpleFeesUpdateStatus =
+                        feeManager.updateSimpleFees(schema.genesisSimpleFeesSchedules(bootstrapConfig));
+                if (simpleFeesUpdateStatus != SUCCESS) {
+                    throw new IllegalStateException(
+                            "Genesis simple fee schedules did not parse: " + simpleFeesUpdateStatus);
                 }
                 throttleServiceManager.init(state, schema.genesisThrottleDefinitions(bootstrapConfig), true);
             }
@@ -276,24 +278,14 @@ public interface FacilityInitModule {
             log.error("State file 0.0.{} did not contain parseable fee schedules ({})", fileNum, status);
         }
 
-        {
-            final var feesConfig = configProvider.getConfiguration().getConfigData(FeesConfig.class);
-            if (feesConfig.simpleFeesEnabled()) {
-                final var simpleFileNum = filesConfig.simpleFeesSchedules();
-                final var simpleFile = requireNonNull(
-                        getFileFromStorage(state, configProvider, simpleFileNum),
-                        "The initialized state had no fee schedule file 0.0." + simpleFileNum);
-                final var simpleStatus = feeManager.updateSimpleFees(simpleFile.contents());
-                if (simpleStatus != SUCCESS) {
-                    // (FUTURE) Ideally this would be a fatal error, but unlike the exchange rates file, it
-                    // is possible with the current design for state to include a partial fee schedules file,
-                    // so we cannot fail hard here
-                    log.error(
-                            "State file 0.0.{} did not contain parseable fee schedules ({})",
-                            simpleFileNum,
-                            simpleStatus);
-                }
-            }
+        final var simpleFileNum = filesConfig.simpleFeesSchedules();
+        final var simpleFile = requireNonNull(
+                getFileFromStorage(state, configProvider, simpleFileNum),
+                "The initialized state had no fee schedule file 0.0." + simpleFileNum);
+        final var simpleStatus = feeManager.updateSimpleFees(simpleFile.contents());
+        if (simpleStatus != SUCCESS) {
+            throw new IllegalStateException("State file 0.0." + simpleFileNum
+                    + " did not contain parseable simple fee schedules (" + simpleStatus + ")");
         }
     }
 

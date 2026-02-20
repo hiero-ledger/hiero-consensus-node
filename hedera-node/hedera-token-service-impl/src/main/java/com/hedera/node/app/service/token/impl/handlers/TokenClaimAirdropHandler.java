@@ -275,12 +275,15 @@ public class TokenClaimAirdropHandler extends TransferExecutor implements Transa
             @NonNull final List<TokenTransferList> transfers,
             @NonNull final HandleContext context,
             @NonNull final CryptoTransferStreamBuilder recordBuilder) {
+        final var isHighVolume = context.body().highVolume();
         final var cryptoTransferBody = CryptoTransferTransactionBody.newBuilder()
                 .tokenTransfers(transfers)
                 .build();
-        final var syntheticCryptoTransferTxn =
-                TransactionBody.newBuilder().cryptoTransfer(cryptoTransferBody).build();
-        final var transferContext = new TransferContextImpl(context, cryptoTransferBody, true);
+        final var syntheticCryptoTransferTxn = TransactionBody.newBuilder()
+                .cryptoTransfer(cryptoTransferBody)
+                .highVolume(isHighVolume)
+                .build();
+        final var transferContext = new TransferContextImpl(context, cryptoTransferBody, true, isHighVolume);
         // We should skip custom fee steps here, because they must be already prepaid
         executeCryptoTransferWithoutCustomFee(syntheticCryptoTransferTxn, transferContext, context, recordBuilder);
     }
