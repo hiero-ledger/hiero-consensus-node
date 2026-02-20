@@ -24,7 +24,7 @@ import static com.hedera.node.app.throttle.ThrottleAccumulator.ThrottleType.FRON
 import static com.hedera.node.app.throttle.ThrottleAccumulator.ThrottleType.NOOP_THROTTLE;
 import static java.util.Collections.emptyList;
 import static java.util.Objects.requireNonNull;
-import static org.hiero.hapi.fees.HighVolumePricingCalculator.HIGH_VOLUME_FUNCTIONS;
+import static org.hiero.hapi.fees.HighVolumePricingCalculator.HIGH_VOLUME_THROTTLE_FUNCTIONS;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.node.base.AccountAmount;
@@ -513,7 +513,7 @@ public class ThrottleAccumulator {
 
         // Check if this is a high-volume transaction and use appropriate throttle bucket
         final boolean isHighVolumeTxn = txBody.highVolume();
-        final boolean isHighVolumeFunction = HIGH_VOLUME_FUNCTIONS.contains(function);
+        final boolean isHighVolumeFunction = HIGH_VOLUME_THROTTLE_FUNCTIONS.contains(function);
         final boolean useHighVolumeBucket = shouldUseHighVolumeBucket(
                 isHighVolumeTxn, isHighVolumeFunction, function, transferImplicitCreationsCount);
         final var targetFunctionReqs = useHighVolumeBucket ? highVolumeFunctionReqs : functionReqs;

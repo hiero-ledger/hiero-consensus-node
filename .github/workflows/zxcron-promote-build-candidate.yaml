@@ -292,7 +292,7 @@ jobs:
           webhook: ${{ secrets.SLACK_CITR_BUILD_PROMOTION_WEBHOOK }}
           webhook-type: incoming-webhook
           payload-templated: true
-          payload: slack_payload.json
+          payload-file-path: slack_payload.json
 
   report-no-promotion:
     name: Report No Build Promotion

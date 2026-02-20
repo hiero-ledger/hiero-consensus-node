@@ -1353,7 +1353,7 @@ jobs:
                 "${crypto_transfer_load_result}" == "success" && \
                 "${heli_swap_load_result}" == "success" && \
                 "${smart_contract_load_result}" == "success" && \
-                "${validator_result}" != "" ]]; then
+                "${validator_result}" == "0" ]]; then
               RESULT="success"
           fi
 

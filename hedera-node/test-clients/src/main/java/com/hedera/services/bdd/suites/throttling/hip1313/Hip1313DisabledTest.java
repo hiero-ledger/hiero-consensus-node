@@ -3,6 +3,7 @@ package com.hedera.services.bdd.suites.throttling.hip1313;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.PROPERTY_OVERRIDES;
 import static com.hedera.services.bdd.junit.ContextRequirement.THROTTLE_OVERRIDES;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SIMPLE_FEES;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.createTopic;
@@ -15,39 +16,43 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
 
-import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.TestMethodOrder;
 
 @Tag(SIMPLE_FEES)
+@Tag(MATS)
 @HapiTestLifecycle
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 public class Hip1313DisabledTest {
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(
-                Map.of("fees.simpleFeesEnabled", "false", "networkAdmin.highVolumeThrottlesEnabled", "false"));
         testLifecycle.doAdhoc(cryptoCreate(CIVILIAN_PAYER).balance(ONE_MILLION_HBARS));
-    }
-
-    @HapiTest
-    final Stream<DynamicTest> highVolumeTxnRejectedWhenFeatureDisabled() {
-        return hapiTest(createTopic("hvDisabledTopic")
-                .payingWith(CIVILIAN_PAYER)
-                .withHighVolume()
-                .hasPrecheck(NOT_SUPPORTED));
     }
 
     @LeakyHapiTest(
             requirement = {PROPERTY_OVERRIDES},
-            overrides = {"fees.simpleFeesEnabled"})
+            overrides = {"fees.simpleFeesEnabled", "networkAdmin.highVolumeThrottlesEnabled"})
+    final Stream<DynamicTest> highVolumeTxnRejectedWhenFeatureDisabled() {
+        return hapiTest(
+                overridingTwo("fees.simpleFeesEnabled", "false", "networkAdmin.highVolumeThrottlesEnabled", "false"),
+                createTopic("hvDisabledTopic")
+                        .payingWith(CIVILIAN_PAYER)
+                        .withHighVolume()
+                        .hasPrecheck(NOT_SUPPORTED));
+    }
+
+    @LeakyHapiTest(
+            requirement = {PROPERTY_OVERRIDES},
+            overrides = {"fees.simpleFeesEnabled", "networkAdmin.highVolumeThrottlesEnabled"})
     final Stream<DynamicTest> highVolumeTxnRejectedWhenSimpleFeesEnabledButHighVolumeThrottlesDisabled() {
         return hapiTest(
                 overridingTwo("fees.simpleFeesEnabled", "true", "networkAdmin.highVolumeThrottlesEnabled", "false"),
@@ -58,23 +63,12 @@ public class Hip1313DisabledTest {
     }
 
     @LeakyHapiTest(
-            requirement = {PROPERTY_OVERRIDES},
-            overrides = {"networkAdmin.highVolumeThrottlesEnabled"})
-    final Stream<DynamicTest> highVolumeTxnRejectedWhenHighVolumeThrottlesEnabledButSimpleFeesDisabled() {
-        return hapiTest(
-                overridingTwo("fees.simpleFeesEnabled", "false", "networkAdmin.highVolumeThrottlesEnabled", "true"),
-                createTopic("hvRequiresSimpleFeesFlag")
-                        .payingWith(CIVILIAN_PAYER)
-                        .withHighVolume()
-                        .hasPrecheck(NOT_SUPPORTED));
-    }
-
-    @LeakyHapiTest(
-            requirement = {PROPERTY_OVERRIDES, THROTTLE_OVERRIDES},
-            overrides = {"networkAdmin.highVolumeThrottlesEnabled", "fees.simpleFeesEnabled"},
+            requirement = {THROTTLE_OVERRIDES, PROPERTY_OVERRIDES},
+            overrides = {"fees.simpleFeesEnabled", "networkAdmin.highVolumeThrottlesEnabled"},
             throttles = "testSystemFiles/hip1313-disabled-one-tps-create.json")
     final Stream<DynamicTest> existingThrottlesStillApplyWhenHip1313Disabled() {
         return hapiTest(
+                overridingTwo("fees.simpleFeesEnabled", "true", "networkAdmin.highVolumeThrottlesEnabled", "false"),
                 overridingThrottles("testSystemFiles/hip1313-disabled-one-tps-create.json"),
                 cryptoCreate("regularCreateA")
                         .payingWith(CIVILIAN_PAYER)
