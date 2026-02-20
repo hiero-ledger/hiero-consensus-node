@@ -99,6 +99,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -328,6 +329,7 @@ public class ConcurrentIntegrationTests {
         final AtomicReference<ProtoBytes> activeRosterHash = new AtomicReference<>();
         final AtomicReference<Bytes> oldRosterCert = new AtomicReference<>();
         final AtomicReference<ProtoBytes> candidateRosterHash = new AtomicReference<>();
+        final AtomicLong candidateWeightBeforeBoundary = new AtomicLong();
         final byte[] updatedCert = gossipCertificates.get(1).getEncoded();
 
         return hapiTest(
@@ -371,11 +373,20 @@ public class ConcurrentIntegrationTests {
                                     .filter(e -> e.nodeId() == 0L)
                                     .findFirst()
                                     .orElseThrow();
+                            candidateWeightBeforeBoundary.set(node0Entry.weight());
                             assertEquals(
                                     Bytes.wrap(updatedCert),
                                     node0Entry.gossipCaCertificate(),
                                     "Candidate roster did not reflect updated cert");
                         })),
+                // Seed stakeToReward so EndOfStakingPeriodUpdater computes non-zero stakes/weights at the boundary
+                // Note: ReadableStakingInfoStore.weightFunction() uses nodeInfo.stake(), but EndOfStakingPeriodUpdater
+                // recomputes stake from stakeToReward + stakeToNotReward at the boundary (so we set stakeToReward
+                // here).
+                mutateStakingInfos("0", node -> node.stakeToReward(ONE_HUNDRED_HBARS)),
+                mutateStakingInfos("1", node -> node.stakeToReward(ONE_HUNDRED_HBARS)),
+                mutateStakingInfos("2", node -> node.stakeToReward(ONE_HUNDRED_HBARS)),
+                mutateStakingInfos("3", node -> node.stakeToReward(ONE_HUNDRED_HBARS)),
                 // Cross a staking period boundary and submit a txn to trigger stake period side effects
                 waitUntilStartOfNextStakingPeriod(1),
                 cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1L)),
@@ -399,6 +410,14 @@ public class ConcurrentIntegrationTests {
                                     oldRosterCert.get(),
                                     node0Entry.gossipCaCertificate(),
                                     "Reweighted candidate roster unexpectedly matches old active roster cert");
+                            assertEquals(
+                                    ONE_HUNDRED_HBARS,
+                                    node0Entry.weight(),
+                                    "Candidate roster did not reflect recalculated (non-zero) staking weight");
+                            assertNotEquals(
+                                    candidateWeightBeforeBoundary.get(),
+                                    node0Entry.weight(),
+                                    "Candidate roster weight did not change at stake boundary");
                         })));
     }
 
