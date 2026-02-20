@@ -714,8 +714,8 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
         assert currentModifyingThreadRef.compareAndSet(null, Thread.currentThread());
         try {
             requireNonNull(key, NO_NULL_KEYS_ALLOWED_MESSAGE);
-            final VirtualLeafBytes<V> existing = records.findLeafRecord(key);
-            if (existing == null) {
+            final long path = records.findPath(key);
+            if (path == INVALID_PATH) {
                 // The key is not stored. So add a new entry and return.
                 add(key, value, valueCodec, valueBytes);
                 statistics.countAddedEntities();
@@ -723,6 +723,8 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
                 return;
             }
 
+            final VirtualLeafBytes<V> existing = records.findLeafRecord(path);
+            assert existing != null;
             final VirtualLeafBytes<V> updated =
                     valueCodec != null ? existing.withValue(value, valueCodec) : existing.withValueBytes(valueBytes);
             cache.putLeaf(updated);

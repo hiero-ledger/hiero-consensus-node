@@ -14,6 +14,7 @@ import com.hedera.pbj.runtime.ProtoWriterTools;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
+import com.swirlds.virtualmap.internal.Path;
 import com.swirlds.virtualmap.test.fixtures.TestKey;
 import com.swirlds.virtualmap.test.fixtures.TestValue;
 import com.swirlds.virtualmap.test.fixtures.TestValueCodec;
@@ -389,5 +390,12 @@ class VirtualLeafBytesTest {
 
         final VirtualLeafBytes<TestValue> movedBack = moved.withPath(deserialized.path());
         assertFalse(movedBack.isNewOrMoved(), "Should not be new/moved when moved to the original path");
+    }
+
+    @Test
+    void isNewOrUpdatedIsTrueForInvalidPaths() {
+        final Bytes key = TestKey.longToKey(RANDOM.nextLong());
+        final VirtualLeafBytes<TestValue> leaf = new VirtualLeafBytes<>(Path.INVALID_PATH, key, Bytes.EMPTY);
+        assertTrue(leaf.isNewOrMoved(), "Leaf with invalid path should be new/moved");
     }
 }

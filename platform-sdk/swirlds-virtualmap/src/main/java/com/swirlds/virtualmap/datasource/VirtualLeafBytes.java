@@ -14,6 +14,7 @@ import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.utility.ToStringBuilder;
 import com.swirlds.virtualmap.internal.Path;
+import com.swirlds.virtualmap.internal.cache.VirtualNodeCache;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -117,10 +118,14 @@ public class VirtualLeafBytes<V> {
     /**
      * Indicates if this leaf record's path is different from where it was when loaded from
      * disk. If the record was not loaded at all but created as new, the old path is set to
-     * -1, and this method still returns true.
+     * an invalid path, and this method still returns true.
+     *
+     * <p>If both path and pathOnDisk are Path.INVALID_PATH, this method returns true. Such
+     * leaf records should never be used for any purposes than marker instances like {@link
+     * VirtualNodeCache#DELETED_LEAF_RECORD}.
      */
     public boolean isNewOrMoved() {
-        return path != pathOnDisk;
+        return (path < 0) || (path != pathOnDisk);
     }
 
     public Bytes keyBytes() {
