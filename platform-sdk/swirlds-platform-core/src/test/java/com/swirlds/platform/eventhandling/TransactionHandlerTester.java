@@ -64,11 +64,8 @@ public class TransactionHandlerTester implements AutoCloseable {
 
         when(consensusStateEventHandler.onSealConsensusRound(any(), any())).thenReturn(true);
         stateLifecycleManager = new StateLifecycleManagerImpl(
-                platformContext.getMetrics(),
-                platformContext.getTime(),
-                vm -> state.getState(),
-                platformContext.getConfiguration());
-        stateLifecycleManager.initState(state.getState());
+                platformContext.getMetrics(), platformContext.getTime(), platformContext.getConfiguration());
+        stateLifecycleManager.initStateOnReconnect(state.getState());
         doAnswer(i -> {
                     handledRounds.add(i.getArgument(0));
                     return null;

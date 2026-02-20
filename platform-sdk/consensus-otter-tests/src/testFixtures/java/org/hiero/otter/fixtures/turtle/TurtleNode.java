@@ -7,7 +7,7 @@ import static com.swirlds.platform.state.signed.StartupStateUtils.loadInitialSta
 import static java.util.Objects.requireNonNull;
 import static org.assertj.core.api.Assertions.fail;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
-import static org.hiero.otter.fixtures.app.OtterStateUtils.createGenesisState;
+import static org.hiero.otter.fixtures.app.OtterStateUtils.initGenesisState;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.DESTROYED;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.INIT;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.RUNNING;
@@ -35,7 +35,6 @@ import com.swirlds.platform.wiring.PlatformComponents;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.state.merkle.VirtualMapState;
-import com.swirlds.state.merkle.VirtualMapStateImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -231,11 +230,8 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                     .withRecycleBin(recycleBin)
                     .build();
 
-            final StateLifecycleManager stateLifecycleManager = new StateLifecycleManagerImpl(
-                    metrics,
-                    timeManager.time(),
-                    virtualMap -> new VirtualMapStateImpl(virtualMap, metrics),
-                    currentConfiguration);
+            final StateLifecycleManager stateLifecycleManager =
+                    new StateLifecycleManagerImpl(metrics, timeManager.time(), currentConfiguration);
 
             model = WiringModelBuilder.create(platformContext.getMetrics(), timeManager.time())
                     .deterministic()
@@ -247,12 +243,15 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             final HashedReservedSignedState reservedState = loadInitialState(
                     recycleBin,
                     version,
-                    () -> createGenesisState(currentConfiguration, metrics, roster(), version, otterApp.allServices()),
                     OtterApp.APP_NAME,
                     OtterApp.SWIRLD_NAME,
                     selfId,
                     platformContext,
                     stateLifecycleManager);
+
+            if (reservedState.state().get().isGenesisState()) {
+                initGenesisState(reservedState.state().get().getState(), roster(), version, otterApp.allServices());
+            }
 
             final ReservedSignedState initialState = reservedState.state();
             final VirtualMapState state = initialState.get().getState();

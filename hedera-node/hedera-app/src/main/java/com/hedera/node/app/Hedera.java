@@ -358,11 +358,6 @@ public final class Hedera
     private final ImmediateStateChangeListener immediateStateChangeListener = new ImmediateStateChangeListener();
 
     /**
-     * The state root supplier to use for creating a new state root.
-     */
-    private final Supplier<VirtualMapState> stateRootSupplier;
-
-    /**
      * The action to take, if any, when a consensus round is sealed.
      */
     private final BiPredicate<Round, State> onSealConsensusRound;
@@ -444,7 +439,6 @@ public final class Hedera
      * @param configuration the configuration to use for the node
      * @param metrics the metrics object to use for reporting
      * @param time the time source to use for measuring time
-     * @param baseSupplier the base supplier to create a new state with
      */
     public Hedera(
             @NonNull final ConstructableRegistry constructableRegistry,
@@ -457,8 +451,7 @@ public final class Hedera
             @NonNull final BlockHashSignerFactory blockHashSignerFactory,
             @NonNull final Configuration configuration,
             @NonNull final Metrics metrics,
-            @NonNull final Time time,
-            @NonNull final Supplier<VirtualMapState> baseSupplier) {
+            @NonNull final Time time) {
         requireNonNull(registryFactory);
         requireNonNull(constructableRegistry);
         requireNonNull(hintsServiceFactory);
@@ -562,10 +555,8 @@ public final class Hedera
                         platformStateService)
                 .forEach(servicesRegistry::register);
         final var blockStreamsEnabled = isBlockStreamEnabled();
-        stateRootSupplier = blockStreamsEnabled ? () -> withListeners(baseSupplier.get()) : baseSupplier;
         onSealConsensusRound = blockStreamsEnabled ? this::manageBlockEndRound : (round, state) -> true;
-        stateLifecycleManager = new StateLifecycleManagerImpl(
-                metrics, time, virtualMap -> new VirtualMapStateImpl(virtualMap, metrics), configuration);
+        stateLifecycleManager = new StateLifecycleManagerImpl(metrics, time, configuration);
     }
 
     /**
@@ -582,19 +573,6 @@ public final class Hedera
     * Initialization Step 1: Create a new state (either genesis or restart, once per node).
     *
     =================================================================================================================*/
-
-    /**
-     * {@inheritDoc}
-     *
-     * <p>Called by the platform to build a genesis state.
-     *
-     * @return a Services state object
-     */
-    @Override
-    @NonNull
-    public VirtualMapState newStateRoot() {
-        return stateRootSupplier.get();
-    }
 
     /**
      * {@inheritDoc}
@@ -716,6 +694,8 @@ public final class Hedera
                 deserializedVersion == null ? "<NONE>" : deserializedVersion);
         if (trigger != GENESIS) {
             requireNonNull(deserializedVersion, "Deserialized version cannot be null for trigger " + trigger);
+        }
+        if (isBlockStreamEnabled()) {
             withListeners(state);
         }
         if (SEMANTIC_VERSION_COMPARATOR.compare(version, deserializedVersion) < 0) {
@@ -742,7 +722,7 @@ public final class Hedera
 
     /**
      * Invoked by the platform when the state should be initialized. This happens <b>BEFORE</b>
-     * {@link SwirldMain#init(Platform, NodeId)} and after {@link SwirldMain#newStateRoot()}.
+     * {@link SwirldMain#init(Platform, NodeId)}.
      */
     @Override
     @SuppressWarnings("java:S1181") // catching Throwable instead of Exception when we do a direct System.exit()
@@ -759,7 +739,8 @@ public final class Hedera
             throw new IllegalStateException("Platform should never change once set");
         }
         this.platform = requireNonNull(platform);
-        if (state.getReadableStates(EntityIdService.NAME).isEmpty()) {
+        //  Reconnect states are constructed from raw VirtualMap and need schema metadata initialization.
+        if (trigger == InitTrigger.RECONNECT) {
             initializeStatesApi(state, trigger, platform.getContext().getConfiguration());
         }
         // With the States API grounded in the working state, we can create the object graph from it
@@ -850,12 +831,12 @@ public final class Hedera
     /**
      * {@inheritDoc}
      *
-     * <p>Called <b>AFTER</b> init and migrate have been called on the state (either the new state created from
-     * {@link SwirldMain#newStateRoot()} or an instance of {@link VirtualMapState} created by the platform and
+     * <p>Called <b>AFTER</b> init and migrate have been called on the state (either the new state
+     * or an instance of {@link VirtualMapState} created by the platform and
      * loaded from the saved state).
      *
-     * <p>(FUTURE) Consider moving this initialization into {@code onStateInitialized()} instead, as there is no
-     * special significance to having it here instead.
+     * <p>(FUTURE) Consider moving this initialization into {@link #onStateInitialized(State, Platform, InitTrigger, SemanticVersion)}
+     * instead, as there is no special significance to having it here instead.
      */
     @SuppressWarnings("java:S1181") // catching Throwable instead of Exception when we do a direct System.exit()
     @Override

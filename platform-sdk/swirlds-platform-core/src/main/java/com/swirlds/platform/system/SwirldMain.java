@@ -49,23 +49,6 @@ public interface SwirldMain extends Runnable, ExecutionLayer {
     StateLifecycleManager<VirtualMapState, VirtualMap> getStateLifecycleManager();
 
     /**
-     * Instantiate and return a state root object for this SwirldMain object.
-     * The returned state root object could be one of the following:
-     * <ul>
-     *     <li>(Deprecated) Actual root node of the merkle state tree
-     *         - an instance of {@code HederaStateRoot}.
-     *     </li>
-     *     <li>A wrapper around the root node
-     *         - an instance of {@code VirtualMapStateImpl}.
-     *     </li>
-     * </ul>
-     *
-     * @return state root object
-     */
-    @NonNull
-    State newStateRoot();
-
-    /**
      * Instantiate and return a new instance of the consensus state event handler for this SwirldMain object.
      * @return consensus state event handler
      */

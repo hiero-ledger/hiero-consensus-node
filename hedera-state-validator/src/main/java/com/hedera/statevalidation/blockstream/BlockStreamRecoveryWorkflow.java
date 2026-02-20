@@ -17,7 +17,6 @@ import com.swirlds.platform.state.snapshot.SignedStateFileWriter;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.state.merkle.VirtualMapState;
-import com.swirlds.state.merkle.VirtualMapStateImpl;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -144,10 +143,7 @@ public class BlockStreamRecoveryWorkflow {
                 false);
 
         final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager = new StateLifecycleManagerImpl(
-                platformContext.getMetrics(),
-                platformContext.getTime(),
-                vm -> new VirtualMapStateImpl(vm, platformContext.getMetrics()),
-                platformContext.getConfiguration());
+                platformContext.getMetrics(), platformContext.getTime(), platformContext.getConfiguration());
         try {
             SignedStateFileWriter.writeSignedStateFilesToDirectory(
                     platformContext, selfId, outputPath, signedState, stateLifecycleManager);

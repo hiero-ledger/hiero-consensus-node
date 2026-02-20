@@ -4,6 +4,7 @@ package com.swirlds.state;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Path;
+import org.hiero.base.crypto.Hash;
 
 /**
  * Implementations of this interface are responsible for managing the state lifecycle:
@@ -13,6 +14,12 @@ import java.nio.file.Path;
  * <li>Loading snapshots of the state.</li>
  * <li>Creating a mutable copy of the state, while making the current mutable state immutable.</li>
  * </ul>
+ * <p>
+ * An implementation creates an initial genesis state eagerly upon construction. This genesis state is
+ * immediately available via {@link #getMutableState()}. If the node is restarting from a saved state,
+ * calling {@link #loadSnapshot(Path)} will replace the genesis state with the loaded state. If the node
+ * is reconnecting, calling {@link #initStateOnReconnect(Object)} will replace the current state with
+ * the reconnect state.
  *
  * @param <S> the type of the state
  * @param <D> the type of the root node of a Merkle tree
@@ -25,20 +32,6 @@ public interface StateLifecycleManager<S, D> {
      * @return a state created from the root node
      */
     S createStateFrom(@NonNull D rootNode);
-
-    /**
-     * Set the initial State. This method should only be on a startup
-     *
-     * @param state the initial state
-     * @throws IllegalStateException if the state has already been initialized
-     */
-    void initState(@NonNull S state);
-
-    /**
-     * Initialize with the state on reconnect. This method should only be called on a reconnect.
-     * @param state the state to initialize with
-     */
-    void initStateOnReconnect(@NonNull S state);
 
     /**
      * Get the mutable state. Consecutive calls to this method may return different instances,
@@ -75,12 +68,24 @@ public interface StateLifecycleManager<S, D> {
     void createSnapshot(@NonNull S state, @NonNull Path targetPath);
 
     /**
-     * Loads a snapshot of a state.
+     * Loads a snapshot of a state from disk, initializes the manager with the loaded state (replacing the
+     * eagerly-created genesis state), and returns the hash of the original immutable snapshot as it was on disk.
+     * After this call, the loaded state is available via {@link #getMutableState()}.
      *
      * @param targetPath The path to load the snapshot from.
-     * @return mutable copy of the loaded state
+     * @return the hash of the original (pre-copy) immutable state as stored on disk
+     * @throws IOException if the snapshot cannot be read
      */
-    S loadSnapshot(@NonNull Path targetPath) throws IOException;
+    @NonNull
+    Hash loadSnapshot(@NonNull Path targetPath) throws IOException;
+
+    /**
+     * Initialize with the state on reconnect. This method should only be called on a reconnect.
+     * The manager wraps the provided root node in a state object and re-initializes itself with it.
+     *
+     * @param state the state received from the reconnect peer
+     */
+    void initStateOnReconnect(@NonNull S state);
 
     /**
      * Creates a mutable copy of the mutable state. The previous mutable state becomes immutable,

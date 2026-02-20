@@ -30,7 +30,6 @@ import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.state.spi.WritableQueueState;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.test.fixtures.merkle.MerkleTestBase;
-import com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.config.VirtualMapConfig_;
@@ -131,11 +130,13 @@ class SerializationTest extends MerkleTestBase {
         stateLifecycleManager.createSnapshot(originalTree, tempDir);
         originalTree.release();
 
-        final VirtualMapState state = stateLifecycleManager.loadSnapshot(tempDir);
+        stateLifecycleManager.loadSnapshot(tempDir);
+        final VirtualMapState state = stateLifecycleManager.getMutableState();
         initServices(schemaV1, state);
         assertTree(state);
 
         state.release();
+        stateLifecycleManager.getLatestImmutableState().release();
     }
 
     private void initServices(Schema<SemanticVersion> schemaV1, VirtualMapState loadedTree) {
@@ -174,10 +175,10 @@ class SerializationTest extends MerkleTestBase {
                 startupNetworks,
                 InitTrigger.GENESIS);
 
-        final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager = new StateLifecycleManagerImpl(
-                new NoOpMetrics(), new FakeTime(), VirtualMapStateTestUtils::createTestStateWithVM, config);
+        final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =
+                new StateLifecycleManagerImpl(new NoOpMetrics(), new FakeTime(), config);
 
-        stateLifecycleManager.initState(originalTreeCopy);
+        stateLifecycleManager.initStateOnReconnect(originalTreeCopy);
         return stateLifecycleManager;
     }
 

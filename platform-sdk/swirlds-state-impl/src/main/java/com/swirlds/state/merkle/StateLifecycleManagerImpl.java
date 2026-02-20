@@ -18,23 +18,30 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.Hash;
 
 /**
  * This class is responsible for maintaining references to the mutable state and the latest immutable state.
  * It also updates these references upon request.
+ * <p>
+ * Upon construction, a genesis {@link VirtualMapStateImpl} is created eagerly and is immediately available
+ * via {@link #getMutableState()}. If the node is restarting from a saved state, calling
+ * {@link #loadSnapshot(Path)} will replace the genesis state with the loaded state. If the node is
+ * reconnecting, calling {@link #initStateOnReconnect(VirtualMapState)} will replace the current state with
+ * the reconnect state.
+ * <p>
  * This implementation is NOT thread-safe. However, it provides the following guarantees:
  * <ul>
- * <li>After {@link #initState(VirtualMapState)}, calls to {@link #getMutableState()} and {@link #getLatestImmutableState()} will always return
+ * <li>After construction, calls to {@link #getMutableState()} and {@link #getLatestImmutableState()} will always return
  * non-null values.</li>
  * <li>After {@link #copyMutableState()}, the updated mutable state will be visible and available to all threads via {@link #getMutableState()}, and
  * the updated latest immutable state will be visible and available to all threads via {@link #getLatestImmutableState()}.</li>
  * </ul>
  *
- * <b>Important:</b> {@link #initState(VirtualMapState)} and {@link #copyMutableState()} are NOT supposed to be called from multiple threads.
- * They only provide the happens-before guarantees that are described above.
+ * <b>Important:</b> {@link #copyMutableState()} is NOT supposed to be called from multiple threads.
+ * It only provides the happens-before guarantees that are described above.
  */
 public class StateLifecycleManagerImpl implements StateLifecycleManager<VirtualMapState, VirtualMap> {
 
@@ -61,11 +68,6 @@ public class StateLifecycleManagerImpl implements StateLifecycleManager<VirtualM
     private final Metrics metrics;
 
     /**
-     * A factory object to create an instance of a class implementing {@link VirtualMapState} from a {@link VirtualMap}
-     */
-    private final Function<VirtualMap, VirtualMapState> stateSupplier;
-
-    /**
      * reference to the state that reflects all known consensus transactions
      */
     private final AtomicReference<VirtualMapState> stateRef = new AtomicReference<>();
@@ -79,59 +81,26 @@ public class StateLifecycleManagerImpl implements StateLifecycleManager<VirtualM
     private final Configuration configuration;
 
     /**
-     * Constructor.
+     * Constructor. Creates an initial genesis state eagerly, which is immediately available via
+     * {@link #getMutableState()}.
      *
      * @param metrics the metrics object to gather state metrics
      * @param time the time object
-     * @param stateSupplier a factory object to create an instance of a class implementing {@link VirtualMapState} from a {@link VirtualMap}
+     * @param configuration the configuration
      */
     public StateLifecycleManagerImpl(
-            @NonNull final Metrics metrics,
-            @NonNull final Time time,
-            @NonNull final Function<VirtualMap, VirtualMapState> stateSupplier,
-            @NonNull final Configuration configuration) {
+            @NonNull final Metrics metrics, @NonNull final Time time, @NonNull final Configuration configuration) {
         this.configuration = requireNonNull(configuration);
         this.metrics = requireNonNull(metrics);
         this.time = requireNonNull(time);
-        this.stateSupplier = stateSupplier;
         this.stateMetrics = new StateMetrics(metrics);
         this.snapshotMetrics = new MerkleRootSnapshotMetrics(metrics);
-    }
 
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public VirtualMapState createStateFrom(@NonNull VirtualMap rootNode) {
-        return stateSupplier.apply(rootNode);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    public void initState(@NonNull final VirtualMapState state) {
-        requireNonNull(state);
-
-        state.throwIfDestroyed("state must not be destroyed");
-        state.throwIfImmutable("state must be mutable");
-
-        if (stateRef.get() != null) {
-            throw new IllegalStateException("Attempt to set initial state when there is already a state reference.");
-        }
-
-        copyAndUpdateStateRefs(state);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void initStateOnReconnect(@NonNull VirtualMapState state) {
-        requireNonNull(state);
-        state.throwIfDestroyed("rootNode must not be destroyed");
-        state.throwIfImmutable("rootNode must be mutable");
-
-        copyAndUpdateStateRefs(state);
+        // Eagerly create a genesis state so getMutableState() is always valid after construction.
+        // If the node is restarting from a snapshot, loadSnapshot() will replace this genesis state.
+        final VirtualMapStateImpl genesisState = new VirtualMapStateImpl(configuration, metrics);
+        genesisState.getRoot().reserve();
+        stateRef.set(genesisState);
     }
 
     /**
@@ -140,11 +109,7 @@ public class StateLifecycleManagerImpl implements StateLifecycleManager<VirtualM
     @NonNull
     @Override
     public VirtualMapState getMutableState() {
-        final VirtualMapState mutableState = stateRef.get();
-        if (mutableState == null) {
-            throw new IllegalStateException("StateLifecycleManager has not been initialized.");
-        }
-        return mutableState;
+        return stateRef.get();
     }
 
     /**
@@ -153,11 +118,7 @@ public class StateLifecycleManagerImpl implements StateLifecycleManager<VirtualM
     @Override
     @NonNull
     public VirtualMapState getLatestImmutableState() {
-        final VirtualMapState latestImmutableState = latestImmutableStateRef.get();
-        if (latestImmutableState == null) {
-            throw new IllegalStateException("StateLifecycleManager has not been initialized.");
-        }
-        return latestImmutableState;
+        return latestImmutableStateRef.get();
     }
 
     /**
@@ -172,7 +133,8 @@ public class StateLifecycleManagerImpl implements StateLifecycleManager<VirtualM
     }
 
     /**
-     * Copies the provided to and updates both the latest immutable to and the mutable to reference.
+     * Copies the provided state and updates both the latest immutable state and the mutable state reference.
+     *
      * @param stateToCopy the state to copy and update references for
      */
     private void copyAndUpdateStateRefs(final @NonNull VirtualMapState stateToCopy) {
@@ -204,8 +166,7 @@ public class StateLifecycleManagerImpl implements StateLifecycleManager<VirtualM
             }
         }
         // Do not increment the reference count because the stateToCopy provided already has a reference count of at
-        // least
-        // one to represent this reference and to prevent it from being deleted before this reference is set.
+        // least one to represent this reference and to prevent it from being deleted before this reference is set.
         stateRef.set(newMutableState);
     }
 
@@ -236,19 +197,57 @@ public class StateLifecycleManagerImpl implements StateLifecycleManager<VirtualM
 
     /**
      * {@inheritDoc}
+     * <p>
+     * Loads a {@link VirtualMap} from the given directory, wraps it in a {@link VirtualMapStateImpl},
+     * and replaces the current mutable state (including the eagerly-created genesis state) with the loaded state.
+     * The loaded state is immediately available via {@link #getMutableState()} after this call returns.
+     *
+     * @return the hash of the original immutable snapshot as it was stored on disk (captured before the mutable copy
+     *         is made)
      */
     @NonNull
     @Override
-    public VirtualMapState loadSnapshot(@NonNull final Path targetPath) throws IOException {
-        final VirtualMap virtualMap;
+    public Hash loadSnapshot(@NonNull final Path targetPath) throws IOException {
         log.info(STARTUP.getMarker(), "Loading snapshot from disk {}", targetPath);
-        virtualMap = VirtualMap.loadFromDirectory(
+        final VirtualMap virtualMap = VirtualMap.loadFromDirectory(
                 targetPath, configuration, () -> new MerkleDbDataSourceBuilder(configuration));
 
+        // Capture the hash of the original immutable snapshot before releasing it
+        final Hash originalHash = virtualMap.getHash();
+
         final VirtualMap mutableCopy = virtualMap.copy();
-        mutableCopy.registerMetrics(metrics);
         virtualMap.release();
 
-        return stateSupplier.apply(mutableCopy);
+        // VirtualMapStateImpl constructor calls registerMetrics internally
+        final VirtualMapStateImpl loadedState = new VirtualMapStateImpl(mutableCopy, metrics);
+        if (latestImmutableStateRef.get() != null
+                && latestImmutableStateRef.get().isDestroyed()) {
+            latestImmutableStateRef.set(null);
+        }
+
+        if (stateRef.get() != null && stateRef.get().isDestroyed()) {
+            stateRef.set(null);
+        }
+
+        copyAndUpdateStateRefs(loadedState);
+
+        return originalHash;
+    }
+
+    /**
+     * {@inheritDoc}
+     * <p>
+     * Wraps the provided {@link VirtualMap} (received from a reconnect peer) in a {@link VirtualMapStateImpl}
+     * and re-initializes the manager with it, replacing the current mutable state.
+     */
+    @Override
+    public void initStateOnReconnect(@NonNull final VirtualMapState state) {
+        requireNonNull(state);
+        copyAndUpdateStateRefs(state);
+    }
+
+    @Override
+    public VirtualMapState createStateFrom(@NonNull VirtualMap rootNode) {
+        return new VirtualMapStateImpl(rootNode, metrics);
     }
 }

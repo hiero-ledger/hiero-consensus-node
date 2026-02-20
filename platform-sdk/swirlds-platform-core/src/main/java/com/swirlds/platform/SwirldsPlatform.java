@@ -193,10 +193,14 @@ public class SwirldsPlatform implements Platform {
 
         initializeState(this, initialState, blocks.consensusStateEventHandler());
 
-        // This object makes a copy of the state. After this point, initialState becomes immutable.
+        // The StateLifecycleManager is already initialized before PlatformBuilder.build() is called:
+        // - For genesis: the manager creates a genesis state eagerly in its constructor.
+        // - For restart: loadSnapshot() initializes the manager when loading from disk.
+        // - For reconnect: initStateOnReconnect() re-initializes the manager at runtime.
         final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager = blocks.stateLifecycleManager();
-        final State state = initialState.getState();
-        stateLifecycleManager.initState((VirtualMapState) state);
+        // Startup initialization may hash/freeze the state referenced by the initial SignedState.
+        // Move the lifecycle manager to a fresh mutable copy before transaction handling begins.
+        stateLifecycleManager.copyMutableState();
         // Genesis state must stay empty until changes can be externalized in the block stream
         if (!initialState.isGenesisState()) {
             setCreationSoftwareVersionTo(stateLifecycleManager.getMutableState(), blocks.appVersion());

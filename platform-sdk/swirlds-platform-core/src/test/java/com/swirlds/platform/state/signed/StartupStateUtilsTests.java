@@ -4,6 +4,7 @@ package com.swirlds.platform.state.signed;
 import static com.swirlds.platform.state.signed.StartupStateUtils.loadStateFile;
 import static com.swirlds.platform.state.snapshot.SignedStateFileWriter.writeSignedStateToDisk;
 import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
+import static com.swirlds.platform.test.fixtures.state.TestStateUtils.destroyStateLifecycleManager;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -33,7 +34,6 @@ import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.state.merkle.VirtualMapState;
-import com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.BufferedWriter;
@@ -130,7 +130,7 @@ public class StartupStateUtilsTests {
 
         final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager = createLifecycleManager();
         final VirtualMapState state = signedState.getState();
-        stateLifecycleManager.initState(state);
+        stateLifecycleManager.initStateOnReconnect(state);
         stateLifecycleManager.getMutableState().release();
         // hash the state
         state.getHash();
@@ -154,12 +154,12 @@ public class StartupStateUtilsTests {
         }
 
         state.release();
+        destroyStateLifecycleManager(stateLifecycleManager);
         return signedState;
     }
 
     private static StateLifecycleManager<VirtualMapState, VirtualMap> createLifecycleManager() {
-        return new StateLifecycleManagerImpl(
-                new NoOpMetrics(), new FakeTime(), VirtualMapStateTestUtils::createTestStateWithVM, CONFIGURATION);
+        return new StateLifecycleManagerImpl(new NoOpMetrics(), new FakeTime(), CONFIGURATION);
     }
 
     @Test
@@ -169,6 +169,7 @@ public class StartupStateUtilsTests {
 
         final RecycleBin recycleBin = initializeRecycleBin(platformContext, selfId);
 
+        StateLifecycleManager<VirtualMapState, VirtualMap> lifecycleManager = createLifecycleManager();
         final SignedState loadedState = loadStateFile(
                         recycleBin,
                         selfId,
@@ -176,10 +177,12 @@ public class StartupStateUtilsTests {
                         swirldName,
                         currentSoftwareVersion,
                         platformContext,
-                        createLifecycleManager())
+                        lifecycleManager)
+                .reservedSignedState()
                 .getNullable();
 
         assertNull(loadedState);
+        destroyStateLifecycleManager(lifecycleManager);
     }
 
     @Test
@@ -198,6 +201,7 @@ public class StartupStateUtilsTests {
         }
 
         final RecycleBin recycleBin = initializeRecycleBin(platformContext, selfId);
+        final StateLifecycleManager<VirtualMapState, VirtualMap> lifecycleManager = createLifecycleManager();
         final SignedState loadedState = loadStateFile(
                         recycleBin,
                         selfId,
@@ -205,7 +209,8 @@ public class StartupStateUtilsTests {
                         swirldName,
                         currentSoftwareVersion,
                         platformContext,
-                        createLifecycleManager())
+                        lifecycleManager)
+                .reservedSignedState()
                 .get();
 
         loadedState.getState().throwIfImmutable();
@@ -214,6 +219,7 @@ public class StartupStateUtilsTests {
         assertEquals(latestState.getRound(), loadedState.getRound());
         assertEquals(latestState.getState().getHash(), loadedState.getState().getHash());
         RandomSignedStateGenerator.releaseReservable(loadedState.getState().getRoot());
+        destroyStateLifecycleManager(lifecycleManager);
     }
 
     @Test
@@ -232,15 +238,20 @@ public class StartupStateUtilsTests {
         }
         final RecycleBin recycleBin = initializeRecycleBin(platformContext, selfId);
 
-        assertThrows(SignedStateLoadingException.class, () -> loadStateFile(
-                        recycleBin,
-                        selfId,
-                        mainClassName,
-                        swirldName,
-                        currentSoftwareVersion,
-                        platformContext,
-                        createLifecycleManager())
-                .get());
+        StateLifecycleManager<VirtualMapState, VirtualMap> lifecycleManager = createLifecycleManager();
+        assertThrows(SignedStateLoadingException.class, () -> {
+            // loadStateFile itself may throw SignedStateLoadingException for corrupted states
+            // when deleteInvalidStateFiles is false
+            loadStateFile(
+                    recycleBin,
+                    selfId,
+                    mainClassName,
+                    swirldName,
+                    currentSoftwareVersion,
+                    platformContext,
+                    lifecycleManager);
+        });
+        destroyStateLifecycleManager(lifecycleManager);
     }
 
     @ParameterizedTest
@@ -277,6 +288,7 @@ public class StartupStateUtilsTests {
         }
         RandomSignedStateGenerator.releaseAllBuiltSignedStates();
 
+        StateLifecycleManager<VirtualMapState, VirtualMap> lifecycleManager = createLifecycleManager();
         final SignedState loadedState = loadStateFile(
                         recycleBin,
                         selfId,
@@ -284,7 +296,8 @@ public class StartupStateUtilsTests {
                         swirldName,
                         currentSoftwareVersion,
                         platformContext,
-                        createLifecycleManager())
+                        lifecycleManager)
+                .reservedSignedState()
                 .getNullable();
 
         if (latestUncorruptedState != null) {
@@ -312,6 +325,7 @@ public class StartupStateUtilsTests {
         }
         assertEquals(5 - invalidStateCount, filesCount, "Unexpected number of files " + filesCount);
         assertEquals(invalidStateCount, recycleCount.get());
+        destroyStateLifecycleManager(lifecycleManager);
     }
 
     private RecycleBin initializeRecycleBin(PlatformContext platformContext, NodeId selfId) {

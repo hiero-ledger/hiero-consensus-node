@@ -16,7 +16,6 @@ import com.swirlds.platform.reconnect.ReconnectModule;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.state.merkle.VirtualMapState;
-import com.swirlds.state.merkle.VirtualMapStateImpl;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.GeneralSecurityException;
@@ -252,7 +251,7 @@ public class ConsensusModuleBuilder {
                 new BlockingResourceProvider<>();
         final FallenBehindMonitor fallenBehindMonitor = new FallenBehindMonitor(roster, configuration, metrics);
         final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =
-                new StateLifecycleManagerImpl(metrics, time, vm -> new VirtualMapStateImpl(vm, metrics), configuration);
+                new StateLifecycleManagerImpl(metrics, time, configuration);
         final GossipModule gossipModule = createGossipModule();
         gossipModule.initialize(
                 model,
