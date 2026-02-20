@@ -71,7 +71,6 @@ public class WrappedRecordBlockHashMigration {
 
         final var computeHashesFromWrappedEnabled =
                 streamMode != BLOCKS && recordsConfig.computeHashesFromWrappedRecordBlocks();
-        log.fatal("matt: starting wrapped record post upgrade (if enabled: {})", computeHashesFromWrappedEnabled);
         if (!computeHashesFromWrappedEnabled) {
             return;
         }
@@ -124,7 +123,7 @@ public class WrappedRecordBlockHashMigration {
             log.error("Jumpstart file not found at {}. {}", jumpstartFilePath, RESUME_MESSAGE);
             return null;
         }
-        log.fatal("matt: found jumpstart file at {}", jumpstartFilePath);
+        log.info("Found jumpstart file at {}", jumpstartFilePath);
         return jumpstartFilePath;
     }
 
@@ -139,12 +138,13 @@ public class WrappedRecordBlockHashMigration {
             log.error("Recent wrapped record hashes file not found at {}. {}", recentHashesPath, RESUME_MESSAGE);
             return null;
         }
-        log.fatal("matt: found recent wrapped record hashes file at {}", recentHashesPath);
+        log.fatal("Found recent wrapped record hashes file at {}", recentHashesPath);
         return recentHashesPath;
     }
 
     /**
      * Reads the jumpstart binary file with format:
+     *
      * <ul>
      *   <li>8 bytes: block number (long)</li>
      *   <li>48 bytes: previous block root hash (SHA-384)</li>
@@ -152,6 +152,11 @@ public class WrappedRecordBlockHashMigration {
      *   <li>4 bytes: streaming hasher hash count (int)</li>
      *   <li>48 bytes × hash count: streaming hasher pending subtree hashes</li>
      * </ul>
+     *
+     * The jumpstart file exactly encodes the fully-committed hash <b>of</b> the contained block
+     * number. I.e. if the jumpstart file specifies a block number N, the first wrapped record block
+     * taken from local disk and hashed is wrapped record block N+1 (using the jumpstart file's block
+     * hash as the "previous block hash" for the first local wrapped record block).
      */
     private JumpstartData loadJumpstartData(@NonNull final Path jumpstartFilePath) throws Exception {
         try (final var din = new DataInputStream(Files.newInputStream(jumpstartFilePath))) {
@@ -187,15 +192,12 @@ public class WrappedRecordBlockHashMigration {
         final var loadedBytes = Files.readAllBytes(recentHashesPath);
         final var allRecentWrappedRecordHashes =
                 WrappedRecordFileBlockHashesLog.PROTOBUF.parse(Bytes.wrap(loadedBytes));
-        log.fatal(
-                "matt: loaded recent wrapped record hashes file with {} entries",
-                allRecentWrappedRecordHashes.entries().size());
         if (allRecentWrappedRecordHashes.entries().isEmpty()) {
             log.error("Recent wrapped record hashes file contains no entries. {}", RESUME_MESSAGE);
             return null;
         }
         log.info(
-                "Successfully loaded recent wrapped record hashes file. Range: [{}, {}]",
+                "Successfully loaded recent wrapped record hashes file. Block num range: [{}, {}]",
                 allRecentWrappedRecordHashes.entries().getFirst().blockNumber(),
                 allRecentWrappedRecordHashes.entries().getLast().blockNumber());
         return allRecentWrappedRecordHashes;
@@ -210,10 +212,6 @@ public class WrappedRecordBlockHashMigration {
                 "First recent record num/hash: {}/{}",
                 firstRecentRecord.blockNumber(),
                 firstRecentRecord.outputItemsTreeRootHash());
-        log.fatal(
-                "matt: Comparing jumpstart block num {} to first block num {} in recent wrapped record hashes file",
-                jumpstartBlockNum,
-                firstRecentRecord.blockNumber());
         if (jumpstartBlockNum < firstRecentRecord.blockNumber()) {
             log.error(
                     "Configured jumpstart block num {} is less than the first available block number {} in the recent wrapped record hashes file. {}",
@@ -223,10 +221,6 @@ public class WrappedRecordBlockHashMigration {
             return false;
         }
 
-        log.fatal(
-                "matt: comparing jumpstart block num {} to last block num {} in recent wrapped record hashes file",
-                jumpstartBlockNum,
-                allRecentWrappedRecordHashes.entries().getLast().blockNumber());
         if (jumpstartBlockNum > allRecentWrappedRecordHashes.entries().getLast().blockNumber()) {
             log.error(
                     "Jumpstart block number {} is greater than the highest block number {} in the recent wrapped record hashes file. No overlap between historical and recent blocks. {}",
@@ -240,10 +234,6 @@ public class WrappedRecordBlockHashMigration {
                 .<BlockInfo>getSingleton(BLOCKS_STATE_ID)
                 .get());
         final var lastProcessedBlockNumberInState = blockInfo.lastBlockNumber();
-        log.fatal(
-                "matt: last processed block number in state {}, {} in recent wrapped record hashes file",
-                lastProcessedBlockNumberInState,
-                allRecentWrappedRecordHashes.entries().getLast().blockNumber());
         if (lastProcessedBlockNumberInState
                 != allRecentWrappedRecordHashes.entries().getLast().blockNumber()) {
             log.error(
@@ -253,12 +243,14 @@ public class WrappedRecordBlockHashMigration {
                     RESUME_MESSAGE);
             return false;
         }
+        log.info(
+                "Last processed block number in state {}; {} available in recent wrapped record hashes file",
+                lastProcessedBlockNumberInState,
+                allRecentWrappedRecordHashes.entries().getLast().blockNumber());
 
         final var neededRecentWrappedRecords = allRecentWrappedRecordHashes.entries().stream()
                 .filter(rwr -> rwr.blockNumber() > jumpstartBlockNum)
                 .toList();
-        final var numNeededRecentWrappedRecords = neededRecentWrappedRecords.size();
-        log.fatal("matt: total number of needed wrapped record blocks {}", numNeededRecentWrappedRecords);
 
         // Verify needed records have consecutive block numbers while iterating
         long expectedBlockNum = jumpstartBlockNum + 1;
@@ -294,20 +286,21 @@ public class WrappedRecordBlockHashMigration {
             @NonNull final WrappedRecordFileBlockHashesLog allRecentWrappedRecordHashes,
             final int numTrailingBlocks,
             @NonNull final State state) {
+        // The number of the last wrapped record block; this is the final block processed prior to now
         final var jumpstartBlockNum = jumpstartData.blockNumber();
+        // The hash of the (completed/hashed) jumpstart block number
         final var allPrevBlocksHasher = jumpstartData.hasher();
         final var neededRecentWrappedRecords = allRecentWrappedRecordHashes.entries().stream()
-                .filter(rwr -> rwr.blockNumber() >= jumpstartBlockNum)
+                .filter(rwr -> rwr.blockNumber() > jumpstartBlockNum)
                 .toList();
-        log.fatal(
-                "matt: range of needed recent wrapped record blocks: [{}, {}]",
+        log.info(
+                "Calculated range of needed recent wrapped record blocks: [{}, {}]",
                 neededRecentWrappedRecords.getFirst().blockNumber(),
                 neededRecentWrappedRecords.getLast().blockNumber());
         final var numNeededRecentWrappedRecords = neededRecentWrappedRecords.size();
 
         final List<Bytes> currentTrailingBlockHashes = new ArrayList<>(numTrailingBlocks);
         final int blockTailStartIndex = Math.max(0, numNeededRecentWrappedRecords - numTrailingBlocks);
-        final var digest = sha384DigestOrThrow();
         Bytes prevWrappedBlockHash = jumpstartData.prevHash();
         int wrappedRecordsProcessed = 0;
         log.info("Adding recent wrapped record file block hashes to genesis historical hash");
@@ -365,7 +358,7 @@ public class WrappedRecordBlockHashMigration {
         final var newWrappedRecordBlockInfo = blockInfo
                 .copyBuilder()
                 .blockHashes(concatHashes(currentTrailingBlockHashes))
-                .previousWrappedBlockRootHash(prevWrappedBlockHash)
+                .previousWrappedRecordBlockRootHash(prevWrappedBlockHash)
                 .wrappedIntermediatePreviousBlockRootHashes(allPrevBlocksHasher.intermediateHashingState())
                 .wrappedIntermediateBlockRootsLeafCount(allPrevBlocksHasher.leafCount())
                 .build();
@@ -374,6 +367,7 @@ public class WrappedRecordBlockHashMigration {
                 state.getWritableStates(BlockRecordService.NAME).<BlockInfo>getSingleton(BLOCKS_STATE_ID);
         blockRecordInfoWritableStates.put(newWrappedRecordBlockInfo);
         ((WritableSingletonStateBase<BlockInfo>) blockRecordInfoWritableStates).commit();
+
         log.info("Overwrote record stream info with historical wrapped record hashes");
     }
 

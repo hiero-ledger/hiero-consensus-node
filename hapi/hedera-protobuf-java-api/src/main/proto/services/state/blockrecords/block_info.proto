@@ -111,9 +111,9 @@ message BlockInfo {
     proto.Timestamp last_interval_process_time = 8;
 
     /**
-     * The root hash of the wrapped record block for the previous block.
+     * The root hash of the previous wrapped record block.
      */
-    bytes previous_wrapped_block_root_hash = 10;
+    bytes previous_wrapped_record_block_root_hash = 10;
 
     /**
      * The intermediate hashes, calculated for all historical wrapped

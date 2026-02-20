@@ -535,7 +535,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
                 lastBlockInfo.firstConsTimeOfCurrentBlock(),
                 asTimestamp(consensusTime),
                 lastBlockInfo.lastIntervalProcessTime(),
-                lastBlockInfo.previousWrappedBlockRootHash(),
+                lastBlockInfo.previousWrappedRecordBlockRootHash(),
                 lastBlockInfo.wrappedIntermediatePreviousBlockRootHashes(),
                 lastBlockInfo.wrappedIntermediateBlockRootsLeafCount());
         updateBlockInfo(newBlockInfo, state);
