@@ -707,14 +707,15 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
         put(keyBytes, null, null, valueBytes);
     }
 
+    @SuppressWarnings("unchecked")
     private <V> void put(final Bytes key, final V value, final Codec<V> valueCodec, final Bytes valueBytes) {
         throwIfImmutable();
         assert !isHashed() : "Cannot modify already hashed node";
         assert currentModifyingThreadRef.compareAndSet(null, Thread.currentThread());
         try {
             requireNonNull(key, NO_NULL_KEYS_ALLOWED_MESSAGE);
-            final long path = records.findPath(key);
-            if (path == INVALID_PATH) {
+            final VirtualLeafBytes<V> existing = records.findLeafRecord(key);
+            if (existing == null) {
                 // The key is not stored. So add a new entry and return.
                 add(key, value, valueCodec, valueBytes);
                 statistics.countAddedEntities();
@@ -722,11 +723,9 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
                 return;
             }
 
-            // FUTURE WORK: make VirtualLeafBytes.<init>(path, key, value, codec, bytes) public?
-            final VirtualLeafBytes<V> leaf = valueCodec != null
-                    ? new VirtualLeafBytes<>(path, key, value, valueCodec)
-                    : new VirtualLeafBytes<>(path, key, valueBytes);
-            cache.putLeaf(leaf);
+            final VirtualLeafBytes<V> updated =
+                    valueCodec != null ? existing.withValue(value, valueCodec) : existing.withValueBytes(valueBytes);
+            cache.putLeaf(updated);
             statistics.countUpdatedEntities();
         } finally {
             assert currentModifyingThreadRef.compareAndSet(Thread.currentThread(), null);
@@ -789,6 +788,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
                 final VirtualLeafBytes<?> lastLeaf = records.findLeafRecord(lastLeafPath);
                 assert lastLeaf != null;
                 cache.clearLeafPath(lastLeafPath);
+                // withPath() keeps track of the original path where the leaf was when loaded from disk
                 cache.putLeaf(lastLeaf.withPath(leafToDeletePath));
                 // NOTE: at this point, if leafToDelete was in the cache at some "path" index, it isn't anymore!
                 // The lastLeaf has taken its place in the path index.
@@ -819,6 +819,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
                 final VirtualLeafBytes<?> sibling = records.findLeafRecord(lastLeafSibling);
                 assert sibling != null;
                 cache.clearLeafPath(lastLeafSibling);
+                // withPath() keeps track of the original path where the leaf was when loaded from disk
                 cache.putLeaf(sibling.withPath(lastLeafParent));
 
                 // Update the first & last leaf paths
@@ -1535,6 +1536,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
             final VirtualLeafBytes<?> oldLeaf = records.findLeafRecord(firstLeafPath);
             requireNonNull(oldLeaf);
             cache.clearLeafPath(firstLeafPath);
+            // withPath() keeps track of the original path where the leaf was when loaded from disk
             cache.putLeaf(oldLeaf.withPath(getLeftChildPath(firstLeafPath)));
 
             // Create a new internal node that is in the position of the old leaf and attach it to the parent

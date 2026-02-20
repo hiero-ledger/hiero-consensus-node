@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.pbj.runtime.ProtoWriterTools;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
@@ -336,5 +337,30 @@ class VirtualLeafBytesTest {
         // empty value bytes add no extra bytes but length 0 is written
 
         assertArrayEquals(expected, actual, "hashing bytes should match");
+    }
+
+    @Test
+    void isNewOrMovedIsTrueByDefault() {
+        final Bytes key = TestKey.longToKey(RANDOM.nextLong());
+        final VirtualLeafBytes<TestValue> leaf = new VirtualLeafBytes<>(1, key, Bytes.EMPTY);
+        assertTrue(leaf.isNewOrMoved(), "Newly created leaves should be new/moved");
+    }
+
+    @Test
+    void withPathPreservesPathOnDisk() {
+        final Bytes key = TestKey.longToKey(RANDOM.nextLong());
+        final VirtualLeafBytes<TestValue> leaf = new VirtualLeafBytes<>(1, key, Bytes.EMPTY);
+        final VirtualLeafBytes<TestValue> updated = leaf.withPath(12);
+        assertTrue(updated.isNewOrMoved(), "withPath should mark the leaf as new/moved");
+    }
+
+    @Test
+    void withValuePreservesPathOnDisk() {
+        final Bytes key = TestKey.longToKey(RANDOM.nextLong());
+        final VirtualLeafBytes<TestValue> leaf = new VirtualLeafBytes<>(1, key, Bytes.EMPTY);
+        final VirtualLeafBytes<TestValue> updated = leaf.withPath(12);
+        final VirtualLeafBytes<TestValue> updatedUpdated =
+                updated.withValue(new TestValue("New!"), TestValueCodec.INSTANCE);
+        assertTrue(updatedUpdated.isNewOrMoved(), "withValue should mark the leaf as new/moved");
     }
 }
