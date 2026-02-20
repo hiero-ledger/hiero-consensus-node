@@ -901,11 +901,7 @@ jobs:
           echo "### Title: ${{ steps.summary.outputs.title }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "${{ steps.summary.outputs.summary }}" | tee -a "${GITHUB_STEP_SUMMARY}"
 
-<<<<<<< HEAD
-  longevity-report-to-Slack:
-=======
   longevity-report-to-slack:
->>>>>>> main
     runs-on: hl-cn-sdlt-lin-sm
     needs:
       - longevity-tests-finish
