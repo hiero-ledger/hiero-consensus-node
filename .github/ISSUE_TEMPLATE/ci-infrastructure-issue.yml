@@ -18,7 +18,7 @@ name: CI/Infrastructure Issue
 description: Template for CI/CD and infrastructure-related issues
 title: "ci(<input-category>): issue title"
 labels: ["github_actions"]
-projects: ["hiero-ledger/Platform-CI Team"]
+projects: ["hiero-ledger/17"]
 body:
   - type: markdown
     attributes:
