@@ -2,10 +2,12 @@
 package com.hedera.services.bdd.suites.crypto;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.SYSTEM_ACCOUNT_BALANCES;
+import static com.hedera.services.bdd.junit.EmbeddedReason.MUST_SKIP_INGEST;
 import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
 import static com.hedera.services.bdd.junit.TestTags.ONLY_EMBEDDED;
 import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.CONCURRENT;
+import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
@@ -147,27 +149,37 @@ public class CryptoRecordsSanityCheckSuite {
                 withOpContext((spec, opLog) -> validateRecordTransactionFees(spec, "txn"))));
     }
 
-    @LeakyEmbeddedHapiTest(reason = NEEDS_STATE_ACCESS, requirement = SYSTEM_ACCOUNT_BALANCES)
+    @LeakyEmbeddedHapiTest(reason = MUST_SKIP_INGEST, requirement = SYSTEM_ACCOUNT_BALANCES)
     final Stream<DynamicTest> insufficientAccountBalanceRecordSanityChecks() {
         final long BALANCE = 500_000_000L;
         return hapiTest(flattened(
+                withOpContext((spec, opLog) -> spec.registry().saveAccountId("NODE_4", asAccount("0.0.4"))),
                 cryptoCreate(PAYER).balance(BALANCE),
                 cryptoCreate(RECEIVER),
-                takeBalanceSnapshots(FUNDING, NODE, STAKING_REWARD, NODE_REWARD, PAYER, RECEIVER, FEE_COLLECTOR),
+                takeBalanceSnapshots(
+                        FUNDING, NODE, "NODE_4", STAKING_REWARD, NODE_REWARD, PAYER, RECEIVER, FEE_COLLECTOR),
                 cryptoTransfer(tinyBarsFromTo(PAYER, RECEIVER, BALANCE / 2))
                         .payingWith(PAYER)
                         .via("txn1")
-                        .fee(ONE_HUNDRED_HBARS)
-                        .deferStatusResolution(),
+                        .fee(ONE_HUNDRED_HBARS),
                 cryptoTransfer(tinyBarsFromTo(PAYER, RECEIVER, BALANCE / 2))
                         .payingWith(PAYER)
+                        .setNode("4")
                         .via("txn2")
                         .fee(ONE_HUNDRED_HBARS)
                         .hasKnownStatus(INSUFFICIENT_ACCOUNT_BALANCE),
                 sleepFor(1_000L),
                 validateTransferListForBalances(
                         List.of("txn1", "txn2"),
-                        List.of(FUNDING, NODE, STAKING_REWARD, NODE_REWARD, PAYER, RECEIVER, FEE_COLLECTOR))));
+                        List.of(
+                                FUNDING,
+                                NODE,
+                                "NODE_4",
+                                STAKING_REWARD,
+                                NODE_REWARD,
+                                PAYER,
+                                RECEIVER,
+                                FEE_COLLECTOR))));
     }
 
     @LeakyEmbeddedHapiTest(reason = NEEDS_STATE_ACCESS, requirement = SYSTEM_ACCOUNT_BALANCES)
