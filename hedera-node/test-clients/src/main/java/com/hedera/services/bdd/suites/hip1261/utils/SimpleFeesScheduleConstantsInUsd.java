@@ -191,7 +191,7 @@ public class SimpleFeesScheduleConstantsInUsd {
     public static final double BATCH_BASE_FEE = 0.001;
 
     /* ---------- Address Book service ---------- */
-    public static final double NODE_CREATE_BASE_FEE_USD = 0.0177;
+    public static final double NODE_CREATE_BASE_FEE_USD = 0.001;
     public static final double NODE_UPDATE_BASE_FEE_USD = 0.001;
     public static final double NODE_DELETE_BASE_FEE_USD = 0.001;
 
