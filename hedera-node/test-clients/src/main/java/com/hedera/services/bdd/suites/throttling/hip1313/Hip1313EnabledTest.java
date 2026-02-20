@@ -84,7 +84,6 @@ import org.junit.jupiter.api.parallel.Isolated;
 @Tag(MATS)
 @HapiTestLifecycle
 @Isolated
-@Disabled // There are 2 flaky tests that block PRs, so disabling for now
 public class Hip1313EnabledTest {
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final double CRYPTO_CREATE_BASE_FEE = 0.05;
