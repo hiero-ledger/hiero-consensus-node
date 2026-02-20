@@ -96,6 +96,6 @@ public class SynchronizedThrottleAccumulator {
      */
     public synchronized int getHighVolumeThrottleUtilization(@NonNull final HederaFunctionality function) {
         requireNonNull(function);
-        return frontendThrottle.getHighVolumeThrottleInstantaneousUtilization(function);
+        return frontendThrottle.getHighVolumeThrottleInstantaneousUtilizationBps(function, Instant.now());
     }
 }

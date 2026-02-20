@@ -359,10 +359,11 @@ public class Hip1313EnabledTest {
                     final var throttle = DeterministicThrottle.withTpsAndBurstPeriodMs(CRYPTO_CREATE_HV_TPS, 1000);
                     var numCreateTxnsAllowed = 0;
                     for (final var entry : entries) {
-                        final var utilizationBasisPointsBefore = utilizationBasisPointsBefore(throttle);
+                        throttle.allow(0, entry.consensusTime());
+                        final var utilizationBasisPointsBefore = throttle.instantaneousBps();
                         throttle.allow(1, entry.consensusTime());
                         numCreateTxnsAllowed++;
-                        final var utilizationBasisPointsAfter = utilizationBasisPointsBefore(throttle);
+                        final var utilizationBasisPointsAfter = throttle.instantaneousBps();
                         assertHighVolumeMultiplierSet(entry, "crypto create");
                         final var fee = entry.txnRecord().getTransactionFee();
                         final var observedMultiplier = observedMultiplier(spec, fee, CRYPTO_CREATE_BASE_FEE);
@@ -404,30 +405,35 @@ public class Hip1313EnabledTest {
                     for (final var entry : entries) {
                         final var fee = entry.txnRecord().getTransactionFee();
                         if (entry.body().hasConsensusCreateTopic()) {
-                            final var utilizationBasisPointsBefore = utilizationBasisPointsBefore(topicThrottle);
+                            scheduleThrottle.allow(0, entry.consensusTime());
+                            final var utilizationBasisPointsBefore = topicThrottle.instantaneousBps();
                             topicThrottle.allow(1, entry.consensusTime());
                             topicCreates++;
-                            final var utilizationBasisPointsAfter = utilizationBasisPointsBefore(topicThrottle);
+                            final var utilizationBasisPointsAfter = topicThrottle.instantaneousBps();
                             assertHighVolumeMultiplierSet(entry, "topic create");
                             final var observedMultiplier = observedMultiplier(spec, fee, TOPIC_CREATE_BASE_FEE);
+                            final var observedRawMultiplier =
+                                    entry.txnRecord().getHighVolumePricingMultiplier() / 1000.0;
                             assertMultiplierAtLeast(observedMultiplier, "topic create");
                             assertMultiplierMatchesExpectation(
                                     CRYPTO_TOPIC_CREATE_MULTIPLIER_MAP,
-                                    observedMultiplier,
+                                    observedRawMultiplier,
                                     utilizationBasisPointsBefore,
                                     utilizationBasisPointsAfter,
                                     "topic create",
                                     topicCreates);
                         } else if (entry.body().hasScheduleCreate()) {
-                            final var utilizationBasisPointsBefore = utilizationBasisPointsBefore(scheduleThrottle);
+                            topicThrottle.allow(0, entry.consensusTime());
+                            final var utilizationBasisPointsBefore = scheduleThrottle.instantaneousBps();
                             scheduleThrottle.allow(1, entry.consensusTime());
                             scheduleCreates++;
-                            final var utilizationBasisPointsAfter = utilizationBasisPointsBefore(scheduleThrottle);
+                            final var utilizationBasisPointsAfter = scheduleThrottle.instantaneousBps();
                             assertHighVolumeMultiplierSet(entry, "schedule create");
-                            final var observedMultiplier = observedMultiplier(spec, fee, SCHEDULE_CREATE_BASE_FEE);
+                            final var observedRawMultiplier =
+                                    entry.txnRecord().getHighVolumePricingMultiplier() / 1000.0;
                             assertMultiplierMatchesExpectation(
                                     SCHEDULE_CREATE_MULTIPLIER_MAP,
-                                    observedMultiplier,
+                                    observedRawMultiplier,
                                     utilizationBasisPointsBefore,
                                     utilizationBasisPointsAfter,
                                     "schedule create",
@@ -471,7 +477,8 @@ public class Hip1313EnabledTest {
                                 highVolumeTxns, e -> e.body().hasCryptoCreateAccount());
                         final var throttle = DeterministicThrottle.withTpsAndBurstPeriodMs(CRYPTO_CREATE_HV_TPS, 1000);
                         for (final var entry : entries) {
-                            final var utilizationBasisPointsBefore = utilizationBasisPointsBefore(throttle);
+                            throttle.leakUntil(entry.consensusTime());
+                            final var utilizationBasisPointsBefore = throttle.instantaneousBps();
                             throttle.allow(1, entry.consensusTime());
                             final long expectedRawMultiplier = linearInterpolate(
                                     0,
@@ -626,10 +633,6 @@ public class Hip1313EnabledTest {
                 // records in consensus order to avoid nondeterministic flakiness.
                 .sorted()
                 .toList();
-    }
-
-    private static int utilizationBasisPointsBefore(@NonNull final DeterministicThrottle throttle) {
-        return (int) Math.round(throttle.instantaneousPercentUsed() * 100);
     }
 
     private static double observedMultiplier(
