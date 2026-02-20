@@ -306,11 +306,7 @@ public class ClprStateProofManager {
         blockRootProof.extendRoot(rootMbp);
 
         // Add the TSS signature and build the object
-        final var fullProof = blockRootProof.withTssSignature(tssSignature).build();
-
-        // Verify and return the completed proof
-        StateProofVerifier.verify(fullProof); // probably not _needed_, but why not have it?
-        return fullProof;
+        return blockRootProof.withTssSignature(tssSignature).build();
     }
 
     /**

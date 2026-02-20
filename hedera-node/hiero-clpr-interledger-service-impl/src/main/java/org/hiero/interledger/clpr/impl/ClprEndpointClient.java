@@ -116,7 +116,11 @@ public class ClprEndpointClient {
                 log.debug("CLPR endpoint maintenance skipped; no state proof available for ledger {}", localLedgerId);
                 return;
             } else {
-                StateProofVerifier.verify(requireNonNull(localProof));
+                final boolean isValid = StateProofVerifier.verify(requireNonNull(localProof));
+                if (!isValid) {
+                    log.warn("Found invalid state proof for local ledger {}; skipping this cycle", localLedgerId);
+                    return;
+                }
             }
             final var selfNodeInfo = networkInfo.selfNodeInfo();
             final var localEndpoint = localServiceEndpoint();
