@@ -540,9 +540,6 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                 });
             }
 
-            // Functionally, leaves don't have to be sorted. However, performance wise, sorting
-            // is beneficial, as adjacent leaves are written together, which reduces the number
-            // of random reads later
             final VirtualLeafBytes<?>[] dirtyLeaves = leafRecordsToAddOrUpdate.toArray(VirtualLeafBytes[]::new);
             final VirtualLeafBytes<?>[] deletedLeaves = leafRecordsToDelete.toArray(VirtualLeafBytes[]::new);
 
@@ -1159,7 +1156,10 @@ public final class MerkleDbDataSource implements VirtualDataSource {
             // Nothing to do
             return;
         }
-        // Treat dirtyLeaves as immutable
+
+        // Functionally, leaves don't have to be sorted. However, performance wise, sorting
+        // is beneficial, as adjacent leaves are written together, which reduces the number
+        // of random reads later. Treat dirtyLeaves as immutable.
         VirtualLeafBytes<?>[] sortedDirtyLeaves = dirtyLeaves.clone();
         Arrays.parallelSort(sortedDirtyLeaves, Comparator.comparingLong(VirtualLeafBytes::path));
 
