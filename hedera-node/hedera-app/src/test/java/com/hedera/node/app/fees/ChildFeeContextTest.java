@@ -18,6 +18,7 @@ import com.hedera.hapi.node.base.TokenTransferList;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.fees.context.ChildFeeContext;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.signature.AppKeyVerifier;
 import com.hedera.node.app.spi.authorization.Authorizer;
@@ -35,7 +36,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
-class ChildFeeContextImplTest {
+class ChildFeeContextTest {
     private static final Configuration DEFAULT_CONFIG = HederaTestConfigBuilder.createConfig();
     private static final Instant NOW = Instant.ofEpochSecond(1_234_567, 890);
     private static final AccountID PAYER_ID =
@@ -82,13 +83,13 @@ class ChildFeeContextImplTest {
     @Mock
     private AppKeyVerifier verifier;
 
-    private ChildFeeContextImpl subject;
+    private ChildFeeContext subject;
 
-    private ChildFeeContextImpl subjectWithInnerTxn;
+    private ChildFeeContext subjectWithInnerTxn;
 
     @BeforeEach
     void setUp() {
-        subject = new ChildFeeContextImpl(
+        subject = new ChildFeeContext(
                 feeManager,
                 context,
                 SAMPLE_BODY,
@@ -101,7 +102,7 @@ class ChildFeeContextImplTest {
                 0,
                 HederaFunctionality.CRYPTO_TRANSFER);
 
-        subjectWithInnerTxn = new ChildFeeContextImpl(
+        subjectWithInnerTxn = new ChildFeeContext(
                 feeManager,
                 context,
                 SAMPLE_BODY,
@@ -166,7 +167,7 @@ class ChildFeeContextImplTest {
     void propagatesInvalidBodyAsIllegalStateException() {
         given(context.readableStore(any())).willReturn(readableAccountStore);
         given(readableAccountStore.getAccountById(any())).willReturn(null);
-        subject = new ChildFeeContextImpl(
+        subject = new ChildFeeContext(
                 feeManager,
                 context,
                 TransactionBody.DEFAULT,
@@ -209,7 +210,7 @@ class ChildFeeContextImplTest {
     @Test
     void returnsCorrectNumTxnBytes() {
         final var signatureMapSize = 123;
-        subject = new ChildFeeContextImpl(
+        subject = new ChildFeeContext(
                 feeManager,
                 context,
                 SAMPLE_BODY,
