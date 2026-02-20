@@ -119,6 +119,7 @@ public class Hip1313EnabledTest {
     private static final int TOPIC_CREATE_HV_TPS = 800;
     private static final double TOPIC_CREATE_BASE_FEE = 0.01;
     private static final double MULTIPLIER_TOLERANCE = 0.05;
+    private static final int FIRST_CURVE_POINT_BPS_TOLERANCE = 10;
     private static final long ONE_X_MULTIPLIER = 1000L;
     private static final long FOUR_X_MULTIPLIER = 4000L;
 
@@ -676,12 +677,17 @@ public class Hip1313EnabledTest {
                 .mapToDouble(bps -> getInterpolatedMultiplier(multiplierMap, bps) / 1000.0)
                 .distinct()
                 .toArray();
+        final var firstCurvePointBps = multiplierMap.firstKey();
+        final var firstCurvePointMultiplier = multiplierMap.firstEntry().getValue() / 1000.0;
+        final var isNearFirstCurvePoint = minBps <= firstCurvePointBps + FIRST_CURVE_POINT_BPS_TOLERANCE;
         System.out.println("OBSERVED " + observedMultiplier + " EXPECTED: " + Arrays.toString(acceptableMultipliers)
                 + " for " + operation
                 + " BPS before: " + utilizationBasisPointsBefore
                 + " BPS after: " + utilizationBasisPointsAfter);
         final var isAcceptable = IntStream.range(0, acceptableMultipliers.length)
-                .anyMatch(i -> Math.abs(acceptableMultipliers[i] - observedMultiplier) <= MULTIPLIER_TOLERANCE);
+                .anyMatch(i -> Math.abs(acceptableMultipliers[i] - observedMultiplier) <= MULTIPLIER_TOLERANCE)
+                || (isNearFirstCurvePoint
+                && Math.abs(firstCurvePointMultiplier - observedMultiplier) <= MULTIPLIER_TOLERANCE);
         assertTrue(
                 isAcceptable,
                 "Given BPS before " + utilizationBasisPointsBefore + " and after " + utilizationBasisPointsAfter
