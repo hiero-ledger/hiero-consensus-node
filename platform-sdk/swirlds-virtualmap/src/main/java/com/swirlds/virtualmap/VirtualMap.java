@@ -470,6 +470,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
             pipeline = new VirtualPipeline(virtualMapConfig, LABEL);
         }
         pipeline.registerCopy(this);
+        statistics.incrementLiveCopyCount();
     }
 
     /**
@@ -634,6 +635,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
                     "Destroying the virtual map, but its pipeline is null. It may happen during failed reconnect");
             closeDataSource();
         }
+        statistics.decrementLiveCopyCount();
     }
 
     /**
