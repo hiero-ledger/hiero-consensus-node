@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.regression;
 
+import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
@@ -13,7 +14,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 
 import com.google.protobuf.ByteString;
-import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hederahashgraph.api.proto.java.TokenType;
 import java.util.List;
@@ -29,7 +30,9 @@ import org.junit.jupiter.api.Order;
 public class UtilScalePricingCheck {
     private static final String NON_FUNGIBLE_TOKEN = "NON_FUNGIBLE_TOKEN";
 
-    @LeakyHapiTest(overrides = {"tokens.nfts.maxAllowedMints", "fees.percentUtilizationScaleFactors"})
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"tokens.nfts.maxAllowedMints", "fees.percentUtilizationScaleFactors"})
     final Stream<DynamicTest> nftPriceScalesWithUtilization() {
         final var civilian = "civilian";
         final var maxAllowed = 10;

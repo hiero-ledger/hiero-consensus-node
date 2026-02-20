@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.schedule;
 
+import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.assertions.TransferListAsserts.exactParticipants;
@@ -48,7 +49,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_ID_FIELD_NOT_ALLOWED;
 
 import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hederahashgraph.api.proto.java.TransactionID;
 import java.security.SecureRandom;
@@ -99,7 +100,9 @@ public class ScheduleRecordTest {
                                 .status(INSUFFICIENT_PAYER_BALANCE)));
     }
 
-    @LeakyHapiTest(overrides = {"nodes.feeCollectionAccountEnabled"})
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"nodes.feeCollectionAccountEnabled"})
     final Stream<DynamicTest> canScheduleChunkedMessages() {
         String ofGeneralInterest = "Scotch";
         AtomicReference<TransactionID> initialTxnId = new AtomicReference<>();

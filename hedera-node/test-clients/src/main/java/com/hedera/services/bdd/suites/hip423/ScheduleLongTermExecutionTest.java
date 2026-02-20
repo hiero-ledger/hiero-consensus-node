@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.hip423;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.FEE_SCHEDULE_OVERRIDES;
+import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
@@ -32,7 +33,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SCHEDULE_EXPIR
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
@@ -109,7 +110,7 @@ public class ScheduleLongTermExecutionTest {
                         .hasKnownStatus(IDENTICAL_SCHEDULE_ALREADY_CREATED));
     }
 
-    @LeakyHapiTest(requirement = FEE_SCHEDULE_OVERRIDES)
+    @LeakyEmbeddedHapiTest(reason = NEEDS_STATE_ACCESS, requirement = FEE_SCHEDULE_OVERRIDES)
     final Stream<DynamicTest> scheduleCreateIdenticalContractCall() {
         final var contract = "CallOperationsChecker";
         return hapiTest(

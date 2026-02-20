@@ -13,13 +13,16 @@ import static com.hedera.services.bdd.suites.HapiSuite.APP_PROPERTIES;
 import static com.hedera.services.bdd.suites.HapiSuite.EXCHANGE_RATE_CONTROL;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 
-import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.junit.EmbeddedReason;
+import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
 import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
 
 public class Issue2143Spec {
-    @LeakyHapiTest(requirement = {PERMISSION_OVERRIDES})
+    @LeakyEmbeddedHapiTest(
+            reason = EmbeddedReason.NEEDS_STATE_ACCESS,
+            requirement = {PERMISSION_OVERRIDES})
     final Stream<DynamicTest> account55ControlCanUpdatePermissions() {
         return hapiTest(
                 cryptoTransfer(tinyBarsFromTo(GENESIS, ADDRESS_BOOK_CONTROL, 1_000_000_000L)),
@@ -31,7 +34,9 @@ public class Issue2143Spec {
                         .payingWith(ADDRESS_BOOK_CONTROL));
     }
 
-    @LeakyHapiTest(requirement = {PERMISSION_OVERRIDES, PROPERTY_OVERRIDES})
+    @LeakyEmbeddedHapiTest(
+            reason = EmbeddedReason.NEEDS_STATE_ACCESS,
+            requirement = {PERMISSION_OVERRIDES, PROPERTY_OVERRIDES})
     final Stream<DynamicTest> account57ControlCanUpdatePropertiesAndPermissions() {
         return hapiTest(
                 cryptoTransfer(tinyBarsFromTo(GENESIS, EXCHANGE_RATE_CONTROL, 1_000_000_000L)),

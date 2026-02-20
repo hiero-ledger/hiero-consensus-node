@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.regression;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.SYSTEM_ACCOUNT_BALANCES;
+import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountDetailsAsserts.accountDetailsWith;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.changeFromSnapshot;
@@ -26,7 +27,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.STAKING_REWARD;
 
 import com.hedera.node.app.hapi.utils.fee.FeeObject;
-import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hedera.services.bdd.spec.assertions.AccountInfoAsserts;
 import com.hederahashgraph.api.proto.java.Key;
@@ -38,7 +39,8 @@ import org.junit.jupiter.api.DynamicTest;
 
 public class TargetNetworkPrep {
 
-    @LeakyHapiTest(
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
             overrides = {"nodes.feeCollectionAccountEnabled", "nodes.preserveMinNodeRewardBalance"},
             requirement = {SYSTEM_ACCOUNT_BALANCES})
     final Stream<DynamicTest> ensureSystemStateAsExpectedWithSystemDefaultFiles() {
@@ -121,7 +123,8 @@ public class TargetNetworkPrep {
                                 .noAllowances()));
     }
 
-    @LeakyHapiTest(
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
             overrides = {"nodes.feeCollectionAccountEnabled", "nodes.preserveMinNodeRewardBalance"},
             requirement = {SYSTEM_ACCOUNT_BALANCES})
     final Stream<DynamicTest> ensureSystemStateAsExpectedWithFeeCollector() {

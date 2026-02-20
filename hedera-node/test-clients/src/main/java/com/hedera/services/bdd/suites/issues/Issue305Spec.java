@@ -19,7 +19,8 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.RECORD_NOT_FOU
 
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.hedera.node.app.hapi.utils.CommonUtils;
-import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.junit.EmbeddedReason;
+import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
 import com.hederahashgraph.api.proto.java.Transaction;
 import com.hederahashgraph.api.proto.java.TransactionID;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -34,7 +35,8 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DynamicTest;
 
 public class Issue305Spec {
-    @LeakyHapiTest(
+    @LeakyEmbeddedHapiTest(
+            reason = EmbeddedReason.NEEDS_STATE_ACCESS,
             overrides = {
                 "fees.percentCongestionMultipliers",
                 "fees.minCongestionPeriod",

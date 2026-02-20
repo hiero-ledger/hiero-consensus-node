@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.schedule;
 
+import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.dsl.operations.transactions.TouchBalancesOperation.touchBalanceOf;
@@ -119,7 +120,7 @@ import static java.lang.Integer.parseInt;
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
 import com.hedera.services.bdd.spec.dsl.annotations.Account;
 import com.hedera.services.bdd.spec.dsl.annotations.FungibleToken;
 import com.hedera.services.bdd.spec.dsl.entities.SpecAccount;
@@ -394,7 +395,9 @@ public class ScheduleExecutionTest {
                 getTokenInfo(A_TOKEN).hasTotalSupply(0));
     }
 
-    @LeakyHapiTest(overrides = {"tokens.nfts.maxBatchSizeMint"})
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"tokens.nfts.maxBatchSizeMint"})
     final Stream<DynamicTest> scheduledUniqueMintFailsWithInvalidBatchSize() {
         return hapiTest(
                 overriding("tokens.nfts.maxBatchSizeMint", "5"),

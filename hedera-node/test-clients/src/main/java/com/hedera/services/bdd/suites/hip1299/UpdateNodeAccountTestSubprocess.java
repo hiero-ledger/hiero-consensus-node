@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.hip1299;
 
 import static com.hedera.services.bdd.junit.TestTags.ONLY_SUBPROCESS;
-import static com.hedera.services.bdd.junit.TestTags.SERIAL;
 import static com.hedera.services.bdd.junit.hedera.utils.NetworkUtils.CLASSIC_FIRST_NODE_ACCOUNT_NUM;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccountString;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -39,7 +38,8 @@ import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 
-@Tag(SERIAL)
+// nodes.updateAccountIdAllowed is true by default so it is safe to run this concurrently
+// @Tag(SERIAL)
 @HapiTestLifecycle
 public class UpdateNodeAccountTestSubprocess {
 

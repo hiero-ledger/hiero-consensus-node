@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.file;
 
+import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getFileContents;
@@ -15,7 +16,7 @@ import static com.hedera.services.bdd.spec.utilops.mod.ModificationUtils.withSuc
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MAX_FILE_SIZE_EXCEEDED;
 
 import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
 import java.util.Arrays;
 import java.util.UUID;
 import java.util.stream.Stream;
@@ -61,7 +62,9 @@ public class FileAppendSuite {
                 .then(getFileContents("test").hasContents(ignore -> all8k));
     }
 
-    @LeakyHapiTest(overrides = {"files.maxSizeKb"})
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"files.maxSizeKb"})
     final Stream<DynamicTest> handleRejectsOversized() {
         byte[] BYTES_3K_MINUS1 = new byte[3 * 1024 - 1];
         Arrays.fill(BYTES_3K_MINUS1, (byte) 0xAB);

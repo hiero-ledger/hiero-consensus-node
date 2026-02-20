@@ -106,6 +106,7 @@ import org.hiero.base.utility.CommonUtils;
 import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Order;
 
 /**
  * Asserts the synthetic file creations stipulated by HIP-993 match the file contents returned by the gRPC
@@ -113,6 +114,8 @@ import org.junit.jupiter.api.DynamicTest;
  * and tests if they needed to ensure a transaction was handled before issuing any {@code FileGetContents} queries
  * or submitting {@code FileUpdate} transactions.)
  */
+// Run just before stream validation to avoid state pollution
+@Order(Integer.MAX_VALUE - 1)
 public class SystemFileExportsTest {
     private static final String DESCRIPTION_PREFIX = "Revision #";
 
