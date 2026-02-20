@@ -31,7 +31,7 @@ public record WiringConfig(
         @ConfigProperty(defaultValue = "true") boolean healthMonitorEnabled,
         @ConfigProperty(defaultValue = "false") boolean hardBackpressureEnabled,
         @ConfigProperty(defaultValue = "0") double defaultPoolMultiplier,
-        @ConfigProperty(defaultValue = "8") int defaultPoolConstant,
+        @ConfigProperty(defaultValue = "16") int defaultPoolConstant,
         @ConfigProperty(defaultValue = "500") int healthMonitorSchedulerCapacity,
         @ConfigProperty(defaultValue = "1ms") Duration healthMonitorHeartbeatPeriod,
         @ConfigProperty(defaultValue = "1s") Duration healthLogThreshold,
