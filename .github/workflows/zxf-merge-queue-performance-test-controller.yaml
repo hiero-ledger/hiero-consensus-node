@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "ZXF: [CITR] Merge Queue Longevity Test Controller"
+name: "ZXF: [CITR] Merge Queue Performance Test Controller"
 on:
   workflow_dispatch:
     inputs:
@@ -23,9 +23,9 @@ permissions:
   statuses: write
 
 jobs:
-  run-single-day-longevity-test:
-    name: MQ Longevity Test
-    uses: ./.github/workflows/zxc-mini-longevity-test.yaml
+  run-merge-queue-performance-test:
+    name: MQ Performance Test
+    uses: ./.github/workflows/zxc-merge-queue-performance-test.yaml
     with:
       test-asset: "${{ inputs.test-asset }}"
       ref: "${{ github.ref }}"
@@ -89,12 +89,12 @@ jobs:
           echo "commit-email=${EMAIL}" >> "${GITHUB_OUTPUT}"
 
   report-success:
-    name: Report MQLT execution success
+    name: Report MQPT execution success
     runs-on: hl-cn-mqpt-lin-sm
     needs:
-      - run-single-day-longevity-test
+      - run-merge-queue-performance-test
       - get-commit-info
-    if: ${{ (needs.run-single-day-longevity-test.outputs.result == 'success' &&
+    if: ${{ (needs.run-merge-queue-performance-test.outputs.result == 'success' &&
       needs.get-commit-info.result == 'success') &&
       !cancelled() }}
     steps:
@@ -119,7 +119,7 @@ jobs:
                       "type": "header",
                       "text": {
                         "type": "plain_text",
-                        "text": ":tada: MQLT - Merge Queue Longevity Test (${{ github.ref }}) Passed",
+                        "text": ":tada: MQPT - Merge Queue Performance Test (${{ github.ref }}) Passed",
                         "emoji": true
                       }
                     },
@@ -130,16 +130,16 @@ jobs:
                       "type": "section",
                       "text": {
                         "type": "mrkdwn",
-                        "text": "*MQLT Job Succeeded. Test panel status below*"
+                        "text": "*MQPT Job Succeeded. Test panel status below*"
                       },
                       "fields": [
                         {
                           "type": "plain_text",
-                          "text": "Run Merge Queue Longevity Test"
+                          "text": "Run Merge Queue Performance Test"
                         },
                         {
                           "type": "plain_text",
-                          "text": "${{ needs.run-single-day-longevity-test.outputs.result  }}"
+                          "text": "${{ needs.run-merge-queue-performance-test.outputs.result  }}"
                         }
                       ]
                     },
@@ -193,13 +193,13 @@ jobs:
             }
 
   report-failure:
-    name: Report MQLT execution failure
+    name: Report MQPT execution failure
     runs-on: hl-cn-mqpt-lin-sm
     needs:
-      - run-single-day-longevity-test
+      - run-merge-queue-performance-test
       - get-commit-info
       - report-success
-    if: ${{ (needs.run-single-day-longevity-test.outputs.result != 'success' ||
+    if: ${{ (needs.run-merge-queue-performance-test.outputs.result != 'success' ||
       needs.get-commit-info.result != 'success' ||
       needs.report-success.result != 'success') &&
       !cancelled() && always() }}
@@ -254,13 +254,13 @@ jobs:
       - name: Build Rootly Summary
         id: rootly-summary
         run: |
-          title="The MQLT Job Failed"
+          title="The MQPT Job Failed"
           echo "title=${title}" >> "${GITHUB_OUTPUT}"
           {
             echo 'summary<<EOF'
             echo "------------------------------------"
             echo "Status of each job:"
-            echo "- Run Merge Queue Longevity Test: ${{ needs.run-single-day-longevity-test.outputs.result }}"
+            echo "- Run Merge Queue Performance Test: ${{ needs.run-merge-queue-performance-test.outputs.result }}"
             echo "- Get Commit Info: ${{ needs.get-commit-info.result }}"
             echo "- Report Success: ${{ needs.report-success.result }}"
             echo "------------------------------------"
@@ -307,7 +307,7 @@ jobs:
                     "type": "header",
                     "text": {
                       "type": "plain_text",
-                      "text": ":grey_exclamation: MQLT - Merge Queue Longevity Test (${{ github.ref }}) Failed",
+                      "text": ":grey_exclamation: MQPT - Merge Queue Performance Test (${{ github.ref }}) Failed",
                       "emoji": true
                     }
                   },
@@ -318,16 +318,16 @@ jobs:
                     "type": "section",
                     "text": {
                       "type": "mrkdwn",
-                      "text": "*MQLT Job Resulted in failure. See status below.*"
+                      "text": "*MQPT Job Resulted in failure. See status below.*"
                     },
                     "fields": [
                       {
                         "type": "plain_text",
-                        "text": "Run Merge Queue Longevity Test"
+                        "text": "Run Merge Queue Performance Test"
                       },
                       {
                         "type": "plain_text",
-                        "text": "${{ needs.run-single-day-longevity-test.outputs.result }}"
+                        "text": "${{ needs.run-merge-queue-performance-test.outputs.result }}"
                       },
                       {
                         "type": "plain_text",

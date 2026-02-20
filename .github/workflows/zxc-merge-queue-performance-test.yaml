@@ -1,13 +1,13 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "ZXC: [CITR] Merge Queue Longevity Test"
+name: "ZXC: [CITR] Merge Queue Performance Test"
 
 on:
   workflow_call:
     inputs:
       test-asset:
         required: true
-        default: "SDLT2"
-        description: "Longevity test on given Longevity Machine (AdHoc5,6,7, AdHocSD8,9, or SDLT2)"
+        default: "Dallas_n10"
+        description: "Merge Queue Performance Test machine (Dallas_n10, Dallas_n11, Dallas_n12)"
         type: string
       ref:
         required: true
@@ -43,7 +43,7 @@ on:
         required: false
         default: "-Dbenchmark.stepDuration=5m -Dbenchmark.coolDown=2m"
         type: string
-        description: 'Special miniLongevity settings. Newline is "\n"'
+        description: 'Special MQPT settings. Newline is "\n"'
       delete-namespace:
         required: false
         default: true
@@ -67,7 +67,7 @@ permissions:
   actions: write
 
 env:
-  NAMESPACE_PREFIX: mqpt-sdlt-n
+  NAMESPACE_PREFIX: mqpt-n
   TIMEOUT_6H_LIMIT: 340
   GS_ROOT_DIR: gs://performance-engineering-reports/ephemeral/test_runs
   GS_ROOT_HTTPS: https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs
@@ -91,7 +91,7 @@ env:
   ValidatorExitCode: 0
 
 jobs:
-  longevity-tests-start:
+  merge-queue-performance-tests-start:
     name: Start
     runs-on: hl-cn-mqpt-lin-lg
     outputs:
@@ -750,8 +750,8 @@ jobs:
           echo "Size of report dir:"
           du -sk report
 
-          gcloud --no-user-output-enabled storage cp --recursive report "${{ env.GS_ROOT_DIR }}/${{ inputs.ref }}_${{ inputs.test-asset }}_${{ github.run_number }}/report/longevity"
-          echo Done: see results in "${{ env.GS_ROOT_HTTPS }}/${{ inputs.ref }}_${{ inputs.test-asset }}_${{ github.run_number }}/report/longevity"
+          gcloud --no-user-output-enabled storage cp --recursive report "${{ env.GS_ROOT_DIR }}/${{ inputs.ref }}_${{ inputs.test-asset }}_${{ github.run_number }}/report/MQPT"
+          echo Done: see results in "${{ env.GS_ROOT_HTTPS }}/${{ inputs.ref }}_${{ inputs.test-asset }}_${{ github.run_number }}/report/MQPT"
 
           echo "Truncating logs for next test..."
           sh "${{ github.workspace }}"/.github/workflows/support/citr/resetCNlogs.sh "${{ steps.set-namespace.outputs.namespace }}"
@@ -762,9 +762,9 @@ jobs:
     runs-on: hl-cn-mqpt-lin-lg
     if: ${{ !cancelled() }}
     needs:
-      - longevity-tests-start
+      - merge-queue-performance-tests-start
     outputs:
-      result: ${{ steps.mqlt-status.outputs.result }}
+      result: ${{ steps.mqpt-status.outputs.result }}
     steps:
       - name: Harden the runner (Audit all outbound calls)
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
@@ -772,14 +772,14 @@ jobs:
           egress-policy: audit
 
       - name: Set output
-        id: mqlt-status
+        id: mqpt-status
         env:
-          nft_transfer_load_result: ${{ needs.longevity-tests-start.outputs.NFTscore }}
-          hcs_load_result: ${{ needs.longevity-tests-start.outputs.HCSscore }}
-          crypto_transfer_load_result: ${{ needs.longevity-tests-start.outputs.Cryptoscore }}
-          smart_contract_load_result: ${{ needs.longevity-tests-start.outputs.Smartscore }}
-          reconnect_result: ${{ needs.longevity-tests-start.outputs.ReconnectStatus }}
-          validator_result: ${{ needs.longevity-tests-start.outputs.ValidatorStatus }}
+          nft_transfer_load_result: ${{ needs.merge-queue-performance-tests-start.outputs.NFTscore }}
+          hcs_load_result: ${{ needs.merge-queue-performance-tests-start.outputs.HCSscore }}
+          crypto_transfer_load_result: ${{ needs.merge-queue-performance-tests-start.outputs.Cryptoscore }}
+          smart_contract_load_result: ${{ needs.merge-queue-performance-tests-start.outputs.Smartscore }}
+          reconnect_result: ${{ needs.merge-queue-performance-tests-start.outputs.ReconnectStatus }}
+          validator_result: ${{ needs.merge-queue-performance-tests-start.outputs.ValidatorStatus }}
 
         run: |
           # result is 'success' or 'failure'. If any of the tests failed, we return 'failure'
@@ -838,7 +838,7 @@ jobs:
     name: Report Failures to Rootly
     runs-on: hl-cn-mqpt-lin-sm
     needs:
-      - longevity-tests-start
+      - merge-queue-performance-tests-start
       - merge-queue-test-result
     if: ${{ ( needs.merge-queue-test-result.outputs.result != 'success' ) &&
       !cancelled() && always() }}
@@ -857,16 +857,16 @@ jobs:
             echo 'summary<<EOF'
             echo "------------------------------------"
             echo "Status of each jobs:"
-            echo "- NFT Transfer Load Test: ${{ needs.longevity-tests-start.outputs.NFTscore }}"
-            echo "- HCS Load Test: ${{ needs.longevity-tests-start.outputs.HCSscore }}"
-            echo "- Crypto Transfer Load Test: ${{ needs.longevity-tests-start.outputs.Cryptoscore }}"
-            echo "- SmartContract Load Test: ${{ needs.longevity-tests-start.outputs.Smartscore }}"
-            echo "- Reconnect: ${{ needs.longevity-tests-start.outputs.ReconnectStatus }}"
-            echo "- Validator: ${{ needs.longevity-tests-start.outputs.ValidatorStatus }}"
+            echo "- NFT Transfer Load Test: ${{ needs.merge-queue-performance-tests-start.outputs.NFTscore }}"
+            echo "- HCS Load Test: ${{ needs.merge-queue-performance-tests-start.outputs.HCSscore }}"
+            echo "- Crypto Transfer Load Test: ${{ needs.merge-queue-performance-tests-start.outputs.Cryptoscore }}"
+            echo "- SmartContract Load Test: ${{ needs.merge-queue-performance-tests-start.outputs.Smartscore }}"
+            echo "- Reconnect: ${{ needs.merge-queue-performance-tests-start.outputs.ReconnectStatus }}"
+            echo "- Validator: ${{ needs.merge-queue-performance-tests-start.outputs.ValidatorStatus }}"
 
             echo "------------------------------------"
             echo "Commit information:"
-            echo "- Commit: <${{ github.server_url }}/${{ github.repository }}/commit/${{ needs.longevity-tests-start.outputs.commit-sha }}>"
+            echo "- Commit: <${{ github.server_url }}/${{ github.repository }}/commit/${{ needs.merge-queue-performance-tests-start.outputs.commit-sha }}>"
             echo "- Workflow: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
             echo EOF
           } >> "${GITHUB_OUTPUT}"
@@ -880,7 +880,7 @@ jobs:
   performance-report-to-slack:
     runs-on: hl-cn-mqpt-lin-sm
     needs:
-      - longevity-tests-start
+      - merge-queue-performance-tests-start
       - merge-queue-test-result
     steps:
       - name: Harden the runner (Audit all outbound calls)
@@ -910,19 +910,19 @@ jobs:
         id: payload
         run: |
           report="\
-            NftTransferLoadTest ${{ needs.longevity-tests-start.outputs.NFTscore }} ${{ env.MinNFTscore }}\n\
-            HCSLoadTest ${{ needs.longevity-tests-start.outputs.HCSscore }} ${{ env.MinHCSLoadTest }}\n\
-            CryptoTransferLoadTest ${{ needs.longevity-tests-start.outputs.Cryptoscore }} ${{ env.MinCryptoTransferLoadTest }}\n\
-            SmartContractLoadTest ${{ needs.longevity-tests-start.outputs.Smartscore }} ${{ env.MinSmartContractLoadTest }}"
+            NftTransferLoadTest ${{ needs.merge-queue-performance-tests-start.outputs.NFTscore }} ${{ env.MinNFTscore }}\n\
+            HCSLoadTest ${{ needs.merge-queue-performance-tests-start.outputs.HCSscore }} ${{ env.MinHCSLoadTest }}\n\
+            CryptoTransferLoadTest ${{ needs.merge-queue-performance-tests-start.outputs.Cryptoscore }} ${{ env.MinCryptoTransferLoadTest }}\n\
+            SmartContractLoadTest ${{ needs.merge-queue-performance-tests-start.outputs.Smartscore }} ${{ env.MinSmartContractLoadTest }}"
 
-          if [[ "${{ needs.longevity-tests-start.outputs.ReconnectStatus }}" == "0" ]]
+          if [[ "${{ needs.merge-queue-performance-tests-start.outputs.ReconnectStatus }}" == "0" ]]
           then
             Reconnect="PASSED"
           else
             Reconnect="FAILED"
           fi
 
-          if [[ "${{ needs.longevity-tests-start.outputs.ValidatorStatus }}" == "0" ]]
+          if [[ "${{ needs.merge-queue-performance-tests-start.outputs.ValidatorStatus }}" == "0" ]]
           then
             Validator="PASSED"
           else
