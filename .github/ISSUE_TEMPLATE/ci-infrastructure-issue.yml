@@ -1,5 +1,4 @@
 # SPDX-License-Identifier: Apache-2.0
-
 name: CI/Infrastructure Issue
 description: Template for CI/CD and infrastructure-related issues
 title: "ci(<input-category>): issue title"
