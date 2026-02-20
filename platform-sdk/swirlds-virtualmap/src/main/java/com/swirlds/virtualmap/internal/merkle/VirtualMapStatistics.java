@@ -55,6 +55,8 @@ public class VirtualMapStatistics {
     /** The average time to hash virtual map copy, ms */
     private LongAccumulator hashDurationMs;
 
+    private IntegerAccumulator liveCopyCount;
+
     private static LongAccumulator buildLongAccumulator(
             final Metrics metrics, final String name, final String description) {
         return metrics.getOrCreate(new LongAccumulator.Config(STAT_CATEGORY, name)
@@ -146,6 +148,9 @@ public class VirtualMapStatistics {
                 metrics,
                 VMAP_PREFIX + LIFECYCLE_PREFIX + "hashDurationMs_" + label,
                 "Virtual root copy hash duration, " + label + ", ms");
+        liveCopyCount = buildIntegerAccumulator(metrics,
+                VMAP_PREFIX + LIFECYCLE_PREFIX + "liveCopyCount_" + label,
+                "Virtual root copy live count, " + label);
     }
 
     /**
@@ -272,6 +277,18 @@ public class VirtualMapStatistics {
     public void recordHash(final long hashDurationMs) {
         if (this.hashDurationMs != null) {
             this.hashDurationMs.update(hashDurationMs);
+        }
+    }
+
+    public void incrementLiveCopyCount() {
+        if (liveCopyCount != null) {
+            liveCopyCount.update(1);
+        }
+    }
+
+    public void decrementLiveCopyCount() {
+        if (liveCopyCount != null) {
+            liveCopyCount.update(1);
         }
     }
 }
