@@ -141,6 +141,14 @@ public class DefaultPcesModule implements PcesModule {
      * {@inheritDoc}
      */
     @Override
+    public void replayPcesEvents(final long pcesReplayLowerBound, final long startingRound) {
+        requireNonNull(pcesCoordinator, "Not initialized").replayPcesEvents(pcesReplayLowerBound, startingRound);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     @NonNull
     public OutputWire<PlatformEvent> pcesEventsToReplay() {
         return requireNonNull(pcesReplayerWiring, "Not initialized").eventOutput();
@@ -151,8 +159,8 @@ public class DefaultPcesModule implements PcesModule {
      */
     @Override
     @NonNull
-    public OutputWire<PlatformEvent> writtenEventsOutputWire() {
-        return requireNonNull(pcesWriterWiring, "Not initialized").getOutputWire();
+    public InputWire<PlatformEvent> eventsToWriteInputWire() {
+        return requireNonNull(pcesWriterWiring, "Not initialized").getInputWire(InlinePcesWriter::writeEvent);
     }
 
     /**
@@ -160,8 +168,8 @@ public class DefaultPcesModule implements PcesModule {
      */
     @Override
     @NonNull
-    public InputWire<PlatformEvent> eventsToWriteInputWire() {
-        return requireNonNull(pcesWriterWiring, "Not initialized").getInputWire(InlinePcesWriter::writeEvent);
+    public OutputWire<PlatformEvent> writtenEventsOutputWire() {
+        return requireNonNull(pcesWriterWiring, "Not initialized").getOutputWire();
     }
 
     /**
@@ -200,14 +208,6 @@ public class DefaultPcesModule implements PcesModule {
     @Override
     public void flush() {
         requireNonNull(pcesWriterWiring, "Not initialized").flush();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void replayPcesEvents(final long pcesReplayLowerBound, final long startingRound) {
-        requireNonNull(pcesCoordinator, "Not initialized").replayPcesEvents(pcesReplayLowerBound, startingRound);
     }
 
     /**

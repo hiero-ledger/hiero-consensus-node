@@ -62,20 +62,20 @@ public interface PcesModule {
             @Nullable EventPipelineTracker pipelineTracker);
 
     /**
-     * {@link OutputWire} for events that have been replayed from the preconsensus event stream.
+     * Replay preconsensus events from storage.
      *
-     * @return the {@link OutputWire} for replayed events
+     * @param pcesReplayLowerBound the minimum birth round of events to replay
+     * @param startingRound the round from which to start replaying events
+     */
+    void replayPcesEvents(long pcesReplayLowerBound, long startingRound);
+
+    /**
+     * {@link OutputWire} for events from the preconsensus event stream to replay.
+     *
+     * @return the {@link OutputWire} for events to replay
      */
     @NonNull
     OutputWire<PlatformEvent> pcesEventsToReplay();
-
-    /**
-     * {@link OutputWire} for events that have been durably written to the preconsensus event stream.
-     *
-     * @return the {@link OutputWire} for written events
-     */
-    @NonNull
-    OutputWire<PlatformEvent> writtenEventsOutputWire();
 
     /**
      * {@link InputWire} for events to write to the preconsensus event stream.
@@ -85,6 +85,15 @@ public interface PcesModule {
     @InputWireLabel("events to write")
     @NonNull
     InputWire<PlatformEvent> eventsToWriteInputWire();
+
+    /**
+     * {@link OutputWire} for events that have been durably written to the preconsensus event stream. Events are streamed
+     * in the order they were provided to the {@link #eventsToWriteInputWire} input wire.
+     *
+     * @return the {@link OutputWire} for written events
+     */
+    @NonNull
+    OutputWire<PlatformEvent> writtenEventsOutputWire();
 
     /**
      * {@link InputWire} for the event window received from the {@code Hashgraph} component.
@@ -107,8 +116,6 @@ public interface PcesModule {
     /**
      * {@link InputWire} for signaling a discontinuity in the preconsensus event stream.
      *
-     * <p>This is a temporary wire that will be removed once the {@code PcesReplayer} also moves into this module.
-     *
      * @return the {@link InputWire} for discontinuity signals
      */
     @InputWireLabel("discontinuity")
@@ -119,14 +126,6 @@ public interface PcesModule {
      * Flushes all events of the internal components.
      */
     void flush();
-
-    /**
-     * Replay preconsensus events from storage.
-     *
-     * @param pcesReplayLowerBound the minimum birth round of events to replay
-     * @param startingRound the round from which to start replaying events
-     */
-    void replayPcesEvents(long pcesReplayLowerBound, long startingRound);
 
     /**
      * Copy all PCES files with events that have a birth round greater than or equal to the given lower bound and

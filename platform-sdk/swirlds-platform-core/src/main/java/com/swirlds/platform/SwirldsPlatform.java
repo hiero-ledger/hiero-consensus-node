@@ -230,7 +230,7 @@ public class SwirldsPlatform implements Platform {
             // The minimum generation of non-ancient events for the oldest state snapshot on disk.
             final long minimumGenerationNonAncientForOldestState =
                     savedStates.get(savedStates.size() - 1).metadata().minimumBirthRoundNonAncient();
-            platformCoordinator.injectPcesMinimumGenerationToStore(minimumGenerationNonAncientForOldestState);
+            platformCoordinator.injectPcesMinimumBirthRoundToStore(minimumGenerationNonAncientForOldestState);
         }
 
         final boolean startedFromGenesis = initialState.isGenesisState();

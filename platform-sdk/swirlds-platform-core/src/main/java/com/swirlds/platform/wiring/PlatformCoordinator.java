@@ -189,8 +189,8 @@ public record PlatformCoordinator(
     /**
      * @see PcesModule#minimumBirthRoundInputWire()
      */
-    public void injectPcesMinimumGenerationToStore(@NonNull final long minimumGenerationNonAncientForOldestState) {
-        components.pcesModule().minimumBirthRoundInputWire().inject(minimumGenerationNonAncientForOldestState);
+    public void injectPcesMinimumBirthRoundToStore(@NonNull final long minimumBirthRoundNonAncientForOldestState) {
+        components.pcesModule().minimumBirthRoundInputWire().inject(minimumBirthRoundNonAncientForOldestState);
     }
 
     /**
