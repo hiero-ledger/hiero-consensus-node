@@ -172,7 +172,7 @@ public class VirtualLeafBytes<V> {
     }
 
     public VirtualLeafBytes<V> withPath(final long newPath) {
-        return new VirtualLeafBytes<>(newPath, path, keyBytes, value, valueCodec, valueBytes);
+        return new VirtualLeafBytes<>(newPath, pathOnDisk, keyBytes, value, valueCodec, valueBytes);
     }
 
     public VirtualLeafBytes<V> withValue(final V newValue, final Codec<V> newValueCodec) {
