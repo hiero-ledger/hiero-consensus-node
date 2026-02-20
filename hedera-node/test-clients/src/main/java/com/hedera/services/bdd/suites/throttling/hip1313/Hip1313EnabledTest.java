@@ -75,7 +75,6 @@ import org.hiero.hapi.support.fees.FeeSchedule;
 import org.hiero.hapi.support.fees.PiecewiseLinearCurve;
 import org.hiero.hapi.support.fees.PiecewiseLinearPoint;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.parallel.Isolated;
