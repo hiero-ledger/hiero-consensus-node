@@ -309,7 +309,7 @@ public interface HederaWorldUpdater extends WorldUpdater {
     /**
      * Create a new account with the given key and code delegation to the given address.
      * @param authority the alias address of the new account to create
-     * @param publicKey the ECDSA public key of the new account to create
+     * @param ecdsaPublicKey the ECDSA public key of the new account to create
      * @param delegationAddress the address to set as the delegation indicator
      * @return true if the account was created and the code delegation was set successfully, false otherwise
      */
