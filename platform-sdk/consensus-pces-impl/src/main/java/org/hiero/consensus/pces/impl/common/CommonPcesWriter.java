@@ -53,9 +53,9 @@ public class CommonPcesWriter {
     private final int minimumSpan;
 
     /**
-     * The minimum ancient indicator that we are required to keep around. Based on the birth round of an event.
+     * The minimum birth round that we are required to keep around. Based on the birth round of an event.
      */
-    private long minimumAncientIdentifierToStore;
+    private long minimumBirthRoundToStore;
 
     /**
      * A running average of the span utilization in each file. Span utilization is defined as the difference between the
@@ -183,12 +183,12 @@ public class CommonPcesWriter {
     }
 
     /**
-     * Set the minimum ancient indicator needed to be kept on disk.
+     * Set the minimum birth round needed to be kept on disk.
      *
-     * @param minimumAncientIdentifierToStore the minimum ancient indicator required to be stored on disk
+     * @param minimumBirthRoundToStore the minimum birth round required to be stored on disk
      */
-    public void setMinimumAncientIdentifierToStore(@NonNull final Long minimumAncientIdentifierToStore) {
-        this.minimumAncientIdentifierToStore = minimumAncientIdentifierToStore;
+    public void setMinimumBirthRoundToStore(@NonNull final Long minimumBirthRoundToStore) {
+        this.minimumBirthRoundToStore = minimumBirthRoundToStore;
         pruneOldFiles();
     }
 
@@ -228,7 +228,7 @@ public class CommonPcesWriter {
         }
 
         try {
-            fileManager.pruneOldFiles(minimumAncientIdentifierToStore);
+            fileManager.pruneOldFiles(minimumBirthRoundToStore);
         } catch (final IOException e) {
             throw new UncheckedIOException("unable to prune old files", e);
         }
