@@ -1,113 +1,169 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.history.impl;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.verify;
 
-import com.hedera.cryptography.rpm.SigningAndVerifyingSchnorrKeys;
+import com.hedera.cryptography.wraps.WRAPSVerificationKey;
+import com.hedera.node.app.history.HistoryLibrary;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import org.junit.jupiter.api.Disabled;
+import java.util.Set;
+import java.util.SortedMap;
+import java.util.TreeMap;
+import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 
+@ExtendWith(MockitoExtension.class)
 class HistoryLibraryImplTest {
-    private static final HistoryLibraryImpl subject = new HistoryLibraryImpl();
+
+    @Mock
+    private HistoryLibrary library;
+
+    private final HistoryLibraryImpl subject = new HistoryLibraryImpl();
 
     @Test
-    void hasSnarkVerificationKey() {
-        assertNotNull(subject.snarkVerificationKey());
+    void wrapsVerificationKeyIsTbd() {
+        assertArrayEquals(WRAPSVerificationKey.getCurrentKey(), subject.wrapsVerificationKey());
     }
 
     @Test
-    void generatesValidSchnorrKeys() {
+    void computeHashBuildsCanonicalAddressBookAndWrapsResult() {
+        final var nodeIds = Set.of(3L, 1L, 2L);
+        final var expectedHash = new byte[] {42};
+        given(library.hashAddressBook(any())).willReturn(expectedHash);
+
+        final var result =
+                HistoryLibrary.computeHash(library, nodeIds, id -> id * 10L, id -> Bytes.wrap(new byte[] {(byte) id}));
+
+        assertEquals(Bytes.wrap(expectedHash), result);
+
+        final ArgumentCaptor<HistoryLibrary.AddressBook> captor =
+                ArgumentCaptor.forClass(HistoryLibrary.AddressBook.class);
+        verify(library).hashAddressBook(captor.capture());
+
+        final var addressBook = captor.getValue();
+        assertArrayEquals(new long[] {10L, 20L, 30L}, addressBook.weights());
+        assertArrayEquals(new long[] {1L, 2L, 3L}, addressBook.nodeIds());
+        assertArrayEquals(new byte[] {1}, addressBook.publicKeys()[0]);
+        assertArrayEquals(new byte[] {2}, addressBook.publicKeys()[1]);
+        assertArrayEquals(new byte[] {3}, addressBook.publicKeys()[2]);
+    }
+
+    @Test
+    void addressBookFromUsesSortedWeightsAndDefaultsMissingPublicKeys() {
+        final SortedMap<Long, Long> weights = new TreeMap<>();
+        weights.put(2L, 20L);
+        weights.put(1L, 10L);
+
+        final SortedMap<Long, byte[]> publicKeys = new TreeMap<>();
+        publicKeys.put(1L, new byte[] {0x01});
+
+        final var addressBook = HistoryLibrary.AddressBook.from(weights, publicKeys);
+
+        assertArrayEquals(new long[] {10L, 20L}, addressBook.weights());
+        assertArrayEquals(new long[] {1L, 2L}, addressBook.nodeIds());
+        assertArrayEquals(new byte[] {0x01}, addressBook.publicKeys()[0]);
+        assertArrayEquals(
+                HistoryLibrary.EMPTY_PUBLIC_KEY.toByteArray(), addressBook.publicKeys()[1]);
+    }
+
+    @Test
+    void addressBookFromUsesFunctionForPublicKeys() {
+        final SortedMap<Long, Long> weights = new TreeMap<>();
+        weights.put(2L, 20L);
+        weights.put(1L, 10L);
+
+        final var addressBook = HistoryLibrary.AddressBook.from(weights, nodeId -> new byte[] {(byte) (nodeId + 40)});
+
+        assertArrayEquals(new long[] {10L, 20L}, addressBook.weights());
+        assertArrayEquals(new long[] {1L, 2L}, addressBook.nodeIds());
+        assertArrayEquals(new byte[] {41}, addressBook.publicKeys()[0]);
+        assertArrayEquals(new byte[] {42}, addressBook.publicKeys()[1]);
+    }
+
+    @Test
+    void signersMaskMarksOnlySignerNodeIds() {
+        final var weights = new long[] {1L, 1L, 1L};
+        final var publicKeys = new byte[][] {new byte[] {0}, new byte[] {1}, new byte[] {2}};
+        final var nodeIds = new long[] {10L, 20L, 30L};
+        final var addressBook = new HistoryLibrary.AddressBook(weights, publicKeys, nodeIds);
+
+        final var mask = addressBook.signersMask(Set.of(10L, 30L, 40L));
+
+        assertArrayEquals(new boolean[] {true, false, true}, mask);
+    }
+
+    @Test
+    void toStringIncludesIndexWeightAndHexKey() {
+        final var weights = new long[] {5L};
+        final var publicKeys = new byte[][] {new byte[] {0x01, 0x02}};
+        final var nodeIds = new long[] {123L};
+        final var addressBook = new HistoryLibrary.AddressBook(weights, publicKeys, nodeIds);
+
+        final var expected = "AddressBook[(#0 :: weight=5 :: public_key=" + CommonUtils.hex(publicKeys[0]) + ")]";
+
+        assertEquals(expected, addressBook.toString());
+    }
+
+    @Test
+    void newSchnorrKeyPairReturnsNonNull() {
         final var keys = subject.newSchnorrKeyPair();
-        final var message = Bytes.wrap("Hello, world!".getBytes());
-        final var signature = subject.signSchnorr(message, Bytes.wrap(keys.signingKey()));
-        assertTrue(subject.verifySchnorr(signature, message, Bytes.wrap(keys.verifyingKey())));
+        assertNotNull(keys);
     }
 
     @Test
-    void hashesAddressBook() {
-        final List<KeyPairAndWeight> addresses = buildSomeAddresses(3);
-        final var publicKeyArray =
-                addresses.stream().map(k -> k.keys.verifyingKey()).toArray(byte[][]::new);
-        final var weights = addresses.stream()
-                .map(KeyPairAndWeight::weight)
-                .mapToLong(Long::longValue)
-                .toArray();
-        assertNotNull(subject.hashAddressBook(weights, publicKeyArray));
+    void wrapsPhasesAndVerificationCoverAllMethods() {
+        final var keys = subject.newSchnorrKeyPair();
+
+        final var weights = new long[] {1L};
+        final var publicKeys = new byte[1][];
+        publicKeys[0] = keys.publicKey();
+        final var nodeIds = new long[] {123L};
+        final var addressBook = new HistoryLibrary.AddressBook(weights, publicKeys, nodeIds);
+
+        final var hash = subject.hashAddressBook(addressBook);
+        assertNotNull(hash);
+
+        final var hintsKey = new byte[32];
+        final var message = subject.computeWrapsMessage(addressBook, hintsKey);
+        assertNotNull(message);
+
+        final var entropy = new byte[32];
+        final var privateKey = keys.privateKey();
+
+        final var r1 = subject.runWrapsPhaseR1(entropy, message, privateKey);
+        assertNotNull(r1);
+
+        final var signers = Set.of(123L);
+        final var r1Messages = new byte[][] {r1};
+        final var r2 = subject.runWrapsPhaseR2(entropy, message, r1Messages, privateKey, addressBook, signers);
+        assertNotNull(r2);
+
+        final var r2Messages = new byte[][] {r2};
+        final var r3 =
+                subject.runWrapsPhaseR3(entropy, message, r1Messages, r2Messages, privateKey, addressBook, signers);
+        assertNotNull(r3);
+
+        final var r3Messages = new byte[][] {r3};
+        final var signature =
+                subject.runAggregationPhase(message, r1Messages, r2Messages, r3Messages, addressBook, signers);
+        assertNotNull(signature);
+
+        assertDoesNotThrow(() -> subject.verifyAggregateSignature(message, nodeIds, publicKeys, weights, signature));
     }
 
     @Test
-    @Disabled
-    // This test works. But it is disabled because it takes 3 minutes to finish this test.
-    // It is useful to debug locally
-    void verifiesProofOfTrust() {
-        final List<KeyPairAndWeight> sourceAddresses = buildSomeAddresses(3);
-        final var sourceKeys =
-                sourceAddresses.stream().map(k -> k.keys.verifyingKey()).toArray(byte[][]::new);
-        final var sourceWeights = sourceAddresses.stream()
-                .map(KeyPairAndWeight::weight)
-                .mapToLong(Long::longValue)
-                .toArray();
-
-        final List<KeyPairAndWeight> targetAddresses = buildSomeAddresses(2);
-        final var targetKeys =
-                targetAddresses.stream().map(k -> k.keys.verifyingKey()).toArray(byte[][]::new);
-        final var targetWeights = targetAddresses.stream()
-                .map(KeyPairAndWeight::weight)
-                .mapToLong(Long::longValue)
-                .toArray();
-
-        final Bytes genesisAddressBookHash = subject.hashAddressBook(sourceWeights, sourceKeys);
-        final Bytes nextAddressBookHash = subject.hashAddressBook(targetWeights, targetKeys);
-        final Bytes metadata = com.hedera.pbj.runtime.io.buffer.Bytes.wrap("test metadata");
-        final var hashedMetadata = subject.hashHintsVerificationKey(metadata);
-        final var message = concatMessages(nextAddressBookHash.toByteArray(), hashedMetadata.toByteArray());
-
-        final Map<Long, Bytes> signatures = new LinkedHashMap<>();
-
-        for (int i = 0; i < sourceAddresses.size(); i++) {
-            final var entry = sourceAddresses.get(i);
-            if (i == 0) {
-                signatures.put(entry.weight(), null);
-            } else {
-                signatures.put(
-                        entry.weight(), subject.signSchnorr(Bytes.wrap(message), Bytes.wrap(entry.keys.signingKey())));
-            }
-        }
-
-        final var snarkProof = subject.proveChainOfTrust(
-                genesisAddressBookHash,
-                null,
-                sourceWeights,
-                sourceKeys,
-                targetWeights,
-                targetKeys,
-                signatures.values().stream()
-                        .map(b -> b == null ? null : b.toByteArray())
-                        .toArray(byte[][]::new),
-                hashedMetadata);
-        assertNotNull(snarkProof);
-    }
-
-    public static byte[] concatMessages(final byte[] nextAddressBookHash, final byte[] hintsVerificationKeyHash) {
-        final byte[] arr = new byte[nextAddressBookHash.length + hintsVerificationKeyHash.length];
-        System.arraycopy(nextAddressBookHash, 0, arr, 0, nextAddressBookHash.length);
-        System.arraycopy(hintsVerificationKeyHash, 0, arr, nextAddressBookHash.length, hintsVerificationKeyHash.length);
-        return arr;
-    }
-
-    private record KeyPairAndWeight(SigningAndVerifyingSchnorrKeys keys, long weight) {}
-
-    private KeyPairAndWeight fromRandom(long weight) {
-        final SigningAndVerifyingSchnorrKeys keys = subject.newSchnorrKeyPair();
-        return new KeyPairAndWeight(keys, weight);
-    }
-
-    private List<KeyPairAndWeight> buildSomeAddresses(final int num) {
-        return List.of(fromRandom(111), fromRandom(222), fromRandom(333), fromRandom(444))
-                .subList(0, num);
+    void wrapsLibraryBridgeIsNotReady() {
+        assertFalse(subject.wrapsProverReady());
     }
 }

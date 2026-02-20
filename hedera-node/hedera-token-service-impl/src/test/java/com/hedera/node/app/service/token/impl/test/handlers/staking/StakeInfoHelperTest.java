@@ -122,6 +122,7 @@ class StakeInfoHelperTest {
         final var newStates = newStatesInstance(stakingInfosState);
         infoStore = new WritableStakingInfoStore(newStates, entityIdStore);
         entityIdStore.adjustEntityCount(EntityType.STAKING_INFO, 4L);
+        entityIdStore.adjustEntityCount(EntityType.NODE, 4L);
         // Platform address book has node Ids 2, 4, 8
         final var networkInfo = new FakeNetworkInfo();
 

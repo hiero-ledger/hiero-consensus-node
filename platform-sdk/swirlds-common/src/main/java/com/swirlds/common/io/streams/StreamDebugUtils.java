@@ -7,6 +7,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.io.streams.SerializableDataInputStream;
 
 /**
  * Utility methods for debugging streams.
@@ -44,7 +45,7 @@ public final class StreamDebugUtils {
          * 		the stream to deserialize from
          * @return the object that was deserialized
          */
-        T deserialize(final MerkleDataInputStream inputStream) throws IOException;
+        T deserialize(final SerializableDataInputStream inputStream) throws IOException;
     }
 
     /**
@@ -63,7 +64,7 @@ public final class StreamDebugUtils {
             final InputStreamBuilder inputStreamBuilder, final Deserializer<T> deserializer) throws IOException {
 
         try (final InputStream baseStream = inputStreamBuilder.buildStream()) {
-            final MerkleDataInputStream in = new MerkleDataInputStream(baseStream);
+            final SerializableDataInputStream in = new SerializableDataInputStream(baseStream);
             return deserializer.deserialize(in);
         } catch (final Throwable ex) {
 
@@ -72,16 +73,18 @@ public final class StreamDebugUtils {
                     "Deserialization failure. " + "Will re-attempt deserialization with extra debug information.",
                     ex);
 
-            DebuggableMerkleDataInputStream in = null;
+            SerializableDataInputStream in = null;
             try (final InputStream baseStream = inputStreamBuilder.buildStream()) {
-                in = new DebuggableMerkleDataInputStream(baseStream);
+                in = new DebuggableDataInputStream(baseStream);
                 deserializer.deserialize(in);
             } catch (final Throwable innerEx) {
                 logger.error(EXCEPTION.getMarker(), "Deserialization re-attempt also encountered a failure.", innerEx);
             } finally {
-                if (in != null) {
+                if (in instanceof DebuggableDataInputStream debugIn) {
                     logger.error(
-                            EXCEPTION.getMarker(), "Deserialization stack trace:\n{}", in.getFormattedStackTrace());
+                            EXCEPTION.getMarker(),
+                            "Deserialization stack trace:\n{}",
+                            debugIn.getFormattedStackTrace());
                 }
             }
 

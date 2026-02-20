@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.crypto;
 
+import static com.hedera.services.bdd.junit.ContextRequirement.PROPERTY_OVERRIDES;
+import static com.hedera.services.bdd.junit.ContextRequirement.THROTTLE_OVERRIDES;
+import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
 import static com.hedera.services.bdd.spec.keys.KeyShape.SIMPLE;
 import static com.hedera.services.bdd.spec.keys.KeyShape.listOf;
-import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.*;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
@@ -17,40 +19,43 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUnique;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.*;
 import static com.hedera.services.bdd.suites.HapiSuite.CIVILIAN_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_DELETED;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ACCOUNT_ID;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.*;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
+import static java.util.Objects.requireNonNull;
+import static org.hiero.base.utility.CommonUtils.unhex;
 
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
+import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hederahashgraph.api.proto.java.TokenSupplyType;
 import com.hederahashgraph.api.proto.java.TokenType;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
 @Tag(CRYPTO)
 public class CryptoGetInfoRegression {
-    static final Logger log = LogManager.getLogger(CryptoGetInfoRegression.class);
+    private static final String TARGET_ACC = "targetAcc";
+    private static final int NUM_ASSOCIATIONS = 10;
 
-    /** For Demo purpose : The limit on each account info and account balance queries is set to 5 */
-    @LeakyHapiTest(overrides = {"tokens.maxRelsPerInfoQuery"})
-    @Tag(MATS)
+    /**
+     * For Demo purpose : The limit on each account info and account balance queries is set to 5
+     */
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"tokens.maxRelsPerInfoQuery"})
     final Stream<DynamicTest> fetchesOnlyALimitedTokenAssociations() {
         final var account = "test";
         final var aKey = "tokenKey";
@@ -151,6 +156,32 @@ public class CryptoGetInfoRegression {
                 getAccountInfo(account).hasTokenRelationShipCount(3));
     }
 
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            requirement = {PROPERTY_OVERRIDES, THROTTLE_OVERRIDES},
+            overrides = {"tokens.countingGetBalanceThrottleEnabled"},
+            throttles = "testSystemFiles/tiny-get-balance-throttle.json")
+    public Stream<DynamicTest> cryptoGetAccountBalanceQueryAssociationThrottles() {
+        final var evmHexRef = new AtomicReference<>("");
+        final List<String> tokenNames = new ArrayList<>();
+        for (int i = 0; i < NUM_ASSOCIATIONS; i++) {
+            tokenNames.add("t" + i);
+        }
+        final var ops = new ArrayList<SpecOperation>();
+        ops.add(overridingAllOf(Map.of("tokens.countingGetBalanceThrottleEnabled", "true")));
+        ops.add(cryptoCreate(TARGET_ACC).withMatchingEvmAddress());
+        tokenNames.forEach(t -> {
+            ops.add(tokenCreate(t));
+            ops.add(tokenAssociate(TARGET_ACC, t));
+        });
+        ops.add(getAccountInfo(TARGET_ACC).exposingContractAccountIdTo(evmHexRef::set));
+        ops.add(getAccountBalance(TARGET_ACC).hasAnswerOnlyPrecheck(BUSY));
+        ops.add(sourcing(() -> getAliasedAccountBalance(ByteString.copyFrom(requireNonNull(unhex(evmHexRef.get()))))
+                .hasAnswerOnlyPrecheck(BUSY)));
+
+        return hapiTest(ops.toArray(new SpecOperation[0]));
+    }
+
     @HapiTest
     final Stream<DynamicTest> succeedsNormally() {
         long balance = 1_234_567L;
@@ -213,9 +244,12 @@ public class CryptoGetInfoRegression {
                         .hasAnswerOnlyPrecheck(INSUFFICIENT_PAYER_BALANCE));
     }
 
-    @HapiTest
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"fees.simpleFeesEnabled"})
     final Stream<DynamicTest> failsForInsufficientPayment() {
         return hapiTest(
+                overriding("fees.simpleFeesEnabled", "false"),
                 cryptoCreate(CIVILIAN_PAYER),
                 getAccountInfo(GENESIS)
                         .payingWith(CIVILIAN_PAYER)

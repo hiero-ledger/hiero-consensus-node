@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.fees;
 
 import static com.google.protobuf.ByteString.copyFromUtf8;
+import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
 import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.customizedHapiTest;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -22,6 +23,7 @@ import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfe
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedHbarFee;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUnique;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingTwo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateInnerTxnChargedUsd;
@@ -30,10 +32,26 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
 import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedCryptoApproveAllowanceFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedCryptoCreateFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedCryptoDeleteAllowanceFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedCryptoDeleteFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedCryptoTransferFTFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedCryptoTransferHbarFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedCryptoTransferNFTFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedCryptoTransferTokenWithCustomFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedCryptoUpdateFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateInnerChargedUsdWithinWithTxnSize;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_EXPIRATION_TIME;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
+import static org.hiero.hapi.support.fees.Extra.ACCOUNTS;
+import static org.hiero.hapi.support.fees.Extra.ALLOWANCES;
+import static org.hiero.hapi.support.fees.Extra.KEYS;
+import static org.hiero.hapi.support.fees.Extra.PROCESSING_BYTES;
+import static org.hiero.hapi.support.fees.Extra.SIGNATURES;
+import static org.hiero.hapi.support.fees.Extra.TOKEN_TYPES;
 
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
@@ -55,6 +73,7 @@ import org.junit.jupiter.api.Tag;
 
 // This test cases are direct copies of CryptoServiceFeesSuite. The difference here is that
 // we are wrapping the operations in an atomic batch to confirm the fees are the same
+@Tag(ATOMIC_BATCH)
 @HapiTestLifecycle
 class AtomicCryptoServiceFeesSuite {
 
@@ -100,7 +119,20 @@ class AtomicCryptoServiceFeesSuite {
                         .via(ATOMIC_BATCH)
                         .signedByPayerAnd(BATCH_OPERATOR)
                         .payingWith(BATCH_OPERATOR),
-                validateInnerTxnChargedUsd(cryptoCreate, ATOMIC_BATCH, BASE_FEE_CRYPTO_CREATE));
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return validateInnerChargedUsdWithinWithTxnSize(
+                                cryptoCreate,
+                                ATOMIC_BATCH,
+                                txnSize -> expectedCryptoCreateFullFeeUsd(Map.of(
+                                        SIGNATURES, 1L,
+                                        KEYS, 1L,
+                                        PROCESSING_BYTES, (long) txnSize)),
+                                0.001);
+                    } else {
+                        return validateInnerTxnChargedUsd(cryptoCreate, ATOMIC_BATCH, BASE_FEE_CRYPTO_CREATE);
+                    }
+                }));
     }
 
     @HapiTest
@@ -120,7 +152,18 @@ class AtomicCryptoServiceFeesSuite {
                         .via(ATOMIC_BATCH)
                         .signedByPayerAnd(BATCH_OPERATOR)
                         .payingWith(BATCH_OPERATOR),
-                validateInnerTxnChargedUsd(cryptoDelete, ATOMIC_BATCH, BASE_FEE_CRYPTO_DELETE, 5));
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return validateInnerChargedUsdWithinWithTxnSize(
+                                cryptoDelete,
+                                ATOMIC_BATCH,
+                                txnSize -> expectedCryptoDeleteFullFeeUsd(
+                                        Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
+                                0.001);
+                    } else {
+                        return validateInnerTxnChargedUsd(cryptoDelete, ATOMIC_BATCH, BASE_FEE_CRYPTO_DELETE, 5);
+                    }
+                }));
     }
 
     @HapiTest
@@ -185,9 +228,33 @@ class AtomicCryptoServiceFeesSuite {
                         .via(ATOMIC_BATCH)
                         .signedByPayerAnd(BATCH_OPERATOR)
                         .payingWith(BATCH_OPERATOR),
-                validateInnerTxnChargedUsd(baseDeleteNft, ATOMIC_BATCH, BASE_FEE_CRYPTO_DELETE_ALLOWANCE, 5),
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return validateInnerChargedUsdWithinWithTxnSize(
+                                baseDeleteNft,
+                                ATOMIC_BATCH,
+                                txnSize -> expectedCryptoDeleteAllowanceFullFeeUsd(
+                                        Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
+                                0.001);
+                    } else {
+                        return validateInnerTxnChargedUsd(
+                                baseDeleteNft, ATOMIC_BATCH, BASE_FEE_CRYPTO_DELETE_ALLOWANCE, 5);
+                    }
+                }),
                 cryptoApproveAllowance().payingWith(OWNER).addNftAllowance(OWNER, nft, SPENDER, false, List.of(1L)),
-                validateInnerTxnChargedUsd(baseDeleteNft2, ATOMIC_BATCH, BASE_FEE_CRYPTO_DELETE_ALLOWANCE, 5));
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return validateInnerChargedUsdWithinWithTxnSize(
+                                baseDeleteNft2,
+                                ATOMIC_BATCH,
+                                txnSize -> expectedCryptoDeleteAllowanceFullFeeUsd(
+                                        Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
+                                0.001);
+                    } else {
+                        return validateInnerTxnChargedUsd(
+                                baseDeleteNft2, ATOMIC_BATCH, BASE_FEE_CRYPTO_DELETE_ALLOWANCE, 5);
+                    }
+                }));
     }
 
     private HapiSpecOperation[] cryptoApproveAllowanceSetup() {
@@ -243,7 +310,20 @@ class AtomicCryptoServiceFeesSuite {
                         .via(ATOMIC_BATCH)
                         .signedByPayerAnd(BATCH_OPERATOR)
                         .payingWith(BATCH_OPERATOR),
-                validateInnerTxnChargedUsd("approve", ATOMIC_BATCH, 0.05, 5)));
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return validateInnerChargedUsdWithinWithTxnSize(
+                                "approve",
+                                ATOMIC_BATCH,
+                                txnSize -> expectedCryptoApproveAllowanceFullFeeUsd(Map.of(
+                                        SIGNATURES, 1L,
+                                        ALLOWANCES, 1L,
+                                        PROCESSING_BYTES, (long) txnSize)),
+                                0.001);
+                    } else {
+                        return validateInnerTxnChargedUsd("approve", ATOMIC_BATCH, 0.05, 5);
+                    }
+                })));
     }
 
     @HapiTest
@@ -262,7 +342,20 @@ class AtomicCryptoServiceFeesSuite {
                                 .batchKey(BATCH_OPERATOR))
                         .via(ATOMIC_BATCH)
                         .signedByPayerAnd(BATCH_OPERATOR),
-                validateInnerTxnChargedUsd("approveTokenTxn", ATOMIC_BATCH, 0.05012, 5)));
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return validateInnerChargedUsdWithinWithTxnSize(
+                                "approveTokenTxn",
+                                ATOMIC_BATCH,
+                                txnSize -> expectedCryptoApproveAllowanceFullFeeUsd(Map.of(
+                                        SIGNATURES, 1L,
+                                        ALLOWANCES, 1L,
+                                        PROCESSING_BYTES, (long) txnSize)),
+                                0.001);
+                    } else {
+                        return validateInnerTxnChargedUsd("approveTokenTxn", ATOMIC_BATCH, 0.05012, 5);
+                    }
+                })));
     }
 
     @HapiTest
@@ -281,7 +374,20 @@ class AtomicCryptoServiceFeesSuite {
                                 .batchKey(BATCH_OPERATOR))
                         .via(ATOMIC_BATCH)
                         .signedByPayerAnd(BATCH_OPERATOR),
-                validateInnerTxnChargedUsd("approveNftTxn", ATOMIC_BATCH, 0.050101, 5)));
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return validateInnerChargedUsdWithinWithTxnSize(
+                                "approveNftTxn",
+                                ATOMIC_BATCH,
+                                txnSize -> expectedCryptoApproveAllowanceFullFeeUsd(Map.of(
+                                        SIGNATURES, 1L,
+                                        ALLOWANCES, 1L,
+                                        PROCESSING_BYTES, (long) txnSize)),
+                                0.001);
+                    } else {
+                        return validateInnerTxnChargedUsd("approveNftTxn", ATOMIC_BATCH, 0.050101, 5);
+                    }
+                })));
     }
 
     @HapiTest
@@ -301,7 +407,20 @@ class AtomicCryptoServiceFeesSuite {
                                 .batchKey(BATCH_OPERATOR))
                         .via(ATOMIC_BATCH)
                         .signedByPayerAnd(BATCH_OPERATOR),
-                validateInnerTxnChargedUsd("approveForAllNftTxn", ATOMIC_BATCH, 0.05, 5)));
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return validateInnerChargedUsdWithinWithTxnSize(
+                                "approveForAllNftTxn",
+                                ATOMIC_BATCH,
+                                txnSize -> expectedCryptoApproveAllowanceFullFeeUsd(Map.of(
+                                        SIGNATURES, 1L,
+                                        ALLOWANCES, 1L,
+                                        PROCESSING_BYTES, (long) txnSize)),
+                                0.001);
+                    } else {
+                        return validateInnerTxnChargedUsd("approveForAllNftTxn", ATOMIC_BATCH, 0.05, 5);
+                    }
+                })));
     }
 
     @HapiTest
@@ -320,11 +439,23 @@ class AtomicCryptoServiceFeesSuite {
                                 .via(APPROVE_TXN)
                                 .fee(ONE_HBAR)
                                 .blankMemo()
-                                .logged()
                                 .batchKey(BATCH_OPERATOR))
                         .via(ATOMIC_BATCH)
                         .signedByPayerAnd(BATCH_OPERATOR),
-                validateInnerTxnChargedUsd(APPROVE_TXN, ATOMIC_BATCH, 0.05238, 5)));
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return validateInnerChargedUsdWithinWithTxnSize(
+                                APPROVE_TXN,
+                                ATOMIC_BATCH,
+                                txnSize -> expectedCryptoApproveAllowanceFullFeeUsd(Map.of(
+                                        SIGNATURES, 1L,
+                                        ALLOWANCES, 3L,
+                                        PROCESSING_BYTES, (long) txnSize)),
+                                0.001);
+                    } else {
+                        return validateInnerTxnChargedUsd(APPROVE_TXN, ATOMIC_BATCH, 0.05238, 5);
+                    }
+                })));
     }
 
     @HapiTest
@@ -343,7 +474,20 @@ class AtomicCryptoServiceFeesSuite {
                         .via(ATOMIC_BATCH)
                         .signedByPayerAnd(BATCH_OPERATOR)
                         .payingWith(BATCH_OPERATOR),
-                validateInnerTxnChargedUsd("approveModifyCryptoTxn", ATOMIC_BATCH, 0.049375, 5)));
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return validateInnerChargedUsdWithinWithTxnSize(
+                                "approveModifyCryptoTxn",
+                                ATOMIC_BATCH,
+                                txnSize -> expectedCryptoApproveAllowanceFullFeeUsd(Map.of(
+                                        SIGNATURES, 1L,
+                                        ALLOWANCES, 1L,
+                                        PROCESSING_BYTES, (long) txnSize)),
+                                0.001);
+                    } else {
+                        return validateInnerTxnChargedUsd("approveModifyCryptoTxn", ATOMIC_BATCH, 0.049375, 5);
+                    }
+                })));
     }
 
     @HapiTest
@@ -364,7 +508,20 @@ class AtomicCryptoServiceFeesSuite {
                         .via(ATOMIC_BATCH)
                         .signedByPayerAnd(BATCH_OPERATOR)
                         .payingWith(BATCH_OPERATOR),
-                validateInnerTxnChargedUsd("approveModifyNftTxn", ATOMIC_BATCH, 0.049375, 5)));
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return validateInnerChargedUsdWithinWithTxnSize(
+                                "approveModifyNftTxn",
+                                ATOMIC_BATCH,
+                                txnSize -> expectedCryptoApproveAllowanceFullFeeUsd(Map.of(
+                                        SIGNATURES, 1L,
+                                        ALLOWANCES, 1L,
+                                        PROCESSING_BYTES, (long) txnSize)),
+                                0.001);
+                    } else {
+                        return validateInnerTxnChargedUsd("approveModifyNftTxn", ATOMIC_BATCH, 0.049375, 5);
+                    }
+                })));
     }
 
     private HapiSpecOperation[] cryptoUpdateSetup() {
@@ -414,7 +571,21 @@ class AtomicCryptoServiceFeesSuite {
                         .signedByPayerAnd(BATCH_OPERATOR)
                         .payingWith(BATCH_OPERATOR),
                 getAccountInfo(canonicalAccount).hasMaxAutomaticAssociations(0).logged(),
-                validateInnerTxnChargedUsd(baseTxn, ATOMIC_BATCH, BASE_FEE_WITH_EXPIRY_CRYPTO_UPDATE, 10)));
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return validateInnerChargedUsdWithinWithTxnSize(
+                                baseTxn,
+                                ATOMIC_BATCH,
+                                txnSize -> expectedCryptoUpdateFullFeeUsd(Map.of(
+                                        SIGNATURES, 1L,
+                                        KEYS, 1L,
+                                        PROCESSING_BYTES, (long) txnSize)),
+                                0.001);
+                    } else {
+                        return validateInnerTxnChargedUsd(
+                                baseTxn, ATOMIC_BATCH, BASE_FEE_WITH_EXPIRY_CRYPTO_UPDATE, 10);
+                    }
+                })));
     }
 
     @LeakyHapiTest(overrides = {"entities.maxLifetime", "ledger.maxAutoAssociations"})
@@ -434,7 +605,20 @@ class AtomicCryptoServiceFeesSuite {
                         .signedByPayerAnd(BATCH_OPERATOR)
                         .payingWith(BATCH_OPERATOR),
                 getAccountInfo(autoAssocTarget).hasMaxAutomaticAssociations(1).logged(),
-                validateInnerTxnChargedUsd(plusOneTxn, ATOMIC_BATCH, BASE_FEE_CRYPTO_UPDATE, 10)));
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return validateInnerChargedUsdWithinWithTxnSize(
+                                plusOneTxn,
+                                ATOMIC_BATCH,
+                                txnSize -> expectedCryptoUpdateFullFeeUsd(Map.of(
+                                        SIGNATURES, 1L,
+                                        KEYS, 1L,
+                                        PROCESSING_BYTES, (long) txnSize)),
+                                0.001);
+                    } else {
+                        return validateInnerTxnChargedUsd(plusOneTxn, ATOMIC_BATCH, BASE_FEE_CRYPTO_UPDATE, 10);
+                    }
+                })));
     }
 
     @LeakyHapiTest(overrides = {"entities.maxLifetime", "ledger.maxAutoAssociations"})
@@ -454,7 +638,20 @@ class AtomicCryptoServiceFeesSuite {
                         .signedByPayerAnd(BATCH_OPERATOR)
                         .payingWith(BATCH_OPERATOR),
                 getAccountInfo(autoAssocTarget).hasMaxAutomaticAssociations(11).logged(),
-                validateInnerTxnChargedUsd(plusTenTxn, ATOMIC_BATCH, BASE_FEE_CRYPTO_UPDATE, 10)));
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return validateInnerChargedUsdWithinWithTxnSize(
+                                plusTenTxn,
+                                ATOMIC_BATCH,
+                                txnSize -> expectedCryptoUpdateFullFeeUsd(Map.of(
+                                        SIGNATURES, 1L,
+                                        KEYS, 1L,
+                                        PROCESSING_BYTES, (long) txnSize)),
+                                0.001);
+                    } else {
+                        return validateInnerTxnChargedUsd(plusTenTxn, ATOMIC_BATCH, BASE_FEE_CRYPTO_UPDATE, 10);
+                    }
+                })));
     }
 
     @LeakyHapiTest(overrides = {"entities.maxLifetime", "ledger.maxAutoAssociations"})
@@ -476,7 +673,20 @@ class AtomicCryptoServiceFeesSuite {
                 getAccountInfo(autoAssocTarget)
                         .hasMaxAutomaticAssociations(5000)
                         .logged(),
-                validateInnerTxnChargedUsd(plusFiveKTxn, ATOMIC_BATCH, BASE_FEE_CRYPTO_UPDATE, 10)));
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return validateInnerChargedUsdWithinWithTxnSize(
+                                plusFiveKTxn,
+                                ATOMIC_BATCH,
+                                txnSize -> expectedCryptoUpdateFullFeeUsd(Map.of(
+                                        SIGNATURES, 1L,
+                                        KEYS, 1L,
+                                        PROCESSING_BYTES, (long) txnSize)),
+                                0.001);
+                    } else {
+                        return validateInnerTxnChargedUsd(plusFiveKTxn, ATOMIC_BATCH, BASE_FEE_CRYPTO_UPDATE, 10);
+                    }
+                })));
     }
 
     @LeakyHapiTest(overrides = {"entities.maxLifetime", "ledger.maxAutoAssociations"})
@@ -496,7 +706,20 @@ class AtomicCryptoServiceFeesSuite {
                         .signedByPayerAnd(BATCH_OPERATOR)
                         .payingWith(BATCH_OPERATOR),
                 getAccountInfo(autoAssocTarget).hasMaxAutomaticAssociations(-1).logged(),
-                validateInnerTxnChargedUsd(validNegativeTxn, ATOMIC_BATCH, BASE_FEE_CRYPTO_UPDATE, 10)));
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return validateInnerChargedUsdWithinWithTxnSize(
+                                validNegativeTxn,
+                                ATOMIC_BATCH,
+                                txnSize -> expectedCryptoUpdateFullFeeUsd(Map.of(
+                                        SIGNATURES, 1L,
+                                        KEYS, 1L,
+                                        PROCESSING_BYTES, (long) txnSize)),
+                                0.001);
+                    } else {
+                        return validateInnerTxnChargedUsd(validNegativeTxn, ATOMIC_BATCH, BASE_FEE_CRYPTO_UPDATE, 10);
+                    }
+                })));
     }
 
     private HapiSpecOperation[] cryptoTransferSetup() {
@@ -561,7 +784,20 @@ class AtomicCryptoServiceFeesSuite {
                         .via(ATOMIC_BATCH)
                         .signedByPayerAnd(BATCH_OPERATOR)
                         .payingWith(BATCH_OPERATOR),
-                validateInnerTxnChargedUsd(hbarXferTxn, ATOMIC_BATCH, BASE_FEE_HBAR_CRYPTO_TRANSFER, 5)));
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return validateInnerChargedUsdWithinWithTxnSize(
+                                hbarXferTxn,
+                                ATOMIC_BATCH,
+                                txnSize -> expectedCryptoTransferHbarFullFeeUsd(Map.of(
+                                        SIGNATURES, 1L,
+                                        ACCOUNTS, 2L,
+                                        PROCESSING_BYTES, (long) txnSize)),
+                                0.001);
+                    } else {
+                        return validateInnerTxnChargedUsd(hbarXferTxn, ATOMIC_BATCH, BASE_FEE_HBAR_CRYPTO_TRANSFER, 5);
+                    }
+                })));
     }
 
     @HapiTest
@@ -579,7 +815,21 @@ class AtomicCryptoServiceFeesSuite {
                         .via(ATOMIC_BATCH)
                         .signedByPayerAnd(BATCH_OPERATOR)
                         .payingWith(BATCH_OPERATOR),
-                validateInnerTxnChargedUsd(htsXferTxn, ATOMIC_BATCH, BASE_FEE_HTS_CRYPTO_TRANSFER, 5)));
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return validateInnerChargedUsdWithinWithTxnSize(
+                                htsXferTxn,
+                                ATOMIC_BATCH,
+                                txnSize -> expectedCryptoTransferFTFullFeeUsd(Map.of(
+                                        SIGNATURES, 1L,
+                                        ACCOUNTS, 2L,
+                                        TOKEN_TYPES, 1L,
+                                        PROCESSING_BYTES, (long) txnSize)),
+                                0.001);
+                    } else {
+                        return validateInnerTxnChargedUsd(htsXferTxn, ATOMIC_BATCH, BASE_FEE_HTS_CRYPTO_TRANSFER, 5);
+                    }
+                })));
     }
 
     @HapiTest
@@ -598,7 +848,21 @@ class AtomicCryptoServiceFeesSuite {
                         .via(ATOMIC_BATCH)
                         .signedByPayerAnd(BATCH_OPERATOR)
                         .payingWith(BATCH_OPERATOR),
-                validateInnerTxnChargedUsd(nftXferTxn, ATOMIC_BATCH, BASE_FEE_NFT_CRYPTO_TRANSFER, 5)));
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return validateInnerChargedUsdWithinWithTxnSize(
+                                nftXferTxn,
+                                ATOMIC_BATCH,
+                                txnSize -> expectedCryptoTransferNFTFullFeeUsd(Map.of(
+                                        SIGNATURES, 1L,
+                                        ACCOUNTS, 2L,
+                                        TOKEN_TYPES, 1L,
+                                        PROCESSING_BYTES, (long) txnSize)),
+                                0.001);
+                    } else {
+                        return validateInnerTxnChargedUsd(nftXferTxn, ATOMIC_BATCH, BASE_FEE_NFT_CRYPTO_TRANSFER, 5);
+                    }
+                })));
     }
 
     @HapiTest
@@ -619,8 +883,22 @@ class AtomicCryptoServiceFeesSuite {
                         .via(ATOMIC_BATCH)
                         .signedByPayerAnd(BATCH_OPERATOR)
                         .payingWith(BATCH_OPERATOR),
-                validateInnerTxnChargedUsd(
-                        htsXferTxnWithCustomFee, ATOMIC_BATCH, expectedHtsXferWithCustomFeePriceUsd, 5)));
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return validateInnerChargedUsdWithinWithTxnSize(
+                                htsXferTxnWithCustomFee,
+                                ATOMIC_BATCH,
+                                txnSize -> expectedCryptoTransferTokenWithCustomFullFeeUsd(Map.of(
+                                        SIGNATURES, 1L,
+                                        ACCOUNTS, 2L,
+                                        TOKEN_TYPES, 1L,
+                                        PROCESSING_BYTES, (long) txnSize)),
+                                0.001);
+                    } else {
+                        return validateInnerTxnChargedUsd(
+                                htsXferTxnWithCustomFee, ATOMIC_BATCH, expectedHtsXferWithCustomFeePriceUsd, 5);
+                    }
+                })));
     }
 
     @HapiTest
@@ -642,7 +920,21 @@ class AtomicCryptoServiceFeesSuite {
                         .via(ATOMIC_BATCH)
                         .signedByPayerAnd(BATCH_OPERATOR)
                         .payingWith(BATCH_OPERATOR),
-                validateInnerTxnChargedUsd(
-                        nftXferTxnWithCustomFee, ATOMIC_BATCH, expectedNftXferWithCustomFeePriceUsd, 5)));
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return validateInnerChargedUsdWithinWithTxnSize(
+                                nftXferTxnWithCustomFee,
+                                ATOMIC_BATCH,
+                                txnSize -> expectedCryptoTransferTokenWithCustomFullFeeUsd(Map.of(
+                                        SIGNATURES, 1L,
+                                        ACCOUNTS, 2L,
+                                        TOKEN_TYPES, 1L,
+                                        PROCESSING_BYTES, (long) txnSize)),
+                                0.001);
+                    } else {
+                        return validateInnerTxnChargedUsd(
+                                nftXferTxnWithCustomFee, ATOMIC_BATCH, expectedNftXferWithCustomFeePriceUsd, 5);
+                    }
+                })));
     }
 }

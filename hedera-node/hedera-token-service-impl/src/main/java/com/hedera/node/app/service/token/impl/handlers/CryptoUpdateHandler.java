@@ -197,7 +197,7 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
         if (!op.hookCreationDetails().isEmpty()) {
             final var updatedSlots =
                     dispatchHookCreations(context, op.hookCreationDetails(), headAfterDeletes, hookEntityId);
-            builder.numberLambdaStorageSlots(targetAccount.numberLambdaStorageSlots() + updatedSlots);
+            builder.numberEvmHookStorageSlots(targetAccount.numberEvmHookStorageSlots() + updatedSlots);
         }
         // If there are creations, the updated account's first hook id is the first creation no matter what deletions
         if (!op.hookCreationDetails().isEmpty()) {

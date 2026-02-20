@@ -28,6 +28,7 @@ public interface TransactionHandler {
      * @return a new signed state, along with the consensus round that caused it to be created. null if no new state was
      * created
      */
+    @InputWireLabel("consensus round")
     @Nullable
     TransactionHandlerResult handleConsensusRound(@NonNull ConsensusRound consensusRound);
 }

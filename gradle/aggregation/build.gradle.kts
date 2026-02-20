@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 dependencies {
-    published(project(":app"))
-    published(project(":hedera-protobuf-java-api"))
-    published(project(":app-service-contract-impl"))
+    // Products in this repository that are published to Maven Central.
+    // For each product, the entry point app/service module needs to be listed here.
+    // All other required modules of that product are automatically published as well.
+    published(project(":app")) // products 'hedera-node' and 'platform-sdk'
+    published(project(":hedera-protobuf-java-api")) // product 'hapi'
+    published(project(":hiero-metrics")) // product 'hiero-observability'
+    published(project(":openmetrics-httpserver"))
+
     // examples that also contain tests we would like to run
     implementation(project(":swirlds-platform-base-example"))
-    implementation(project(":ConsistencyTestingTool"))
-    implementation(project(":ISSTestingTool"))
-    implementation(project(":MigrationTestingTool"))
-    implementation(project(":PlatformTestingTool"))
     // projects that only contain tests (and no production code)
     implementation(project(":test-clients"))
     implementation(project(":consensus-otter-docker-app"))

@@ -8,15 +8,12 @@ import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSch
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_KEY;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
 import static com.hedera.node.app.spi.fixtures.TestSchema.CURRENT_VERSION;
-import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
-import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE;
 import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.primitives.ProtoString;
-import com.hedera.node.app.HederaVirtualMapState;
 import com.hedera.node.app.config.ConfigProviderImpl;
 import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
 import com.hedera.node.app.service.entityid.EntityIdService;
@@ -25,13 +22,14 @@ import com.hedera.node.app.services.ServicesRegistryImpl;
 import com.hedera.node.app.spi.migrate.StartupNetworks;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
-import com.swirlds.base.test.fixtures.time.FakeTime;
-import com.swirlds.common.metrics.noop.NoOpMetrics;
+import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.SchemaRegistry;
 import com.swirlds.state.lifecycle.Service;
 import com.swirlds.state.lifecycle.StateDefinition;
+import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.state.merkle.VirtualMapStateImpl;
 import com.swirlds.state.spi.WritableStates;
 import com.swirlds.state.test.fixtures.merkle.MerkleTestBase;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -40,6 +38,7 @@ import java.util.List;
 import java.util.Set;
 import org.assertj.core.api.Assertions;
 import org.hiero.base.constructable.ConstructableRegistry;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -65,19 +64,19 @@ class DependencyMigrationTest extends MerkleTestBase {
 
     private ConfigProviderImpl configProvider;
 
-    private HederaVirtualMapState merkleTree;
+    private VirtualMapState vmState;
 
     @BeforeEach
     void setUp() {
         registry = mock(ConstructableRegistry.class);
-        merkleTree = new HederaVirtualMapState(CONFIGURATION, new NoOpMetrics(), new FakeTime());
+        vmState = new VirtualMapStateImpl(CONFIGURATION, new NoOpMetrics());
         configProvider = new ConfigProviderImpl();
         storeMetricsService = new StoreMetricsServiceImpl(new NoOpMetrics());
     }
 
     @AfterEach
     void tearDown() {
-        merkleTree.release();
+        vmState.release();
     }
 
     @Nested
@@ -100,7 +99,7 @@ class DependencyMigrationTest extends MerkleTestBase {
                             startupNetworks,
                             storeMetricsService,
                             configProvider,
-                            TEST_PLATFORM_STATE_FACADE))
+                            InitTrigger.GENESIS))
                     .isInstanceOf(NullPointerException.class);
         }
 
@@ -108,7 +107,7 @@ class DependencyMigrationTest extends MerkleTestBase {
         void currentVersionRequired() {
             final var subject = new OrderedServiceMigrator();
             Assertions.assertThatThrownBy(() -> subject.doMigrations(
-                            merkleTree,
+                            vmState,
                             servicesRegistry,
                             null,
                             null,
@@ -117,7 +116,7 @@ class DependencyMigrationTest extends MerkleTestBase {
                             startupNetworks,
                             storeMetricsService,
                             configProvider,
-                            TEST_PLATFORM_STATE_FACADE))
+                            InitTrigger.GENESIS))
                     .isInstanceOf(NullPointerException.class);
         }
 
@@ -125,7 +124,7 @@ class DependencyMigrationTest extends MerkleTestBase {
         void configRequired2() {
             final var subject = new OrderedServiceMigrator();
             Assertions.assertThatThrownBy(() -> subject.doMigrations(
-                            merkleTree,
+                            vmState,
                             servicesRegistry,
                             null,
                             CURRENT_VERSION,
@@ -134,7 +133,7 @@ class DependencyMigrationTest extends MerkleTestBase {
                             startupNetworks,
                             storeMetricsService,
                             configProvider,
-                            TEST_PLATFORM_STATE_FACADE))
+                            InitTrigger.GENESIS))
                     .isInstanceOf(NullPointerException.class);
         }
     }
@@ -217,7 +216,7 @@ class DependencyMigrationTest extends MerkleTestBase {
         // When: the migrations are run
         final var subject = new OrderedServiceMigrator();
         subject.doMigrations(
-                merkleTree,
+                vmState,
                 servicesRegistry,
                 null,
                 SemanticVersion.newBuilder().major(1).build(),
@@ -226,7 +225,7 @@ class DependencyMigrationTest extends MerkleTestBase {
                 startupNetworks,
                 storeMetricsService,
                 configProvider,
-                TEST_PLATFORM_STATE_FACADE);
+                InitTrigger.GENESIS);
 
         // Then: we verify the migrations were run in the expected order
         Assertions.assertThat(orderedInvocations)
@@ -260,7 +259,7 @@ class DependencyMigrationTest extends MerkleTestBase {
                 @Override
                 public Set<StateDefinition> statesToCreate() {
                     return Set.of(
-                            StateDefinition.inMemory(STATE_ID, STATE_KEY, EntityNumber.PROTOBUF, ProtoString.PROTOBUF));
+                            StateDefinition.keyValue(STATE_ID, STATE_KEY, EntityNumber.PROTOBUF, ProtoString.PROTOBUF));
                 }
 
                 public void migrate(@NonNull final MigrationContext ctx) {

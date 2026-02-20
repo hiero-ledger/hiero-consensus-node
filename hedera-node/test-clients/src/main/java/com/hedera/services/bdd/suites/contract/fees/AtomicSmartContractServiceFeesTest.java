@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.fees;
 
+import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
 import static com.hedera.services.bdd.junit.TestTags.MATS;
-import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
@@ -19,6 +19,8 @@ import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SOURCE_KEY;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateInnerTxnFees;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONTRACT_CREATE_BASE_FEE;
 
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData.EthTransactionType;
 import com.hedera.services.bdd.junit.HapiTest;
@@ -41,7 +43,7 @@ import org.junit.jupiter.api.Tag;
 // we are wrapping the operations in an atomic batch to confirm the fees are the same
 @HapiTestLifecycle
 @OrderedInIsolation
-@Tag(SMART_CONTRACT)
+@Tag(ATOMIC_BATCH)
 class AtomicSmartContractServiceFeesTest {
 
     private static final String ATOMIC_BATCH = "atomicBatch";
@@ -76,7 +78,7 @@ class AtomicSmartContractServiceFeesTest {
                                 .batchKey(BATCH_OPERATOR))
                         .via(ATOMIC_BATCH)
                         .signedByPayerAnd(BATCH_OPERATOR),
-                validateInnerTxnChargedUsd(creation, ATOMIC_BATCH, 0.72, 5));
+                validateInnerTxnFees(creation, ATOMIC_BATCH, 0.727, CONTRACT_CREATE_BASE_FEE));
     }
 
     @HapiTest

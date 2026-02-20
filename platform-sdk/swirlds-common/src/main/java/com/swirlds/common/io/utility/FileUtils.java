@@ -8,7 +8,6 @@ import static java.nio.file.Files.exists;
 import static java.nio.file.StandardCopyOption.ATOMIC_MOVE;
 import static java.util.Objects.requireNonNull;
 
-import com.swirlds.common.io.streams.MerkleDataOutputStream;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -32,6 +31,7 @@ import java.util.Objects;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 
 /**
  * Utility methods for file operations.
@@ -287,14 +287,14 @@ public final class FileUtils {
      * @param writeMethod the method that writes
      */
     public static void writeAndFlush(
-            @NonNull final Path file, @NonNull final IOConsumer<MerkleDataOutputStream> writeMethod)
+            @NonNull final Path file, @NonNull final IOConsumer<SerializableDataOutputStream> writeMethod)
             throws IOException {
 
         throwIfFileExists(file);
 
         try (final FileOutputStream fileOut = new FileOutputStream(file.toFile());
                 final BufferedOutputStream bufOut = new BufferedOutputStream(fileOut);
-                final MerkleDataOutputStream out = new MerkleDataOutputStream(bufOut)) {
+                final SerializableDataOutputStream out = new SerializableDataOutputStream(bufOut)) {
 
             writeMethod.accept(out);
 
@@ -303,15 +303,6 @@ public final class FileUtils {
             // make sure the data is actually written to disk
             fileOut.getFD().sync();
         }
-    }
-
-    /**
-     * Returns the user directory path specified by the {@code user.dir} system property.
-     *
-     * @return the user directory path
-     */
-    public static @NonNull String getUserDir() {
-        return System.getProperty("user.dir");
     }
 
     /**

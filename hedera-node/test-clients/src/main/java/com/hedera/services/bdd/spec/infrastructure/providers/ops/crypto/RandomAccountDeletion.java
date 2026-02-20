@@ -3,6 +3,7 @@ package com.hedera.services.bdd.spec.infrastructure.providers.ops.crypto;
 
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoDelete;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_DELETED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_REQUIRES_ZERO_TOKEN_BALANCES;
 
@@ -17,7 +18,8 @@ import java.util.Optional;
 
 public class RandomAccountDeletion implements OpProvider {
     private final RegistrySourcedNameProvider<AccountID> accounts;
-    private final ResponseCodeEnum[] permissiblePrechecks = standardPrechecksAnd(ACCOUNT_DELETED, INVALID_ACCOUNT_ID);
+    private final ResponseCodeEnum[] permissiblePrechecks =
+            standardPrechecksAnd(BUSY, ACCOUNT_DELETED, INVALID_ACCOUNT_ID);
     private final ResponseCodeEnum[] permissibleOutcomes =
             standardOutcomesAnd(ACCOUNT_DELETED, INVALID_ACCOUNT_ID, TRANSACTION_REQUIRES_ZERO_TOKEN_BALANCES);
     private final ResponseCodeEnum[] customOutcomes;

@@ -74,6 +74,7 @@ open module com.hedera.node.test.clients {
     provides LauncherSessionListener with
             SharedNetworkLauncherSessionListener;
 
+    requires com.hedera.cryptography.wraps;
     requires com.hedera.node.app.hapi.fees;
     requires com.hedera.node.app.hapi.utils;
     requires com.hedera.node.app.service.addressbook.impl;
@@ -101,14 +102,17 @@ open module com.hedera.node.test.clients {
     requires com.swirlds.config.api;
     requires com.swirlds.merkledb;
     requires com.swirlds.metrics.api;
-    requires com.swirlds.platform.core.test.fixtures;
     requires com.swirlds.platform.core;
     requires com.swirlds.state.api;
+    requires com.swirlds.state.impl;
     requires com.swirlds.virtualmap;
     requires org.hiero.base.concurrent;
     requires org.hiero.base.crypto;
     requires org.hiero.base.utility;
+    requires org.hiero.consensus.metrics;
     requires org.hiero.consensus.model;
+    requires org.hiero.consensus.platformstate;
+    requires org.hiero.consensus.roster;
     requires org.hiero.consensus.utility;
     requires com.esaulpaugh.headlong;
     requires com.fasterxml.jackson.annotation;

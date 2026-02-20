@@ -4,7 +4,6 @@ package com.hedera.statevalidation;
 import com.hedera.statevalidation.introspector.KvIntrospector;
 import com.hedera.statevalidation.introspector.SingletonIntrospector;
 import com.hedera.statevalidation.util.StateUtils;
-import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.state.State;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
@@ -37,14 +36,7 @@ public class IntrospectCommand implements Runnable {
     public void run() {
         parent.initializeStateDir();
 
-        final State state;
-        try {
-            final DeserializedSignedState deserializedSignedState = StateUtils.getDeserializedSignedState();
-            state = deserializedSignedState.reservedSignedState().get().getState();
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-
+        final State state = StateUtils.getDefaultState();
         final int stateId = StateUtils.stateIdFor(serviceName, stateKey);
         if (keyInfo == null) {
             // we assume it's a singleton

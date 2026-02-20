@@ -4,6 +4,7 @@ package com.hedera.services.bdd.junit.support.translators.impl;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.services.bdd.junit.support.translators.BaseTranslator.mapTracesToVerboseLogs;
 import static com.hedera.services.bdd.junit.support.translators.BaseTranslator.resultBuilderFrom;
+import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.output.TransactionOutput;
@@ -14,6 +15,7 @@ import com.hedera.services.bdd.junit.support.translators.BaseTranslator;
 import com.hedera.services.bdd.junit.support.translators.BlockTransactionPartsTranslator;
 import com.hedera.services.bdd.junit.support.translators.ScopedTraceData;
 import com.hedera.services.bdd.junit.support.translators.inputs.BlockTransactionParts;
+import com.hedera.services.bdd.junit.support.translators.inputs.HookMetadata;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
@@ -29,7 +31,8 @@ public class ContractCallTranslator implements BlockTransactionPartsTranslator {
             @NonNull final List<StateChange> remainingStateChanges,
             @Nullable final List<TraceData> tracesSoFar,
             @NonNull final List<ScopedTraceData> followingUnitTraces,
-            @Nullable final HookId executingHookId) {
+            @Nullable final HookId executingHookId,
+            @Nullable final HookMetadata hookMetadata) {
         return baseTranslator.recordFrom(
                 parts,
                 (receiptBuilder, recordBuilder) -> parts.outputIfPresent(
@@ -39,11 +42,20 @@ public class ContractCallTranslator implements BlockTransactionPartsTranslator {
                             final var evmResult = callContractOutput.evmTransactionResultOrThrow();
                             final var derivedBuilder = resultBuilderFrom(evmResult);
                             final var contractId = evmResult.contractId();
-                            final var isHook = contractId != null && contractId.contractNumOrThrow() == 365;
+                            final var isHook = contractId != null && contractId.contractNumOrElse(0L) == 365;
                             if (parts.status() == SUCCESS
                                     && (isHook || parts.isTopLevel() || parts.isInnerBatchTxn())) {
                                 mapTracesToVerboseLogs(derivedBuilder, parts.traces());
-                                baseTranslator.addCreatedIdsTo(derivedBuilder, remainingStateChanges);
+                                if (executingHookId == null) {
+                                    baseTranslator.addCreatedIdsTo(derivedBuilder, remainingStateChanges);
+                                } else {
+                                    final var hookCreations = requireNonNull(hookMetadata)
+                                            .hookCreations()
+                                            .get(executingHookId);
+                                    if (hookCreations != null && !hookCreations.isEmpty()) {
+                                        derivedBuilder.createdContractIDs(hookCreations.removeFirst());
+                                    }
+                                }
                                 baseTranslator.addChangedContractNonces(derivedBuilder, evmResult.contractNonces());
                             }
                             final var result = derivedBuilder.build();

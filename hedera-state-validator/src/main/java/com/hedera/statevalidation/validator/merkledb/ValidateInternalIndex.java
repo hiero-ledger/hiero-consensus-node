@@ -11,11 +11,10 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.statevalidation.report.SlackReportGenerator;
-import com.hedera.statevalidation.util.junit.StateResolver;
+import com.hedera.statevalidation.util.junit.MerkleNodeStateResolver;
 import com.hedera.statevalidation.util.reflect.MemoryIndexDiskKeyValueStoreAccessor;
 import com.swirlds.merkledb.MerkleDbDataSource;
-import com.swirlds.platform.state.snapshot.DeserializedSignedState;
-import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;
 import com.swirlds.virtualmap.internal.cache.VirtualNodeCache;
@@ -35,17 +34,15 @@ import org.junit.jupiter.api.extension.ExtendWith;
  * It verifies that all the index pointers are pointing to valid data entries containing hashes.
  */
 @SuppressWarnings("NewClassNamingConvention")
-@ExtendWith({StateResolver.class, SlackReportGenerator.class})
+@ExtendWith({MerkleNodeStateResolver.class, SlackReportGenerator.class})
 @Tag("internal")
 public class ValidateInternalIndex {
 
     private static final Logger log = LogManager.getLogger(ValidateInternalIndex.class);
 
     @Test
-    public void validateIndex(DeserializedSignedState deserializedState) {
-        final MerkleNodeState merkleNodeState =
-                deserializedState.reservedSignedState().get().getState();
-        final VirtualMap virtualMap = (VirtualMap) merkleNodeState.getRoot();
+    public void validateIndex(final VirtualMapState virtualMapState) {
+        final VirtualMap virtualMap = virtualMapState.getRoot();
         assertNotNull(virtualMap);
         MerkleDbDataSource dataSource = (MerkleDbDataSource) virtualMap.getDataSource();
 

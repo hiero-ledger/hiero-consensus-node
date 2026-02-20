@@ -17,7 +17,8 @@ The file is a JSON object with a single field:
 Each element of `nodes` has the following fields:
 
 - `address` (string, required): Hostname or IPv4/IPv6 address of the Block Node (e.g. "localhost", "10.0.0.5").
-- `port` (integer, required): TCP port for the node’s gRPC endpoint.
+- `streamingPort` (integer, required): TCP port for the Block Node to receive blocks from the Consensus Node.
+- `servicePort` (integer, required): TCP port for the Block Node to access service-related APIs such as server status. (Note: this is defaulted to the streaming port)
 - `priority` (integer, required): Lower numbers are higher priority. Nodes with smaller priority values are preferred for selection. Among nodes with the same priority, selection is randomized.
 - `maxMessageSizeBytes` (integer, optional): Maximum per-request payload size in bytes for this node. If omitted, the default is 2,097,152 bytes (2 MB).
 
@@ -28,11 +29,12 @@ Each element of `nodes` has the following fields:
   "nodes": [
     {
       "address": "localhost",
-      "port": 50051,
+      "streamingPort": 50051,
+      "servicePort": 50052,
       "priority": 0,
       "maxMessageSizeBytes": 1500000
     },
-    { "address": "pbj-unit-test-host", "port": 8081, "priority": 1 }
+    { "address": "pbj-unit-test-host", "streamingPort": 8081, "priority": 1 }
   ]
 }
 ```

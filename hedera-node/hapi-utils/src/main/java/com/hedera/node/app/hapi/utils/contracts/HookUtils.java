@@ -10,7 +10,7 @@ import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.NftTransfer;
 import com.hedera.hapi.node.base.TokenTransferList;
 import com.hedera.hapi.node.base.TransferList;
-import com.hedera.hapi.node.hooks.LambdaMappingEntry;
+import com.hedera.hapi.node.hooks.EvmHookMappingEntry;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -46,7 +46,7 @@ public class HookUtils {
      */
     public static Bytes slotKeyOfMappingEntry(
             @NonNull final com.hedera.pbj.runtime.io.buffer.Bytes leftPaddedMappingSlot,
-            @NonNull final LambdaMappingEntry entry) {
+            @NonNull final EvmHookMappingEntry entry) {
         final com.hedera.pbj.runtime.io.buffer.Bytes hK;
         if (entry.hasKey()) {
             hK = leftPad32(entry.keyOrThrow());

@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.signed;
 
-import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
+import static com.swirlds.platform.state.signed.StartupStateUtils.loadStateFile;
 import static com.swirlds.platform.state.snapshot.SignedStateFileWriter.writeSignedStateToDisk;
 import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
-import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.registerConstructablesForStorage;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
+import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -21,23 +21,20 @@ import com.swirlds.common.config.StateCommonConfig_;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.common.io.utility.FileUtils;
-import com.swirlds.common.io.utility.RecycleBin;
-import com.swirlds.common.metrics.noop.NoOpMetrics;
+import com.swirlds.common.io.utility.RecycleBinImpl;
 import com.swirlds.common.test.fixtures.TestRecycleBin;
-import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
-import com.swirlds.platform.config.StateConfig_;
 import com.swirlds.platform.internal.SignedStateLoadingException;
-import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.snapshot.SignedStateFilePath;
-import com.swirlds.platform.state.snapshot.StateToDiskReason;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.StateLifecycleManagerImpl;
-import com.swirlds.state.test.fixtures.merkle.TestVirtualMapState;
+import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.BufferedWriter;
 import java.io.IOException;
@@ -48,7 +45,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.consensus.io.RecycleBin;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.state.config.StateConfig_;
+import org.hiero.consensus.state.signed.SignedState;
+import org.hiero.consensus.state.snapshot.StateToDiskReason;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -73,8 +75,6 @@ public class StartupStateUtilsTests {
     private final String mainClassName = "mainClassName";
     private final String swirldName = "swirldName";
     private SemanticVersion currentSoftwareVersion;
-    private PlatformStateFacade platformStateFacade;
-    private StateLifecycleManager stateLifecycleManager;
 
     @BeforeEach
     void beforeEach() throws IOException {
@@ -84,7 +84,6 @@ public class StartupStateUtilsTests {
                 .getOrCreateConfig()
                 .getConfigData(StateCommonConfig.class));
         currentSoftwareVersion = SemanticVersion.newBuilder().major(1).build();
-        platformStateFacade = new PlatformStateFacade();
     }
 
     @AfterEach
@@ -98,7 +97,6 @@ public class StartupStateUtilsTests {
         final ConstructableRegistry registry = ConstructableRegistry.getInstance();
         registry.registerConstructables("com.swirlds");
         registry.registerConstructables("org.hiero");
-        registerConstructablesForStorage(CONFIGURATION);
     }
 
     @NonNull
@@ -130,13 +128,12 @@ public class StartupStateUtilsTests {
         final SignedState signedState =
                 new RandomSignedStateGenerator(random).setRound(round).build();
 
-        stateLifecycleManager =
-                new StateLifecycleManagerImpl(new NoOpMetrics(), new FakeTime(), TestVirtualMapState::new);
-        stateLifecycleManager.initState(signedState.getState(), true);
+        final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager = createLifecycleManager();
+        final VirtualMapState state = signedState.getState();
+        stateLifecycleManager.initState(state);
         stateLifecycleManager.getMutableState().release();
-        // FUTURE WORK: https://github.com/hiero-ledger/hiero-consensus-node/issues/19905
-        TestMerkleCryptoFactory.getInstance()
-                .digestTreeSync(signedState.getState().getRoot());
+        // hash the state
+        state.getHash();
 
         final Path savedStateDirectory =
                 signedStateFilePath.getSignedStateDirectory(mainClassName, selfId, swirldName, round);
@@ -146,19 +143,23 @@ public class StartupStateUtilsTests {
                 savedStateDirectory,
                 StateToDiskReason.PERIODIC_SNAPSHOT,
                 signedState,
-                platformStateFacade,
                 stateLifecycleManager);
 
         if (corrupted) {
-            final Path stateFilePath = savedStateDirectory.resolve("SignedState.swh");
-            Files.delete(stateFilePath);
-            final BufferedWriter writer = Files.newBufferedWriter(stateFilePath);
+            final Path metadataFilePath = savedStateDirectory.resolve("data/state/table_metadata.pbj");
+            Files.delete(metadataFilePath);
+            final BufferedWriter writer = Files.newBufferedWriter(metadataFilePath);
             writer.write("this is not a real state file");
             writer.close();
         }
 
-        signedState.getState().release();
+        state.release();
         return signedState;
+    }
+
+    private static StateLifecycleManager<VirtualMapState, VirtualMap> createLifecycleManager() {
+        return new StateLifecycleManagerImpl(
+                new NoOpMetrics(), new FakeTime(), VirtualMapStateTestUtils::createTestStateWithVM, CONFIGURATION);
     }
 
     @Test
@@ -168,15 +169,14 @@ public class StartupStateUtilsTests {
 
         final RecycleBin recycleBin = initializeRecycleBin(platformContext, selfId);
 
-        final SignedState loadedState = StartupStateUtils.loadStateFile(
+        final SignedState loadedState = loadStateFile(
                         recycleBin,
                         selfId,
                         mainClassName,
                         swirldName,
-                        TestVirtualMapState::new,
                         currentSoftwareVersion,
-                        platformStateFacade,
-                        platformContext)
+                        platformContext,
+                        createLifecycleManager())
                 .getNullable();
 
         assertNull(loadedState);
@@ -198,15 +198,14 @@ public class StartupStateUtilsTests {
         }
 
         final RecycleBin recycleBin = initializeRecycleBin(platformContext, selfId);
-        final SignedState loadedState = StartupStateUtils.loadStateFile(
+        final SignedState loadedState = loadStateFile(
                         recycleBin,
                         selfId,
                         mainClassName,
                         swirldName,
-                        TestVirtualMapState::new,
                         currentSoftwareVersion,
-                        platformStateFacade,
-                        platformContext)
+                        platformContext,
+                        createLifecycleManager())
                 .get();
 
         loadedState.getState().throwIfImmutable();
@@ -233,15 +232,14 @@ public class StartupStateUtilsTests {
         }
         final RecycleBin recycleBin = initializeRecycleBin(platformContext, selfId);
 
-        assertThrows(SignedStateLoadingException.class, () -> StartupStateUtils.loadStateFile(
+        assertThrows(SignedStateLoadingException.class, () -> loadStateFile(
                         recycleBin,
                         selfId,
                         mainClassName,
                         swirldName,
-                        TestVirtualMapState::new,
                         currentSoftwareVersion,
-                        platformStateFacade,
-                        platformContext)
+                        platformContext,
+                        createLifecycleManager())
                 .get());
     }
 
@@ -279,15 +277,14 @@ public class StartupStateUtilsTests {
         }
         RandomSignedStateGenerator.releaseAllBuiltSignedStates();
 
-        final SignedState loadedState = StartupStateUtils.loadStateFile(
+        final SignedState loadedState = loadStateFile(
                         recycleBin,
                         selfId,
                         mainClassName,
                         swirldName,
-                        TestVirtualMapState::new,
                         currentSoftwareVersion,
-                        platformStateFacade,
-                        platformContext)
+                        platformContext,
+                        createLifecycleManager())
                 .getNullable();
 
         if (latestUncorruptedState != null) {
@@ -322,6 +319,6 @@ public class StartupStateUtilsTests {
         final var configuration = platformContext.getConfiguration();
         final var fileSystemManager = FileSystemManager.create(configuration);
         final var time = Time.getCurrent();
-        return RecycleBin.create(metrics, configuration, getStaticThreadManager(), time, fileSystemManager, selfId);
+        return RecycleBinImpl.create(metrics, configuration, getStaticThreadManager(), time, fileSystemManager, selfId);
     }
 }

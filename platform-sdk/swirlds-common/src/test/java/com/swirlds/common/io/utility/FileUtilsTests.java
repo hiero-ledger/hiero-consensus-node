@@ -9,11 +9,11 @@ import static com.swirlds.common.io.utility.FileUtils.throwIfFileExists;
 import static com.swirlds.common.io.utility.FileUtils.writeAndFlush;
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyDoesNotThrow;
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyTrue;
-import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
 import static java.nio.file.Files.delete;
 import static java.nio.file.Files.exists;
 import static java.nio.file.Files.isDirectory;
 import static org.hiero.base.concurrent.interrupt.Uninterruptable.abortAndThrowIfInterrupted;
+import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -23,8 +23,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.io.config.TemporaryFileConfig;
-import com.swirlds.common.io.streams.MerkleDataInputStream;
-import com.swirlds.common.threading.framework.config.ThreadConfiguration;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import java.io.File;
@@ -40,7 +38,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.stream.Stream;
+import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
+import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -418,8 +418,8 @@ class FileUtilsTests {
                     assertTrue(exists(data), "final file does not exist");
                     assertFalse(exists(fooTmp), "temporary file should no longer be present");
 
-                    try (final MerkleDataInputStream in =
-                            new MerkleDataInputStream(new FileInputStream(data.toFile()))) {
+                    try (final SerializableDataInputStream in =
+                            new SerializableDataInputStream(new FileInputStream(data.toFile()))) {
                         assertEquals("foo", in.readNormalisedString(100), "invalid data in file");
                         assertEquals("bar", in.readNormalisedString(100), "invalid data in file");
                     } catch (final IOException e) {
@@ -527,7 +527,8 @@ class FileUtilsTests {
         assertEventuallyTrue(() -> exists(foo), Duration.ofSeconds(2), "final directory does not exist");
         assertEventuallyTrue(() -> exists(data), Duration.ofSeconds(2), "final file does not exist");
 
-        try (final MerkleDataInputStream in = new MerkleDataInputStream(new FileInputStream(data.toFile()))) {
+        try (final SerializableDataInputStream in =
+                new SerializableDataInputStream(new FileInputStream(data.toFile()))) {
             assertEquals("foo", in.readNormalisedString(100), "invalid data in file");
             assertEquals("bar", in.readNormalisedString(100), "invalid data in file");
         }
@@ -567,7 +568,8 @@ class FileUtilsTests {
 
         assertTrue(exists(foo), "file should exist");
 
-        try (final MerkleDataInputStream in = new MerkleDataInputStream(new FileInputStream(foo.toFile()))) {
+        try (final SerializableDataInputStream in =
+                new SerializableDataInputStream(new FileInputStream(foo.toFile()))) {
             assertEquals("foobarbaz", in.readNormalisedString(1000), "invalid data in file");
         }
     }

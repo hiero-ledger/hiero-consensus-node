@@ -30,8 +30,7 @@ import org.junit.jupiter.api.Test;
  */
 final class TurtleSwirdsLogTest {
 
-    private static final String LOG_DIR = "build/turtle/node-%d/output/";
-    private static final String LOG_FILENAME = "swirlds.log";
+    private static final String LOG_FILE = "node-%d/output/swirlds.log";
 
     /**
      * Test that each node's logs are correctly routed to their respective directories.
@@ -42,6 +41,7 @@ final class TurtleSwirdsLogTest {
     @Test
     void testPerNodeLogRouting() throws IOException {
         final TestEnvironment env = new TurtleTestEnvironment();
+        final Path rootOutputDir = env.outputDirectory();
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();
@@ -66,10 +66,10 @@ final class TurtleSwirdsLogTest {
             final long nodeId2 = node2.selfId().id();
             final long nodeId3 = node3.selfId().id();
 
-            final Path log0 = Path.of(String.format(LOG_DIR, nodeId0), LOG_FILENAME);
-            final Path log1 = Path.of(String.format(LOG_DIR, nodeId1), LOG_FILENAME);
-            final Path log2 = Path.of(String.format(LOG_DIR, nodeId2), LOG_FILENAME);
-            final Path log3 = Path.of(String.format(LOG_DIR, nodeId3), LOG_FILENAME);
+            final Path log0 = rootOutputDir.resolve(String.format(LOG_FILE, nodeId0));
+            final Path log1 = rootOutputDir.resolve(String.format(LOG_FILE, nodeId1));
+            final Path log2 = rootOutputDir.resolve(String.format(LOG_FILE, nodeId2));
+            final Path log3 = rootOutputDir.resolve(String.format(LOG_FILE, nodeId3));
 
             // Wait for initial log files to be created
             awaitFile(log0, Duration.ofSeconds(5L));

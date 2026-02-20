@@ -71,7 +71,7 @@ env:
   GRAFANA_SYSADM_CHI: https://grafana.lat.ope.eng.hashgraph.io/d/rYdddlPWk/node-exporter-single-node?orgId=1&timezone=utc&var-datasource=P631E2BA859A814B3&var-job=performance-chicago-node-exporter
 
   #Release version from jFrog
-  NLG_VERSION: 0.11.1
+  NLG_VERSION: 0.13.0
 
 jobs:
   longevity-tests-start:
@@ -131,6 +131,7 @@ jobs:
         with:
           proxy: hashgraph.teleport.sh:443
           token: gh-citr-performance-svcs-bot
+          certificate-ttl: 24h
 
       - name: Authorize Teleport K8S Access
         id: auth-k8s
@@ -139,7 +140,7 @@ jobs:
           proxy: hashgraph.teleport.sh:443
           token: gh-citr-performance-svcs-bot
           kubernetes-cluster: ${{ steps.set-k8s-cluster.outputs.kubernetes-cluster }}
-          certificate-ttl: 20h
+          certificate-ttl: 24h
 
       - name: Authenticate to Google Cloud
         id: google-auth
@@ -163,7 +164,7 @@ jobs:
           java-version: 21.0.6
 
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@8379f6a1328ee0e06e2bb424dadb7b159856a326 # v4.4.0
+        uses: gradle/actions/setup-gradle@4d9f0ba0025fe599b4ebab900eb7f3a1d93ef4c2 # v5.0.0
         with:
           gradle-version: wrapper
 
@@ -209,7 +210,7 @@ jobs:
           NETWORK_ID="$(echo "${{ steps.set-namespace.outputs.namespace }}" | perl -pne '~s/^.*[^\d](\d+)$/$1/g')"
 
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt get namespaces | grep -E "solo-.*t-n${NETWORK_ID}"
-          if [ ${?} -eq 0 ]
+          if [[ ${?} -eq 0 ]]
           then
             echo "::error The namespace[s] with NETWORK_ID=${NETWORK_ID} already exist[s]. Please check previous run; remove with 'kubectl delete namespaces <namespace namespace ...>'"
             exit 13
@@ -249,6 +250,10 @@ jobs:
           cd "${{ github.workspace }}"/target_consensus_node
           ./gradlew clean assemble
           cd "${{ github.workspace }}"
+
+      - name: Build Validator
+        run: |
+          ./gradlew --no-daemon :hedera-state-validator:shadowJar
 
       - name: Setup Node
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
@@ -320,17 +325,20 @@ jobs:
           # Generate the application.properties file inline
           cp "${{ github.workspace }}"/.github/workflows/support/citr/application.properties.txt application.properties
 
+          # Generate the application.environment file inline
+          cp "${{ github.workspace }}"/.github/workflows/support/citr/application.environment.txt application.environment
+
           # Generate the settings.txt file inline
           cp "${{ github.workspace }}"/.github/workflows/support/citr/settings.txt settings.txt
 
-          if [ "${{ inputs.add-app-props }}" != "" ]
+          if [[ "${{ inputs.add-app-props }}" != "" ]]
           then
             echo -e "${{ inputs.add-app-props }}" >> application.properties
             echo "New application.properties:"
             cat application.properties
           fi
 
-          if [ "${{ inputs.add-settings }}" != "" ]
+          if [[ "${{ inputs.add-settings }}" != "" ]]
           then
             echo -e "${{ inputs.add-settings }}" >> settings.txt
             echo "New settings.txt:"
@@ -341,7 +349,7 @@ jobs:
           task
           task_code=${?}
           task solo:node:logs
-          if [ ${task_code} -ne 0 ]
+          if [[ ${task_code} -ne 0 ]]
           then
              echo "ERROR! log:"
              tail -n 100 "${HOME}"/.solo/logs/solo.log
@@ -414,6 +422,42 @@ jobs:
           echo "run_number=${{ github.run_number }}" | tee -a "${{ github.workspace }}"/version_run.txt
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" cp "${{ github.workspace }}"/version_run.txt ${nlgpod}:/app/
 
+      - name: Prepare NLG communication properties for CN
+        env:
+          NAMESPACE_ALIAS: ${{ inputs.test-asset }}
+        run: |
+          set +x
+          set +e
+          NLG_IP=$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" describe pod nlg-network-load-generator | grep -E '^IP:' | awk '{print $2}')
+
+          cat <<EOF > block-nodes.json
+          {
+            "nodes": [
+              { "address": "${NLG_IP}", "port": 8080, "streamingPort": 8080, "servicePort":-1, "priority": 0 }
+            ]
+          }
+          EOF
+
+          NofNodes=$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep 'network-node' | wc -l)
+
+          for i in $(seq 1 1 ${NofNodes})
+          do
+            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" cp ./block-nodes.json network-node${i}-0:/opt/hgcapp/services-hedera/HapiApp2.0/data/config/block-nodes.json
+          done
+
+      - name: Deploy Validator
+        run: |
+          set +x
+          set +e
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" \
+            cp "${{ github.workspace }}"/hedera-state-validator/build/libs/hedera-state-validator-*-SNAPSHOT-all.jar network-node1-0:/tmp/
+
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" \
+            exec -it network-node1-0 -c root-container -- bash -c "mkdir /opt/hgcapp/services-hedera/HapiApp2.0/data/saved/validation.tmp"
+
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" \
+            cp "${{ github.workspace }}"/.github/workflows/support/citr/checkValidatorNode.sh network-node1-0:/opt/hgcapp/services-hedera/HapiApp2.0/checkValidatorNode.sh
+
       - name: Distribution of K8S nodes, SysAdmin Grafana
         run: |
           set +x
@@ -433,7 +477,7 @@ jobs:
 
           test=LongevityLoadTest
 
-          NLGargs="-K ECDSA -R -c ${NLG_c} -a ${{ inputs.nlg-accounts }}  -n ${n} -T 1000 -S hot -p 50"
+          NLGargs="-K ECDSA -L -R -c ${NLG_c} -a ${{ inputs.nlg-accounts }}  -n ${n} -T 1000 -S hot -p 50"
 
           echo kubectl -n "${{ steps.set-namespace.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "nohup /usr/bin/env java -Xmx30g \
             ${run_NLGDebugparams} -cp /app/lib/*:\$(ls -1 /app/network-load-generator-*.jar) com.hedera.benchmark.${test} \
@@ -449,7 +493,7 @@ jobs:
           runs=$(expr ${runs} + 1)
           matrix=$(seq 1 1 ${runs} | perl -ne '~s/\n//g; print "\"$_\","' | sed -e 's/^\(.*\)[,]$/\1/g')
           echo "value=[${matrix}]"
-          echo "value=[${matrix}]" >> $GITHUB_OUTPUT
+          echo "value=[${matrix}]" >> "${GITHUB_OUTPUT}"
 
   longevity-tests-wait:
     name: Wait for Longevity test
@@ -494,6 +538,7 @@ jobs:
         with:
           proxy: hashgraph.teleport.sh:443
           token: gh-citr-performance-svcs-bot
+          certificate-ttl: 24h
 
       - name: Authorize Teleport K8S Access
         id: auth-k8s
@@ -502,7 +547,7 @@ jobs:
           proxy: hashgraph.teleport.sh:443
           token: gh-citr-performance-svcs-bot
           kubernetes-cluster: ${{ needs.longevity-tests-start.outputs.kubernetes-cluster }}
-          certificate-ttl: 20h
+          certificate-ttl: 24h
 
       - name: Checkout Code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -524,14 +569,14 @@ jobs:
            logfile=$1
            ec=2 # continue
            grep -E 'Finished .*Test' ${logfile} >/dev/null
-           if [ ${?} -eq 0 ]
+           if [[ ${?} -eq 0 ]]
            then
               echo "Test finished, exiting..."
               ec=0
            fi
 
            grep -E 'ERROR com.hedera.benchmark.*LoadTest - Setup|ERROR com.hedera.benchmark.*LoadTest - Test failed' ${logfile}
-           if [ ${?} -eq 0 ]
+           if [[ ${?} -eq 0 ]]
            then
               echo "ERROR: Wrong config/environment"
               tail "${logfile}"
@@ -572,13 +617,13 @@ jobs:
            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.longevity-tests-start.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "grep -E 'ERROR com.hedera.benchmark|Finished .*Test' /app/client.log" > client_state.log
            check_status client_state.log
            ec=${?}
-           if [ ${ec} -lt 2 ] #any terminal states 0 or 1, ec=2 is to continue
+           if [[ ${ec} -lt 2 ]] #any terminal states 0 or 1, ec=2 is to continue
            then
              break
            fi
           done
 
-          if [ -f "${{ github.workspace }}"/report/client.log ]
+          if [[ -f "${{ github.workspace }}"/report/client.log ]]
           then
             rm -rf "${{ github.workspace }}"/report/*
           fi
@@ -588,7 +633,7 @@ jobs:
           check_status "${{ github.workspace }}"/report/client.log
           ec=${?}
 
-          if [ ${ec} -eq 2 ]
+          if [[ ${ec} -eq 2 ]]
           then
             echo "Continue to wait in next Runner ..."
             ec=0
@@ -611,6 +656,7 @@ jobs:
       Cryptoscore: ${{ steps.CryptoTransferLoadTestLogs.outputs.value }}
       HCSscore: ${{ steps.HCSLoadTestLogs.outputs.value }}
       Smartscore: ${{ steps.SmartContractLoadTestLogs.outputs.value }}
+      ValidatorStatus: ${{ steps.validator-status.outputs.value }}
 
     steps:
       - name: Check Test Asset
@@ -638,6 +684,7 @@ jobs:
         with:
           proxy: hashgraph.teleport.sh:443
           token: gh-citr-performance-svcs-bot
+          certificate-ttl: 24h
 
       - name: Authorize Teleport K8S Access
         id: auth-k8s
@@ -646,7 +693,7 @@ jobs:
           proxy: hashgraph.teleport.sh:443
           token: gh-citr-performance-svcs-bot
           kubernetes-cluster: ${{ needs.longevity-tests-start.outputs.kubernetes-cluster }}
-          certificate-ttl: 20h
+          certificate-ttl: 24h
 
       - name: Authenticate to Google Cloud
         id: google-auth
@@ -668,12 +715,35 @@ jobs:
         run: |
           mkdir "${{ github.workspace }}"/report
 
+      - name: State size
+        id: state-size
+        run: |
+          set +x
+          set +e
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.longevity-tests-start.outputs.namespace }}" \
+                      exec -it network-node1-0 -c root-container -- bash -c "cd /opt/hgcapp/services-hedera/HapiApp2.0/data/saved; d=\$(date +%Y-%d-%mT%T); s=\$(du -sk swirlds-tmp ); a=\$(du -sk .); echo \"\${d} \${s} \${a}\""
+
+      - name: Run Validator
+        id: validator-status
+        run: |
+          set +x
+          set +e
+          kubectl -n "${{ needs.longevity-tests-start.outputs.namespace }}" \
+            exec -it network-node1-0 -c root-container -- bash -c "cd /opt/hgcapp/services-hedera/HapiApp2.0; sh checkValidatorNode.sh 0" 2>&1 | tee "${{ github.workspace }}"/report/validator_status.log
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.longevity-tests-start.outputs.namespace }}" \
+            cp network-node1-0:/opt/hgcapp/services-hedera/HapiApp2.0/data/saved/validation.tmp/validator.log "${{ github.workspace }}"/report/validator.log
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.longevity-tests-start.outputs.namespace }}" \
+            cp network-node1-0:/opt/hgcapp/services-hedera/HapiApp2.0/data/saved/validation.tmp/validatorRun.log "${{ github.workspace }}"/report/validatorRun.log
+          grep -E 'validation .* is OK' "${{ github.workspace }}"/report/validator_status.log
+          echo "value=${?}" >> "${GITHUB_OUTPUT}"
+
       - name: Copy logs
         run: |
           nlgpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.longevity-tests-start.outputs.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}')"
           sleep 300 # known: to let all benchmark write down logs
 
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.longevity-tests-start.outputs.namespace }}" cp ${nlgpod}:/app/client.log "${{ github.workspace }}"/report/client.log
+          cat "${{ github.workspace }}"/report/client.log | perl -pne '~s/\b([A-Z_]+[\:]\d+)\b/\n$1\n/g' | perl "${{ github.workspace }}"/.github/workflows/support/citr/collectNLG_Errors.pl > "${{ github.workspace }}"/report/client.stats.txt
           sh "${{ github.workspace }}"/.github/workflows/support/citr/getClusterErrors.sh "${{ needs.longevity-tests-start.outputs.namespace }}"
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.longevity-tests-start.outputs.namespace }}" cp ${nlgpod}:/app/version_run.txt "${{ github.workspace }}"/report/version_run.txt
           cp -r podlog_"${{ needs.longevity-tests-start.outputs.namespace }}" "${{ github.workspace }}"/report/
@@ -728,7 +798,7 @@ jobs:
           cd "${{ github.workspace }}"/
 
           gcloud --no-user-output-enabled storage ls gs://performance-engineering-reports 2>/dev/null | grep permanent >/dev/null 2>&1
-          if [ ${?} -ne 0 ]
+          if [[ ${?} -ne 0 ]]
           then
             sleep 10
             gcloud --no-user-output-enabled storage ls gs://performance-engineering-reports | grep permanent >/dev/null
@@ -767,9 +837,10 @@ jobs:
           CRYPTO="${{ needs.longevity-tests-finish.outputs.Cryptoscore }}"
           HCS="${{ needs.longevity-tests-finish.outputs.HCSscore }}"
           SMART="${{ needs.longevity-tests-finish.outputs.Smartscore }}"
+          VALIDATOR="${{ needs.longevity-tests-finish.outputs.ValidatorStatus }}"
 
           # Check if any variable is empty. If it is, we set the result to failure.
-          if [ -z "${NFT}" ] || [ -z "${HELI}" ] || [ -z "${CRYPTO}" ] || [ -z "${HCS}" ] || [ -z "${SMART}" ]; then
+          if [[ -z "${NFT}" ]] || [[ -z "${HELI}" ]] || [[ -z "${CRYPTO}" ]] || [[ -z "${HCS}" ]] || [[ -z "${SMART}" ]] || [[ "${VALIDATOR}" != "0" ]]; then
             RESULT="failure"
           else
             RESULT="success"
@@ -785,6 +856,7 @@ jobs:
           echo "- CryptoTransferLoadTest TPS: ${CRYPTO}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "- HCSLoadTest TPS: ${HCS}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "- SmartContractLoadTest TPS: ${SMART}" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "- Validator: ${VALIDATOR}" | tee -a "${GITHUB_STEP_SUMMARY}"
 
   longevity-report-failures:
     name: Report Failures
@@ -829,7 +901,11 @@ jobs:
           echo "### Title: ${{ steps.summary.outputs.title }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "${{ steps.summary.outputs.summary }}" | tee -a "${GITHUB_STEP_SUMMARY}"
 
+<<<<<<< HEAD
   longevity-report-to-Slack:
+=======
+  longevity-report-to-slack:
+>>>>>>> main
     runs-on: hl-cn-sdlt-lin-sm
     needs:
       - longevity-tests-finish
@@ -845,19 +921,19 @@ jobs:
         id: clean-branch-name
         run: |
           raw_ref="${{ inputs.ref }}"
-          echo "Raw input ref: $raw_ref"
+          echo "Raw input ref: ${raw_ref}"
           clean_ref=""
 
-          if [[ "{$raw_ref}" == refs/heads/* ]]; then
+          if [[ "${raw_ref}" == refs/heads/* ]]; then
             clean_ref="${raw_ref#refs/heads/}"
-          elif [[ "$raw_ref" == refs/tags/* ]]; then
+          elif [[ "${raw_ref}" == refs/tags/* ]]; then
             clean_ref="${raw_ref#refs/tags/}"
-          elif [[ "$raw_ref" == refs/pull/*/merge ]]; then
+          elif [[ "${raw_ref}" == refs/pull/*/merge ]]; then
             clean_ref="PR-${raw_ref#refs/pull/}"
             clean_ref="${clean_ref%/merge}"
           fi
 
-          echo "clean_ref=$clean_ref" >> "${GITHUB_OUTPUT}"
+          echo "clean_ref=${clean_ref}" >> "${GITHUB_OUTPUT}"
 
       - name: Build Slack Payload Message
         id: payload
@@ -869,9 +945,18 @@ jobs:
             CryptoTransferLoadTest ${{ needs.longevity-tests-finish.outputs.Cryptoscore }} \n\
             HeliSwapLoadTest ${{ needs.longevity-tests-finish.outputs.Heliscore }}\n\
             SmartContractLoadTest ${{ needs.longevity-tests-finish.outputs.Smartscore }}"
+
+          if [[ "${{ needs.longevity-tests-finish.outputs.ValidatorStatus }}" == "0" ]]
+          then
+            Validator="PASSED"
+          else
+            Validator="FAILED"
+          fi
+
           #last line is 5, it does not need comma block separator
           freport=`/usr/bin/echo -e "$report" | awk '{print $1" "$2}'| perl -ne 'if ($. < 5) {$comma=","} else {$comma="";} ($t,$d)=split(/\s+/,$_,2);printf("{\"type\": \"text\",\"text\": \"%-25s %7d \\\n\"}%s",$t,$d,$comma);'`
-          freport="{\"type\": \"text\",\"text\": \"Name                          TPS\n\"},$freport"
+          freport="{\"type\": \"text\",\"text\": \"Name                          TPS\n\"},${freport},\
+           {\"type\": \"text\",\"text\": \"ValidatorTest ${Validator}\"}"
 
           cat <<EOF > slack_payload.json
           {

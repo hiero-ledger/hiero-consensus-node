@@ -3,14 +3,12 @@ package com.swirlds.platform;
 
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyEquals;
 import static com.swirlds.platform.state.snapshot.SignedStateFileReader.readState;
-import static com.swirlds.platform.state.snapshot.StateToDiskReason.FATAL_ERROR;
-import static com.swirlds.platform.state.snapshot.StateToDiskReason.ISS;
-import static com.swirlds.platform.state.snapshot.StateToDiskReason.PERIODIC_SNAPSHOT;
 import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
-import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE;
-import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.registerConstructablesForStorage;
 import static java.nio.file.Files.exists;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
+import static org.hiero.consensus.state.snapshot.StateToDiskReason.FATAL_ERROR;
+import static org.hiero.consensus.state.snapshot.StateToDiskReason.ISS;
+import static org.hiero.consensus.state.snapshot.StateToDiskReason.PERIODIC_SNAPSHOT;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -18,19 +16,16 @@ import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.hedera.pbj.runtime.ParseException;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.config.StateCommonConfig_;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
-import com.swirlds.common.merkle.utility.MerkleTreeSnapshotReader;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.components.DefaultSavedStateController;
 import com.swirlds.platform.components.SavedStateController;
-import com.swirlds.platform.config.StateConfig_;
 import com.swirlds.platform.eventhandling.StateWithHashComplexity;
-import com.swirlds.platform.state.signed.ReservedSignedState;
-import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.snapshot.DefaultStateSnapshotManager;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.platform.state.snapshot.SavedStateInfo;
@@ -43,7 +38,9 @@ import com.swirlds.platform.state.snapshot.StateSnapshotManager;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.StateLifecycleManagerImpl;
-import com.swirlds.state.test.fixtures.merkle.TestVirtualMapState;
+import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils;
+import com.swirlds.virtualmap.VirtualMap;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -59,6 +56,9 @@ import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.state.StateSavingResult;
+import org.hiero.consensus.state.config.StateConfig_;
+import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.state.signed.SignedState;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -77,14 +77,13 @@ class StateFileManagerTests {
     private SignedStateFilePath signedStateFilePath;
 
     Path testDirectory;
-    private StateLifecycleManager stateLifecycleManager;
+    private StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager;
 
     @BeforeAll
     static void beforeAll() throws ConstructableRegistryException {
         final ConstructableRegistry registry = ConstructableRegistry.getInstance();
         registry.registerConstructables("com.swirlds");
         registry.registerConstructables("org.hiero");
-        registerConstructablesForStorage(CONFIGURATION);
     }
 
     @BeforeEach
@@ -100,8 +99,11 @@ class StateFileManagerTests {
                 .build();
         signedStateFilePath =
                 new SignedStateFilePath(context.getConfiguration().getConfigData(StateCommonConfig.class));
-        stateLifecycleManager =
-                new StateLifecycleManagerImpl(context.getMetrics(), context.getTime(), TestVirtualMapState::new);
+        stateLifecycleManager = new StateLifecycleManagerImpl(
+                context.getMetrics(),
+                context.getTime(),
+                VirtualMapStateTestUtils::createTestStateWithVM,
+                context.getConfiguration());
     }
 
     @AfterEach
@@ -112,7 +114,7 @@ class StateFileManagerTests {
     /**
      * Make sure the signed state was properly saved.
      */
-    private void validateSavingOfState(final SignedState originalState) throws IOException {
+    private void validateSavingOfState(final SignedState originalState) throws IOException, ParseException {
 
         final Path stateDirectory = signedStateFilePath.getSignedStateDirectory(
                 MAIN_CLASS_NAME, SELF_ID, SWIRLD_NAME, originalState.getRound());
@@ -123,25 +125,21 @@ class StateFileManagerTests {
     /**
      * Make sure the signed state was properly saved.
      */
-    private void validateSavingOfState(final SignedState originalState, final Path stateDirectory) throws IOException {
+    private void validateSavingOfState(final SignedState originalState, final Path stateDirectory)
+            throws IOException, ParseException {
         assertEventuallyEquals(
                 -1, originalState::getReservationCount, Duration.ofSeconds(1), "invalid reservation count");
 
-        final Path stateFile = stateDirectory.resolve(MerkleTreeSnapshotReader.SIGNED_STATE_FILE_NAME);
         final Path hashInfoFile = stateDirectory.resolve(SignedStateFileUtils.HASH_INFO_FILE_NAME);
         final Path settingsUsedFile = stateDirectory.resolve("settingsUsed.txt");
 
-        assertTrue(exists(stateFile), "no state file found");
         assertTrue(exists(hashInfoFile), "no hash info file found");
         assertTrue(exists(settingsUsedFile), "no settings used file found");
 
         assertEquals(-1, originalState.getReservationCount(), "invalid reservation count");
 
-        final DeserializedSignedState deserializedSignedState = readState(
-                stateDirectory,
-                TestVirtualMapState::new,
-                TEST_PLATFORM_STATE_FACADE,
-                TestPlatformContextBuilder.create().build());
+        final DeserializedSignedState deserializedSignedState =
+                readState(stateDirectory, TestPlatformContextBuilder.create().build(), stateLifecycleManager);
         SignedState signedState = deserializedSignedState.reservedSignedState().get();
         hashState(signedState);
 
@@ -157,7 +155,7 @@ class StateFileManagerTests {
     @ParameterizedTest
     @ValueSource(booleans = {true, false})
     @DisplayName("Standard Operation Test")
-    void standardOperationTest(final boolean successExpected) throws IOException {
+    void standardOperationTest(final boolean successExpected) throws IOException, ParseException {
         final SignedState signedState = new RandomSignedStateGenerator().build();
         initLifecycleManagerAndMakeStateImmutable(signedState);
         hashState(signedState);
@@ -170,8 +168,8 @@ class StateFileManagerTests {
             Files.createFile(savedDir);
         }
 
-        final StateSnapshotManager manager = new DefaultStateSnapshotManager(
-                context, MAIN_CLASS_NAME, SELF_ID, SWIRLD_NAME, TEST_PLATFORM_STATE_FACADE, stateLifecycleManager);
+        final StateSnapshotManager manager =
+                new DefaultStateSnapshotManager(context, MAIN_CLASS_NAME, SELF_ID, SWIRLD_NAME, stateLifecycleManager);
 
         final StateSavingResult stateSavingResult = manager.saveStateTask(signedState.reserve("test"));
 
@@ -185,11 +183,11 @@ class StateFileManagerTests {
 
     @Test
     @DisplayName("Save ISS Signed State")
-    void saveISSignedState() throws IOException {
+    void saveISSignedState() throws IOException, ParseException {
         final SignedState signedState = new RandomSignedStateGenerator().build();
 
-        final StateSnapshotManager manager = new DefaultStateSnapshotManager(
-                context, MAIN_CLASS_NAME, SELF_ID, SWIRLD_NAME, TEST_PLATFORM_STATE_FACADE, stateLifecycleManager);
+        final StateSnapshotManager manager =
+                new DefaultStateSnapshotManager(context, MAIN_CLASS_NAME, SELF_ID, SWIRLD_NAME, stateLifecycleManager);
         signedState.markAsStateToSave(ISS);
         initLifecycleManagerAndMakeStateImmutable(signedState);
         hashState(signedState);
@@ -206,7 +204,7 @@ class StateFileManagerTests {
     @ParameterizedTest
     @ValueSource(booleans = {true, false})
     @DisplayName("Sequence Of States Test")
-    void sequenceOfStatesTest(final boolean startAtGenesis) throws IOException {
+    void sequenceOfStatesTest(final boolean startAtGenesis) throws IOException, ParseException {
 
         final Random random = getRandomPrintSeed();
 
@@ -230,8 +228,8 @@ class StateFileManagerTests {
         final int averageTimeBetweenStates = 10;
         final double standardDeviationTimeBetweenStates = 0.5;
 
-        final StateSnapshotManager manager = new DefaultStateSnapshotManager(
-                context, MAIN_CLASS_NAME, SELF_ID, SWIRLD_NAME, TEST_PLATFORM_STATE_FACADE, stateLifecycleManager);
+        final StateSnapshotManager manager =
+                new DefaultStateSnapshotManager(context, MAIN_CLASS_NAME, SELF_ID, SWIRLD_NAME, stateLifecycleManager);
         final SavedStateController controller = new DefaultSavedStateController(context);
 
         Instant timestamp;
@@ -271,7 +269,7 @@ class StateFileManagerTests {
                     .build();
             final ReservedSignedState reservedSignedState = signedState.reserve("initialTestReservation");
 
-            initLifecycleManagerAndMakeStateImmutable(reservedSignedState.get(), round != firstRound);
+            initLifecycleManagerAndMakeStateImmutable(reservedSignedState.get());
             controller.markSavedState(new StateWithHashComplexity(reservedSignedState, 1));
             hashState(signedState);
 
@@ -307,10 +305,7 @@ class StateFileManagerTests {
 
                     final SignedState stateFromDisk = assertDoesNotThrow(
                             () -> SignedStateFileReader.readState(
-                                            savedStateInfo.stateDirectory(),
-                                            TestVirtualMapState::new,
-                                            TEST_PLATFORM_STATE_FACADE,
-                                            context)
+                                            savedStateInfo.stateDirectory(), context, stateLifecycleManager)
                                     .reservedSignedState()
                                     .get(),
                             "should be able to read state on disk");
@@ -339,7 +334,7 @@ class StateFileManagerTests {
     @SuppressWarnings("resource")
     @Test
     @DisplayName("State Deletion Test")
-    void stateDeletionTest() throws IOException {
+    void stateDeletionTest() throws IOException, ParseException {
         final Random random = getRandomPrintSeed();
         final int statesOnDisk = 3;
 
@@ -354,8 +349,8 @@ class StateFileManagerTests {
 
         final int count = 10;
 
-        final StateSnapshotManager manager = new DefaultStateSnapshotManager(
-                context, MAIN_CLASS_NAME, SELF_ID, SWIRLD_NAME, TEST_PLATFORM_STATE_FACADE, stateLifecycleManager);
+        final StateSnapshotManager manager =
+                new DefaultStateSnapshotManager(context, MAIN_CLASS_NAME, SELF_ID, SWIRLD_NAME, stateLifecycleManager);
 
         final Path statesDirectory =
                 signedStateFilePath.getSignedStatesDirectoryForSwirld(MAIN_CLASS_NAME, SELF_ID, SWIRLD_NAME);
@@ -382,7 +377,7 @@ class StateFileManagerTests {
                 .resolve("node" + SELF_ID + "_round" + fatalRound);
         final SignedState fatalState =
                 new RandomSignedStateGenerator(random).setRound(fatalRound).build();
-        initLifecycleManagerAndMakeStateImmutable(fatalState, true);
+        initLifecycleManagerAndMakeStateImmutable(fatalState);
         hashState(fatalState);
         fatalState.markAsStateToSave(FATAL_ERROR);
         manager.dumpStateTask(StateDumpRequest.create(fatalState.reserve("test")));
@@ -395,7 +390,7 @@ class StateFileManagerTests {
                     new RandomSignedStateGenerator(random).setRound(round).build();
             issState.markAsStateToSave(PERIODIC_SNAPSHOT);
             states.add(signedState);
-            initLifecycleManagerAndMakeStateImmutable(signedState, true);
+            initLifecycleManagerAndMakeStateImmutable(signedState);
             hashState(signedState);
             manager.saveStateTask(signedState.reserve("test"));
 
@@ -429,17 +424,14 @@ class StateFileManagerTests {
         signedState.getState().getRoot().getHash();
     }
 
-    void initLifecycleManagerAndMakeStateImmutable(SignedState state) {
-        initLifecycleManagerAndMakeStateImmutable(state, false);
-    }
+    void initLifecycleManagerAndMakeStateImmutable(final SignedState state) {
+        stateLifecycleManager = new StateLifecycleManagerImpl(
+                context.getMetrics(),
+                context.getTime(),
+                VirtualMapStateTestUtils::createTestStateWithVM,
+                context.getConfiguration());
 
-    void initLifecycleManagerAndMakeStateImmutable(SignedState state, boolean createNewStateLifecycleManager) {
-        if (createNewStateLifecycleManager) {
-            stateLifecycleManager =
-                    new StateLifecycleManagerImpl(context.getMetrics(), context.getTime(), TestVirtualMapState::new);
-        }
-
-        stateLifecycleManager.initState(state.getState(), false);
+        stateLifecycleManager.initState(state.getState());
         stateLifecycleManager.getMutableState().release();
     }
 }

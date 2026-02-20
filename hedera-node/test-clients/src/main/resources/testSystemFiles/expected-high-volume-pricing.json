@@ -1,0 +1,101 @@
+{
+  "description": "Expected high-volume pricing curves from HIP-1313 specification",
+  "baseCurve": {
+    "description": "Base curve applied to all transaction types. rateMultiplierTenths uses fixed-point representation to avoid floating-point precision issues (e.g., 15 = 1.5x multiplier). basePriceMills is price in thousandths of a dollar.",
+    "points": [
+      { "rateMultiplierTenths": 10, "priceMultiplier": 4 },
+      { "rateMultiplierTenths": 15, "priceMultiplier": 8 },
+      { "rateMultiplierTenths": 25, "priceMultiplier": 10 },
+      { "rateMultiplierTenths": 35, "priceMultiplier": 15 },
+      { "rateMultiplierTenths": 50, "priceMultiplier": 20 },
+      { "rateMultiplierTenths": 75, "priceMultiplier": 30 },
+      { "rateMultiplierTenths": 100, "priceMultiplier": 40 },
+      { "rateMultiplierTenths": 250, "priceMultiplier": 60 },
+      { "rateMultiplierTenths": 500, "priceMultiplier": 80 },
+      { "rateMultiplierTenths": 1000, "priceMultiplier": 100 },
+      { "rateMultiplierTenths": 2500, "priceMultiplier": 150 },
+      { "rateMultiplierTenths": 5000, "priceMultiplier": 200 },
+      { "rateMultiplierTenths": 50000, "priceMultiplier": 200 }
+    ]
+  },
+  "transactionTypes": [
+    {
+      "name": "CryptoCreate",
+      "baseRate": 2,
+      "maxTps": 10000,
+      "basePriceMills": 50
+    },
+    {
+      "name": "ConsensusCreateTopic",
+      "baseRate": 5,
+      "maxTps": 25000,
+      "basePriceMills": 10
+    },
+    {
+      "name": "ScheduleCreate",
+      "baseRate": 100,
+      "maxTps": 10000,
+      "basePriceMills": 20
+    },
+    {
+      "name": "CryptoApproveAllowance",
+      "baseRate": 10000,
+      "maxTps": 10000,
+      "basePriceMills": 30
+    },
+    {
+      "name": "FileCreate",
+      "baseRate": 2,
+      "maxTps": 10000,
+      "basePriceMills": 50
+    },
+    {
+      "name": "FileAppend",
+      "baseRate": 10,
+      "maxTps": 50000,
+      "basePriceMills": 50
+    },
+    {
+      "name": "ContractCreate",
+      "baseRate": 350,
+      "maxTps": 17500,
+      "basePriceMills": 1000
+    },
+    {
+      "name": "HookStore",
+      "baseRate": 10,
+      "maxTps": 50000,
+      "basePriceMills": 5
+    },
+    {
+      "name": "TokenAssociateToAccount",
+      "baseRate": 100,
+      "maxTps": 10000,
+      "basePriceMills": 50
+    },
+    {
+      "name": "TokenAirdrop",
+      "baseRate": 100,
+      "maxTps": 10000,
+      "basePriceMills": 100
+    },
+    {
+      "name": "TokenClaimAirdrop",
+      "baseRate": 3000,
+      "maxTps": 10500,
+      "basePriceMills": 1
+    },
+    {
+      "name": "TokenMint",
+      "baseRate": 50,
+      "maxTps": 12500,
+      "basePriceMills": 20
+    },
+    {
+      "name": "TokenCreate",
+      "baseRate": 100,
+      "maxTps": 10000,
+      "basePriceMills": 100
+    }
+  ]
+}

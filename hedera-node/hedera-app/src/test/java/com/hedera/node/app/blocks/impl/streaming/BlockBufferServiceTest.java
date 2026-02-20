@@ -439,6 +439,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         assertThat(buffer).hasSize(4);
 
         // reset the block stream metrics mock to capture the next interaction that has the same value as before
+        verifyBlockSizingMetrics();
         verifyNoMoreInteractions(blockStreamMetrics);
         reset(blockStreamMetrics);
 
@@ -459,6 +460,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics).recordBufferNewestBlock(5L);
 
         // reset the block stream metrics mock to capture the next interaction that has the same value as before
+        verifyBlockSizingMetrics();
         verifyNoMoreInteractions(blockStreamMetrics);
         reset(blockStreamMetrics);
 
@@ -477,6 +479,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics).recordBufferOldestBlock(1L);
         verify(blockStreamMetrics).recordBufferNewestBlock(6L);
 
+        verifyBlockSizingMetrics();
         verifyNoMoreInteractions(blockStreamMetrics);
         reset(blockStreamMetrics);
         assertThat(buffer).hasSize(6);
@@ -539,10 +542,16 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics).recordBufferOldestBlock(3L);
         verify(blockStreamMetrics).recordBufferNewestBlock(7L);
 
+        verifyBlockSizingMetrics();
         verifyNoMoreInteractions(blockStreamMetrics);
         reset(blockStreamMetrics);
         assertThat(buffer).hasSize(5);
         assertThat(blockBufferService.getEarliestAvailableBlockNumber()).isEqualTo(3L);
+    }
+
+    private void verifyBlockSizingMetrics() {
+        verify(blockStreamMetrics, atLeastOnce()).recordBlockItemsPerBlock(anyInt());
+        verify(blockStreamMetrics, atLeastOnce()).recordBlockBytes(anyLong());
     }
 
     @Test
@@ -694,7 +703,8 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics, atLeastOnce()).recordBackPressureDisabled();
         verify(blockStreamMetrics, atLeastOnce()).recordBufferOldestBlock(anyLong());
         verify(blockStreamMetrics, atLeastOnce()).recordBufferNewestBlock(anyLong());
-
+        verify(blockStreamMetrics, atLeastOnce()).recordBlockItemsPerBlock(anyInt());
+        verify(blockStreamMetrics, atLeastOnce()).recordBlockBytes(anyLong());
         verifyNoMoreInteractions(blockStreamMetrics);
     }
 
@@ -802,7 +812,8 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics).recordNumberOfBlocksPruned(0);
         verify(blockStreamMetrics).recordBufferOldestBlock(1L);
         verify(blockStreamMetrics).recordBufferNewestBlock(10L);
-
+        verify(blockStreamMetrics, atLeastOnce()).recordBlockItemsPerBlock(anyInt());
+        verify(blockStreamMetrics, atLeastOnce()).recordBlockBytes(anyLong());
         verifyNoMoreInteractions(blockStreamMetrics);
     }
 
@@ -932,6 +943,8 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics).recordBufferOldestBlock(1L);
         verify(blockStreamMetrics).recordBufferNewestBlock(10L);
         verifyNoMoreInteractions(connectionManager);
+        verify(blockStreamMetrics, atLeastOnce()).recordBlockItemsPerBlock(anyInt());
+        verify(blockStreamMetrics, atLeastOnce()).recordBlockBytes(anyLong());
         verifyNoMoreInteractions(blockStreamMetrics);
     }
 
@@ -969,6 +982,8 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics).recordBufferOldestBlock(1L);
         verify(blockStreamMetrics).recordBufferNewestBlock(7L);
         verifyNoMoreInteractions(connectionManager);
+        verify(blockStreamMetrics, atLeastOnce()).recordBlockItemsPerBlock(anyInt());
+        verify(blockStreamMetrics, atLeastOnce()).recordBlockBytes(anyLong());
         verifyNoMoreInteractions(blockStreamMetrics);
     }
 
@@ -1006,6 +1021,8 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics).recordBufferOldestBlock(1L);
         verify(blockStreamMetrics).recordBufferNewestBlock(4L);
         verifyNoMoreInteractions(connectionManager);
+        verify(blockStreamMetrics, atLeastOnce()).recordBlockItemsPerBlock(anyInt());
+        verify(blockStreamMetrics, atLeastOnce()).recordBlockBytes(anyLong());
         verifyNoMoreInteractions(blockStreamMetrics);
     }
 
@@ -1048,6 +1065,8 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics).recordBufferOldestBlock(1L);
         verify(blockStreamMetrics).recordBufferNewestBlock(10L);
         verifyNoMoreInteractions(connectionManager);
+        verify(blockStreamMetrics, atLeastOnce()).recordBlockItemsPerBlock(anyInt());
+        verify(blockStreamMetrics, atLeastOnce()).recordBlockBytes(anyLong());
         verifyNoMoreInteractions(blockStreamMetrics);
     }
 
@@ -1083,6 +1102,8 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics).recordBufferOldestBlock(1L);
         verify(blockStreamMetrics).recordBufferNewestBlock(8L);
         verifyNoMoreInteractions(connectionManager);
+        verify(blockStreamMetrics, atLeastOnce()).recordBlockItemsPerBlock(anyInt());
+        verify(blockStreamMetrics, atLeastOnce()).recordBlockBytes(anyLong());
         verifyNoMoreInteractions(blockStreamMetrics);
     }
 
@@ -1280,6 +1301,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics).recordNumberOfBlocksPruned(0);
         verify(blockStreamMetrics).recordBufferOldestBlock(0L);
         verify(blockStreamMetrics).recordBufferNewestBlock(9L);
+        verifyBlockSizingMetrics();
         verifyNoMoreInteractions(blockStreamMetrics);
         reset(blockStreamMetrics);
 
@@ -1605,40 +1627,6 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         persistBufferHandle.invoke(blockBufferService);
 
         // verify nothing on disk
-        try (final Stream<Path> stream = Files.list(testDirFile.toPath())) {
-            assertThat(stream.count()).isZero();
-        }
-    }
-
-    @Test
-    void testPersistBuffer_recordsMode() throws Throwable {
-        final Configuration config = HederaTestConfigBuilder.create()
-                .withConfigDataType(BlockStreamConfig.class)
-                .withConfigDataType(BlockBufferConfig.class)
-                .withValue("blockStream.writerMode", "GRPC")
-                .withValue("blockStream.streamMode", "RECORDS")
-                .withValue("blockStream.blockPeriod", Duration.ofSeconds(1))
-                .withValue("blockStream.buffer.isBufferPersistenceEnabled", true)
-                .withValue("blockStream.buffer.bufferDirectory", testDir)
-                .getOrCreateConfig();
-        when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(config, 1));
-
-        Files.createDirectories(testDirFile.toPath());
-
-        blockBufferService = initBufferService(configProvider);
-
-        // create a block
-        final long BLOCK_1 = 1L;
-        blockBufferService.openBlock(BLOCK_1);
-        final List<BlockItem> block1Items = generateBlockItems(60, BLOCK_1, Set.of(10L, 11L));
-        block1Items.forEach(item -> blockBufferService.addItem(BLOCK_1, item));
-        blockBufferService.closeBlock(BLOCK_1);
-
-        blockBufferService.persistBuffer();
-
-        persistBufferHandle.invoke(blockBufferService);
-
-        // verify nothing on disk - should not persist when streamMode != BLOCKS
         try (final Stream<Path> stream = Files.list(testDirFile.toPath())) {
             assertThat(stream.count()).isZero();
         }

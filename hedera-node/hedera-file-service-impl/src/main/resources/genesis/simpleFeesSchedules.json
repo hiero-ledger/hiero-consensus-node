@@ -3,6 +3,9 @@
     "baseFee": 100000,
     "extras": [
       {
+        "name": "PROCESSING_BYTES", "includedCount": 1024
+      },
+      {
         "name": "SIGNATURES", "includedCount": 1
       }
     ]
@@ -15,22 +18,30 @@
   },
 
   "extras": [
-    { "name":  "SIGNATURES",                     "fee": 1000000 },
-    { "name":  "BYTES",                          "fee": 110 },
+    { "name":  "SIGNATURES",                     "fee": 100000 },
+    { "name":  "STATE_BYTES",                    "fee": 1000000 },
+    { "name":  "PROCESSING_BYTES",               "fee": 10000 },
     { "name":  "KEYS",                           "fee": 100000000 },
-    { "name":  "TOKEN_TYPES",                    "fee": 0 },
     { "name":  "NFT_SERIALS",                    "fee": 8900000 },
-    { "name":  "ACCOUNTS",                       "fee": 0 },
-    { "name":  "STANDARD_FUNGIBLE_TOKENS",       "fee": 9000000 },
-    { "name":  "STANDARD_NON_FUNGIBLE_TOKENS",   "fee": 100000 },
-    { "name":  "CUSTOM_FEE_FUNGIBLE_TOKENS",     "fee": 19000000 },
-    { "name":  "CUSTOM_FEE_NON_FUNGIBLE_TOKENS", "fee": 10100000 },
-    { "name":  "CREATED_AUTO_ASSOCIATIONS",      "fee": 0 },
-    { "name":  "CREATED_ACCOUNTS",               "fee": 0 },
-    { "name":  "CUSTOM_FEE",                     "fee": 0 },
-    { "name":  "GAS",                            "fee": 1 },
-    { "name":  "ALLOWANCES",                     "fee": 2000 },
-    { "name":  "AIRDROPS",                       "fee": 8800 }
+    { "name":  "ACCOUNTS",                       "fee": 1000000 },
+    { "name":  "TOKEN_TYPES",                    "fee": 1000000 },
+    { "name":  "GAS",                            "fee": 852 },
+    { "name":  "ALLOWANCES",                     "fee": 500000000 },
+    { "name":  "TOKEN_ASSOCIATE",                "fee": 500000000 },
+    { "name":  "TOKEN_CREATE_WITH_CUSTOM_FEE",   "fee": 10000000000 },
+    { "name":  "TOKEN_MINT_NFT_BASE",            "fee": 190000000 },
+    { "name":  "TOKEN_MINT_NFT",                 "fee": 200000000 },
+    { "name":  "NFT_UPDATE",                     "fee": 10000000 },
+    { "name":  "AIRDROPS",                       "fee": 500000000 },
+    { "name":  "HOOK_UPDATES",                   "fee": 10000000000 },
+    { "name":  "RECORDS",                        "fee": 1000000 },
+    { "name":  "TOKEN_TRANSFER_BASE",                       "fee": 9000000 },
+    { "name":  "TOKEN_TRANSFER_BASE_CUSTOM_FEES",           "fee": 19000000 },
+    { "name":  "CONSENSUS_CREATE_TOPIC_WITH_CUSTOM_FEE",    "fee": 19900000000 },
+    { "name":  "CONSENSUS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE",  "fee": 492000000},
+    { "name":  "SCHEDULE_CREATE_CONTRACT_CALL_BASE",        "fee": 900000000},
+    { "name":  "HOOK_EXECUTION",                            "fee": 50000000 },
+    { "name":  "HOOK_SLOT_UPDATE",                          "fee": 50000000 }
   ],
   "services": [
     {
@@ -40,14 +51,38 @@
           "name": "CryptoCreate",
           "baseFee": 499000000,
           "extras": [
-            { "name": "KEYS", "includedCount": 1 }
-          ]
+            { "name": "KEYS", "includedCount": 1 },
+            { "name": "HOOK_UPDATES", "includedCount": 0 }
+          ],
+          "highVolumeRates": {
+            "maxMultiplier": 200000,
+            "pricingCurve": {
+              "piecewiseLinear": {
+                "points": [
+                  { "utilizationBasisPoints": 2, "multiplier": 4000 },
+                  { "utilizationBasisPoints": 3, "multiplier": 8000 },
+                  { "utilizationBasisPoints": 5, "multiplier": 10000 },
+                  { "utilizationBasisPoints": 7, "multiplier": 15000 },
+                  { "utilizationBasisPoints": 10, "multiplier": 20000 },
+                  { "utilizationBasisPoints": 15, "multiplier": 30000 },
+                  { "utilizationBasisPoints": 20, "multiplier": 40000 },
+                  { "utilizationBasisPoints": 50, "multiplier": 60000 },
+                  { "utilizationBasisPoints": 100, "multiplier": 80000 },
+                  { "utilizationBasisPoints": 200, "multiplier": 100000 },
+                  { "utilizationBasisPoints": 500, "multiplier": 150000 },
+                  { "utilizationBasisPoints": 1000, "multiplier": 200000 },
+                  { "utilizationBasisPoints": 10000, "multiplier": 200000 }
+                ]
+              }
+            }
+          }
         },
         {
           "name": "CryptoUpdate",
-          "baseFee": 22,
+          "baseFee": 1200000,
           "extras": [
-            {  "name": "KEYS",       "includedCount": 1 }
+            { "name": "KEYS", "includedCount": 1 },
+            { "name": "HOOK_UPDATES", "includedCount": 0 }
           ]
         },
         {
@@ -58,12 +93,54 @@
         },
         {
           "name": "CryptoTransfer",
-          "baseFee": 18,
+          "baseFee": 0,
           "extras": [
-            {  "name": "KEYS",       "includedCount": 1 },
-            {  "name": "ACCOUNTS",       "includedCount": 1 },
-            {  "name": "STANDARD_FUNGIBLE_TOKENS", "includedCount": 1}
+            {  "name": "TOKEN_TRANSFER_BASE",             "includedCount": 0 },
+            {  "name": "TOKEN_TRANSFER_BASE_CUSTOM_FEES", "includedCount": 0 },
+            {  "name": "HOOK_EXECUTION",                  "includedCount": 0 },
+            {  "name": "GAS",                             "includedCount": 0 },
+            {  "name": "ACCOUNTS",                        "includedCount": 2 },
+            {  "name": "TOKEN_TYPES",                     "includedCount": 1 }
           ]
+        },
+        {
+          "name": "CryptoApproveAllowance",
+          "baseFee": 499000000,
+          "extras": [
+            { "name": "ALLOWANCES", "includedCount": 1 }
+          ],
+          "highVolumeRates": {
+            "maxMultiplier": 4000,
+            "pricingCurve": {
+              "piecewiseLinear": {
+                "points": [
+                  { "utilizationBasisPoints": 10000, "multiplier": 4000 }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "name": "CryptoDeleteAllowance",
+          "baseFee": 499000000,
+          "extras": [
+            { "name": "ALLOWANCES", "includedCount": 1 }
+          ]
+        },
+        {
+          "name": "CryptoGetAccountBalance",
+          "baseFee": 0,
+          "extras": []
+        },
+        {
+          "name": "CryptoGetInfo",
+          "baseFee": 0,
+          "extras": []
+        },
+        {
+          "name": "CryptoGetAccountRecords",
+          "baseFee": 0,
+          "extras": []
         }
       ]
     },
@@ -72,36 +149,59 @@
       "schedule": [
         {
           "name": "ConsensusCreateTopic",
-          "baseFee": 99700000,
+          "baseFee": 99000000,
           "extras": [
-            { "name": "KEYS", "includedCount": 0 }
-          ]
+            { "name": "KEYS", "includedCount": 0 },
+            { "name": "CONSENSUS_CREATE_TOPIC_WITH_CUSTOM_FEE", "includedCount": 0 }
+          ],
+          "highVolumeRates": {
+            "maxMultiplier": 200000,
+            "pricingCurve": {
+              "piecewiseLinear": {
+                "points": [
+                  { "utilizationBasisPoints": 2, "multiplier": 4000 },
+                  { "utilizationBasisPoints": 3, "multiplier": 8000 },
+                  { "utilizationBasisPoints": 5, "multiplier": 10000 },
+                  { "utilizationBasisPoints": 7, "multiplier": 15000 },
+                  { "utilizationBasisPoints": 10, "multiplier": 20000 },
+                  { "utilizationBasisPoints": 15, "multiplier": 30000 },
+                  { "utilizationBasisPoints": 20, "multiplier": 40000 },
+                  { "utilizationBasisPoints": 50, "multiplier": 60000 },
+                  { "utilizationBasisPoints": 100, "multiplier": 80000 },
+                  { "utilizationBasisPoints": 200, "multiplier": 100000 },
+                  { "utilizationBasisPoints": 500, "multiplier": 150000 },
+                  { "utilizationBasisPoints": 1000, "multiplier": 200000 },
+                  { "utilizationBasisPoints": 10000, "multiplier": 200000 }
+                ]
+              }
+            }
+          }
         },
         {
           "name": "ConsensusUpdateTopic",
-          "baseFee": 3240000,
+          "baseFee": 1200000,
           "extras": [
             { "name": "KEYS",       "includedCount": 1 }
           ]
         },
         {
           "name": "ConsensusSubmitMessage",
-          "baseFee": 700000,
+          "baseFee": 7000000,
           "extras": [
-            { "name": "BYTES",      "includedCount": 256 }
+            { "name": "STATE_BYTES",      "includedCount": 1024 },
+            { "name": "CONSENSUS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE", "includedCount": 0 }
           ]
         },
         {
           "name": "ConsensusDeleteTopic",
-          "baseFee": 21700000,
+          "baseFee": 49000000,
           "extras": [
           ]
         },
         {
           "name": "ConsensusGetTopicInfo",
-          "baseFee": 5000000,
-          "extras": [
-          ]
+          "baseFee": 0,
+          "extras": []
         }
       ]
     },
@@ -110,42 +210,87 @@
       "schedule": [
         {
           "name": "FileCreate",
-          "baseFee": 50,
+          "baseFee": 499000000,
           "extras": [
             { "name": "KEYS", "includedCount": 1},
-            { "name": "BYTES", "includedCount": 1000}
-          ]
+            { "name": "STATE_BYTES", "includedCount": 1000}
+          ],
+          "highVolumeRates": {
+            "maxMultiplier": 200000,
+            "pricingCurve": {
+              "piecewiseLinear": {
+                "points": [
+                  { "utilizationBasisPoints": 2, "multiplier": 4000 },
+                  { "utilizationBasisPoints": 3, "multiplier": 8000 },
+                  { "utilizationBasisPoints": 5, "multiplier": 10000 },
+                  { "utilizationBasisPoints": 7, "multiplier": 15000 },
+                  { "utilizationBasisPoints": 10, "multiplier": 20000 },
+                  { "utilizationBasisPoints": 15, "multiplier": 30000 },
+                  { "utilizationBasisPoints": 20, "multiplier": 40000 },
+                  { "utilizationBasisPoints": 50, "multiplier": 60000 },
+                  { "utilizationBasisPoints": 100, "multiplier": 80000 },
+                  { "utilizationBasisPoints": 200, "multiplier": 100000 },
+                  { "utilizationBasisPoints": 500, "multiplier": 150000 },
+                  { "utilizationBasisPoints": 1000, "multiplier": 200000 },
+                  { "utilizationBasisPoints": 10000, "multiplier": 200000 }
+                ]
+              }
+            }
+          }
         },
         {
           "name": "FileUpdate",
-          "baseFee": 50,
+          "baseFee": 499000000,
           "extras": [
             { "name": "KEYS", "includedCount": 1},
-            { "name": "BYTES", "includedCount": 1000}
+            { "name": "STATE_BYTES", "includedCount": 1000}
           ]
         },
         {
           "name": "FileAppend",
-          "baseFee": 50,
+          "baseFee": 499000000,
           "extras": [
-            { "name": "KEYS", "includedCount": 1},
-            { "name": "BYTES", "includedCount": 1000}
-          ]
+            { "name": "STATE_BYTES", "includedCount": 1000}
+          ],
+          "highVolumeRates": {
+            "maxMultiplier": 200000,
+            "pricingCurve": {
+              "piecewiseLinear": {
+                "points": [
+                  { "utilizationBasisPoints": 2, "multiplier": 4000 },
+                  { "utilizationBasisPoints": 3, "multiplier": 8000 },
+                  { "utilizationBasisPoints": 5, "multiplier": 10000 },
+                  { "utilizationBasisPoints": 7, "multiplier": 15000 },
+                  { "utilizationBasisPoints": 10, "multiplier": 20000 },
+                  { "utilizationBasisPoints": 15, "multiplier": 30000 },
+                  { "utilizationBasisPoints": 20, "multiplier": 40000 },
+                  { "utilizationBasisPoints": 50, "multiplier": 60000 },
+                  { "utilizationBasisPoints": 100, "multiplier": 80000 },
+                  { "utilizationBasisPoints": 200, "multiplier": 100000 },
+                  { "utilizationBasisPoints": 500, "multiplier": 150000 },
+                  { "utilizationBasisPoints": 1000, "multiplier": 200000 },
+                  { "utilizationBasisPoints": 10000, "multiplier": 200000 }
+                ]
+              }
+            }
+          }
         },
         {
           "name": "FileDelete",
-          "baseFee": 7,
-          "extras": [
-            { "name": "KEYS", "includedCount": 1}
-          ]
+          "baseFee": 69000000,
+          "extras": []
         },
         {
           "name": "FileGetContents",
-          "baseFee": 10,
+          "baseFee": 0,
           "extras": [
-            { "name": "KEYS", "includedCount": 1},
-            { "name": "BYTES", "includedCount": 1000}
+            { "name": "STATE_BYTES", "includedCount": 1000}
           ]
+        },
+        {
+          "name": "FileGetInfo",
+          "baseFee": 0,
+          "extras": []
         }
       ]
     },
@@ -154,17 +299,458 @@
       "schedule": [
         {
           "name": "TokenCreate",
-          "baseFee": 25,
+          "baseFee": 9999000000,
+          "extras": [
+            {"name": "KEYS", "includedCount": 1},
+            {"name": "TOKEN_CREATE_WITH_CUSTOM_FEE", "includedCount": 0 }
+          ],
+          "highVolumeRates": {
+            "maxMultiplier": 100000,
+            "pricingCurve": {
+              "piecewiseLinear": {
+                "points": [
+                  { "utilizationBasisPoints": 100, "multiplier": 4000 },
+                  { "utilizationBasisPoints": 150, "multiplier": 8000 },
+                  { "utilizationBasisPoints": 250, "multiplier": 10000 },
+                  { "utilizationBasisPoints": 350, "multiplier": 15000 },
+                  { "utilizationBasisPoints": 500, "multiplier": 20000 },
+                  { "utilizationBasisPoints": 750, "multiplier": 30000 },
+                  { "utilizationBasisPoints": 1000, "multiplier": 40000 },
+                  { "utilizationBasisPoints": 2500, "multiplier": 60000 },
+                  { "utilizationBasisPoints": 5000, "multiplier": 80000 },
+                  { "utilizationBasisPoints": 10000, "multiplier": 100000 }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "name": "TokenMint",
+          "baseFee": 9000000,
+          "extras": [
+            {"name": "TOKEN_MINT_NFT_BASE", "includedCount": 0 },
+            {"name": "TOKEN_MINT_NFT", "includedCount": 1 }
+          ],
+          "highVolumeRates": {
+            "maxMultiplier": 150000,
+            "pricingCurve": {
+              "piecewiseLinear": {
+                "points": [
+                  { "utilizationBasisPoints": 40, "multiplier": 4000 },
+                  { "utilizationBasisPoints": 60, "multiplier": 8000 },
+                  { "utilizationBasisPoints": 100, "multiplier": 10000 },
+                  { "utilizationBasisPoints": 140, "multiplier": 15000 },
+                  { "utilizationBasisPoints": 200, "multiplier": 20000 },
+                  { "utilizationBasisPoints": 300, "multiplier": 30000 },
+                  { "utilizationBasisPoints": 400, "multiplier": 40000 },
+                  { "utilizationBasisPoints": 1000, "multiplier": 60000 },
+                  { "utilizationBasisPoints": 2000, "multiplier": 80000 },
+                  { "utilizationBasisPoints": 4000, "multiplier": 100000 },
+                  { "utilizationBasisPoints": 10000, "multiplier": 150000 }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "name": "TokenBurn",
+          "baseFee": 9000000,
           "extras": [
           ]
         },
         {
-          "name": "TokenMint",
-          "baseFee": 33,
+          "name": "TokenDelete",
+          "baseFee": 9000000,
           "extras": [
-            { "name": "STANDARD_FUNGIBLE_TOKENS", "includedCount": 1 },
-            { "name": "STANDARD_NON_FUNGIBLE_TOKENS", "includedCount": 1 }
           ]
+        },
+        {
+          "name": "TokenFreezeAccount",
+          "baseFee": 9000000,
+          "extras": [
+          ]
+        },
+        {
+          "name": "TokenUnfreezeAccount",
+          "baseFee": 9000000,
+          "extras": [
+          ]
+        },
+        {
+          "name": "TokenPause",
+          "baseFee": 9000000,
+          "extras": [
+          ]
+        },
+        {
+          "name": "TokenUnpause",
+          "baseFee": 9000000,
+          "extras": [
+          ]
+        },
+        {
+          "name": "TokenAssociateToAccount",
+          "baseFee": 499000000,
+          "extras": [ {"name": "TOKEN_ASSOCIATE", "includedCount": 1 }],
+          "highVolumeRates": {
+            "maxMultiplier": 100000,
+            "pricingCurve": {
+              "piecewiseLinear": {
+                "points": [
+                  { "utilizationBasisPoints": 100, "multiplier": 4000 },
+                  { "utilizationBasisPoints": 150, "multiplier": 8000 },
+                  { "utilizationBasisPoints": 250, "multiplier": 10000 },
+                  { "utilizationBasisPoints": 350, "multiplier": 15000 },
+                  { "utilizationBasisPoints": 500, "multiplier": 20000 },
+                  { "utilizationBasisPoints": 750, "multiplier": 30000 },
+                  { "utilizationBasisPoints": 1000, "multiplier": 40000 },
+                  { "utilizationBasisPoints": 2500, "multiplier": 60000 },
+                  { "utilizationBasisPoints": 5000, "multiplier": 80000 },
+                  { "utilizationBasisPoints": 10000, "multiplier": 100000 }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "name": "TokenAirdrop",
+          "baseFee": 1000000000,
+          "extras": [
+            { "name": "AIRDROPS", "includedCount": 1 }
+          ],
+          "highVolumeRates": {
+            "maxMultiplier": 100000,
+            "pricingCurve": {
+              "piecewiseLinear": {
+                "points": [
+                  { "utilizationBasisPoints": 100, "multiplier": 4000 },
+                  { "utilizationBasisPoints": 150, "multiplier": 8000 },
+                  { "utilizationBasisPoints": 250, "multiplier": 10000 },
+                  { "utilizationBasisPoints": 350, "multiplier": 15000 },
+                  { "utilizationBasisPoints": 500, "multiplier": 20000 },
+                  { "utilizationBasisPoints": 750, "multiplier": 30000 },
+                  { "utilizationBasisPoints": 1000, "multiplier": 40000 },
+                  { "utilizationBasisPoints": 2500, "multiplier": 60000 },
+                  { "utilizationBasisPoints": 5000, "multiplier": 80000 },
+                  { "utilizationBasisPoints": 10000, "multiplier": 100000 }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "name": "TokenClaimAirdrop",
+          "baseFee": 9000000,
+          "extras": [],
+          "highVolumeRates": {
+            "maxMultiplier": 15000,
+            "pricingCurve": {
+              "piecewiseLinear": {
+                "points": [
+                  { "utilizationBasisPoints": 2857, "multiplier": 4000 },
+                  { "utilizationBasisPoints": 4286, "multiplier": 8000 },
+                  { "utilizationBasisPoints": 7143, "multiplier": 10000 },
+                  { "utilizationBasisPoints": 10000, "multiplier": 15000 }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "name": "TokenCancelAirdrop",
+          "baseFee": 9000000,
+          "extras": []
+        },
+        {
+          "name": "TokenDissociateFromAccount",
+          "baseFee": 499000000,
+          "extras": [
+          ]
+        },
+        {
+          "name": "TokenGrantKycToAccount",
+          "baseFee": 9000000,
+          "extras": [
+          ]
+        },
+        {
+          "name": "TokenRevokeKycFromAccount",
+          "baseFee": 9000000,
+          "extras": [
+          ]
+        },
+        {
+          "name": "TokenReject",
+          "baseFee": 9000000,
+          "extras": [
+          ]
+        },
+        {
+          "name": "TokenAccountWipe",
+          "baseFee": 9000000,
+          "extras": [
+          ]
+        },
+        {
+          "name": "TokenFeeScheduleUpdate",
+          "baseFee": 9000000,
+          "extras": [
+          ]
+        },
+        {
+          "name": "TokenUpdate",
+          "baseFee": 9000000,
+          "extras": [
+            {"name": "KEYS", "includedCount": 1}
+          ]
+        },
+        {
+          "name": "TokenUpdateNfts",
+          "baseFee": 9000000,
+          "extras": [
+            {"name": "NFT_UPDATE", "includedCount": 1}
+          ]
+        },
+        {
+          "name": "TokenGetInfo",
+          "baseFee": 0,
+          "extras": [
+          ]
+        },
+        {
+          "name": "TokenGetNftInfo",
+          "baseFee": 0,
+          "extras": [
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Schedule",
+      "schedule": [
+        {
+          "name": "ScheduleCreate",
+          "baseFee": 99000000,
+          "extras": [
+            { "name": "KEYS", "includedCount": 1},
+            { "name": "SCHEDULE_CREATE_CONTRACT_CALL_BASE", "includedCount": 0}
+          ],
+          "highVolumeRates": {
+            "maxMultiplier": 100000,
+            "pricingCurve": {
+              "piecewiseLinear": {
+                "points": [
+                  { "utilizationBasisPoints": 100, "multiplier": 4000 },
+                  { "utilizationBasisPoints": 150, "multiplier": 8000 },
+                  { "utilizationBasisPoints": 250, "multiplier": 10000 },
+                  { "utilizationBasisPoints": 350, "multiplier": 15000 },
+                  { "utilizationBasisPoints": 500, "multiplier": 20000 },
+                  { "utilizationBasisPoints": 750, "multiplier": 30000 },
+                  { "utilizationBasisPoints": 1000, "multiplier": 40000 },
+                  { "utilizationBasisPoints": 2500, "multiplier": 60000 },
+                  { "utilizationBasisPoints": 5000, "multiplier": 80000 },
+                  { "utilizationBasisPoints": 10000, "multiplier": 100000 }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "name": "ScheduleSign",
+          "baseFee": 9000000,
+          "extras": []
+        },
+        {
+          "name": "ScheduleDelete",
+          "baseFee": 9000000,
+          "extras": []
+        },
+        {
+          "name": "ScheduleGetInfo",
+          "baseFee": 0,
+          "extras": []
+        }
+      ]
+    },
+    {
+      "name": "Network",
+      "schedule": [
+        {
+          "name": "GetVersionInfo",
+          "baseFee": 0,
+          "extras": []
+        },
+        {
+          "name": "TransactionGetRecord",
+          "baseFee": 0,
+          "extras": [
+            {
+              "name": "RECORDS",
+              "includedCount": 1
+            }
+          ]
+        },
+        {
+          "name": "TransactionGetReceipt",
+          "baseFee": 0,
+          "extras": []
+        },
+        {
+          "name": "GetByKey",
+          "baseFee": 0,
+          "extras": []
+        }
+      ]
+    },
+    {
+      "name": "Util",
+      "schedule": [
+        {
+          "name": "UtilPrng",
+          "baseFee": 9000000,
+          "extras": []
+        },
+        {
+          "name": "AtomicBatch",
+          "baseFee": 9000000,
+          "extras": []
+        }
+      ]
+    },
+    {
+      "name": "Contract",
+      "schedule": [
+        {
+          "name": "ContractCall",
+          "baseFee": 0,
+          "extras": []
+        },
+        {
+          "name": "ContractUpdate",
+          "baseFee": 259000000,
+          "extras": [
+            {
+              "name": "KEYS",
+              "includedCount": 1
+            },
+            {
+              "name": "HOOK_UPDATES",
+              "includedCount": 0
+            }
+          ]
+        },
+        {
+          "name": "ContractDelete",
+          "baseFee": 69000000,
+          "extras": []
+        },
+        {
+          "name": "EthereumTransaction",
+          "baseFee": 0,
+          "extras": []
+        },
+        {
+          "name": "ContractCreate",
+          "baseFee": 9999000000,
+          "extras": [
+            {
+              "name": "HOOK_UPDATES",
+              "includedCount": 0
+            },
+            {
+              "name": "KEYS",
+              "includedCount": 1
+            }
+          ],
+          "highVolumeRates": {
+            "maxMultiplier": 80000,
+            "pricingCurve": {
+              "piecewiseLinear": {
+                "points": [
+                  { "utilizationBasisPoints": 200, "multiplier": 4000 },
+                  { "utilizationBasisPoints": 300, "multiplier": 8000 },
+                  { "utilizationBasisPoints": 500, "multiplier": 10000 },
+                  { "utilizationBasisPoints": 700, "multiplier": 15000 },
+                  { "utilizationBasisPoints": 1000, "multiplier": 20000 },
+                  { "utilizationBasisPoints": 1500, "multiplier": 30000 },
+                  { "utilizationBasisPoints": 2000, "multiplier": 40000 },
+                  { "utilizationBasisPoints": 5000, "multiplier": 60000 },
+                  { "utilizationBasisPoints": 10000, "multiplier": 80000 }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "name": "HookStore",
+          "baseFee": 49000000,
+          "extras": [
+            {
+              "name": "HOOK_SLOT_UPDATE",
+              "includedCount": 1
+            }
+          ],
+          "highVolumeRates": {
+            "maxMultiplier": 200000,
+            "pricingCurve": {
+              "piecewiseLinear": {
+                "points": [
+                  { "utilizationBasisPoints": 2, "multiplier": 4000 },
+                  { "utilizationBasisPoints": 3, "multiplier": 8000 },
+                  { "utilizationBasisPoints": 5, "multiplier": 10000 },
+                  { "utilizationBasisPoints": 7, "multiplier": 15000 },
+                  { "utilizationBasisPoints": 10, "multiplier": 20000 },
+                  { "utilizationBasisPoints": 15, "multiplier": 30000 },
+                  { "utilizationBasisPoints": 20, "multiplier": 40000 },
+                  { "utilizationBasisPoints": 50, "multiplier": 60000 },
+                  { "utilizationBasisPoints": 100, "multiplier": 80000 },
+                  { "utilizationBasisPoints": 200, "multiplier": 100000 },
+                  { "utilizationBasisPoints": 500, "multiplier": 150000 },
+                  { "utilizationBasisPoints": 1000, "multiplier": 200000 },
+                  { "utilizationBasisPoints": 10000, "multiplier": 200000 }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "name": "ContractCallLocal",
+          "baseFee": 9000000,
+          "extras": []
+        },
+        {
+          "name": "ContractGetBytecode",
+          "baseFee": 499000000,
+          "extras": [
+            {
+              "name": "STATE_BYTES", "includedCount": 1000
+            }
+          ]
+        },
+        {
+          "name": "ContractGetInfo",
+          "baseFee": 0,
+          "extras": []
+        }
+      ]
+    },
+    {
+      "name": "AddressBook",
+      "schedule": [
+        {
+          "name": "NodeCreate",
+          "baseFee": 9000000,
+          "extras": []
+        },
+        {
+          "name": "NodeUpdate",
+          "baseFee": 9000000,
+          "extras": []
+        },
+        {
+          "name": "NodeDelete",
+          "baseFee": 9000000,
+          "extras": []
         }
       ]
     }

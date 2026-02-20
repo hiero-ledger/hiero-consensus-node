@@ -10,7 +10,6 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Stream;
 import org.hiero.base.crypto.AbstractHashable;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.transaction.TransactionWrapper;
@@ -60,27 +59,30 @@ public class EventMetadata extends AbstractHashable {
      * Create a EventMetadata object
      *
      * @param creatorId    ID of this event's creator
-     * @param selfParent   self parent event descriptor
-     * @param otherParents other parent event descriptors
+     * @param allParents   all parent event descriptors
      * @param timeCreated  creation time, as claimed by its creator
      * @param transactions list of transactions included in this event instance
      * @param birthRound   birth round associated with event
      */
     public EventMetadata(
             @NonNull final NodeId creatorId,
-            @Nullable final EventDescriptorWrapper selfParent,
-            @NonNull final List<EventDescriptorWrapper> otherParents,
+            @NonNull final List<EventDescriptorWrapper> allParents,
             @NonNull final Instant timeCreated,
             @NonNull final List<Bytes> transactions,
             final long birthRound) {
 
         Objects.requireNonNull(transactions, "The transactions must not be null");
         this.creatorId = Objects.requireNonNull(creatorId, "The creatorId must not be null");
-        this.selfParent = selfParent;
-        this.otherParents = List.copyOf(otherParents); // checks for null values and makes a copy
-        this.allParents = selfParent == null
-                ? this.otherParents
-                : Stream.concat(Stream.of(selfParent), otherParents.stream()).toList();
+        this.allParents = Objects.requireNonNull(allParents, "The allParents must not be null");
+        if (!allParents.isEmpty() && allParents.getFirst().creator().equals(creatorId)) {
+            // this event has a self parent
+            this.selfParent = allParents.getFirst();
+            this.otherParents = allParents.subList(1, allParents.size());
+        } else {
+            // this event does not have a self parent
+            this.selfParent = null;
+            this.otherParents = allParents;
+        }
         this.timeCreated = Objects.requireNonNull(timeCreated, "The timeCreated must not be null");
         this.transactions = Objects.requireNonNull(transactions, "transactions must not be null").stream()
                 .map(TransactionWrapper::new)
@@ -94,24 +96,14 @@ public class EventMetadata extends AbstractHashable {
      * @param gossipEvent the gossip event to extract metadata from
      */
     public EventMetadata(@NonNull final GossipEvent gossipEvent) {
-        Objects.requireNonNull(gossipEvent.eventCore(), "The eventCore must not be null");
-        this.creatorId = NodeId.of(gossipEvent.eventCore().creatorNodeId());
-        this.allParents =
-                gossipEvent.parents().stream().map(EventDescriptorWrapper::new).toList();
-        if (!allParents.isEmpty() && allParents.getFirst().creator().equals(creatorId)) {
-            // this event has a self parent
-            this.selfParent = allParents.getFirst();
-            this.otherParents = allParents.subList(1, allParents.size());
-        } else {
-            // this event does not have a self parent
-            this.selfParent = null;
-            this.otherParents = allParents;
-        }
-        this.timeCreated = HapiUtils.asInstant(
-                Objects.requireNonNull(gossipEvent.eventCore().timeCreated(), "The timeCreated must not be null"));
-        this.transactions =
-                gossipEvent.transactions().stream().map(TransactionWrapper::new).toList();
-        birthRound = gossipEvent.eventCore().birthRound();
+        this(
+                NodeId.of(Objects.requireNonNull(gossipEvent.eventCore(), "The eventCore must not be null")
+                        .creatorNodeId()),
+                gossipEvent.parents().stream().map(EventDescriptorWrapper::new).toList(),
+                HapiUtils.asInstant(Objects.requireNonNull(
+                        gossipEvent.eventCore().timeCreated(), "The timeCreated must not be null")),
+                gossipEvent.transactions(),
+                gossipEvent.eventCore().birthRound());
     }
 
     /**

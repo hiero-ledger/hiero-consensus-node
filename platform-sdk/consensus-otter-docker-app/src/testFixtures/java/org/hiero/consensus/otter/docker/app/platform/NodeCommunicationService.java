@@ -133,8 +133,7 @@ public class NodeCommunicationService extends NodeCommunicationServiceImplBase {
         final SemanticVersion version = ProtobufConverter.toPbj(request.getVersion());
         final KeysAndCerts keysAndCerts = KeysAndCertsConverter.fromProto(request.getKeysAndCerts());
 
-        consensusNodeManager = new ConsensusNodeManager(
-                selfId, platformConfig, genesisRoster, version, keysAndCerts, backgroundExecutor);
+        consensusNodeManager = new ConsensusNodeManager(selfId, platformConfig, genesisRoster, version, keysAndCerts);
 
         setupStreamingEventDispatcher();
 
@@ -149,7 +148,7 @@ public class NodeCommunicationService extends NodeCommunicationServiceImplBase {
                 notification -> dispatcher.enqueue(EventMessageFactory.fromPlatformStatusChange(notification)));
 
         consensusNodeManager.registerConsensusRoundListener(
-                rounds -> dispatcher.enqueue(EventMessageFactory.fromConsensusRounds(rounds)));
+                round -> dispatcher.enqueue(EventMessageFactory.fromConsensusRound(round)));
     }
 
     /**

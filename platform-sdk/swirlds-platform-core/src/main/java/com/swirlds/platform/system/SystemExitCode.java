@@ -26,13 +26,9 @@ public enum SystemExitCode {
      */
     KEY_LOADING_FAILED(204),
     /**
-     * The machine IP addresses did not match any address in the address book.
+     * The ID of the self node was not provided.
      */
-    NODE_ADDRESS_MISMATCH(205),
-    /**
-     * An error occurred during emergency recovery
-     */
-    EMERGENCY_RECOVERY_ERROR(206),
+    NODE_ID_NOT_PROVIDED(205),
     /**
      * An exit was called but no code was supplied
      */

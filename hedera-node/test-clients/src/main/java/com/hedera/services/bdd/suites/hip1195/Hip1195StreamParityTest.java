@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.hip1195;
 
 import static com.google.protobuf.ByteString.copyFromUtf8;
-import static com.hedera.services.bdd.junit.TestTags.ADHOC;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
 import static com.hedera.services.bdd.spec.assertions.AutoAssocAsserts.accountTokenPairs;
@@ -28,6 +27,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
+import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
@@ -38,12 +38,15 @@ import static com.hedera.services.bdd.suites.crypto.AutoAccountCreationSuite.AUT
 import static com.hedera.services.bdd.suites.crypto.AutoAccountCreationSuite.LAZY_MEMO;
 import static com.hedera.services.bdd.suites.crypto.AutoCreateUtils.createHollowAccountFrom;
 import static com.hedera.services.bdd.suites.crypto.AutoCreateUtils.updateSpecFor;
+import static com.hedera.services.bdd.suites.crypto.CryptoApproveAllowanceSuite.OWNER;
+import static com.hedera.services.bdd.suites.token.TokenTransactSpecs.PAYER;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.TokenSupplyType.FINITE;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.esaulpaugh.headlong.abi.Single;
 import com.esaulpaugh.headlong.abi.Tuple;
@@ -73,10 +76,8 @@ import java.util.stream.Stream;
 import org.apache.commons.lang3.tuple.Pair;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Tag;
 
 @HapiTestLifecycle
-@Tag(ADHOC)
 @SuppressWarnings({"rawtypes", "unchecked"})
 public class Hip1195StreamParityTest {
     public static final String HOOK_CONTRACT_NUM = "365";
@@ -95,13 +96,44 @@ public class Hip1195StreamParityTest {
     @Contract(contract = "TruePrePostHook", creationGas = 5_000_000)
     static SpecContract TRUE_PRE_POST_ALLOWANCE_HOOK;
 
+    @Contract(contract = "CreateOpHook", creationGas = 5_000_000)
+    static SpecContract CREATE_OP_HOOK;
+
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
         testLifecycle.overrideInClass(Map.of("hooks.hooksEnabled", "true"));
         testLifecycle.doAdhoc(MULTIPURPOSE.getInfo());
+        testLifecycle.doAdhoc(CREATE_OP_HOOK.getInfo());
         testLifecycle.doAdhoc(SET_AND_PASS_HOOK.getInfo());
         testLifecycle.doAdhoc(THREE_PASSES_HOOK.getInfo());
         testLifecycle.doAdhoc(TRUE_PRE_POST_ALLOWANCE_HOOK.getInfo());
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> hookChildCreationPassesParity(
+            @FungibleToken SpecFungibleToken aToken, @NonFungibleToken(numPreMints = 1) SpecNonFungibleToken bToken) {
+        return hapiTest(
+                aToken.getInfo(),
+                bToken.getInfo(),
+                cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(OWNER)
+                        .maxAutomaticTokenAssociations(2)
+                        .withHooks(accountAllowanceHook(210L, CREATE_OP_HOOK.name())),
+                cryptoTransfer(
+                        moving(1, aToken.name()).between(aToken.treasury().name(), OWNER),
+                        movingUnique(bToken.name(), 1L)
+                                .between(bToken.treasury().name(), OWNER)),
+                cryptoTransfer(
+                                movingHbar(1).between(OWNER, GENESIS),
+                                moving(1, aToken.name())
+                                        .between(OWNER, aToken.treasury().name()),
+                                movingUnique(bToken.name(), 1L)
+                                        .between(OWNER, bToken.treasury().name()))
+                        .withPreHookFor(OWNER, 210L, 5_000_000L, "")
+                        .withNftSenderPreHookFor(OWNER, 210L, 5_000_000L, "")
+                        .payingWith(PAYER)
+                        .signedBy(PAYER),
+                getAccountInfo(OWNER).exposingEthereumNonceTo(nonce -> assertEquals(3, nonce)));
     }
 
     @HapiTest
@@ -247,7 +279,6 @@ public class Hip1195StreamParityTest {
     }
 
     @HapiTest
-    @Tag(ADHOC)
     final Stream<DynamicTest> hookExecutionsWithAutoCreations() {
         final var initialTokenSupply = 1000;
         return hapiTest(
@@ -405,7 +436,6 @@ public class Hip1195StreamParityTest {
     }
 
     @HapiTest
-    @Tag(ADHOC)
     final Stream<DynamicTest> hookExecutionsWithAliases() {
         final var args = TupleType.parse("(uint32)");
         return hapiTest(

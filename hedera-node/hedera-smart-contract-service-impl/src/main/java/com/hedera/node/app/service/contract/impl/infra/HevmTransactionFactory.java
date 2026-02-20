@@ -356,7 +356,7 @@ public class HevmTransactionFactory {
 
         final var gasLimit = execution.callOrThrow().evmHookCallOrThrow().gasLimit();
         validateTrue(gasLimit > 0, INSUFFICIENT_GAS);
-        validateTrue(gasLimit >= hooksConfig.lambdaIntrinsicGasCost(), INSUFFICIENT_GAS);
+        validateTrue(gasLimit >= hooksConfig.evmHookIntrinsicGasCost(), INSUFFICIENT_GAS);
         validateTrue(gasLimit <= getMaxGasLimit(contractsConfig), MAX_GAS_LIMIT_EXCEEDED);
 
         final var entityId = execution.hookEntityIdOrThrow();

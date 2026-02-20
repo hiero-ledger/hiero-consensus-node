@@ -29,7 +29,8 @@ import static com.hedera.hapi.node.base.HederaFunctionality.HINTS_PREPROCESSING_
 import static com.hedera.hapi.node.base.HederaFunctionality.HISTORY_ASSEMBLY_SIGNATURE;
 import static com.hedera.hapi.node.base.HederaFunctionality.HISTORY_PROOF_KEY_PUBLICATION;
 import static com.hedera.hapi.node.base.HederaFunctionality.HISTORY_PROOF_VOTE;
-import static com.hedera.hapi.node.base.HederaFunctionality.LAMBDA_S_STORE;
+import static com.hedera.hapi.node.base.HederaFunctionality.HOOK_STORE;
+import static com.hedera.hapi.node.base.HederaFunctionality.LEDGER_ID_PUBLICATION;
 import static com.hedera.hapi.node.base.HederaFunctionality.NODE_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.NODE_DELETE;
 import static com.hedera.hapi.node.base.HederaFunctionality.NODE_STAKE_UPDATE;
@@ -143,7 +144,7 @@ public class BlockTransactionalUnitTranslator {
                     put(FILE_UPDATE, new FileUpdateTranslator());
                     put(FILE_APPEND, new FileAppendTranslator());
                     put(FREEZE, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
-                    put(LAMBDA_S_STORE, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
+                    put(HOOK_STORE, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
                     put(NODE_CREATE, new NodeCreateTranslator());
                     put(NODE_DELETE, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
                     put(NODE_UPDATE, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
@@ -183,6 +184,7 @@ public class BlockTransactionalUnitTranslator {
                     put(HISTORY_PROOF_KEY_PUBLICATION, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
                     put(HISTORY_ASSEMBLY_SIGNATURE, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
                     put(HISTORY_PROOF_VOTE, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
+                    put(LEDGER_ID_PUBLICATION, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
                 }
             };
 
@@ -221,7 +223,7 @@ public class BlockTransactionalUnitTranslator {
         final List<StateChange> remainingStateChanges = new LinkedList<>(unit.stateChanges());
         final List<SingleTransactionRecord> translatedRecords = new ArrayList<>();
         List<TraceData> tracesSoFar = null;
-        List<HookId> followingHookExecIds = unit.allHookExecIds(baseTranslator.getAliases());
+        final var hookMetadata = unit.maybeHookMetadata(baseTranslator.getAliases());
         for (final var blockTransactionParts : unit.blockTransactionParts()) {
             final var translator = translators.get(blockTransactionParts.functionality());
             if (translator == null) {
@@ -238,8 +240,8 @@ public class BlockTransactionalUnitTranslator {
                     }
                 }
                 HookId executingHookId = null;
-                if (followingHookExecIds != null && blockTransactionParts.isHookCall()) {
-                    executingHookId = followingHookExecIds.removeFirst();
+                if (hookMetadata != null && blockTransactionParts.isHookCall()) {
+                    executingHookId = hookMetadata.execHookIds().removeFirst();
                 }
                 if (blockTransactionParts.functionality() != STATE_SIGNATURE_TRANSACTION
                         && blockTransactionParts.hasResult()
@@ -250,7 +252,8 @@ public class BlockTransactionalUnitTranslator {
                             remainingStateChanges,
                             tracesSoFar,
                             followingTraces,
-                            executingHookId);
+                            executingHookId,
+                            hookMetadata);
                     translatedRecords.add(translation);
                 }
             }
