@@ -122,11 +122,10 @@ val copyNodeData =
         into("data/onboard") { from(layout.projectDirectory.dir("../data/onboard")) }
         into("data/keys") { from(layout.projectDirectory.dir("../data/keys")) }
 
-        // Copy hedera-node/configuration/dev as hedera-node/hedera-app/build/node/data/config  }
-        from(layout.projectDirectory.dir("../configuration/dev")) { into("data/config") }
+        from(layout.projectDirectory.dir("../configuration/small-memory")) { into("data/config") }
         from(layout.projectDirectory.file("../config.txt"))
         from(layout.projectDirectory.file("../log4j2.xml"))
-        from(layout.projectDirectory.file("../configuration/dev/settings.txt"))
+        from(layout.projectDirectory.file("../configuration/small-memory/settings.txt"))
     }
 
 tasks.assemble {
@@ -141,7 +140,30 @@ tasks.register<JavaExec>("run") {
     description = "Run a Hedera consensus node instance."
     dependsOn(tasks.assemble)
     workingDir = nodeWorkingDir.get().asFile
-    jvmArgs = listOf("-cp", "data/lib/*:data/apps/*")
+    val jfcFile = rootProject.file("hedera-node/configuration/small-memory/MemoryLowOverhead.jfc")
+    val jfrFile = rootProject.file("hedera-node/hedera-app/data/recording-low-memory.jfr")
+
+    jvmArgs =
+        listOf(
+            "-cp",
+            "data/lib/*:data/apps/*",
+            "-XX:+UseSerialGC",
+//            "-XX:+UseZGC",
+//            "-XX:+ZGenerational",
+            "-Xms128M",
+            "-Xmx512M",
+            "-XX:MinHeapFreeRatio=10",
+            "-XX:MaxHeapFreeRatio=30",
+            "-XX:MaxMetaspaceSize=96M",
+            "-XX:CompressedClassSpaceSize=48M",
+            "-Xss256K",
+            "-XX:-TieredCompilation",
+            "-XX:CICompilerCount=1",
+            "-XX:ReservedCodeCacheSize=24M",
+            "-XX:MaxDirectMemorySize=16M",
+            "-XX:NativeMemoryTracking=summary",
+            "-XX:StartFlightRecording=dumponexit=true,settings=$jfcFile,filename=$jfrFile",
+        )
     mainClass.set("com.hedera.node.app.ServicesMain")
 
     // Add arguments for the application to run a local node
