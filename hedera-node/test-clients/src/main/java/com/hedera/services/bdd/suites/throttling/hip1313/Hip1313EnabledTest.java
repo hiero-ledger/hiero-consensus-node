@@ -685,9 +685,9 @@ public class Hip1313EnabledTest {
                 + " BPS before: " + utilizationBasisPointsBefore
                 + " BPS after: " + utilizationBasisPointsAfter);
         final var isAcceptable = IntStream.range(0, acceptableMultipliers.length)
-                .anyMatch(i -> Math.abs(acceptableMultipliers[i] - observedMultiplier) <= MULTIPLIER_TOLERANCE)
+                        .anyMatch(i -> Math.abs(acceptableMultipliers[i] - observedMultiplier) <= MULTIPLIER_TOLERANCE)
                 || (isNearFirstCurvePoint
-                && Math.abs(firstCurvePointMultiplier - observedMultiplier) <= MULTIPLIER_TOLERANCE);
+                        && Math.abs(firstCurvePointMultiplier - observedMultiplier) <= MULTIPLIER_TOLERANCE);
         assertTrue(
                 isAcceptable,
                 "Given BPS before " + utilizationBasisPointsBefore + " and after " + utilizationBasisPointsAfter
