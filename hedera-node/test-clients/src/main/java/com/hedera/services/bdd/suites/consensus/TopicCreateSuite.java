@@ -35,6 +35,8 @@ import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
 import static com.hedera.services.bdd.suites.contract.hapi.ContractCallSuite.PAY_RECEIVABLE_CONTRACT;
 import static com.hedera.services.bdd.suites.crypto.AutoCreateUtils.createHollowAccountFrom;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTopicCreateFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdWithinWithTxnSize;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.AUTORENEW_DURATION_NOT_IN_RANGE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BAD_ENCODING;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_AUTORENEW_ACCOUNT;
@@ -42,11 +44,15 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_RENEWA
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOPIC_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
+import static org.hiero.hapi.support.fees.Extra.KEYS;
+import static org.hiero.hapi.support.fees.Extra.PROCESSING_BYTES;
+import static org.hiero.hapi.support.fees.Extra.SIGNATURES;
 
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.keys.TrieSigMapGenerator;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
@@ -55,6 +61,7 @@ import org.junit.jupiter.api.Tag;
 public class TopicCreateSuite {
     public static final String TEST_TOPIC = "testTopic";
     public static final String TESTMEMO = "testmemo";
+    public static final Double EXPECTED_PRICE_USD = 0.01;
 
     @HapiTest
     final Stream<DynamicTest> adminKeyIsValidated() {
@@ -180,9 +187,13 @@ public class TopicCreateSuite {
                         .hasAutoRenewAccount("autoRenewAccount"),
                 doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
                     if ("true".equals(flag)) {
-                        return validateChargedUsd("createTopic", 0.01, 1.0);
+                        return validateChargedUsdWithinWithTxnSize(
+                                "createTopic",
+                                txnSize -> expectedTopicCreateFullFeeUsd(
+                                        Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
+                                0.001);
                     } else {
-                        return validateChargedUsd("createTopic", 0.0103, 1.0);
+                        return validateChargedUsd("createTopic", EXPECTED_PRICE_USD, 5);
                     }
                 }));
     }
@@ -202,9 +213,13 @@ public class TopicCreateSuite {
                         .hasAutoRenewAccount("autoRenewAccount"),
                 doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
                     if ("true".equals(flag)) {
-                        return validateChargedUsd("createTopic", 0.01, 1.0);
+                        return validateChargedUsdWithinWithTxnSize(
+                                "createTopic",
+                                txnSize -> expectedTopicCreateFullFeeUsd(
+                                        Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
+                                0.001);
                     } else {
-                        return validateChargedUsd("createTopic", 0.0103, 1.0);
+                        return validateChargedUsd("createTopic", EXPECTED_PRICE_USD, 5);
                     }
                 }));
     }
@@ -226,9 +241,15 @@ public class TopicCreateSuite {
                         .hasAutoRenewAccount("autoRenewAccount"),
                 doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
                     if ("true".equals(flag)) {
-                        return validateChargedUsd("createTopic", 0.02, 1.0);
+                        return validateChargedUsdWithinWithTxnSize(
+                                "createTopic",
+                                txnSize -> expectedTopicCreateFullFeeUsd(Map.of(
+                                        SIGNATURES, 1L,
+                                        KEYS, 1L,
+                                        PROCESSING_BYTES, (long) txnSize)),
+                                0.001);
                     } else {
-                        return validateChargedUsd("createTopic", 0.0105, 1.0);
+                        return validateChargedUsd("createTopic", EXPECTED_PRICE_USD, 10);
                     }
                 }));
     }
