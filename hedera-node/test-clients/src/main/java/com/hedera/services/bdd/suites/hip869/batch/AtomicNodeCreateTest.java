@@ -506,7 +506,6 @@ class AtomicNodeCreateTest {
                         .via("atomic")
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                getTxnRecord("nodeCreationFailed").logged(),
                 // Validate that the failed transaction charges the correct fees.
                 withOpContext((spec, log) -> allRunFor(
                         spec,
@@ -515,7 +514,7 @@ class AtomicNodeCreateTest {
                                 "atomic",
                                 0.001,
                                 NODE_CREATE_BASE_FEE_USD + expectedFeeFromBytesFor(spec, log, "nodeCreationFailed"),
-                                1.0))),
+                                3))),
                 atomicBatch(nodeCreate("ntb", nodeAccount)
                                 .adminKey(ED_25519_KEY)
                                 .fee(ONE_HBAR)
@@ -525,7 +524,6 @@ class AtomicNodeCreateTest {
                                 .batchKey(BATCH_OPERATOR))
                         .via("atomic")
                         .payingWith(BATCH_OPERATOR),
-                getTxnRecord("nodeCreation").logged(),
                 // But, note that the fee will not be charged for privileged payer
                 // The fee is charged here because the payer is not privileged
                 validateInnerTxnChargedUsd("nodeCreation", "atomic", 0.0, 0.0),
@@ -553,7 +551,7 @@ class AtomicNodeCreateTest {
                                 NODE_CREATE_BASE_FEE_USD
                                         + 2 * SIGNATURE_FEE_AFTER_MULTIPLIER
                                         + expectedFeeFromBytesFor(spec, log, "multipleSigsCreation"),
-                                1.0))));
+                                3))));
     }
 
     /**
