@@ -189,7 +189,7 @@ public class VirtualLeafBytes<V> {
      * @param in sequential data to read from
      * @return the virtual leaf bytes object
      */
-    public static VirtualLeafBytes<?> parseFrom(final ReadableSequentialData in) {
+    public static <V> VirtualLeafBytes<V> parseFrom(final ReadableSequentialData in) {
         if (in == null) {
             return null;
         }
