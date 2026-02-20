@@ -63,6 +63,7 @@ import com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItemsValid
 import com.hederahashgraph.api.proto.java.TransactionRecord;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
@@ -629,9 +630,15 @@ public class Hip1313EnabledTest {
         return highVolumeTxns.get().stream()
                 .filter(e -> e.body().getHighVolume())
                 .filter(additionalFilter)
-                // Expected multipliers are derived from utilization progression; process
-                // records in consensus order to avoid nondeterministic flakiness.
-                .sorted()
+                // Expected multipliers are derived from utilization progression. For entries that can
+                // share the same consensus timestamp, add txn-id tie-breakers for deterministic ordering.
+                .sorted(Comparator.comparing(RecordStreamEntry::consensusTime)
+                        .thenComparingLong(
+                                e -> e.txnId().getTransactionValidStart().getSeconds())
+                        .thenComparingInt(
+                                e -> e.txnId().getTransactionValidStart().getNanos())
+                        .thenComparingInt(e -> e.txnId().getNonce())
+                        .thenComparingLong(e -> e.txnId().getAccountID().getAccountNum()))
                 .toList();
     }
 
