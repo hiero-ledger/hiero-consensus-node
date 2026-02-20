@@ -1,0 +1,77 @@
+                                          #############################
+                                          #    Gossip / Networking    #
+                                          #############################
+
+sync.syncProtocolPermitCount,                  2                            # differs from mainnet
+
+
+                                          #############################
+                                          #           State           #
+                                          #############################
+
+state.saveStatePeriod,                         30                          # differs from mainnet
+state.mainClassNameOverride,                   com.hedera.services.ServicesMain
+
+                                          #############################
+                                          #          Events           #
+                                          #############################
+
+event.enableEventStreaming,                    false                        # differs from mainnet
+transaction.transactionMaxBytes,               2621440                      # 2.5MB, differs from mainnet
+transaction.maxTransactionBytesPerEvent,       2621440                      # 2.5MB, differs from mainnet
+
+                                          #############################
+                                          #          Metrics          #
+                                          #############################
+
+metrics.csvFileName,                           MainNetStats
+metrics.csvOutputFolder,                       data/stats
+showInternalStats,                             true
+prometheus.endpointEnabled,                    true                        # differs from mainnet
+
+                                          #############################
+                                          #          Security         #
+                                          #############################
+
+loadKeysFromPfxFiles,                          false                        # differs from mainnet
+
+                                          #############################
+                                          #          MerkleDb         #
+                                          #############################
+merkleDb.maxNumOfKeys,                           5000
+merkleDb.hashesRamToDiskThreshold,                  0
+merkleDb.hashStoreRamBufferSize,                10000
+merkleDb.longListChunkSize,                     65536
+merkleDb.leafRecordCacheSize,                   65536
+merkleDb.maxFileChannelsPerFileReader,              2
+merkleDb.maxThreadsPerFileChannel,                  1
+merkleDb.compactionThreads,                         1
+merkleDb.percentHalfDiskHashMapFlushThreads,       50.0
+merkleDb.numHalfDiskHashMapFlushThreads,            1
+virtualMap.copyFlushThreshold,                 500000
+
+                                          #############################
+                                          #          PCES             #
+                                          #############################
+event.preconsensus.writeQueueCapacity,            500
+event.preconsensus.replayQueueSize,               500
+event.preconsensus.replayHashPoolSize,              1
+event.preconsensus.maxEventReplayFrequency,       100
+event.preconsensus.preferredFileSizeMegabytes,      5
+
+                                          #############################
+                                          #   Network & Transaction   #
+                                          #############################
+socket.maxSocketAcceptThreads, 2
+transaction.throttleTransactionQueueSize, 500
+crypto.cpuDigestThreadRatio, 0.1
+platform.wiring.defaultPoolConstant, 1
+platform.wiring.defaultPoolMultiplier, 0
+
+                                          #############################
+                                          #          Wiring           #
+                                          #############################
+platformSchedulers.internalEventValidator, SEQUENTIAL CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC
+platformSchedulers.eventSignatureValidator, SEQUENTIAL CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC
+platformSchedulers.applicationTransactionPrehandler, SEQUENTIAL CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC
+platformSchedulers.eventHasher, SEQUENTIAL CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC

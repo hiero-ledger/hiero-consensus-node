@@ -122,7 +122,6 @@ val copyNodeData =
         into("data/onboard") { from(layout.projectDirectory.dir("../data/onboard")) }
         into("data/keys") { from(layout.projectDirectory.dir("../data/keys")) }
 
-        // Copy hedera-node/configuration/dev as hedera-node/hedera-app/build/node/data/config  }
         from(layout.projectDirectory.dir("../configuration/dev")) { into("data/config") }
         from(layout.projectDirectory.file("../config.txt"))
         from(layout.projectDirectory.file("../log4j2.xml"))
@@ -141,7 +140,22 @@ tasks.register<JavaExec>("run") {
     description = "Run a Hedera consensus node instance."
     dependsOn(tasks.assemble)
     workingDir = nodeWorkingDir.get().asFile
-    jvmArgs = listOf("-cp", "data/lib/*:data/apps/*")
+    val jfcFile = rootProject.file("hedera-node/configuration/small-memory/MemoryLowOverhead.jfc")
+    val jfrFile = rootProject.file("hedera-node/hedera-app/data/recording.jfr")
+
+    jvmArgs =
+        listOf(
+            "-cp",
+            "data/lib/*:data/apps/*",
+            "-Xms1G",
+            "-Xmx1G",
+            "-XX:+UseZGC",
+            "-XX:+ZGenerational",
+//            "-XX:MaxMetaspaceSize=128M",
+//            "-XX:MaxDirectMemorySize=1G",
+//            "-XX:NativeMemoryTracking=summary",
+            "-XX:StartFlightRecording=dumponexit=true,settings=$jfcFile,filename=$jfrFile",
+        )
     mainClass.set("com.hedera.node.app.ServicesMain")
 
     // Add arguments for the application to run a local node
