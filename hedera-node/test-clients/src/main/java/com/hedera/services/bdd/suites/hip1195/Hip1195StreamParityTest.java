@@ -77,6 +77,8 @@ import org.apache.commons.lang3.tuple.Pair;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 
+// Hooks are enabled by default so it is safe to run this concurrently
+// @Tag(SERIAL)
 @HapiTestLifecycle
 @SuppressWarnings({"rawtypes", "unchecked"})
 public class Hip1195StreamParityTest {
