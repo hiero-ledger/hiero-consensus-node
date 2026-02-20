@@ -29,6 +29,7 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.KeyList;
+import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.state.contract.Bytecode;
 import com.hedera.hapi.node.state.contract.SlotKey;
 import com.hedera.hapi.node.state.contract.SlotValue;
@@ -418,8 +419,35 @@ public class DispatchingEvmFrameState implements EvmFrameState {
      * {@inheritDoc}
      */
     @Override
-    public Optional<ExceptionalHaltReason> tryLazyCreation(
-            @NonNull final Address address, @Nullable final Address delegationAddress) {
+    public Optional<ExceptionalHaltReason> tryLazyCreation(@NonNull final Address address) {
+        final var maybeValidationError = validateAccountCreation(address);
+        if (maybeValidationError.isPresent()) {
+            return maybeValidationError;
+        }
+        final var status = nativeOperations.createHollowAccount(tuweniToPbjBytes(address));
+        return accountCreationStatusToResult(status);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public Optional<ExceptionalHaltReason> tryCreateAccountWithKeyAndCodeDelegation(
+            @NonNull final Address address, @NonNull byte[] ecdsaPublicKey, @NonNull Address delegationAddress) {
+        final var maybeValidationError = validateAccountCreation(address);
+        if (maybeValidationError.isPresent()) {
+            return maybeValidationError;
+        }
+        final var status = nativeOperations.createAccountWithKeyAndCodeDelegation(
+                tuweniToPbjBytes(address),
+                Key.newBuilder()
+                        .ecdsaSecp256k1(com.hedera.pbj.runtime.io.buffer.Bytes.wrap(ecdsaPublicKey))
+                        .build(),
+                tuweniToPbjBytes(delegationAddress));
+        return accountCreationStatusToResult(status);
+    }
+
+    private Optional<ExceptionalHaltReason> validateAccountCreation(@NonNull final Address address) {
         if (isLongZero(address)) {
             return Optional.of(INVALID_ALIAS_KEY);
         }
@@ -437,10 +465,10 @@ public class DispatchingEvmFrameState implements EvmFrameState {
                 }
             }
         }
-        final var delegationAddressBytes = delegationAddress == null
-                ? com.hedera.pbj.runtime.io.buffer.Bytes.EMPTY
-                : tuweniToPbjBytes(delegationAddress);
-        final var status = nativeOperations.createHollowAccount(tuweniToPbjBytes(address), delegationAddressBytes);
+        return Optional.empty();
+    }
+
+    private Optional<ExceptionalHaltReason> accountCreationStatusToResult(ResponseCodeEnum status) {
         if (status != SUCCESS) {
             return status == MAX_CHILD_RECORDS_EXCEEDED
                     ? Optional.of(INSUFFICIENT_CHILD_RECORDS)

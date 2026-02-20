@@ -219,7 +219,7 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
         if (gasCost > frame.getRemainingGas()) {
             return Optional.of(INSUFFICIENT_GAS);
         }
-        final var maybeHaltReason = evmFrameState.tryLazyCreation(recipient, null);
+        final var maybeHaltReason = evmFrameState.tryLazyCreation(recipient);
         if (maybeHaltReason.isPresent()) {
             return maybeHaltReason;
         }
@@ -494,12 +494,12 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
      * {@inheritDoc}
      */
     @Override
-    public boolean createAccountWithCodeDelegation(
-            @NonNull final Address authority, @NonNull final Address delegationAddress) {
-
-        // TODO: check for sufficient gas to create account
-
-        final var maybeHaltReason = evmFrameState.tryLazyCreation(authority, delegationAddress);
+    public boolean createAccountWithKeyAndCodeDelegation(
+            @NonNull final Address authority,
+            @NonNull final byte[] ecdsaPublicKey,
+            @NonNull final Address delegationAddress) {
+        final var maybeHaltReason =
+                evmFrameState.tryCreateAccountWithKeyAndCodeDelegation(authority, ecdsaPublicKey, delegationAddress);
         return maybeHaltReason.isEmpty();
     }
 

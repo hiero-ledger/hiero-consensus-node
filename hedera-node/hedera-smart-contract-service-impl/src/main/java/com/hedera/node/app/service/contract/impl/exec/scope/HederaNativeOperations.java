@@ -196,14 +196,27 @@ public interface HederaNativeOperations {
      * <p>
      * If this fails due to some non-EVM resource constraint (for example, insufficient preceding child
      * records), returns the corresponding failure code, and {@link ResponseCodeEnum#OK} otherwise.
-     * If a non-empty the delegation address is provided, it will be set in the dispatched transaction body
-     * and the dispatch options will be set to immediately save the state.
      *
      * @param evmAddress the EVM address of the new hollow account
-     * @param delegationAddress the address to delegate the created account to, or {@code null} if no delegation needs to be set
      * @return the result of the creation
      */
-    ResponseCodeEnum createHollowAccount(@NonNull Bytes evmAddress, @NonNull Bytes delegationAddress);
+    ResponseCodeEnum createHollowAccount(@NonNull Bytes evmAddress);
+
+    /**
+     * Creates a new account with the given EVM address and key. The implementation of this call should
+     * consume a new entity number for the created new account.
+     * <p>
+     * If this fails due to some non-EVM resource constraint (for example, insufficient preceding child
+     * records), returns the corresponding failure code, and {@link ResponseCodeEnum#OK} otherwise.
+     * The dispatch options will be set to immediately save the state.
+     *
+     * @param evmAddress the EVM address of the new account
+     * @param key the key of the new account
+     * @param delegationAddress the address to delegate the created account to
+     * @return the result of the creation
+     */
+    ResponseCodeEnum createAccountWithKeyAndCodeDelegation(
+            @NonNull Bytes evmAddress, @NonNull Key key, @NonNull Bytes delegationAddress);
 
     /**
      * Finalizes an existing hollow account with the given address as a contract by setting

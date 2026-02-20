@@ -654,9 +654,9 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
     @Test
     @DisplayName("handle commits delegation address mentioned in the transaction")
     void handleCommitsDelegationAddress() {
-        final byte[] evmAddress = CommonUtils.unhex("6aeb3773ea468a814d954e6dec795bfee7d76e26");
+        final var evmAddress = "6aeb3773ea468a814d954e6dec795bfee7d76e26";
         txn = new CryptoCreateBuilder()
-                .withDelegationAddress(Bytes.wrap(evmAddress))
+                .withDelegationAddress(Bytes.fromHex(evmAddress))
                 .withStakedAccountId(3)
                 .build();
         given(handleContext.body()).willReturn(txn);
@@ -671,8 +671,30 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
         subject.handle(handleContext);
 
         assertEquals(
-                Bytes.wrap(evmAddress),
+                Bytes.fromHex(evmAddress),
                 writableStore.get(idFactory.newAccountId(1000L)).delegationAddress());
+    }
+
+    @Test
+    @DisplayName("handle does not store a 0x00..00 address in code delegation")
+    void handleDoesNotCommitZeroDelegationAddress() {
+        txn = new CryptoCreateBuilder()
+                .withDelegationAddress(Bytes.fromHex("0000000000000000000000000000000000000000"))
+                .withStakedAccountId(3)
+                .build();
+        given(handleContext.body()).willReturn(txn);
+        given(handleContext.payer()).willReturn(idFactory.newAccountId(id.accountNum()));
+
+        given(handleContext.consensusNow()).willReturn(consensusInstant);
+        given(entityNumGenerator.newEntityNum()).willReturn(1000L);
+
+        setupConfig();
+        setupExpiryValidator();
+
+        subject.handle(handleContext);
+
+        assertEquals(
+                Bytes.EMPTY, writableStore.get(idFactory.newAccountId(1000L)).delegationAddress());
     }
 
     @Test

@@ -25,7 +25,6 @@ import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import org.junit.jupiter.api.Test;
 
 class SynthTxnUtilsTest {
@@ -41,7 +40,7 @@ class SynthTxnUtilsTest {
                 .autoRenewPeriod(DEFAULT_AUTO_RENEW_PERIOD)
                 .maxAutomaticTokenAssociations(-1)
                 .build();
-        assertEquals(expected, synthHollowAccountCreation(CANONICAL_ALIAS, true, Bytes.EMPTY));
+        assertEquals(expected, synthHollowAccountCreation(CANONICAL_ALIAS, true));
 
         final var expectedWithoutUnlimitedAssociations = CryptoCreateTransactionBody.newBuilder()
                 .key(IMMUTABILITY_SENTINEL_KEY)
@@ -49,18 +48,7 @@ class SynthTxnUtilsTest {
                 .alias(CANONICAL_ALIAS)
                 .autoRenewPeriod(DEFAULT_AUTO_RENEW_PERIOD)
                 .build();
-        assertEquals(
-                expectedWithoutUnlimitedAssociations, synthHollowAccountCreation(CANONICAL_ALIAS, false, Bytes.EMPTY));
-
-        final var expectedWithCodeDelegation = CryptoCreateTransactionBody.newBuilder()
-                .key(IMMUTABILITY_SENTINEL_KEY)
-                .memo(LAZY_CREATION_MEMO)
-                .alias(CANONICAL_ALIAS)
-                .autoRenewPeriod(DEFAULT_AUTO_RENEW_PERIOD)
-                .delegationAddress(Bytes.fromHex("1234"))
-                .build();
-        assertEquals(
-                expectedWithCodeDelegation, synthHollowAccountCreation(CANONICAL_ALIAS, false, Bytes.fromHex("1234")));
+        assertEquals(expectedWithoutUnlimitedAssociations, synthHollowAccountCreation(CANONICAL_ALIAS, false));
     }
 
     @Test

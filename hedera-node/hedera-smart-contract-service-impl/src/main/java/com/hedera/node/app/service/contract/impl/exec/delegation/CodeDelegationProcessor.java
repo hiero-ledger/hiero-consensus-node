@@ -106,13 +106,14 @@ public record CodeDelegationProcessor(long chainId) {
             return;
         }
 
-        final Optional<EthTxSigs> authorizer = EthTxSigs.extractAuthoritySignature(codeDelegation);
-        if (authorizer.isEmpty()) {
+        final Optional<EthTxSigs> maybeAuthorizer = EthTxSigs.extractAuthoritySignature(codeDelegation);
+        if (maybeAuthorizer.isEmpty()) {
             state.reportIgnoredEntry(CodeDelegationResult.EntryIgnoreReason.Other);
             return;
         }
+        final var authorizer = maybeAuthorizer.get();
 
-        final var authorizerAddress = Address.wrap(Bytes.wrap(authorizer.get().address()));
+        final var authorizerAddress = Address.wrap(Bytes.wrap(authorizer.address()));
         final Optional<MutableAccount> maybeAuthorityAccount =
                 Optional.ofNullable(proxyWorldUpdater.getAccount(authorizerAddress));
 
@@ -142,7 +143,8 @@ public record CodeDelegationProcessor(long chainId) {
                 return;
             }
 
-            if (!proxyWorldUpdater.createAccountWithCodeDelegation(authorizerAddress, delegatedContractAddress)) {
+            if (!proxyWorldUpdater.createAccountWithKeyAndCodeDelegation(
+                    authorizerAddress, authorizer.publicKey(), delegatedContractAddress)) {
                 state.reportIgnoredEntry(CodeDelegationResult.EntryIgnoreReason.Other);
                 return;
             }

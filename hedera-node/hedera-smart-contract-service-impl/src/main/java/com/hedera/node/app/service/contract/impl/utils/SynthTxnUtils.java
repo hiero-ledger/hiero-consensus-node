@@ -133,19 +133,41 @@ public class SynthTxnUtils {
      *
      * @param evmAddress the EVM address
      * @param unlimitedAutoAssociations whether the account should have unlimited automatic token associations
-     * @param delegationAddress the contract address to delegate the account to if any
      * @return the corresponding {@link CryptoCreateTransactionBody}
      */
     public static CryptoCreateTransactionBody synthHollowAccountCreation(
-            @NonNull final Bytes evmAddress,
-            final boolean unlimitedAutoAssociations,
-            @NonNull final Bytes delegationAddress) {
+            @NonNull final Bytes evmAddress, final boolean unlimitedAutoAssociations) {
         requireNonNull(evmAddress);
         return CryptoCreateTransactionBody.newBuilder()
                 .initialBalance(0L)
                 .alias(evmAddress)
                 .maxAutomaticTokenAssociations(unlimitedAutoAssociations ? -1 : 0)
                 .key(IMMUTABILITY_SENTINEL_KEY)
+                .autoRenewPeriod(DEFAULT_AUTO_RENEW_PERIOD)
+                .build();
+    }
+
+    /**
+     * Given an EVM address being lazy-created, returns the corresponding {@link CryptoCreateTransactionBody}
+     * to dispatch.
+     *
+     * @param evmAddress the EVM address
+     * @param key the key to set on the new account
+     * @param delegationAddress the delegation address to set on the new account
+     * @param unlimitedAutoAssociations whether the account should have unlimited automatic token associations
+     * @return the corresponding {@link CryptoCreateTransactionBody}
+     */
+    public static CryptoCreateTransactionBody synthAccountCreationWithKeyAndCodeDelegation(
+            @NonNull final Bytes evmAddress,
+            @NonNull final Key key,
+            @NonNull final Bytes delegationAddress,
+            final boolean unlimitedAutoAssociations) {
+        requireNonNull(evmAddress);
+        return CryptoCreateTransactionBody.newBuilder()
+                .initialBalance(0L)
+                .alias(evmAddress)
+                .maxAutomaticTokenAssociations(unlimitedAutoAssociations ? -1 : 0)
+                .key(key)
                 .autoRenewPeriod(DEFAULT_AUTO_RENEW_PERIOD)
                 .delegationAddress(delegationAddress)
                 .build();

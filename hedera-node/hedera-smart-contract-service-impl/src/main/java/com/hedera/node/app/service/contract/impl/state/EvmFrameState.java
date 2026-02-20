@@ -73,14 +73,20 @@ public interface EvmFrameState {
      * </ol>
      * Note the {@link CustomCallOperation} will have already confirmed that the Hedera EVM in use supports
      * lazy creation, and that it is enabled by properties.
-     * If the delegation address is not null, the state change will be immediately applied and a normal child record will be created
-     * to reflect the requirement in EIP-7702 to set code delegation independently of the main transaction.
      *
      * @param address the address of the account to try to lazy-create
-     * @param delegationAddress if not null, the address to set as the delegation address for the lazy-created account.
      * @return an optional {@link ExceptionalHaltReason} with the reason lazy creation could not be done
      */
-    Optional<ExceptionalHaltReason> tryLazyCreation(@NonNull Address address, @Nullable Address delegationAddress);
+    Optional<ExceptionalHaltReason> tryLazyCreation(@NonNull Address address);
+
+    /**
+     * @param address the address of the account to try to create
+     * @param ecdsaPublicKey the key to set for the created account.
+     * @param delegationAddress the address to set as the delegation address for the created account.
+     * @return an optional {@link ExceptionalHaltReason} with the reason creation could not be done
+     */
+    Optional<ExceptionalHaltReason> tryCreateAccountWithKeyAndCodeDelegation(
+            @NonNull Address address, @NonNull byte[] ecdsaPublicKey, @NonNull Address delegationAddress);
 
     /**
      * Returns whether the account with the given address is a "hollow account"; that is, an account
