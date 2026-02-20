@@ -84,7 +84,7 @@
         },
         "gridPos": {
           "h": 10,
-          "w": 24,
+          "w": 12,
           "x": 0,
           "y": 1
         },
@@ -116,7 +116,179 @@
               "uid": "DATASOURCE_UID_PLACEHOLDER"
             },
             "editorMode": "code",
-            "expr": "avg(eventDelay_1_hashing)",
+            "expr": "avg(eventDelay_2_validation_self)",
+            "legendFormat": "2. Validation",
+            "range": true,
+            "refId": "A"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "avg(eventDelay_3_deduplication_self) - avg(eventDelay_2_validation_self)",
+            "legendFormat": "3. Deduplication",
+            "range": true,
+            "refId": "B"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "avg(eventDelay_4_verification_self) - avg(eventDelay_3_deduplication_self)",
+            "legendFormat": "4. Sig. verification",
+            "range": true,
+            "refId": "C"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "avg(eventDelay_5_orphanBuffer_self) - avg(eventDelay_4_verification_self)",
+            "legendFormat": "5. Orphan buffer",
+            "range": true,
+            "refId": "D"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "avg(eventDelay_6_pces_self) - avg(eventDelay_5_orphanBuffer_self)",
+            "legendFormat": "6. PCES write",
+            "range": true,
+            "refId": "E"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "avg(eventDelay_7_consensus_self) - avg(eventDelay_6_pces_self)",
+            "legendFormat": "7. Consensus",
+            "range": true,
+            "refId": "F"
+          }
+        ],
+        "title": "Self events \u2014 Stage Cost Breakdown",
+        "type": "table",
+        "transformations": [
+          {
+            "id": "reduce",
+            "options": {
+              "includeTimeField": false,
+              "mode": "seriesToRows",
+              "reducers": [
+                "mean"
+              ]
+            }
+          },
+          {
+            "id": "organize",
+            "options": {
+              "excludeByName": {},
+              "indexByName": {
+                "Field": 0,
+                "Mean": 1
+              },
+              "renameByName": {
+                "Field": "Stage",
+                "Mean": "Avg Stage Cost (\u00b5s)"
+              }
+            }
+          }
+        ]
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "DATASOURCE_UID_PLACEHOLDER"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "custom": {
+              "align": "auto",
+              "cellOptions": {
+                "type": "auto"
+              },
+              "inspect": false
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "\u00b5s"
+          },
+          "overrides": [
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "Stage"
+              },
+              "properties": [
+                {
+                  "id": "custom.width",
+                  "value": 200
+                },
+                {
+                  "id": "unit",
+                  "value": "string"
+                }
+              ]
+            }
+          ]
+        },
+        "gridPos": {
+          "h": 10,
+          "w": 12,
+          "x": 12,
+          "y": 1
+        },
+        "id": 102,
+        "options": {
+          "cellHeight": "sm",
+          "footer": {
+            "countRows": false,
+            "enablePagination": false,
+            "fields": "",
+            "reducer": [
+              "sum"
+            ],
+            "show": true
+          },
+          "showHeader": true,
+          "sortBy": [
+            {
+              "desc": false,
+              "displayName": "Stage"
+            }
+          ]
+        },
+        "pluginVersion": "12.3.3",
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "avg(eventDelay_1_hashing_recv)",
             "legendFormat": "1. Hashing",
             "range": true,
             "refId": "A"
@@ -127,7 +299,7 @@
               "uid": "DATASOURCE_UID_PLACEHOLDER"
             },
             "editorMode": "code",
-            "expr": "avg(eventDelay_2_validation) - avg(eventDelay_1_hashing)",
+            "expr": "avg(eventDelay_2_validation_recv) - avg(eventDelay_1_hashing_recv)",
             "legendFormat": "2. Validation",
             "range": true,
             "refId": "B"
@@ -138,7 +310,7 @@
               "uid": "DATASOURCE_UID_PLACEHOLDER"
             },
             "editorMode": "code",
-            "expr": "avg(eventDelay_3_deduplication) - avg(eventDelay_2_validation)",
+            "expr": "avg(eventDelay_3_deduplication_recv) - avg(eventDelay_2_validation_recv)",
             "legendFormat": "3. Deduplication",
             "range": true,
             "refId": "C"
@@ -149,7 +321,7 @@
               "uid": "DATASOURCE_UID_PLACEHOLDER"
             },
             "editorMode": "code",
-            "expr": "avg(eventDelay_4_verification) - avg(eventDelay_3_deduplication)",
+            "expr": "avg(eventDelay_4_verification_recv) - avg(eventDelay_3_deduplication_recv)",
             "legendFormat": "4. Sig. verification",
             "range": true,
             "refId": "D"
@@ -160,7 +332,7 @@
               "uid": "DATASOURCE_UID_PLACEHOLDER"
             },
             "editorMode": "code",
-            "expr": "avg(eventDelay_5_orphanBuffer) - avg(eventDelay_4_verification)",
+            "expr": "avg(eventDelay_5_orphanBuffer_recv) - avg(eventDelay_4_verification_recv)",
             "legendFormat": "5. Orphan buffer",
             "range": true,
             "refId": "E"
@@ -171,7 +343,7 @@
               "uid": "DATASOURCE_UID_PLACEHOLDER"
             },
             "editorMode": "code",
-            "expr": "avg(eventDelay_6_pces) - avg(eventDelay_5_orphanBuffer)",
+            "expr": "avg(eventDelay_6_pces_recv) - avg(eventDelay_5_orphanBuffer_recv)",
             "legendFormat": "6. PCES write",
             "range": true,
             "refId": "F"
@@ -182,13 +354,13 @@
               "uid": "DATASOURCE_UID_PLACEHOLDER"
             },
             "editorMode": "code",
-            "expr": "avg(eventDelay_7_consensus) - avg(eventDelay_6_pces)",
+            "expr": "avg(eventDelay_7_consensus_recv) - avg(eventDelay_6_pces_recv)",
             "legendFormat": "7. Consensus",
             "range": true,
             "refId": "G"
           }
         ],
-        "title": "Stage Cost Breakdown",
+        "title": "Received events \u2014 Stage Cost Breakdown",
         "type": "table",
         "transformations": [
           {
@@ -290,7 +462,7 @@
         },
         "gridPos": {
           "h": 10,
-          "w": 24,
+          "w": 12,
           "x": 0,
           "y": 12
         },
@@ -318,7 +490,159 @@
               "uid": "DATASOURCE_UID_PLACEHOLDER"
             },
             "editorMode": "code",
-            "expr": "avg(eventDelay_1_hashing)",
+            "expr": "avg(eventDelay_2_validation_self)",
+            "legendFormat": "2. Validation",
+            "range": true,
+            "refId": "A"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "avg(eventDelay_3_deduplication_self) - avg(eventDelay_2_validation_self)",
+            "legendFormat": "3. Deduplication",
+            "range": true,
+            "refId": "B"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "avg(eventDelay_4_verification_self) - avg(eventDelay_3_deduplication_self)",
+            "legendFormat": "4. Sig. verification",
+            "range": true,
+            "refId": "C"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "avg(eventDelay_5_orphanBuffer_self) - avg(eventDelay_4_verification_self)",
+            "legendFormat": "5. Orphan buffer",
+            "range": true,
+            "refId": "D"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "avg(eventDelay_6_pces_self) - avg(eventDelay_5_orphanBuffer_self)",
+            "legendFormat": "6. PCES write",
+            "range": true,
+            "refId": "E"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "avg(eventDelay_7_consensus_self) - avg(eventDelay_6_pces_self)",
+            "legendFormat": "7. Consensus",
+            "range": true,
+            "refId": "F"
+          }
+        ],
+        "title": "Self events \u2014 Pipeline stage costs (all nodes avg)",
+        "type": "timeseries"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "DATASOURCE_UID_PLACEHOLDER"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "axisBorderShow": false,
+              "axisCenteredZero": false,
+              "axisColorMode": "text",
+              "axisLabel": "",
+              "axisPlacement": "auto",
+              "barAlignment": 0,
+              "barWidthFactor": 0.6,
+              "drawStyle": "line",
+              "fillOpacity": 30,
+              "gradientMode": "none",
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "viz": false
+              },
+              "insertNulls": false,
+              "lineInterpolation": "linear",
+              "lineWidth": 1,
+              "pointSize": 5,
+              "scaleDistribution": {
+                "type": "linear"
+              },
+              "showPoints": "never",
+              "showValues": false,
+              "spanNulls": false,
+              "stacking": {
+                "group": "A",
+                "mode": "normal"
+              },
+              "thresholdsStyle": {
+                "mode": "off"
+              }
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "\u00b5s"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 10,
+          "w": 12,
+          "x": 12,
+          "y": 12
+        },
+        "id": 2,
+        "options": {
+          "legend": {
+            "calcs": [
+              "mean"
+            ],
+            "displayMode": "table",
+            "placement": "right",
+            "showLegend": true
+          },
+          "tooltip": {
+            "hideZeros": false,
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "pluginVersion": "12.3.3",
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "avg(eventDelay_1_hashing_recv)",
             "legendFormat": "1. Hashing",
             "range": true,
             "refId": "A"
@@ -329,7 +653,7 @@
               "uid": "DATASOURCE_UID_PLACEHOLDER"
             },
             "editorMode": "code",
-            "expr": "avg(eventDelay_2_validation) - avg(eventDelay_1_hashing)",
+            "expr": "avg(eventDelay_2_validation_recv) - avg(eventDelay_1_hashing_recv)",
             "legendFormat": "2. Validation",
             "range": true,
             "refId": "B"
@@ -340,7 +664,7 @@
               "uid": "DATASOURCE_UID_PLACEHOLDER"
             },
             "editorMode": "code",
-            "expr": "avg(eventDelay_3_deduplication) - avg(eventDelay_2_validation)",
+            "expr": "avg(eventDelay_3_deduplication_recv) - avg(eventDelay_2_validation_recv)",
             "legendFormat": "3. Deduplication",
             "range": true,
             "refId": "C"
@@ -351,7 +675,7 @@
               "uid": "DATASOURCE_UID_PLACEHOLDER"
             },
             "editorMode": "code",
-            "expr": "avg(eventDelay_4_verification) - avg(eventDelay_3_deduplication)",
+            "expr": "avg(eventDelay_4_verification_recv) - avg(eventDelay_3_deduplication_recv)",
             "legendFormat": "4. Sig. verification",
             "range": true,
             "refId": "D"
@@ -362,7 +686,7 @@
               "uid": "DATASOURCE_UID_PLACEHOLDER"
             },
             "editorMode": "code",
-            "expr": "avg(eventDelay_5_orphanBuffer) - avg(eventDelay_4_verification)",
+            "expr": "avg(eventDelay_5_orphanBuffer_recv) - avg(eventDelay_4_verification_recv)",
             "legendFormat": "5. Orphan buffer",
             "range": true,
             "refId": "E"
@@ -373,7 +697,7 @@
               "uid": "DATASOURCE_UID_PLACEHOLDER"
             },
             "editorMode": "code",
-            "expr": "avg(eventDelay_6_pces) - avg(eventDelay_5_orphanBuffer)",
+            "expr": "avg(eventDelay_6_pces_recv) - avg(eventDelay_5_orphanBuffer_recv)",
             "legendFormat": "6. PCES write",
             "range": true,
             "refId": "F"
@@ -384,13 +708,13 @@
               "uid": "DATASOURCE_UID_PLACEHOLDER"
             },
             "editorMode": "code",
-            "expr": "avg(eventDelay_7_consensus) - avg(eventDelay_6_pces)",
+            "expr": "avg(eventDelay_7_consensus_recv) - avg(eventDelay_6_pces_recv)",
             "legendFormat": "7. Consensus",
             "range": true,
             "refId": "G"
           }
         ],
-        "title": "Pipeline stage costs (all nodes avg)",
+        "title": "Received events \u2014 Pipeline stage costs (all nodes avg)",
         "type": "timeseries"
       },
       {
@@ -403,7 +727,7 @@
         },
         "id": 200,
         "panels": [],
-        "title": "Per node breakdown",
+        "title": "Per node breakdown \u2014 Self events",
         "type": "row"
       },
       {
@@ -494,8 +818,8 @@
               "uid": "DATASOURCE_UID_PLACEHOLDER"
             },
             "editorMode": "code",
-            "expr": "eventDelay_1_hashing{node=\"0\"}",
-            "legendFormat": "1. Hashing",
+            "expr": "eventDelay_2_validation_self{node=\"0\"}",
+            "legendFormat": "2. Validation",
             "range": true,
             "refId": "A"
           },
@@ -505,8 +829,8 @@
               "uid": "DATASOURCE_UID_PLACEHOLDER"
             },
             "editorMode": "code",
-            "expr": "eventDelay_2_validation{node=\"0\"} - eventDelay_1_hashing{node=\"0\"}",
-            "legendFormat": "2. Validation",
+            "expr": "eventDelay_3_deduplication_self{node=\"0\"} - eventDelay_2_validation_self{node=\"0\"}",
+            "legendFormat": "3. Deduplication",
             "range": true,
             "refId": "B"
           },
@@ -516,8 +840,8 @@
               "uid": "DATASOURCE_UID_PLACEHOLDER"
             },
             "editorMode": "code",
-            "expr": "eventDelay_3_deduplication{node=\"0\"} - eventDelay_2_validation{node=\"0\"}",
-            "legendFormat": "3. Deduplication",
+            "expr": "eventDelay_4_verification_self{node=\"0\"} - eventDelay_3_deduplication_self{node=\"0\"}",
+            "legendFormat": "4. Sig. verification",
             "range": true,
             "refId": "C"
           },
@@ -527,8 +851,8 @@
               "uid": "DATASOURCE_UID_PLACEHOLDER"
             },
             "editorMode": "code",
-            "expr": "eventDelay_4_verification{node=\"0\"} - eventDelay_3_deduplication{node=\"0\"}",
-            "legendFormat": "4. Sig. verification",
+            "expr": "eventDelay_5_orphanBuffer_self{node=\"0\"} - eventDelay_4_verification_self{node=\"0\"}",
+            "legendFormat": "5. Orphan buffer",
             "range": true,
             "refId": "D"
           },
@@ -538,8 +862,8 @@
               "uid": "DATASOURCE_UID_PLACEHOLDER"
             },
             "editorMode": "code",
-            "expr": "eventDelay_5_orphanBuffer{node=\"0\"} - eventDelay_4_verification{node=\"0\"}",
-            "legendFormat": "5. Orphan buffer",
+            "expr": "eventDelay_6_pces_self{node=\"0\"} - eventDelay_5_orphanBuffer_self{node=\"0\"}",
+            "legendFormat": "6. PCES write",
             "range": true,
             "refId": "E"
           },
@@ -549,24 +873,13 @@
               "uid": "DATASOURCE_UID_PLACEHOLDER"
             },
             "editorMode": "code",
-            "expr": "eventDelay_6_pces{node=\"0\"} - eventDelay_5_orphanBuffer{node=\"0\"}",
-            "legendFormat": "6. PCES write",
-            "range": true,
-            "refId": "F"
-          },
-          {
-            "datasource": {
-              "type": "prometheus",
-              "uid": "DATASOURCE_UID_PLACEHOLDER"
-            },
-            "editorMode": "code",
-            "expr": "eventDelay_7_consensus{node=\"0\"} - eventDelay_6_pces{node=\"0\"}",
+            "expr": "eventDelay_7_consensus_self{node=\"0\"} - eventDelay_6_pces_self{node=\"0\"}",
             "legendFormat": "7. Consensus",
             "range": true,
-            "refId": "G"
+            "refId": "F"
           }
         ],
-        "title": "Node 0",
+        "title": "Node 0 \u2014 Self",
         "type": "timeseries"
       },
       {
@@ -657,8 +970,8 @@
               "uid": "DATASOURCE_UID_PLACEHOLDER"
             },
             "editorMode": "code",
-            "expr": "eventDelay_1_hashing{node=\"1\"}",
-            "legendFormat": "1. Hashing",
+            "expr": "eventDelay_2_validation_self{node=\"1\"}",
+            "legendFormat": "2. Validation",
             "range": true,
             "refId": "A"
           },
@@ -668,8 +981,8 @@
               "uid": "DATASOURCE_UID_PLACEHOLDER"
             },
             "editorMode": "code",
-            "expr": "eventDelay_2_validation{node=\"1\"} - eventDelay_1_hashing{node=\"1\"}",
-            "legendFormat": "2. Validation",
+            "expr": "eventDelay_3_deduplication_self{node=\"1\"} - eventDelay_2_validation_self{node=\"1\"}",
+            "legendFormat": "3. Deduplication",
             "range": true,
             "refId": "B"
           },
@@ -679,8 +992,8 @@
               "uid": "DATASOURCE_UID_PLACEHOLDER"
             },
             "editorMode": "code",
-            "expr": "eventDelay_3_deduplication{node=\"1\"} - eventDelay_2_validation{node=\"1\"}",
-            "legendFormat": "3. Deduplication",
+            "expr": "eventDelay_4_verification_self{node=\"1\"} - eventDelay_3_deduplication_self{node=\"1\"}",
+            "legendFormat": "4. Sig. verification",
             "range": true,
             "refId": "C"
           },
@@ -690,8 +1003,8 @@
               "uid": "DATASOURCE_UID_PLACEHOLDER"
             },
             "editorMode": "code",
-            "expr": "eventDelay_4_verification{node=\"1\"} - eventDelay_3_deduplication{node=\"1\"}",
-            "legendFormat": "4. Sig. verification",
+            "expr": "eventDelay_5_orphanBuffer_self{node=\"1\"} - eventDelay_4_verification_self{node=\"1\"}",
+            "legendFormat": "5. Orphan buffer",
             "range": true,
             "refId": "D"
           },
@@ -701,8 +1014,8 @@
               "uid": "DATASOURCE_UID_PLACEHOLDER"
             },
             "editorMode": "code",
-            "expr": "eventDelay_5_orphanBuffer{node=\"1\"} - eventDelay_4_verification{node=\"1\"}",
-            "legendFormat": "5. Orphan buffer",
+            "expr": "eventDelay_6_pces_self{node=\"1\"} - eventDelay_5_orphanBuffer_self{node=\"1\"}",
+            "legendFormat": "6. PCES write",
             "range": true,
             "refId": "E"
           },
@@ -712,24 +1025,13 @@
               "uid": "DATASOURCE_UID_PLACEHOLDER"
             },
             "editorMode": "code",
-            "expr": "eventDelay_6_pces{node=\"1\"} - eventDelay_5_orphanBuffer{node=\"1\"}",
-            "legendFormat": "6. PCES write",
-            "range": true,
-            "refId": "F"
-          },
-          {
-            "datasource": {
-              "type": "prometheus",
-              "uid": "DATASOURCE_UID_PLACEHOLDER"
-            },
-            "editorMode": "code",
-            "expr": "eventDelay_7_consensus{node=\"1\"} - eventDelay_6_pces{node=\"1\"}",
+            "expr": "eventDelay_7_consensus_self{node=\"1\"} - eventDelay_6_pces_self{node=\"1\"}",
             "legendFormat": "7. Consensus",
             "range": true,
-            "refId": "G"
+            "refId": "F"
           }
         ],
-        "title": "Node 1",
+        "title": "Node 1 \u2014 Self",
         "type": "timeseries"
       },
       {
@@ -820,8 +1122,8 @@
               "uid": "DATASOURCE_UID_PLACEHOLDER"
             },
             "editorMode": "code",
-            "expr": "eventDelay_1_hashing{node=\"2\"}",
-            "legendFormat": "1. Hashing",
+            "expr": "eventDelay_2_validation_self{node=\"2\"}",
+            "legendFormat": "2. Validation",
             "range": true,
             "refId": "A"
           },
@@ -831,8 +1133,8 @@
               "uid": "DATASOURCE_UID_PLACEHOLDER"
             },
             "editorMode": "code",
-            "expr": "eventDelay_2_validation{node=\"2\"} - eventDelay_1_hashing{node=\"2\"}",
-            "legendFormat": "2. Validation",
+            "expr": "eventDelay_3_deduplication_self{node=\"2\"} - eventDelay_2_validation_self{node=\"2\"}",
+            "legendFormat": "3. Deduplication",
             "range": true,
             "refId": "B"
           },
@@ -842,8 +1144,8 @@
               "uid": "DATASOURCE_UID_PLACEHOLDER"
             },
             "editorMode": "code",
-            "expr": "eventDelay_3_deduplication{node=\"2\"} - eventDelay_2_validation{node=\"2\"}",
-            "legendFormat": "3. Deduplication",
+            "expr": "eventDelay_4_verification_self{node=\"2\"} - eventDelay_3_deduplication_self{node=\"2\"}",
+            "legendFormat": "4. Sig. verification",
             "range": true,
             "refId": "C"
           },
@@ -853,8 +1155,8 @@
               "uid": "DATASOURCE_UID_PLACEHOLDER"
             },
             "editorMode": "code",
-            "expr": "eventDelay_4_verification{node=\"2\"} - eventDelay_3_deduplication{node=\"2\"}",
-            "legendFormat": "4. Sig. verification",
+            "expr": "eventDelay_5_orphanBuffer_self{node=\"2\"} - eventDelay_4_verification_self{node=\"2\"}",
+            "legendFormat": "5. Orphan buffer",
             "range": true,
             "refId": "D"
           },
@@ -864,8 +1166,8 @@
               "uid": "DATASOURCE_UID_PLACEHOLDER"
             },
             "editorMode": "code",
-            "expr": "eventDelay_5_orphanBuffer{node=\"2\"} - eventDelay_4_verification{node=\"2\"}",
-            "legendFormat": "5. Orphan buffer",
+            "expr": "eventDelay_6_pces_self{node=\"2\"} - eventDelay_5_orphanBuffer_self{node=\"2\"}",
+            "legendFormat": "6. PCES write",
             "range": true,
             "refId": "E"
           },
@@ -875,24 +1177,13 @@
               "uid": "DATASOURCE_UID_PLACEHOLDER"
             },
             "editorMode": "code",
-            "expr": "eventDelay_6_pces{node=\"2\"} - eventDelay_5_orphanBuffer{node=\"2\"}",
-            "legendFormat": "6. PCES write",
-            "range": true,
-            "refId": "F"
-          },
-          {
-            "datasource": {
-              "type": "prometheus",
-              "uid": "DATASOURCE_UID_PLACEHOLDER"
-            },
-            "editorMode": "code",
-            "expr": "eventDelay_7_consensus{node=\"2\"} - eventDelay_6_pces{node=\"2\"}",
+            "expr": "eventDelay_7_consensus_self{node=\"2\"} - eventDelay_6_pces_self{node=\"2\"}",
             "legendFormat": "7. Consensus",
             "range": true,
-            "refId": "G"
+            "refId": "F"
           }
         ],
-        "title": "Node 2",
+        "title": "Node 2 \u2014 Self",
         "type": "timeseries"
       },
       {
@@ -983,7 +1274,172 @@
               "uid": "DATASOURCE_UID_PLACEHOLDER"
             },
             "editorMode": "code",
-            "expr": "eventDelay_1_hashing{node=\"3\"}",
+            "expr": "eventDelay_2_validation_self{node=\"3\"}",
+            "legendFormat": "2. Validation",
+            "range": true,
+            "refId": "A"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "eventDelay_3_deduplication_self{node=\"3\"} - eventDelay_2_validation_self{node=\"3\"}",
+            "legendFormat": "3. Deduplication",
+            "range": true,
+            "refId": "B"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "eventDelay_4_verification_self{node=\"3\"} - eventDelay_3_deduplication_self{node=\"3\"}",
+            "legendFormat": "4. Sig. verification",
+            "range": true,
+            "refId": "C"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "eventDelay_5_orphanBuffer_self{node=\"3\"} - eventDelay_4_verification_self{node=\"3\"}",
+            "legendFormat": "5. Orphan buffer",
+            "range": true,
+            "refId": "D"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "eventDelay_6_pces_self{node=\"3\"} - eventDelay_5_orphanBuffer_self{node=\"3\"}",
+            "legendFormat": "6. PCES write",
+            "range": true,
+            "refId": "E"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "eventDelay_7_consensus_self{node=\"3\"} - eventDelay_6_pces_self{node=\"3\"}",
+            "legendFormat": "7. Consensus",
+            "range": true,
+            "refId": "F"
+          }
+        ],
+        "title": "Node 3 \u2014 Self",
+        "type": "timeseries"
+      },
+      {
+        "collapsed": false,
+        "gridPos": {
+          "h": 1,
+          "w": 24,
+          "x": 0,
+          "y": 43
+        },
+        "id": 201,
+        "panels": [],
+        "title": "Per node breakdown \u2014 Received events",
+        "type": "row"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "DATASOURCE_UID_PLACEHOLDER"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "axisBorderShow": false,
+              "axisCenteredZero": false,
+              "axisColorMode": "text",
+              "axisLabel": "",
+              "axisPlacement": "auto",
+              "barAlignment": 0,
+              "barWidthFactor": 0.6,
+              "drawStyle": "line",
+              "fillOpacity": 30,
+              "gradientMode": "none",
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "viz": false
+              },
+              "insertNulls": false,
+              "lineInterpolation": "linear",
+              "lineWidth": 1,
+              "pointSize": 5,
+              "scaleDistribution": {
+                "type": "linear"
+              },
+              "showPoints": "never",
+              "showValues": false,
+              "spanNulls": false,
+              "stacking": {
+                "group": "A",
+                "mode": "normal"
+              },
+              "thresholdsStyle": {
+                "mode": "off"
+              }
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "\u00b5s"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 10,
+          "w": 12,
+          "x": 0,
+          "y": 44
+        },
+        "id": 20,
+        "options": {
+          "legend": {
+            "calcs": [
+              "mean"
+            ],
+            "displayMode": "table",
+            "placement": "bottom",
+            "showLegend": true
+          },
+          "tooltip": {
+            "hideZeros": false,
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "pluginVersion": "12.3.3",
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "eventDelay_1_hashing_recv{node=\"0\"}",
             "legendFormat": "1. Hashing",
             "range": true,
             "refId": "A"
@@ -994,7 +1450,7 @@
               "uid": "DATASOURCE_UID_PLACEHOLDER"
             },
             "editorMode": "code",
-            "expr": "eventDelay_2_validation{node=\"3\"} - eventDelay_1_hashing{node=\"3\"}",
+            "expr": "eventDelay_2_validation_recv{node=\"0\"} - eventDelay_1_hashing_recv{node=\"0\"}",
             "legendFormat": "2. Validation",
             "range": true,
             "refId": "B"
@@ -1005,7 +1461,7 @@
               "uid": "DATASOURCE_UID_PLACEHOLDER"
             },
             "editorMode": "code",
-            "expr": "eventDelay_3_deduplication{node=\"3\"} - eventDelay_2_validation{node=\"3\"}",
+            "expr": "eventDelay_3_deduplication_recv{node=\"0\"} - eventDelay_2_validation_recv{node=\"0\"}",
             "legendFormat": "3. Deduplication",
             "range": true,
             "refId": "C"
@@ -1016,7 +1472,7 @@
               "uid": "DATASOURCE_UID_PLACEHOLDER"
             },
             "editorMode": "code",
-            "expr": "eventDelay_4_verification{node=\"3\"} - eventDelay_3_deduplication{node=\"3\"}",
+            "expr": "eventDelay_4_verification_recv{node=\"0\"} - eventDelay_3_deduplication_recv{node=\"0\"}",
             "legendFormat": "4. Sig. verification",
             "range": true,
             "refId": "D"
@@ -1027,7 +1483,7 @@
               "uid": "DATASOURCE_UID_PLACEHOLDER"
             },
             "editorMode": "code",
-            "expr": "eventDelay_5_orphanBuffer{node=\"3\"} - eventDelay_4_verification{node=\"3\"}",
+            "expr": "eventDelay_5_orphanBuffer_recv{node=\"0\"} - eventDelay_4_verification_recv{node=\"0\"}",
             "legendFormat": "5. Orphan buffer",
             "range": true,
             "refId": "E"
@@ -1038,7 +1494,7 @@
               "uid": "DATASOURCE_UID_PLACEHOLDER"
             },
             "editorMode": "code",
-            "expr": "eventDelay_6_pces{node=\"3\"} - eventDelay_5_orphanBuffer{node=\"3\"}",
+            "expr": "eventDelay_6_pces_recv{node=\"0\"} - eventDelay_5_orphanBuffer_recv{node=\"0\"}",
             "legendFormat": "6. PCES write",
             "range": true,
             "refId": "F"
@@ -1049,13 +1505,502 @@
               "uid": "DATASOURCE_UID_PLACEHOLDER"
             },
             "editorMode": "code",
-            "expr": "eventDelay_7_consensus{node=\"3\"} - eventDelay_6_pces{node=\"3\"}",
+            "expr": "eventDelay_7_consensus_recv{node=\"0\"} - eventDelay_6_pces_recv{node=\"0\"}",
             "legendFormat": "7. Consensus",
             "range": true,
             "refId": "G"
           }
         ],
-        "title": "Node 3",
+        "title": "Node 0 \u2014 Received",
+        "type": "timeseries"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "DATASOURCE_UID_PLACEHOLDER"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "axisBorderShow": false,
+              "axisCenteredZero": false,
+              "axisColorMode": "text",
+              "axisLabel": "",
+              "axisPlacement": "auto",
+              "barAlignment": 0,
+              "barWidthFactor": 0.6,
+              "drawStyle": "line",
+              "fillOpacity": 30,
+              "gradientMode": "none",
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "viz": false
+              },
+              "insertNulls": false,
+              "lineInterpolation": "linear",
+              "lineWidth": 1,
+              "pointSize": 5,
+              "scaleDistribution": {
+                "type": "linear"
+              },
+              "showPoints": "never",
+              "showValues": false,
+              "spanNulls": false,
+              "stacking": {
+                "group": "A",
+                "mode": "normal"
+              },
+              "thresholdsStyle": {
+                "mode": "off"
+              }
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "\u00b5s"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 10,
+          "w": 12,
+          "x": 12,
+          "y": 44
+        },
+        "id": 21,
+        "options": {
+          "legend": {
+            "calcs": [
+              "mean"
+            ],
+            "displayMode": "table",
+            "placement": "bottom",
+            "showLegend": true
+          },
+          "tooltip": {
+            "hideZeros": false,
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "pluginVersion": "12.3.3",
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "eventDelay_1_hashing_recv{node=\"1\"}",
+            "legendFormat": "1. Hashing",
+            "range": true,
+            "refId": "A"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "eventDelay_2_validation_recv{node=\"1\"} - eventDelay_1_hashing_recv{node=\"1\"}",
+            "legendFormat": "2. Validation",
+            "range": true,
+            "refId": "B"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "eventDelay_3_deduplication_recv{node=\"1\"} - eventDelay_2_validation_recv{node=\"1\"}",
+            "legendFormat": "3. Deduplication",
+            "range": true,
+            "refId": "C"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "eventDelay_4_verification_recv{node=\"1\"} - eventDelay_3_deduplication_recv{node=\"1\"}",
+            "legendFormat": "4. Sig. verification",
+            "range": true,
+            "refId": "D"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "eventDelay_5_orphanBuffer_recv{node=\"1\"} - eventDelay_4_verification_recv{node=\"1\"}",
+            "legendFormat": "5. Orphan buffer",
+            "range": true,
+            "refId": "E"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "eventDelay_6_pces_recv{node=\"1\"} - eventDelay_5_orphanBuffer_recv{node=\"1\"}",
+            "legendFormat": "6. PCES write",
+            "range": true,
+            "refId": "F"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "eventDelay_7_consensus_recv{node=\"1\"} - eventDelay_6_pces_recv{node=\"1\"}",
+            "legendFormat": "7. Consensus",
+            "range": true,
+            "refId": "G"
+          }
+        ],
+        "title": "Node 1 \u2014 Received",
+        "type": "timeseries"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "DATASOURCE_UID_PLACEHOLDER"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "axisBorderShow": false,
+              "axisCenteredZero": false,
+              "axisColorMode": "text",
+              "axisLabel": "",
+              "axisPlacement": "auto",
+              "barAlignment": 0,
+              "barWidthFactor": 0.6,
+              "drawStyle": "line",
+              "fillOpacity": 30,
+              "gradientMode": "none",
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "viz": false
+              },
+              "insertNulls": false,
+              "lineInterpolation": "linear",
+              "lineWidth": 1,
+              "pointSize": 5,
+              "scaleDistribution": {
+                "type": "linear"
+              },
+              "showPoints": "never",
+              "showValues": false,
+              "spanNulls": false,
+              "stacking": {
+                "group": "A",
+                "mode": "normal"
+              },
+              "thresholdsStyle": {
+                "mode": "off"
+              }
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "\u00b5s"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 10,
+          "w": 12,
+          "x": 0,
+          "y": 54
+        },
+        "id": 22,
+        "options": {
+          "legend": {
+            "calcs": [
+              "mean"
+            ],
+            "displayMode": "table",
+            "placement": "bottom",
+            "showLegend": true
+          },
+          "tooltip": {
+            "hideZeros": false,
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "pluginVersion": "12.3.3",
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "eventDelay_1_hashing_recv{node=\"2\"}",
+            "legendFormat": "1. Hashing",
+            "range": true,
+            "refId": "A"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "eventDelay_2_validation_recv{node=\"2\"} - eventDelay_1_hashing_recv{node=\"2\"}",
+            "legendFormat": "2. Validation",
+            "range": true,
+            "refId": "B"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "eventDelay_3_deduplication_recv{node=\"2\"} - eventDelay_2_validation_recv{node=\"2\"}",
+            "legendFormat": "3. Deduplication",
+            "range": true,
+            "refId": "C"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "eventDelay_4_verification_recv{node=\"2\"} - eventDelay_3_deduplication_recv{node=\"2\"}",
+            "legendFormat": "4. Sig. verification",
+            "range": true,
+            "refId": "D"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "eventDelay_5_orphanBuffer_recv{node=\"2\"} - eventDelay_4_verification_recv{node=\"2\"}",
+            "legendFormat": "5. Orphan buffer",
+            "range": true,
+            "refId": "E"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "eventDelay_6_pces_recv{node=\"2\"} - eventDelay_5_orphanBuffer_recv{node=\"2\"}",
+            "legendFormat": "6. PCES write",
+            "range": true,
+            "refId": "F"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "eventDelay_7_consensus_recv{node=\"2\"} - eventDelay_6_pces_recv{node=\"2\"}",
+            "legendFormat": "7. Consensus",
+            "range": true,
+            "refId": "G"
+          }
+        ],
+        "title": "Node 2 \u2014 Received",
+        "type": "timeseries"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "DATASOURCE_UID_PLACEHOLDER"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "axisBorderShow": false,
+              "axisCenteredZero": false,
+              "axisColorMode": "text",
+              "axisLabel": "",
+              "axisPlacement": "auto",
+              "barAlignment": 0,
+              "barWidthFactor": 0.6,
+              "drawStyle": "line",
+              "fillOpacity": 30,
+              "gradientMode": "none",
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "viz": false
+              },
+              "insertNulls": false,
+              "lineInterpolation": "linear",
+              "lineWidth": 1,
+              "pointSize": 5,
+              "scaleDistribution": {
+                "type": "linear"
+              },
+              "showPoints": "never",
+              "showValues": false,
+              "spanNulls": false,
+              "stacking": {
+                "group": "A",
+                "mode": "normal"
+              },
+              "thresholdsStyle": {
+                "mode": "off"
+              }
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "\u00b5s"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 10,
+          "w": 12,
+          "x": 12,
+          "y": 54
+        },
+        "id": 23,
+        "options": {
+          "legend": {
+            "calcs": [
+              "mean"
+            ],
+            "displayMode": "table",
+            "placement": "bottom",
+            "showLegend": true
+          },
+          "tooltip": {
+            "hideZeros": false,
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "pluginVersion": "12.3.3",
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "eventDelay_1_hashing_recv{node=\"3\"}",
+            "legendFormat": "1. Hashing",
+            "range": true,
+            "refId": "A"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "eventDelay_2_validation_recv{node=\"3\"} - eventDelay_1_hashing_recv{node=\"3\"}",
+            "legendFormat": "2. Validation",
+            "range": true,
+            "refId": "B"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "eventDelay_3_deduplication_recv{node=\"3\"} - eventDelay_2_validation_recv{node=\"3\"}",
+            "legendFormat": "3. Deduplication",
+            "range": true,
+            "refId": "C"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "eventDelay_4_verification_recv{node=\"3\"} - eventDelay_3_deduplication_recv{node=\"3\"}",
+            "legendFormat": "4. Sig. verification",
+            "range": true,
+            "refId": "D"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "eventDelay_5_orphanBuffer_recv{node=\"3\"} - eventDelay_4_verification_recv{node=\"3\"}",
+            "legendFormat": "5. Orphan buffer",
+            "range": true,
+            "refId": "E"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "eventDelay_6_pces_recv{node=\"3\"} - eventDelay_5_orphanBuffer_recv{node=\"3\"}",
+            "legendFormat": "6. PCES write",
+            "range": true,
+            "refId": "F"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "eventDelay_7_consensus_recv{node=\"3\"} - eventDelay_6_pces_recv{node=\"3\"}",
+            "legendFormat": "7. Consensus",
+            "range": true,
+            "refId": "G"
+          }
+        ],
+        "title": "Node 3 \u2014 Received",
         "type": "timeseries"
       }
     ],

@@ -87,12 +87,9 @@ public class DefaultHashgraphModule implements HashgraphModule {
         consensusEngineWiring.bind(consensusEngine);
 
         if (pipelineTracker != null) {
-            pipelineTracker.registerMetric("consensus");
-            consensusRoundOutputWire.solderForMonitoring(consensusRound -> pipelineTracker.recordEvents(
-                    "consensus",
-                    consensusRound.getConsensusEvents().stream()
-                            .map(PlatformEvent::getTimeReceived)
-                            .toList()));
+            pipelineTracker.registerMetric("consensus", true);
+            consensusRoundOutputWire.solderForMonitoring(
+                    consensusRound -> pipelineTracker.recordEvents("consensus", consensusRound.getConsensusEvents()));
         }
     }
 

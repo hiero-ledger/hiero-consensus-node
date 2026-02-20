@@ -547,7 +547,7 @@ public final class PlatformBuilder {
                 .getConfigData(PlatformMetricsConfig.class)
                 .eventPipelineMetricsEnabled();
         final EventPipelineTracker pipelineTracker =
-                eventPipelineMetricsEnabled ? new EventPipelineTracker(platformContext.getMetrics()) : null;
+                eventPipelineMetricsEnabled ? new EventPipelineTracker(platformContext.getMetrics(), selfId) : null;
         final AtomicReference<Supplier<ReservedSignedState>> getLatestCompleteStateReference = new AtomicReference<>();
         final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise =
                 new BlockingResourceProvider<>();

@@ -23,6 +23,7 @@ import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.Generato
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.GeneratorEventGraphSourceBuilder;
 import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
 import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.test.fixtures.event.EventCounter;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
@@ -138,7 +139,7 @@ public class IntakeBenchmark {
                 rosterHistory,
                 new NoOpIntakeEventCounter(),
                 new TransactionLimits(1000, 1000),
-                new EventPipelineTracker(platformContext.getMetrics()));
+                new EventPipelineTracker(platformContext.getMetrics(), NodeId.of(0)));
         counter = new EventCounter(NUMBER_OF_EVENTS);
         intake.validatedEventsOutputWire().solderForMonitoring(counter);
         // builds the input wire

@@ -68,11 +68,10 @@ public class DefaultPcesModule implements PcesModule {
 
         // Wire metrics
         if (pipelineTracker != null) {
-            pipelineTracker.registerMetric("pces");
+            pipelineTracker.registerMetric("pces", true);
             this.pcesWriterWiring
                     .getOutputWire()
-                    .solderForMonitoring(
-                            platformEvent -> pipelineTracker.recordEvent("pces", platformEvent.getTimeReceived()));
+                    .solderForMonitoring(platformEvent -> pipelineTracker.recordEvent("pces", platformEvent));
         }
 
         // Force not soldered wires to be built

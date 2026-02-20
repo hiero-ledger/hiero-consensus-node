@@ -130,31 +130,30 @@ public class DefaultEventIntakeModule implements EventIntakeModule {
 
         // Wire metrics
         if (pipelineTracker != null) {
-            pipelineTracker.registerMetric("hashing");
+            pipelineTracker.registerMetric("hashing", false);
             this.eventHasherWiring
                     .getOutputWire()
-                    .solderForMonitoring(
-                            platformEvent -> pipelineTracker.recordEvent("hashing", platformEvent.getTimeReceived()));
-            pipelineTracker.registerMetric("validation");
+                    .solderForMonitoring(platformEvent -> pipelineTracker.recordEvent("hashing", platformEvent));
+            pipelineTracker.registerMetric("validation", true);
             this.eventValidatorWiring
                     .getOutputWire()
-                    .solderForMonitoring(platformEvent ->
-                            pipelineTracker.recordEvent("validation", platformEvent.getTimeReceived()));
-            pipelineTracker.registerMetric("deduplication");
+                    .solderForMonitoring(
+                            platformEvent -> pipelineTracker.recordEvent("validation", platformEvent));
+            pipelineTracker.registerMetric("deduplication", true);
             this.eventDeduplicatorWiring
                     .getOutputWire()
-                    .solderForMonitoring(platformEvent ->
-                            pipelineTracker.recordEvent("deduplication", platformEvent.getTimeReceived()));
-            pipelineTracker.registerMetric("verification");
+                    .solderForMonitoring(
+                            platformEvent -> pipelineTracker.recordEvent("deduplication", platformEvent));
+            pipelineTracker.registerMetric("verification", true);
             this.eventSignatureValidatorWiring
                     .getOutputWire()
-                    .solderForMonitoring(platformEvent ->
-                            pipelineTracker.recordEvent("verification", platformEvent.getTimeReceived()));
-            pipelineTracker.registerMetric("orphanBuffer");
+                    .solderForMonitoring(
+                            platformEvent -> pipelineTracker.recordEvent("verification", platformEvent));
+            pipelineTracker.registerMetric("orphanBuffer", true);
             this.orphanBufferWiring
                     .getSplitOutput()
-                    .solderForMonitoring(platformEvent -> pipelineTracker.recordEvent(
-                            "orphanBuffer", ((PlatformEvent) platformEvent).getTimeReceived()));
+                    .solderForMonitoring(platformEvent ->
+                            pipelineTracker.recordEvent("orphanBuffer", (PlatformEvent) platformEvent));
         }
 
         // Force not soldered wires to be built
