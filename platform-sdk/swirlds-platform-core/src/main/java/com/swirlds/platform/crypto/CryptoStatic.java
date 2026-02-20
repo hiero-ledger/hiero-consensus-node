@@ -26,6 +26,7 @@ import java.security.cert.CertificateException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -177,7 +178,11 @@ public final class CryptoStatic {
                                     .toArray()));
                 }
 
-                logger.debug(STARTUP.getMarker(), "About to start loading keys");
+                logger.info(
+                        STARTUP.getMarker(),
+                        "Loading keys for local node {} from {}",
+                        localNode,
+                        pathsConfig.getKeysDirPath());
                 logger.debug(STARTUP.getMarker(), "Reading keys using the enhanced key loader");
                 keysAndCerts = EnhancedKeyStoreLoader.using(configuration, Set.of(localNode), rosterEntries)
                         .migrate()
@@ -186,7 +191,7 @@ public final class CryptoStatic {
                         .verify()
                         .keysAndCerts();
 
-                logger.debug(STARTUP.getMarker(), "Done loading keys");
+                logger.info(STARTUP.getMarker(), "Done loading keys for local node {}", localNode);
             } else {
                 // if there are no keys on the disk, then create our own keys
                 CommonUtils.tellUserConsole("Keys will be generated in: " + pathsConfig.getKeysDirPath()
@@ -218,6 +223,55 @@ public final class CryptoStatic {
         }
 
         final String msg = basicConfig.loadKeysFromPfxFiles() ? "Certificate loaded: {}" : "Certificate generated: {}";
+
+        final var localKeysAndCerts = keysAndCerts.get(localNode);
+        if (localKeysAndCerts != null) {
+            try {
+                logger.info(
+                        STARTUP.getMarker(),
+                        "Local node {} signing cert from disk (certDerHex={})",
+                        localNode,
+                        HexFormat.of().formatHex(localKeysAndCerts.sigCert().getEncoded()));
+            } catch (final Exception e) {
+                logger.warn(STARTUP.getMarker(), "Unable to log local node {} signing cert details", localNode, e);
+            }
+
+            final var rosterCert = rosterEntries.stream()
+                    .filter(entry -> entry.nodeId() == localNode.id())
+                    .map(RosterEntry::gossipCaCertificate)
+                    .findFirst()
+                    .orElse(null);
+            if (rosterCert != null && rosterCert.length() > 0) {
+                try {
+                    final var diskCertBytes = localKeysAndCerts.sigCert().getEncoded();
+                    final var rosterCertBytes = rosterCert.toByteArray();
+                    logger.info(
+                            STARTUP.getMarker(),
+                            "Local node {} roster entry gossip CA cert (certDerHex={})",
+                            localNode,
+                            HexFormat.of().formatHex(rosterCertBytes));
+                    if (!Arrays.equals(diskCertBytes, rosterCertBytes)) {
+                        logger.warn(
+                                STARTUP.getMarker(),
+                                "Local node {} signing cert from disk does not match roster entry gossip CA cert",
+                                localNode);
+                    } else {
+                        logger.info(
+                                STARTUP.getMarker(),
+                                "Local node {} signing cert matches roster entry gossip CA cert",
+                                localNode);
+                    }
+                } catch (final Exception e) {
+                    logger.warn(
+                            STARTUP.getMarker(),
+                            "Unable to compare local node {} signing cert to roster entry gossip CA cert",
+                            localNode,
+                            e);
+                }
+            } else {
+                logger.warn(STARTUP.getMarker(), "Local node {} not found in roster", localNode);
+            }
+        }
 
         keysAndCerts.forEach((nodeId, keysAndCertsForNode) -> {
             if (keysAndCertsForNode == null) {
