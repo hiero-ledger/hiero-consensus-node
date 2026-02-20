@@ -4,7 +4,7 @@
 #
 # Defaults:
 #   --vm-url  http://localhost:8428
-#   paths     build/container/ConsensusLayerBenchmark/benchmark/node-*/data/stats/metrics.txt
+#   paths     ../../../build/container/CombinedOptimizationsExperiment/combinedAllOptimizations/node-*/data/stats/metrics.txt
 #
 # paths can be individual files, directories (searched for metrics*.txt),
 # or glob patterns.

@@ -7,29 +7,16 @@ NETWORK_NAME="metrics-network"
 VM_CONTAINER="victoriametrics"
 GRAFANA_CONTAINER="grafana"
 KEEP_DATA=false
-SHUTDOWN=false
 
 # Parse arguments
 METRICS_ARGS=()
 for arg in "$@"; do
   if [ "$arg" = "--keep-data" ]; then
     KEEP_DATA=true
-  elif [ "$arg" = "--shutdown" ]; then
-    SHUTDOWN=true
   else
     METRICS_ARGS+=("$arg")
   fi
 done
-
-# Handle shutdown mode
-if [ "$SHUTDOWN" = true ]; then
-  echo "Shutting down metrics visualization stack..."
-  docker rm -f $VM_CONTAINER $GRAFANA_CONTAINER 2>/dev/null || true
-  docker volume rm victoria-metrics-data 2>/dev/null || true
-  docker network rm $NETWORK_NAME 2>/dev/null || true
-  echo "Done."
-  exit 0
-fi
 
 echo "Starting metrics visualization stack..."
 
@@ -115,12 +102,11 @@ echo "To import more metrics:"
 echo "  ./import-metrics.sh [paths...]"
 echo ""
 echo "To stop and delete all data:"
-echo "  ./start-grafana.sh --shutdown"
+echo "  ./stop-grafana.sh"
 echo ""
 echo "Usage:"
-echo "  ./start-grafana.sh [--keep-data] [--shutdown] [paths...]"
+echo "  ./start-grafana.sh [--keep-data] [paths...]"
 echo "  --keep-data: Keep existing data volume (append new metrics)"
-echo "  --shutdown:  Stop all containers and remove data"
 echo "  paths: Metrics files, directories, or glob patterns"
 echo ""
 echo "Examples:"
