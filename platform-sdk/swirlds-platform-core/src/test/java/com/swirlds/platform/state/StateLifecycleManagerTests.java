@@ -1,18 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state;
 
+import static com.swirlds.platform.test.fixtures.state.TestStateUtils.destroyStateLifecycleManager;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.nextInt;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.setCreationSoftwareVersionTo;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
-import com.swirlds.base.state.MutabilityException;
 import com.swirlds.common.Reservable;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
@@ -61,11 +60,8 @@ class StateLifecycleManagerTests {
                 TestPlatformContextBuilder.create().build();
 
         stateLifecycleManager = new StateLifecycleManagerImpl(
-                platformContext.getMetrics(),
-                platformContext.getTime(),
-                VirtualMapStateTestUtils::createTestStateWithVM,
-                platformContext.getConfiguration());
-        stateLifecycleManager.initState(initialState);
+                platformContext.getMetrics(), platformContext.getTime(), platformContext.getConfiguration());
+        stateLifecycleManager.initStateOnReconnect(initialState);
     }
 
     @AfterEach
@@ -73,13 +69,7 @@ class StateLifecycleManagerTests {
         if (!initialState.isDestroyed()) {
             initialState.release();
         }
-        final VirtualMapState latestImmutable = stateLifecycleManager.getLatestImmutableState();
-        if (latestImmutable != null && latestImmutable != initialState && !latestImmutable.isDestroyed()) {
-            latestImmutable.release();
-        }
-        if (!stateLifecycleManager.getMutableState().isDestroyed()) {
-            stateLifecycleManager.getMutableState().release();
-        }
+        destroyStateLifecycleManager(stateLifecycleManager);
         MerkleDbTestUtils.assertAllDatabasesClosed();
     }
 
@@ -154,70 +144,6 @@ class StateLifecycleManagerTests {
         assertEquals(1, afterMutable.getRoot().getReservationCount(), "Mutable state should have one reference");
         assertEquals(1, newLatestImmutable.getRoot().getReservationCount(), "Latest immutable should have one ref");
         assertEquals(-1, beforeImmutable.getRoot().getReservationCount(), "Old immutable should be released");
-    }
-
-    @Test
-    @DisplayName("initState() rejects second startup initialization")
-    void initStateRejectsSecondStartup() {
-        final VirtualMapState another = newState();
-        assertThrows(IllegalStateException.class, () -> stateLifecycleManager.initState(another));
-        another.release();
-    }
-
-    @Test
-    @DisplayName("initState() rejects immutable input state")
-    void initStateRejectsImmutableInput() {
-        final VirtualMapState immutable = stateLifecycleManager.getLatestImmutableState();
-        assertThrows(MutabilityException.class, () -> stateLifecycleManager.initState(immutable));
-    }
-
-    @Test
-    @DisplayName("getMutableState() throws if not initialized")
-    void getMutableStateThrowsIfNotInitialized() {
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().build();
-        final StateLifecycleManager uninitialized = new StateLifecycleManagerImpl(
-                platformContext.getMetrics(),
-                platformContext.getTime(),
-                VirtualMapStateTestUtils::createTestStateWithVM,
-                platformContext.getConfiguration());
-        assertThrows(IllegalStateException.class, uninitialized::getMutableState);
-    }
-
-    @Test
-    @DisplayName("getLatestImmutableState() throws if not initialized")
-    void getLatestImmutableStateThrowsIfNotInitialized() {
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().build();
-        final StateLifecycleManager uninitialized = new StateLifecycleManagerImpl(
-                platformContext.getMetrics(),
-                platformContext.getTime(),
-                VirtualMapStateTestUtils::createTestStateWithVM,
-                platformContext.getConfiguration());
-        assertThrows(IllegalStateException.class, uninitialized::getLatestImmutableState);
-    }
-
-    @Test
-    @DisplayName("createStateFrom() creates a state without changing reservation count and the state of the manager")
-    void createStateFrom() {
-        // Create an independent state and get its root (VirtualMap)
-        final VirtualMapState state = VirtualMapStateTestUtils.createTestState();
-        final VirtualMapState created = stateLifecycleManager.createStateFrom(state.getRoot());
-
-        // The created state should be non-null and reference the same root
-        assertSame(state.getRoot(), created.getRoot(), "createStateFrom should wrap the provided root");
-
-        // Reservation count should remain unchanged by createStateFrom
-        assertEquals(
-                0,
-                (created.getRoot()).getReservationCount(),
-                "createStateFrom must not alter the root reservation count");
-
-        // stateLifecycleManager remains unchanged
-        assertNotSame(state, stateLifecycleManager.getLatestImmutableState());
-        assertNotSame(state, stateLifecycleManager.getMutableState());
-
-        state.release();
     }
 
     private static VirtualMapState newState() {

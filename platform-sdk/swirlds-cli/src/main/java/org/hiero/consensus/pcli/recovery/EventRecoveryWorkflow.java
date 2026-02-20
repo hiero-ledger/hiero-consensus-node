@@ -35,7 +35,6 @@ import com.swirlds.state.State;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.state.merkle.VirtualMapState;
-import com.swirlds.state.merkle.VirtualMapStateImpl;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -121,10 +120,7 @@ public final class EventRecoveryWorkflow {
         final SwirldMain hederaApp = HederaUtils.createHederaAppMain(platformContext);
 
         final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager = new StateLifecycleManagerImpl(
-                platformContext.getMetrics(),
-                platformContext.getTime(),
-                virtualMap -> new VirtualMapStateImpl(virtualMap, platformContext.getMetrics()),
-                platformContext.getConfiguration());
+                platformContext.getMetrics(), platformContext.getTime(), platformContext.getConfiguration());
 
         final DeserializedSignedState deserializedSignedState =
                 SignedStateFileReader.readState(signedStateDir, platformContext, stateLifecycleManager);

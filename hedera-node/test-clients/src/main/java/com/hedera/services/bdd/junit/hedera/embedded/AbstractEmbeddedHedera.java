@@ -287,8 +287,7 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
                         this.blockHashSigner = new LapsingBlockHashSigner(hints, history, configProvider),
                 PLATFORM_CONFIG,
                 metrics,
-                new FakeTime(),
-                () -> this.state);
+                new FakeTime());
         version = hedera.getSemanticVersion();
         blockStreamEnabled = hedera.isBlockStreamEnabled();
     }

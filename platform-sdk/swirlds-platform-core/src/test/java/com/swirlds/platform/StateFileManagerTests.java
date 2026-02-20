@@ -4,6 +4,7 @@ package com.swirlds.platform;
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyEquals;
 import static com.swirlds.platform.state.snapshot.SignedStateFileReader.readState;
 import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
+import static com.swirlds.platform.test.fixtures.state.TestStateUtils.destroyStateLifecycleManager;
 import static java.nio.file.Files.exists;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.hiero.consensus.state.snapshot.StateToDiskReason.FATAL_ERROR;
@@ -39,7 +40,6 @@ import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.state.merkle.VirtualMapState;
-import com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils;
 import com.swirlds.virtualmap.VirtualMap;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -99,15 +99,13 @@ class StateFileManagerTests {
                 .build();
         signedStateFilePath =
                 new SignedStateFilePath(context.getConfiguration().getConfigData(StateCommonConfig.class));
-        stateLifecycleManager = new StateLifecycleManagerImpl(
-                context.getMetrics(),
-                context.getTime(),
-                VirtualMapStateTestUtils::createTestStateWithVM,
-                context.getConfiguration());
+        stateLifecycleManager =
+                new StateLifecycleManagerImpl(context.getMetrics(), context.getTime(), context.getConfiguration());
     }
 
     @AfterEach
     void tearDown() {
+        destroyStateLifecycleManager(stateLifecycleManager);
         RandomSignedStateGenerator.releaseAllBuiltSignedStates();
     }
 
@@ -425,13 +423,11 @@ class StateFileManagerTests {
     }
 
     void initLifecycleManagerAndMakeStateImmutable(final SignedState state) {
-        stateLifecycleManager = new StateLifecycleManagerImpl(
-                context.getMetrics(),
-                context.getTime(),
-                VirtualMapStateTestUtils::createTestStateWithVM,
-                context.getConfiguration());
+        destroyStateLifecycleManager(stateLifecycleManager);
+        stateLifecycleManager =
+                new StateLifecycleManagerImpl(context.getMetrics(), context.getTime(), context.getConfiguration());
 
-        stateLifecycleManager.initState(state.getState());
+        stateLifecycleManager.initStateOnReconnect(state.getState());
         stateLifecycleManager.getMutableState().release();
     }
 }

@@ -19,7 +19,6 @@ import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.state.merkle.VirtualMapState;
-import com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils;
 import com.swirlds.virtualmap.VirtualMap;
 import java.io.IOException;
 import java.time.Duration;
@@ -105,18 +104,19 @@ final class ReconnectTest {
                 .withWeightGenerator((l, i) -> WeightGenerators.balancedNodeWeights(numNodes, weightPerNode * numNodes))
                 .build();
 
-        VirtualMapState stateCopy = null;
-        StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager;
+        final VirtualMapState stateCopy;
+        final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =
+                new StateLifecycleManagerImpl(new NoOpMetrics(), new FakeTime(), configuration);
         try (final PairedStreams pairedStreams = new PairedStreams()) {
             final SignedState signedState = new RandomSignedStateGenerator()
                     .setRoster(roster)
                     .setSigningNodeIds(nodeIds)
                     .setState(createTestState())
                     .build();
-            stateLifecycleManager = new StateLifecycleManagerImpl(
-                    new NoOpMetrics(), new FakeTime(), VirtualMapStateTestUtils::createTestStateWithVM, configuration);
 
-            stateCopy = signedState.getState().copy();
+            stateLifecycleManager.initStateOnReconnect(signedState.getState());
+
+            stateCopy = stateLifecycleManager.getMutableState();
             // hash the underlying VM
             signedState.getState().getRoot().getHash();
 
@@ -146,9 +146,8 @@ final class ReconnectTest {
             receivedState.get().getState().release();
             thread.join();
         } finally {
-            if (stateCopy != null) {
-                stateCopy.release();
-            }
+            stateLifecycleManager.getMutableState().release();
+            stateLifecycleManager.getLatestImmutableState().release();
         }
     }
 
