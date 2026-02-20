@@ -1,0 +1,114 @@
+##
+# Copyright (C) 2025 Hedera Hashgraph, LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+##
+
+name: CI/Infrastructure Issue
+description: Template for CI/CD and infrastructure-related issues
+title: "ci(<input-category>): issue title"
+labels: ["github_actions"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Problem Description
+        Please document the issue to the best of your ability using the fields below.
+  - type: textarea
+    id: problem-description
+    attributes:
+      label: Problem Description
+      description: Describe the problem clearly and concisely.
+      placeholder: |
+        Provide a clear and concise description of what the problem is.
+        What did you expect to happen? What actually happened?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction-steps
+    attributes:
+      label: Steps to Reproduce
+      description: Provide adequate details to reproduce the issue.
+      placeholder: |
+        1. Step one to reproduce the issue
+        2. Step two...
+        3. Observed result vs. expected result
+    validations:
+      required: true
+  - type: textarea
+    id: affected-environments
+    attributes:
+      label: Affected Environments / Workflows
+      description: Document where the issue has been seen — environments, workflows, branches, etc.
+      placeholder: |
+        - Environment(s): (e.g. mainnet, testnet, devnet, CI, local)
+        - Workflow(s): (e.g. node-flow-pull-request-checks.yaml)
+        - Branch(es): (e.g. main, release/0.58)
+        - Any other relevant context
+    validations:
+      required: true
+  - type: markdown
+    attributes:
+      value: |
+        ## Reporter Information
+        Please provide information so the assignee can follow up with the reporter if needed.
+  - type: dropdown
+    id: reporter-platform
+    attributes:
+      label: Where Was This Issue Reported?
+      description: Select the platform where this issue was originally reported.
+      options:
+        - Slack
+        - GitHub
+        - Rootly
+        - Discord
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: reporter-identity
+    attributes:
+      label: Reported By
+      description: Name of the person or application that reported the issue.
+      placeholder: e.g. @username or ServiceName
+    validations:
+      required: false
+  - type: markdown
+    attributes:
+      value: |
+        ## Potential Solutions
+        Document any potential solutions or workarounds that may address the issue.
+  - type: textarea
+    id: solutions
+    attributes:
+      label: Potential Solutions
+      description: Describe any known or hypothesized solutions to the problem.
+      placeholder: |
+        1. Potential solution or workaround A
+        2. Potential solution or workaround B
+    validations:
+      required: false
+  - type: markdown
+    attributes:
+      value: |
+        ## Implementation Plan
+        Describe the plan to implement the chosen solution.
+  - type: textarea
+    id: implementation-plan
+    attributes:
+      label: Implementation Plan
+      description: Provide a detailed implementation plan for resolving this issue.
+      placeholder: |
+        Outline the steps, tasks, and any technical considerations needed to implement the solution.
+    validations:
+      required: false
