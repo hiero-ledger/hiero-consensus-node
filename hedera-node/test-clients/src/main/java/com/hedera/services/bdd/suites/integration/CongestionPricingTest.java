@@ -75,12 +75,10 @@ public class CongestionPricingTest {
                         .gas(gasToOffer)
                         .sending(ONE_HBAR)
                         .via("cheapCall"),
-                getTxnRecord("cheapCall")
-                        .providingFeeTo(normalFee -> {
-                            log.info("Normal ContractCall fee is {}", normalFee);
-                            normalPrice.set(normalFee);
-                        })
-                        .logged(),
+                getTxnRecord("cheapCall").providingFeeTo(normalFee -> {
+                    log.info("Normal ContractCall fee is {}", normalFee);
+                    normalPrice.set(normalFee);
+                }),
                 overridingTwo("fees.percentCongestionMultipliers", "1,7x", "fees.minCongestionPeriod", "1"),
                 new SysFileOverrideOp(
                         THROTTLES, () -> resourceAsString("testSystemFiles/artificial-limits-congestion.json")),
@@ -126,17 +124,15 @@ public class CongestionPricingTest {
         AtomicLong sevenXPrice = new AtomicLong();
 
         return hapiTest(
+                overridingTwo("fees.percentCongestionMultipliers", "1,7x", "fees.minCongestionPeriod", "1"),
                 cryptoCreate(CIVILIAN_ACCOUNT).payingWith(GENESIS).balance(ONE_MILLION_HBARS),
                 cryptoTransfer(tinyBarsFromTo(CIVILIAN_ACCOUNT, FUNDING, 5L))
                         .payingWith(CIVILIAN_ACCOUNT)
                         .via("normalTransfer"),
-                getTxnRecord("normalTransfer")
-                        .providingFeeTo(normalFee -> {
-                            log.info("Normal fee for transfer is {}", normalFee);
-                            normalPrice.set(normalFee);
-                        })
-                        .logged(),
-                overridingTwo("fees.percentCongestionMultipliers", "1,7x", "fees.minCongestionPeriod", "1"),
+                getTxnRecord("normalTransfer").providingFeeTo(normalFee -> {
+                    log.info("Normal fee for transfer is {}", normalFee);
+                    normalPrice.set(normalFee);
+                }),
                 new SysFileOverrideOp(THROTTLES, () -> resourceAsString("testSystemFiles/extreme-limits.json")),
                 sleepFor(2_000),
                 blockingOrder(IntStream.range(0, 20)

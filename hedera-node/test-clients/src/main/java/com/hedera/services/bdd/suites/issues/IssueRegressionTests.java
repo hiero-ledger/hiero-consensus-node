@@ -35,14 +35,17 @@ import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.balanceSnapshot;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sendModified;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.spec.utilops.mod.ModificationUtils.withSuccessivelyVariedQueryIds;
 import static com.hedera.services.bdd.suites.HapiSuite.CIVILIAN_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_DELETED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.DUPLICATE_TRANSACTION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
@@ -331,6 +334,24 @@ public class IssueRegressionTests {
                         .via(DELETE_TXN)
                         .transferContract("PayReceivable")
                         .hasKnownStatus(INVALID_CONTRACT_ID));
+    }
+
+    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @Tag(MATS)
+    final Stream<DynamicTest> canSwitchSimpleFeesFromFalseToTrueWithoutException() {
+        final var payer = "payerForSimpleFeeToggle";
+        return hapiTest(
+                cryptoCreate(payer).balance(ONE_MILLION_HBARS),
+                uploadInitCode("CreateTrivial"),
+                overriding("fees.simpleFeesEnabled", "false"),
+                contractCreate("CreateTrivial").payingWith(payer).via("legacyContractCreate"),
+                overriding("fees.simpleFeesEnabled", "true"),
+                contractCreate("CreateTrivial")
+                        .payingWith(payer)
+                        .fee(ONE_HUNDRED_HBARS)
+                        .via("simpleContractCreate"),
+                validateChargedUsd("legacyContractCreate", 0.742),
+                validateChargedUsd("simpleContractCreate", 1.02));
     }
 
     @HapiTest

@@ -36,17 +36,54 @@ You can also point to a custom metrics location:
 ./gradlew :consensus-otter-tests:benchmarkAndVisualize -PmetricsPath="path/to/metrics.txt"
 ```
 
+To run only a specific experiment and then visualize, use `-PtestFilter` (note the `=` is required):
+
+```bash
+./gradlew :consensus-otter-tests:benchmarkAndVisualize -PtestFilter="*.CombinedOptimizationsExperiment"
+```
+
+### Running a single experiment
+
+Use `--tests` to run a specific experiment (or `-PtestFilter` which also works with `benchmarkAndVisualize`):
+
+```bash
+# Run only the baseline benchmark
+./gradlew :consensus-otter-tests:testPerformance --tests "*.ConsensusLayerBenchmark"
+
+# Run only a specific experiment
+./gradlew :consensus-otter-tests:testPerformance --tests "*.CombinedOptimizationsExperiment"
+
+# Equivalent using -PtestFilter (works with both testPerformance and benchmarkAndVisualize)
+./gradlew :consensus-otter-tests:testPerformance -PtestFilter="*.MaxOtherParentsExperiment"
+
+# Run a single test method within an experiment
+./gradlew :consensus-otter-tests:testPerformance --tests "*.CombinedOptimizationsExperiment.benchmarkCombinedOptimizations"
+```
+
+Available experiments:
+- `ConsensusLayerBenchmark` — Baseline benchmark (defaults)
+- `AntiSelfishnessExperiment` — Anti-selfishness factor variations
+- `CreationAttemptRateExperiment` — Event creation attempt rate variations
+- `MaxCreationRateExperiment` — Max event creation rate variations
+- `MaxOtherParentsExperiment` — Max other parents variations
+- `SignatureSchemeExperiment` — Signature scheme comparisons (RSA vs EC)
+- `CombinedOptimizationsExperiment` — Combined best settings
+
 ### Multiple runs via shell script
 
-The `run-benchmark.sh` script runs the benchmark N times, extracts the average latency from each
-run, and saves all artifacts (logs, CSVs, metrics) to `~/benchmark-results/` with timestamped
+The `run-benchmark.sh` script runs experiments multiple times, extracts the average latency from
+each run, and saves all artifacts (logs, CSVs, metrics) to `~/benchmark-results/` with timestamped
 directories:
 
 ```bash
-src/testPerformance/run-benchmark.sh [num_runs]
+src/testPerformance/run-benchmark.sh [experiment] [num_runs]
 ```
 
-Each run produces a directory like `~/benchmark-results/20260216-143022_avg-42/` containing:
+- `experiment`: Which experiment to run (default: `all`)
+  - `benchmark`, `maxotherparents`, `antiselfishness`, `maxcreationrate`, `signature`, `combined`, or `all`
+- `num_runs`: Number of times to run the experiment(s) (default: `1`)
+
+Each run produces a directory like `~/benchmark-results/20260216-143022_testName_experiment_avg-42/` containing:
 - `swirlds-node-*.log` and `otter-node-*.log` — node logs
 - `stats/MainNetStats*.csv` — CSV statistics
 - `stats/metrics-node-*.txt` — per-node metrics in Prometheus format
@@ -54,11 +91,17 @@ Each run produces a directory like `~/benchmark-results/20260216-143022_avg-42/`
 Examples:
 
 ```bash
-# Run the benchmark 5 times
-src/testPerformance/run-benchmark.sh 5
-
-# Single run (default)
+# Run all experiments once
 src/testPerformance/run-benchmark.sh
+
+# Run all experiments 5 times each
+src/testPerformance/run-benchmark.sh all 5
+
+# Run only the combined experiment 3 times
+src/testPerformance/run-benchmark.sh combined 3
+
+# Run only the baseline benchmark once
+src/testPerformance/run-benchmark.sh benchmark
 ```
 
 ## Starting Grafana Independently

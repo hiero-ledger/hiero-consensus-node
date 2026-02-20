@@ -16,8 +16,7 @@ import static com.hedera.node.app.workflows.prehandle.PreHandleResult.Status.SO_
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableSortedSet;
 import static java.util.Objects.requireNonNull;
-import static org.hiero.hapi.fees.HighVolumePricingCalculator.HIGH_VOLUME_FUNCTIONS;
-// import static org.hiero.hapi.fees.HighVolumePricingCalculator.HIGH_VOLUME_MULTIPLIER_SCALE;
+import static org.hiero.hapi.fees.HighVolumePricingCalculator.HIGH_VOLUME_PRICING_FUNCTIONS;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
@@ -319,7 +318,7 @@ public class ChildDispatchFactory {
         }
         // Child transactions can inherit highVolume from a parent synthetic dispatch.
         final var isHighVolume = txnInfo.txBody().highVolume();
-        if (isHighVolume && HIGH_VOLUME_FUNCTIONS.contains(txnInfo.functionality())) {
+        if (isHighVolume && HIGH_VOLUME_PRICING_FUNCTIONS.contains(txnInfo.functionality())) {
             builder.highVolumePricingMultiplier(childFees.highVolumeMultiplier());
         }
         final var childTokenContext = new TokenContextImpl(config, childStack, consensusNow, writableEntityIdStore);
