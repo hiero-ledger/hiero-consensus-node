@@ -17,7 +17,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.SysFileOverrideOp.Target.THROTTLES;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingThree;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingTwo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usableTxnIdNamed;
@@ -53,7 +53,12 @@ public class CongestionPricingTest {
 
     @LeakyRepeatableHapiTest(
             value = {NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION},
-            overrides = {"contracts.maxGasPerSec", "fees.percentCongestionMultipliers", "fees.minCongestionPeriod"})
+            overrides = {
+                "contracts.maxGasPerSec",
+                "fees.percentCongestionMultipliers",
+                "fees.minCongestionPeriod",
+                "fees.simpleFeesEnabled"
+            })
     Stream<DynamicTest> canUpdateGasThrottleMultipliersDynamically() {
         final var contract = "Multipurpose";
 
@@ -64,7 +69,7 @@ public class CongestionPricingTest {
         final var gasToOffer = 200_000L;
 
         return hapiTest(
-                overriding("contracts.maxGasPerSec", "15_000_000"),
+                overridingTwo("contracts.maxGasPerSec", "15_000_000", "fees.simpleFeesEnabled", "true"),
                 cryptoCreate(CIVILIAN_ACCOUNT).payingWith(GENESIS).balance(ONE_MILLION_HBARS),
                 uploadInitCode(contract),
                 contractCreate(contract),
@@ -116,13 +121,19 @@ public class CongestionPricingTest {
 
     @LeakyRepeatableHapiTest(
             value = {NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION},
-            overrides = {"fees.percentCongestionMultipliers", "fees.minCongestionPeriod"})
+            overrides = {"fees.percentCongestionMultipliers", "fees.minCongestionPeriod", "fees.simpleFeesEnabled"})
     Stream<DynamicTest> canUpdateTransferThrottleMultipliersDynamically() {
         AtomicLong normalPrice = new AtomicLong();
         AtomicLong sevenXPrice = new AtomicLong();
 
         return hapiTest(
-                overridingTwo("fees.percentCongestionMultipliers", "1,7x", "fees.minCongestionPeriod", "1"),
+                overridingThree(
+                        "fees.percentCongestionMultipliers",
+                        "1,7x",
+                        "fees.minCongestionPeriod",
+                        "1",
+                        "fees.simpleFeesEnabled",
+                        "true"),
                 cryptoCreate(CIVILIAN_ACCOUNT).payingWith(GENESIS).balance(ONE_MILLION_HBARS),
                 cryptoTransfer(tinyBarsFromTo(CIVILIAN_ACCOUNT, FUNDING, 5L))
                         .payingWith(CIVILIAN_ACCOUNT)
