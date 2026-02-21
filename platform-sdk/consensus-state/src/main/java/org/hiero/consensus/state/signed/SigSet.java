@@ -18,16 +18,26 @@ import java.util.Map;
 import java.util.Objects;
 import org.hiero.base.crypto.Signature;
 import org.hiero.base.crypto.SignatureType;
+import org.hiero.base.io.SelfSerializable;
+import org.hiero.base.io.streams.SerializableDataInputStream;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Signatures of the hash of a state.
  */
-public class SigSet implements FastCopyable, Iterable<NodeId> {
+public class SigSet implements FastCopyable, Iterable<NodeId>, SelfSerializable {
+    private static final long CLASS_ID = 0x756d0ee945226a92L;
+
     /**
      * The maximum allowed signature count. Used to prevent serialization DOS attacks.
      */
     public static final int MAX_SIGNATURE_COUNT = 1024;
+
+    private static class ClassVersion {
+        public static final int CLEANUP = 3;
+        public static final int SELF_SERIALIZABLE_NODE_ID = 4;
+    }
 
     private final Map<NodeId, Signature> signatures = new HashMap<>();
 
@@ -192,5 +202,72 @@ public class SigSet implements FastCopyable, Iterable<NodeId> {
                             SignatureType.from(nodeIdSignaturePair.signatureType(), SignatureType.RSA),
                             nodeIdSignaturePair.signatureBytes()));
         }
+    }
+
+    /**
+     * {@inheritDoc}
+     * this method should be removed after release 0.71
+     */
+    @Deprecated(forRemoval = true)
+    @Override
+    public int getMinimumSupportedVersion() {
+        return ClassVersion.CLEANUP;
+    }
+
+    /**
+     * {@inheritDoc}
+     * @deprecated use {@link #serialize(WritableStreamingData)} instead,
+     * this method should be removed after release 0.71
+     */
+    @Deprecated(forRemoval = true)
+    @Override
+    public void serialize(final SerializableDataOutputStream out) throws IOException {
+        throw new UnsupportedOperationException("Serialization is not supported");
+    }
+
+    /**
+     * {@inheritDoc}
+     * @deprecated use {@link #deserialize(ReadableStreamingData)} instead,
+     * this method should be removed after release 0.71
+     */
+    @Deprecated(forRemoval = true)
+    @Override
+    public void deserialize(final SerializableDataInputStream in, final int version) throws IOException {
+        final int signatureCount = in.readInt();
+        if (signatureCount > MAX_SIGNATURE_COUNT) {
+            throw new IOException(
+                    "Signature count of " + signatureCount + " exceeds maximum of " + MAX_SIGNATURE_COUNT);
+        }
+
+        for (int index = 0; index < signatureCount; index++) {
+            final NodeId nodeId;
+            if (version < ClassVersion.SELF_SERIALIZABLE_NODE_ID) {
+                nodeId = NodeId.of(in.readLong());
+            } else {
+                nodeId = in.readSerializable(false, NodeId::new);
+            }
+            final Signature signature = Signature.deserialize(in, false);
+            signatures.put(nodeId, signature);
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     * this method should be removed after release 0.71
+     */
+    @Deprecated(forRemoval = true)
+    @Override
+    public long getClassId() {
+        return CLASS_ID;
+    }
+
+    /**
+     * {@inheritDoc}
+     * this method should be removed after release 0.71
+     */
+    @Deprecated(forRemoval = true)
+    @Override
+    public int getVersion() {
+        return ClassVersion.SELF_SERIALIZABLE_NODE_ID;
     }
 }
