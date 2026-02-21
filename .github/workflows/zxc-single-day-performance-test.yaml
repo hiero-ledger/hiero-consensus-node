@@ -88,11 +88,11 @@ env:
   #-15%
   #         17338 19867         10266          5950     1008               42336
   MinNFTscore: 10266
-  MinMerkleDBscore: 42336
+  MinMerkleDBscore: 51147
   MinHCSLoadTest: 19867
   MinCryptoTransferLoadTest: 17338
   MinHeliSwapLoadTest: 1008
-  MinSmartContractLoadTest: 4000
+  MinSmartContractLoadTest: 5474
   ValidatorExitCode: 0
 
 jobs:
