@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.freeze;
 
-import static com.hedera.services.bdd.junit.TestTags.UPGRADE;
+import static com.hedera.services.bdd.junit.TestTags.RESTART;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogContainsPattern;
@@ -27,13 +27,18 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.parallel.Isolated;
 
-@Tag(UPGRADE)
+@Tag(RESTART)
 @HapiTestLifecycle
 @Isolated
+@Order(Integer.MAX_VALUE - 2)
 class JumpstartFileSuite implements LifecycleTest {
+
+    // For excluding any of the 'non-core' nodes that are expected to be added, reconnected, or removed
+    private static final long[] LATER_NODE_IDS = new long[] {4, 5, 6, 7, 8};
 
     @LeakyHapiTest(
             overrides = {
@@ -64,11 +69,11 @@ class JumpstartFileSuite implements LifecycleTest {
                 cryptoCreate("shouldWork").payingWith(GENESIS),
                 logIt("Phase 4: Verify jumpstart file processed successfully"),
                 assertHgcaaLogDoesNotContainText(
-                        NodeSelector.allNodes(),
-                        "Resuming calculation of wrapped record file hashes until next upgrade attempt",
+                        NodeSelector.exceptNodeIds(LATER_NODE_IDS),
+                        "Resuming calculation of wrapped record file hashes until next attempt, but this node will likely experience an ISS",
                         Duration.ofSeconds(30)),
                 assertHgcaaLogContainsPattern(
-                                NodeSelector.allNodes(),
+                                NodeSelector.exceptNodeIds(LATER_NODE_IDS),
                                 "Completed processing all \\d+ recent wrapped record hashes\\. Final wrapped record block hash \\(as of expected freeze block (\\d+)\\): (\\S+)",
                                 Duration.ofSeconds(30))
                         .exposingMatchGroupTo(1, freezeBlockNum)

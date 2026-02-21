@@ -43,7 +43,8 @@ public class WrappedRecordBlockHashMigration {
 
     static final Bytes EMPTY_INT_NODE = BlockImplUtils.hashInternalNode(HASH_OF_ZERO, HASH_OF_ZERO);
     private static final String RESUME_MESSAGE =
-            "Resuming calculation of wrapped record file hashes until next upgrade attempt";
+            "Resuming calculation of wrapped record file hashes until next attempt, but this node "
+                    + "will likely experience an ISS";
 
     /**
      * Holds data loaded from the jumpstart binary file.
