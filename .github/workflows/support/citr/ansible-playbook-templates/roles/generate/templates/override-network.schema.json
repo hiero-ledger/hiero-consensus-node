@@ -1,0 +1,81 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "properties": {
+      "nodeMetadata": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "node": {
+              "type": "object",
+              "properties": {
+                "accountId": {
+                  "type": "object",
+                  "properties": {
+                    "accountNum": { "type": "string" }
+                  },
+                  "required": ["accountNum"]
+                },
+                "description": { "type": "string" },
+                "gossipEndpoint": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "ipAddressV4": { "type": "string",  "pattern": "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$" },
+                      "port": { "type": "integer", "minimum": 1, "maximum": 65535 }
+                    },
+                    "required": ["ipAddressV4", "port"]
+                  }
+                },
+                "serviceEndpoint": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "ipAddressV4": { "type": "string",  "pattern": "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$" },
+                      "port": { "type": "integer", "minimum": 1, "maximum": 65535 }
+                    },
+                    "required": ["ipAddressV4", "port"]
+                  }
+                },
+                "gossipCaCertificate": { "type": "string" },
+                "grpcCertificateHash": { "type": "string" },
+                "adminKey": {
+                  "type": "object",
+                  "properties": {
+                    "ed25519": { "type": "string" }
+                  },
+                  "required": ["ed25519"]
+                }
+              },
+              "required": ["accountId", "description", "gossipEndpoint", "serviceEndpoint", "gossipCaCertificate", "grpcCertificateHash", "adminKey"]
+            },
+            "rosterEntry": {
+              "type": "object",
+              "properties": {
+                "nodeId": { "type": "string" },
+                "weight": { "type": "string" },
+                "gossipCaCertificate": { "type": "string" },
+                "gossipEndpoint": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "ipAddressV4": { "type": "string", "pattern": "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$" },
+                      "port": { "type": "integer", "minimum": 1, "maximum": 65535 }
+                    },
+                    "required": ["ipAddressV4", "port"]
+                  }
+                }
+              },
+              "required": ["nodeId", "weight", "gossipCaCertificate", "gossipEndpoint"]
+            }
+          },
+          "required": ["node", "rosterEntry"]
+        }
+      }
+    },
+    "required": ["nodeMetadata"]
+  }
