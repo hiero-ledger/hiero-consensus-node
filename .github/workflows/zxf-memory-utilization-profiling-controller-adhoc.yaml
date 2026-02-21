@@ -118,13 +118,25 @@ jobs:
           cd hiero-block-node/tools-and-tests/scripts/solo-e2e-test
           task up
 
+      - name: Run NLG test
+        run: |
+          task load:up NLG_TEST_TYPE=CryptoTransferLoadTest NLG_ARGS="-c 1 -a 1000 -tt 600s" NLG_MAX_TPS=100
+
+      - name: Run NLG test
+        run: |
+          task load:down
+
       - name: Report Kubernetes resources
         run: |
           kubectl -n solo-network describe nodes
 
-      - name: Run NLG test
-        if: false
+      - name: Report Kubernetes resources
         run: |
+          for i in `kubectl -n solo-network get pods | awk '{print $1}' | grep -v NAME`;\
+          do \
+            echo $i; kubectl -n solo-network  exec $i  -- \
+            bash -c "jpid=\$(ps -aef | grep -w java | grep -v grep | awk '{print \$2}'); if [ \"\$jpid\" != \"\" ]; then  jcmd \$jpid GC.heap_info; fi"; \
+          done 2>/dev/null
 
       - name: Publish logs
         if: false
