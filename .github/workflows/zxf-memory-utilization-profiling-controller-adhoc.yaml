@@ -120,10 +120,12 @@ jobs:
 
       - name: Run NLG test
         run: |
+          cd hiero-block-node/tools-and-tests/scripts/solo-e2e-test
           task load:up NLG_TEST_TYPE=CryptoTransferLoadTest NLG_ARGS="-c 1 -a 1000 -tt 600s" NLG_MAX_TPS=100
 
-      - name: Run NLG test
+      - name: Stop NLG test
         run: |
+          cd hiero-block-node/tools-and-tests/scripts/solo-e2e-test
           task load:down
 
       - name: Report Kubernetes resources
