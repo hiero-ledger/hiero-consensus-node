@@ -74,7 +74,7 @@ jobs:
         uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
         with:
           distribution: temurin
-          java-version: 21.0.6
+          java-version: 25.0.2
 
       # Set up the node environment
       - name: Setup NodeJS Environment
