@@ -94,7 +94,8 @@ jobs:
     needs:
       - run-merge-queue-performance-test
       - get-commit-info
-    if: ${{ (needs.run-merge-queue-performance-test.outputs.result == 'success' &&
+    if:
+      ${{ (needs.run-merge-queue-performance-test.outputs.result == 'success' &&
       needs.get-commit-info.result == 'success') &&
       !cancelled() }}
     steps:
@@ -199,7 +200,8 @@ jobs:
       - run-merge-queue-performance-test
       - get-commit-info
       - report-success
-    if: ${{ (needs.run-merge-queue-performance-test.outputs.result != 'success' ||
+    if:
+      ${{ (needs.run-merge-queue-performance-test.outputs.result != 'success' ||
       needs.get-commit-info.result != 'success' ||
       needs.report-success.result != 'success') &&
       !cancelled() && always() }}
