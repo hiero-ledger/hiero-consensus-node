@@ -92,6 +92,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.esaulpaugh.headlong.abi.Address;
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.google.protobuf.ByteString;
+import com.hedera.hapi.block.internal.WrappedRecordFileBlockHashes;
 import com.hedera.hapi.block.stream.output.TransactionResult;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.state.addressbook.Node;
@@ -174,7 +175,10 @@ import com.hedera.services.bdd.spec.utilops.streams.assertions.ValidContractIdsA
 import com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItemsAssertion;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItemsAssertion.SkipSynthItems;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItemsValidator;
+import com.hedera.services.bdd.spec.utilops.upgrade.BuildDynamicJumpstartFileOp;
 import com.hedera.services.bdd.spec.utilops.upgrade.BuildUpgradeZipOp;
+import com.hedera.services.bdd.spec.utilops.upgrade.GetWrappedRecordHashesOp;
+import com.hedera.services.bdd.spec.utilops.upgrade.VerifyJumpstartHashOp;
 import com.hedera.services.bdd.suites.HapiSuite;
 import com.hedera.services.bdd.suites.perf.PerfTestLoadSettings;
 import com.hedera.services.bdd.suites.utils.sysfiles.serdes.FeesJsonToGrpcBytes;
@@ -763,6 +767,24 @@ public class UtilVerbs {
 
     public static BuildUpgradeZipOp buildUpgradeZipFrom(@NonNull final Path path) {
         return new BuildUpgradeZipOp(path);
+    }
+
+    public static BuildDynamicJumpstartFileOp buildDynamicJumpstartFile(
+            @NonNull final AtomicReference<byte[]> contentsRef) {
+        return new BuildDynamicJumpstartFileOp(contentsRef);
+    }
+
+    public static GetWrappedRecordHashesOp getWrappedRecordHashes(
+            @NonNull final AtomicReference<List<WrappedRecordFileBlockHashes>> entriesRef) {
+        return new GetWrappedRecordHashesOp(entriesRef);
+    }
+
+    public static VerifyJumpstartHashOp verifyJumpstartHash(
+            @NonNull final byte[] jumpstartContents,
+            @NonNull final List<WrappedRecordFileBlockHashes> wrappedHashes,
+            @NonNull final String nodeComputedHash,
+            @NonNull final String freezeBlockNum) {
+        return new VerifyJumpstartHashOp(jumpstartContents, wrappedHashes, nodeComputedHash, freezeBlockNum);
     }
 
     public static WaitForMarkerFileOp waitForMf(@NonNull final MarkerFile markerFile, @NonNull final Duration timeout) {
