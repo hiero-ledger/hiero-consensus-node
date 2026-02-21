@@ -4,16 +4,26 @@ package com.swirlds.virtualmap.benchmark.reconnect;
 import static com.swirlds.common.test.fixtures.io.ResourceLoader.loadLog4jContext;
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.CONFIGURATION;
 
+import com.swirlds.common.merkle.synchronization.task.InternalDataLesson;
+import com.swirlds.common.merkle.synchronization.task.LeafDataLesson;
+import com.swirlds.common.merkle.synchronization.task.Lesson;
 import com.swirlds.common.merkle.synchronization.task.QueryResponse;
+import com.swirlds.common.merkle.utility.SerializableLong;
 import com.swirlds.common.test.fixtures.merkle.util.MerkleTestUtils;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
+import com.swirlds.virtualmap.internal.reconnect.PullVirtualTreeRequest;
+import com.swirlds.virtualmap.internal.reconnect.PullVirtualTreeResponse;
 import com.swirlds.virtualmap.test.fixtures.InMemoryBuilder;
 import java.io.FileNotFoundException;
 import org.hiero.base.constructable.ClassConstructorPair;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.crypto.SerializablePublicKey;
+import org.hiero.consensus.model.event.CesEvent;
+import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.reconnect.config.ReconnectConfig;
 import org.hiero.consensus.reconnect.config.ReconnectConfig_;
 import org.junit.jupiter.api.Assertions;
@@ -53,10 +63,20 @@ public abstract class VirtualMapReconnectBenchBase {
     protected static void startup() throws ConstructableRegistryException, FileNotFoundException {
         loadLog4jContext();
         final ConstructableRegistry registry = ConstructableRegistry.getInstance();
-        registry.registerConstructables("com.swirlds.common");
-        registry.registerConstructables("org.hiero");
-        registry.registerConstructables("com.swirlds.virtualmap");
+        registry.registerConstructable(new ClassConstructorPair(Hash.class, Hash::new));
+        registry.registerConstructable(
+                new ClassConstructorPair(SerializablePublicKey.class, SerializablePublicKey::new));
+        registry.registerConstructable(new ClassConstructorPair(CesEvent.class, CesEvent::new));
+        registry.registerConstructable(new ClassConstructorPair(NodeId.class, NodeId::new));
+        registry.registerConstructable(new ClassConstructorPair(Lesson.class, Lesson::new));
+        registry.registerConstructable(new ClassConstructorPair(InternalDataLesson.class, InternalDataLesson::new));
         registry.registerConstructable(new ClassConstructorPair(QueryResponse.class, QueryResponse::new));
+        registry.registerConstructable(new ClassConstructorPair(LeafDataLesson.class, LeafDataLesson::new));
+        registry.registerConstructable(new ClassConstructorPair(SerializableLong.class, SerializableLong::new));
+        registry.registerConstructable(
+                new ClassConstructorPair(PullVirtualTreeRequest.class, PullVirtualTreeRequest::new));
+        registry.registerConstructable(
+                new ClassConstructorPair(PullVirtualTreeResponse.class, PullVirtualTreeResponse::new));
     }
 
     protected void reconnect() throws Exception {

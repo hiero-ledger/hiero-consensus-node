@@ -77,7 +77,6 @@ import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.ValueReference;
-import org.hiero.base.constructable.ConstructableIgnored;
 import org.hiero.base.constructable.RuntimeConstructable;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
@@ -146,7 +145,6 @@ import org.hiero.consensus.reconnect.config.ReconnectConfig;
  * internal nodes. Indeed, you <strong>MUST NOT</strong> modify the tree structure directly, only
  * through the map-like methods.
  */
-@ConstructableIgnored
 public final class VirtualMap extends AbstractVirtualRoot implements Labeled, VirtualRoot {
 
     /**

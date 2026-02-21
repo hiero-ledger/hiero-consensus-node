@@ -47,7 +47,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.eclipse.collections.impl.list.mutable.primitive.IntArrayList;
-import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.crypto.Hash;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -66,9 +65,7 @@ class MerkleDbDataSourceTest {
     private Path testDirectory;
 
     @BeforeAll
-    static void setup() throws Exception {
-        ConstructableRegistry.getInstance().registerConstructables("com.swirlds.merkledb");
-    }
+    static void setup() throws Exception {}
 
     /**
      * Keep track of initial direct memory used already, so we can check if we leak over and above

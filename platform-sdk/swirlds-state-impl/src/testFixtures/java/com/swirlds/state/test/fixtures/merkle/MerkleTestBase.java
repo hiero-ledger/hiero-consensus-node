@@ -14,6 +14,11 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.io.config.FileSystemManagerConfig;
 import com.swirlds.common.io.config.TemporaryFileConfig;
+import com.swirlds.common.merkle.synchronization.task.InternalDataLesson;
+import com.swirlds.common.merkle.synchronization.task.LeafDataLesson;
+import com.swirlds.common.merkle.synchronization.task.Lesson;
+import com.swirlds.common.merkle.synchronization.task.QueryResponse;
+import com.swirlds.common.merkle.utility.SerializableLong;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
@@ -31,9 +36,14 @@ import com.swirlds.virtualmap.config.VirtualMapConfig;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Stream;
+import org.hiero.base.constructable.ClassConstructorPair;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.crypto.SerializablePublicKey;
 import org.hiero.base.crypto.config.CryptoConfig;
+import org.hiero.consensus.model.event.CesEvent;
+import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.params.provider.Arguments;
 
@@ -124,13 +134,16 @@ public class MerkleTestBase extends StateTestBase {
 
             // It may have been configured during some other test, so we reset it
             registry.reset();
-            registry.registerConstructables("com.swirlds.merkledb");
-            registry.registerConstructables("com.swirlds.virtualmap");
-            registry.registerConstructables("com.swirlds.common.merkle");
-            registry.registerConstructables("com.swirlds.common");
-            registry.registerConstructables("org.hiero");
-            registry.registerConstructables("com.swirlds.merkle");
-            registry.registerConstructables("com.swirlds.merkle.tree");
+            registry.registerConstructable(new ClassConstructorPair(Hash.class, Hash::new));
+            registry.registerConstructable(
+                    new ClassConstructorPair(SerializablePublicKey.class, SerializablePublicKey::new));
+            registry.registerConstructable(new ClassConstructorPair(CesEvent.class, CesEvent::new));
+            registry.registerConstructable(new ClassConstructorPair(NodeId.class, NodeId::new));
+            registry.registerConstructable(new ClassConstructorPair(Lesson.class, Lesson::new));
+            registry.registerConstructable(new ClassConstructorPair(InternalDataLesson.class, InternalDataLesson::new));
+            registry.registerConstructable(new ClassConstructorPair(QueryResponse.class, QueryResponse::new));
+            registry.registerConstructable(new ClassConstructorPair(LeafDataLesson.class, LeafDataLesson::new));
+            registry.registerConstructable(new ClassConstructorPair(SerializableLong.class, SerializableLong::new));
         } catch (ConstructableRegistryException ex) {
             throw new AssertionError(ex);
         }

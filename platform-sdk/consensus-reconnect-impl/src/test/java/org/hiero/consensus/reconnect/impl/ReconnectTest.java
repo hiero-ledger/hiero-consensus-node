@@ -10,6 +10,11 @@ import static org.mockito.Mockito.verify;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.base.time.Time;
+import com.swirlds.common.merkle.synchronization.task.InternalDataLesson;
+import com.swirlds.common.merkle.synchronization.task.LeafDataLesson;
+import com.swirlds.common.merkle.synchronization.task.Lesson;
+import com.swirlds.common.merkle.synchronization.task.QueryResponse;
+import com.swirlds.common.merkle.utility.SerializableLong;
 import com.swirlds.common.test.fixtures.merkle.util.PairedStreams;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
@@ -27,6 +32,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Random;
 import java.util.stream.IntStream;
+import org.hiero.base.constructable.ClassConstructorPair;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
@@ -63,11 +69,11 @@ final class ReconnectTest {
     @BeforeAll
     static void setUp() throws ConstructableRegistryException {
         final ConstructableRegistry registry = ConstructableRegistry.getInstance();
-        registry.registerConstructables("com.swirlds.common");
-        registry.registerConstructables("com.swirlds.platform.state");
-        registry.registerConstructables("com.swirlds.platform.state.signed");
-        registry.registerConstructables("com.swirlds.platform.system");
-        registry.registerConstructables("com.swirlds.state.merkle");
+        registry.registerConstructable(new ClassConstructorPair(Lesson.class, Lesson::new));
+        registry.registerConstructable(new ClassConstructorPair(InternalDataLesson.class, InternalDataLesson::new));
+        registry.registerConstructable(new ClassConstructorPair(QueryResponse.class, QueryResponse::new));
+        registry.registerConstructable(new ClassConstructorPair(LeafDataLesson.class, LeafDataLesson::new));
+        registry.registerConstructable(new ClassConstructorPair(SerializableLong.class, SerializableLong::new));
     }
 
     @AfterAll
