@@ -96,7 +96,7 @@ public class BlockStateProofGenerator {
 
         // Merkle Path 2: enumerate all sibling hashes for all remaining blocks
         MerklePath.Builder mp2 = MerklePath.newBuilder()
-                .hash(currentPendingBlock.previousBlockHash())
+                .hash(currentPendingBlock.prevBlockHash())
                 .nextPathIndex(FINAL_MERKLE_PATH_INDEX);
 
         // Create a set of siblings for each indirect block, plus another set for the signed block
@@ -122,7 +122,7 @@ public class BlockStateProofGenerator {
             }
 
             // Convert this pending block's timestamp into a sibling hash
-            final var pbTsBytes = BlockImplUtils.hashLeaf(Timestamp.PROTOBUF.toBytes(
+            final var pbTsBytes = BlockImplUtils.hashTimestampLeaf(Timestamp.PROTOBUF.toBytes(
                     indirectProofBlocks.get(currentBlockNum).blockTimestamp()));
             // Add to the sibling hashes array
             final var pendingBlockTimestampSiblingIndex = firstSiblingIndex + UNSIGNED_BLOCK_SIBLING_COUNT - 1;

@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl;
 
-import static com.hedera.node.app.blocks.impl.BlockImplUtils.hashLeaf;
-
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.io.DataInputStream;
@@ -90,7 +88,16 @@ public class IncrementalStreamingHasher {
      * @param data the raw data for the new leaf
      */
     public void addLeaf(final byte[] data) {
-        addNodeByHash(hashLeaf(digest, data));
+        final var leafHash = BlockImplUtils.hashBlockItemLeaf(data);
+        addNodeByHash(leafHash.toByteArray());
+    }
+
+    // This method _may_ be temporary! State items currently require a wonky legacy prefix to work,
+    // which may be modified by the state team
+    // (FUTURE) Either remove or write tests for this
+    public void addBlockItemLeaf(final byte[] data) {
+        final var leafHash = BlockImplUtils.hashBlockItemLeaf(data);
+        addNodeByHash(leafHash.toByteArray());
     }
 
     /**

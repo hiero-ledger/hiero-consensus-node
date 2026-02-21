@@ -20,10 +20,9 @@ import java.security.NoSuchAlgorithmException;
  *
  * <p>All hashing uses SHA-384 for security and consistency with the broader Hedera ecosystem.
  */
-final class HashUtils {
+public final class HashUtils {
 
     private static final String HASH_ALGORITHM = "SHA-384";
-    static final int HASH_SIZE_BYTES = 48;
 
     /**
      * The legacy {@code MerkleLeaf} message (removed after migrating its content into {@code MerklePath}'s leaf-bytes
@@ -63,7 +62,7 @@ final class HashUtils {
      * @param leafBytes the timestamp leaf bytes
      * @return the computed leaf hash
      */
-    static byte[] computeTimestampLeafHash(final MessageDigest digest, final Bytes leafBytes) {
+    public static byte[] computeTimestampLeafHash(final MessageDigest digest, final Bytes leafBytes) {
         return computeLegacyMerkleLeafHash(digest, LEGACY_TIMESTAMP_LEAF_TAG, leafBytes);
     }
 
@@ -76,7 +75,7 @@ final class HashUtils {
      * @param leafBytes the block item leaf bytes
      * @return the computed leaf hash
      */
-    static byte[] computeBlockItemLeafHash(final MessageDigest digest, final Bytes leafBytes) {
+    public static byte[] computeBlockItemLeafHash(final MessageDigest digest, final Bytes leafBytes) {
         return computeLegacyMerkleLeafHash(digest, LEGACY_BLOCK_ITEM_LEAF_TAG, leafBytes);
     }
 
@@ -89,7 +88,7 @@ final class HashUtils {
      * @param leafBytes the state item leaf bytes
      * @return the computed leaf hash
      */
-    static byte[] computeStateItemLeafHash(final MessageDigest digest, final Bytes leafBytes) {
+    public static byte[] computeStateItemLeafHash(final MessageDigest digest, final Bytes leafBytes) {
         return computeLegacyMerkleLeafHash(digest, LEGACY_STATE_ITEM_LEAF_TAG, leafBytes);
     }
 
@@ -131,7 +130,7 @@ final class HashUtils {
         digest.update((byte) value);
     }
 
-    static byte[] computeSingleChildHash(final MessageDigest digest, final byte[] childHash) {
+    public static byte[] computeSingleChildHash(final MessageDigest digest, final byte[] childHash) {
         requireNonNull(digest, "digest must not be null");
         requireNonNull(childHash, "childHash must not be null");
         digest.reset();
@@ -140,7 +139,7 @@ final class HashUtils {
         return digest.digest();
     }
 
-    static byte[] joinHashes(final MessageDigest digest, final byte[] left, final byte[] right) {
+    public static byte[] joinHashes(final MessageDigest digest, final byte[] left, final byte[] right) {
         requireNonNull(digest, "digest must not be null");
         requireNonNull(left, "left must not be null");
         requireNonNull(right, "right must not be null");

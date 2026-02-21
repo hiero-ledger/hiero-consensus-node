@@ -17,7 +17,6 @@ module org.hiero.interledger.clpr.impl {
     requires com.hedera.pbj.runtime;
     requires com.swirlds.state.impl;
     requires com.swirlds.virtualmap;
-    requires org.hiero.base.crypto;
     requires org.hiero.consensus.concurrent;
     requires org.hiero.consensus.roster;
     requires io.helidon.common.tls;

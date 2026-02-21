@@ -4,6 +4,7 @@ package com.swirlds.state;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.function.Consumer;
 
 /**
  * Implementations of this interface are responsible for managing the state lifecycle:
@@ -89,4 +90,11 @@ public interface StateLifecycleManager<S, D> {
      * @return a mutable copy of the previous mutable state
      */
     S copyMutableState();
+
+    /**
+     * Adds an observer that will be notified when a new immutable state is created.
+     *
+     * @param observer the observer to add
+     */
+    void addObserver(Consumer<State> observer);
 }

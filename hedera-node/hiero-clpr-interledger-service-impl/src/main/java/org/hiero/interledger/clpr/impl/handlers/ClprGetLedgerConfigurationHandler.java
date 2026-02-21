@@ -53,12 +53,12 @@ public class ClprGetLedgerConfigurationHandler extends FreeQueryHandler {
         return Response.newBuilder().clprLedgerConfiguration(response).build();
     }
 
-    @Override
     /**
      * Validates that a CLPR get-configuration query can be satisfied. The method ensures the caller
      * is querying a known ledger, distinguishes between “no configuration yet” and invalid proofs,
      * and pre-validates the returned proof so the later {@link #findResponse} call can reuse it.
      */
+    @Override
     public void validate(@NonNull final QueryContext context) throws PreCheckException {
         requireNonNull(context);
         if (!stateProofManager.clprEnabled()) {

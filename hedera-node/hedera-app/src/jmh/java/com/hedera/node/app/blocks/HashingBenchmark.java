@@ -59,7 +59,7 @@ public class HashingBenchmark {
         leafHashes = new ArrayList<>(numLeafHashes);
         for (int i = 0; i < numLeafHashes; i++) {
             final var item = randomBlockItem();
-            final var hash = BlockImplUtils.hashLeaf(BlockItem.PROTOBUF.toBytes(item));
+            final var hash = BlockImplUtils.hashBlockItemLeaf(BlockItem.PROTOBUF.toBytes(item));
             leafHashes.add(hash.toByteArray());
         }
         expectedAnswer = Bytes.wrap(

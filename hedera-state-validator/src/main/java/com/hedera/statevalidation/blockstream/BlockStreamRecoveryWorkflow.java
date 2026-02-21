@@ -179,7 +179,8 @@ public class BlockStreamRecoveryWorkflow {
                 }
                 case SINGLETON_UPDATE -> {
                     final var singletonState = writableStates.getSingleton(stateChange.stateId());
-                    final var singleton = BlockStreamUtils.singletonPutFor(stateChange.singletonUpdateOrThrow());
+                    final var singleton = BlockStreamUtils.singletonPutFor(
+                            stateChange.stateId(), stateChange.singletonUpdateOrThrow());
                     singletonState.put(singleton);
                 }
                 case MAP_UPDATE -> {

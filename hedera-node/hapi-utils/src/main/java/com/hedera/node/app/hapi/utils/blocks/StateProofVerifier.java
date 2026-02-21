@@ -14,6 +14,8 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Deque;
 import java.util.List;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * Utility class for validating {@link StateProof} messages.
@@ -44,6 +46,8 @@ import java.util.List;
  */
 public final class StateProofVerifier {
 
+    private static final Logger log = LogManager.getLogger(StateProofVerifier.class);
+
     /**
      * Private constructor to prevent instantiation of this utility class.
      */
@@ -68,6 +72,10 @@ public final class StateProofVerifier {
      */
     public static boolean verify(@NonNull final StateProof stateProof) {
         requireNonNull(stateProof, "stateProof must not be null");
+
+        if (log.isDebugEnabled()) {
+            logStateProof(stateProof);
+        }
 
         // Compute root hash from merkle paths
         final byte[] rootHash = computeRootHash(stateProof.paths());
@@ -338,9 +346,127 @@ public final class StateProofVerifier {
             return false;
         }
 
+        if (log.isDebugEnabled()) {
+            logStateProof(stateProof);
+        }
+
         // Phase 1: Mock verification - just compare bytes
         // Phase 2 TODO: Implement real TSS signature verification
         return Arrays.equals(rootHash, signatureBytes.toByteArray());
+    }
+
+    /**
+     * Logs a comprehensive human-readable representation of a StateProof.
+     *
+     * @param stateProof the state proof to log
+     */
+    private static void logStateProof(final StateProof stateProof) {
+        final StringBuilder sb = new StringBuilder();
+        sb.append("\n========== StateProof Details ==========\n");
+
+        // Log the signed block proof if present
+        if (stateProof.hasSignedBlockProof()) {
+            final var signedBlockProof = stateProof.signedBlockProof();
+            sb.append("Signed Block Proof:\n");
+            sb.append("  Block Signature: ");
+            if (signedBlockProof.blockSignature() != null) {
+                sb.append(formatBytes(signedBlockProof.blockSignature()));
+            } else {
+                sb.append("<null>");
+            }
+            sb.append("\n");
+        } else {
+            sb.append("Signed Block Proof: <not present>\n");
+        }
+
+        // Log the paths
+        final var paths = stateProof.paths();
+        sb.append("Merkle Paths: ").append(paths.size()).append(" path(s)\n");
+
+        for (int i = 0; i < paths.size(); i++) {
+            final var path = paths.get(i);
+            sb.append("  Path [").append(i).append("]:\n");
+            sb.append("    nextPathIndex: ").append(path.nextPathIndex()).append("\n");
+
+            // Log leaf if present
+            if (path.hasBlockItemLeaf() || path.hasStateItemLeaf() || path.hasTimestampLeaf()) {
+                sb.append("    Leaf:\n");
+
+                // Log the content type and value based on the oneof field
+                if (path.hasTimestampLeaf()) {
+                    sb.append("      Content Type: block_consensus_timestamp\n");
+                    sb.append("      Value: ")
+                            .append(formatBytes(path.timestampLeaf()))
+                            .append("\n");
+                } else if (path.hasBlockItemLeaf()) {
+                    sb.append("      Content Type: block_item\n");
+                    sb.append("      Value: ")
+                            .append(formatBytes(path.blockItemLeaf()))
+                            .append("\n");
+                } else if (path.hasStateItemLeaf()) {
+                    sb.append("      Content Type: state_item\n");
+                    sb.append("      Value: ")
+                            .append(formatBytes(path.stateItemLeaf()))
+                            .append("\n");
+                } else {
+                    sb.append("      Content Type: <not set>\n");
+                }
+            } else if (path.hasHash()) {
+                sb.append("    Hash: ").append(formatBytes(path.hash())).append("\n");
+            } else {
+                sb.append("    Content: <neither leaf nor hash present>\n");
+            }
+
+            // Log siblings
+            final var siblings = path.siblings();
+            sb.append("    Siblings: ").append(siblings.size()).append(" sibling(s)\n");
+            for (int j = 0; j < siblings.size(); j++) {
+                final var sibling = siblings.get(j);
+                sb.append("      Sibling [").append(j).append("]:\n");
+                sb.append("        isLeft: ").append(sibling.isLeft()).append("\n");
+                sb.append("        hash: ").append(formatBytes(sibling.hash())).append("\n");
+            }
+        }
+
+        sb.append("========================================\n");
+        log.debug("{}", sb.toString());
+    }
+
+    /**
+     * Formats a Bytes object as a hex string for logging.
+     *
+     * @param bytes the bytes to format
+     * @return a human-readable hex string representation
+     */
+    private static String formatBytes(final Bytes bytes) {
+        if (bytes == null) {
+            return "<null>";
+        }
+
+        final byte[] array = bytes.toByteArray();
+        if (array.length == 0) {
+            return "<empty>";
+        }
+
+        return bytesToHex(array);
+    }
+
+    /**
+     * Converts a byte array to a hexadecimal string.
+     *
+     * @param bytes the byte array to convert
+     * @return the hexadecimal string representation
+     */
+    private static String bytesToHex(final byte[] bytes) {
+        if (bytes == null || bytes.length == 0) {
+            return "";
+        }
+
+        final StringBuilder hex = new StringBuilder(bytes.length * 2);
+        for (byte b : bytes) {
+            hex.append(String.format("%02x", b));
+        }
+        return hex.toString();
     }
 
     /**

@@ -12,7 +12,10 @@ import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.primitives.ProtoLong;
 import com.hedera.hapi.node.state.primitives.ProtoString;
+import com.hedera.hapi.platform.state.SingletonType;
+import com.hedera.pbj.runtime.ParseException;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.hapi.interledger.state.clpr.ClprLocalLedgerMetadata;
 
 public final class BlockStreamUtils {
 
@@ -97,7 +100,8 @@ public final class BlockStreamUtils {
         };
     }
 
-    public static Object singletonPutFor(@NonNull final SingletonUpdateChange singletonUpdateChange) {
+    public static Object singletonPutFor(
+            final int stateId, @NonNull final SingletonUpdateChange singletonUpdateChange) {
         return switch (singletonUpdateChange.newValue().kind()) {
             case UNSET -> throw new IllegalStateException("Singleton update value is not set");
             case BLOCK_INFO_VALUE -> singletonUpdateChange.blockInfoValueOrThrow();
@@ -106,7 +110,8 @@ public final class BlockStreamUtils {
             case EXCHANGE_RATE_SET_VALUE -> singletonUpdateChange.exchangeRateSetValueOrThrow();
             case NETWORK_STAKING_REWARDS_VALUE -> singletonUpdateChange.networkStakingRewardsValueOrThrow();
             case NODE_REWARDS_VALUE -> singletonUpdateChange.nodeRewardsValueOrThrow();
-            case BYTES_VALUE -> new ProtoBytes(singletonUpdateChange.bytesValueOrThrow());
+            // (FUTURE) Ideally we add proper CLPR proto de/serialization in the long term
+            case BYTES_VALUE -> bytesValueSingletonFor(stateId, singletonUpdateChange);
             case STRING_VALUE -> new ProtoString(singletonUpdateChange.stringValueOrThrow());
             case RUNNING_HASHES_VALUE -> singletonUpdateChange.runningHashesValueOrThrow();
             case THROTTLE_USAGE_SNAPSHOTS_VALUE -> singletonUpdateChange.throttleUsageSnapshotsValueOrThrow();
@@ -120,6 +125,23 @@ public final class BlockStreamUtils {
             case CRS_STATE_VALUE -> singletonUpdateChange.crsStateValueOrThrow();
             case NODE_PAYMENTS_VALUE -> singletonUpdateChange.nodePaymentsValueOrThrow();
         };
+    }
+
+    /**
+     * Returns the appropriate singleton value for a {@code BYTES_VALUE} singleton update.
+     * Some singletons (e.g. {@link ClprLocalLedgerMetadata}) are encoded as raw bytes
+     * because they lack a dedicated field in the {@link SingletonUpdateChange} oneof.
+     */
+    private static Object bytesValueSingletonFor(
+            final int stateId, @NonNull final SingletonUpdateChange singletonUpdateChange) {
+        if (stateId == SingletonType.CLPRSERVICE_I_METADATA.protoOrdinal()) {
+            try {
+                return ClprLocalLedgerMetadata.PROTOBUF.parse(singletonUpdateChange.bytesValueOrThrow());
+            } catch (ParseException e) {
+                throw new IllegalStateException("Failed to parse ClprLocalLedgerMetadata from bytes", e);
+            }
+        }
+        return new ProtoBytes(singletonUpdateChange.bytesValueOrThrow());
     }
 
     public static Object queuePushFor(@NonNull final QueuePushChange queuePushChange) {

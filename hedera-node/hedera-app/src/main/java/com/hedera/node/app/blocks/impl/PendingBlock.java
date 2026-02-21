@@ -18,20 +18,25 @@ import java.util.List;
  * @param number the block number
  * @param contentsPath the path to the block contents file, if not null
  * @param blockHash the block hash
- * @param previousBlockHash the previous block hash
+ * @param blockTimestamp the block's starting timestamp
+ * @param startingStateHash the state hash at the beginning of the block
+ * @param consensusHeaderRootHash the hash for the consensus headers subroot
+ * @param prevBlocksRootHash the hash for the previous block roots subroot
  * @param proofBuilder the block proof builder
  * @param writer the block item writer
- * @param blockTimestamp the block timestamp
- * @param siblingHashes the sibling hashes needed to compute a block's root hash for an indirect proof
+ * @param siblingHashes the sibling hashes needed for an indirect block proof of an earlier block
  */
 public record PendingBlock(
         long number,
         @Nullable Path contentsPath,
         @NonNull Bytes blockHash,
-        @NonNull Bytes previousBlockHash,
+        @NonNull Timestamp blockTimestamp,
+        @NonNull Bytes prevBlockHash,
+        @NonNull Bytes prevBlocksRootHash,
+        @NonNull Bytes startingStateHash,
+        @NonNull Bytes consensusHeaderRootHash,
         @NonNull BlockProof.Builder proofBuilder,
         @NonNull BlockItemWriter writer,
-        @NonNull Timestamp blockTimestamp,
         @NonNull MerkleSiblingHash... siblingHashes) {
     /**
      * Flushes this pending block to disk, including the sibling hashes needed
@@ -41,7 +46,7 @@ public record PendingBlock(
         return PendingProof.newBuilder()
                 .block(number)
                 .blockHash(blockHash)
-                .previousBlockHash(previousBlockHash)
+                .previousBlockHash(prevBlockHash)
                 .blockTimestamp(blockTimestamp)
                 // Sibling hashes are needed in case an indirect state proof is required. This will only be called
                 // when flushing to disk, so we can safely build the proof builder here to get the sibling hashes.
