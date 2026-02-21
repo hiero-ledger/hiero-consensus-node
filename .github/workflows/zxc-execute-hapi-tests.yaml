@@ -147,13 +147,26 @@ jobs:
           setup-node: "true"
           node-version: "${{ inputs.node-version }}"
 
-      - name: HAPI Testing (Misc)
+      - name: HAPI Testing (Misc): hapiTestMisc
         id: gradle-hapi-misc
         env:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
-        # Run each tasks in isolation because we dynamically reconfigure Log4j for each mode
-        run: ${GRADLE_EXEC} hapiTestMisc${{ inputs.mats-suffix }} --no-daemon && ${GRADLE_EXEC} hapiEmbeddedMisc${{ inputs.mats-suffix }} --no-daemon && ${GRADLE_EXEC} hapiRepeatableMisc${{ inputs.mats-suffix }} --no-daemon
+        run: ${GRADLE_EXEC} hapiTestMisc${{ inputs.mats-suffix }} --no-daemon
+
+      - name: HAPI Testing (Misc): hapiEmbeddedMisc
+        id: gradle-hapi-embedded-misc
+        env:
+          LC_ALL: en.UTF-8
+          LANG: en_US.UTF-8
+        run: ${GRADLE_EXEC} hapiEmbeddedMisc${{ inputs.mats-suffix }} --no-daemon
+
+      - name: HAPI Testing (Misc): hapiRepeatableMisc
+        id: gradle-hapi-repeatable-misc
+        env:
+          LC_ALL: en.UTF-8
+          LANG: en_US.UTF-8
+        run: ${GRADLE_EXEC} hapiRepeatableMisc${{ inputs.mats-suffix }} --no-daemon
 
       - name: Publish HAPI Test (Misc) Report
         uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
@@ -172,7 +185,7 @@ jobs:
 
       - name: Upload HAPI Test (Misc) Network Logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ inputs.enable-network-log-capture && steps.gradle-hapi-misc.conclusion == 'failure' && !cancelled() }}
+        if: ${{ inputs.enable-network-log-capture && (steps.gradle-hapi-misc.conclusion == 'failure' || steps.gradle-hapi-embedded-misc.conclusion == 'failure' || steps.gradle-hapi-repeatable-misc.conclusion == 'failure') && !cancelled() }}
         with:
           name: HAPI Test (Misc) Network Logs
           path: |
@@ -183,7 +196,7 @@ jobs:
 
       - name: Upload HAPI Test (Misc) Failure Artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ steps.gradle-hapi-misc.conclusion == 'failure' && !cancelled() }}
+        if: ${{ (steps.gradle-hapi-misc.conclusion == 'failure' || steps.gradle-hapi-embedded-misc.conclusion == 'failure' || steps.gradle-hapi-repeatable-misc.conclusion == 'failure') && !cancelled() }}
         with:
           name: HAPI Test (Misc) Failure Artifacts
           path: |
