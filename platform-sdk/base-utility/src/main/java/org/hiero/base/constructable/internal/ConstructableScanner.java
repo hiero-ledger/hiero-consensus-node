@@ -4,9 +4,13 @@ package org.hiero.base.constructable.internal;
 import io.github.classgraph.ClassGraph;
 import io.github.classgraph.ClassInfo;
 import io.github.classgraph.ScanResult;
+import java.io.File;
 import java.lang.reflect.Modifier;
+import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import org.hiero.base.constructable.ConstructableClass;
 import org.hiero.base.constructable.ConstructableIgnored;
@@ -33,8 +37,48 @@ public final class ConstructableScanner {
      */
     public static Collection<ConstructableClasses<?>> getConstructableClasses(
             final String packagePrefix, final URLClassLoaderWithLookup additionalClassloader) {
+        try {
+            return doClassGraphScan(packagePrefix, additionalClassloader, null);
+        } catch (final Exception e) {
+            // ClassGraph module scanning fails in GraalVM native-image because the JRT filesystem
+            // is disabled. Fall back to scanning JARs on disk via overrideClasspath.
+            final String jarClasspath = discoverJarsOnDisk();
+            if (!jarClasspath.isEmpty()) {
+                return doClassGraphScan(packagePrefix, additionalClassloader, jarClasspath);
+            }
+            throw new RuntimeException("ClassGraph scan failed and no JAR fallback available", e);
+        }
+    }
+
+    /**
+     * Discovers JARs in standard Hedera node directories (data/lib/ and data/apps/)
+     * relative to the working directory. Used as fallback when module scanning is unavailable.
+     */
+    private static String discoverJarsOnDisk() {
+        final List<String> jars = new ArrayList<>();
+        for (final String dir : List.of("data/lib", "data/apps")) {
+            final File dirFile = Path.of(dir).toFile();
+            if (dirFile.isDirectory()) {
+                final File[] jarFiles = dirFile.listFiles((d, name) -> name.endsWith(".jar"));
+                if (jarFiles != null) {
+                    for (final File jar : jarFiles) {
+                        jars.add(jar.getAbsolutePath());
+                    }
+                }
+            }
+        }
+        return String.join(File.pathSeparator, jars);
+    }
+
+    private static Collection<ConstructableClasses<?>> doClassGraphScan(
+            final String packagePrefix,
+            final URLClassLoaderWithLookup additionalClassloader,
+            final String overrideClasspath) {
         final Map<Class<?>, ConstructableClasses<?>> map = new HashMap<>();
         final ClassGraph classGraph = new ClassGraph().enableClassInfo().whitelistPackages(packagePrefix);
+        if (overrideClasspath != null) {
+            classGraph.overrideClasspath(overrideClasspath);
+        }
         if (additionalClassloader != null) {
             classGraph.addClassLoader(additionalClassloader);
         }

@@ -49,11 +49,11 @@ merkleDb.maxThreadsPerFileChannel,                  1
 merkleDb.compactionThreads,                         1
 merkleDb.percentHalfDiskHashMapFlushThreads,       50.0
 merkleDb.numHalfDiskHashMapFlushThreads,            1
-merkleDb.iteratorInputBufferBytes,             1048576                      # 1 MB, down from 16 MB default
-merkleDb.longListReservedBufferSize,             65536                      # 64 KB, down from 256 KB default
+merkleDb.iteratorInputBufferBytes,            1048576
+merkleDb.longListReservedBufferSize,            65536
 virtualMap.copyFlushThreshold,                 500000
-virtualMap.numHashThreads,                          1                      # down from 50% of CPUs
-virtualMap.numCleanerThreads,                       1                      # down from 25% of CPUs
+virtualMap.numHashThreads,                          1
+virtualMap.numCleanerThreads,                       1
 
                                           #############################
                                           #       State Retention     #

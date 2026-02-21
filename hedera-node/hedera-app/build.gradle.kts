@@ -170,6 +170,115 @@ tasks.register<JavaExec>("run") {
     args = listOf("-local", "0")
 }
 
+// Persistent directory for GraalVM native-image configs (survives ./gradlew assemble)
+val persistentNativeConfigDir = layout.projectDirectory.dir("native-image-config")
+// Build-time copy inside the node working directory
+val nativeImageConfigDir = nodeWorkingDir.map { it.dir("native-image-config") }
+
+// Run with GraalVM tracing agent to auto-generate native-image configs
+tasks.register<JavaExec>("runWithTracingAgent") {
+    group = "native image"
+    description = "Run with GraalVM tracing agent to generate native-image configs."
+    dependsOn(tasks.assemble)
+    workingDir = nodeWorkingDir.get().asFile
+
+    // Save configs to persistent (source-tree) location so assemble doesn't wipe them
+    val configOutDir = persistentNativeConfigDir.asFile.absolutePath
+    doFirst { persistentNativeConfigDir.asFile.mkdirs() }
+
+    jvmArgs =
+        listOf(
+            "-agentlib:native-image-agent=config-output-dir=$configOutDir,config-write-period-secs=5,config-write-initial-delay-secs=0",
+            "-cp",
+            "data/lib/*:data/apps/*",
+            "-XX:+UseSerialGC",
+            "-Xms128M",
+            "-Xmx512M",
+        )
+    mainClass.set("com.hedera.node.app.ServicesMain")
+    args = listOf("-local", "0")
+}
+
+// Build a GraalVM native image from the assembled node JARs
+tasks.register<Exec>("nativeCompile") {
+    group = "native image"
+    description = "Build a GraalVM native image of the Hedera node."
+    dependsOn(tasks.assemble)
+    workingDir = nodeWorkingDir.get().asFile
+
+    val persistentConfigDir = persistentNativeConfigDir.asFile
+    val buildConfigDir = nativeImageConfigDir.get().asFile
+    val classpath = "data/lib/*:data/apps/*"
+
+    doFirst {
+        // Copy persistent configs into build directory
+        if (persistentConfigDir.exists() &&
+            (persistentConfigDir.listFiles()?.any { it.extension == "json" } == true)
+        ) {
+            buildConfigDir.mkdirs()
+            persistentConfigDir.listFiles()?.filter { it.extension == "json" }?.forEach { file ->
+                file.copyTo(buildConfigDir.resolve(file.name), overwrite = true)
+            }
+        } else {
+            buildConfigDir.mkdirs()
+            // No tracing agent configs - native-image will rely on auto-detection
+        }
+
+        // Strip Netty's internal native-image.properties to avoid conflicting init declarations
+        val libDir = file("${nodeWorkingDir.get().asFile}/data/lib")
+        libDir.listFiles()?.filter { it.name.startsWith("netty-") || it.name.startsWith("grpc-netty") }
+            ?.forEach { jar ->
+                val pb = ProcessBuilder("zip", "-d", jar.absolutePath, "META-INF/native-image/*")
+                pb.redirectErrorStream(true)
+                val proc = pb.start()
+                proc.inputStream.readBytes() // consume output
+                proc.waitFor() // ignore exit code - some JARs may not have the entry
+            }
+    }
+
+    // Packages that get pulled in during build-time analysis and must be allowed at build time.
+    // io.netty is NOT included - too many classes need native memory/network at init time.
+    // io.grpc is NOT included - gRPC netty triggers Epoll checks at static init.
+    // Netty and gRPC default to runtime init (GraalVM 25 default).
+    val buildTimePackages = listOf(
+        "org.bouncycastle",
+        "org.slf4j",
+        "com.fasterxml.jackson",
+        // com.google.protobuf is NOT at build time - it uses Unsafe.objectFieldOffset()
+        // in MessageSchema/UnsafeUtil during class init; offsets computed at build time
+        // don't match native-image runtime object layout, causing data corruption in
+        // protobuf serialization (e.g. ThrottleDefinitions gets corrupted bytes).
+        "com.google.common",
+        "org.apache.commons",
+        "com.google.gson",
+        "com.google.errorprone",
+        "javax.annotation",
+        "io.perfmark",
+        "org.yaml.snakeyaml",
+    ).joinToString(",")
+    // Log4j (org.apache.logging) is NOT at build time - it starts timer threads during class init
+
+    commandLine(
+        "native-image",
+        "-cp", classpath,
+        "-H:ConfigurationFileDirectories=${buildConfigDir.absolutePath}",
+        "-o", "hedera-node",
+        "--no-fallback",
+        "--initialize-at-build-time=$buildTimePackages",
+        "-J-Xmx8g",
+        "com.hedera.node.app.ServicesMain",
+    )
+}
+
+// Run the native image binary
+tasks.register<Exec>("runNative") {
+    group = "native image"
+    description = "Run the native-image compiled Hedera node."
+    dependsOn("nativeCompile")
+    workingDir = nodeWorkingDir.get().asFile
+    commandLine("./hedera-node", "-local", "0")
+}
+
 val cleanRun =
     tasks.register<Delete>("cleanRun") {
         val prjDir = layout.projectDirectory.dir("..")

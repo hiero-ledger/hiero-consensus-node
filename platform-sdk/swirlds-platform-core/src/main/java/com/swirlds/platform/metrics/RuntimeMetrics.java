@@ -198,18 +198,20 @@ public final class RuntimeMetrics {
     }
 
     private static double getMaximumDirectMemSizeInMB() {
-        final HotSpotDiagnosticMXBean hsdiag = ManagementFactory.getPlatformMXBean(HotSpotDiagnosticMXBean.class);
         long maxDirectMemoryInBytes = Runtime.getRuntime().maxMemory();
-        if (hsdiag != null) {
-            try {
+        try {
+            final HotSpotDiagnosticMXBean hsdiag =
+                    ManagementFactory.getPlatformMXBean(HotSpotDiagnosticMXBean.class);
+            if (hsdiag != null) {
                 final long value =
                         Long.parseLong(hsdiag.getVMOption("MaxDirectMemorySize").getValue());
                 if (value > 0) {
                     maxDirectMemoryInBytes = value;
                 }
-            } catch (final NumberFormatException ex) {
-                // just use the present value, namely Runtime.getRuntime().maxMemory().
             }
+        } catch (final IllegalArgumentException ex) {
+            // HotSpotDiagnosticMXBean is not available in GraalVM native-image.
+            // Fall back to Runtime.getRuntime().maxMemory().
         }
         return maxDirectMemoryInBytes * UnitConstants.BYTES_TO_MEBIBYTES;
     }

@@ -138,6 +138,7 @@ public class GenericConstructorRegistry<T> implements ConstructorRegistry<T> {
         }
     }
 
+    @SuppressWarnings("unchecked")
     private T createConstructorLambda(
             final Class<? extends RuntimeConstructable> constructable,
             final URLClassLoaderWithLookup additionalClassloader)
@@ -149,19 +150,38 @@ public class GenericConstructorRegistry<T> implements ConstructorRegistry<T> {
         final T constructor;
         try {
             GenericConstructorRegistry.class.getModule().addReads(constructable.getModule());
-            final MethodHandles.Lookup lookup = getLookup(constructable, additionalClassloader);
 
             final Class<?>[] params = constructorSignature.getParameterTypes();
-            final MethodHandle mh = lookup.findConstructor(constructable, MethodType.methodType(void.class, params));
 
-            final CallSite site = LambdaMetafactory.metafactory(
-                    lookup,
-                    constructorSignature.getName(),
-                    MethodType.methodType(constructorType),
-                    MethodType.methodType(constructorSignature.getReturnType(), params),
-                    mh,
-                    mh.type());
-            constructor = constructorType.cast(site.getTarget().invoke());
+            // For NoArgsConstructor, use reflection-based invocation instead of LambdaMetafactory.
+            // LambdaMetafactory generates new classes at runtime, which is not supported
+            // in GraalVM native-image.
+            if (constructorType == NoArgsConstructor.class && params.length == 0) {
+                final java.lang.reflect.Constructor<? extends RuntimeConstructable> ctor =
+                        constructable.getDeclaredConstructor();
+                ctor.setAccessible(true);
+                final NoArgsConstructor noArgsConstructor = () -> {
+                    try {
+                        return ctor.newInstance();
+                    } catch (final ReflectiveOperationException e) {
+                        throw new RuntimeException("Failed to invoke constructor for " + constructable.getName(), e);
+                    }
+                };
+                constructor = (T) noArgsConstructor;
+            } else {
+                // Fall back to LambdaMetafactory for non-standard constructor types
+                final MethodHandles.Lookup lookup = getLookup(constructable, additionalClassloader);
+                final MethodHandle mh =
+                        lookup.findConstructor(constructable, MethodType.methodType(void.class, params));
+                final CallSite site = LambdaMetafactory.metafactory(
+                        lookup,
+                        constructorSignature.getName(),
+                        MethodType.methodType(constructorType),
+                        MethodType.methodType(constructorSignature.getReturnType(), params),
+                        mh,
+                        mh.type());
+                constructor = constructorType.cast(site.getTarget().invoke());
+            }
         } catch (final Throwable throwable) {
             throw new ConstructableRegistryException(
                     String.format("Could not create a lambda for constructor: %s", throwable.getMessage()), throwable);
