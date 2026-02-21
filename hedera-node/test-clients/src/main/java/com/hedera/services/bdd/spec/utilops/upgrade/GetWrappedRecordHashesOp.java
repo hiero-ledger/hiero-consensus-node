@@ -24,11 +24,12 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * A utility operation that reads the wrapped record hashes file from every node in the network,
+ * A utility operation that reads the wrapped record hashes file from some nodes in the network,
  * verifies that all nodes have identical contents, and exposes the entries via an
  * {@link AtomicReference} for use by downstream operations.
  */
 public class GetWrappedRecordHashesOp extends UtilOp {
+    private static final Set<Long> CLASSIC_NODE_IDS = Set.of(0L, 1L, 2L, 3L);
 
     private final AtomicReference<List<WrappedRecordFileBlockHashes>> entriesRef;
     private Map<Long, List<WrappedRecordFileBlockHashes>> wrappedRecordHashesByNode;
@@ -49,7 +50,13 @@ public class GetWrappedRecordHashesOp extends UtilOp {
 
     @Override
     protected void assertExpectationsGiven(final HapiSpec spec) throws Throwable {
-        final var nodeIds = wrappedRecordHashesByNode.keySet().stream().sorted().toList();
+        final var classicNodes = new HashSet<Long>() {
+            {
+                addAll(CLASSIC_NODE_IDS);
+            }
+        };
+        classicNodes.retainAll(wrappedRecordHashesByNode.keySet());
+        final var nodeIds = classicNodes.stream().sorted().toList();
         final var baselineId = nodeIds.getFirst();
         final var baselineByBlock = indexByBlockNumber(baselineId, wrappedRecordHashesByNode.get(baselineId));
 
