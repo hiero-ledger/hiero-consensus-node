@@ -120,12 +120,13 @@ public class VirtualLeafBytes<V> {
      * disk. If the record was not loaded at all but created as new, the old path is set to
      * an invalid path, and this method still returns true.
      *
-     * <p>If both path and pathOnDisk are Path.INVALID_PATH, this method returns true. Such
-     * leaf records should never be used for any purposes than marker instances like {@link
+     * <p>This method should not be called for records with invalid paths. Such leaf records
+     * should never be used for any purposes than marker instances like {@link
      * VirtualNodeCache#DELETED_LEAF_RECORD}.
      */
     public boolean isNewOrMoved() {
-        return (path < 0) || (path != pathOnDisk);
+        assert path >= 0 : "isNewOrMoved() must not be called for records with invalid paths";
+        return path != pathOnDisk;
     }
 
     public Bytes keyBytes() {
