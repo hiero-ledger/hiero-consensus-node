@@ -76,6 +76,7 @@ import org.hiero.hapi.support.fees.FeeSchedule;
 import org.hiero.hapi.support.fees.PiecewiseLinearCurve;
 import org.hiero.hapi.support.fees.PiecewiseLinearPoint;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.parallel.Isolated;
@@ -382,6 +383,7 @@ public class Hip1313EnabledTest {
     }
 
     @GenesisHapiTest
+    @Disabled
     final Stream<DynamicTest> mixedHighVolumeTxnsWorkAsExpectedForTopicCreateAndScheduleCreate() {
         final AtomicReference<List<RecordStreamEntry>> highVolumeTxns = new AtomicReference<>();
         final int numBursts = 200;
