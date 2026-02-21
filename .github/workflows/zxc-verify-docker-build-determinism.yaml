@@ -210,6 +210,8 @@ jobs:
         os:
           - ubuntu-24.04
           #- ubuntu-22.04
+          - macos-13
+          #- macos-14
           #- macos-12
           #- macos-11
           #- hl-cn-docker-determinism-lin-md
@@ -302,11 +304,23 @@ jobs:
           sudo rm -rvf /usr/local/bin/docker* || true
           sudo rm -rvf /usr/local/bin/*lima* || true
 
-      - name: Install Lima (macOS)
+      - name: Install CoLima (macOS)
         if: ${{ runner.os == 'macOS' }}
         run: |
-          VERSION="v0.20.0"
-          curl -fsSL "https://github.com/lima-vm/lima/releases/download/${VERSION}/lima-${VERSION:1}-$(uname -s)-$(uname -m).tar.gz" | sudo tar Cxzvm /usr/local
+          brew install docker
+          brew install colima
+          colima start --vm-type=vz --cpu=2 --memory=4 --disk=10
+
+      - name: Show CoLima Logs (macOS)
+        if: ${{ runner.os == 'macOS' && failure() }}
+        run: |
+          echo "::group::Serial Logs"
+          cat ${HOME}/.colima/_lima/colima/serial*.log
+          echo "::endgroup::"
+
+          echo "::group::Error Logs"
+          cat ${HOME}/.colima/_lima/colima/ha.stderr.log
+          echo "::endgroup::"
 
       - name: Determine Home Directory
         id: home
