@@ -160,12 +160,12 @@ jobs:
                 jmap -dump:live,format=b,file=/tmp/test.hprof \$jpid; fi"; \
           done 2>/dev/null
           EOF
-          nohup bash -c 'sleep 60; sh heapInfoByPod.sh' > heapInfoByPod.log 2>&1 &
+          nohup bash -c 'sleep 500; sh heapInfoByPod.sh' > heapInfoByPod.log 2>&1 &
 
       - name: Run NLG test
         run: |
           cd hiero-block-node/tools-and-tests/scripts/solo-e2e-test
-          task load:up NLG_TEST_TYPE=CryptoTransferLoadTest NLG_ARGS="-c 1 -a 1000 -tt 120s" NLG_MAX_TPS=100
+          task load:up NLG_TEST_TYPE=CryptoTransferLoadTest NLG_ARGS="-c 1 -a 1000 -tt 600s" NLG_MAX_TPS=100
 
       - name: Stop NLG test
         run: |
@@ -181,7 +181,7 @@ jobs:
         run: |
           mkdir "${{ github.workspace }}"/report
 
-      - name: Report Kubernetes resources
+      - name: Java heap info
         run: |
           set +e
           set +x
