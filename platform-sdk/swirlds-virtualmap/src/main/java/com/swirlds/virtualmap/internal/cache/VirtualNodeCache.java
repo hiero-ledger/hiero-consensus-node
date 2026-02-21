@@ -79,7 +79,7 @@ import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
  * which leaves occupied a given path, and for the internal node hashes at a given path.
  * <p>
  * To fulfill these design requirements, each "chain" of caches share three different indexes:
- * {@link #keyToDirtyLeafIndex}, {@link #pathToDirtyLeafIndex}, and {@link #idToDirtyHashChunkIndex}.
+ * {@link #keyToDirtyLeafIndex}, {@link #pathToDirtyKeyIndex}, and {@link #idToDirtyHashChunkIndex}.
  * Each of these is a map from either the leaf key or a path (long) to a custom linked list data structure. Each element
  * in the list is a {@link Mutation} with a reference to the data item (either a {@link VirtualHashChunk}
  * or a {@link VirtualLeafBytes}, depending on the list), and a reference to the next {@link Mutation}
@@ -193,7 +193,7 @@ public final class VirtualNodeCache implements FastCopyable {
      * <p>
      * <strong>ONE PER CHAIN OF CACHES</strong>.
      */
-    private final Map<Long, Mutation<Long, Bytes>> pathToDirtyLeafIndex;
+    private final Map<Long, Mutation<Long, Bytes>> pathToDirtyKeyIndex;
 
     /**
      * A shared index of chunk IDs to hash chunks, via {@link Mutation}s. Works the same as {@link #keyToDirtyLeafIndex}.
@@ -332,7 +332,7 @@ public final class VirtualNodeCache implements FastCopyable {
         this.hashChunkHeight = hashChunkHeight;
         this.hashChunkLoader = requireNonNull(hashChunkLoader);
         this.keyToDirtyLeafIndex = new ConcurrentHashMap<>();
-        this.pathToDirtyLeafIndex = new ConcurrentHashMap<>();
+        this.pathToDirtyKeyIndex = new ConcurrentHashMap<>();
         this.idToDirtyHashChunkIndex = new ConcurrentHashMap<>();
         this.releaseLock = new ReentrantLock();
         this.lastReleased = new AtomicLong(-1L);
@@ -359,7 +359,7 @@ public final class VirtualNodeCache implements FastCopyable {
         this.hashChunkLoader = source.hashChunkLoader;
         // Get a reference to the shared data structures
         this.keyToDirtyLeafIndex = source.keyToDirtyLeafIndex;
-        this.pathToDirtyLeafIndex = source.pathToDirtyLeafIndex;
+        this.pathToDirtyKeyIndex = source.pathToDirtyKeyIndex;
         this.idToDirtyHashChunkIndex = source.idToDirtyHashChunkIndex;
         this.releaseLock = source.releaseLock;
         this.lastReleased = source.lastReleased;
@@ -451,7 +451,7 @@ public final class VirtualNodeCache implements FastCopyable {
         // Fire off the cleaning threads to go and clear out data in the indexes that doesn't need
         // to be there anymore.
         purge(dirtyLeaves, keyToDirtyLeafIndex, virtualMapConfig);
-        purge(dirtyLeafPaths, pathToDirtyLeafIndex, virtualMapConfig);
+        purge(dirtyLeafPaths, pathToDirtyKeyIndex, virtualMapConfig);
         purge(dirtyHashChunks, idToDirtyHashChunkIndex, virtualMapConfig);
 
         estimatedLeavesSizeInBytes.set(0);
@@ -617,7 +617,7 @@ public final class VirtualNodeCache implements FastCopyable {
         keyToDirtyLeafIndex.compute(key, (k, mutations) -> {
             mutations = mutate(leaf, mutations);
             mutations.setDeleted(true);
-            assert pathToDirtyLeafIndex.get(leaf.path()).isDeleted() : "It should be deleted too";
+            assert pathToDirtyKeyIndex.get(leaf.path()).isDeleted() : "It should be deleted too";
             return mutations;
         });
     }
@@ -712,13 +712,12 @@ public final class VirtualNodeCache implements FastCopyable {
             return null;
         }
 
-        // Get the newest mutation that equals this fastCopyVersion. If forModify and
-        // the mutation does not exactly equal this fastCopyVersion, then create a mutation.
-        // Note that the mutations in pathToDirtyLeafIndex contain the *path* as the key,
-        // and a leaf record *key* as the value. Thus, we look up a mutation first in the
-        // pathToDirtyLeafIndex, get the leaf key, and then lookup based on that key.
-        final Mutation<Long, Bytes> mutation = lookup(pathToDirtyLeafIndex.get(path));
-        // If mutation is null (path is unknown), return null regardless of forModify
+        // Get the newest mutation that equals this fastCopyVersion. Note that the mutations
+        // in pathToDirtyKeyIndex contain the *path* as the key, and a leaf record *key* as
+        // the value. Thus, we look up a mutation first in the pathToDirtyKeyIndex, get the
+        // leaf key, and then lookup based on that key
+        final Mutation<Long, Bytes> mutation = lookup(pathToDirtyKeyIndex.get(path));
+        // If the mutation is null, the path is unknown, so return null
         if (mutation == null) {
             return null;
         }
@@ -948,7 +947,7 @@ public final class VirtualNodeCache implements FastCopyable {
             setMapSnapshotAndArray(
                     this.idToDirtyHashChunkIndex, newSnapshot.idToDirtyHashChunkIndex, newSnapshot.dirtyHashChunks);
             setMapSnapshotAndArray(
-                    this.pathToDirtyLeafIndex, newSnapshot.pathToDirtyLeafIndex, newSnapshot.dirtyLeafPaths);
+                    this.pathToDirtyKeyIndex, newSnapshot.pathToDirtyKeyIndex, newSnapshot.dirtyLeafPaths);
             setMapSnapshotAndArray(this.keyToDirtyLeafIndex, newSnapshot.keyToDirtyLeafIndex, newSnapshot.dirtyLeaves);
             newSnapshot.fastCopyVersion.set(this.fastCopyVersion.get());
             newSnapshot.seal();
@@ -1039,7 +1038,7 @@ public final class VirtualNodeCache implements FastCopyable {
      * 		if {@code dirtyPaths} is null.
      */
     private void updateKeyAtPath(final Bytes value, final long path) {
-        pathToDirtyLeafIndex.compute(path, (key, mutation) -> {
+        pathToDirtyKeyIndex.compute(path, (key, mutation) -> {
             if (mutation == null || mutation.version != fastCopyVersion.get()) {
                 // It must be that there is *NO* mutation in the dirtyPaths for this cache version.
                 // I don't have an easy way to assert it programmatically, but by inspection, it must be true.
@@ -1389,7 +1388,7 @@ public final class VirtualNodeCache implements FastCopyable {
                 .append("\n");
         //noinspection unchecked
         builder.append(toDebugStringIndex(
-                        "pathToDirtyLeafIndex", (Map<Object, Mutation>) (Object) pathToDirtyLeafIndex))
+                        "pathToDirtyLeafIndex", (Map<Object, Mutation>) (Object) pathToDirtyKeyIndex))
                 .append("\n");
         //noinspection unchecked
         builder.append(toDebugStringIndex(
