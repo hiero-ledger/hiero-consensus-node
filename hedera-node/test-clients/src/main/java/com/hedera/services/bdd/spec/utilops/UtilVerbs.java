@@ -92,6 +92,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.esaulpaugh.headlong.abi.Address;
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.google.protobuf.ByteString;
+import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.output.TransactionResult;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.state.addressbook.Node;
@@ -3353,5 +3354,22 @@ public class UtilVerbs {
                 return null;
             }
         }
+    }
+
+    public static Function<HapiSpec, BlockStreamAssertion> matchStateChange(@NonNull StateChange stateChange) {
+        return spec -> block -> {
+            final var items = block.items();
+            for (final com.hedera.hapi.block.stream.BlockItem item : items) {
+                if (item.hasStateChanges()) {
+                    final var stateChanges = item.stateChanges().stateChanges();
+                    for (final StateChange change : stateChanges) {
+                        if (change.equals(stateChange)) {
+                            return true;
+                        }
+                    }
+                }
+            }
+            return false;
+        };
     }
 }

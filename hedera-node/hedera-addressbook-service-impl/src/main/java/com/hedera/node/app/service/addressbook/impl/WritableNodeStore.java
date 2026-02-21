@@ -6,7 +6,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.node.app.hapi.utils.EntityType;
-import com.hedera.node.app.service.entityid.WritableEntityCounters;
+import com.hedera.node.app.service.entityid.WritableEntityIdStore;
 import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -20,16 +20,15 @@ import java.util.Set;
  * This class is not complete, it will be extended with other methods like remove, update etc.,
  */
 public class WritableNodeStore extends ReadableNodeStoreImpl {
-    private final WritableEntityCounters entityCounters;
+    private final WritableEntityIdStore writableEntityIdStore;
     /**
      * Create a new {@link WritableNodeStore} instance.
      *
      * @param states The state to use.
      */
-    public WritableNodeStore(
-            @NonNull final WritableStates states, @NonNull final WritableEntityCounters entityCounters) {
-        super(states, entityCounters);
-        this.entityCounters = entityCounters;
+    public WritableNodeStore(@NonNull final WritableStates states, @NonNull final WritableEntityIdStore entityIdStore) {
+        super(states, entityIdStore);
+        this.writableEntityIdStore = entityIdStore;
     }
 
     @Override
@@ -56,7 +55,16 @@ public class WritableNodeStore extends ReadableNodeStoreImpl {
      */
     public void putAndIncrementCount(@NonNull final Node node) {
         put(node);
-        entityCounters.incrementEntityTypeCount(EntityType.NODE);
+        writableEntityIdStore.incrementEntityTypeCount(EntityType.NODE);
+    }
+
+    /**
+     * Removes the node with the given id from state and decrements the node entity count.
+     * @param nodeId the node id to remove
+     */
+    public void remove(final long nodeId) {
+        nodesState().remove(EntityNumber.newBuilder().number(nodeId).build());
+        writableEntityIdStore.decrementEntityTypeCounter(EntityType.NODE);
     }
 
     /**

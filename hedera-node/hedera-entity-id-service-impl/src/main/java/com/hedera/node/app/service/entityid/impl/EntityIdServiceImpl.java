@@ -3,13 +3,16 @@ package com.hedera.node.app.service.entityid.impl;
 
 import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0720EntityIdSchema.NODE_ID_STATE_ID;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
+import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema;
 import com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema;
+import com.hedera.node.app.service.entityid.impl.schemas.V0720EntityIdSchema;
 import com.hedera.node.config.data.HederaConfig;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.lifecycle.SchemaRegistry;
@@ -29,6 +32,7 @@ public class EntityIdServiceImpl extends EntityIdService {
     public void registerSchemas(@NonNull final SchemaRegistry registry) {
         registry.register(new V0490EntityIdSchema());
         registry.register(new V0590EntityIdSchema());
+        registry.register(new V0720EntityIdSchema());
     }
 
     @Override
@@ -42,6 +46,10 @@ public class EntityIdServiceImpl extends EntityIdService {
         writableStates.<EntityNumber>getSingleton(ENTITY_ID_STATE_ID).put(new EntityNumber(entityNum));
         // And initialize entity counts to zeros
         writableStates.<EntityCounts>getSingleton(ENTITY_COUNTS_STATE_ID).put(EntityCounts.DEFAULT);
+        // First node id should be 0, so init the state with -1
+        writableStates
+                .<NodeId>getSingleton(NODE_ID_STATE_ID)
+                .put(NodeId.newBuilder().id(-1).build());
         return true;
     }
 }

@@ -5,6 +5,8 @@ import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSch
 import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_LABEL;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_LABEL;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0720EntityIdSchema.NODE_ID_STATE_ID;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0720EntityIdSchema.NODE_ID_STATE_LABEL;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_INFOS_STATE_ID;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_INFOS_STATE_LABEL;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -14,6 +16,7 @@ import static org.mockito.Mockito.mock;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.token.StakingNodeInfo;
+import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.node.app.service.entityid.WritableEntityIdStore;
 import com.hedera.node.app.service.entityid.impl.WritableEntityIdStoreImpl;
 import com.hedera.node.app.service.token.impl.ReadableStakingInfoStoreImpl;
@@ -64,7 +67,10 @@ class ReadableStakingInfoStoreImplTest {
                         ENTITY_COUNTS_STATE_ID,
                         ENTITY_COUNTS_STATE_LABEL,
                         () -> EntityCounts.newBuilder().build(),
-                        c -> {}))));
+                        c -> {}),
+                NODE_ID_STATE_ID,
+                new FunctionWritableSingletonState<>(
+                        NODE_ID_STATE_ID, NODE_ID_STATE_LABEL, () -> NodeId.DEFAULT, c -> {}))));
 
         given(states.<EntityNumber, StakingNodeInfo>get(STAKING_INFOS_STATE_ID)).willReturn(readableStakingNodes);
 
@@ -112,6 +118,12 @@ class ReadableStakingInfoStoreImplTest {
                                 .numNodes(21)
                                 .numStakingInfos(21)
                                 .build(),
+                        c -> {}),
+                NODE_ID_STATE_ID,
+                new FunctionWritableSingletonState<>(
+                        NODE_ID_STATE_ID,
+                        NODE_ID_STATE_LABEL,
+                        () -> NodeId.newBuilder().id(21).build(),
                         c -> {}))));
 
         subject = new ReadableStakingInfoStoreImpl(states, entityCounters);

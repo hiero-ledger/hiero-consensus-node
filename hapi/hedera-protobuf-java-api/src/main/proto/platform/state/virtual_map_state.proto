@@ -623,6 +623,11 @@ message StateValue {
     com.hedera.hapi.node.state.token.NodePayments TokenService_I_NODE_PAYMENTS = 55;
 
     /**
+     * A state identifier for the next node Identifier.
+     */
+    com.hedera.hapi.platform.state.NodeId EntityIdService_I_NODE_ID = 57;
+
+    /**
      * Metadata of the round receipts queue.
      */
     proto.TransactionReceiptEntries RecordCache_I_TRANSACTION_RECEIPTS = 126;
@@ -805,6 +810,11 @@ enum SingletonType {
    * A state identifier for the node payments. Singleton state.
    */
   TokenService_I_NODE_PAYMENTS = 55;
+
+  /**
+   * A state identifier for the highest node identifier allocated so far.
+   */
+  EntityIdService_I_NODE_ID = 57;
 
   // Queue metadata
 

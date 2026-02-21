@@ -49,6 +49,8 @@ import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.node.app.records.impl.BlockRecordManagerImpl;
+import com.hedera.node.app.service.addressbook.AddressBookService;
+import com.hedera.node.app.service.addressbook.impl.WritableNodeStore;
 import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.service.entityid.impl.WritableEntityIdStoreImpl;
 import com.hedera.node.app.service.roster.RosterService;
@@ -585,6 +587,19 @@ public class HandleWorkflow {
                             new WritableStakingInfoStore(
                                     writableTokenStates, new WritableEntityIdStoreImpl(writableEntityIdStates)),
                             new WritableNetworkStakingRewardsStore(writableTokenStates)));
+            final var writableNodeStates = state.getWritableStates(AddressBookService.NAME);
+            final var entityIdStore = new WritableEntityIdStoreImpl(writableEntityIdStates);
+            final var nodeStore = new WritableNodeStore(writableNodeStates, entityIdStore);
+            doStreamingOnlyKvChanges(writableNodeStates, writableEntityIdStates, () -> {
+                final var nextNodeId = entityIdStore.peekAtNextNodeId();
+                for (int i = 0; i < nextNodeId; i++) {
+                    final var node = nodeStore.get(i);
+                    if (node != null && node.deleted() && !networkInfo.containsNode(node.nodeId())) {
+                        nodeStore.remove(node.nodeId());
+                        logger.info("Node {} was removed from state", node.nodeId());
+                    }
+                }
+            });
             if (streamMode == RECORDS) {
                 // Only update this if we are relying on RecordManager state for post-upgrade processing
                 blockRecordManager.markMigrationRecordsStreamed();

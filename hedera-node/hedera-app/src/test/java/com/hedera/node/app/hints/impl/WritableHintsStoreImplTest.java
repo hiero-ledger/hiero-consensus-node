@@ -14,6 +14,8 @@ import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSch
 import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_LABEL;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_LABEL;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0720EntityIdSchema.NODE_ID_STATE_ID;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0720EntityIdSchema.NODE_ID_STATE_LABEL;
 import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.BOOTSTRAP;
 import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.HANDOFF;
 import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.TRANSITION;
@@ -35,6 +37,7 @@ import com.hedera.hapi.node.state.hints.PreprocessingVote;
 import com.hedera.hapi.node.state.hints.PreprocessingVoteId;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
+import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.hapi.services.auxiliary.hints.CrsPublicationTransactionBody;
 import com.hedera.node.app.config.BootstrapConfigProviderImpl;
 import com.hedera.node.app.config.ConfigProviderImpl;
@@ -45,7 +48,7 @@ import com.hedera.node.app.hints.HintsLibrary;
 import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.hints.schemas.V059HintsSchema;
 import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
-import com.hedera.node.app.service.entityid.WritableEntityCounters;
+import com.hedera.node.app.service.entityid.WritableEntityIdStore;
 import com.hedera.node.app.service.entityid.impl.EntityIdServiceImpl;
 import com.hedera.node.app.service.entityid.impl.WritableEntityIdStoreImpl;
 import com.hedera.node.app.service.roster.impl.ActiveRosters;
@@ -117,7 +120,7 @@ class WritableHintsStoreImplTest {
     private WritableStates writableStates;
 
     private State state;
-    private WritableEntityCounters entityCounters;
+    private WritableEntityIdStore writableEntityIdStore;
 
     private WritableHintsStoreImpl subject;
 
@@ -125,7 +128,7 @@ class WritableHintsStoreImplTest {
     void setUp() {
         given(appContext.configSupplier()).willReturn(() -> DEFAULT_CONFIG);
         state = emptyState();
-        entityCounters = new WritableEntityIdStoreImpl(new MapWritableStates(Map.of(
+        writableEntityIdStore = new WritableEntityIdStoreImpl(new MapWritableStates(Map.of(
                 ENTITY_ID_STATE_ID,
                 new FunctionWritableSingletonState<>(
                         ENTITY_ID_STATE_ID,
@@ -137,8 +140,14 @@ class WritableHintsStoreImplTest {
                         ENTITY_COUNTS_STATE_ID,
                         ENTITY_COUNTS_STATE_LABEL,
                         () -> EntityCounts.newBuilder().numNodes(2).build(),
+                        c -> {}),
+                NODE_ID_STATE_ID,
+                new FunctionWritableSingletonState<>(
+                        NODE_ID_STATE_ID,
+                        NODE_ID_STATE_LABEL,
+                        () -> NodeId.newBuilder().id(1L).build(),
                         c -> {}))));
-        subject = new WritableHintsStoreImpl(state.getWritableStates(HintsService.NAME), entityCounters);
+        subject = new WritableHintsStoreImpl(state.getWritableStates(HintsService.NAME), writableEntityIdStore);
     }
 
     @Test
@@ -399,7 +408,7 @@ class WritableHintsStoreImplTest {
                         () -> HintsConstruction.DEFAULT,
                         c -> {}));
 
-        subject = new WritableHintsStoreImpl(writableStates, entityCounters);
+        subject = new WritableHintsStoreImpl(writableStates, writableEntityIdStore);
         subject.setCrsState(crsState);
         return crsState;
     }
