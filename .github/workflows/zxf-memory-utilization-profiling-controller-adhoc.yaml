@@ -41,6 +41,10 @@ permissions:
   actions: write
   statuses: write
 
+env:
+  GS_ROOT_DIR: gs://performance-engineering-reports/ephemeral/test_runs
+  GS_ROOT_HTTPS: https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs
+
 jobs:
   run-single-node-tests:
     name: Single node tests
@@ -50,6 +54,16 @@ jobs:
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
+
+      - name: Authenticate to Google Cloud
+        id: google-auth
+        uses: google-github-actions/auth@ba79af03959ebeac9769e648f473a284504d9193 # v2.1.10
+        with:
+          workload_identity_provider: "projects/716789254648/locations/global/workloadIdentityPools/perf-eng-reports-pool/providers/gh-provider"
+          service_account: "gh-perf-report-writer@perf-engineering-reports.iam.gserviceaccount.com"
+
+      - name: Setup Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@6189d56e4096ee891640bb02ac264be376592d6a # v2.1.2
 
       - name: Checkout BlockNode scripts
         if: false
@@ -110,7 +124,13 @@ jobs:
           #YQ
           sudo add-apt-repository ppa:rmescandon/yq
           sudo apt update
-          sudo apt install yq -y
+          sudo apt install yq zip unzip -y
+
+      - name: Install Memory Analyzer
+        run: |
+          gcloud --no-user-output-enabled storage cp --recursive gs://performance-engineering-reports/permanent/MemoryAnalyzer-1.16.1.20250109-linux.gtk.x86_64.zip ${HOME}/MemoryAnalyzer-1.16.1.20250109-linux.gtk.x86_64.zip
+          unzip -q -d ${HOME} ${HOME}/MemoryAnalyzer-1.16.1.20250109-linux.gtk.x86_64.zip
+          ls ${HOME}/mat
 
       - name: Deploy K8S pod
         run: |
@@ -118,10 +138,27 @@ jobs:
           cd hiero-block-node/tools-and-tests/scripts/solo-e2e-test
           task up
 
+      - name: Start Memory capturing
+        run: |
+          cd "${{ github.workspace }}"/
+          cat <<'EOF' > heapInfoByPod.sh
+          set +e
+          set +x
+          for i in `kubectl -n solo-network get pods | awk '{print $1}' | grep -v NAME`;\
+          do \
+            kubectl -n solo-network  exec ${i}  -- \
+            bash -c "jpid=\$(ps -aef | grep -w java | grep -v grep | awk '{print \$2}'); \
+              if [ \"\$jpid\" != \"\" ]; then echo \"pod $i:\"; \
+                jcmd \$jpid GC.heap_info; echo \"\"; \
+                jmap -dump:live,format=b,file=/tmp/test.hprof \$jpid; fi"; \
+          done 2>/dev/null
+          EOF
+          nohup bash -c 'sleep 60; sh heapInfoByPod.sh' > heapInfoByPod.log 2>&1 &
+
       - name: Run NLG test
         run: |
           cd hiero-block-node/tools-and-tests/scripts/solo-e2e-test
-          task load:up NLG_TEST_TYPE=CryptoTransferLoadTest NLG_ARGS="-c 1 -a 1000 -tt 600s" NLG_MAX_TPS=100
+          task load:up NLG_TEST_TYPE=CryptoTransferLoadTest NLG_ARGS="-c 1 -a 1000 -tt 120s" NLG_MAX_TPS=100
 
       - name: Stop NLG test
         run: |
@@ -132,16 +169,41 @@ jobs:
         run: |
           kubectl -n solo-network describe nodes
 
+      - name: Create report dir
+        shell: bash
+        run: |
+          mkdir "${{ github.workspace }}"/report
+
       - name: Report Kubernetes resources
         run: |
+          set +e
+          set +x
+          cd "${{ github.workspace }}"/
+          cat heapInfoByPod.log
+
+      - name: Analyze Java heaps
+        run: |
+          set +e
+          set +x
+          cd "${{ github.workspace }}"/
+          #process hprof-s
           for i in `kubectl -n solo-network get pods | awk '{print $1}' | grep -v NAME`;\
           do \
-            echo $i; kubectl -n solo-network  exec $i  -- \
-            bash -c "jpid=\$(ps -aef | grep -w java | grep -v grep | awk '{print \$2}'); if [ \"\$jpid\" != \"\" ]; then  jcmd \$jpid GC.heap_info; fi"; \
-          done 2>/dev/null
+            kubectl -n solo-network cp ${i}:/tmp/test.hprof $i.hprof 2>/dev/null
+            if [ -f $i.hprof ]
+            then
+              mkdir $i
+              cd $i
+              mv ../$i.hprof ./$i.hprof
+              bash ${HOME}/mat/ParseHeapDump.sh ./$i.hprof org.eclipse.mat.api:overview
+              unzip -d "${{ github.workspace }}"/report/$i ${i}_System_Overview.zip
+              cd "${{ github.workspace }}"/
+            fi
+          done
+
 
       - name: Publish logs
-        if: false
         run: |
-
+          gcloud --no-user-output-enabled storage cp --recursive "${{ github.workspace }}"/report "${{ env.GS_ROOT_DIR }}/MemoryProfile_${{ github.run_number }}"/report
+          echo Done: solo deploy logs  in "${{ env.GS_ROOT_HTTPS }}/MemoryProfile_${{ github.run_number }}"/report
 
