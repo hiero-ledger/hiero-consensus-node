@@ -130,7 +130,8 @@ jobs:
           #YQ
           sudo add-apt-repository ppa:rmescandon/yq
           sudo apt update
-          sudo apt install yq zip unzip -y
+          sudo apt install -y yq zip unzip
+          sudo apt install -y x11-common x11-session-utils x11-utils x11-xserver-utils
 
       - name: Install Memory Analyzer
         run: |
