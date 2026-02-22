@@ -55,14 +55,11 @@ public final class MetricRegistry implements Closeable {
             exporter.setSnapshotSupplier(snapshot::update);
             logger.log(
                     INFO,
-                    "Created metric registry with global labels {} and metrics exporter {}.",
+                    "Created metric registry. globalLabels={0}, exporter={1}",
                     this.globalLabels,
                     exporter.getClass());
         } else {
-            logger.log(
-                    INFO,
-                    "Created metric registry with global labels {} and without metrics exporter.",
-                    this.globalLabels);
+            logger.log(INFO, "Created metric registry. globalLabels={0}", this.globalLabels);
         }
     }
     /**
@@ -121,7 +118,7 @@ public final class MetricRegistry implements Closeable {
 
             M metric =
                     builder.addStaticLabels(globalLabels.toArray(Label[]::new)).build();
-            logger.log(DEBUG, "Registered metric: {}", metric.name());
+            logger.log(DEBUG, "Registered metric. name={0}", metric.name());
 
             snapshot.addMetricSnapshot(metric.snapshot());
 
@@ -174,7 +171,7 @@ public final class MetricRegistry implements Closeable {
     @Override
     public void close() throws IOException {
         if (exporter != null) {
-            logger.log(INFO, "Closing metrics exporter: {}", exporter.getClass());
+            logger.log(INFO, "Closing metrics exporter: {0}", exporter.getClass());
             exporter.close();
         }
     }
@@ -281,14 +278,14 @@ public final class MetricRegistry implements Closeable {
                 if (exporterDiscoveryDisabled != null && exporterDiscoveryDisabled) {
                     logger.log(
                             INFO,
-                            "Exporter discovery is disabled by configuration property: {}",
+                            "Exporter discovery is disabled by configuration property: {0}",
                             PROPERTY_EXPORT_DISCOVERY_DISABLED);
                 } else {
                     List<MetricsExporterFactory> factories = MetricUtils.load(MetricsExporterFactory.class);
                     if (factories.size() > 1) {
                         logger.log(
                                 WARNING,
-                                "Multiple metrics exporter factories found {}. "
+                                "Multiple metrics exporter factories found: {0}. "
                                         + "Expected at most one. Ignoring discovered exporter factories.",
                                 factories);
                     } else if (factories.size() == 1) {
@@ -299,7 +296,7 @@ public final class MetricRegistry implements Closeable {
                         if (exporter != null) {
                             this.metricsExporter = exporter;
                         } else {
-                            logger.log(INFO, "Exporter factory did not create an exporter: {}", factory.getClass());
+                            logger.log(INFO, "Exporter factory did not create an exporter: {0}", factory.getClass());
                         }
                     }
                 }
@@ -317,7 +314,7 @@ public final class MetricRegistry implements Closeable {
 
                 for (MetricsRegistrationProvider provider : providers) {
                     Objects.requireNonNull(provider, "metrics registration provider must not be null");
-                    logger.log(INFO, "Registering metrics from provider: {}", provider.getClass());
+                    logger.log(INFO, "Registering metrics from provider: {0}", provider.getClass());
 
                     Collection<Metric.Builder<?, ?>> metricsToRegister = provider.getMetricsToRegister();
                     Objects.requireNonNull(metricsToRegister, "metrics collection must not be null");

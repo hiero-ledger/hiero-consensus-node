@@ -425,7 +425,8 @@
             "TokenAirdrop",
             "TokenClaimAirdrop",
             "TokenMint",
-            "TokenCreate"
+            "TokenCreate",
+            "CryptoTransfer"
           ]
         }
       ]

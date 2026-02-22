@@ -23,16 +23,20 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertionsHold;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdForQueries;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateFees;
-import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SIGNATURE_FEE_AFTER_MULTIPLIER;
-import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_MINT_NFT_FEE;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenMintNftFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdWithinWithTxnSize;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
+import static org.hiero.hapi.support.fees.Extra.PROCESSING_BYTES;
+import static org.hiero.hapi.support.fees.Extra.SIGNATURES;
+import static org.hiero.hapi.support.fees.Extra.TOKEN_TYPES;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.google.protobuf.ByteString;
@@ -46,6 +50,7 @@ import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.TransactionRecord;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
@@ -61,6 +66,8 @@ public class AllBaseOpFeesSuite {
     private static final String UNIQUE_TOKEN = "nftType";
 
     private static final double EXPECTED_NFT_MINT_PRICE_USD = 0.02;
+
+    private static final double ALLOWED_DIFFERENCE_PERCENTAGE = 0.01;
 
     @HapiTest
     final Stream<DynamicTest> NftMintsScaleLinearlyBasedOnNumberOfSignatures() {
@@ -85,10 +92,23 @@ public class AllBaseOpFeesSuite {
                         .blankMemo()
                         .fee(ONE_HUNDRED_HBARS)
                         .via("moreSigsTxn"))
-                .then(validateFees(
-                        "moreSigsTxn",
-                        expectedFee,
-                        TOKEN_MINT_NFT_FEE + (numOfSigs - 1) * SIGNATURE_FEE_AFTER_MULTIPLIER));
+                .then(doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return withOpContext((spec, log) -> {
+                            allRunFor(
+                                    spec,
+                                    validateChargedUsdWithinWithTxnSize(
+                                            "moreSigsTxn",
+                                            txnSize -> expectedTokenMintNftFullFeeUsd(Map.of(
+                                                    SIGNATURES, 10L,
+                                                    TOKEN_TYPES, 1L,
+                                                    PROCESSING_BYTES, (long) txnSize)),
+                                            ALLOWED_DIFFERENCE_PERCENTAGE));
+                        });
+                    } else {
+                        return validateChargedUsdWithin("moreSigsTxn", expectedFee, ALLOWED_DIFFERENCE_PERCENTAGE);
+                    }
+                }));
     }
 
     @HapiTest
