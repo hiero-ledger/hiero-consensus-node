@@ -54,7 +54,7 @@ public class ClprMessageUtils {
             @NonNull Function<ClprMessageKey, ClprMessageValue> getMessageFunction) {
         final var messagePayloadList = new ArrayList<ClprMessagePayload>();
         final var bundleBuilder = ClprMessageBundle.newBuilder();
-        for (long i = firstPendingMsgId; i <= lastMsgInBundle; i++) {
+        for (long i = firstPendingMsgId; i < lastMsgInBundle; i++) {
             final var messageKey = ClprMessageKey.newBuilder()
                     .messageId(i)
                     .ledgerId(remoteLedgerId)
