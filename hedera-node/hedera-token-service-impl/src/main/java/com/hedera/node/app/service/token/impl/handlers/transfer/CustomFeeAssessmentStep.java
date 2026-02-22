@@ -33,6 +33,7 @@ import com.hedera.node.app.service.token.impl.handlers.transfer.customfees.Custo
 import com.hedera.node.app.service.token.impl.handlers.transfer.customfees.CustomRoyaltyFeeAssessor;
 import com.hedera.node.app.service.token.impl.handlers.transfer.customfees.ItemizedAssessedFee;
 import com.hedera.node.app.spi.fees.FeeContext;
+import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.TokensConfig;
 import com.swirlds.base.utility.Pair;
@@ -209,7 +210,7 @@ public class CustomFeeAssessmentStep {
 
         if (levelNum > MAX_PLAUSIBLE_LEVEL_NUM) {
             log.error("Recursive charging exceeded maximum plausible depth for transaction {}", op);
-            throw new IllegalStateException("Custom fee charging exceeded max recursion depth");
+            throw new HandleException(CUSTOM_FEE_CHARGING_EXCEEDED_MAX_RECURSION_DEPTH);
         }
 
         // If the last charging level assessed fees, we should include them for further steps of CryptoTransfer
