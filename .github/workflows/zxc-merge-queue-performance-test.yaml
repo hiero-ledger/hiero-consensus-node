@@ -588,7 +588,7 @@ jobs:
           set +e
 
           check_status() {
-           logfile=$1
+           logfile=${1}
            ec=2 # continue
 
            grep -E 'ERROR com.hedera.benchmark.*LoadTest - Setup|ERROR com.hedera.benchmark.*LoadTest - Test failed' ${logfile}
