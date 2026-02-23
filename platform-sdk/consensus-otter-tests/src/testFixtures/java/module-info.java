@@ -33,7 +33,6 @@ module org.hiero.otter.fixtures {
     requires com.swirlds.merkledb;
     requires com.swirlds.virtualmap;
     requires org.hiero.base.concurrent;
-    requires org.hiero.base.crypto;
     requires org.hiero.base.utility;
     requires org.hiero.consensus.concurrent;
     requires org.hiero.consensus.hashgraph.impl.test.fixtures;
