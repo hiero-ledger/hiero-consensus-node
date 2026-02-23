@@ -155,6 +155,11 @@ public class ProtectedFilesUpdateSuite {
     }
 
     @HapiTest
+    final Stream<DynamicTest> account50CanUpdateSimpleFeeSchedule() {
+        return specialAccountCanUpdateSpecialFile(SYSTEM_ADMIN, SIMPLE_FEE_SCHEDULE, IGNORE, IGNORE);
+    }
+
+    @HapiTest
     final Stream<DynamicTest> account56CanUpdateFeeSchedule() {
         return specialAccountCanUpdateSpecialFile(FEE_SCHEDULE_CONTROL, FEE_SCHEDULE, IGNORE, IGNORE);
     }
