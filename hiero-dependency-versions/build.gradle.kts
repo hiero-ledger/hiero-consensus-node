@@ -49,7 +49,7 @@ dependencies.constraints {
     }
     api("com.google.guava:guava:33.4.8-jre") { because("com.google.common") }
     api("com.google.j2objc:j2objc-annotations:3.0.0") { because("com.google.j2objc.annotations") }
-    api("com.google.jimfs:jimfs:1.3.0") { because("com.google.common.jimfs") }
+    api("com.google.jimfs:jimfs:1.3.1") { because("com.google.common.jimfs") }
     api("com.google.protobuf:protobuf-java:$protobuf") { because("com.google.protobuf") }
     api("com.google.protobuf:protobuf-java-util:$protobuf") { because("com.google.protobuf.util") }
     api("com.hedera.pbj:pbj-grpc-client-helidon:$pbj") {
