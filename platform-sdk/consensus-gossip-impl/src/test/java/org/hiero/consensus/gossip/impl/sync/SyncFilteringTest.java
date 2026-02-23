@@ -321,7 +321,7 @@ class SyncFilteringTest {
         // old enough self events
         expectedEvents.add(events.get(6).getHash()); // old enough self event
         expectedEvents.add(events.get(2).getHash()); // old enough self event
-        // expectedEvents.add(events.get(10).getHash()); // we don't send it, as it is too fresh self-event
+        // we skip event 10, as it is too fresh self-event
 
         // all non-self ancestors
         expectedEvents.add(events.get(1).getHash()); // ancestor of included self-event
@@ -332,9 +332,9 @@ class SyncFilteringTest {
 
         // all non-ancestors
         expectedEvents.add(events.get(4).getHash()); // old other event
-        // expectedEvents.add(events.get(8).getHash()); // we don't send it, as it is too fresh other event
-        // expectedEvents.add(events.get(9).getHash()); // we don't send it, as it is too fresh other event
-        // expectedEvents.add(events.get(11).getHash()); // we don't send it, as it is too fresh other event
+        // we skip event 8, as it is too fresh other event
+        // we skip event 9, as it is too fresh other event
+        // we skip event 11, as it is too fresh other event
 
         assertEquals(expectedEvents, filteredSet);
     }
