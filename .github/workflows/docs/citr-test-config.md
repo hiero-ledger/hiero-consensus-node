@@ -6,7 +6,7 @@ This document outlines the configuration settings for the CITR (Continuous Integ
 
 There are several test suites that are run in the CITR environment, each with its own configuration settings. The main test suites include:
 
-| Test Suite  | Name                          |                                      Description                                       | Automated |
+| Test Suite  |             Name              |                                      Description                                       | Automated |
 |-------------|-------------------------------|----------------------------------------------------------------------------------------|-----------|
 | MATS        | Minimal Acceptable Test Suite | Basic checks against main branch when changes are made                                 | X         |
 | XTS         | Extended Test Suite           | More comprehensive tests run on a scheduled basis                                      | X         |
