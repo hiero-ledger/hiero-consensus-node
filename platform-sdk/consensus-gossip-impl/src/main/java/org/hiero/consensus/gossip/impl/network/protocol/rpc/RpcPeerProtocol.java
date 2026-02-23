@@ -51,6 +51,9 @@ import org.hiero.consensus.gossip.impl.network.protocol.PeerProtocol;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 
+
+record TimeAndRunnable(long nano, Runnable run) {};
+
 /**
  * Message based implementation of gossip; currently supporting sync and simplistic broadcast. Responsible for
  * communication with a single peer
@@ -79,7 +82,7 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
     /**
      * All incoming messages from remote node to be passed to dispatch thread
      */
-    private final BlockingQueue<Runnable> inputQueue;
+    private final BlockingQueue<TimeAndRunnable> inputQueue;
 
     /**
      * Helper class to handle ping logic
@@ -317,6 +320,8 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
         // later we will loop here, for now just exit the protocol
     }
 
+    static long WAIT_NANOS = 0_000_000;
+
     /**
      * Run methods for dispatching input messages from socket to business logic (inside {@link #rpcPeerHandler}) Exits
      * on exceptions or when {@link #POISON_PILL} is found on the dispatch queue
@@ -327,12 +332,20 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
         syncMetrics.rpcDispatchThreadRunning(+1);
         try {
             while (true) {
-                final Runnable message =
-                        inputQueue.poll(syncConfig.rpcIdleDispatchPollTimeout().toMillis(), TimeUnit.MILLISECONDS);
-                if (message != null) {
+                final TimeAndRunnable tar = inputQueue.poll(syncConfig.rpcIdleDispatchPollTimeout().toMillis(), TimeUnit.MILLISECONDS);
+
+                if (tar != null) {
+                    final Runnable message = tar.run();
                     if (message == POISON_PILL) {
                         break;
                     }
+
+                    long since = System.nanoTime()-tar.nano();
+                    while ( since < WAIT_NANOS) {
+                        Thread.sleep(0,1_000);
+                        since = System.nanoTime()-tar.nano();
+                    }
+
                     message.run();
                 }
                 // permitProvider health indicates that system is overloaded, and we are getting backpressure; we need
@@ -454,23 +467,23 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
                     switch (messageType) {
                         case SYNC_DATA:
                             final GossipSyncData gossipSyncData = input.readPbjRecord(GossipSyncData.PROTOBUF);
-                            inputQueue.add(() -> receiver.receiveSyncData(SyncData.fromProtobuf(gossipSyncData)));
+                            inputQueue.add(new TimeAndRunnable(System.nanoTime(), () -> receiver.receiveSyncData(SyncData.fromProtobuf(gossipSyncData))));
                             break;
                         case KNOWN_TIPS:
                             final GossipKnownTips knownTips = input.readPbjRecord(GossipKnownTips.PROTOBUF);
-                            inputQueue.add(() -> receiver.receiveTips(knownTips.knownTips()));
+                            inputQueue.add(new TimeAndRunnable(System.nanoTime(), () -> receiver.receiveTips(knownTips.knownTips())));
                             break;
                         case EVENT:
                             final List<GossipEvent> events =
                                     Collections.singletonList(input.readPbjRecord(GossipEvent.PROTOBUF));
-                            inputQueue.add(() -> receiver.receiveEvents(events));
+                            inputQueue.add(new TimeAndRunnable(System.nanoTime(), () -> receiver.receiveEvents(events)));
                             break;
                         case BROADCAST_EVENT:
                             final GossipEvent event = input.readPbjRecord(GossipEvent.PROTOBUF);
-                            inputQueue.add(() -> receiver.receiveBroadcastEvent(event));
+                            inputQueue.add(new TimeAndRunnable(System.nanoTime(), () -> receiver.receiveBroadcastEvent(event)));
                             break;
                         case EVENTS_FINISHED:
-                            inputQueue.add(receiver::receiveEventsFinished);
+                            inputQueue.add(new TimeAndRunnable(System.nanoTime(), receiver::receiveEventsFinished));
                             break;
                         case PING:
                             pingHandler.handleIncomingPing(input.readPbjRecord(GossipPing.PROTOBUF));
@@ -485,7 +498,7 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
                 }
             }
         } finally {
-            inputQueue.add(POISON_PILL);
+            inputQueue.add(new TimeAndRunnable(System.nanoTime(), POISON_PILL));
             processMessages = false;
             syncMetrics.rpcReadThreadRunning(-1);
         }

@@ -27,7 +27,7 @@ import org.hiero.otter.test.performance.benchmark.ConsensusLayerBenchmark.Benchm
 public class CombinedOptimizationsExperiment {
 
     private static final Logger log = LogManager.getLogger(CombinedOptimizationsExperiment.class);
-    public static final BenchmarkParameters DEFAULTS = BenchmarkParameters.defaults();
+    public static final BenchmarkParameters DEFAULTS = new BenchmarkParameters(4, 1000, 1000, 20, 30L, 50L, 100L);
 
     /**
      * Apply all identified optimizations together.
