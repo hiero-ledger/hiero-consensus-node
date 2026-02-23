@@ -163,8 +163,20 @@ echo ""
 ssh -o BatchMode=yes "$SSH_DEST" bash <<REMOTE_EOF
 set -eo pipefail
 
+# Source profile to pick up JAVA_HOME and PATH in non-interactive SSH sessions
+for f in "\$HOME/.profile" "\$HOME/.bash_profile" "\$HOME/.bashrc" "/etc/profile"; do
+    [[ -f "\$f" ]] && source "\$f" 2>/dev/null || true
+done
+
+# Verify Java is available
+if [[ -z "\$JAVA_HOME" ]] && ! command -v java &>/dev/null; then
+    echo "ERROR: JAVA_HOME is not set and 'java' is not in PATH on the remote server."
+    echo "Install a JDK (21+) and set JAVA_HOME in ~/.profile or ~/.bashrc."
+    exit 1
+fi
+echo "Using Java: \${JAVA_HOME:-\$(dirname \$(dirname \$(readlink -f \$(which java))))}"
+
 cd "$REMOTE_REPO_DIR"
-export HOME="\$HOME"
 
 # Override RESULTS_BASE_DIR so run-benchmark.sh writes to our tmp location
 export RESULTS_BASE_DIR="$REMOTE_TMP_RESULTS"
