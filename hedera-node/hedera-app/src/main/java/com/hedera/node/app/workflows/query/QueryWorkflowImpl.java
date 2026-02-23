@@ -5,6 +5,7 @@ import static com.hedera.hapi.node.base.HederaFunctionality.GET_ACCOUNT_DETAILS;
 import static com.hedera.hapi.node.base.HederaFunctionality.NETWORK_GET_EXECUTION_TIME;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.BUSY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.FAIL_INVALID;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_QUERY_HEADER;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PAYER_ACCOUNT_NOT_FOUND;
@@ -27,7 +28,7 @@ import com.hedera.hapi.util.HapiUtils;
 import com.hedera.hapi.util.UnknownHederaFunctionality;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.fees.FeeManager;
-import com.hedera.node.app.fees.SimpleFeeContextImpl;
+import com.hedera.node.app.fees.context.SimpleFeeContextImpl;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.fees.ExchangeRateInfo;
@@ -198,7 +199,12 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                 AccountID payerID = null;
                 if (shouldCharge && paymentRequired) {
                     final var configuration = configProvider.getConfiguration();
-                    final var paymentBytes = ProtobufUtils.extractPaymentBytes(requestBuffer);
+                    final Bytes paymentBytes;
+                    try {
+                        paymentBytes = ProtobufUtils.extractPaymentBytes(requestBuffer);
+                    } catch (IOException | ParseException e) {
+                        throw new PreCheckException(INVALID_QUERY_HEADER);
+                    }
 
                     final var checkerResult = new IngestChecker.Result();
                     try {
@@ -269,8 +275,8 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                                     queryFees,
                                     cryptoTransferTxnFee);
 
-                            // 3.vi Submit payment to platform
-                            submissionManager.submit(txBody, txInfo.serializedSignedTxOrThrow());
+                            // 3.vi Submit payment to platform with priority=false vs network consensus and TSS txs
+                            submissionManager.submit(txBody, txInfo.serializedSignedTxOrThrow(), false);
                         }
                     } catch (Exception e) {
                         checkerResult.throttleUsages().forEach(ThrottleUsage::reclaimCapacity);

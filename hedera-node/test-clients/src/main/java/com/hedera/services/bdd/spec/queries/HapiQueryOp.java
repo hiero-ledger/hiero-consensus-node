@@ -7,7 +7,10 @@ import static com.hedera.services.bdd.spec.queries.QueryUtils.reflectForPrecheck
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.asTransferList;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.txnToString;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.PLATFORM_NOT_ACTIVE;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.PLATFORM_TRANSACTION_NOT_CREATED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.UNKNOWN;
 import static java.lang.Thread.sleep;
 import static java.util.Objects.requireNonNull;
@@ -211,12 +214,29 @@ public abstract class HapiQueryOp<T extends HapiQueryOp<T>> extends HapiSpecOper
                 break;
             }
 
-            if (answerOnlyRetryPrechecks.isPresent()
+            // Automatically retry on transient platform errors (backlog/not active/fee issues)
+            // regardless of explicit answerOnlyRetryPrechecks configuration
+            final boolean isTransientPlatformError = actualPrecheck == PLATFORM_NOT_ACTIVE
+                    || actualPrecheck == PLATFORM_TRANSACTION_NOT_CREATED
+                    || actualPrecheck == BUSY;
+            // For transient platform errors, use a hard limit of 10 retries to avoid infinite loops
+            // when no explicit retryLimits is set (which defaults to unlimited)
+            final int maxTransientRetries = 10;
+            final boolean withinTransientLimit = retryCount < maxTransientRetries;
+            final boolean shouldRetryTransient = isTransientPlatformError && withinTransientLimit;
+            final boolean shouldRetryExplicit = answerOnlyRetryPrechecks.isPresent()
                     && answerOnlyRetryPrechecks.get().contains(actualPrecheck)
-                    && isWithInRetryLimit(retryCount)) {
+                    && isWithInRetryLimit(retryCount);
+            if (shouldRetryTransient || shouldRetryExplicit) {
                 retryCount++;
                 log.trace("{}retry count: {}", spec.logPrefix(), retryCount);
-                sleep(10);
+                try {
+                    // Use longer sleep for platform errors to allow recovery
+                    sleep(isTransientPlatformError ? 1000 : 10);
+                } catch (InterruptedException e) {
+                    log.error("Interrupted while sleeping before retry");
+                    throw new RuntimeException(e);
+                }
             } else {
                 break;
             }

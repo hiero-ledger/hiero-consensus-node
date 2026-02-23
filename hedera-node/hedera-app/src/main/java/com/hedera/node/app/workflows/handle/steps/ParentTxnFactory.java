@@ -16,6 +16,7 @@ import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static java.util.Collections.emptySet;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.hapi.fees.HighVolumePricingCalculator.HIGH_VOLUME_PRICING_FUNCTIONS;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Key;
@@ -161,6 +162,7 @@ public class ParentTxnFactory {
 
     /**
      * Returns whether a {@link PreHandleResult} should be categorized as a node or user transaction.
+     *
      * @param preHandleResult the pre-handle result
      * @return the transaction category
      */
@@ -314,6 +316,7 @@ public class ParentTxnFactory {
 
     /**
      * Creates the root dispatch for the given parent transaction.
+     *
      * @param parentTxn the parent transaction
      * @param baseBuilder the base stream builder
      * @param keyVerifier the key verifier to use for the dispatch
@@ -382,6 +385,9 @@ public class ParentTxnFactory {
                 baseBuilder.congestionMultiplier(congestionMultiplier);
             }
         }
+        if (txnInfo.txBody().highVolume() && HIGH_VOLUME_PRICING_FUNCTIONS.contains(txnInfo.functionality())) {
+            baseBuilder.highVolumePricingMultiplier(fees.highVolumeMultiplier());
+        }
         return new RecordDispatch(
                 baseBuilder,
                 config,
@@ -410,6 +416,7 @@ public class ParentTxnFactory {
      * Creates a new root savepoint stack for the given state and transaction type, where genesis and
      * post-upgrade transactions have the maximum number of preceding records; and other transaction
      * types only support the number of preceding records specified in the network configuration.
+     *
      * @param state the state the stack is based on
      * @return the new root savepoint stack
      */
@@ -430,11 +437,11 @@ public class ParentTxnFactory {
      * Creates the {@link PreHandleResult} for a system transaction, which never has additional cryptographic
      * signatures that need to be verified; hence the pre-handle process is much simpler.
      *
-     * @param body                 the system transaction body
-     * @param payerId              the payer of the transaction
-     * @param config               the current configuration
+     * @param body the system transaction body
+     * @param payerId the payer of the transaction
+     * @param config the current configuration
      * @param readableStoreFactory the readable store factory
-     * @param type               the type of the transaction
+     * @param type the type of the transaction
      * @return the pre-handle result
      */
     private PreHandleResult preHandleSystemTransaction(

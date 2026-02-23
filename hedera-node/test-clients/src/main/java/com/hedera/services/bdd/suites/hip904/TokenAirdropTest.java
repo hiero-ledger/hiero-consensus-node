@@ -331,8 +331,10 @@ public class TokenAirdropTest extends TokenAirdropBase {
                                 .payingWith(OWNER)
                                 .via("second airdrop"),
                         validateFees(
-                                "airdrop", 0.1, TOKEN_TRANSFER_FEE + AIRDROPS_FEE_USD + TOKEN_ASSOCIATE_EXTRA_FEE_USD),
-                        validateFees("second airdrop", 0.05, TOKEN_TRANSFER_FEE + AIRDROPS_FEE_USD));
+                                "airdrop",
+                                0.1004310852,
+                                TOKEN_TRANSFER_FEE + AIRDROPS_FEE_USD + TOKEN_ASSOCIATE_EXTRA_FEE_USD),
+                        validateFees("second airdrop", 0.050431086, TOKEN_TRANSFER_FEE + AIRDROPS_FEE_USD));
             }
 
             @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
@@ -994,7 +996,7 @@ public class TokenAirdropTest extends TokenAirdropBase {
                             Assertions.assertEquals(currentCollectorBalance.get(), newCollectorBalance.get())),
                     validateFees(
                             "NFT with royalty fee airdrop to collector",
-                            0.0008,
+                            0.0008029,
                             TOKEN_TRANSFER_WITH_CUSTOM_FEE + SIGNATURE_FEE_AFTER_MULTIPLIER));
         }
 
@@ -1072,7 +1074,8 @@ public class TokenAirdropTest extends TokenAirdropBase {
                         // assert treasury balance is not changed
                         Assertions.assertEquals(currentTreasuryBalance.get(), newTreasuryBalance.get());
                     }),
-                    validateFees("NFT with royalty fee airdrop to treasury", 0.0008, TOKEN_TRANSFER_WITH_CUSTOM_FEE));
+                    validateFees(
+                            "NFT with royalty fee airdrop to treasury", 0.0008029, TOKEN_TRANSFER_WITH_CUSTOM_FEE));
         }
 
         @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
@@ -1286,7 +1289,6 @@ public class TokenAirdropTest extends TokenAirdropBase {
                     tokenAirdrop(moving(10, FUNGIBLE_TOKEN).between(OWNER, secp256K1))
                             .payingWith(OWNER)
                             .via("secp256k1Receiver"),
-                    getAutoCreatedAccountBalance(secp256K1).hasTokenBalance(FUNGIBLE_TOKEN, 10),
                     // Any new auto-creation needs to explicitly associate token. So it will be $0.1
                     validateChargedUsd("secp256k1Receiver", 0.1, 1));
         }

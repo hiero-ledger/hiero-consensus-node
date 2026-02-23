@@ -11,7 +11,7 @@ import com.hedera.hapi.node.base.QueryHeader;
 import com.hedera.hapi.node.token.CryptoGetAccountRecordsQuery;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.node.app.fees.SimpleFeeCalculatorImpl;
-import com.hedera.node.app.fees.SimpleFeeContextImpl;
+import com.hedera.node.app.fees.context.SimpleFeeContextImpl;
 import com.hedera.node.app.spi.fees.FeeContext;
 import java.util.List;
 import java.util.Set;
