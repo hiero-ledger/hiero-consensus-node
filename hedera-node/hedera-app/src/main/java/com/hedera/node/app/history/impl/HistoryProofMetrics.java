@@ -31,14 +31,14 @@ public class HistoryProofMetrics {
     private final Map<StageTransition, TransitionMetrics> transitionMetrics = new ConcurrentHashMap<>();
 
     public enum Stage {
-        WAITING_FOR_METADATA("WaitingForMetadata", "waiting for metadata"),
-        WAITING_FOR_ASSEMBLY("WaitingForAssembly", "waiting for assembly"),
-        WRAPS_R1("WrapsR1", "WRAPS R1"),
-        WRAPS_R2("WrapsR2", "WRAPS R2"),
-        WRAPS_R3("WrapsR3", "WRAPS R3"),
-        WRAPS_AGGREGATE("WrapsAggregate", "WRAPS aggregate"),
-        COMPLETED("Completed", "completed"),
-        FAILED("Failed", "failed");
+        WAITING_FOR_METADATA("WMeta", "waiting for metadata"),
+        WAITING_FOR_ASSEMBLY("WAsm", "waiting for assembly"),
+        WRAPS_R1("R1", "WRAPS R1"),
+        WRAPS_R2("R2", "WRAPS R2"),
+        WRAPS_R3("R3", "WRAPS R3"),
+        WRAPS_AGGREGATE("Agg", "WRAPS aggregate"),
+        COMPLETED("Done", "completed"),
+        FAILED("Fail", "failed");
 
         private final String metricToken;
         private final String label;
@@ -155,13 +155,13 @@ public class HistoryProofMetrics {
 
     private TransitionMetrics newTransitionMetrics(@NonNull final StageTransition transition) {
         final var suffix = transition.from().metricToken + "To" + transition.to().metricToken;
-        final var count = metrics.getOrCreate(new Counter.Config(CATEGORY, "historyProofTransition" + suffix + "Count")
+        final var count = metrics.getOrCreate(new Counter.Config(CATEGORY, "historyProofTrans" + suffix + "Cnt")
                 .withDescription("Number of history proof controller transitions from "
                         + transition.from().label
                         + " to "
                         + transition.to().label));
         final var averageConsensusMillis = metrics.getOrCreate(
-                new RunningAverageMetric.Config(CATEGORY, "historyProofTransition" + suffix + "ConsensusMillis")
+                new RunningAverageMetric.Config(CATEGORY, "historyProofTrans" + suffix + "Ms")
                         .withDescription("Average consensus milliseconds elapsed while transitioning from "
                                 + transition.from().label
                                 + " to "
