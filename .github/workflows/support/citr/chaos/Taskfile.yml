@@ -1,0 +1,24 @@
+version: '3'
+
+env:
+  SOLO_NAMESPACE: '{{.SOLO_NAMESPACE | default "solo"}}'
+  SOLO_CLUSTER_NAME: '{{.SOLO_CLUSTER_NAME | default "solo"}}'
+
+vars:
+  UUID:
+    sh: uuidgen | tr -d '-' | head -c 8 | tr '[:upper:]' '[:lower:]'
+
+includes:
+  pod:
+    taskfile: Taskfile.chaos.pod.yml
+  network:
+    taskfile: Taskfile.chaos.network.yml
+tasks:
+  show-experiment-status:
+    desc: Show the status of the pod chaos experiment
+    vars:
+      NAME: "{{.NAME}}"
+      TYPE: "{{.TYPE}}"
+    cmds:
+      - echo "🔍 Fetching {{.TYPE}} status..."
+      - kubectl get events --field-selector involvedObject.kind={{.TYPE}},involvedObject.name={{.NAME}} -n chaos-mesh
