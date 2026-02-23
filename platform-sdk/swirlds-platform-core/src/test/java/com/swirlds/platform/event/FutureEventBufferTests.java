@@ -11,7 +11,6 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.metrics.api.Metrics;
@@ -23,6 +22,7 @@ import java.util.Objects;
 import java.util.Queue;
 import java.util.Random;
 import org.hiero.consensus.event.FutureEventBuffer;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
@@ -34,6 +34,7 @@ import org.junit.jupiter.api.Test;
 class FutureEventBufferTests {
     public static final Metrics METRICS = new NoOpMetrics();
     public static final Configuration CONFIGURATION = new TestConfigBuilder().getOrCreateConfig();
+    public static final String FEB_NAME = "test";
 
     /**
      * This test verifies the following:
@@ -289,7 +290,7 @@ class FutureEventBufferTests {
     }
 
     private FutureEventBuffer pendingRoundFutureBuffer() {
-        return new FutureEventBuffer(METRICS, PENDING_CONSENSUS_ROUND);
+        return new FutureEventBuffer(METRICS, PENDING_CONSENSUS_ROUND, FEB_NAME);
     }
 
     /**
@@ -413,8 +414,8 @@ class FutureEventBufferTests {
     @Test
     @DisplayName("Tests both future event buffering options")
     void eventBufferingOptions() {
-        final FutureEventBuffer pendingBuffer = new FutureEventBuffer(METRICS, PENDING_CONSENSUS_ROUND);
-        final FutureEventBuffer birthRoundBuffer = new FutureEventBuffer(METRICS, EVENT_BIRTH_ROUND);
+        final FutureEventBuffer pendingBuffer = new FutureEventBuffer(METRICS, PENDING_CONSENSUS_ROUND, FEB_NAME);
+        final FutureEventBuffer birthRoundBuffer = new FutureEventBuffer(METRICS, EVENT_BIRTH_ROUND, FEB_NAME);
 
         final long latestConsensusRound = 1;
         // the latest consensus round is 1, which means pending round is 2

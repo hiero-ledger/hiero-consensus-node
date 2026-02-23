@@ -4,6 +4,7 @@ package com.hedera.node.app.service.contract.impl.test.exec.metrics;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
@@ -11,14 +12,15 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.wipe.W
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
-import com.swirlds.common.metrics.config.MetricsConfig;
-import com.swirlds.common.metrics.platform.DefaultPlatformMetrics;
-import com.swirlds.common.metrics.platform.MetricKeyRegistry;
-import com.swirlds.common.metrics.platform.PlatformMetricsFactoryImpl;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Map;
+import java.util.OptionalLong;
 import java.util.concurrent.Executors;
+import org.hiero.consensus.metrics.config.MetricsConfig;
+import org.hiero.consensus.metrics.platform.DefaultPlatformMetrics;
+import org.hiero.consensus.metrics.platform.MetricKeyRegistry;
+import org.hiero.consensus.metrics.platform.PlatformMetricsFactoryImpl;
 import org.hiero.consensus.model.node.NodeId;
 import org.hyperledger.besu.evm.frame.MessageFrame.State;
 import org.junit.jupiter.api.Test;
@@ -112,6 +114,15 @@ public class ContractMetricsTest {
 
         assertThat(subject.getAllCounterNames()).isEmpty();
         assertThat(subject.getAllCounterValues()).isEmpty();
+    }
+
+    @Test
+    void processedTransactionIsRecordedWithoutErrors() {
+        when(contractsConfig.metricsSmartContractPrimaryEnabled()).thenReturn(true);
+        final var subject = getSubject();
+        subject.recordProcessedTransaction(
+                new ContractMetrics.TransactionProcessingSummary(10, 10, 10, OptionalLong.of(10L), true));
+        assertThat(subject.getProcessedTransactionCount()).isEqualTo(1L);
     }
 
     private static final long DEFAULT_NODE_ID = 3;

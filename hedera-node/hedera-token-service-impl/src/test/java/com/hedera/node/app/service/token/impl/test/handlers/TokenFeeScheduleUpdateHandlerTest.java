@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.test.handlers;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_FEE_SCHEDULE_UPDATE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CUSTOM_FEES_LIST_TOO_LONG;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_HAS_NO_FEE_SCHEDULE_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_IS_PAUSED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_WAS_DELETED;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.TOKENS_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.TOKENS_STATE_LABEL;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -28,8 +31,8 @@ import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.token.TokenFeeScheduleUpdateTransactionBody;
 import com.hedera.hapi.node.transaction.CustomFee;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.fees.FeeContextImpl;
 import com.hedera.node.app.fees.FeeManager;
+import com.hedera.node.app.fees.context.IngestFeeContext;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
@@ -40,6 +43,8 @@ import com.hedera.node.app.service.token.impl.validators.CustomFeesValidator;
 import com.hedera.node.app.service.token.records.TokenBaseStreamBuilder;
 import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.fees.Fees;
+import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
+import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
@@ -47,7 +52,8 @@ import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
-import com.hedera.node.app.store.ReadableStoreFactory;
+import com.hedera.node.app.store.ReadableStoreFactoryImpl;
+import com.hedera.node.app.throttle.SynchronizedThrottleAccumulator;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
@@ -65,6 +71,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class TokenFeeScheduleUpdateHandlerTest extends CryptoTokenHandlerTestBase {
+
     private TokenFeeScheduleUpdateHandler subject;
     private CustomFeesValidator validator;
     private TransactionBody txn;
@@ -93,11 +100,15 @@ class TokenFeeScheduleUpdateHandlerTest extends CryptoTokenHandlerTestBase {
     @Mock(strictness = Mock.Strictness.LENIENT)
     private ExpiryValidator expiryValidator;
 
+    @Mock
+    private SynchronizedThrottleAccumulator synchronizedThrottleAccumulator;
+
     @BeforeEach
     void setup() {
         super.setUp();
         refreshWritableStores();
-        validator = new CustomFeesValidator();
+        validator = new CustomFeesValidator(
+                new FakeEntityIdFactoryImpl(SHARD, REALM), HederaTestConfigBuilder.createConfigProvider());
         subject = new TokenFeeScheduleUpdateHandler(validator);
         givenTxn();
         final var config = HederaTestConfigBuilder.create()
@@ -184,10 +195,10 @@ class TokenFeeScheduleUpdateHandlerTest extends CryptoTokenHandlerTestBase {
     void validatesTokenHasFeeScheduleKey() {
         final var tokenWithoutFeeScheduleKey =
                 fungibleToken.copyBuilder().feeScheduleKey((Key) null).build();
-        writableTokenState = MapWritableKVState.<TokenID, Token>builder(TOKENS)
+        writableTokenState = MapWritableKVState.<TokenID, Token>builder(TOKENS_STATE_ID, TOKENS_STATE_LABEL)
                 .value(fungibleTokenId, tokenWithoutFeeScheduleKey)
                 .build();
-        given(writableStates.<TokenID, Token>get(TOKENS)).willReturn(writableTokenState);
+        given(writableStates.<TokenID, Token>get(TOKENS_STATE_ID)).willReturn(writableTokenState);
         writableTokenStore = new WritableTokenStore(writableStates, writableEntityCounters);
         given(storeFactory.writableStore(WritableTokenStore.class)).willReturn(writableTokenStore);
 
@@ -200,7 +211,7 @@ class TokenFeeScheduleUpdateHandlerTest extends CryptoTokenHandlerTestBase {
     @DisplayName("fee schedule update fails if token does not exist")
     void rejectsInvalidTokenId() {
         writableTokenState = emptyWritableTokenState();
-        given(writableStates.<TokenID, Token>get(TOKENS)).willReturn(writableTokenState);
+        given(writableStates.<TokenID, Token>get(TOKENS_STATE_ID)).willReturn(writableTokenState);
         writableTokenStore = new WritableTokenStore(writableStates, writableEntityCounters);
         given(storeFactory.writableStore(WritableTokenStore.class)).willReturn(writableTokenStore);
 
@@ -262,7 +273,7 @@ class TokenFeeScheduleUpdateHandlerTest extends CryptoTokenHandlerTestBase {
         TransactionInfo txnInfo = mock(TransactionInfo.class);
         FeeManager feeManager = mock(FeeManager.class);
         FeeCalculator feeCalculator = mock(FeeCalculator.class);
-        ReadableStoreFactory storeFactory = mock(ReadableStoreFactory.class);
+        ReadableStoreFactory storeFactory = mock(ReadableStoreFactoryImpl.class);
         TransactionBody transactionBody = mock(TransactionBody.class);
         TokenFeeScheduleUpdateTransactionBody tokenFeeScheduleUpdateTransactionBody =
                 mock(TokenFeeScheduleUpdateTransactionBody.class);
@@ -279,15 +290,16 @@ class TokenFeeScheduleUpdateHandlerTest extends CryptoTokenHandlerTestBase {
         when(transactionBody.tokenFeeScheduleUpdateOrThrow()).thenReturn(tokenFeeScheduleUpdateTransactionBody);
         when(tokenFeeScheduleUpdateTransactionBody.customFees()).thenReturn(customFees);
         when(tokenFeeScheduleUpdateTransactionBody.tokenIdOrThrow()).thenReturn(fungibleTokenId);
-        when(storeFactory.getStore(ReadableTokenStore.class)).thenReturn(readableTokenStore);
+        when(storeFactory.readableStore(ReadableTokenStore.class)).thenReturn(readableTokenStore);
         when(transactionBody.transactionIDOrThrow()).thenReturn(transactionID);
         when(transactionID.transactionValidStartOrThrow()).thenReturn(consensusTimestamp);
         when(txnInfo.signatureMap()).thenReturn(SignatureMap.DEFAULT);
         when(feeCalculator.addBytesPerTransaction(anyLong())).thenReturn(feeCalculator);
         when(feeCalculator.addRamByteSeconds(anyLong())).thenReturn(feeCalculator);
         when(feeCalculator.calculate()).thenReturn(Fees.FREE);
+        when(txnInfo.functionality()).thenReturn(TOKEN_FEE_SCHEDULE_UPDATE);
 
-        final var feeContext = new FeeContextImpl(
+        final var feeContext = new IngestFeeContext(
                 consensusInstant,
                 txnInfo,
                 payerKey,
@@ -297,7 +309,8 @@ class TokenFeeScheduleUpdateHandlerTest extends CryptoTokenHandlerTestBase {
                 configuration,
                 null,
                 -1,
-                transactionDispatcher);
+                transactionDispatcher,
+                synchronizedThrottleAccumulator);
 
         final var calculateFees = subject.calculateFees(feeContext);
         assertEquals(calculateFees, Fees.FREE);
@@ -309,7 +322,7 @@ class TokenFeeScheduleUpdateHandlerTest extends CryptoTokenHandlerTestBase {
         TransactionInfo txnInfo = mock(TransactionInfo.class);
         FeeManager feeManager = mock(FeeManager.class);
         FeeCalculator feeCalculator = mock(FeeCalculator.class);
-        ReadableStoreFactory storeFactory = mock(ReadableStoreFactory.class);
+        ReadableStoreFactory storeFactory = mock(ReadableStoreFactoryImpl.class);
         TransactionBody transactionBody = mock(TransactionBody.class);
         TokenFeeScheduleUpdateTransactionBody tokenFeeScheduleUpdateTransactionBody =
                 mock(TokenFeeScheduleUpdateTransactionBody.class);
@@ -322,15 +335,16 @@ class TokenFeeScheduleUpdateHandlerTest extends CryptoTokenHandlerTestBase {
         // Any token ID that doesn't exist:
         when(tokenFeeScheduleUpdateTransactionBody.tokenIdOrThrow())
                 .thenReturn(TokenID.newBuilder().tokenNum(1500).build());
-        when(storeFactory.getStore(ReadableTokenStore.class)).thenReturn(readableTokenStore);
+        when(storeFactory.readableStore(ReadableTokenStore.class)).thenReturn(readableTokenStore);
         when(transactionBody.transactionIDOrThrow()).thenReturn(transactionID);
         when(transactionID.transactionValidStartOrThrow()).thenReturn(consensusTimestamp);
         when(txnInfo.signatureMap()).thenReturn(SignatureMap.DEFAULT);
         when(feeCalculator.addBytesPerTransaction(anyLong())).thenReturn(feeCalculator);
         when(feeCalculator.addRamByteSeconds(anyLong())).thenReturn(feeCalculator);
         when(feeCalculator.calculate()).thenReturn(Fees.FREE);
+        when(txnInfo.functionality()).thenReturn(TOKEN_FEE_SCHEDULE_UPDATE);
 
-        final var feeContext = new FeeContextImpl(
+        final var feeContext = new IngestFeeContext(
                 consensusInstant,
                 txnInfo,
                 payerKey,
@@ -340,7 +354,8 @@ class TokenFeeScheduleUpdateHandlerTest extends CryptoTokenHandlerTestBase {
                 configuration,
                 null,
                 -1,
-                transactionDispatcher);
+                transactionDispatcher,
+                synchronizedThrottleAccumulator);
 
         Assertions.assertThatNoException().isThrownBy(() -> subject.calculateFees(feeContext));
     }

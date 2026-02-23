@@ -27,6 +27,7 @@ import "google/protobuf/wrappers.proto";
 import "services/basic_types.proto";
 import "services/exchange_rate.proto";
 import "services/state/addressbook/node.proto";
+import "services/state/addressbook/registered_node.proto";
 import "services/state/blockrecords/block_info.proto";
 import "services/state/blockrecords/running_hashes.proto";
 import "services/state/blockstream/block_stream_info.proto";
@@ -34,6 +35,7 @@ import "services/state/congestion/congestion_level_starts.proto";
 import "services/state/consensus/topic.proto";
 import "services/state/contract/bytecode.proto";
 import "services/state/contract/storage_slot.proto";
+import "services/state/contract/evm_hook_state.proto";
 import "services/state/file/file.proto";
 import "services/state/recordcache/recordcache.proto";
 import "services/state/roster/roster.proto";
@@ -44,6 +46,7 @@ import "services/state/token/account.proto";
 import "services/state/token/account_pending_airdrop.proto";
 import "services/state/token/network_staking_rewards.proto";
 import "services/state/token/node_rewards.proto";
+import "services/state/token/node_payments.proto";
 import "services/state/token/nft.proto";
 import "services/state/token/staking_node_info.proto";
 import "services/state/token/token.proto";
@@ -228,12 +231,12 @@ enum StateIdentifier {
     /**
      * A state identifier for contract storage slots. Key/value state.
      */
-    STATE_ID_CONTRACT_STORAGE = 4;
+    STATE_ID_STORAGE = 4;
 
     /**
      * A state identifier for contract bytecode. Key/value state.
      */
-    STATE_ID_CONTRACT_BYTECODE = 5;
+    STATE_ID_BYTECODE = 5;
 
     /**
      * A state identifier for Hedera File Service (HFS). Key/value state.
@@ -253,27 +256,27 @@ enum StateIdentifier {
     /**
      * A state identifier for token relationships. Key/value state.
      */
-    STATE_ID_TOKEN_RELATIONS = 9;
+    STATE_ID_TOKEN_RELS = 9;
 
     /**
      * A state identifier for network staking information. Key/value state.
      */
-    STATE_ID_STAKING_INFO = 10;
+    STATE_ID_STAKING_INFOS = 10;
 
     /**
      * A state identifier for network staking rewards. Singleton state.
      */
-    STATE_ID_NETWORK_REWARDS = 11;
+    STATE_ID_STAKING_NETWORK_REWARDS = 11;
 
     /**
      * A state identifier for throttle usage. Singleton state.
      */
-    STATE_ID_THROTTLE_USAGE = 12;
+    STATE_ID_THROTTLE_USAGE_SNAPSHOTS = 12;
 
     /**
      * A state identifier for network congestion start times. Singleton state.
      */
-    STATE_ID_CONGESTION_STARTS = 13;
+    STATE_ID_CONGESTION_LEVEL_STARTS = 13;
 
     /**
      * A state identifier for scheduled transactions. Key/value state.
@@ -283,7 +286,7 @@ enum StateIdentifier {
     /**
      * A state identifier for scheduled transaction expiration. Key/value state.
      */
-    STATE_ID_SCHEDULES_BY_EXPIRY = 15;
+    STATE_ID_SCHEDULES_BY_EXPIRY_SEC = 15;
 
     /**
      * A state identifier for scheduled transaction deduplication. Key/value state.
@@ -303,7 +306,7 @@ enum StateIdentifier {
     /**
      * A state identifier for network block information. Singleton state.
      */
-    STATE_ID_BLOCK_INFO = 19;
+    STATE_ID_BLOCKS = 19;
 
     /**
      * A state identifier for address book nodes. Key/value state.
@@ -462,9 +465,39 @@ enum StateIdentifier {
     STATE_ID_NODE_REWARDS = 50;
 
     /**
+     * A state identifier for EVM hook states.
+     */
+    STATE_ID_EVM_HOOK_STATES = 51;
+
+    /**
+     * A state identifier for EVM hook storage.
+     */
+    STATE_ID_EVM_HOOK_STORAGE = 52;
+
+    /**
+     * A state identifier for account to node relation.
+     */
+    STATE_ID_ACCOUNT_NODE_REL = 53;
+
+    /**
+     * A state identifier for WRAPS message histories.
+     */
+    STATE_ID_WRAPS_MESSAGE_HISTORIES = 54;
+
+    /**
+    * A state identifier for the node payments. Singleton state.
+    */
+    STATE_ID_NODE_PAYMENTS = 55;
+
+    /**
+    * A state identifier for registered nodes. Key/value state.
+    */
+    STATE_ID_REGISTERED_NODES = 56;
+
+    /**
      * A state identifier for the round receipts queue. Queue state.
      */
-    STATE_ID_TRANSACTION_RECEIPTS_QUEUE = 126;
+    STATE_ID_TRANSACTION_RECEIPTS = 126;
 
     /**
      * A state for the `150` upgrade file data. Queue state.
@@ -697,6 +730,12 @@ message SingletonUpdateChange {
          * Node rewards SHALL be updated for every non-empty block.
          */
         proto.NodeRewards node_rewards_value = 18;
+        /**
+         * A change to the node payments singleton.
+         * <p>
+         * Node payments SHALL be updated for every non-empty block.
+         */
+        com.hedera.hapi.node.state.token.NodePayments node_payments_value = 19;
     }
 }
 
@@ -731,6 +770,17 @@ message MapUpdateChange {
      * This field is REQUIRED.
      */
     MapChangeValue value = 2;
+
+    /**
+     * If true, the new mapping is identical _by value_ to the old one
+     * for purposes of business logic; the change is being made for
+     * other reasons, such as to update the `next`/`prev` pointers in
+     * a doubly-linked list.<br/>
+     * This can, for example, let a stream consumer reconstruct the
+     * state changes made by a contract operation without needing an
+     * additional list of changed keys.
+     */
+    bool identical = 3;
 }
 
 /**
@@ -871,6 +921,16 @@ message MapChangeKey {
          * A construction-scoped node id key.
          */
         com.hedera.hapi.node.state.history.ConstructionNodeId construction_node_id_key = 22;
+
+        /**
+         * A hook id key.
+         */
+        proto.HookId hook_id_key = 23;
+
+        /**
+         * An EVM hook's storage slot key.
+         */
+        com.hedera.hapi.node.state.hooks.EvmHookSlotKey evm_hook_slot_key = 24;
     }
 }
 
@@ -1036,6 +1096,26 @@ message MapChangeValue {
          * A proof key set.
          */
         com.hedera.hapi.node.state.history.ProofKeySet proof_key_set_value = 28;
+
+        /**
+         * An EVM hook's state.
+         */
+        com.hedera.hapi.node.state.hooks.EvmHookState evm_hook_state_value = 29;
+
+        /**
+         * A node identifier.
+         */
+        com.hedera.hapi.platform.state.NodeId node_id_value = 30;
+
+        /**
+         * A WRAPS message history.
+         */
+        com.hedera.hapi.node.state.history.WrapsMessageHistory wraps_message_history_value = 31;
+
+        /**
+         * A registered node value.
+         */
+        com.hedera.hapi.node.state.addressbook.RegisteredNode registered_node_value = 32;
     }
 }
 

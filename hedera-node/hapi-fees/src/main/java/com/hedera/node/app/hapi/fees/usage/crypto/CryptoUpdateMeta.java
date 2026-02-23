@@ -21,6 +21,8 @@ public class CryptoUpdateMeta {
     private final boolean hasProxy;
     private final int maxAutomaticAssociations;
     private final boolean hasMaxAutomaticAssociations;
+    private final int numHookCreations;
+    private final int numHookDeletions;
 
     public CryptoUpdateMeta(Builder builder) {
         keyBytesUsed = builder.keyBytesUsed;
@@ -31,6 +33,8 @@ public class CryptoUpdateMeta {
         hasProxy = builder.hasProxy;
         maxAutomaticAssociations = builder.maxAutomaticAssociations;
         hasMaxAutomaticAssociations = builder.hasMaxAutomaticAssociations;
+        numHookCreations = builder.numHookCreations;
+        numHookDeletions = builder.numHookDeletions;
     }
 
     public CryptoUpdateMeta(CryptoUpdateTransactionBody cryptoUpdateTxnBody, long transactionValidStartSecs) {
@@ -45,6 +49,8 @@ public class CryptoUpdateMeta {
         hasMaxAutomaticAssociations = cryptoUpdateTxnBody.hasMaxAutomaticTokenAssociations();
         maxAutomaticAssociations =
                 cryptoUpdateTxnBody.getMaxAutomaticTokenAssociations().getValue();
+        numHookCreations = cryptoUpdateTxnBody.getHookCreationDetailsCount();
+        numHookDeletions = cryptoUpdateTxnBody.getHookIdsToDeleteCount();
     }
 
     public long getMsgBytesUsed() {
@@ -79,6 +85,14 @@ public class CryptoUpdateMeta {
         return hasMaxAutomaticAssociations;
     }
 
+    public int getNumHookCreations() {
+        return numHookCreations;
+    }
+
+    public int getNumHookDeletions() {
+        return numHookDeletions;
+    }
+
     private int bytesUsedInTxn(CryptoUpdateTransactionBody op) {
         return BASIC_ENTITY_ID_SIZE
                 + op.getMemo().getValueBytes().size()
@@ -97,6 +111,8 @@ public class CryptoUpdateMeta {
         private boolean hasProxy;
         private int maxAutomaticAssociations;
         private boolean hasMaxAutomaticAssociations;
+        private int numHookCreations;
+        private int numHookDeletions;
 
         public Builder() {
             // empty here on purpose.
@@ -139,6 +155,16 @@ public class CryptoUpdateMeta {
 
         public CryptoUpdateMeta.Builder hasMaxAutomaticAssociations(boolean hasMaxAutomaticAssociations) {
             this.hasMaxAutomaticAssociations = hasMaxAutomaticAssociations;
+            return this;
+        }
+
+        public CryptoUpdateMeta.Builder numHookCreations(int numHookCreations) {
+            this.numHookCreations = numHookCreations;
+            return this;
+        }
+
+        public CryptoUpdateMeta.Builder numHookDeletions(int numHookDeletions) {
+            this.numHookDeletions = numHookDeletions;
             return this;
         }
 

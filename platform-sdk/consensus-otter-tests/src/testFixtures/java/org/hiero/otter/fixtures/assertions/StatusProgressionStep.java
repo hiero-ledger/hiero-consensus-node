@@ -15,20 +15,20 @@ import org.hiero.consensus.model.status.PlatformStatus;
  * Helper class that defines a step in the status progression of a node.
  *
  * <p>This class is used to define the expected status progression of a node during a test. It allows
- * to specify the target status, as well as any required or optional interim statuses that must/can be
- * reached before reaching the target status.
+ * to specify the target status, as well as any required or optional interim statuses that must/can be reached before
+ * reaching the target status.
  */
 public class StatusProgressionStep {
 
-    private final PlatformStatus target;
+    private final EnumSet<PlatformStatus> targets;
     private final EnumSet<PlatformStatus> requiredInterim;
     private final EnumSet<PlatformStatus> optionalInterim;
 
     private StatusProgressionStep(
-            @NonNull final PlatformStatus target,
+            @NonNull final EnumSet<PlatformStatus> targets,
             @NonNull final EnumSet<PlatformStatus> requiredInterim,
             @NonNull final EnumSet<PlatformStatus> optionalInterim) {
-        this.target = requireNonNull(target);
+        this.targets = requireNonNull(targets);
         this.requiredInterim = requireNonNull(requiredInterim);
         this.optionalInterim = requireNonNull(optionalInterim);
     }
@@ -39,8 +39,8 @@ public class StatusProgressionStep {
      * @return the target status
      */
     @NonNull
-    public PlatformStatus target() {
-        return target;
+    public Set<PlatformStatus> targets() {
+        return targets;
     }
 
     /**
@@ -71,12 +71,26 @@ public class StatusProgressionStep {
      */
     public static StatusProgressionStep target(@NonNull final PlatformStatus target) {
         return new StatusProgressionStep(
-                target, EnumSet.noneOf(PlatformStatus.class), EnumSet.noneOf(PlatformStatus.class));
+                EnumSet.of(target), EnumSet.noneOf(PlatformStatus.class), EnumSet.noneOf(PlatformStatus.class));
     }
 
     /**
-     * Creates a new instance of {@link StatusProgressionStep} that is a copy of this instance, but
-     * with the specified required interim status added.
+     * Creates a new instance of {@link StatusProgressionStep} with the specified target statuses. One of these targets
+     * must be reached.
+     *
+     * @param first the first target status
+     * @param rest the additional target statuses
+     * @return a new instance of {@link StatusProgressionStep}
+     */
+    public static StatusProgressionStep targets(
+            @NonNull final PlatformStatus first, @NonNull final PlatformStatus... rest) {
+        return new StatusProgressionStep(
+                EnumSet.of(first, rest), EnumSet.noneOf(PlatformStatus.class), EnumSet.noneOf(PlatformStatus.class));
+    }
+
+    /**
+     * Creates a new instance of {@link StatusProgressionStep} that is a copy of this instance, but with the specified
+     * required interim status added.
      *
      * @param first the first required interim status
      * @param rest optionally, the additional required interim statuses
@@ -92,12 +106,12 @@ public class StatusProgressionStep {
             newRequiredInterim.addAll(Arrays.asList(rest));
         }
 
-        return new StatusProgressionStep(target, newRequiredInterim, optionalInterim);
+        return new StatusProgressionStep(targets, newRequiredInterim, optionalInterim);
     }
 
     /**
-     * Creates a new instance of {@link StatusProgressionStep} that is a copy of this instance, but
-     * with the specified optional interim status added.
+     * Creates a new instance of {@link StatusProgressionStep} that is a copy of this instance, but with the specified
+     * optional interim status added.
      *
      * @param first the first optional interim status
      * @param rest optionally, the additional optional interim statuses
@@ -113,6 +127,6 @@ public class StatusProgressionStep {
             newOptionalInterim.addAll(Arrays.asList(rest));
         }
 
-        return new StatusProgressionStep(target, requiredInterim, newOptionalInterim);
+        return new StatusProgressionStep(targets, requiredInterim, newOptionalInterim);
     }
 }

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.ethereum;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -331,6 +332,7 @@ public class NonceSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> nonceUpdatedAfterSuccessfulInternalCall() {
         return hapiTest(
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
@@ -428,6 +430,7 @@ public class NonceSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> nonceUpdatedAfterEvmReversionDueSendingValueToEthereumPrecompile0x2() {
         AccountID eth0x2 = AccountID.newBuilder().setAccountNum(2).build();
         return hapiTest(

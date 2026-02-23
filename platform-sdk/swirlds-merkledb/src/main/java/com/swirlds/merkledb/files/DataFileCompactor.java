@@ -191,7 +191,9 @@ public class DataFileCompactor {
             return Collections.emptyList();
         }
 
-        interruptFlag = false;
+        if (interruptFlag) {
+            return Collections.emptyList();
+        }
 
         // create a merge time stamp, this timestamp is the newest time of the set of files we are
         // merging
@@ -248,15 +250,16 @@ public class DataFileCompactor {
                         snapshotCompactionLock.lock();
                         try {
                             final DataFileWriter newFileWriter = currentWriter.get();
-                            final BufferedData itemBytes = reader.readDataItem(fileOffset);
-                            assert itemBytes != null;
-                            long newLocation = newFileWriter.storeDataItem(itemBytes);
+                            final BufferedData itemBytesWithTag = reader.readDataItemWithTag(fileOffset);
+                            assert itemBytesWithTag != null;
+                            long newLocation = newFileWriter.storeDataItemWithTag(itemBytesWithTag);
                             // update the index
                             index.putIfEqual(path, dataLocation, newLocation);
                         } catch (final IOException z) {
                             logger.error(
                                     EXCEPTION.getMarker(),
-                                    "Failed to copy data item {} / {}",
+                                    "[{}] Failed to copy data item {} / {}",
+                                    storeName,
                                     fileIndex,
                                     fileOffset,
                                     z);
@@ -318,6 +321,7 @@ public class DataFileCompactor {
         final DataFileMetadata newFileMetadata = newFileWriter.getMetadata();
         final DataFileReader newFileReader = dataFileCollection.addNewDataFileReader(newFileCreated, newFileMetadata);
         currentReader.set(newFileReader);
+        logger.info(MERKLE_DB.getMarker(), "[{}] New compaction file, newFile={}", storeName, newFileReader.getIndex());
     }
 
     /**
@@ -334,6 +338,11 @@ public class DataFileCompactor {
         currentWriter.set(null);
         // Now include the file in future compactions
         currentReader.get().setFileCompleted();
+        logger.info(
+                MERKLE_DB.getMarker(),
+                "[{}] Compaction file written, fileNum={}",
+                storeName,
+                currentReader.get().getIndex());
         currentReader.set(null);
     }
 
@@ -414,6 +423,31 @@ public class DataFileCompactor {
     // A helper method to avoid using a lambda in compactFiles()
     public boolean notInterrupted() {
         return !interruptFlag;
+    }
+
+    /**
+     * @return true if compaction is currently running, false otherwise.
+     */
+    public boolean isCompactionRunning() {
+        snapshotCompactionLock.lock();
+        try {
+            return currentCompactionStartTime.get() != null;
+        } finally {
+            snapshotCompactionLock.unlock();
+        }
+    }
+
+    /**
+     * @return true if compaction was started and now is complete (successfully or
+     * exceptionally), false otherwise.
+     */
+    public boolean isCompactionComplete() {
+        snapshotCompactionLock.lock();
+        try {
+            return (currentCompactionStartTime.get() == null) && !newCompactedFiles.isEmpty();
+        } finally {
+            snapshotCompactionLock.unlock();
+        }
     }
 
     /**

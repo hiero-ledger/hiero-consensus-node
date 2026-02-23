@@ -1,26 +1,41 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.fixtures;
 
-import static com.swirlds.platform.system.address.AddressBookUtils.endpointFor;
-import static com.swirlds.state.test.fixtures.merkle.TestSchema.CURRENT_VERSION;
+import static com.hedera.hapi.util.HapiUtils.endpointFor;
+import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_STATE_ID;
+import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_STATE_LABEL;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_LABEL;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_LABEL;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_LABEL;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_STATE_LABEL;
+import static com.hedera.node.app.spi.fixtures.TestSchema.CURRENT_VERSION;
 import static java.util.Objects.requireNonNull;
-import static org.hiero.consensus.roster.RosterRetriever.buildRoster;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
+import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.node.app.fixtures.state.FakePlatform;
 import com.hedera.node.app.fixtures.state.FakeSchemaRegistry;
 import com.hedera.node.app.fixtures.state.FakeStartupNetworks;
 import com.hedera.node.app.fixtures.state.FakeState;
-import com.hedera.node.app.ids.EntityIdService;
 import com.hedera.node.app.info.NodeInfoImpl;
+import com.hedera.node.app.service.addressbook.AddressBookService;
+import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.spi.fixtures.Scenarios;
 import com.hedera.node.app.spi.fixtures.TransactionFactory;
+import com.hedera.node.app.spi.info.NetworkInfo;
+import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.state.WorkingStateAccessor;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
@@ -28,11 +43,6 @@ import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.node.internal.network.Network;
 import com.hedera.node.internal.network.NodeMetadata;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.metrics.SpeedometerMetric;
-import com.swirlds.common.metrics.config.MetricsConfig;
-import com.swirlds.common.metrics.platform.DefaultPlatformMetrics;
-import com.swirlds.common.metrics.platform.MetricKeyRegistry;
-import com.swirlds.common.metrics.platform.PlatformMetricsFactoryImpl;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.source.ConfigSource;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
@@ -40,20 +50,20 @@ import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.metrics.api.Counter;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.test.fixtures.state.TestMerkleStateRoot;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.Service;
-import com.swirlds.state.lifecycle.info.NetworkInfo;
-import com.swirlds.state.lifecycle.info.NodeInfo;
+import com.swirlds.state.merkle.VirtualMapStateImpl;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.spi.WritableSingletonState;
-import com.swirlds.state.spi.WritableSingletonStateBase;
 import com.swirlds.state.spi.WritableStates;
+import com.swirlds.state.test.fixtures.FunctionWritableSingletonState;
 import com.swirlds.state.test.fixtures.MapWritableKVState;
 import com.swirlds.state.test.fixtures.MapWritableStates;
 import com.swirlds.state.test.fixtures.TestBase;
+import com.swirlds.state.test.fixtures.merkle.VirtualMapUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -61,9 +71,13 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import org.hiero.consensus.metrics.SpeedometerMetric;
+import org.hiero.consensus.metrics.config.MetricsConfig;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.metrics.platform.DefaultPlatformMetrics;
+import org.hiero.consensus.metrics.platform.MetricKeyRegistry;
+import org.hiero.consensus.metrics.platform.PlatformMetricsFactoryImpl;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.roster.Address;
-import org.hiero.consensus.model.roster.AddressBook;
 import org.junit.jupiter.api.AfterEach;
 
 /**
@@ -95,38 +109,51 @@ public class AppTestBase extends TestBase implements TransactionFactory, Scenari
 
     public static final Configuration DEFAULT_CONFIG = HederaTestConfigBuilder.createConfig();
 
-    private static final String ACCOUNTS_KEY = "ACCOUNTS";
-    private static final String ALIASES_KEY = "ALIASES";
     protected MapWritableKVState<AccountID, Account> accountsState;
     protected MapWritableKVState<ProtoBytes, AccountID> aliasesState;
+    protected MapWritableKVState<EntityNumber, Node> nodesState;
     protected WritableSingletonState<EntityCounts> entityCountsState;
     protected WritableSingletonState<EntityNumber> entityIdState;
     protected State state;
 
     protected void setupStandardStates() {
-        accountsState = new MapWritableKVState<>(ACCOUNTS_KEY);
+        accountsState = new MapWritableKVState<>(ACCOUNTS_STATE_ID, ACCOUNTS_STATE_LABEL);
         accountsState.put(ALICE.accountID(), ALICE.account());
         accountsState.put(ERIN.accountID(), ERIN.account());
         accountsState.put(STAKING_REWARD_ACCOUNT.accountID(), STAKING_REWARD_ACCOUNT.account());
         accountsState.put(FUNDING_ACCOUNT.accountID(), FUNDING_ACCOUNT.account());
         accountsState.put(nodeSelfAccountId, nodeSelfAccount);
         accountsState.commit();
-        aliasesState = new MapWritableKVState<>(ALIASES_KEY);
+        aliasesState = new MapWritableKVState<>(ALIASES_STATE_ID, ALIASES_STATE_LABEL);
 
-        entityIdState = new WritableSingletonStateBase<>("ENTITY_ID", () -> null, (a) -> {});
-        entityCountsState = new WritableSingletonStateBase<>("ENTITY_COUNTS", () -> EntityCounts.DEFAULT, (a) -> {});
+        entityIdState =
+                new FunctionWritableSingletonState<>(ENTITY_ID_STATE_ID, ENTITY_ID_STATE_LABEL, () -> null, (a) -> {});
+        entityCountsState = new FunctionWritableSingletonState<>(
+                ENTITY_COUNTS_STATE_ID, ENTITY_COUNTS_STATE_LABEL, () -> EntityCounts.DEFAULT, (a) -> {});
+        nodesState = new MapWritableKVState<>(NODES_STATE_ID, NODES_STATE_LABEL);
+        nodesState.put(
+                EntityNumber.newBuilder().number(nodeSelfId.id()).build(),
+                Node.newBuilder()
+                        .nodeId(nodeSelfId.id())
+                        .accountId(nodeSelfAccountId)
+                        .build());
         final var writableStates = MapWritableStates.builder()
                 .state(accountsState)
                 .state(aliasesState)
                 .state(entityIdState)
                 .state(entityCountsState)
+                .state(nodesState)
                 .build();
 
-        state = new TestMerkleStateRoot() {
+        final var virtualMap = VirtualMapUtils.createVirtualMap();
+
+        state = new VirtualMapStateImpl(virtualMap, new NoOpMetrics()) {
             @NonNull
             @Override
             public ReadableStates getReadableStates(@NonNull String serviceName) {
-                return TokenService.NAME.equals(serviceName) || EntityIdService.NAME.equals(serviceName)
+                return TokenService.NAME.equals(serviceName)
+                                || EntityIdService.NAME.equals(serviceName)
+                                || AddressBookService.NAME.equals(serviceName)
                         ? writableStates
                         : null;
             }
@@ -134,15 +161,14 @@ public class AppTestBase extends TestBase implements TransactionFactory, Scenari
             @NonNull
             @Override
             public WritableStates getWritableStates(@NonNull String serviceName) {
-                return TokenService.NAME.equals(serviceName) || EntityIdService.NAME.equals(serviceName)
+                return TokenService.NAME.equals(serviceName)
+                                || EntityIdService.NAME.equals(serviceName)
+                                || AddressBookService.NAME.equals(serviceName)
                         ? writableStates
                         : null;
             }
         };
     }
-
-    private final SemanticVersion hapiVersion =
-            SemanticVersion.newBuilder().major(1).minor(2).patch(3).build();
     /** Represents "this node" in our tests. */
     protected final NodeId nodeSelfId = NodeId.of(7);
     /** The AccountID of "this node" in our tests. */
@@ -162,7 +188,8 @@ public class AppTestBase extends TestBase implements TransactionFactory, Scenari
             List.of(endpointFor("127.0.0.1", 50211), endpointFor("127.0.0.1", 23456)),
             Bytes.wrap("cert7"),
             List.of(endpointFor("127.0.0.1", 50211), endpointFor("127.0.0.1", 23456)),
-            false);
+            false,
+            null);
 
     /**
      * The gRPC system has extensive metrics. This object allows us to inspect them and make sure they are being set
@@ -214,25 +241,25 @@ public class AppTestBase extends TestBase implements TransactionFactory, Scenari
     }
 
     public static final class StateMutator {
+
         private final MapWritableStates writableStates;
 
         private StateMutator(@NonNull final MapWritableStates states) {
             this.writableStates = states;
         }
 
-        public <T> StateMutator withSingletonState(@NonNull final String stateKey, @NonNull final T value) {
-            writableStates.getSingleton(stateKey).put(value);
+        public <T> StateMutator withSingletonState(final int stateId, @NonNull final T value) {
+            writableStates.getSingleton(stateId).put(value);
             return this;
         }
 
-        public <K, V> StateMutator withKVState(
-                @NonNull final String stateKey, @NonNull final K key, @NonNull final V value) {
-            writableStates.get(stateKey).put(key, value);
+        public <K, V> StateMutator withKVState(final int stateId, @NonNull final K key, @NonNull final V value) {
+            writableStates.get(stateId).put(key, value);
             return this;
         }
 
-        public <T> StateMutator withQueueState(@NonNull final String stateKey, @NonNull final T value) {
-            writableStates.getQueue(stateKey).add(value);
+        public <T> StateMutator withQueueState(final int stateId, @NonNull final T value) {
+            writableStates.getQueue(stateId).add(value);
             return this;
         }
 
@@ -242,6 +269,7 @@ public class AppTestBase extends TestBase implements TransactionFactory, Scenari
     }
 
     public static final class TestAppBuilder {
+
         private SemanticVersion hapiVersion = CURRENT_VERSION;
         private Set<Service> services = new LinkedHashSet<>();
         private TestConfigBuilder configBuilder = HederaTestConfigBuilder.create();
@@ -252,7 +280,8 @@ public class AppTestBase extends TestBase implements TransactionFactory, Scenari
                 List.of(),
                 Bytes.EMPTY,
                 List.of(),
-                true);
+                true,
+                null);
         private Set<NodeInfo> nodes = new LinkedHashSet<>();
 
         private TestAppBuilder() {}
@@ -334,7 +363,8 @@ public class AppTestBase extends TestBase implements TransactionFactory, Scenari
                         List.of(endpointFor("127.0.0.1", 50211), endpointFor("127.0.0.4", 23456)),
                         Bytes.wrap("cert7"),
                         List.of(endpointFor("127.0.0.1", 50211), endpointFor("127.0.0.4", 23456)),
-                        true);
+                        true,
+                        null);
             } else {
                 realSelfNodeInfo = new NodeInfoImpl(
                         selfNodeInfo.nodeId(),
@@ -343,28 +373,31 @@ public class AppTestBase extends TestBase implements TransactionFactory, Scenari
                         selfNodeInfo.gossipEndpoints(),
                         selfNodeInfo.sigCertBytes(),
                         selfNodeInfo.hapiEndpoints(),
-                        selfNodeInfo.declineReward());
+                        selfNodeInfo.declineReward(),
+                        null);
             }
 
             final var workingStateAccessor = new WorkingStateAccessor();
 
             final ConfigProvider configProvider = () -> new VersionedConfigImpl(configBuilder.getOrCreateConfig(), 1);
-            final var addresses = nodes.stream()
-                    .map(nodeInfo -> new Address()
-                            .copySetNodeId(NodeId.of(nodeInfo.nodeId()))
-                            .copySetWeight(nodeInfo.zeroWeight() ? 0 : 10))
-                    .toList();
-            final var addressBook = new AddressBook(addresses);
-            final var platform = new FakePlatform(realSelfNodeInfo.nodeId(), addressBook);
+            final var genesisRoster = Roster.newBuilder()
+                    .rosterEntries(nodes.stream()
+                            .map(ni -> RosterEntry.newBuilder()
+                                    .nodeId(ni.nodeId())
+                                    .weight(ni.weight())
+                                    .build())
+                            .sorted(Comparator.comparing(RosterEntry::nodeId))
+                            .toList())
+                    .build();
+            final var platform = new FakePlatform(realSelfNodeInfo.nodeId(), genesisRoster);
             final var initialState = new FakeState();
-            final var genesisRoster = buildRoster(addressBook);
             final var genesisNetwork = Network.newBuilder()
                     .nodeMetadata(genesisRoster.rosterEntries().stream()
                             .map(entry ->
                                     NodeMetadata.newBuilder().rosterEntry(entry).build())
                             .toList())
                     .build();
-            final var networkInfo = new GenesisNetworkInfo(genesisNetwork, Bytes.fromHex("03"));
+            final var networkInfo = new GenesisNetworkInfo(genesisNetwork, Bytes.fromHex("03"), realSelfNodeInfo);
             final var startupNetworks = new FakeStartupNetworks(genesisNetwork);
             services.forEach(svc -> {
                 final var reg = new FakeSchemaRegistry();
@@ -421,6 +454,7 @@ public class AppTestBase extends TestBase implements TransactionFactory, Scenari
     public static class GenesisNetworkInfo implements NetworkInfo {
         private final Bytes ledgerId;
         private final Map<Long, NodeInfo> nodeInfos;
+        private final NodeInfo selfNodeInfo;
 
         /**
          * Constructs a new {@link GenesisNetworkInfo} instance.
@@ -428,9 +462,11 @@ public class AppTestBase extends TestBase implements TransactionFactory, Scenari
          * @param genesisNetwork The genesis network
          * @param ledgerId      The ledger ID
          */
-        public GenesisNetworkInfo(@NonNull final Network genesisNetwork, @NonNull final Bytes ledgerId) {
+        public GenesisNetworkInfo(
+                @NonNull final Network genesisNetwork, @NonNull final Bytes ledgerId, @NonNull NodeInfo selfNodeInfo) {
             this.ledgerId = requireNonNull(ledgerId);
             this.nodeInfos = nodeInfosFrom(genesisNetwork);
+            this.selfNodeInfo = requireNonNull(selfNodeInfo);
         }
 
         /**
@@ -448,7 +484,7 @@ public class AppTestBase extends TestBase implements TransactionFactory, Scenari
         @NonNull
         @Override
         public NodeInfo selfNodeInfo() {
-            throw new UnsupportedOperationException("Not implemented");
+            return selfNodeInfo;
         }
 
         /**
@@ -493,7 +529,8 @@ public class AppTestBase extends TestBase implements TransactionFactory, Scenari
                         node.gossipEndpoint(),
                         node.gossipCaCertificate(),
                         node.serviceEndpoint(),
-                        node.declineReward());
+                        node.declineReward(),
+                        null);
                 nodeInfos.put(node.nodeId(), nodeInfo);
             }
             return nodeInfos;

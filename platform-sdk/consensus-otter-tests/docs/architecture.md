@@ -269,12 +269,10 @@ A `SingleNodeConsensusResult` collects results for a single node, while `Multipl
 
 ## 🔗 Related Documentation
 
-|          Topic          |                                   Link                                   |
-|-------------------------|--------------------------------------------------------------------------|
-| **Getting Started**     | [Quickstart Guide](getting-started.md)                                   |
-| **Environment Details** | [Turtle](turtle-environment.md) \| [Container](container-environment.md) |
-| **Test Development**    | [Writing Tests Guide](writing-tests.md)                                  |
-| **API Reference**       | [Assertions API](assertions-api.md)                                      |
-| **Configuration**       | [Configuration Guide](configuration.md)                                  |
-
-The architecture's modular design enables easy extension while maintaining consistency across different test environments and scenarios.
+|                        Guide                         |        Description        |
+|------------------------------------------------------|---------------------------|
+| [🏁 Getting Started](getting-started.md)             | Setup and your first test |
+| [🏛️ Architecture](architecture.md)                  | Framework design overview |
+| [✍️ Writing Tests](writing-tests.md)                 | Test development guide    |
+| [🐢 Turtle Environment](turtle-environment.md)       | Simulated testing guide   |
+| [🐳 Container Environment](container-environment.md) | Docker-based testing      |

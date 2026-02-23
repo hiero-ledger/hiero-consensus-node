@@ -2,14 +2,17 @@
 package com.hedera.node.app.hints;
 
 import static java.util.Objects.requireNonNull;
+import static java.util.stream.Collectors.toMap;
 
+import com.hedera.hapi.node.state.hints.HintsConstruction;
+import com.hedera.hapi.node.state.hints.NodePartyId;
 import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.hints.handlers.HintsHandlers;
+import com.hedera.node.app.hints.impl.HintsContext;
 import com.hedera.node.app.hints.impl.HintsController;
 import com.hedera.node.app.hints.impl.OnHintsFinished;
-import com.hedera.node.app.roster.ActiveRosters;
-import com.hedera.node.app.roster.RosterService;
+import com.hedera.node.app.service.roster.impl.ActiveRosters;
+import com.hedera.node.app.service.roster.impl.RosterServiceImpl;
 import com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -18,6 +21,8 @@ import com.swirlds.state.lifecycle.Service;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
+import java.util.SortedMap;
+import java.util.TreeMap;
 
 /**
  * Orchestrates the hinTS algorithms for,
@@ -47,7 +52,7 @@ import java.time.Instant;
  * and if requested to orchestrate a different construction, will abandon all in-progress
  * work.
  */
-public interface HintsService extends Service, BlockHashSigner {
+public interface HintsService extends Service {
     String NAME = "HintsService";
 
     /**
@@ -58,12 +63,7 @@ public interface HintsService extends Service, BlockHashSigner {
      * dependency in the <i>runtime</i> phase; then the hinTS service depends
      * on the roster service to know how to set up preprocessing work.)
      */
-    int MIGRATION_ORDER = RosterService.MIGRATION_ORDER - 1;
-
-    /**
-     * Placeholder for the history service to use when hinTS is disabled.
-     */
-    Bytes DISABLED_HINTS_METADATA = Bytes.wrap(new byte[1288]);
+    int MIGRATION_ORDER = RosterServiceImpl.MIGRATION_ORDER - 1;
 
     /**
      * Returns the active verification key, or throws if none is active.
@@ -72,10 +72,20 @@ public interface HintsService extends Service, BlockHashSigner {
     Bytes activeVerificationKeyOrThrow();
 
     /**
-     * Sets the current roster for the network.
-     * @param roster the roster
+     * Returns the active construction, or null if none is active (at genesis).
      */
-    void initCurrentRoster(@NonNull Roster roster);
+    @Nullable
+    HintsConstruction activeConstruction();
+
+    /**
+     * Whether the signer is ready.
+     */
+    boolean isReady();
+
+    /**
+     * Signs the given block hash.
+     */
+    HintsContext.Signing sign(@NonNull Bytes blockHash);
 
     /**
      * Sets the callback for when a hinTS construction is finished. Only one callback is active at a time.
@@ -92,7 +102,7 @@ public interface HintsService extends Service, BlockHashSigner {
      * @param adoptedRosterHash the adopted roster hash
      * @param forceHandoff whether to force the handoff when the adopted roster hash doesn't match the next construction
      */
-    void manageRosterAdoption(
+    void handoff(
             @NonNull WritableHintsStore hintsStore,
             @NonNull Roster previousRoster,
             @NonNull Roster adoptedRoster,
@@ -187,5 +197,18 @@ public interface HintsService extends Service, BlockHashSigner {
             return candidate;
         }
         return Integer.highestOneBit(candidate) << 1;
+    }
+
+    /**
+     * Returns the node weights in use for the given hinTS construction, if it is non-null with a complete scheme.
+     * @param construction the construction
+     * @return the node weights
+     */
+    static @Nullable SortedMap<Long, Long> maybeWeightsFrom(@Nullable final HintsConstruction construction) {
+        if (construction == null || !construction.hasHintsScheme()) {
+            return null;
+        }
+        return construction.hintsSchemeOrThrow().nodePartyIds().stream()
+                .collect(toMap(NodePartyId::nodeId, NodePartyId::partyWeight, (a, b) -> a, TreeMap::new));
     }
 }

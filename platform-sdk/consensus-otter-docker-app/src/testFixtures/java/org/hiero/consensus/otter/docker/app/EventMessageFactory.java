@@ -3,15 +3,13 @@ package org.hiero.consensus.otter.docker.app;
 
 import com.swirlds.platform.listeners.PlatformStatusChangeNotification;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.List;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.status.PlatformStatus;
-import org.hiero.otter.fixtures.ProtobufConverter;
 import org.hiero.otter.fixtures.container.proto.EventMessage;
 import org.hiero.otter.fixtures.container.proto.LogEntry;
 import org.hiero.otter.fixtures.container.proto.PlatformStatusChange;
 import org.hiero.otter.fixtures.container.proto.ProtoConsensusRound;
-import org.hiero.otter.fixtures.container.proto.ProtoConsensusRounds;
+import org.hiero.otter.fixtures.internal.ProtobufConverter;
 import org.hiero.otter.fixtures.logging.StructuredLog;
 
 /**
@@ -43,20 +41,14 @@ public final class EventMessageFactory {
     /**
      * Creates an {@link EventMessage} carrying a list of consensus rounds.
      *
-     * @param rounds the list of consensus rounds
+     * @param round the consensus round
      * @return the corresponding {@link EventMessage}
      */
     @NonNull
-    public static EventMessage fromConsensusRounds(@NonNull final List<ConsensusRound> rounds) {
-        final List<ProtoConsensusRound> protoRounds =
-                rounds.stream().map(ProtobufConverter::fromPlatform).toList();
+    public static EventMessage fromConsensusRound(@NonNull final ConsensusRound round) {
+        final ProtoConsensusRound protoRound = ProtobufConverter.fromPlatform(round);
 
-        final ProtoConsensusRounds protoConsensusRounds =
-                ProtoConsensusRounds.newBuilder().addAllRounds(protoRounds).build();
-
-        return EventMessage.newBuilder()
-                .setConsensusRounds(protoConsensusRounds)
-                .build();
+        return EventMessage.newBuilder().setConsensusRound(protoRound).build();
     }
 
     /**

@@ -6,7 +6,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import org.assertj.core.api.AbstractAssert;
 import org.hiero.otter.fixtures.OtterAssertions;
 import org.hiero.otter.fixtures.result.MultipleNodePlatformStatusResults;
-import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResults;
+import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
 
 /**
  * Assertions for {@link MultipleNodePlatformStatusResults}.
@@ -47,7 +47,7 @@ public class MultipleNodePlatformStatusResultsAssert
     public MultipleNodePlatformStatusResultsAssert haveSteps(
             @NonNull final StatusProgressionStep first, @Nullable final StatusProgressionStep... rest) {
         isNotNull();
-        for (final SingleNodePlatformStatusResults statusProgression : actual.results()) {
+        for (final SingleNodePlatformStatusResult statusProgression : actual.results()) {
             OtterAssertions.assertThat(statusProgression).hasSteps(first, rest);
         }
         return this;

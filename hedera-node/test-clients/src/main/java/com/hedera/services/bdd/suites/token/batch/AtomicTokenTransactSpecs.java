@@ -2,7 +2,8 @@
 package com.hedera.services.bdd.suites.token.batch;
 
 import static com.google.protobuf.ByteString.copyFromUtf8;
-import static com.hedera.services.bdd.junit.TestTags.TOKEN;
+import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.NoFungibleTransfers.changingNoFungibleBalances;
 import static com.hedera.services.bdd.spec.assertions.NoNftTransfers.changingNoNftOwners;
@@ -47,27 +48,22 @@ import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hederahashgraph.api.proto.java.CustomFee;
 import com.hederahashgraph.api.proto.java.TokenType;
-import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
-import java.util.Map;
 import java.util.OptionalLong;
 import java.util.function.Function;
 import java.util.stream.Stream;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
 // This test cases are direct copies of TokenTransactSpecs. The difference here is that
 // we are wrapping the operations in an atomic batch to confirm that everything works as expected.
-@HapiTestLifecycle
-@Tag(TOKEN)
-public class AtomicTokenTransactSpecs {
+@Tag(ATOMIC_BATCH)
+@Tag(MATS)
+class AtomicTokenTransactSpecs {
 
     public static final String PAYER = "payer";
     public static final String CIVILIAN = "civilian";
@@ -88,12 +84,6 @@ public class AtomicTokenTransactSpecs {
     public static final String SUPPLY = "supply";
     public static final String TRANSFER_TXN = "transferTxn";
     private static final String BATCH_OPERATOR = "batchOperator";
-
-    @BeforeAll
-    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(
-                Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
-    }
 
     @HapiTest
     final Stream<DynamicTest> fixedHbarCaseStudy() {

@@ -3,7 +3,10 @@ package com.hedera.node.app.service.contract.impl.state;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CONSENSUS_GAS_EXHAUSTED;
+import static com.hedera.node.app.service.token.HookDispatchUtils.HTS_HOOKS_CONTRACT_NUM;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.EXPLICIT_WRITE_TRACING;
 import static com.hedera.node.app.spi.workflows.ResourceExhaustedException.validateResource;
+import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.contract.ContractNonceInfo;
@@ -16,10 +19,10 @@ import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.ResourceExhaustedException;
 import com.hedera.node.config.data.ContractsConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Objects;
 import javax.inject.Inject;
 
 /**
@@ -37,6 +40,10 @@ public class RootProxyWorldUpdater extends ProxyWorldUpdater {
     private final HandleContext context;
 
     private boolean committed = false;
+
+    @Nullable
+    private TxStorageUsage txStorageUsage;
+
     private List<ContractID> createdContractIds;
     private List<ContractNonceInfo> updatedContractNonces = Collections.emptyList();
 
@@ -50,10 +57,10 @@ public class RootProxyWorldUpdater extends ProxyWorldUpdater {
             @NonNull final StorageSizeValidator storageSizeValidator,
             @NonNull final HandleContext context) {
         super(enhancement, evmFrameStateFactory, null);
-        this.contractsConfig = Objects.requireNonNull(contractsConfig);
-        this.storageManager = Objects.requireNonNull(storageManager);
-        this.rentCalculator = Objects.requireNonNull(rentCalculator);
-        this.storageSizeValidator = Objects.requireNonNull(storageSizeValidator);
+        this.contractsConfig = requireNonNull(contractsConfig);
+        this.storageManager = requireNonNull(storageManager);
+        this.rentCalculator = requireNonNull(rentCalculator);
+        this.storageSizeValidator = requireNonNull(storageSizeValidator);
         this.context = context;
     }
 
@@ -70,9 +77,14 @@ public class RootProxyWorldUpdater extends ProxyWorldUpdater {
      */
     @Override
     public void commit() {
+        // If not tracing explicit writes, request a set of changed storage keys to use to
+        // mark MapUpdateChanges as logically identical in the block stream
+        final boolean explicitWriteTracing = Boolean.TRUE.equals(
+                context.dispatchMetadata().getMetadataIfPresent(EXPLICIT_WRITE_TRACING, Boolean.class));
+        txStorageUsage = evmFrameState.getTxStorageUsage(!explicitWriteTracing);
+        final var writes = txStorageUsage.accesses();
         // Validate the effects on size are legal
-        final var changes = evmFrameState.getStorageChanges();
-        final var sizeEffects = summarizeSizeEffects(changes);
+        final var sizeEffects = summarizeSizeEffects(writes);
         storageSizeValidator.assertValid(
                 sizeEffects.finalSlotsUsed(), enhancement.operations(), sizeEffects.sizeChanges());
         // Charge rent for each increase in storage size
@@ -80,9 +92,10 @@ public class RootProxyWorldUpdater extends ProxyWorldUpdater {
         // "Rewrite" the pending storage changes to preserve per-contract linked lists
         storageManager.persistChanges(
                 enhancement,
-                changes,
+                writes,
                 sizeEffects.sizeChanges(),
-                enhancement.operations().getStore());
+                enhancement.operations().getStore(),
+                enhancement.nativeOperations().writableEvmHookStore());
 
         // We now have an apparently valid change set, and want to capture some summary
         // information for the Hedera record
@@ -103,6 +116,24 @@ public class RootProxyWorldUpdater extends ProxyWorldUpdater {
         super.commit();
         // Be sure not to externalize contract ids or nonces without a successful commit
         committed = true;
+    }
+
+    @Override
+    public @NonNull TxStorageUsage getTxStorageUsage() {
+        return requireNonNull(txStorageUsage);
+    }
+
+    /**
+     * Returns the {@link EvmFrameState} that manages this updater's EVM state.
+     *
+     * <p>This provides real-time access to storage changes during EVM execution,
+     * which is needed for opcode tracing functionality (similar to Ethereum's
+     * {@code debug_traceTransaction}).
+     *
+     * @return the EVM frame state for this updater
+     */
+    public @NonNull EvmFrameState getEvmFrameState() {
+        return evmFrameState;
     }
 
     /**
@@ -148,7 +179,10 @@ public class RootProxyWorldUpdater extends ProxyWorldUpdater {
     private void chargeRentFor(@NonNull final SizeEffects sizeEffects) {
         for (final var sizeChange : sizeEffects.sizeChanges()) {
             if (sizeChange.numAdded() > 0) {
-                final var rentFactors = evmFrameState.getRentFactorsFor(sizeChange.contractID());
+                final var contractId = sizeChange.contractID();
+                final var rentFactors = contractId.contractNumOrThrow() == HTS_HOOKS_CONTRACT_NUM
+                        ? evmFrameState.getRentFactorsFor(evmFrameStateFactory.hookRentPayerId())
+                        : evmFrameState.getRentFactorsFor(sizeChange.contractID());
                 // Calculate rent and try to charge the allocating contract
                 final var rentInTinycents = rentCalculator.computeFor(
                         sizeEffects.finalSlotsUsed(),

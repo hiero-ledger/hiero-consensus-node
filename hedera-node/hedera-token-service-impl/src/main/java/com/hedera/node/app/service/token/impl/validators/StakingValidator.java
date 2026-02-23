@@ -7,7 +7,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.node.app.service.token.ReadableAccountStore;
-import com.swirlds.state.lifecycle.info.NetworkInfo;
+import com.hedera.node.app.spi.info.NetworkInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import javax.inject.Inject;

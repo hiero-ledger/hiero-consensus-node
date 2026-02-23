@@ -2,9 +2,8 @@
 package com.hedera.services.bdd.suites.records;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.SYSTEM_ACCOUNT_BALANCES;
-import static com.hedera.services.bdd.junit.EmbeddedReason.MANIPULATES_EVENT_VERSION;
 import static com.hedera.services.bdd.junit.EmbeddedReason.MUST_SKIP_INGEST;
-import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.reducedFromSnapshot;
 import static com.hedera.services.bdd.spec.assertions.AssertUtils.inOrder;
@@ -13,6 +12,7 @@ import static com.hedera.services.bdd.spec.assertions.TransferListAsserts.includ
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getReceipt;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
+import static com.hedera.services.bdd.spec.transactions.TxnUtils.getDeduction;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.getNonFeeDeduction;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
@@ -20,14 +20,11 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uncheckedSubmit;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogContains;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogDoesNotContain;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.balanceSnapshot;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usableTxnIdNamed;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usingEventBirthRound;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
@@ -42,14 +39,13 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.hedera.services.bdd.junit.EmbeddedHapiTest;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
-import java.time.Duration;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
 
 public class DuplicateManagementTest {
     private static final String REPEATED = "repeated";
@@ -58,8 +54,8 @@ public class DuplicateManagementTest {
     private static final String CIVILIAN = "civilian";
     private static final long MS_TO_WAIT_FOR_CONSENSUS = 6_000L;
 
+    @Tag(MATS)
     @HapiTest
-    @SuppressWarnings("java:S5960")
     final Stream<DynamicTest> hasExpectedDuplicates() {
         return hapiTest(
                 cryptoCreate(CIVILIAN).balance(ONE_HUNDRED_HBARS),
@@ -93,6 +89,9 @@ public class DuplicateManagementTest {
                                 recordWith().status(DUPLICATE_TRANSACTION))),
                 sleepFor(MS_TO_WAIT_FOR_CONSENSUS),
                 withOpContext((spec, opLog) -> {
+                    final var flag =
+                            spec.targetNetworkOrThrow().startupProperties().get("fees.simpleFeesEnabled");
+
                     var cheapGet = getTxnRecord("cheapTxn").assertingNothingAboutHashes();
                     var costlyGet = getTxnRecord("costlyTxn").assertingNothingAboutHashes();
                     allRunFor(spec, cheapGet, costlyGet);
@@ -100,47 +99,49 @@ public class DuplicateManagementTest {
                     var costlyRecord = costlyGet.getResponseRecord();
                     opLog.info("cheapRecord: {}", cheapRecord);
                     opLog.info("costlyRecord: {}", costlyRecord);
-                    var cheapPrice = getNonFeeDeduction(cheapRecord).orElse(0);
-                    var costlyPrice = getNonFeeDeduction(costlyRecord).orElse(0);
-                    assertEquals(
-                            3 * cheapPrice - 1,
-                            costlyPrice,
-                            String.format(
-                                    "Costly (%d) should be 3x more expensive than" + " cheap (%d)!",
-                                    costlyPrice, cheapPrice));
-                }));
-    }
+                    if ("true".equals(flag)) {
+                        var cheapPrice = getDeduction(
+                                        cheapRecord.getTransferList(),
+                                        cheapRecord.getTransactionID().getAccountID())
+                                .orElse(0);
+                        var costlyPrice = getDeduction(
+                                        costlyRecord.getTransferList(),
+                                        costlyRecord.getTransactionID().getAccountID())
+                                .orElse(0);
+                        assertEquals(
+                                3 * cheapPrice,
+                                costlyPrice,
+                                String.format(
+                                        "Costly (%d) should be 3x more expensive than" + " cheap (%d)!",
+                                        costlyPrice, cheapPrice));
 
-    @EmbeddedHapiTest(MANIPULATES_EVENT_VERSION)
-    @DisplayName("only warns of missing creator if event birth round is greater than last freeze round")
-    final Stream<DynamicTest> onlyWarnsOfMissingCreatorIfCurrentVersion() {
-        return hapiTest(
-                cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, ONE_HBAR))
-                        .setNode("666")
-                        .withSubmissionStrategy(usingEventBirthRound(0L))
-                        .hasAnyStatusAtAll(),
-                assertHgcaaLogDoesNotContain(
-                        byNodeId(0), "node 666 which is not in the address book", Duration.ofSeconds(1)),
-                cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, ONE_HBAR))
-                        .setNode("666")
-                        .withSubmissionStrategy(usingEventBirthRound(42L))
-                        .hasAnyStatusAtAll(),
-                assertHgcaaLogContains(
-                        byNodeId(0), "node 666 which is not in the address book", Duration.ofSeconds(1)));
+                    } else {
+                        var cheapPrice = getNonFeeDeduction(cheapRecord).orElse(0);
+                        var costlyPrice = getNonFeeDeduction(costlyRecord).orElse(0);
+                        assertEquals(
+                                3 * cheapPrice - 1,
+                                costlyPrice,
+                                String.format(
+                                        "Costly (%d) should be 3x more expensive than" + " cheap (%d)!",
+                                        costlyPrice, cheapPrice));
+                    }
+                }));
     }
 
     @LeakyEmbeddedHapiTest(reason = MUST_SKIP_INGEST, requirement = SYSTEM_ACCOUNT_BALANCES)
     @DisplayName("if a node submits an authorized transaction without payer signature, it is charged the network fee")
     final Stream<DynamicTest> chargesNetworkFeeToNodeThatSubmitsAuthorizedTransactionWithoutPayerSignature() {
         final var submittingNodeAccountId = "4";
+        final var nodeAccount = "nodeAccount";
         return hapiTest(
                 newKeyNamed("notTreasuryKey"),
+                cryptoCreate(nodeAccount),
                 cryptoTransfer(tinyBarsFromTo(GENESIS, submittingNodeAccountId, ONE_HBAR)),
                 // Take a snapshot of the node's balance before submitting
                 balanceSnapshot("preConsensus", submittingNodeAccountId),
                 // Bypass ingest using a non-default node to submit a privileged transaction that claims
                 // 0.0.2 as the payer, but signs with the wrong key
-                nodeCreate("newNode")
+                nodeCreate("newNode", nodeAccount)
                         .signedBy("notTreasuryKey")
                         .setNode(submittingNodeAccountId)
                         .hasKnownStatus(INVALID_PAYER_SIGNATURE),
@@ -150,6 +151,7 @@ public class DuplicateManagementTest {
 
     @LeakyEmbeddedHapiTest(reason = MUST_SKIP_INGEST, requirement = SYSTEM_ACCOUNT_BALANCES)
     @DisplayName("if a node submits an authorized transaction without payer signature, it is charged the network fee")
+    @Tag(MATS)
     final Stream<DynamicTest> payerSolvencyStillCheckedEvenForDuplicateTransaction() {
         final var submittingNodeAccountId = "4";
         final AtomicLong preDuplicateBalance = new AtomicLong();

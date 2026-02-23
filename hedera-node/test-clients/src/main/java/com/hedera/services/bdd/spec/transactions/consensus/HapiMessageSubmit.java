@@ -196,7 +196,7 @@ public class HapiMessageSubmit extends HapiTxnOp<HapiMessageSubmit> {
         final var topicId = topicFn.isPresent() ? topicFn.get().apply(spec) : (topic.orElse(null));
         if (topicId == null || !spec.registry().hasTopicMeta(topicId.toString())) {
             if (!loggingOff) {
-                log.info("Invalid topic {}", topicId);
+                log.info("Assuming no custom fees for topic {}", topicId);
             }
             return 0;
         }

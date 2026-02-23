@@ -13,8 +13,10 @@ import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hedera.services.bdd.suites.HapiSuite;
 import com.hedera.services.yahcli.config.ConfigManager;
 import com.hedera.services.yahcli.util.HapiSpecUtils;
+import com.hederahashgraph.api.proto.java.ScheduleID;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -33,6 +35,7 @@ public class SendSuite extends HapiSuite {
     private final boolean schedule;
     private final boolean batch;
     private final long unitsToSend;
+    private final AtomicReference<ScheduleID> scheduleId = new AtomicReference<>();
 
     public SendSuite(
             final ConfigManager configManager,
@@ -56,6 +59,10 @@ public class SendSuite extends HapiSuite {
         return List.of(doSend());
     }
 
+    public AtomicReference<ScheduleID> getScheduleId() {
+        return scheduleId;
+    }
+
     final Stream<DynamicTest> doSend() {
         HapiTxnOp<?> transfer;
         if (denomination == null) {
@@ -74,7 +81,9 @@ public class SendSuite extends HapiSuite {
 
         // flag that transferred as parameter to schedule a transaction or to execute right away
         if (schedule) {
-            transfer = TxnVerbs.scheduleCreate("original", transfer).logged();
+            transfer = TxnVerbs.scheduleCreate("original", transfer)
+                    .exposingCreatedIdTo(scheduleId::set)
+                    .logged();
         }
         if (batch) {
             transfer = atomicBatch(transfer.batchKey(DEFAULT_PAYER));

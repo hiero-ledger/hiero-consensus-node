@@ -22,7 +22,7 @@ import javax.inject.Singleton;
  */
 @Singleton
 public class DecimalsTranslator extends AbstractCallTranslator<HtsCallAttempt> {
-    /** Selector for updateTokenKeys(address, TOKEN_KEY[]) method. */
+    /** Selector for decimals() method. */
     public static final SystemContractMethod DECIMALS = SystemContractMethod.declare("decimals()", ReturnTypes.BYTE)
             .withModifier(Modifier.VIEW)
             .withCategory(Category.TOKEN_QUERY);

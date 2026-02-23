@@ -2,7 +2,6 @@
 package com.swirlds.component.framework.component;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;
 import com.swirlds.component.framework.schedulers.TaskScheduler;
@@ -12,6 +11,7 @@ import com.swirlds.component.framework.wires.input.InputWire;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.time.Instant;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 

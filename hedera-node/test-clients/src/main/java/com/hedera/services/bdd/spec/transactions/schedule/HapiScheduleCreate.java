@@ -200,6 +200,9 @@ public class HapiScheduleCreate<T extends HapiTxnOp<T>> extends HapiTxnOp<HapiSc
 
     @Override
     protected Consumer<TransactionBody.Builder> opBodyDef(HapiSpec spec) throws Throwable {
+        if (scheduled.hasBatchKey()) {
+            throw new RuntimeException("Using batch keys in scheduled transactions is not supported!");
+        }
         var subOp = scheduled.signedTxnFor(spec);
 
         ScheduleCreateTransactionBody opBody = spec.txns()

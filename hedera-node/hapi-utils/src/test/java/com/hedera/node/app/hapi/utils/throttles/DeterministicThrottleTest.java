@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hapi.utils.throttles;
 
+import static com.hedera.hapi.util.HapiUtils.asInstant;
 import static com.hedera.node.app.hapi.utils.throttles.BucketThrottle.CAPACITY_UNITS_PER_NANO_TXN;
 import static com.hedera.node.app.hapi.utils.throttles.BucketThrottle.CAPACITY_UNITS_PER_TXN;
 import static com.hedera.node.app.hapi.utils.throttles.BucketThrottle.MTPS_PER_TPS;
@@ -46,28 +47,28 @@ class DeterministicThrottleTest {
         final var fromMtpsAndBurstPeriodMsNamed =
                 DeterministicThrottle.withMtpsAndBurstPeriodMsNamed(tps / 2 * MTPS_PER_TPS, 2_000, name);
 
-        assertEquals(expectedCapacity, fromTps.delegate().bucket().totalCapacity());
-        assertEquals(expectedCapacity, fromMtps.delegate().bucket().totalCapacity());
-        assertEquals(expectedCapacity, fromTpsAndBurstPeriod.delegate().bucket().totalCapacity());
+        assertEquals(expectedCapacity, fromTps.delegate().bucket().brimfulCapacity());
+        assertEquals(expectedCapacity, fromMtps.delegate().bucket().brimfulCapacity());
+        assertEquals(expectedCapacity, fromTpsAndBurstPeriod.delegate().bucket().brimfulCapacity());
         assertEquals(
-                expectedCapacity, fromTpsAndBurstPeriodMs.delegate().bucket().totalCapacity());
+                expectedCapacity, fromTpsAndBurstPeriodMs.delegate().bucket().brimfulCapacity());
         assertEquals(
-                expectedCapacity, fromMtpsAndBurstPeriod.delegate().bucket().totalCapacity());
+                expectedCapacity, fromMtpsAndBurstPeriod.delegate().bucket().brimfulCapacity());
         assertEquals(
-                expectedCapacity, fromMtpsAndBurstPeriodMs.delegate().bucket().totalCapacity());
-        assertEquals(expectedCapacity, fromTpsNamed.delegate().bucket().totalCapacity());
-        assertEquals(expectedCapacity, fromMtpsNamed.delegate().bucket().totalCapacity());
+                expectedCapacity, fromMtpsAndBurstPeriodMs.delegate().bucket().brimfulCapacity());
+        assertEquals(expectedCapacity, fromTpsNamed.delegate().bucket().brimfulCapacity());
+        assertEquals(expectedCapacity, fromMtpsNamed.delegate().bucket().brimfulCapacity());
         assertEquals(
-                expectedCapacity, fromTpsAndBurstPeriodNamed.delegate().bucket().totalCapacity());
-        assertEquals(
-                expectedCapacity,
-                fromTpsAndBurstPeriodMsNamed.delegate().bucket().totalCapacity());
+                expectedCapacity, fromTpsAndBurstPeriodNamed.delegate().bucket().brimfulCapacity());
         assertEquals(
                 expectedCapacity,
-                fromMtpsAndBurstPeriodNamed.delegate().bucket().totalCapacity());
+                fromTpsAndBurstPeriodMsNamed.delegate().bucket().brimfulCapacity());
         assertEquals(
                 expectedCapacity,
-                fromMtpsAndBurstPeriodMsNamed.delegate().bucket().totalCapacity());
+                fromMtpsAndBurstPeriodNamed.delegate().bucket().brimfulCapacity());
+        assertEquals(
+                expectedCapacity,
+                fromMtpsAndBurstPeriodMsNamed.delegate().bucket().brimfulCapacity());
 
         assertEquals(tps * MTPS_PER_TPS, fromTps.mtps());
         assertEquals(tps * MTPS_PER_TPS, fromMtps.mtps());
@@ -154,10 +155,10 @@ class DeterministicThrottleTest {
         final var result = subject.allow(1, now);
 
         assertTrue(result);
-        assertEquals(now, instantFrom(subject.lastDecisionTime()));
+        assertEquals(now, subject.lastDecisionTime());
         assertEquals(
                 internalCapacity - CAPACITY_UNITS_PER_TXN,
-                subject.delegate().bucket().capacityFree());
+                subject.delegate().bucket().brimfulCapacityFree());
     }
 
     @Test
@@ -184,7 +185,7 @@ class DeterministicThrottleTest {
         final var requiredPartialCapacity = subject.clampedCapacityRequiredFor(5);
         assertEquals(CAPACITY_UNITS_PER_TXN * 5, requiredPartialCapacity);
 
-        final var totalCapacity = subject.delegate().bucket().totalCapacity();
+        final var totalCapacity = subject.delegate().bucket().brimfulCapacity();
         final var requiredClampedCapacity = subject.clampedCapacityRequiredFor(500);
         final var requiredSillyCapacity = subject.clampedCapacityRequiredFor(Integer.MAX_VALUE);
         assertEquals(totalCapacity, requiredClampedCapacity);
@@ -205,10 +206,10 @@ class DeterministicThrottleTest {
         final var result = subject.allow(1, now);
 
         assertTrue(result);
-        assertEquals(now, instantFrom(subject.lastDecisionTime()));
+        assertEquals(now, subject.lastDecisionTime());
         assertEquals(
                 internalCapacity - 2 * CAPACITY_UNITS_PER_TXN + 1_000 * elapsedNanos,
-                subject.delegate().bucket().capacityFree());
+                subject.delegate().bucket().brimfulCapacityFree());
     }
 
     @Test
@@ -291,7 +292,7 @@ class DeterministicThrottleTest {
         subject.resetUsageTo(snapshot);
 
         assertEquals(used, subject.delegate().bucket().capacityUsed());
-        assertEquals(originalDecision, subject.lastDecisionTime());
+        assertEquals(asInstant(originalDecision), subject.lastDecisionTime());
     }
 
     @Test

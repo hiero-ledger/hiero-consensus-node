@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl.streaming;
 
+import static com.hedera.hapi.util.HapiUtils.asAccountString;
+import static com.hedera.node.app.blocks.BlockStreamManager.NUM_SIBLINGS_PER_BLOCK;
 import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
-import static com.swirlds.state.lifecycle.HapiUtils.asAccountString;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.Block;
@@ -10,7 +11,9 @@ import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.BlockProof;
 import com.hedera.hapi.block.stream.MerkleSiblingHash;
 import com.hedera.hapi.block.stream.schema.BlockSchema;
+import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.node.app.blocks.BlockItemWriter;
+import com.hedera.node.app.spi.records.SelfNodeAccountIdManager;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.internal.network.PendingProof;
@@ -21,7 +24,6 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.state.lifecycle.info.NodeInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.BufferedOutputStream;
 import java.io.File;
@@ -32,10 +34,12 @@ import java.math.BigInteger;
 import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Objects;
 import java.util.function.ToLongFunction;
 import java.util.function.UnaryOperator;
 import java.util.zip.GZIPInputStream;
@@ -96,15 +100,15 @@ public class FileBlockItemWriter implements BlockItemWriter {
      * Construct a new FileBlockItemWriter.
      *
      * @param configProvider configuration provider
-     * @param nodeInfo information about the current node
+     * @param selfNodeAccountIdManager information about the current node
      * @param fileSystem the file system to use for writing block files
      */
     public FileBlockItemWriter(
             @NonNull final ConfigProvider configProvider,
-            @NonNull final NodeInfo nodeInfo,
+            @NonNull final SelfNodeAccountIdManager selfNodeAccountIdManager,
             @NonNull final FileSystem fileSystem) {
         requireNonNull(configProvider, "The supplied argument 'configProvider' cannot be null!");
-        requireNonNull(nodeInfo, "The supplied argument 'nodeInfo' cannot be null!");
+        requireNonNull(selfNodeAccountIdManager, "The supplied argument 'nodeInfo' cannot be null!");
         requireNonNull(fileSystem, "The supplied argument 'fileSystem' cannot be null!");
 
         this.state = State.UNINITIALIZED;
@@ -113,7 +117,8 @@ public class FileBlockItemWriter implements BlockItemWriter {
 
         // Compute directory for block files
         final Path blockDir = fileSystem.getPath(blockStreamConfig.blockFileDir());
-        nodeScopedBlockDir = blockDir.resolve("block-" + asAccountString(nodeInfo.accountId()));
+        nodeScopedBlockDir =
+                blockDir.resolve("block-" + asAccountString(selfNodeAccountIdManager.getSelfNodeAccountId()));
 
         this.completeFileName = name -> name + COMPLETE_BLOCK_EXTENSION + COMPRESSION_ALGORITHM_EXTENSION;
         this.pendingFileName = name -> name + ".pnd" + COMPRESSION_ALGORITHM_EXTENSION;
@@ -154,10 +159,7 @@ public class FileBlockItemWriter implements BlockItemWriter {
          * The builder to resume work on the block's proof.
          */
         public BlockProof.Builder proofBuilder() {
-            return BlockProof.newBuilder()
-                    .block(pendingProof().block())
-                    .previousBlockRootHash(pendingProof.previousBlockHash())
-                    .startOfBlockStateRootHash(pendingProof.startOfBlockStateRootHash());
+            return BlockProof.newBuilder().block(pendingProof().block());
         }
 
         /**
@@ -172,39 +174,54 @@ public class FileBlockItemWriter implements BlockItemWriter {
     /**
      * Get the expected block directory for the given node.
      * @param config the configuration
-     * @param selfNodeInfo the node info
      * @return the expected block directory
      */
-    public static Path blockDirFor(@NonNull final Configuration config, @NonNull final NodeInfo selfNodeInfo) {
+    public static Path blockDirFor(@NonNull final Configuration config) {
         requireNonNull(config);
-        requireNonNull(selfNodeInfo);
-        final var basePath =
-                getAbsolutePath(config.getConfigData(BlockStreamConfig.class).blockFileDir());
-        return basePath.resolve("block-" + asAccountString(selfNodeInfo.accountId()));
+        return getAbsolutePath(config.getConfigData(BlockStreamConfig.class).blockFileDir());
     }
 
     /**
      * Loads pending blocks from the given directory, identifying them by the presence of {@code .pnd.json} files
      * with pending block proofs. The contents of the blocks are read from the corresponding {@code .pnd.gz} or
      * {@code .pnd} files.
-     * @param pendingBlocksPath the directory to load pending blocks from
+     * @param blockDirPath the directory containing subdirectories to load pending blocks from
      * @param followingBlockNumber the block number the pending blocks should be immediately preceding
+     * @param maxReadDepth the max allowed depth of nested protobuf messages
+     * @param maxReadSize the max size of protobuf messages to read
      * @return the list of pending blocks
      */
     public static List<OnDiskPendingBlock> loadContiguousPendingBlocks(
-            @NonNull final Path pendingBlocksPath, final long followingBlockNumber) {
-        requireNonNull(pendingBlocksPath);
+            @NonNull final Path blockDirPath,
+            final long followingBlockNumber,
+            final int maxReadDepth,
+            final int maxReadSize) {
+        requireNonNull(blockDirPath);
         final List<OnDiskPendingBlock> pendingBlocks = new LinkedList<>();
-        final var proofJsons = pendingBlocksPath.toFile().listFiles((dir, name) -> name.endsWith(".pnd.json"));
-        if (proofJsons == null) {
-            logger.warn("No pending blocks found in {}", pendingBlocksPath);
+        final File[] pendingBlocksPaths = blockDirPath.toFile().listFiles();
+        if (pendingBlocksPaths == null) {
+            logger.warn("No subdirectories found in {}", blockDirPath);
             return pendingBlocks;
         }
-        Arrays.sort(proofJsons, PROOF_JSON_FILE_COMPARATOR.reversed());
-        logger.info("Evaluating {} pending blocks on disk", proofJsons.length);
+
+        final var proofJsons = new ArrayList<File>();
+        for (final var pendingBlocksPath : pendingBlocksPaths) {
+            final File[] pendingJsons =
+                    requireNonNull(pendingBlocksPath.listFiles((dir, name) -> name.endsWith(".pnd.json")));
+            proofJsons.addAll(Arrays.asList(pendingJsons));
+        }
+
+        if (proofJsons.isEmpty()) {
+            logger.warn("No pending blocks found in any subdirectories of {}", blockDirPath);
+            return pendingBlocks;
+        }
+
+        proofJsons.sort(PROOF_JSON_FILE_COMPARATOR.reversed());
+
+        logger.info("Evaluating {} pending blocks on disk", proofJsons.size());
         long nextContiguousBlock = followingBlockNumber - 1;
-        for (int i = 0; i < proofJsons.length; i++) {
-            final var proofJson = proofJsons[i];
+        for (int i = 0; i < proofJsons.size(); i++) {
+            final var proofJson = proofJsons.get(i);
             final long nextNumber = PROOF_JSON_BLOCK_NUMBER_FN.applyAsLong(proofJson);
             if (nextNumber != nextContiguousBlock) {
                 logger.info("No more contiguous blocks (#{} != #{})", nextNumber, nextContiguousBlock);
@@ -221,7 +238,17 @@ public class FileBlockItemWriter implements BlockItemWriter {
                 logger.warn(
                         "Error reading pending proof metadata from {} (not considering remaining - {})",
                         proofJson.toPath(),
-                        Arrays.toString(Arrays.copyOfRange(proofJsons, i + 1, proofJsons.length)));
+                        Arrays.toString(Arrays.copyOfRange(proofJsons.toArray(), i + 1, proofJsons.size())));
+                break;
+            }
+            // Verify old proofs without block timestamp or sibling hashes are skipped
+            if (pendingProof.blockTimestamp() == null
+                    || Objects.equals(pendingProof.blockTimestamp(), Timestamp.DEFAULT)
+                    || pendingProof.siblingHashesFromPrevBlockRoot().size() != NUM_SIBLINGS_PER_BLOCK) {
+                logger.warn(
+                        "Pending proof metadata from {} doesn't match required fields (not considering remaining - {})",
+                        proofJson.toPath(),
+                        Arrays.toString(Arrays.copyOfRange(proofJsons.toArray(), i + 1, proofJsons.size())));
                 break;
             }
             Block partialBlock = null;
@@ -229,17 +256,17 @@ public class FileBlockItemWriter implements BlockItemWriter {
             Path contentsPath = proofJson.toPath().resolveSibling(name.replace(".pnd.json", ".pnd.gz"));
             if (contentsPath.toFile().exists()) {
                 try (final GZIPInputStream in = new GZIPInputStream(Files.newInputStream(contentsPath))) {
-                    partialBlock = Block.PROTOBUF.parse(Bytes.wrap(in.readAllBytes()));
+                    partialBlock = parseBlock(in.readAllBytes(), maxReadDepth, maxReadSize);
                 } catch (IOException | ParseException e) {
-                    logger.warn("Error reading zipped pending block contents from {}", contentsPath, e);
+                    logger.error("Error reading zipped pending block contents from {}", contentsPath, e);
                 }
             } else {
                 contentsPath = proofJson.toPath().resolveSibling(name.replace(".pnd.json", ".pnd"));
                 if (contentsPath.toFile().exists()) {
                     try {
-                        partialBlock = Block.PROTOBUF.parse(Bytes.wrap(Files.readAllBytes(contentsPath)));
+                        partialBlock = parseBlock(Files.readAllBytes(contentsPath), maxReadDepth, maxReadSize);
                     } catch (IOException | ParseException e) {
-                        logger.warn("Error reading pending block contents from {}", contentsPath, e);
+                        logger.error("Error reading pending block contents from {}", contentsPath, e);
                     }
                 }
             }
@@ -247,7 +274,7 @@ public class FileBlockItemWriter implements BlockItemWriter {
                 logger.warn(
                         "No pending block contents found for {} (not considering remaining - {})",
                         proofJson.toPath(),
-                        Arrays.toString(Arrays.copyOfRange(proofJsons, i + 1, proofJsons.length)));
+                        Arrays.toString(Arrays.copyOfRange(proofJsons.toArray(), i + 1, proofJsons.size())));
                 break;
             } else {
                 pendingBlocks.addFirst(
@@ -255,6 +282,12 @@ public class FileBlockItemWriter implements BlockItemWriter {
             }
         }
         return pendingBlocks;
+    }
+
+    private static Block parseBlock(final byte[] bytes, final int maxReadDepth, final int maxReadSize)
+            throws ParseException {
+        return Block.PROTOBUF.parse(
+                Bytes.wrap(bytes).toReadableSequentialData(), false, false, maxReadDepth, maxReadSize);
     }
 
     /**
@@ -318,8 +351,12 @@ public class FileBlockItemWriter implements BlockItemWriter {
         }
     }
 
-    @Override
-    public void writeItem(@NonNull final byte[] bytes) {
+    /**
+     * Writes a serialized item to the destination stream.
+     *
+     * @param bytes the serialized item to write
+     */
+    void writeItem(@NonNull final byte[] bytes) {
         requireNonNull(bytes);
         if (state != State.OPEN) {
             throw new IllegalStateException(
@@ -332,6 +369,19 @@ public class FileBlockItemWriter implements BlockItemWriter {
         writableStreamingData.writeVarInt(bytes.length, false);
         // Write the item bytes themselves.
         writableStreamingData.writeBytes(bytes);
+    }
+
+    /**
+     * Writes a block item and its serialized bytes to the destination stream.
+     * Only the serialized bytes are used, the block item is ignored.
+     *
+     * @param item the item to write (ignored in this implementation)
+     * @param bytes the serialized item to write
+     */
+    @Override
+    public void writePbjItemAndBytes(@NonNull final BlockItem item, @NonNull final Bytes bytes) {
+        requireNonNull(bytes, "bytes must not be null");
+        writeItem(bytes.toByteArray());
     }
 
     @Override
@@ -396,6 +446,11 @@ public class FileBlockItemWriter implements BlockItemWriter {
         } else {
             logger.warn("Block #{} flushed in non-OPEN state '{}'", blockNumber, state, new IllegalStateException());
         }
+    }
+
+    @Override
+    public void jumpToBlockAfterFreeze(long blockNumber) {
+        // no-op
     }
 
     /**

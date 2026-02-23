@@ -4,21 +4,19 @@ package org.hiero.consensus.event.creator.impl.pool;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.base.time.Time;
-import com.swirlds.base.time.internal.OSTime;
-import com.swirlds.common.metrics.noop.NoOpMetrics;
-import com.swirlds.common.test.fixtures.Randotron;
-import com.swirlds.config.api.Configuration;
-import com.swirlds.metrics.api.Metrics;
+import com.swirlds.base.test.fixtures.time.FakeTime;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
-import org.hiero.consensus.config.TransactionConfig;
-import org.hiero.consensus.event.creator.impl.config.EventCreationConfig;
+import org.hiero.base.utility.ByteUtils;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.consensus.model.transaction.TimestampedTransaction;
+import org.hiero.consensus.test.fixtures.Randotron;
+import org.hiero.consensus.transaction.TransactionLimits;
+import org.hiero.consensus.transaction.TransactionPoolNexus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -29,22 +27,16 @@ class TransactionPoolNexusTest {
 
     static final int MAX_TX_BYTES_PER_EVENT = 245_760;
     static final int TX_MAX_BYTES = 6_144;
+    static final int TX_QUEUE_SIZE = 100_000;
 
     TransactionPoolNexus nexus;
+    FakeTime fakeTime;
 
     @BeforeEach
     public void beforeEach() {
-        final TransactionConfig txConfig =
-                new TransactionConfig(TX_MAX_BYTES, MAX_TX_BYTES_PER_EVENT, 245_760, 100_000);
-        final EventCreationConfig eventCreationConfig =
-                new EventCreationConfig(20, 100, 10, 10, 1024, Duration.ofSeconds(1));
-        final Configuration configuration = mock(Configuration.class);
-        when(configuration.getConfigData(TransactionConfig.class)).thenReturn(txConfig);
-        when(configuration.getConfigData(EventCreationConfig.class)).thenReturn(eventCreationConfig);
-        final Metrics metrics = new NoOpMetrics();
-        final Time time = OSTime.getInstance();
-
-        nexus = new TransactionPoolNexus(configuration, metrics, time);
+        fakeTime = new FakeTime();
+        final TransactionLimits txConfig = new TransactionLimits(TX_MAX_BYTES, MAX_TX_BYTES_PER_EVENT);
+        nexus = new TransactionPoolNexus(txConfig, TX_QUEUE_SIZE, new NoOpMetrics(), fakeTime);
         nexus.updatePlatformStatus(PlatformStatus.ACTIVE);
     }
 
@@ -86,27 +78,86 @@ class TransactionPoolNexusTest {
         // get the transactions
         // this should happen in two batches, the first will all of the random size transactions created in the loop
         // above, followed by a second batch that should be just the single large transaction submitted last
-        final List<Bytes> firstBatch = nexus.getTransactions();
+        final List<TimestampedTransaction> firstBatch = nexus.getTransactionsForEvent();
         assertNotNull(firstBatch);
         assertEquals(numCreated, firstBatch.size());
 
         // loop through the transactions and make sure the size does not exceed what we expect
-        final long firstBatchBytesLength =
-                firstBatch.stream().map(Bytes::length).reduce(0L, Long::sum);
+        final long firstBatchBytesLength = firstBatch.stream()
+                .map(TimestampedTransaction::transaction)
+                .map(Bytes::length)
+                .reduce(0L, Long::sum);
         assertTrue(
                 firstBatchBytesLength <= MAX_TX_BYTES_PER_EVENT,
                 "Total number of bytes in the batch (" + firstBatchBytesLength + ") exceeds max allowed ("
                         + MAX_TX_BYTES_PER_EVENT + ")");
 
         // get the second batch; it should be just the final transaction
-        final List<Bytes> secondBatch = nexus.getTransactions();
+        final List<TimestampedTransaction> secondBatch = nexus.getTransactionsForEvent();
         assertNotNull(secondBatch);
         assertEquals(1, secondBatch.size());
-        assertEquals(TX_MAX_BYTES, secondBatch.getFirst().length());
+        assertEquals(TX_MAX_BYTES, secondBatch.getFirst().transaction().length());
 
         // and just for fun, make sure there aren't any more batches
-        final List<Bytes> thirdBatch = nexus.getTransactions();
+        final List<TimestampedTransaction> thirdBatch = nexus.getTransactionsForEvent();
         assertNotNull(thirdBatch);
         assertTrue(thirdBatch.isEmpty());
+    }
+
+    @Test
+    void testTransactionTimestamps() {
+        nexus.updatePlatformStatus(PlatformStatus.ACTIVE);
+
+        // Record the initial time and advance it slightly to establish baseline
+        final Instant initialTime = fakeTime.now();
+        fakeTime.tick(Duration.ofMillis(10));
+
+        // Submit first transaction
+        final Instant firstTxTime = fakeTime.now();
+        final Bytes firstTx = Bytes.wrap(ByteUtils.intToByteArray(1));
+        assertTrue(nexus.submitApplicationTransaction(firstTx));
+
+        // Advance time before submitting second transaction
+        fakeTime.tick(Duration.ofMillis(100));
+        final Instant secondTxTime = fakeTime.now();
+        final Bytes secondTx = Bytes.wrap(ByteUtils.intToByteArray(2));
+        assertTrue(nexus.submitApplicationTransaction(secondTx));
+
+        // Advance time again before third transaction
+        fakeTime.tick(Duration.ofSeconds(1));
+        final Instant thirdTxTime = fakeTime.now();
+        final Bytes thirdTx = Bytes.wrap(ByteUtils.intToByteArray(3));
+        assertTrue(nexus.submitApplicationTransaction(thirdTx));
+
+        // Get transactions for event
+        final List<TimestampedTransaction> transactions = nexus.getTransactionsForEvent();
+
+        // Validate we got all three transactions
+        assertNotNull(transactions);
+        assertEquals(3, transactions.size());
+
+        // Validate timestamps are correct and in order
+        final TimestampedTransaction firstTimestamped = transactions.get(0);
+        final TimestampedTransaction secondTimestamped = transactions.get(1);
+        final TimestampedTransaction thirdTimestamped = transactions.get(2);
+
+        // Verify transaction data matches
+        assertEquals(firstTx, firstTimestamped.transaction());
+        assertEquals(secondTx, secondTimestamped.transaction());
+        assertEquals(thirdTx, thirdTimestamped.transaction());
+
+        // Verify timestamps match when transactions were submitted
+        assertEquals(firstTxTime, firstTimestamped.receivedTime());
+        assertEquals(secondTxTime, secondTimestamped.receivedTime());
+        assertEquals(thirdTxTime, thirdTimestamped.receivedTime());
+
+        // Verify timestamps are in chronological order
+        assertTrue(firstTimestamped.receivedTime().isBefore(secondTimestamped.receivedTime()));
+        assertTrue(secondTimestamped.receivedTime().isBefore(thirdTimestamped.receivedTime()));
+
+        // Verify all timestamps are after initial time
+        assertTrue(firstTimestamped.receivedTime().isAfter(initialTime));
+        assertTrue(secondTimestamped.receivedTime().isAfter(initialTime));
+        assertTrue(thirdTimestamped.receivedTime().isAfter(initialTime));
     }
 }

@@ -34,7 +34,6 @@ package com.hedera.hapi.platform.event;
  */
 
 import "services/basic_types.proto";
-import "platform/event/event_descriptor.proto";
 import "services/timestamp.proto";
 
 option java_package = "com.hedera.hapi.platform.event.legacy";
@@ -60,10 +59,20 @@ message EventCore {
   int64 birth_round = 2;
 
   /**
-   * The wall clock time at which the event was created, according to the node creating the event.<br/>
+   * The wall clock time at which the latest information affecting this event was received by this node.<br/>
+   * The information includes: parents, transactions and birth round<br/>
+   * If the event is a genesis event, and has no transactions, this value will just be the wall clock time when creating this event.<br/>
    * If the event has a self parent, this timestamp MUST be strictly greater than the `time_created` of the self parent.
    */
   proto.Timestamp time_created = 3;
+
+  /**
+   * A random number used in the unlikely case that the consensus algorithm gets to a coin vote.<br/>
+   * This number SHALL be used to break ties in the consensus algorithm.<br/>
+   * The number SHALL be between 0 and the size of the roster (inclusive) for the event's birth round.<br/>
+   * For example, if the roster size is 10, the minimum value is 0 and the maximum value is 10.<br/>
+   */
+  int64 coin = 5;
 
   /**
    * Used to be a list of EventDescriptors representing the parents of this event.<br/>

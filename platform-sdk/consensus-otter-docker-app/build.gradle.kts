@@ -1,20 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 plugins {
-    id("java-library")
-    id("jacoco")
-    id("org.hiero.gradle.base.jpms-modules")
-    id("org.hiero.gradle.base.lifecycle")
-    id("org.hiero.gradle.base.version")
-    id("org.hiero.gradle.check.dependencies")
-    id("org.hiero.gradle.check.javac-lint")
-    id("org.hiero.gradle.check.spotless")
-    id("org.hiero.gradle.check.spotless-java")
-    id("org.hiero.gradle.check.spotless-kotlin")
-    id("org.hiero.gradle.feature.git-properties-file")
-    id("org.hiero.gradle.feature.java-compile")
-    id("org.hiero.gradle.feature.java-execute")
-    id("org.hiero.gradle.feature.test")
-    id("org.hiero.gradle.report.test-logger")
+    id("org.hiero.gradle.module.library")
     id("org.hiero.gradle.feature.test-fixtures")
     id("org.hiero.gradle.feature.protobuf")
 }
@@ -28,6 +14,13 @@ testFixturesModuleInfo {
     runtimeOnly("io.helidon.webclient")
     runtimeOnly("io.helidon.webclient.grpc")
     runtimeOnly("io.grpc.netty.shaded")
+}
+
+// This should probably not be necessary (Log4j issue?)
+// https://github.com/apache/logging-log4j2/pull/3053
+tasks.compileTestFixturesJava {
+    options.compilerArgs.add("-Alog4j.graalvm.groupId=${project.group}")
+    options.compilerArgs.add("-Alog4j.graalvm.artifactId=${project.name}")
 }
 
 tasks.testFixturesJar {

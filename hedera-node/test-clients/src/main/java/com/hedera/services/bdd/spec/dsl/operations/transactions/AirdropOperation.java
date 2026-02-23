@@ -86,6 +86,7 @@ public class AirdropOperation extends AbstractSpecTransaction<AirdropOperation, 
         public TokenMovement asMovementFrom(@NonNull final SpecAccount sender) {
             final var builder =
                     switch (type()) {
+                        case UNRECOGNIZED -> throw new IllegalStateException("Unrecognized token type");
                         case FUNGIBLE_COMMON ->
                             TokenMovement.moving(asset, fungibleTokenOrThrow().name());
                         case NON_FUNGIBLE_UNIQUE ->

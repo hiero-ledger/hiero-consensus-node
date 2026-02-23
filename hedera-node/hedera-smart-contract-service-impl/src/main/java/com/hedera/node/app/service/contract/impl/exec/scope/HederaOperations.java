@@ -6,6 +6,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
+import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.records.ContractCreateStreamBuilder;
 import com.hedera.node.app.service.contract.impl.state.ContractStateStore;
 import com.hedera.node.app.service.contract.impl.state.DispatchingEvmFrameState;
@@ -185,6 +186,13 @@ public interface HederaOperations {
      * @param netChangeInSlotsUsed      the net change in the number of storage slots used by the contract
      */
     void updateStorageMetadata(ContractID contractID, @NonNull Bytes firstKey, int netChangeInSlotsUsed);
+    /**
+     * Updates the storage slots used for the given account.
+     *
+     * @param accountId          the id of the account
+     * @param netChangeInSlotsUsed the net change in the number of storage slots used by the account
+     */
+    void updateHookStorageSlots(@NonNull AccountID accountId, int netChangeInSlotsUsed);
 
     /**
      * Creates a new contract with the given entity number and EVM address; and also "links" the alias
@@ -295,4 +303,7 @@ public interface HederaOperations {
      */
     @Nullable
     ThrottleAdviser getThrottleAdviser();
+
+    @Nullable
+    ContractMetrics contractMetrics();
 }

@@ -1,16 +1,20 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.support.translators.impl;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.REVERTED_SUCCESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.trace.TraceData;
 import com.hedera.hapi.node.base.ContractID;
+import com.hedera.hapi.node.base.HookId;
 import com.hedera.node.app.state.SingleTransactionRecord;
 import com.hedera.services.bdd.junit.support.translators.BaseTranslator;
 import com.hedera.services.bdd.junit.support.translators.BlockTransactionPartsTranslator;
+import com.hedera.services.bdd.junit.support.translators.ScopedTraceData;
 import com.hedera.services.bdd.junit.support.translators.inputs.BlockTransactionParts;
+import com.hedera.services.bdd.junit.support.translators.inputs.HookMetadata;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
@@ -26,7 +30,9 @@ public class ContractDeleteTranslator implements BlockTransactionPartsTranslator
             @NonNull final BaseTranslator baseTranslator,
             @NonNull final List<StateChange> remainingStateChanges,
             @Nullable final List<TraceData> tracesSoFar,
-            @NonNull final List<TraceData> followingUnitTraces) {
+            @NonNull final List<ScopedTraceData> followingUnitTraces,
+            @Nullable final HookId executingHookId,
+            @Nullable final HookMetadata hookMetadata) {
         requireNonNull(parts);
         requireNonNull(baseTranslator);
         requireNonNull(remainingStateChanges);
@@ -41,7 +47,11 @@ public class ContractDeleteTranslator implements BlockTransactionPartsTranslator
                                     && stateChange
                                             .mapUpdateOrThrow()
                                             .keyOrThrow()
-                                            .hasAccountIdKey()) {
+                                            .hasAccountIdKey()
+                                    && stateChange
+                                            .mapUpdateOrThrow()
+                                            .valueOrThrow()
+                                            .hasAccountValue()) {
                                 final var account = stateChange
                                         .mapUpdateOrThrow()
                                         .valueOrThrow()
@@ -62,8 +72,23 @@ public class ContractDeleteTranslator implements BlockTransactionPartsTranslator
                                 "No matching state change found for successful contract delete with id {}",
                                 parts.transactionIdOrThrow());
                     }
+                    // In a reverted batch, the contract deletion is rolled back, so there is no deleted account
+                    // in the state changes. For legacy record compatibility, we use the contract ID from the
+                    // original transaction body to populate the receipt.
+                    else if (parts.status() == REVERTED_SUCCESS && parts.isInnerBatchTxn()) {
+                        final var contractID =
+                                parts.body().contractDeleteInstanceOrThrow().contractID();
+                        if (contractID.hasEvmAddress()) {
+                            baseTranslator
+                                    .findContractNum(contractID.evmAddressOrThrow())
+                                    .ifPresent(receiptBuilder::contractID);
+                        } else {
+                            receiptBuilder.contractID(contractID);
+                        }
+                    }
                 },
                 remainingStateChanges,
-                followingUnitTraces);
+                followingUnitTraces,
+                executingHookId);
     }
 }

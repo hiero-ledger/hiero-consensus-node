@@ -2,6 +2,8 @@
 package com.hedera.services.bdd.suites.hip991;
 
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
+import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTopicInfo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
@@ -51,19 +53,20 @@ import com.hederahashgraph.api.proto.java.TokenSupplyType;
 import com.hederahashgraph.api.proto.java.TokenType;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Stream;
 import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 
 // This test cases are direct copies of TopicCustomFeeUpdateTest. The difference here is that
 // we are wrapping the operations in an atomic batch to confirm the fees are the same
+@Tag(ATOMIC_BATCH)
 @HapiTestLifecycle
 @DisplayName("Topic custom fees update")
-public class AtomicTopicCustomFeeUpdateTest extends TopicCustomFeeBase {
+class AtomicTopicCustomFeeUpdateTest extends TopicCustomFeeBase {
 
     private static final long FIFTY_BILLION = 50_000_000_000L;
     private static final String BATCH_OPERATOR = "batchOperator";
@@ -71,7 +74,6 @@ public class AtomicTopicCustomFeeUpdateTest extends TopicCustomFeeBase {
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle lifecycle) {
         lifecycle.doAdhoc(setupBaseForUpdate());
-        lifecycle.overrideInClass(Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
     }
 
     @Nested
@@ -206,6 +208,7 @@ public class AtomicTopicCustomFeeUpdateTest extends TopicCustomFeeBase {
 
         @HapiTest
         @DisplayName("to reach the limit of 10 custom fees")
+        @Tag(MATS)
         final Stream<DynamicTest> updateCustomFeesToReachTheLimit() {
             return hapiTest(
                     cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS),
@@ -599,6 +602,7 @@ public class AtomicTopicCustomFeeUpdateTest extends TopicCustomFeeBase {
         @HapiTest
         @DisplayName(
                 "fee schedule key and custom fee - should sign with admin_key, old fee schedule key and new fee schedule key")
+        @Tag(MATS)
         final Stream<DynamicTest> updateFeeScheduleKeyAndCustomFeeSignWithAdminAndTwoFeeScheduleKeys() {
             return hapiTest(
                     cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS),

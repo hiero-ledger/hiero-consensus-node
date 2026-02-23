@@ -8,13 +8,13 @@ import static org.hiero.otter.fixtures.internal.helpers.LongPredicates.IS_GREATE
 import static org.hiero.otter.fixtures.internal.helpers.LongPredicates.IS_LESS_THAN;
 import static org.hiero.otter.fixtures.internal.helpers.LongPredicates.IS_LESS_THAN_OR_EQUAL_TO;
 
-import com.swirlds.common.io.IOIterator;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.time.Instant;
 import org.assertj.core.api.AbstractAssert;
 import org.assertj.core.api.Assertions;
+import org.hiero.consensus.io.IOIterator;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.otter.fixtures.internal.helpers.LongPredicates.LongBiPredicate;
 import org.hiero.otter.fixtures.internal.result.SingleNodePcesResultImpl;

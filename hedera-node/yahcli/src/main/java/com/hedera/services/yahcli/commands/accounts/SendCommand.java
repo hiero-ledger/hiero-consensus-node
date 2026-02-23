@@ -2,7 +2,6 @@
 package com.hedera.services.yahcli.commands.accounts;
 
 import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
-import static com.hedera.services.yahcli.output.CommonMessages.COMMON_MESSAGES;
 import static com.hedera.services.yahcli.util.ParseUtils.normalizePossibleIdLiteral;
 
 import com.hedera.services.bdd.spec.HapiSpec;
@@ -82,39 +81,38 @@ public class SendCommand implements Callable<Integer> {
             amount = validatedUnits(amountRepr, decimals);
         }
         final var effectiveMemo = memo != null ? memo : "";
+        final var isScheduled = accountsCommand.getYahcli().isScheduled();
         var delegate = new SendSuite(
-                config,
-                normalizedBeneficiary,
-                amount,
-                effectiveMemo,
-                denomination,
-                accountsCommand.getYahcli().isScheduled(),
-                insideBatch);
+                config, normalizedBeneficiary, amount, effectiveMemo, denomination, isScheduled, insideBatch);
         delegate.runSuiteSync();
 
         final var firstSpec = delegate.getFinalSpecs().getFirst();
         if (firstSpec.getStatus() == HapiSpec.SpecStatus.PASSED) {
-            COMMON_MESSAGES.info("SUCCESS - "
-                    + "sent "
-                    + amountRepr
-                    + " "
-                    + originalDenomination
-                    + " to account "
-                    + asEntityString(firstSpec.shard(), firstSpec.realm(), normalizedBeneficiary)
-                    + " with memo: '"
-                    + memo
-                    + "'");
+            config.output()
+                    .info("SUCCESS - "
+                            + maybeScheduleSuccess(isScheduled)
+                            + "sent "
+                            + amountRepr
+                            + " "
+                            + originalDenomination
+                            + " to account "
+                            + asEntityString(firstSpec.shard(), firstSpec.realm(), normalizedBeneficiary)
+                            + " with memo: '"
+                            + memo
+                            + "'"
+                            + maybeScheduleId(isScheduled, delegate));
         } else {
-            COMMON_MESSAGES.info("FAILED - "
-                    + "could not send "
-                    + amountRepr
-                    + " "
-                    + originalDenomination
-                    + " to account "
-                    + normalizedBeneficiary
-                    + " with memo: '"
-                    + memo
-                    + "'");
+            config.output()
+                    .info("FAILED - "
+                            + maybeScheduleFail(isScheduled)
+                            + amountRepr
+                            + " "
+                            + originalDenomination
+                            + " to account "
+                            + normalizedBeneficiary
+                            + " with memo: '"
+                            + memo
+                            + "'");
             return 1;
         }
 
@@ -167,5 +165,34 @@ public class SendCommand implements Callable<Integer> {
             return integral;
         }
         return integral;
+    }
+
+    private String maybeScheduleSuccess(boolean isSchedule) {
+        final var message = new StringBuilder();
+        if (isSchedule) {
+            message.append("Scheduled ");
+        }
+        return message.toString();
+    }
+
+    private String maybeScheduleFail(boolean isSchedule) {
+        final var message = new StringBuilder();
+        if (isSchedule) {
+            message.append("could not schedule send ");
+        } else {
+            message.append("could not send ");
+        }
+        return message.toString();
+    }
+
+    private String maybeScheduleId(boolean isSchedule, SendSuite delegate) {
+        final var message = new StringBuilder();
+        if (isSchedule) {
+            final var scheduleId = delegate.getScheduleId().get();
+            message.append(" and schedule ID ");
+            message.append(
+                    asEntityString(scheduleId.getShardNum(), scheduleId.getRealmNum(), scheduleId.getScheduleNum()));
+        }
+        return message.toString();
     }
 }

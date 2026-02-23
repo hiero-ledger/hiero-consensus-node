@@ -2,31 +2,20 @@
 package com.swirlds.platform.system;
 
 import com.hedera.hapi.node.base.SemanticVersion;
-import com.hedera.hapi.platform.event.StateSignatureTransaction;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.platform.builder.ExecutionLayer;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
-import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.state.State;
+import com.swirlds.state.StateLifecycleManager;
+import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.List;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
  * To implement a swirld, create a class that implements SwirldMain. Its constructor should have no parameters, and its
  * run() method should run until the user quits the swirld.
  */
-public interface SwirldMain<T extends MerkleNodeState> extends Runnable {
-
-    /**
-     * Get configuration types to be registered.
-     *
-     * @return a list of configuration types
-     */
-    @NonNull
-    default List<Class<? extends Record>> getConfigDataTypes() {
-        // override if needed
-        return List.of();
-    }
+public interface SwirldMain extends Runnable, ExecutionLayer {
 
     /**
      * <p>
@@ -36,7 +25,7 @@ public interface SwirldMain<T extends MerkleNodeState> extends Runnable {
      *
      * <p>
      * Any changes necessary to initialize {@link State} should be made in
-     * {@link ConsensusStateEventHandler#onStateInitialized(MerkleNodeState, Platform, InitTrigger, SemanticVersion)}
+     * {@link ConsensusStateEventHandler#onStateInitialized(State, Platform, InitTrigger, SemanticVersion)}
      * </p>
      *
      * @param platform the Platform that instantiated this SwirldMain
@@ -52,18 +41,35 @@ public interface SwirldMain<T extends MerkleNodeState> extends Runnable {
     void run();
 
     /**
-     * Instantiate and return a root node of the merkle state tree for this SwirldMain object.
+     * State lifecycle manager associated with this app
      *
-     * @return merkle state tree root node
+     * @return state lifecycle manager
      */
     @NonNull
-    T newStateRoot();
+    StateLifecycleManager<VirtualMapState, VirtualMap> getStateLifecycleManager();
+
+    /**
+     * Instantiate and return a state root object for this SwirldMain object.
+     * The returned state root object could be one of the following:
+     * <ul>
+     *     <li>(Deprecated) Actual root node of the merkle state tree
+     *         - an instance of {@code HederaStateRoot}.
+     *     </li>
+     *     <li>A wrapper around the root node
+     *         - an instance of {@code VirtualMapStateImpl}.
+     *     </li>
+     * </ul>
+     *
+     * @return state root object
+     */
+    @NonNull
+    State newStateRoot();
 
     /**
      * Instantiate and return a new instance of the consensus state event handler for this SwirldMain object.
      * @return consensus state event handler
      */
-    ConsensusStateEventHandler<T> newConsensusStateEvenHandler();
+    ConsensusStateEventHandler newConsensusStateEvenHandler();
 
     /**
      * <p>
@@ -87,13 +93,4 @@ public interface SwirldMain<T extends MerkleNodeState> extends Runnable {
      */
     @NonNull
     SemanticVersion getSemanticVersion();
-
-    /**
-     * Encodes a system transaction to {@link Bytes} representation of a {@link com.hedera.hapi.node.base.Transaction}.
-     *
-     * @param transaction the {@link StateSignatureTransaction} to encode
-     * @return {@link Bytes} representation of the transaction
-     */
-    @NonNull
-    Bytes encodeSystemTransaction(@NonNull final StateSignatureTransaction transaction);
 }

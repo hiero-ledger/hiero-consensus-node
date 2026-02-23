@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile;
 
-import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
+import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountDetailsAsserts.accountDetailsWith;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.assertions.TransferListAsserts.including;
+import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.SUPPLY_KEY;
 import static com.hedera.services.bdd.spec.keys.KeyShape.DELEGATE_CONTRACT;
 import static com.hedera.services.bdd.spec.keys.KeyShape.sigs;
 import static com.hedera.services.bdd.spec.keys.SigControl.ON;
@@ -32,13 +34,20 @@ import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fix
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fractionalFee;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.royaltyFeeWithFallback;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
+import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
+import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUnique;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.accountAmount;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.accountAmountAlias;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertCloseEnough;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertionsHold;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.childRecordsCheck;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.nftTransfer;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.nftTransferToAlias;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.tokenTransferList;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.tokenTransferLists;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.transferList;
@@ -48,7 +57,8 @@ import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
-import static com.hedera.services.bdd.suites.contract.Utils.asHexedSolidityAddress;
+import static com.hedera.services.bdd.suites.contract.Utils.parsedToByteString;
+import static com.hedera.services.bdd.suites.utils.MiscEETUtils.genRandomBytes;
 import static com.hedera.services.bdd.suites.utils.MiscEETUtils.metadata;
 import static com.hedera.services.bdd.suites.utils.contracts.precompile.HTSPrecompileResult.htsPrecompileResult;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.AMOUNT_EXCEEDS_ALLOWANCE;
@@ -62,23 +72,31 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.node.app.hapi.utils.ByteStringUtils;
 import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.spec.assertions.ContractInfoAsserts;
 import com.hedera.services.bdd.spec.assertions.NonFungibleTransfers;
 import com.hedera.services.bdd.spec.assertions.SomeFungibleTransfers;
+import com.hedera.services.bdd.spec.dsl.annotations.Contract;
+import com.hedera.services.bdd.spec.dsl.annotations.FungibleToken;
+import com.hedera.services.bdd.spec.dsl.annotations.NonFungibleToken;
+import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
+import com.hedera.services.bdd.spec.dsl.entities.SpecFungibleToken;
+import com.hedera.services.bdd.spec.dsl.entities.SpecNonFungibleToken;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
+import com.hedera.services.bdd.suites.contract.precompile.token.TransferTokenTest;
 import com.hederahashgraph.api.proto.java.TokenSupplyType;
 import com.hederahashgraph.api.proto.java.TokenType;
 import java.util.List;
 import java.util.OptionalLong;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
-@Tag(SMART_CONTRACT)
+@Tag(ATOMIC_BATCH)
+@HapiTestLifecycle
 public class AtomicCryptoTransferHTSSuite {
     private static final long GAS_FOR_AUTO_ASSOCIATING_CALLS = 2_000_000;
     private static final Tuple[] EMPTY_TUPLE_ARRAY = new Tuple[] {};
@@ -102,6 +120,106 @@ public class AtomicCryptoTransferHTSSuite {
     private static final String BASE_APPROVAL_TXN = "baseApproveTxn";
 
     public static final String SECP_256K1_SOURCE_KEY = "secp256k1Alias";
+
+    @HapiTest
+    final Stream<DynamicTest> hollowAccountCreationFeesAsExpected(
+            @Contract(creationGas = 2_000_000, contract = "AtomicCryptoTransfer", maxAutoAssociations = 2)
+                    SpecContract contract,
+            @FungibleToken SpecFungibleToken fungibleToken,
+            @NonFungibleToken(
+                            keys = {SUPPLY_KEY},
+                            numPreMints = 1)
+                    SpecNonFungibleToken nonFungibleToken) {
+        final AtomicLong hbarAutoCreationGas = new AtomicLong();
+        final AtomicLong ftAutoCreationGas = new AtomicLong();
+        final AtomicLong nftAutoCreationGas = new AtomicLong();
+        return hapiTest(
+                contract.getInfo(),
+                fungibleToken.getInfo(),
+                nonFungibleToken.getInfo(),
+                // Give the contract assets to use in creating hollow accounts
+                cryptoTransfer(
+                                movingHbar(10 * ONE_HUNDRED_HBARS).between(GENESIS, contract.name()),
+                                moving(1, fungibleToken.name())
+                                        .between(fungibleToken.treasury().name(), contract.name()),
+                                movingUnique(nonFungibleToken.name(), 1)
+                                        .between(nonFungibleToken.treasury().name(), contract.name()))
+                        .signedBy(
+                                GENESIS,
+                                fungibleToken.treasury().name(),
+                                nonFungibleToken.treasury().name()),
+                // First auto-create a hollow account with HBAR
+                sourcingContextual(spec -> contractCall(
+                                contract.name(),
+                                "transferMultipleTokens",
+                                transferList()
+                                        .withAccountAmounts(
+                                                accountAmount(
+                                                        spec.registry().getAccountID(contract.name()), -1L, false),
+                                                accountAmountAlias(genRandomBytes(20), +1L))
+                                        .build(),
+                                EMPTY_TUPLE_ARRAY)
+                        .payingWith(GENESIS)
+                        .via("hbarAutoCreation")
+                        .gas(2_000_000L)),
+                getTxnRecord("hbarAutoCreation")
+                        .exposingTo(r -> hbarAutoCreationGas.set(
+                                r.getContractCallResult().getGasUsed())),
+                // Then auto-create a hollow account with a fungible token
+                sourcingContextual(spec -> contractCall(
+                                contract.name(),
+                                "transferMultipleTokens",
+                                transferList()
+                                        .withAccountAmounts(EMPTY_TUPLE_ARRAY)
+                                        .build(),
+                                wrapIntoTupleArray(tokenTransferList()
+                                        .forToken(spec.registry().getTokenID(fungibleToken.name()))
+                                        .withAccountAmounts(
+                                                accountAmount(
+                                                        spec.registry().getAccountID(contract.name()), -1L, false),
+                                                accountAmountAlias(genRandomBytes(20), +1L))
+                                        .build()))
+                        .payingWith(GENESIS)
+                        .via("ftAutoCreation")
+                        .gas(2_000_000L)),
+                getTxnRecord("ftAutoCreation")
+                        .exposingTo(r ->
+                                ftAutoCreationGas.set(r.getContractCallResult().getGasUsed())),
+                // And finally auto-create a hollow account with a non-fungible token
+                sourcingContextual(spec -> contractCall(
+                                contract.name(),
+                                "transferMultipleTokens",
+                                transferList()
+                                        .withAccountAmounts(EMPTY_TUPLE_ARRAY)
+                                        .build(),
+                                wrapIntoTupleArray(tokenTransferList()
+                                        .forToken(spec.registry().getTokenID(nonFungibleToken.name()))
+                                        .withNftTransfers(nftTransferToAlias(
+                                                spec.registry().getAccountID(contract.name()), genRandomBytes(20), 1L))
+                                        .build()))
+                        .payingWith(GENESIS)
+                        .via("nftAutoCreation")
+                        .gas(2_000_000L)),
+                getTxnRecord("nftAutoCreation")
+                        .exposingTo(r ->
+                                nftAutoCreationGas.set(r.getContractCallResult().getGasUsed())),
+                assertionsHold((spec, opLog) -> {
+                    // The HTS auto-creations should be almost exactly the same
+                    assertCloseEnough(
+                            1.0,
+                            1.0 * ftAutoCreationGas.get() / nftAutoCreationGas.get(),
+                            1.0,
+                            "ratio of FT to NFT auto-creation gas",
+                            "via IHederaTokenService");
+                    // The HBAR auto-creation should be ~1/2 of them, since it doesn't require an auto-association
+                    assertCloseEnough(
+                            0.5,
+                            1.0 * hbarAutoCreationGas.get() / ftAutoCreationGas.get(),
+                            5.0,
+                            "ratio of HBAR to FT auto-creation gas",
+                            "via IHederaTokenService");
+                }));
+    }
 
     @HapiTest
     final Stream<DynamicTest> cryptoTransferForHbarOnly() {
@@ -154,6 +272,8 @@ public class AtomicCryptoTransferHTSSuite {
                                     .payingWith(GENESIS)
                                     .via(cryptoTransferTxn)
                                     .gas(GAS_TO_OFFER),
+                            // check there is no ERC20 event for HBAR transfer
+                            TransferTokenTest.validateErcEvent(getTxnRecord(cryptoTransferTxn)),
                             // Simple transfer between sender2 and receiver for 50 *
                             // ONE_HBAR
                             // should fail because sender2 does not have the right
@@ -207,6 +327,8 @@ public class AtomicCryptoTransferHTSSuite {
                                     .payingWith(GENESIS)
                                     .via(cryptoTransferMultiTxn)
                                     .gas(GAS_TO_OFFER),
+                            // check there is no ERC20 event for HBAR transfer
+                            TransferTokenTest.validateErcEvent(getTxnRecord(cryptoTransferMultiTxn)),
                             // Simple transfer between sender, receiver and
                             // receiver2 for 50 * ONE_HBAR
                             // sender sends 50, receiver get 5 and receiver2 gets 40
@@ -325,6 +447,16 @@ public class AtomicCryptoTransferHTSSuite {
                                     .payingWith(GENESIS)
                                     .via(cryptoTransferTxnForFungible)
                                     .gas(GAS_TO_OFFER),
+                            // check there is ERC20 event
+                            TransferTokenTest.validateErcEvent(
+                                            getTxnRecord(cryptoTransferTxnForFungible),
+                                            new TransferTokenTest.ErcEventRecord(
+                                                    token::getTokenNum,
+                                                    false,
+                                                    () -> parsedToByteString(sender),
+                                                    () -> parsedToByteString(receiver),
+                                                    amountToBeSent))
+                                    .andAllChildRecords(),
                             // Ensure that the transfer fails when the sender does not have the correct key
                             contractCall(
                                             CONTRACT,
@@ -343,7 +475,6 @@ public class AtomicCryptoTransferHTSSuite {
                                     .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
                                     .gas(GAS_TO_OFFER));
                 }),
-                getTxnRecord(cryptoTransferTxnForFungible).andAllChildRecords(),
                 getTokenInfo(FUNGIBLE_TOKEN).hasTotalSupply(TOTAL_SUPPLY),
                 getAccountBalance(RECEIVER).hasTokenBalance(FUNGIBLE_TOKEN, 50),
                 getAccountBalance(SENDER).hasTokenBalance(FUNGIBLE_TOKEN, 150),
@@ -397,8 +528,10 @@ public class AtomicCryptoTransferHTSSuite {
                 getContractInfo(CONTRACT).has(ContractInfoAsserts.contractWith().maxAutoAssociations(1)),
                 withOpContext((spec, opLog) -> {
                     final var token = spec.registry().getTokenID(FUNGIBLE_TOKEN);
+                    final var feeToken = spec.registry().getTokenID(FEE_TOKEN);
                     final var sender = spec.registry().getAccountID(SENDER);
                     final var receiver = spec.registry().getAccountID(RECEIVER);
+                    final var treasury = spec.registry().getAccountID(TOKEN_TREASURY);
                     final var amountToBeSent = 50L;
 
                     allRunFor(
@@ -420,9 +553,31 @@ public class AtomicCryptoTransferHTSSuite {
                                                     .build()))
                                     .payingWith(GENESIS)
                                     .via(cryptoTransferTxnForFungible)
-                                    .gas(GAS_TO_OFFER));
+                                    .gas(GAS_TO_OFFER),
+                            // check there is ERC20 event with fees
+                            TransferTokenTest.validateErcEvent(
+                                            getTxnRecord(cryptoTransferTxnForFungible),
+                                            new TransferTokenTest.ErcEventRecord(
+                                                    feeToken::getTokenNum,
+                                                    false,
+                                                    () -> parsedToByteString(sender),
+                                                    () -> parsedToByteString(treasury),
+                                                    1L), // feeToken fixedHtsFee
+                                            new TransferTokenTest.ErcEventRecord(
+                                                    token::getTokenNum,
+                                                    false,
+                                                    () -> parsedToByteString(sender),
+                                                    () -> parsedToByteString(receiver),
+                                                    amountToBeSent - (amountToBeSent / 10)), // transfer
+                                            new TransferTokenTest.ErcEventRecord(
+                                                    token::getTokenNum,
+                                                    false,
+                                                    () -> parsedToByteString(sender),
+                                                    () -> parsedToByteString(treasury),
+                                                    amountToBeSent / 10) // fractionalFee
+                                            )
+                                    .andAllChildRecords());
                 }),
-                getTxnRecord(cryptoTransferTxnForFungible).andAllChildRecords(),
                 getTokenInfo(FUNGIBLE_TOKEN).hasTotalSupply(TOTAL_SUPPLY),
                 getAccountBalance(RECEIVER).hasTokenBalance(FUNGIBLE_TOKEN, 45),
                 getAccountBalance(SENDER).hasTokenBalance(FUNGIBLE_TOKEN, 150),
@@ -446,6 +601,7 @@ public class AtomicCryptoTransferHTSSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> cryptoTransferForNFTWithFees() {
         final var cryptoTransferTxnForNonFungible = "cryptoTransferTxnForNonFungible";
         final var FEE_TOKEN = "FeeToken";
@@ -481,9 +637,10 @@ public class AtomicCryptoTransferHTSSuite {
                         .logged(),
                 withOpContext((spec, opLog) -> {
                     final var token = spec.registry().getTokenID(NFT_TOKEN);
+                    final var feeToken = spec.registry().getTokenID(FEE_TOKEN);
                     final var sender = spec.registry().getAccountID(SENDER);
                     final var receiver = spec.registry().getAccountID(RECEIVER);
-                    final var amountToBeSent = 50L;
+                    final var treasury = spec.registry().getAccountID(TOKEN_TREASURY);
 
                     allRunFor(
                             spec,
@@ -502,11 +659,25 @@ public class AtomicCryptoTransferHTSSuite {
                                                     .build()))
                                     .payingWith(SENDER)
                                     .via(cryptoTransferTxnForNonFungible)
-                                    .gas(GAS_TO_OFFER));
+                                    .gas(GAS_TO_OFFER),
+                            // check there is ERC721 event with fees
+                            TransferTokenTest.validateErcEvent(
+                                            getTxnRecord(cryptoTransferTxnForNonFungible),
+                                            new TransferTokenTest.ErcEventRecord(
+                                                    feeToken::getTokenNum,
+                                                    false,
+                                                    () -> parsedToByteString(receiver),
+                                                    () -> parsedToByteString(treasury),
+                                                    1L), // feeToken fixedHtsFee
+                                            new TransferTokenTest.ErcEventRecord(
+                                                    token::getTokenNum,
+                                                    true,
+                                                    () -> parsedToByteString(sender),
+                                                    () -> parsedToByteString(receiver),
+                                                    1L) // transfer
+                                            )
+                                    .andAllChildRecords());
                 }),
-                getTxnRecord(cryptoTransferTxnForNonFungible)
-                        .andAllChildRecords()
-                        .logged(),
                 getTokenInfo(NFT_TOKEN).hasTotalSupply(2),
                 getAccountInfo(RECEIVER).hasOwnedNfts(1),
                 getAccountBalance(RECEIVER).hasTokenBalance(NFT_TOKEN, 1),
@@ -579,6 +750,16 @@ public class AtomicCryptoTransferHTSSuite {
                                     .payingWith(GENESIS)
                                     .via(cryptoTransferTxnForNft)
                                     .gas(GAS_TO_OFFER),
+                            // check there is ERC721 event
+                            TransferTokenTest.validateErcEvent(
+                                            getTxnRecord(cryptoTransferTxnForNft),
+                                            new TransferTokenTest.ErcEventRecord(
+                                                    token::getTokenNum,
+                                                    true,
+                                                    () -> parsedToByteString(sender),
+                                                    () -> parsedToByteString(receiver),
+                                                    1L))
+                                    .andAllChildRecords(),
                             // Ensure that the transfer fails when the sender does not have the correct key
                             contractCall(
                                             CONTRACT,
@@ -595,7 +776,6 @@ public class AtomicCryptoTransferHTSSuite {
                                     .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
                                     .gas(GAS_TO_OFFER));
                 }),
-                getTxnRecord(cryptoTransferTxnForNft).andAllChildRecords().logged(),
                 getTokenInfo(NFT_TOKEN).hasTotalSupply(2),
                 getAccountInfo(RECEIVER).hasOwnedNfts(1),
                 getAccountBalance(RECEIVER).hasTokenBalance(NFT_TOKEN, 1),
@@ -701,9 +881,24 @@ public class AtomicCryptoTransferHTSSuite {
                                                     .build())
                                     .payingWith(GENESIS)
                                     .via(cryptoTransferTxnForAll)
-                                    .gas(GAS_TO_OFFER));
+                                    .gas(GAS_TO_OFFER),
+                            // check there is ERC20/ERC721 event
+                            TransferTokenTest.validateErcEvent(
+                                            getTxnRecord(cryptoTransferTxnForAll),
+                                            new TransferTokenTest.ErcEventRecord(
+                                                    fungibleToken::getTokenNum,
+                                                    false,
+                                                    () -> parsedToByteString(fungibleTokenSender),
+                                                    () -> parsedToByteString(fungibleTokenReceiver),
+                                                    45L),
+                                            new TransferTokenTest.ErcEventRecord(
+                                                    nonFungibleToken::getTokenNum,
+                                                    true,
+                                                    () -> parsedToByteString(nonFungibleTokenSender),
+                                                    () -> parsedToByteString(nonFungibleTokenReceiver),
+                                                    1L))
+                                    .andAllChildRecords());
                 }),
-                getTxnRecord(cryptoTransferTxnForAll).andAllChildRecords().logged(),
                 getTokenInfo(FUNGIBLE_TOKEN).hasTotalSupply(TOTAL_SUPPLY),
                 getAccountBalance(RECEIVER).hasTokenBalance(FUNGIBLE_TOKEN, 45),
                 getAccountBalance(SENDER).hasTokenBalance(FUNGIBLE_TOKEN, 155),
@@ -801,6 +996,8 @@ public class AtomicCryptoTransferHTSSuite {
                                             EMPTY_TUPLE_ARRAY)
                                     .via(successfulTransferFromTxn)
                                     .hasKnownStatus(SUCCESS),
+                            // check there is no ERC20 event for HBAR transfer
+                            TransferTokenTest.validateErcEvent(getTxnRecord(successfulTransferFromTxn)),
                             // Try to send 1/2 of the allowance amount from owner to
                             // receiver
                             // should succeed as isApproval is true.
@@ -815,6 +1012,8 @@ public class AtomicCryptoTransferHTSSuite {
                                             EMPTY_TUPLE_ARRAY)
                                     .via(successfulTransferFromTxn2)
                                     .hasKnownStatus(SUCCESS),
+                            // check there is no ERC20 event for HBAR transfer
+                            TransferTokenTest.validateErcEvent(getTxnRecord(successfulTransferFromTxn2)),
                             // Try to send second 1/2 of the allowance amount from
                             // owner to receiver
                             // should succeed as isApproval is true.
@@ -829,6 +1028,8 @@ public class AtomicCryptoTransferHTSSuite {
                                             EMPTY_TUPLE_ARRAY)
                                     .via(successfulTransferFromTxn3)
                                     .hasKnownStatus(SUCCESS),
+                            // check there is no ERC20 event for HBAR transfer
+                            TransferTokenTest.validateErcEvent(getTxnRecord(successfulTransferFromTxn3)),
                             getAccountDetails(OWNER)
                                     .payingWith(GENESIS)
                                     .has(accountDetailsWith().noAllowances()),
@@ -974,6 +1175,16 @@ public class AtomicCryptoTransferHTSSuite {
                                     .via(successfulTransferFromTxn)
                                     .gas(GAS_FOR_AUTO_ASSOCIATING_CALLS)
                                     .hasKnownStatus(SUCCESS),
+                            // check there is ERC20 event
+                            TransferTokenTest.validateErcEvent(
+                                            getTxnRecord(successfulTransferFromTxn),
+                                            new TransferTokenTest.ErcEventRecord(
+                                                    token::getTokenNum,
+                                                    false,
+                                                    () -> parsedToByteString(owner),
+                                                    () -> parsedToByteString(receiver),
+                                                    1L))
+                                    .andAllChildRecords(),
                             // Try to send 1/2 of the allowance amount from owner to
                             // receiver
                             // should succeed as isApproval is true.
@@ -992,6 +1203,16 @@ public class AtomicCryptoTransferHTSSuite {
                                     .via(successfulTransferFromTxn2)
                                     .gas(GAS_FOR_AUTO_ASSOCIATING_CALLS)
                                     .hasKnownStatus(SUCCESS),
+                            // check there is ERC20 event
+                            TransferTokenTest.validateErcEvent(
+                                            getTxnRecord(successfulTransferFromTxn2),
+                                            new TransferTokenTest.ErcEventRecord(
+                                                    token::getTokenNum,
+                                                    false,
+                                                    () -> parsedToByteString(owner),
+                                                    () -> parsedToByteString(receiver),
+                                                    (allowance - 1) / 2))
+                                    .andAllChildRecords(),
                             // Try to send second 1/2 of the allowance amount from
                             // owner to receiver
                             // should succeed as isApproval is true.
@@ -1010,6 +1231,16 @@ public class AtomicCryptoTransferHTSSuite {
                                     .via(successfulTransferFromTxn3)
                                     .gas(GAS_FOR_AUTO_ASSOCIATING_CALLS)
                                     .hasKnownStatus(SUCCESS),
+                            // check there is ERC20 event
+                            TransferTokenTest.validateErcEvent(
+                                            getTxnRecord(successfulTransferFromTxn3),
+                                            new TransferTokenTest.ErcEventRecord(
+                                                    token::getTokenNum,
+                                                    false,
+                                                    () -> parsedToByteString(owner),
+                                                    () -> parsedToByteString(receiver),
+                                                    (allowance - 1) / 2))
+                                    .andAllChildRecords(),
                             getAccountDetails(OWNER)
                                     .payingWith(GENESIS)
                                     .has(accountDetailsWith().noAllowances()),
@@ -1141,7 +1372,17 @@ public class AtomicCryptoTransferHTSSuite {
                                                     .build()))
                                     .via(successfulTransferFromTxn)
                                     .gas(GAS_FOR_AUTO_ASSOCIATING_CALLS)
-                                    .hasKnownStatus(SUCCESS));
+                                    .hasKnownStatus(SUCCESS),
+                            // check there is ERC721 event
+                            TransferTokenTest.validateErcEvent(
+                                            getTxnRecord(successfulTransferFromTxn),
+                                            new TransferTokenTest.ErcEventRecord(
+                                                    token::getTokenNum,
+                                                    true,
+                                                    () -> parsedToByteString(owner),
+                                                    () -> parsedToByteString(receiver),
+                                                    2L))
+                                    .andAllChildRecords());
                 }),
                 childRecordsCheck(
                         revertingTransferFromTxnNft,
@@ -1214,7 +1455,17 @@ public class AtomicCryptoTransferHTSSuite {
                                                     .build()))
                                     .via(successfulTransferFromTxn)
                                     .gas(GAS_FOR_AUTO_ASSOCIATING_CALLS)
-                                    .hasKnownStatus(SUCCESS));
+                                    .hasKnownStatus(SUCCESS),
+                            // check there is ERC20 event
+                            TransferTokenTest.validateErcEvent(
+                                            getTxnRecord(successfulTransferFromTxn),
+                                            new TransferTokenTest.ErcEventRecord(
+                                                    token::getTokenNum,
+                                                    false,
+                                                    () -> parsedToByteString(owner),
+                                                    () -> parsedToByteString(receiver),
+                                                    allowance))
+                                    .andAllChildRecords());
                 }));
     }
 
@@ -1299,10 +1550,11 @@ public class AtomicCryptoTransferHTSSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> cryptoTransferSpecialAccounts() {
         final var cryptoTransferTxn = "cryptoTransferTxn";
         return hapiTest(
-                cryptoCreate(RECEIVER).balance(1 * ONE_HUNDRED_HBARS).receiverSigRequired(true),
+                cryptoCreate(RECEIVER).balance(ONE_HUNDRED_HBARS).receiverSigRequired(true),
                 uploadInitCode(CONTRACT),
                 contractCreate(CONTRACT).maxAutomaticTokenAssociations(1),
                 getContractInfo(CONTRACT)
@@ -1342,7 +1594,7 @@ public class AtomicCryptoTransferHTSSuite {
                                     .hasKnownStatus(CONTRACT_REVERT_EXECUTED));
                 }),
                 getTxnRecord(cryptoTransferTxn).andAllChildRecords().logged(),
-                getAccountBalance(RECEIVER).hasTinyBars(1 * ONE_HUNDRED_HBARS),
+                getAccountBalance(RECEIVER).hasTinyBars(ONE_HUNDRED_HBARS),
                 childRecordsCheck(
                         cryptoTransferTxn,
                         CONTRACT_REVERT_EXECUTED,
@@ -1365,7 +1617,6 @@ public class AtomicCryptoTransferHTSSuite {
     final Stream<DynamicTest> blockCryptoTransferForPermittedDelegates() {
         final var blockCryptoTransferForPermittedDelegates = "blockCryptoTransferForPermittedDelegates";
         final AtomicLong whitelistedCalleeMirrorNum = new AtomicLong();
-        final AtomicReference<String> whitelistedCalleeMirrorAddr = new AtomicReference<>();
 
         return hapiTest(
                 cryptoCreate(SENDER).balance(10 * ONE_HUNDRED_HBARS),
@@ -1381,7 +1632,6 @@ public class AtomicCryptoTransferHTSSuite {
                 uploadInitCode(CONTRACT),
                 contractCreate(CONTRACT).adminKey(DEFAULT_PAYER).exposingContractIdTo(id -> {
                     whitelistedCalleeMirrorNum.set(id.getContractNum());
-                    whitelistedCalleeMirrorAddr.set(asHexedSolidityAddress(id));
                 }),
                 sourcing(() -> overriding(
                         "contracts.permittedDelegateCallers", String.valueOf(whitelistedCalleeMirrorNum.get()))),
@@ -1448,7 +1698,10 @@ public class AtomicCryptoTransferHTSSuite {
                                             EMPTY_TUPLE_ARRAY)
                                     .payingWith(GENESIS)
                                     .via(nullAdminKeyXferTxn)
-                                    .gas(GAS_TO_OFFER));
+                                    .gas(GAS_TO_OFFER),
+                            // check there is no ERC20 event for HRAB transfer
+                            TransferTokenTest.validateErcEvent(getTxnRecord(nullAdminKeyXferTxn))
+                                    .andAllChildRecords());
                 }),
                 childRecordsCheck(
                         nullAdminKeyXferTxn,

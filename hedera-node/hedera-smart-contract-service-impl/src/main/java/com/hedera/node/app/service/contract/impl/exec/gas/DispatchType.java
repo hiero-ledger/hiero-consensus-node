@@ -13,7 +13,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 
 /**
- * Enumerates the types of child transactions that can be dispatched to the HTS system contract.
+ * Enumerates the types of child transactions that can be dispatched to the system contracts.
  */
 public enum DispatchType {
     /**
@@ -164,7 +164,18 @@ public enum DispatchType {
      * Dispatch for Hedera schedule create functionality with default resource prices.
      */
     SCHEDULE_CREATE(HederaFunctionality.SCHEDULE_CREATE, DEFAULT),
-
+    /**
+     * Dispatch for Hedera schedule create functionality with schedule create contract call resource prices.
+     */
+    SCHEDULE_CREATE_CONTRACT_CALL(HederaFunctionality.SCHEDULE_CREATE, SubType.SCHEDULE_CREATE_CONTRACT_CALL),
+    /**
+     * Dispatch for Hedera schedule delete functionality with default resource prices.
+     */
+    SCHEDULE_DELETE(HederaFunctionality.SCHEDULE_DELETE, DEFAULT),
+    /**
+     * Dispatch for Hedera schedule get info functionality with default resource prices.
+     * Currently decided to use 'gasCalculator.viewGasRequirement()' for all view functions, so this one is not used.
+     */
     SCHEDULE_GET_INFO(HederaFunctionality.SCHEDULE_GET_INFO, DEFAULT);
 
     private final HederaFunctionality functionality;

@@ -3,6 +3,7 @@ package com.swirlds.virtualmap;
 
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.createMap;
 
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.virtualmap.test.fixtures.TestKey;
 import com.swirlds.virtualmap.test.fixtures.TestValue;
 import java.util.List;
@@ -16,16 +17,16 @@ class VirtualMapRandomTest {
     private static final int NUM_OPS_PER_ROUND = 100;
     private static final int KEY_SPACE_SIZE = 25;
 
-    interface RandomOp extends Consumer<VirtualMapValidator<TestKey, TestValue>> {}
+    interface RandomOp extends Consumer<VirtualMapValidator> {}
 
     private static final List<RandomOp> POSSIBLE_OPS = List.of(
             v -> v.put(randomKey(), randomValue()), // Insert key, replace key
             v -> v.get(randomKey()), // Fetch key (immutable)
             v -> { // Fetch-Mutate key
-                final TestKey key = randomKey();
-                TestValue toMutate = v.get(key);
+                final Bytes key = randomKey();
+                Bytes toMutate = v.get(key);
                 if (toMutate != null) {
-                    toMutate = new TestValue(randomString());
+                    toMutate = new TestValue(randomString()).toBytes();
                     v.put(key, toMutate);
                 }
             },
@@ -33,12 +34,12 @@ class VirtualMapRandomTest {
             );
     private static final Random RANDOM = RandomUtils.getRandomPrintSeed();
 
-    private static TestKey randomKey() {
-        return new TestKey(RANDOM.nextInt(KEY_SPACE_SIZE));
+    private static Bytes randomKey() {
+        return TestKey.longToKey(RANDOM.nextInt(KEY_SPACE_SIZE));
     }
 
-    private static TestValue randomValue() {
-        return new TestValue(RANDOM.nextLong());
+    private static Bytes randomValue() {
+        return new TestValue(RANDOM.nextLong()).toBytes();
     }
 
     private static String randomString() {
@@ -51,7 +52,7 @@ class VirtualMapRandomTest {
 
     @Test
     void randomOpTest() {
-        final VirtualMapValidator<TestKey, TestValue> mapValidator = new VirtualMapValidator<>(createMap());
+        final VirtualMapValidator mapValidator = new VirtualMapValidator(createMap());
         for (int i = 0; i < NUM_ROUNDS; i++) {
             for (int j = 0; j < NUM_OPS_PER_ROUND; j++) {
                 getRandomOp().accept(mapValidator);

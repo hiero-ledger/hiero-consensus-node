@@ -1,23 +1,25 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.internal.result;
 
-import static com.swirlds.platform.event.preconsensus.PcesFileManager.NO_LOWER_BOUND;
-import static com.swirlds.platform.event.preconsensus.PcesUtilities.getDatabaseDirectory;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.consensus.pces.impl.common.PcesFileManager.NO_LOWER_BOUND;
+import static org.hiero.consensus.pces.impl.common.PcesUtilities.getDatabaseDirectory;
 
-import com.hedera.hapi.platform.state.NodeId;
-import com.swirlds.common.context.PlatformContext;
+import com.swirlds.common.io.utility.NoOpRecycleBin;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.platform.event.preconsensus.PcesConfig;
-import com.swirlds.platform.event.preconsensus.PcesFile;
-import com.swirlds.platform.event.preconsensus.PcesFileReader;
-import com.swirlds.platform.event.preconsensus.PcesFileTracker;
-import com.swirlds.platform.event.preconsensus.PcesMultiFileIterator;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.util.Iterator;
+import org.hiero.consensus.io.IOIterator;
+import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.pces.impl.common.PcesFile;
+import org.hiero.consensus.pces.impl.common.PcesFileReader;
+import org.hiero.consensus.pces.impl.common.PcesFileTracker;
+import org.hiero.consensus.pces.impl.common.PcesMultiFileIterator;
+import org.hiero.otter.fixtures.result.ReadablePcesFile;
 import org.hiero.otter.fixtures.result.SingleNodePcesResult;
 
 /**
@@ -30,26 +32,48 @@ public class SingleNodePcesResultImpl implements SingleNodePcesResult {
     private final PcesFileTracker pcesFileTracker;
 
     /**
-     * Constructor for {@code PcesFilesResultImpl}.
+     * Constructor for {@code SingleNodePcesResultImpl} using the default PCES directory based on the node ID and
+     * configuration.
      *
      * @param nodeId The {@link NodeId} of the files' node
-     * @param platformContext The {@link PlatformContext} to use for file reading
+     * @param configuration The {@link Configuration} to use for reading PCES files
      */
-    public SingleNodePcesResultImpl(@NonNull final NodeId nodeId, @NonNull final PlatformContext platformContext) {
+    public SingleNodePcesResultImpl(@NonNull final NodeId nodeId, @NonNull final Configuration configuration) {
+        this(nodeId, configuration, defaultPcesDirectory(nodeId.id(), configuration));
+    }
+
+    /**
+     * Constructor for {@code SingleNodePcesResultImpl} using a custom PCES directory.
+     *
+     * @param nodeId The {@link NodeId} of the files' node
+     * @param configuration The {@link Configuration} to use for reading PCES files
+     * @param pcesDirectory The directory where PCES files are stored
+     */
+    public SingleNodePcesResultImpl(
+            @NonNull final NodeId nodeId,
+            @NonNull final Configuration configuration,
+            @NonNull final Path pcesDirectory) {
         this.nodeId = requireNonNull(nodeId);
-
-        final Configuration configuration = platformContext.getConfiguration();
-        final PcesConfig pcesConfig = configuration.getConfigData(PcesConfig.class);
-
         try {
-
-            final Path databaseDirectory =
-                    getDatabaseDirectory(platformContext, org.hiero.consensus.model.node.NodeId.of(nodeId.id()));
-
             this.pcesFileTracker = PcesFileReader.readFilesFromDisk(
-                    platformContext, databaseDirectory, NO_LOWER_BOUND, pcesConfig.permitGaps());
+                    configuration, new NoOpRecycleBin(), pcesDirectory, NO_LOWER_BOUND, true);
         } catch (final IOException e) {
             throw new UncheckedIOException("Error initializing SingleNodePcesResultImpl", e);
+        }
+    }
+
+    /**
+     * Construct the default PCES directory based on the node ID and configuration.
+     *
+     * @param nodeId the ID of the node
+     * @param configuration the configuration of the node
+     * @return the default PCES directory path
+     */
+    private static Path defaultPcesDirectory(final long nodeId, final Configuration configuration) {
+        try {
+            return getDatabaseDirectory(configuration, org.hiero.consensus.model.node.NodeId.of(nodeId));
+        } catch (final IOException e) {
+            throw new UncheckedIOException("Error resolving default PCES directory", e);
         }
     }
 
@@ -66,8 +90,8 @@ public class SingleNodePcesResultImpl implements SingleNodePcesResult {
      */
     @Override
     @NonNull
-    public Iterator<PcesFile> pcesFiles() {
-        return pcesFileTracker.getFileIterator();
+    public Iterator<ReadablePcesFile> pcesFiles() {
+        return new PcesFileIterator(pcesFileTracker.getFileIterator());
     }
 
     /**
@@ -75,7 +99,35 @@ public class SingleNodePcesResultImpl implements SingleNodePcesResult {
      */
     @Override
     @NonNull
-    public PcesMultiFileIterator pcesEvents() {
-        return new PcesMultiFileIterator(NO_LOWER_BOUND, pcesFiles());
+    public IOIterator<PlatformEvent> pcesEvents() {
+        return new PcesMultiFileIterator(NO_LOWER_BOUND, pcesFileTracker.getFileIterator());
+    }
+
+    /**
+     * An iterator that wraps PcesFile objects in ReadablePcesFile objects.
+     */
+    private static class PcesFileIterator implements Iterator<ReadablePcesFile> {
+
+        private final Iterator<PcesFile> internalIterator;
+
+        public PcesFileIterator(final Iterator<PcesFile> internalIterator) {
+            this.internalIterator = internalIterator;
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public boolean hasNext() {
+            return internalIterator.hasNext();
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public ReadablePcesFile next() {
+            return new ReadablePcesFileImpl(internalIterator.next());
+        }
     }
 }

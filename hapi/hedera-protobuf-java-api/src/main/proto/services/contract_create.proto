@@ -45,6 +45,7 @@ option java_multiple_files = true;
 
 import "services/basic_types.proto";
 import "services/duration.proto";
+import "services/hook_types.proto";
 
 /**
  * Create a new smart contract.
@@ -272,4 +273,9 @@ message ContractCreateTransactionBody {
      * without reward.
      */
     bool decline_reward = 19;
+
+    /**
+     * Details of hooks to add immediately after creating this contract.
+     */
+    repeated com.hedera.hapi.node.hooks.HookCreationDetails hook_creation_details = 20;
 }

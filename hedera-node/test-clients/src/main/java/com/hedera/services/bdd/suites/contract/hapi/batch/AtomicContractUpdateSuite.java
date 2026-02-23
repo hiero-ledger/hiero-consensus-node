@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.hapi.batch;
 
-import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
+import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractInfoAsserts.contractWith;
 import static com.hedera.services.bdd.spec.keys.KeyShape.listOf;
+import static com.hedera.services.bdd.spec.keys.SigMapGenerator.Nature.FULL_PREFIXES;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getContractBytecode;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getContractInfo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
@@ -45,6 +47,7 @@ import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.assertions.ContractInfoAsserts;
 import com.hedera.services.bdd.spec.keys.KeyShape;
+import com.hedera.services.bdd.spec.keys.TrieSigMapGenerator;
 import com.hedera.services.bdd.spec.utilops.RunnableOp;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
@@ -58,8 +61,8 @@ import org.junit.jupiter.api.Tag;
 // This test cases are direct copies of ContractUpdateSuite. The difference here is that
 // we are wrapping the operations in an atomic batch to confirm that everything works as expected.
 @HapiTestLifecycle
-@Tag(SMART_CONTRACT)
-public class AtomicContractUpdateSuite {
+@Tag(ATOMIC_BATCH)
+class AtomicContractUpdateSuite {
 
     private static final long ONE_DAY = 60L * 60L * 24L;
     public static final String ADMIN_KEY = "adminKey";
@@ -72,17 +75,12 @@ public class AtomicContractUpdateSuite {
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(Map.of(
-                "atomicBatch.isEnabled",
-                "true",
-                "atomicBatch.maxNumberOfTransactions",
-                "50",
-                "contracts.throttle.throttleByGas",
-                "false"));
+        testLifecycle.overrideInClass(Map.of("contracts.throttle.throttleByGas", "false"));
         testLifecycle.doAdhoc(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> updateStakingFieldsWorks() {
         return hapiTest(
                 uploadInitCode(CONTRACT),
@@ -161,7 +159,7 @@ public class AtomicContractUpdateSuite {
                         .payingWith(BATCH_OPERATOR),
                 atomicBatch(contractUpdate(CONTRACT)
                                 .newMemo(ZERO_BYTE_MEMO)
-                                .hasPrecheck(INVALID_ZERO_BYTE_IN_STRING)
+                                .hasKnownStatus(INVALID_ZERO_BYTE_IN_STRING)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
@@ -426,6 +424,7 @@ public class AtomicContractUpdateSuite {
                 contractDelete(contract + suffix)
                         .payingWith(payer)
                         .signedBy(payer, INITIAL_ADMIN_KEY)
+                        .sigMapPrefixes(TrieSigMapGenerator.withNature(FULL_PREFIXES))
                         .hasKnownStatus(INVALID_SIGNATURE),
                 contractDelete(contract + suffix)
                         .payingWith(payer)
@@ -435,6 +434,7 @@ public class AtomicContractUpdateSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> updateDoesNotChangeBytecode() {
         // HSCS-DCPR-001
         final var simpleStorageContract = "SimpleStorage";

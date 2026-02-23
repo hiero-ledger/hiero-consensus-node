@@ -5,6 +5,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMetricsProvider;
 import static com.swirlds.platform.system.transaction.TransactionWrapperUtils.createAppPayloadWrapper;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.bulkUpdateOf;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
@@ -15,6 +16,7 @@ import com.hedera.services.bdd.junit.hedera.embedded.fakes.FakeConsensusEvent;
 import com.hedera.services.bdd.junit.hedera.embedded.fakes.FakeEvent;
 import com.hedera.services.bdd.junit.hedera.embedded.fakes.FakeRound;
 import com.hedera.services.bdd.junit.hedera.embedded.fakes.LapsingBlockHashSigner;
+import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
 import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.Transaction;
 import com.hederahashgraph.api.proto.java.TransactionResponse;
@@ -33,6 +35,7 @@ import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
+import org.hiero.consensus.model.transaction.TimestampedTransaction;
 
 /**
  * An embedded Hedera node that handles transactions synchronously on ingest and thus
@@ -74,6 +77,11 @@ public class RepeatableEmbeddedHedera extends AbstractEmbeddedHedera implements 
     }
 
     @Override
+    public Duration restartOffset() {
+        return Duration.between(FIXED_POINT, time.now());
+    }
+
+    @Override
     public void tick(@NonNull Duration duration) {
         time.tick(duration);
     }
@@ -95,16 +103,18 @@ public class RepeatableEmbeddedHedera extends AbstractEmbeddedHedera implements 
     @Override
     public TransactionResponse submit(Transaction transaction, AccountID nodeAccountId, final long eventBirthRound) {
         var response = OK_RESPONSE;
-        final Bytes payload = Bytes.wrap(transaction.toByteArray());
         if (defaultNodeAccountId.equals(nodeAccountId)) {
             final var responseBuffer = BufferedData.allocate(MAX_PLATFORM_TXN_SIZE);
+            final var payload = Bytes.wrap(transaction.toByteArray());
             hedera.ingestWorkflow().submitTransaction(payload, responseBuffer);
             response = parseTransactionResponse(responseBuffer);
         } else {
             final var nodeId = nodeIds.getOrDefault(nodeAccountId, MISSING_NODE_ID);
             warnOfSkippedIngestChecks(nodeAccountId, nodeId);
+            // If skipping ingest, we submit a serialized SignedTransaction
+            final var serializedSignedTx = HapiTxnOp.serializedSignedTxFrom(transaction);
             platform.lastCreatedEvent =
-                    new FakeEvent(nodeId, time.now(), createAppPayloadWrapper(payload), eventBirthRound);
+                    new FakeEvent(nodeId, time.now(), createAppPayloadWrapper(serializedSignedTx), eventBirthRound);
         }
         return handleNextRounds(response);
     }
@@ -118,15 +128,17 @@ public class RepeatableEmbeddedHedera extends AbstractEmbeddedHedera implements 
         requireNonNull(nodeAccountId);
         requireNonNull(semanticVersion);
         var response = OK_RESPONSE;
-        final Bytes payload = Bytes.wrap(transaction.toByteArray());
         if (defaultNodeAccountId.equals(nodeAccountId)) {
             final var responseBuffer = BufferedData.allocate(MAX_PLATFORM_TXN_SIZE);
+            final var payload = Bytes.wrap(transaction.toByteArray());
             hedera.ingestWorkflow().submitTransaction(payload, responseBuffer);
             response = parseTransactionResponse(responseBuffer);
         } else {
             final var nodeId = nodeIds.getOrDefault(nodeAccountId, MISSING_NODE_ID);
             warnOfSkippedIngestChecks(nodeAccountId, nodeId);
-            platform.lastCreatedEvent = new FakeEvent(nodeId, time.now(), createAppPayloadWrapper(payload));
+            // If skipping ingest, we submit a serialized SignedTransaction
+            final var serializedSignedTx = HapiTxnOp.serializedSignedTxFrom(transaction);
+            platform.lastCreatedEvent = new FakeEvent(nodeId, time.now(), createAppPayloadWrapper(serializedSignedTx));
         }
         return handleNextRounds(response);
     }
@@ -147,13 +159,6 @@ public class RepeatableEmbeddedHedera extends AbstractEmbeddedHedera implements 
     }
 
     /**
-     * Returns the last consensus round number.
-     */
-    public long lastRoundNo() {
-        return platform.lastRoundNo();
-    }
-
-    /**
      * Sets the duration of each simulated consensus round, and hence the consensus time that will
      * elapse before the next transaction is handled.
      * @param roundDuration the duration of each simulated round
@@ -162,10 +167,21 @@ public class RepeatableEmbeddedHedera extends AbstractEmbeddedHedera implements 
         this.roundDuration = requireNonNull(roundDuration);
     }
 
+    /**
+     * Resets the round duration to the default value.
+     */
+    public void resetRoundDuration() {
+        this.roundDuration = DEFAULT_ROUND_DURATION;
+    }
+
     @Override
-    protected void handleRoundWith(@NonNull final byte[] serializedTxn) {
-        final var round = platform.roundWith(serializedTxn);
+    protected void handleRoundWith(@NonNull final byte[] serializedSignedTx) {
+        final var round = platform.roundWith(serializedSignedTx);
         hedera.onPreHandle(round.iterator().next(), state, preHandleStateSignatureCallback);
+        bulkUpdateOf(state, v -> {
+            v.setRound(round.getRoundNum());
+            v.setConsensusTimestamp(round.getConsensusTimestamp());
+        });
         hedera.handleWorkflow().handleRound(state, round, handleStateSignatureCallback);
         hedera.onSealConsensusRound(round, state);
         notifyStateHashed(round.getRoundNum());
@@ -175,6 +191,13 @@ public class RepeatableEmbeddedHedera extends AbstractEmbeddedHedera implements 
      * Executes the transaction in the last-created event within its own round.
      */
     public void handleNextRoundIfPresent() {
+        final List<TimestampedTransaction> bufferedTransactions = hedera.getTransactionsForEvent();
+        if (!bufferedTransactions.isEmpty()) {
+            platform.lastCreatedEvent = new FakeEvent(
+                    defaultNodeId,
+                    time.now(),
+                    createAppPayloadWrapper(bufferedTransactions.getFirst().transaction()));
+        }
         if (platform.lastCreatedEvent != null) {
             hedera.onPreHandle(platform.lastCreatedEvent, state, preHandleStateSignatureCallback);
             final var round = platform.nextConsensusRound();
@@ -203,12 +226,6 @@ public class RepeatableEmbeddedHedera extends AbstractEmbeddedHedera implements 
         }
 
         @Override
-        public boolean createTransaction(@NonNull final byte[] transaction) {
-            lastCreatedEvent = new FakeEvent(defaultNodeId, time.now(), createAppPayloadWrapper(transaction));
-            return true;
-        }
-
-        @Override
         public void start() {
             // No-op
         }
@@ -220,17 +237,17 @@ public class RepeatableEmbeddedHedera extends AbstractEmbeddedHedera implements 
 
         /**
          * Creates a new round with the given transaction.
-         * @param serializedTxn the serialized transaction
+         * @param serializedSignedTx the serialized transaction
          * @return the new round
          */
-        private Round roundWith(@NonNull final byte[] serializedTxn) {
+        private Round roundWith(@NonNull final byte[] serializedSignedTx) {
             time.tick(roundDuration);
             final var firstRoundTime = time.now();
             return new FakeRound(
                     roundNo.getAndIncrement(),
                     requireNonNull(roster),
                     List.of(new FakeConsensusEvent(
-                            new FakeEvent(defaultNodeId, firstRoundTime, createAppPayloadWrapper(serializedTxn)),
+                            new FakeEvent(defaultNodeId, firstRoundTime, createAppPayloadWrapper(serializedSignedTx)),
                             consensusOrder.getAndIncrement(),
                             firstRoundTime)));
         }

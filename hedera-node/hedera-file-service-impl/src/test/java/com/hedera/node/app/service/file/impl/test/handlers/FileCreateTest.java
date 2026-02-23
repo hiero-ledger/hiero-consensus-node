@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.file.impl.test.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_EXPIRATION_TIME;
+import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.FILES_STATE_ID;
 import static com.hedera.node.app.spi.fixtures.Assertions.assertThrowsPreCheck;
 import static com.hedera.node.app.spi.validation.ExpiryMeta.NA;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -31,13 +32,13 @@ import com.hedera.hapi.node.state.file.File;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.fees.usage.file.FileOpsUsage;
+import com.hedera.node.app.service.entityid.EntityNumGenerator;
 import com.hedera.node.app.service.file.impl.WritableFileStore;
 import com.hedera.node.app.service.file.impl.handlers.FileCreateHandler;
 import com.hedera.node.app.service.file.impl.records.CreateFileStreamBuilder;
 import com.hedera.node.app.service.file.impl.test.FileTestBase;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.fixtures.workflows.FakePreHandleContext;
-import com.hedera.node.app.spi.ids.EntityNumGenerator;
 import com.hedera.node.app.spi.validation.AttributeValidator;
 import com.hedera.node.app.spi.validation.ExpiryMeta;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
@@ -60,6 +61,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class FileCreateTest extends FileTestBase {
+
     static final AccountID ACCOUNT_ID_3 = AccountID.newBuilder().accountNum(3L).build();
     private static final Configuration DEFAULT_CONFIG = HederaTestConfigBuilder.createConfig();
 
@@ -261,6 +263,21 @@ class FileCreateTest extends FileTestBase {
     }
 
     @Test
+    @DisplayName("Translates INVALID_EXPIRATION_TIME to AUTO_RENEW_DURATION_NOT_IN_RANGE")
+    void translatesInvalidExpiryException() {
+        final var txBody = newCreateTxn(keys, expirationTime, SHARD, REALM);
+
+        given(handleContext.body()).willReturn(txBody);
+        given(handleContext.expiryValidator()).willReturn(expiryValidator);
+        given(storeFactory.writableStore(WritableFileStore.class)).willReturn(writableStore);
+        given(expiryValidator.resolveCreationAttempt(anyBoolean(), any(), any()))
+                .willThrow(new HandleException(ResponseCodeEnum.INVALID_EXPIRATION_TIME));
+
+        final var failure = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        assertEquals(ResponseCodeEnum.AUTORENEW_DURATION_NOT_IN_RANGE, failure.getStatus());
+    }
+
+    @Test
     @DisplayName("Memo Validation Failure will throw")
     void handleThrowsIfAttributeValidatorFails() {
         final var keys = anotherKeys;
@@ -290,13 +307,13 @@ class FileCreateTest extends FileTestBase {
         final var writableState = writableFileStateWithOneKey();
         givenEntityCounters(2);
 
-        given(writableStates.<FileID, File>get(FILES)).willReturn(writableState);
+        given(writableStates.<FileID, File>get(FILES_STATE_ID)).willReturn(writableState);
         final var fileStore = new WritableFileStore(writableStates, writableEntityCounters);
         given(storeFactory.writableStore(WritableFileStore.class)).willReturn(fileStore);
 
         assertEquals(2, fileStore.sizeOfState());
 
-        config = new FilesConfig(1L, 1L, 1L, 1L, 1L, 1L, new LongPair(150L, 159L), 1L, 1L, 1);
+        config = new FilesConfig(1L, 1L, 1L, 1L, 1L, 1L, 1L, new LongPair(150L, 159L), 1L, 1L, 1);
         given(configuration.getConfigData(any())).willReturn(config);
 
         final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));

@@ -21,8 +21,6 @@ import com.hedera.node.app.state.SingleTransactionRecord.TransactionOutputs;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
-import com.swirlds.platform.crypto.KeysAndCertsGenerator;
-import com.swirlds.platform.crypto.PublicStores;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
@@ -35,6 +33,7 @@ import java.util.Random;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Signer;
+import org.hiero.consensus.crypto.KeysAndCertsGenerator;
 import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.model.node.NodeId;
 
@@ -45,8 +44,6 @@ import org.hiero.consensus.model.node.NodeId;
  */
 @SuppressWarnings("DataFlowIssue")
 public class RecordTestData {
-    /** Empty byte array */
-    private static final byte[] EMPTY_ARRAY = new byte[] {};
     /** Random with fixed seed for reproducibility of test data generated */
     private static final Random RANDOM = new Random(123456789L);
 
@@ -79,8 +76,7 @@ public class RecordTestData {
     static {
         try {
             // generate node keys and signer
-            final var keysAndCerts = KeysAndCertsGenerator.generate(
-                    NodeId.FIRST_NODE_ID, EMPTY_ARRAY, EMPTY_ARRAY, EMPTY_ARRAY, new PublicStores());
+            final var keysAndCerts = KeysAndCertsGenerator.generate(NodeId.FIRST_NODE_ID);
             // get public key that was generated for the user
             USER_PUBLIC_KEY = keysAndCerts.sigKeyPair().getPublic();
             // create signer

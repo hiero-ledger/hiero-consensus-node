@@ -4,6 +4,7 @@ package com.hedera.node.app.hapi.utils.ethereum;
 import com.esaulpaugh.headlong.rlp.RLPDecoder;
 import com.esaulpaugh.headlong.rlp.RLPEncoder;
 import com.esaulpaugh.headlong.rlp.RLPItem;
+import com.esaulpaugh.headlong.rlp.RLPList;
 import com.esaulpaugh.headlong.util.Integers;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.MoreObjects;
@@ -31,6 +32,7 @@ public record EthTxData(
         BigInteger value, // weibar, always positive - note that high-bit might be ON in RLP encoding: still positive
         byte[] callData,
         byte[] accessList,
+        Object[] accessListAsRlp,
         int recId, // "recovery id" part of a v,r,s ECDSA signature - range 0..1
         byte[] v, // actual `v` value, incoming, recovery id (`recId` above) (possibly) encoded with chain id
         byte[] r,
@@ -58,10 +60,10 @@ public record EthTxData(
             .parseHex(
                     "f8a58085174876e800830186a08080b853604580600e600039806000f350fe7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe03601600081602082378035828234f58015156039578182fd5b8082525050506014600cf31ba02222222222222222222222222222222222222222222222222222222222222222a02222222222222222222222222222222222222222222222222222222222222222");
 
-    public static EthTxData populateEthTxData(byte[] data) {
+    public static EthTxData populateEthTxData(final byte[] data) {
         try {
-            var decoder = RLPDecoder.RLP_STRICT.sequenceIterator(data);
-            var rlpItem = decoder.next();
+            final var decoder = RLPDecoder.RLP_STRICT.sequenceIterator(data);
+            final var rlpItem = decoder.next();
             if (rlpItem.isList()) {
                 return populateLegacyEthTxData(rlpItem, data);
             }
@@ -73,7 +75,7 @@ public record EthTxData(
                 default -> null;
             };
 
-        } catch (IllegalArgumentException | NoSuchElementException e) {
+        } catch (final IllegalArgumentException | NoSuchElementException e) {
             return null;
         }
     }
@@ -92,6 +94,7 @@ public record EthTxData(
                 value,
                 newCallData,
                 accessList,
+                null,
                 recId,
                 v,
                 r,
@@ -113,6 +116,7 @@ public record EthTxData(
                 replacementValue,
                 callData,
                 accessList,
+                null,
                 recId,
                 v,
                 r,
@@ -251,6 +255,7 @@ public record EthTxData(
                 && (Objects.equals(value, ethTxData.value))
                 && (Arrays.equals(callData, ethTxData.callData))
                 && (Arrays.equals(accessList, ethTxData.accessList))
+                && (Arrays.deepEquals(accessListAsRlp, ethTxData.accessListAsRlp))
                 && (Arrays.equals(v, ethTxData.v))
                 && (Arrays.equals(r, ethTxData.r))
                 && (Arrays.equals(s, ethTxData.s));
@@ -269,6 +274,8 @@ public record EthTxData(
         result = 31 * result + Arrays.hashCode(to);
         result = 31 * result + (value != null ? value.hashCode() : 0);
         result = 31 * result + Arrays.hashCode(callData);
+        // accessListAsRlp is not considered when calculating the hash,
+        // as it is simply a different representation of the same dataset.
         result = 31 * result + Arrays.hashCode(accessList);
         result = 31 * result + recId;
         result = 31 * result + Arrays.hashCode(v);
@@ -328,6 +335,7 @@ public record EthTxData(
                 value,
                 callData,
                 accessList,
+                null,
                 recId,
                 v,
                 r,
@@ -349,6 +357,7 @@ public record EthTxData(
                 value,
                 callData,
                 accessList,
+                null,
                 newRecId,
                 v,
                 r,
@@ -370,6 +379,7 @@ public record EthTxData(
                 value,
                 callData,
                 accessList,
+                accessListAsRlp,
                 recId,
                 v,
                 newR,
@@ -391,6 +401,7 @@ public record EthTxData(
                 value,
                 callData,
                 accessList,
+                accessListAsRlp,
                 recId,
                 v,
                 r,
@@ -402,16 +413,16 @@ public record EthTxData(
      *
      * @return the encoded transaction data
      */
-    private static EthTxData populateLegacyEthTxData(RLPItem rlpItem, byte[] rawTx) {
-        List<RLPItem> rlpList = rlpItem.asRLPList().elements();
+    private static EthTxData populateLegacyEthTxData(final RLPItem rlpItem, final byte[] rawTx) {
+        final List<RLPItem> rlpList = rlpItem.asRLPList().elements();
         if (rlpList.size() != 9) {
             return null;
         }
 
         byte[] chainId = null;
-        byte[] val = rlpList.get(6).asBytes();
-        BigInteger vBI = new BigInteger(1, val);
-        byte recId = vBI.testBit(0) ? (byte) 0 : 1;
+        final byte[] val = rlpList.get(6).asBytes();
+        final BigInteger vBI = new BigInteger(1, val);
+        final byte recId = vBI.testBit(0) ? (byte) 0 : 1;
         // https://eips.ethereum.org/EIPS/eip-155
         if (vBI.compareTo(BigInteger.valueOf(34)) > 0) {
             // after EIP155 the chain id is equal to
@@ -440,6 +451,7 @@ public record EthTxData(
                 rlpList.get(4).asBigInt(), // value
                 rlpList.get(5).data(), // callData
                 null, // accessList
+                null,
                 recId,
                 val,
                 rlpList.get(7).data(), // r
@@ -452,12 +464,12 @@ public record EthTxData(
      *
      * @return the encoded transaction data
      */
-    private static EthTxData populateEip1559EthTxData(RLPItem rlpItem, byte[] rawTx) {
+    private static EthTxData populateEip1559EthTxData(final RLPItem rlpItem, final byte[] rawTx) {
         if (!rlpItem.isList()) {
             return null;
         }
 
-        List<RLPItem> rlpList = rlpItem.asRLPList().elements();
+        final List<RLPItem> rlpList = rlpItem.asRLPList().elements();
         if (rlpList.size() != 12) {
             return null;
         }
@@ -475,6 +487,9 @@ public record EthTxData(
                 rlpList.get(6).asBigInt(), // value
                 rlpList.get(7).data(), // callData
                 rlpList.get(8).data(), // accessList
+                rlpList.get(8) != null && rlpList.get(8).isList()
+                        ? encodeRlpList(rlpList.get(8).asRLPList())
+                        : new Object[0], // accessList as RLPList
                 asByte(rlpList.get(9)), // recId
                 null, // v
                 rlpList.get(10).data(), // r
@@ -487,12 +502,12 @@ public record EthTxData(
      *
      * @return the encoded transaction data
      */
-    private static EthTxData populateEip2390EthTxData(RLPItem rlpItem, byte[] rawTx) {
+    private static EthTxData populateEip2390EthTxData(final RLPItem rlpItem, final byte[] rawTx) {
         if (!rlpItem.isList()) {
             return null;
         }
 
-        List<RLPItem> rlpList = rlpItem.asRLPList().elements();
+        final List<RLPItem> rlpList = rlpItem.asRLPList().elements();
         if (rlpList.size() != 11) {
             return null;
         }
@@ -510,6 +525,9 @@ public record EthTxData(
                 rlpList.get(5).asBigInt(), // value
                 rlpList.get(6).data(), // callData
                 rlpList.get(7).data(), // accessList
+                rlpList.get(7).isList()
+                        ? encodeRlpList(rlpList.get(7).asRLPList())
+                        : new Object[0], // accessList encoded as Object
                 asByte(rlpList.get(8)), // recId
                 null, // v
                 rlpList.get(9).data(), // r
@@ -519,7 +537,7 @@ public record EthTxData(
 
     // before EIP155 the value of v in
     // (unprotected) ethereum transactions is either 27 or 28
-    private static boolean isLegacyUnprotectedEtx(@NonNull BigInteger vBI) {
+    private static boolean isLegacyUnprotectedEtx(@NonNull final BigInteger vBI) {
         return vBI.compareTo(LEGACY_V_BYTE_SIGNATURE_0) == 0 || vBI.compareTo(LEGACY_V_BYTE_SIGNATURE_1) == 0;
     }
 
@@ -528,14 +546,14 @@ public record EthTxData(
     // encoded in RLP.)
 
     private static byte asByte(@NonNull final RLPItem rlpItem) {
-        var v = rlpItem.asBigInt(false);
+        final var v = rlpItem.asBigInt(false);
         if (v.compareTo(BigInteger.ZERO) < 0) throwOutOfRange();
         if (v.compareTo(BigInteger.valueOf(Byte.MAX_VALUE)) > 0) throwOutOfRange();
         return v.byteValueExact();
     }
 
     private static long asLong(@NonNull final RLPItem rlpItem) {
-        var v = rlpItem.asBigInt(false);
+        final var v = rlpItem.asBigInt(false);
         if (v.compareTo(BigInteger.ZERO) < 0) throwOutOfRange();
         if (v.compareTo(BigInteger.valueOf(Long.MAX_VALUE)) > 0) throwOutOfRange();
         return v.longValueExact();
@@ -548,5 +566,12 @@ public record EthTxData(
             }
         }
         throw new OutOfRangeException();
+    }
+
+    private static Object[] encodeRlpList(final RLPList rlpList) {
+
+        return rlpList.elements().stream()
+                .map(rlpItem -> rlpItem.isList() ? encodeRlpList(rlpItem.asRLPList()) : rlpItem.data())
+                .toArray();
     }
 }

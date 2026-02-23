@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.file.batch;
 
+import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getFileContents;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
@@ -21,29 +23,19 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACT
 
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.OrderedInIsolation;
-import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.transactions.file.HapiFileUpdate;
-import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.Map;
 import java.util.stream.Stream;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
 
 // This test cases are direct copies of ExchangeRateControlSuite. The difference here is that
 // we are wrapping the operations in an atomic batch to confirm that everything works as expected.
-@HapiTestLifecycle
+@Tag(ATOMIC_BATCH)
 @OrderedInIsolation
-public class AtomicExchangeRateControlSuite {
+class AtomicExchangeRateControlSuite {
 
     private static final String BATCH_OPERATOR = "batchOperator";
-
-    @BeforeAll
-    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(
-                Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
-    }
 
     final HapiFileUpdate resetRatesOp = fileUpdate(EXCHANGE_RATES)
             .payingWith(EXCHANGE_RATE_CONTROL)
@@ -74,6 +66,7 @@ public class AtomicExchangeRateControlSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> midnightRateChangesWhenAcct50UpdatesFile112() {
         return hapiTest(
                 cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS),
@@ -142,7 +135,7 @@ public class AtomicExchangeRateControlSuite {
                 atomicBatch(fileUpdate(EXCHANGE_RATES)
                                 .contents("Should be impossible!")
                                 .payingWith("randomAccount")
-                                .hasPrecheck(AUTHORIZATION_FAILED)
+                                .hasKnownStatus(AUTHORIZATION_FAILED)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED));

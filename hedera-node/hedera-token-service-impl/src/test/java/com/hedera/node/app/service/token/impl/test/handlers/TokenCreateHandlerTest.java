@@ -31,7 +31,7 @@ import static com.hedera.node.app.service.token.impl.test.handlers.util.CryptoHa
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.USER;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBehavior.REVERSIBLE;
-import static com.hedera.node.app.spi.workflows.record.StreamBuilder.TransactionCustomizer.NOOP_TRANSACTION_CUSTOMIZER;
+import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -54,6 +54,7 @@ import com.hedera.hapi.node.state.token.TokenRelation;
 import com.hedera.hapi.node.token.TokenCreateTransactionBody;
 import com.hedera.hapi.node.transaction.CustomFee;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.service.entityid.EntityNumGenerator;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
 import com.hedera.node.app.service.token.impl.handlers.TokenCreateHandler;
 import com.hedera.node.app.service.token.impl.test.handlers.util.CryptoTokenHandlerTestBase;
@@ -61,7 +62,7 @@ import com.hedera.node.app.service.token.impl.validators.CustomFeesValidator;
 import com.hedera.node.app.service.token.impl.validators.TokenAttributesValidator;
 import com.hedera.node.app.service.token.impl.validators.TokenCreateValidator;
 import com.hedera.node.app.service.token.records.TokenCreateStreamBuilder;
-import com.hedera.node.app.spi.ids.EntityNumGenerator;
+import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
 import com.hedera.node.app.spi.validation.AttributeValidator;
 import com.hedera.node.app.spi.validation.ExpiryMeta;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
@@ -119,9 +120,11 @@ class TokenCreateHandlerTest extends CryptoTokenHandlerTestBase {
     public void setUp() {
         super.setUp();
         refreshWritableStores();
-        recordBuilder = new RecordStreamBuilder(REVERSIBLE, NOOP_TRANSACTION_CUSTOMIZER, USER);
+        recordBuilder = new RecordStreamBuilder(REVERSIBLE, NOOP_SIGNED_TX_CUSTOMIZER, USER);
         tokenFieldsValidator = new TokenAttributesValidator();
-        customFeesValidator = new CustomFeesValidator();
+        given(configProvider.getConfiguration())
+                .willReturn(new VersionedConfigImpl(HederaTestConfigBuilder.createConfig(), 1));
+        customFeesValidator = new CustomFeesValidator(new FakeEntityIdFactoryImpl(SHARD, REALM), configProvider);
         tokenCreateValidator = new TokenCreateValidator(tokenFieldsValidator);
         subject = new TokenCreateHandler(idFactory, customFeesValidator, tokenCreateValidator);
         givenStoresAndConfig(handleContext);

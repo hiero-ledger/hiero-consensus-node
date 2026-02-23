@@ -1,25 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.hedera.utils;
 
-import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
 import static com.hedera.node.app.info.DiskStartupNetworks.GENESIS_NETWORK_JSON;
 import static java.util.Objects.requireNonNull;
-import static java.util.Spliterators.spliteratorUnknownSize;
-import static java.util.stream.StreamSupport.stream;
 
-import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.SemanticVersion;
-import com.hedera.hapi.node.base.ServiceEndpoint;
-import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.node.config.converter.SemanticVersionConverter;
 import com.hedera.node.internal.network.Network;
-import com.hedera.node.internal.network.NodeMetadata;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hedera.services.bdd.spec.props.JutilPropertySource;
-import com.swirlds.platform.config.legacy.LegacyConfigPropertiesLoader;
-import com.swirlds.platform.test.fixtures.addressbook.RandomAddressBookBuilder;
+import com.swirlds.platform.crypto.CryptoStatic;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.File;
@@ -30,21 +21,19 @@ import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
+import java.security.KeyStoreException;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
-import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
-import java.util.Random;
+import java.util.concurrent.ExecutionException;
 import java.util.stream.Stream;
-import org.hiero.consensus.model.roster.AddressBook;
+import org.hiero.consensus.model.node.KeysAndCerts;
+import org.hiero.consensus.model.node.NodeId;
 
 public class WorkingDirUtils {
-    private static final Key CLASSIC_ADMIN_KEY = Key.newBuilder()
-            .ed25519(Bytes.fromHex("0aa8e21064c61eab86e2a9c164565b4e7a9a4146106e0a6cd03a8c395a110e92"))
-            .build();
     private static final Path BASE_WORKING_LOC = Path.of("./build");
     private static final String DEFAULT_SCOPE = "hapi";
     private static final String KEYS_FOLDER = "keys";
@@ -56,11 +45,14 @@ public class WorkingDirUtils {
     public static final Bytes VALID_CERT;
 
     static {
-        final var randomAddressBook = RandomAddressBookBuilder.create(new Random())
-                .withSize(1)
-                .withRealKeysEnabled(true)
-                .build();
-        SIG_CERT = requireNonNull(randomAddressBook.iterator().next().getSigCert());
+        final var selfId = NodeId.of(1);
+        final Map<NodeId, KeysAndCerts> sigAndCerts;
+        try {
+            sigAndCerts = CryptoStatic.generateKeysAndCerts(List.of(selfId));
+        } catch (ExecutionException | InterruptedException | KeyStoreException e) {
+            throw new RuntimeException(e);
+        }
+        SIG_CERT = requireNonNull(sigAndCerts.get(selfId).sigCert());
         try {
             VALID_CERT = Bytes.wrap(SIG_CERT.getEncoded());
         } catch (CertificateEncodingException e) {
@@ -109,12 +101,13 @@ public class WorkingDirUtils {
      * with the given <i>config.txt</i> file.
      *
      * @param workingDir the path to the working directory
-     * @param configTxt the contents of the <i>config.txt</i> file
+     * @param network genesis network
+     * @param nodeId own nodeId
      */
     public static void recreateWorkingDir(
-            @NonNull final Path workingDir, @NonNull final String configTxt, final long nodeId) {
+            @NonNull final Path workingDir, @NonNull final Network network, final long nodeId) {
         requireNonNull(workingDir);
-        requireNonNull(configTxt);
+        requireNonNull(network);
 
         // Clean up any existing directory structure
         rm(workingDir);
@@ -124,9 +117,7 @@ public class WorkingDirUtils {
         // Initialize the current upgrade folder
         createDirectoriesUnchecked(
                 workingDir.resolve(DATA_DIR).resolve(UPGRADE_DIR).resolve(CURRENT_DIR));
-        // Write the address book (config.txt) and genesis network (genesis-network.json) files
-        writeStringUnchecked(workingDir.resolve(CONFIG_TXT), configTxt);
-        final var network = networkFrom(configTxt, OnlyRoster.NO);
+        // Write genesis network (genesis-network.json) files
         writeStringUnchecked(
                 workingDir.resolve(DATA_DIR).resolve(CONFIG_FOLDER).resolve(GENESIS_NETWORK_JSON),
                 Network.JSON.toJSON(network));
@@ -187,7 +178,7 @@ public class WorkingDirUtils {
     public @NonNull static SemanticVersion workingDirVersion() {
         final var loc = Paths.get(System.getProperty("user.dir")).endsWith("hedera-services")
                 ? "version.txt"
-                : "../version.txt";
+                : "../../version.txt";
         final var versionLiteral = readStringUnchecked(Paths.get(loc)).trim();
         return requireNonNull(new SemanticVersionConverter().convert(versionLiteral));
     }
@@ -202,9 +193,7 @@ public class WorkingDirUtils {
         final var path = workingDir.resolve(LOG4J2_XML);
         final var log4j2Xml = readStringUnchecked(path);
         final var updatedLog4j2Xml = log4j2Xml
-                .replace(
-                        "</Appenders>\n" + "  <Loggers>",
-                        """
+                .replace("</Appenders>\n" + "  <Loggers>", """
                                   <RollingFile name="TestClientRollingFile" fileName="output/test-clients.log"
                                     filePattern="output/test-clients-%d{yyyy-MM-dd}-%i.log.gz">
                                     <PatternLayout>
@@ -287,6 +276,19 @@ public class WorkingDirUtils {
         return path;
     }
 
+    /**
+     * Reads all bytes from a file, throwing an unchecked exception if an {@link IOException} occurs.
+     * @param path the path to read
+     * @return the bytes at the given path
+     */
+    public static byte[] readBytesUnchecked(@NonNull final Path path) {
+        try {
+            return Files.readAllBytes(path);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
     private static String readStringUnchecked(@NonNull final Path path) {
         try {
             return Files.readString(path);
@@ -316,6 +318,10 @@ public class WorkingDirUtils {
         try (final var files = Files.walk(assetDir)) {
             files.filter(file -> !file.equals(assetDir)).forEach(file -> {
                 final var fileName = file.getFileName().toString();
+                // Skip genesis-network.json as it's already written by recreateWorkingDir()
+                if (GENESIS_NETWORK_JSON.equals(fileName)) {
+                    return;
+                }
                 if (fileName.endsWith(".properties") || fileName.endsWith(".json")) {
                     copyUnchecked(
                             file,
@@ -361,77 +367,10 @@ public class WorkingDirUtils {
     }
 
     /**
-     * Load the address book from the given path, using {@link RandomAddressBookBuilder} to
-     * set a {@code sigCert} for each address.
-     *
-     * @param path the path to the address book file
-     * @return the loaded address book
-     */
-    public static AddressBook loadAddressBook(@NonNull final Path path) {
-        requireNonNull(path);
-        final var configFile = LegacyConfigPropertiesLoader.loadConfigFile(path.toAbsolutePath());
-        final var addressBook = configFile.getAddressBook();
-        return new AddressBook(stream(spliteratorUnknownSize(addressBook.iterator(), 0), false)
-                .map(address -> address.copySetSigCert(SIG_CERT))
-                .toList());
-    }
-
-    /**
      * Whether only the {@link RosterEntry} entries should be set in a network resource.
      */
     public enum OnlyRoster {
         YES,
         NO
-    }
-
-    /**
-     * Creates a network from the given <i>config.txt</i> file, using the given functions to provide
-     * TSS encryption keys and TSS key material. The network's roster entries will have the gossip certificates
-     * set to the same certificates used in each position by a test network.
-     *
-     * @param configTxt the contents of the <i>config.txt</i> file
-     * @param onlyRoster if true, only the roster entries will be set in the network
-     * @return the network
-     */
-    public static Network networkFrom(@NonNull final String configTxt, @NonNull final OnlyRoster onlyRoster) {
-        requireNonNull(configTxt);
-        requireNonNull(onlyRoster);
-        final var certs = AddressBookUtils.certsFor(configTxt);
-        final var nodeMetadata = Arrays.stream(configTxt.split("\n"))
-                .filter(line -> line.contains("address, "))
-                .map(line -> {
-                    final var parts = line.split(", ");
-                    final long nodeId = Long.parseLong(parts[1]);
-                    final long weight = Long.parseLong(parts[4]);
-                    final var gossipEndpoints =
-                            List.of(endpointFrom(parts[5], parts[6]), endpointFrom(parts[7], parts[8]));
-                    final var cert = certs.get(nodeId);
-                    final var metadata = NodeMetadata.newBuilder()
-                            .rosterEntry(new RosterEntry(nodeId, weight, cert, gossipEndpoints));
-                    final var nodeAccount = toPbj(HapiPropertySource.asAccount(parts[9]));
-                    if (onlyRoster == OnlyRoster.NO) {
-                        metadata.node(new Node(
-                                nodeId,
-                                nodeAccount,
-                                "node" + (nodeId + 1),
-                                gossipEndpoints,
-                                List.of(endpointFrom(parts[5], parts[6])),
-                                cert,
-                                // The gRPC certificate hash is irrelevant for PR checks
-                                Bytes.EMPTY,
-                                weight,
-                                false,
-                                CLASSIC_ADMIN_KEY,
-                                false,
-                                null));
-                    }
-                    return metadata.build();
-                })
-                .toList();
-        return Network.newBuilder().nodeMetadata(nodeMetadata).build();
-    }
-
-    private static ServiceEndpoint endpointFrom(@NonNull final String hostLiteral, @NonNull final String portLiteral) {
-        return HapiPropertySource.asServiceEndpoint(hostLiteral + ":" + portLiteral);
     }
 }

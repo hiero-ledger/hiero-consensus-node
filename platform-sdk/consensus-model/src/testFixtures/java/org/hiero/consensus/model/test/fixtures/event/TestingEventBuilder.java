@@ -4,7 +4,6 @@ package org.hiero.consensus.model.test.fixtures.event;
 import static org.hiero.consensus.model.event.EventConstants.MINIMUM_ROUND_CREATED;
 
 import com.hedera.hapi.platform.event.EventConsensusData;
-import com.hedera.hapi.platform.event.EventTransaction;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.hapi.util.HapiUtils;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -12,11 +11,14 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Random;
 import java.util.stream.Stream;
+import org.hiero.base.crypto.DigestType;
+import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.SignatureType;
 import org.hiero.base.crypto.test.fixtures.CryptoRandomUtils;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
@@ -83,8 +85,6 @@ public class TestingEventBuilder {
      */
     private List<Bytes> transactionBytes;
 
-    private List<EventTransaction> transactions;
-
     /**
      * The self parent of the event.
      */
@@ -141,6 +141,9 @@ public class TestingEventBuilder {
      */
     private long nGen = NonDeterministicGeneration.GENERATION_UNDEFINED;
 
+    /** The hash to use for the event */
+    private Hash hash = null;
+
     /**
      * Constructor
      *
@@ -192,7 +195,7 @@ public class TestingEventBuilder {
     /**
      * Set the number of app transactions an event should contain.
      * <p>
-     * Throws an exception if transactions are explicitly set with {@link #setTransactions}.
+     * Throws an exception if transactions are explicitly set with {@link #setTransactionBytes(List)}.
      *
      * @param numberOfAppTransactions the number of app transactions
      * @return this instance
@@ -209,7 +212,7 @@ public class TestingEventBuilder {
     /**
      * Set the number of system transactions an event should contain.
      * <p>
-     * Throws an exception if transactions are explicitly set with {@link #setTransactions}.
+     * Throws an exception if transactions are explicitly set with {@link #setTransactionBytes(List)}.
      *
      * @param numberOfSystemTransactions the number of system transactions
      * @return this instance
@@ -229,7 +232,7 @@ public class TestingEventBuilder {
     /**
      * Set the transaction size.
      * <p>
-     * Throws an exception if transactions are explicitly set with {@link #setTransactions}.
+     * Throws an exception if transactions are explicitly set with {@link #setTransactionBytes(List)}.
      *
      * @param transactionSize the transaction size
      * @return this instance
@@ -240,27 +243,6 @@ public class TestingEventBuilder {
         }
 
         this.transactionSize = transactionSize;
-        return this;
-    }
-
-    /**
-     * Explicitly set the transactions of an event.
-     * <p>
-     * Throws an exception if app transaction count, system transaction count, or transaction size are set.
-     *
-     * @param transactions the transactions
-     * @return this instance
-     * @deprecated the {@link EventTransaction} type will be removed in the future
-     */
-    @Deprecated
-    public @NonNull TestingEventBuilder setTransactions(@Nullable final List<EventTransaction> transactions) {
-        if (appTransactionCount != null || systemTransactionCount != null || transactionSize != null) {
-            throw new IllegalStateException(
-                    "Cannot set transactions when app transaction count, system transaction count, or transaction "
-                            + "size are explicitly set");
-        }
-
-        this.transactions = transactions;
         return this;
     }
 
@@ -391,9 +373,26 @@ public class TestingEventBuilder {
     }
 
     /**
+     * Set a custom hash for the event. This is useful for having a human-readable hash for debugging purposes.
+     *
+     * @param hexString the hash as a hex string
+     * @return this instance
+     */
+    public @NonNull TestingEventBuilder setHash(@NonNull final String hexString) {
+        final byte[] parsedHex = HexFormat.of().parseHex(hexString.toLowerCase());
+        if (parsedHex.length > DigestType.SHA_384.digestLength()) {
+            throw new IllegalArgumentException("Hash length is too long");
+        }
+        final byte[] hash = new byte[DigestType.SHA_384.digestLength()];
+        System.arraycopy(parsedHex, 0, hash, 0, parsedHex.length);
+        this.hash = new Hash(hash);
+        return this;
+    }
+
+    /**
      * Generate transactions based on the settings provided.
      * <p>
-     * Only utilized if the transactions are not set with {@link #setTransactions}.
+     * Only utilized if the transactions are not set with {@link #setTransactionBytes(List)}.
      *
      * @return the generated transactions
      */
@@ -471,11 +470,12 @@ public class TestingEventBuilder {
             }
         }
 
-        final EventDescriptorWrapper selfParentDescriptor =
-                createDescriptorFromParent(selfParent, selfParentBirthRoundOverride);
-        final List<EventDescriptorWrapper> otherParentDescriptors = Stream.ofNullable(otherParents)
-                .flatMap(List::stream)
-                .map(parent -> createDescriptorFromParent(parent, otherParentBirthRoundOverride))
+        final List<EventDescriptorWrapper> allParentDescriptors = Stream.concat(
+                        Stream.ofNullable(selfParent)
+                                .map(parent -> createDescriptorFromParent(parent, selfParentBirthRoundOverride)),
+                        Stream.ofNullable(otherParents)
+                                .flatMap(List::stream)
+                                .map(parent -> createDescriptorFromParent(parent, otherParentBirthRoundOverride)))
                 .toList();
 
         if (this.birthRound == null) {
@@ -505,14 +505,19 @@ public class TestingEventBuilder {
         }
 
         final UnsignedEvent unsignedEvent = new UnsignedEvent(
-                creatorId, selfParentDescriptor, otherParentDescriptors, birthRound, timeCreated, transactionBytes);
+                creatorId,
+                allParentDescriptors,
+                birthRound,
+                timeCreated,
+                transactionBytes,
+                random.nextLong(0, Long.MAX_VALUE));
 
         final byte[] signature = new byte[SignatureType.RSA.signatureLength()];
         random.nextBytes(signature);
 
-        final PlatformEvent platformEvent = new PlatformEvent(unsignedEvent, signature);
+        final PlatformEvent platformEvent = new PlatformEvent(unsignedEvent, Bytes.wrap(signature));
 
-        platformEvent.setHash(CryptoRandomUtils.randomHash(random));
+        platformEvent.setHash(hash != null ? hash : CryptoRandomUtils.randomHash(random));
 
         platformEvent.setNGen(nGen);
 

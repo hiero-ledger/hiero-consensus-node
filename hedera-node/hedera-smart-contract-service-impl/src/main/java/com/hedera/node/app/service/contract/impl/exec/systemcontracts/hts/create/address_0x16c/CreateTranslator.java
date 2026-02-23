@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.address_0x16c;
 
-import static com.hedera.node.app.hapi.utils.contracts.ParsingConstants.ARRAY_BRACKETS;
 import static com.hedera.node.app.hapi.utils.contracts.ParsingConstants.FIXED_FEE_V2;
 import static com.hedera.node.app.hapi.utils.contracts.ParsingConstants.FRACTIONAL_FEE_V2;
 import static com.hedera.node.app.hapi.utils.contracts.ParsingConstants.HEDERA_TOKEN_WITH_METADATA;
@@ -40,11 +39,9 @@ public class CreateTranslator extends CreateCommonTranslator {
                                     + HEDERA_TOKEN_WITH_METADATA
                                     + ",int64,int32,"
                                     + FIXED_FEE_V2
-                                    + ARRAY_BRACKETS
-                                    + ","
+                                    + "[],"
                                     + FRACTIONAL_FEE_V2
-                                    + ARRAY_BRACKETS
-                                    + ")",
+                                    + "[])",
                             "(int64,address)")
                     .withVariants(Variant.FT, Variant.WITH_METADATA, Variant.WITH_CUSTOM_FEES)
                     .withSupportedAddress(HTS_16C_CONTRACT_ID)
@@ -62,11 +59,9 @@ public class CreateTranslator extends CreateCommonTranslator {
                                     + HEDERA_TOKEN_WITH_METADATA
                                     + ","
                                     + FIXED_FEE_V2
-                                    + ARRAY_BRACKETS
-                                    + ","
+                                    + "[],"
                                     + ROYALTY_FEE_V2
-                                    + ARRAY_BRACKETS
-                                    + ")",
+                                    + "[])",
                             "(int64,address)")
                     .withVariants(Variant.NFT, Variant.WITH_METADATA, Variant.WITH_CUSTOM_FEES)
                     .withSupportedAddress(HTS_16C_CONTRACT_ID)

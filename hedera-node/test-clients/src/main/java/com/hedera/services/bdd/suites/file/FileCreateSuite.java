@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.file;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.customHapiSpec;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.changeFromSnapshot;
@@ -33,7 +34,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.FEE_SCHEDULE;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.NODE_DETAILS;
 import static com.hedera.services.bdd.suites.HapiSuite.ZERO_BYTE_MEMO;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_EXPIRATION_TIME;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.AUTORENEW_DURATION_NOT_IN_RANGE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_FILE_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_NODE_ACCOUNT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
@@ -53,6 +54,7 @@ import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.CurrentAndNextFeeSchedule;
 import com.hederahashgraph.api.proto.java.ExchangeRateSet;
 import com.hederahashgraph.api.proto.java.NodeAddressBook;
+import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import com.hederahashgraph.api.proto.java.ServicesConfigurationList;
 import com.hederahashgraph.api.proto.java.Transaction;
 import java.nio.file.Path;
@@ -61,6 +63,7 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
 
 public class FileCreateSuite {
     @HapiTest
@@ -79,10 +82,11 @@ public class FileCreateSuite {
     final Stream<DynamicTest> createFailsWithExcessiveLifetime() {
         return hapiTest(doWithStartupConfig("entities.maxLifetime", value -> fileCreate("test")
                 .lifetime(Long.parseLong(value) + 12_345L)
-                .hasPrecheck(INVALID_EXPIRATION_TIME)));
+                .hasPrecheck(AUTORENEW_DURATION_NOT_IN_RANGE)));
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> idVariantsTreatedAsExpected() {
         return hapiTest(submitModified(
                 withSuccessivelyVariedBodyIds(), () -> fileCreate("file").contents("ABC")));
@@ -140,7 +144,8 @@ public class FileCreateSuite {
         var now = Instant.now();
         System.out.println(now.getEpochSecond());
 
-        return hapiTest(fileCreate("notHere").lifetime(-60L).hasPrecheck(INVALID_EXPIRATION_TIME));
+        return hapiTest(
+                fileCreate("notHere").lifetime(-60L).hasPrecheck(ResponseCodeEnum.AUTORENEW_DURATION_NOT_IN_RANGE));
     }
 
     @HapiTest
@@ -190,6 +195,7 @@ public class FileCreateSuite {
      * parsed as the expected protobuf messages.
      */
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> fetchFiles() {
         return customHapiSpec("FetchFiles")
                 .withProperties(Map.of(

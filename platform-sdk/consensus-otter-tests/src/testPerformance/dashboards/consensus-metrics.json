@@ -1,0 +1,65 @@
+{
+  "dashboard": {
+    "uid": "consensus-metrics",
+    "title": "Consensus Metrics Dashboard",
+    "tags": ["consensus", "benchmark"],
+    "timezone": "browser",
+    "schemaVersion": 16,
+    "version": 0,
+    "refresh": "5s",
+    "time": {"from": "now-1d", "to": "now"},
+    "templating": {
+      "list": [
+        {
+          "name": "node",
+          "type": "query",
+          "datasource": {"uid": "DATASOURCE_UID_PLACEHOLDER"},
+          "query": "label_values(node)",
+          "refresh": 2,
+          "multi": true,
+          "includeAll": true,
+          "timeRangeFilter": true,
+          "current": {"value": "${VAR_NODE}", "text": "${VAR_NODE}"}
+        },
+        {
+          "name": "metric",
+          "type": "query",
+          "datasource": {"uid": "DATASOURCE_UID_PLACEHOLDER"},
+          "query": "label_values(__name__)",
+          "refresh": 2,
+          "multi": false,
+          "includeAll": false,
+          "timeRangeFilter": true,
+          "current": {"value": "secSC2T", "text": "secSC2T"}
+        }
+      ]
+    },
+    "panels": [
+      {
+        "id": 1,
+        "title": "Metric: ${metric}",
+        "type": "timeseries",
+        "gridPos": {"h": 12, "w": 24, "x": 0, "y": 0},
+        "datasource": {"uid": "DATASOURCE_UID_PLACEHOLDER"},
+        "targets": [
+          {
+            "expr": "${metric}{node=~\"$node\"}",
+            "legendFormat": "{{node}}",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "legend": {"displayMode": "table", "placement": "right", "calcs": ["mean", "max", "min"]},
+          "tooltip": {"mode": "multi"}
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "none",
+            "custom": {"drawStyle": "line", "lineInterpolation": "linear", "showPoints": "never"}
+          }
+        }
+      }
+    ]
+  },
+  "overwrite": true
+}

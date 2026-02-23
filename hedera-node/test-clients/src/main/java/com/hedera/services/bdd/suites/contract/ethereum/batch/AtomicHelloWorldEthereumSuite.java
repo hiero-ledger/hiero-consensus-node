@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.ethereum.batch;
 
-import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
+import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccountString;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asToken;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -83,7 +84,6 @@ import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
@@ -94,8 +94,8 @@ import org.junit.jupiter.api.Tag;
 // This test cases are direct copies of HelloWorldEthereumSuite. The difference here is that
 // we are wrapping the operations in an atomic batch to confirm that everything works as expected.
 @HapiTestLifecycle
-@Tag(SMART_CONTRACT)
-public class AtomicHelloWorldEthereumSuite {
+@Tag(ATOMIC_BATCH)
+class AtomicHelloWorldEthereumSuite {
     public static final long depositAmount = 20_000L;
 
     private static final String PAY_RECEIVABLE_CONTRACT = "PayReceivable";
@@ -108,8 +108,6 @@ public class AtomicHelloWorldEthereumSuite {
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(
-                Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
         testLifecycle.doAdhoc(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
     }
 
@@ -200,6 +198,7 @@ public class AtomicHelloWorldEthereumSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> badRelayClient() {
         final var adminKey = "adminKey";
         final var exploitToken = "exploitToken";
@@ -297,6 +296,7 @@ public class AtomicHelloWorldEthereumSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> depositSuccess() {
         return hapiTest(
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
@@ -704,7 +704,7 @@ public class AtomicHelloWorldEthereumSuite {
                                 .maxFeePerGas(50L)
                                 .maxPriorityGas(2L)
                                 .gasLimit(1_000_000L)
-                                .hasPrecheck(INVALID_SIGNATURE)
+                                .hasKnownStatus(INVALID_SIGNATURE)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatusFrom(INNER_TRANSACTION_FAILED)),

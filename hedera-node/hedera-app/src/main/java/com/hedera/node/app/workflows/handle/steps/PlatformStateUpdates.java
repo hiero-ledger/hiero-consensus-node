@@ -1,26 +1,23 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle.steps;
 
-import static com.hedera.node.app.service.networkadmin.impl.schemas.V0490FreezeSchema.FREEZE_TIME_KEY;
+import static com.hedera.node.app.service.networkadmin.impl.schemas.V0490FreezeSchema.FREEZE_TIME_STATE_ID;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.ids.EntityIdService;
-import com.hedera.node.app.ids.ReadableEntityIdStoreImpl;
-import com.hedera.node.app.roster.RosterService;
 import com.hedera.node.app.service.addressbook.AddressBookService;
 import com.hedera.node.app.service.addressbook.impl.ReadableNodeStoreImpl;
+import com.hedera.node.app.service.entityid.EntityIdService;
+import com.hedera.node.app.service.entityid.impl.ReadableEntityIdStoreImpl;
 import com.hedera.node.app.service.networkadmin.FreezeService;
+import com.hedera.node.app.service.roster.RosterService;
 import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.service.token.impl.ReadableStakingInfoStoreImpl;
 import com.hedera.node.config.data.NetworkAdminConfig;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.platform.config.AddressBookConfig;
-import com.swirlds.platform.state.service.PlatformStateService;
-import com.swirlds.platform.state.service.WritablePlatformStateStore;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.ReadableSingletonState;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -34,6 +31,8 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.platformstate.PlatformStateService;
+import org.hiero.consensus.platformstate.WritablePlatformStateStore;
 import org.hiero.consensus.roster.WritableRosterStore;
 
 /**
@@ -41,6 +40,7 @@ import org.hiero.consensus.roster.WritableRosterStore;
  */
 @Singleton
 public class PlatformStateUpdates {
+
     private static final Logger logger = LogManager.getLogger(PlatformStateUpdates.class);
 
     private final BiConsumer<Roster, Path> rosterExportHelper;
@@ -79,7 +79,7 @@ public class PlatformStateUpdates {
                     logger.info("Transaction freeze of type {} detected", freezeType);
                     // Copy freeze time to platform state
                     final var states = state.getReadableStates(FreezeService.NAME);
-                    final ReadableSingletonState<Timestamp> freezeTimeState = states.getSingleton(FREEZE_TIME_KEY);
+                    final ReadableSingletonState<Timestamp> freezeTimeState = states.getSingleton(FREEZE_TIME_STATE_ID);
                     final var freezeTime = requireNonNull(freezeTimeState.get());
                     final var freezeTimeInstant = Instant.ofEpochSecond(freezeTime.seconds(), freezeTime.nanos());
                     logger.info("Freeze time will be {}", freezeTimeInstant);
@@ -93,10 +93,9 @@ public class PlatformStateUpdates {
                     final var networkAdminConfig = config.getConfigData(NetworkAdminConfig.class);
                     // Even if using the roster lifecycle, we only set the candidate roster at PREPARE_UPGRADE if
                     // TSS machinery is not creating candidate rosters and keying them at stake period boundaries
-                    final var addressBookConfig = config.getConfigData(AddressBookConfig.class);
                     final var entityIdStore =
                             new ReadableEntityIdStoreImpl(state.getReadableStates(EntityIdService.NAME));
-                    if (addressBookConfig.createCandidateRosterOnPrepareUpgrade()) {
+                    if (networkAdminConfig.createCandidateRosterOnPrepareUpgrade()) {
                         final var nodeStore = new ReadableNodeStoreImpl(
                                 state.getReadableStates(AddressBookService.NAME), entityIdStore);
                         final var rosterStore = new WritableRosterStore(state.getWritableStates(RosterService.NAME));

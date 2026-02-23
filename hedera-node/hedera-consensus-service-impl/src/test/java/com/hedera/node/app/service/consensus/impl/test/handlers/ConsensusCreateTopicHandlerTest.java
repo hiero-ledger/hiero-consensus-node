@@ -3,7 +3,7 @@ package com.hedera.node.app.service.consensus.impl.test.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_AUTORENEW_ACCOUNT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
-import static com.hedera.node.app.service.consensus.impl.ConsensusServiceImpl.TOPICS_KEY;
+import static com.hedera.node.app.service.consensus.impl.schemas.V0490ConsensusSchema.TOPICS_STATE_ID;
 import static com.hedera.node.app.service.consensus.impl.test.handlers.ConsensusTestUtils.SIMPLE_KEY_A;
 import static com.hedera.node.app.service.consensus.impl.test.handlers.ConsensusTestUtils.SIMPLE_KEY_B;
 import static com.hedera.node.app.spi.fixtures.Assertions.assertThrowsPreCheck;
@@ -40,13 +40,14 @@ import com.hedera.node.app.service.consensus.impl.WritableTopicStore;
 import com.hedera.node.app.service.consensus.impl.handlers.ConsensusCreateTopicHandler;
 import com.hedera.node.app.service.consensus.impl.records.ConsensusCreateTopicStreamBuilder;
 import com.hedera.node.app.service.consensus.impl.validators.ConsensusCustomFeesValidator;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
+import com.hedera.node.app.service.entityid.EntityNumGenerator;
+import com.hedera.node.app.service.entityid.WritableEntityCounters;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
 import com.hedera.node.app.spi.fixtures.workflows.FakePreHandleContext;
-import com.hedera.node.app.spi.ids.EntityNumGenerator;
-import com.hedera.node.app.spi.ids.WritableEntityCounters;
 import com.hedera.node.app.spi.validation.AttributeValidator;
 import com.hedera.node.app.spi.validation.ExpiryMeta;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
@@ -56,7 +57,6 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.state.lifecycle.EntityIdFactory;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -432,7 +432,7 @@ class ConsensusCreateTopicHandlerTest extends ConsensusTestBase {
         given(handleContext.body()).willReturn(txnBody);
         final var writableState = writableTopicStateWithOneKey();
 
-        given(writableStates.<TopicID, Topic>get(TOPICS_KEY)).willReturn(writableState);
+        given(writableStates.<TopicID, Topic>get(TOPICS_STATE_ID)).willReturn(writableState);
         given(entityCounters.getCounterFor(EntityType.TOPIC)).willReturn(1L);
         final var topicStore = new WritableTopicStore(writableStates, entityCounters);
         assertEquals(1, topicStore.sizeOfState());
@@ -462,7 +462,7 @@ class ConsensusCreateTopicHandlerTest extends ConsensusTestBase {
         final var writableState = writableTopicStateWithOneKey();
 
         given(handleContext.consensusNow()).willReturn(Instant.ofEpochSecond(1_234_567L));
-        given(writableStates.<TopicID, Topic>get(TOPICS_KEY)).willReturn(writableState);
+        given(writableStates.<TopicID, Topic>get(TOPICS_STATE_ID)).willReturn(writableState);
         given(entityCounters.getCounterFor(EntityType.TOPIC)).willReturn(1L);
         final var topicStore = new WritableTopicStore(writableStates, entityCounters);
         assertEquals(1, topicStore.sizeOfState());

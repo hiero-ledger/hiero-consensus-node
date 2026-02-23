@@ -77,12 +77,12 @@ on:
         description: ""
         required: false
         type: string
-        default: "35.247.76.217"
+        default: "jrs.reports.eng.hashgraph.io"
       jrs-web-port:
         description: ""
         required: false
         type: number
-        default: 8095
+        default: 0
       summary-bucket:
         description: ""
         required: false
@@ -115,7 +115,7 @@ on:
         default: false
     secrets:
       access-token:
-        description: "The Github access token used to checkout the repository, submodules, and make GitHub API calls."
+        description: "The GitHub access token used to checkout the repository, submodules, and make GitHub API calls."
         required: true
       gradle-cache-username:
         description: "The username used to authenticate with the Gradle Build Cache Node."
@@ -150,9 +150,7 @@ env:
   JAVA_OPTS: -Xmx28g -XX:ActiveProcessorCount=16
   GRADLE_CACHE_USERNAME: ${{ secrets.gradle-cache-username }}
   GRADLE_CACHE_PASSWORD: ${{ secrets.gradle-cache-password }}
-  #CG_EXEC: cgexec -g cpu,memory:gradle-${{ github.run_id }} --sticky ionice -c 2 -n 2 nice -n 19
   CG_EXEC: ionice -c 2 -n 2 nice -n 19
-  #PING_CG_EXEC: cgexec -g cpu,memory:ping-${{ github.run_id }} --sticky ionice -c 2 -n 2 nice -n 19
   PING_CG_EXEC: ionice -c 2 -n 2 nice -n 19
 
 defaults:
@@ -168,7 +166,7 @@ permissions:
 jobs:
   jrs-regression:
     name: ${{ inputs.custom-job-name || 'Standard' }}
-    runs-on: hiero-network-node-linux-large
+    runs-on: hl-cn-jrs-regression-lin-lg
     if: ${{ !github.event.workflow_call.repository.fork }}
     steps:
       - name: Harden Runner
@@ -283,7 +281,7 @@ jobs:
           java-version: ${{ inputs.java-version }}
 
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@8379f6a1328ee0e06e2bb424dadb7b159856a326 # v4.4.0
+        uses: gradle/actions/setup-gradle@4d9f0ba0025fe599b4ebab900eb7f3a1d93ef4c2 # v5.0.0
         with:
           gradle-version: ${{ inputs.gradle-version }}
           gradle-home-cache-strict-match: false

@@ -1,19 +1,18 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.internal.result;
 
-import static java.util.Collections.unmodifiableSet;
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.platform.state.NodeId;
 import com.swirlds.logging.legacy.LogMarker;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Predicate;
 import org.apache.logging.log4j.Marker;
+import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.logging.StructuredLog;
-import org.hiero.otter.fixtures.logging.internal.InMemoryAppender;
 import org.hiero.otter.fixtures.result.LogSubscriber;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
 import org.hiero.otter.fixtures.result.SubscriberAction;
@@ -23,42 +22,44 @@ import org.hiero.otter.fixtures.result.SubscriberAction;
  */
 public class SingleNodeLogResultImpl implements SingleNodeLogResult {
 
-    private final NodeId nodeId;
+    private final NodeResultsCollector collector;
     private final Set<Marker> suppressedLogMarkers;
+    private final Set<String> suppressedLoggerNames;
 
-    // This class may be used in a multi-threaded context, so we use volatile to ensure visibility of state changes
-    private volatile int startIndex = 0;
+    // This class may be used in a multithreaded context, so we use volatile to ensure visibility of state changes
+    private volatile long startIndex = 0;
 
     /**
      * Creates a new instance of {@link SingleNodeLogResultImpl}.
      *
-     * @param nodeId the {@link NodeId} of the node for which logs are collected
+     * @param collector the {@link NodeResultsCollector} that collects the results
      * @param suppressedLogMarkers the set of {@link Marker} that should be ignored in the logs
      */
-    public SingleNodeLogResultImpl(@NonNull final NodeId nodeId, @NonNull final Set<Marker> suppressedLogMarkers) {
-        this.nodeId = requireNonNull(nodeId);
-        this.suppressedLogMarkers = unmodifiableSet(requireNonNull(suppressedLogMarkers));
+    public SingleNodeLogResultImpl(
+            @NonNull final NodeResultsCollector collector,
+            @NonNull final Set<Marker> suppressedLogMarkers,
+            @NonNull final Set<String> suppressedLoggerNames) {
+        this.collector = requireNonNull(collector);
+        this.suppressedLogMarkers = Set.copyOf(suppressedLogMarkers);
+        this.suppressedLoggerNames = Set.copyOf(suppressedLoggerNames);
     }
 
     /**
      * {@inheritDoc}
      */
-    @Override
     @NonNull
+    @Override
     public NodeId nodeId() {
-        return nodeId;
+        return collector.nodeId();
     }
 
     /**
      * {@inheritDoc}
      */
-    @Override
     @NonNull
+    @Override
     public List<StructuredLog> logs() {
-        return InMemoryAppender.getLogs(nodeId).stream()
-                .skip(startIndex)
-                .filter(logEntry -> logEntry.marker() == null || !suppressedLogMarkers.contains(logEntry.marker()))
-                .toList();
+        return collector.currentLogEntries(startIndex, suppressedLogMarkers, suppressedLoggerNames);
     }
 
     /**
@@ -72,7 +73,31 @@ public class SingleNodeLogResultImpl implements SingleNodeLogResult {
         final Set<Marker> markers = new HashSet<>(suppressedLogMarkers);
         markers.add(marker.getMarker());
 
-        return new SingleNodeLogResultImpl(nodeId, markers);
+        return new SingleNodeLogResultImpl(collector, markers, suppressedLoggerNames);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @NonNull
+    @Override
+    public SingleNodeLogResult suppressingLoggerName(@NonNull final Class<?> clazz) {
+        requireNonNull(clazz, "clazz cannot be null");
+        return suppressingLoggerName(clazz.getCanonicalName());
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @NonNull
+    @Override
+    public SingleNodeLogResult suppressingLoggerName(@NonNull final String loggerName) {
+        requireNonNull(loggerName, "loggerName cannot be null");
+
+        final Set<String> loggerNames = new HashSet<>(suppressedLoggerNames);
+        loggerNames.add(loggerName);
+
+        return new SingleNodeLogResultImpl(collector, suppressedLogMarkers, loggerNames);
     }
 
     /**
@@ -81,12 +106,36 @@ public class SingleNodeLogResultImpl implements SingleNodeLogResult {
     @Override
     public void subscribe(@NonNull final LogSubscriber subscriber) {
         final LogSubscriber wrapper = logEntry -> {
-            if (Objects.equals(this.nodeId, logEntry.nodeId()) && !suppressedLogMarkers.contains(logEntry.marker())) {
+            if (!isMarkerSuppressed(logEntry) && !isLoggerNameSuppressed(logEntry)) {
                 return subscriber.onLogEntry(logEntry);
             }
             return SubscriberAction.CONTINUE;
         };
-        InMemoryAppender.subscribe(wrapper);
+        collector.subscribeLogSubscriber(wrapper);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public AtomicBoolean onNextMatch(@NonNull final Predicate<StructuredLog> matcher) {
+        final AtomicBoolean found = new AtomicBoolean();
+        subscribe(logEntry -> {
+            if (matcher.test(logEntry)) {
+                found.set(true);
+                return SubscriberAction.UNSUBSCRIBE;
+            }
+            return SubscriberAction.CONTINUE;
+        });
+        return found;
+    }
+
+    private boolean isMarkerSuppressed(@NonNull final StructuredLog logEntry) {
+        return logEntry.marker() != null && suppressedLogMarkers.contains(logEntry.marker());
+    }
+
+    private boolean isLoggerNameSuppressed(@NonNull final StructuredLog logEntry) {
+        return suppressedLoggerNames.contains(logEntry.loggerName());
     }
 
     /**
@@ -94,6 +143,6 @@ public class SingleNodeLogResultImpl implements SingleNodeLogResult {
      */
     @Override
     public void clear() {
-        startIndex = InMemoryAppender.getLogs(nodeId).size();
+        startIndex = collector.currentLogEntriesCount();
     }
 }

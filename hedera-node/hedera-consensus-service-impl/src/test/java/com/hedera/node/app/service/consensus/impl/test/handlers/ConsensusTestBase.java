@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.consensus.impl.test.handlers;
 
-import static com.hedera.node.app.service.consensus.impl.ConsensusServiceImpl.TOPICS_KEY;
+import static com.hedera.node.app.service.consensus.impl.schemas.V0490ConsensusSchema.TOPICS_STATE_ID;
+import static com.hedera.node.app.service.consensus.impl.schemas.V0490ConsensusSchema.TOPICS_STATE_LABEL;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mock.Strictness.LENIENT;
 import static org.mockito.Mockito.when;
@@ -22,11 +23,11 @@ import com.hedera.hapi.node.transaction.FixedFee;
 import com.hedera.node.app.service.consensus.ReadableTopicStore;
 import com.hedera.node.app.service.consensus.impl.ReadableTopicStoreImpl;
 import com.hedera.node.app.service.consensus.impl.WritableTopicStore;
+import com.hedera.node.app.service.entityid.ReadableEntityCounters;
+import com.hedera.node.app.service.entityid.WritableEntityCounters;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
-import com.hedera.node.app.spi.ids.ReadableEntityCounters;
-import com.hedera.node.app.spi.ids.WritableEntityCounters;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
@@ -169,8 +170,8 @@ public class ConsensusTestBase {
     protected void refreshStoresWithCurrentTopicOnlyInReadable() {
         readableTopicState = readableTopicState();
         writableTopicState = emptyWritableTopicState();
-        given(readableStates.<TopicID, Topic>get(TOPICS_KEY)).willReturn(readableTopicState);
-        given(writableStates.<TopicID, Topic>get(TOPICS_KEY)).willReturn(writableTopicState);
+        given(readableStates.<TopicID, Topic>get(TOPICS_STATE_ID)).willReturn(readableTopicState);
+        given(writableStates.<TopicID, Topic>get(TOPICS_STATE_ID)).willReturn(writableTopicState);
         readableStore = new ReadableTopicStoreImpl(readableStates, entityCounters);
         final var configuration = HederaTestConfigBuilder.createConfig();
         writableStore = new WritableTopicStore(writableStates, entityCounters);
@@ -181,8 +182,8 @@ public class ConsensusTestBase {
     protected void refreshStoresWithCurrentTopicInBothReadableAndWritable() {
         readableTopicState = readableTopicState();
         writableTopicState = writableTopicStateWithOneKey();
-        given(readableStates.<TopicID, Topic>get(TOPICS_KEY)).willReturn(readableTopicState);
-        given(writableStates.<TopicID, Topic>get(TOPICS_KEY)).willReturn(writableTopicState);
+        given(readableStates.<TopicID, Topic>get(TOPICS_STATE_ID)).willReturn(readableTopicState);
+        given(writableStates.<TopicID, Topic>get(TOPICS_STATE_ID)).willReturn(writableTopicState);
         readableStore = new ReadableTopicStoreImpl(readableStates, entityCounters);
         final var configuration = HederaTestConfigBuilder.createConfig();
         writableStore = new WritableTopicStore(writableStates, entityCounters);
@@ -191,26 +192,28 @@ public class ConsensusTestBase {
 
     @NonNull
     protected MapWritableKVState<TopicID, Topic> emptyWritableTopicState() {
-        return MapWritableKVState.<TopicID, Topic>builder(TOPICS_KEY).build();
+        return MapWritableKVState.<TopicID, Topic>builder(TOPICS_STATE_ID, TOPICS_STATE_LABEL)
+                .build();
     }
 
     @NonNull
     protected MapWritableKVState<TopicID, Topic> writableTopicStateWithOneKey() {
-        return MapWritableKVState.<TopicID, Topic>builder(TOPICS_KEY)
+        return MapWritableKVState.<TopicID, Topic>builder(TOPICS_STATE_ID, TOPICS_STATE_LABEL)
                 .value(topicId, topic)
                 .build();
     }
 
     @NonNull
     protected MapReadableKVState<TopicID, Topic> readableTopicState() {
-        return MapReadableKVState.<TopicID, Topic>builder(TOPICS_KEY)
+        return MapReadableKVState.<TopicID, Topic>builder(TOPICS_STATE_ID, TOPICS_STATE_LABEL)
                 .value(topicId, topic)
                 .build();
     }
 
     @NonNull
     protected MapReadableKVState<TopicID, Topic> emptyReadableTopicState() {
-        return MapReadableKVState.<TopicID, Topic>builder(TOPICS_KEY).build();
+        return MapReadableKVState.<TopicID, Topic>builder(TOPICS_STATE_ID, TOPICS_STATE_LABEL)
+                .build();
     }
 
     protected void setUpStores(final HandleContext context) {

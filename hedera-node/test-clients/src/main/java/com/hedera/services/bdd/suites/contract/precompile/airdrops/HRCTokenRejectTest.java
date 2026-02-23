@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile.airdrops;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.dsl.contracts.TokenRedirectContract.HRC904;
@@ -43,6 +44,7 @@ public class HRCTokenRejectTest {
     @HapiTest
     @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     @DisplayName("HRC rejectTokenFT works")
+    @Tag(MATS)
     public Stream<DynamicTest> hrcFungibleWorks(@FungibleToken(initialSupply = 1000) SpecFungibleToken token) {
         return hapiTest(
                 sender.associateTokens(token),
@@ -71,6 +73,7 @@ public class HRCTokenRejectTest {
     @HapiTest
     @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     @DisplayName("HRC rejectTokenNFTs works for max allowed serials")
+    @Tag(MATS)
     public Stream<DynamicTest> hrcNftWorksForMultipleSerials(
             @NonFungibleToken(numPreMints = 10) SpecNonFungibleToken nft) {
         return hapiTest(

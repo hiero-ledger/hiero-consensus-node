@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hints.impl;
 
-import static com.hedera.node.app.roster.RosterTransitionWeights.atLeastOneThirdOfTotal;
 import static java.util.Objects.requireNonNull;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static java.util.stream.Collectors.toMap;
@@ -10,7 +9,9 @@ import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.hints.NodePartyId;
 import com.hedera.hapi.services.auxiliary.hints.HintsPartialSignatureTransactionBody;
 import com.hedera.node.app.hints.HintsLibrary;
+import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
@@ -24,6 +25,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
@@ -38,14 +40,13 @@ import org.apache.logging.log4j.Logger;
 public class HintsContext {
     private static final Logger log = LogManager.getLogger(HintsContext.class);
 
-    private static final Duration SIGNING_ATTEMPT_TIMEOUT = Duration.ofSeconds(10);
+    // For a quiesced network, a hinTS signature could in principle take an entire day to aggregate
+    private static final Duration SIGNING_ATTEMPT_TIMEOUT = Duration.ofDays(1);
 
     private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
 
     private final HintsLibrary library;
-
-    @Nullable
-    private Bytes crs;
+    private final Supplier<Configuration> configProvider;
 
     @Nullable
     private HintsConstruction construction;
@@ -56,16 +57,9 @@ public class HintsContext {
     private long schemeId;
 
     @Inject
-    public HintsContext(@NonNull final HintsLibrary library) {
+    public HintsContext(@NonNull final HintsLibrary library, @NonNull final Supplier<Configuration> configProvider) {
         this.library = requireNonNull(library);
-    }
-
-    /**
-     * Set the CRS in use for this signing context.
-     * @param crs the CRS to use
-     */
-    public void setCrs(@NonNull final Bytes crs) {
-        this.crs = requireNonNull(crs);
+        this.configProvider = requireNonNull(configProvider);
     }
 
     /**
@@ -136,6 +130,14 @@ public class HintsContext {
     }
 
     /**
+     * Returns the active construction, or null if none is active (at genesis).
+     * @return the active construction
+     */
+    public @Nullable HintsConstruction activeConstruction() {
+        return construction;
+    }
+
+    /**
      * Validates a partial signature transaction body under the current hinTS construction.
      * @param nodeId the node ID
      * @param crs the CRS to validate under
@@ -144,7 +146,8 @@ public class HintsContext {
      */
     public boolean validate(
             final long nodeId, @Nullable final Bytes crs, @NonNull final HintsPartialSignatureTransactionBody body) {
-        if (crs == null || construction == null || nodePartyIds == null) {
+        requireNonNull(crs);
+        if (construction == null || nodePartyIds == null) {
             return false;
         }
         if (construction.constructionId() == body.constructionId() && nodePartyIds.containsKey(nodeId)) {
@@ -175,9 +178,12 @@ public class HintsContext {
             totalWeight += nodePartyId.partyWeight();
             nodeWeights.put(nodePartyId.nodeId(), nodePartyId.partyWeight());
         }
+        final var tssConfig = configProvider.get().getConfigData(TssConfig.class);
+        final int divisor = Math.max(1, tssConfig.signingThresholdDivisor());
+        final long threshold = totalWeight / divisor;
         return new Signing(
                 blockHash,
-                atLeastOneThirdOfTotal(totalWeight),
+                threshold,
                 preprocessedKeys.aggregationKey(),
                 requireNonNull(nodePartyIds),
                 nodeWeights,
@@ -208,7 +214,6 @@ public class HintsContext {
      */
     public class Signing {
         private final long thresholdWeight;
-        private final Bytes blockHash;
         private final Bytes aggregationKey;
         private final Bytes verificationKey;
         private final Map<Long, Long> nodeWeights;
@@ -228,7 +233,6 @@ public class HintsContext {
                 @NonNull final Runnable onCompletion) {
             this.thresholdWeight = thresholdWeight;
             requireNonNull(onCompletion);
-            this.blockHash = requireNonNull(blockHash);
             this.aggregationKey = requireNonNull(aggregationKey);
             this.partyIds = requireNonNull(partyIds);
             this.nodeWeights = requireNonNull(nodeWeights);
@@ -259,6 +263,13 @@ public class HintsContext {
         }
 
         /**
+         * The verification key of the hinTS scheme being used for the signing attempt.
+         */
+        public Bytes verificationKey() {
+            return verificationKey;
+        }
+
+        /**
          * Incorporates a node's pre-validated partial signature into the aggregation. If including this node's
          * weight passes the required threshold, completes the future returned from {@link #future()} with the
          * aggregated signature.
@@ -274,10 +285,15 @@ public class HintsContext {
                 return;
             }
             final var partyId = partyIds.get(nodeId);
-            signatures.put(partyId, signature);
+            if (signatures.put(partyId, signature) != null) {
+                // Each valid signature should only accumulate weight once, so abort on duplicates
+                return;
+            }
             final var weight = nodeWeights.getOrDefault(nodeId, 0L);
             final var totalWeight = weightOfSignatures.addAndGet(weight);
-            if (totalWeight >= thresholdWeight && completed.compareAndSet(false, true)) {
+            // For block hash signing, always require strictly greater than threshold
+            final boolean reachedThreshold = totalWeight > thresholdWeight;
+            if (reachedThreshold && completed.compareAndSet(false, true)) {
                 final var aggregatedSignature =
                         library.aggregateSignatures(crs, aggregationKey, verificationKey, signatures);
                 future.complete(aggregatedSignature);

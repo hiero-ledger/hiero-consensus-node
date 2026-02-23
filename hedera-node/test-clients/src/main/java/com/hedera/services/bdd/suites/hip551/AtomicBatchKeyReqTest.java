@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.hip551;
 
+import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
@@ -20,30 +22,21 @@ import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movi
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 
 import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.support.TestLifecycle;
-import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.Map;
 import java.util.stream.Stream;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 
-@HapiTestLifecycle
-public class AtomicBatchKeyReqTest {
-
-    @BeforeAll
-    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(
-                Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
-    }
+@Tag(ATOMIC_BATCH)
+class AtomicBatchKeyReqTest {
 
     @HapiTest
     @DisplayName("Account update requires account key signature")
-    public Stream<DynamicTest> accountUpdateRequiresKeySig() {
+    Stream<DynamicTest> accountUpdateRequiresKeySig() {
         return hapiTest(
                 newKeyNamed("accountKey"),
                 cryptoCreate("batchOperator"),
@@ -53,7 +46,8 @@ public class AtomicBatchKeyReqTest {
                                 .memo("new memo")
                                 .batchKey("batchOperator")
                                 .payingWith(DEFAULT_PAYER)
-                                .signedBy(DEFAULT_PAYER))
+                                .signedBy(DEFAULT_PAYER)
+                                .hasKnownStatus(INVALID_SIGNATURE))
                         .payingWith("batchOperator")
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
                 // account key signature, so should succeed
@@ -71,7 +65,7 @@ public class AtomicBatchKeyReqTest {
 
         @HapiTest
         @DisplayName("Token update requires admin key")
-        public Stream<DynamicTest> tokenUpdateReqAdminKey() {
+        Stream<DynamicTest> tokenUpdateReqAdminKey() {
             return hapiTest(
                     newKeyNamed("adminKey"),
                     cryptoCreate("batchOperator"),
@@ -81,7 +75,8 @@ public class AtomicBatchKeyReqTest {
                                     .entityMemo("new memo1")
                                     .batchKey("batchOperator")
                                     .payingWith(DEFAULT_PAYER)
-                                    .signedBy(DEFAULT_PAYER))
+                                    .signedBy(DEFAULT_PAYER)
+                                    .hasKnownStatus(INVALID_SIGNATURE))
                             .payingWith("batchOperator")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
                     // admin key signature, so should succeed
@@ -95,7 +90,7 @@ public class AtomicBatchKeyReqTest {
 
         @HapiTest
         @DisplayName("Custom fee update requires fee schedule key")
-        public Stream<DynamicTest> customFeeUpdateReqFeeScheduleKey() {
+        Stream<DynamicTest> customFeeUpdateReqFeeScheduleKey() {
             return hapiTest(
                     newKeyNamed("feeScheduleKey"),
                     cryptoCreate("collector"),
@@ -106,7 +101,8 @@ public class AtomicBatchKeyReqTest {
                                     .withCustom(fixedHbarFee(1L, "collector"))
                                     .batchKey("batchOperator")
                                     .payingWith(DEFAULT_PAYER)
-                                    .signedBy(DEFAULT_PAYER))
+                                    .signedBy(DEFAULT_PAYER)
+                                    .hasKnownStatus(INVALID_SIGNATURE))
                             .payingWith("batchOperator")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
                     // fee schedule key signature, so should succeed
@@ -120,7 +116,7 @@ public class AtomicBatchKeyReqTest {
 
         @HapiTest
         @DisplayName("Metadata update requires metadata key")
-        public Stream<DynamicTest> metadataUpdateRequiresKeySig() {
+        Stream<DynamicTest> metadataUpdateRequiresKeySig() {
             return hapiTest(
                     newKeyNamed("metadataKey"),
                     cryptoCreate("batchOperator"),
@@ -130,7 +126,8 @@ public class AtomicBatchKeyReqTest {
                                     .newMetadata("new metadata")
                                     .batchKey("batchOperator")
                                     .payingWith(DEFAULT_PAYER)
-                                    .signedBy(DEFAULT_PAYER))
+                                    .signedBy(DEFAULT_PAYER)
+                                    .hasKnownStatus(INVALID_SIGNATURE))
                             .payingWith("batchOperator")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
                     // metadata key signature, so should succeed
@@ -144,7 +141,7 @@ public class AtomicBatchKeyReqTest {
 
         @HapiTest
         @DisplayName("Freeze requires freeze key")
-        public Stream<DynamicTest> freezeRequiresFreezeKey() {
+        Stream<DynamicTest> freezeRequiresFreezeKey() {
             return hapiTest(
                     newKeyNamed("freezeKey"),
                     cryptoCreate("toBeFrozen"),
@@ -155,7 +152,8 @@ public class AtomicBatchKeyReqTest {
                     atomicBatch(tokenFreeze("testToken", "toBeFrozen")
                                     .batchKey("batchOperator")
                                     .payingWith(DEFAULT_PAYER)
-                                    .signedBy(DEFAULT_PAYER))
+                                    .signedBy(DEFAULT_PAYER)
+                                    .hasKnownStatus(INVALID_SIGNATURE))
                             .payingWith("batchOperator")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
                     // freeze key signature, so should succeed
@@ -168,7 +166,7 @@ public class AtomicBatchKeyReqTest {
 
         @HapiTest
         @DisplayName("Token pause requires pause key")
-        public Stream<DynamicTest> pauseRequiresPauseKey() {
+        Stream<DynamicTest> pauseRequiresPauseKey() {
             return hapiTest(
                     newKeyNamed("pauseKey"),
                     cryptoCreate("batchOperator"),
@@ -177,7 +175,8 @@ public class AtomicBatchKeyReqTest {
                     atomicBatch(tokenPause("testToken")
                                     .batchKey("batchOperator")
                                     .payingWith(DEFAULT_PAYER)
-                                    .signedBy(DEFAULT_PAYER))
+                                    .signedBy(DEFAULT_PAYER)
+                                    .hasKnownStatus(INVALID_SIGNATURE))
                             .payingWith("batchOperator")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
                     // pause key signature, so should succeed
@@ -190,7 +189,8 @@ public class AtomicBatchKeyReqTest {
 
         @HapiTest
         @DisplayName("Token wipe requires wipe key")
-        public Stream<DynamicTest> wipeRequiresWipeKey() {
+        @Tag(MATS)
+        Stream<DynamicTest> wipeRequiresWipeKey() {
             return hapiTest(
                     newKeyNamed("wipeKey"),
                     cryptoCreate("batchOperator"),
@@ -202,7 +202,8 @@ public class AtomicBatchKeyReqTest {
                     atomicBatch(wipeTokenAccount("testToken", "receiver", 5L)
                                     .batchKey("batchOperator")
                                     .payingWith(DEFAULT_PAYER)
-                                    .signedBy(DEFAULT_PAYER))
+                                    .signedBy(DEFAULT_PAYER)
+                                    .hasKnownStatus(INVALID_SIGNATURE))
                             .payingWith("batchOperator")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
                     // wipe key signature, so should succeed
@@ -215,7 +216,7 @@ public class AtomicBatchKeyReqTest {
 
         @HapiTest
         @DisplayName("KYC requires kyc key")
-        public Stream<DynamicTest> kycRequiresKycKey() {
+        Stream<DynamicTest> kycRequiresKycKey() {
             return hapiTest(
                     newKeyNamed("kycKey"),
                     cryptoCreate("batchOperator"),
@@ -226,7 +227,8 @@ public class AtomicBatchKeyReqTest {
                     atomicBatch(grantTokenKyc("testToken", "toBeKycGranted")
                                     .batchKey("batchOperator")
                                     .payingWith(DEFAULT_PAYER)
-                                    .signedBy(DEFAULT_PAYER))
+                                    .signedBy(DEFAULT_PAYER)
+                                    .hasKnownStatus(INVALID_SIGNATURE))
                             .payingWith("batchOperator")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
                     // kyc key signature, so should succeed
@@ -239,7 +241,7 @@ public class AtomicBatchKeyReqTest {
 
         @HapiTest
         @DisplayName("Token mint requires supply key")
-        public Stream<DynamicTest> mintRequiresSupplyKey() {
+        Stream<DynamicTest> mintRequiresSupplyKey() {
             return hapiTest(
                     newKeyNamed("supplyKey"),
                     cryptoCreate("batchOperator"),
@@ -248,7 +250,8 @@ public class AtomicBatchKeyReqTest {
                     atomicBatch(mintToken("testToken", 100)
                                     .batchKey("batchOperator")
                                     .payingWith(DEFAULT_PAYER)
-                                    .signedBy(DEFAULT_PAYER))
+                                    .signedBy(DEFAULT_PAYER)
+                                    .hasKnownStatus(INVALID_SIGNATURE))
                             .payingWith("batchOperator")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
                     // supply key signature, so should succeed

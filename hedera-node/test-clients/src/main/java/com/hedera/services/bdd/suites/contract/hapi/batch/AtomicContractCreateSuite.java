@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.hapi.batch;
 
-import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
+import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
 import static com.hedera.services.bdd.spec.assertions.AssertUtils.inOrder;
@@ -121,10 +122,10 @@ import org.junit.jupiter.api.Tag;
 // This test cases are direct copies of ContractCreateSuite. The difference here is that
 // we are wrapping the operations in an atomic batch to confirm that everything works as expected.
 @HapiTestLifecycle
-@Tag(SMART_CONTRACT)
+@Tag(ATOMIC_BATCH)
 @OrderedInIsolation
 @SuppressWarnings("java:S1192") // "string literal should not be duplicated" - this rule makes test suites worse
-public class AtomicContractCreateSuite {
+class AtomicContractCreateSuite {
 
     public static final String EMPTY_CONSTRUCTOR_CONTRACT = "EmptyConstructor";
     public static final String PARENT_INFO = "parentInfo";
@@ -143,13 +144,7 @@ public class AtomicContractCreateSuite {
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(Map.of(
-                "atomicBatch.isEnabled",
-                "true",
-                "atomicBatch.maxNumberOfTransactions",
-                "50",
-                "contracts.throttle.throttleByGas",
-                "false"));
+        testLifecycle.overrideInClass(Map.of("contracts.throttle.throttleByGas", "false"));
         testLifecycle.doAdhoc(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
     }
 
@@ -214,7 +209,7 @@ public class AtomicContractCreateSuite {
                                 .adminKey(THRESHOLD)
                                 .declinedReward(false)
                                 .stakedAccountId("0.0.0")
-                                .hasPrecheck(INVALID_STAKING_ID)
+                                .hasKnownStatus(INVALID_STAKING_ID)
                                 .refusingEthConversion()
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
@@ -223,7 +218,7 @@ public class AtomicContractCreateSuite {
                                 .adminKey(THRESHOLD)
                                 .declinedReward(false)
                                 .stakedNodeId(-1L)
-                                .hasPrecheck(INVALID_STAKING_ID)
+                                .hasKnownStatus(INVALID_STAKING_ID)
                                 .refusingEthConversion()
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
@@ -237,10 +232,10 @@ public class AtomicContractCreateSuite {
                 uploadInitCode(EMPTY_CONSTRUCTOR_CONTRACT),
                 atomicBatch(contractCreate(EMPTY_CONSTRUCTOR_CONTRACT)
                                 .payingWith("bankrupt")
-                                .hasPrecheck(INSUFFICIENT_PAYER_BALANCE)
+                                .hasKnownStatus(INSUFFICIENT_PAYER_BALANCE)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
-                        .hasKnownStatus(INNER_TRANSACTION_FAILED));
+                        .hasPrecheck(INSUFFICIENT_PAYER_BALANCE));
     }
 
     @HapiTest
@@ -301,6 +296,7 @@ public class AtomicContractCreateSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> createsVanillaContractAsExpectedWithOmittedAdminKey() {
         return hapiTest(
                 uploadInitCode(EMPTY_CONSTRUCTOR_CONTRACT),
@@ -322,6 +318,7 @@ public class AtomicContractCreateSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> revertedTryExtCallHasNoSideEffects() {
         final var balance = 3_000;
         final int sendAmount = balance / 3;
@@ -421,13 +418,13 @@ public class AtomicContractCreateSuite {
                 uploadInitCode(EMPTY_CONSTRUCTOR_CONTRACT),
                 atomicBatch(contractCreate(EMPTY_CONSTRUCTOR_CONTRACT)
                                 .entityMemo(TxnUtils.nAscii(101))
-                                .hasPrecheck(MEMO_TOO_LONG)
+                                .hasKnownStatus(MEMO_TOO_LONG)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
                 atomicBatch(contractCreate(EMPTY_CONSTRUCTOR_CONTRACT)
                                 .entityMemo(ZERO_BYTE_MEMO)
-                                .hasPrecheck(INVALID_ZERO_BYTE_IN_STRING)
+                                .hasKnownStatus(INVALID_ZERO_BYTE_IN_STRING)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED));
@@ -528,11 +525,13 @@ public class AtomicContractCreateSuite {
         final var KEY_LIST = "keyList";
         final var ACCOUNT = "acc";
         return hapiTest(
+                cryptoCreate(PAYER).balance(ONE_MILLION_HBARS),
                 newKeyNamed(FILE_KEY),
                 newKeyListNamed(KEY_LIST, List.of(FILE_KEY)),
                 cryptoCreate(ACCOUNT).balance(ONE_HUNDRED_HBARS * 10).key(FILE_KEY),
                 fileCreate("bytecode")
                         .path(bytecodePath("CryptoKitties"))
+                        .payingWith(PAYER)
                         .hasPrecheck(TRANSACTION_OVERSIZE)
                         .orUnavailableStatus(),
                 fileCreate("bytecode").contents("").key(KEY_LIST),
@@ -550,6 +549,7 @@ public class AtomicContractCreateSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> blockTimestampChangesWithinFewSeconds() {
         final var contract = "EmitBlockTimestamp";
         final var firstBlock = "firstBlock";
@@ -673,6 +673,7 @@ public class AtomicContractCreateSuite {
                         .logged());
     }
 
+    @Tag(MATS)
     final Stream<DynamicTest> contractCreateShouldChargeTheSame() {
         final var createFeeWithMaxAutoAssoc = 10L;
         final var contract1 = "EmptyOne";
@@ -847,7 +848,7 @@ public class AtomicContractCreateSuite {
                             .getTransactionRecord(txn)
                             .getContractCreateResult()
                             .getGasUsed();
-                    assertEquals(117661, gasUsed);
+                    assertEquals(117683, gasUsed);
                 }));
     }
 
@@ -883,6 +884,7 @@ public class AtomicContractCreateSuite {
                 BigInteger.ONE,
                 new byte[] {},
                 new byte[] {},
+                null,
                 0,
                 null,
                 null,

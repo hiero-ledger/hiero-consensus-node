@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.hapi;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.changeFromSnapshot;
@@ -36,6 +37,7 @@ public class ContractCallHapiOnlySuite {
     private static final String PAY_TXN = "payTxn";
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> callFailsWhenAmountIsNegativeButStillChargedFee() {
         final var payer = "payer";
         return hapiTest(

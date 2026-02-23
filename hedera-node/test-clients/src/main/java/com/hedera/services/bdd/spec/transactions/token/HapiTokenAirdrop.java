@@ -25,9 +25,12 @@ import com.hederahashgraph.api.proto.java.TokenAssociateTransactionBody;
 import com.hederahashgraph.api.proto.java.TokenTransferList;
 import com.hederahashgraph.api.proto.java.Transaction;
 import com.hederahashgraph.api.proto.java.TransactionBody;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
 import org.apache.logging.log4j.LogManager;
@@ -42,8 +45,15 @@ public class HapiTokenAirdrop extends HapiBaseTransfer<HapiTokenAirdrop> {
     @Nullable
     private IntConsumer numTokenAssociationsCreated = null;
 
+    @Nullable
+    private BiConsumer<HapiSpec, TokenAirdropTransactionBody.Builder> explicitDef;
+
     public HapiTokenAirdrop(final TokenMovement... sources) {
         this.tokenAwareProviders = List.of(sources);
+    }
+
+    public HapiTokenAirdrop(@NonNull final BiConsumer<HapiSpec, TokenAirdropTransactionBody.Builder> explicitDef) {
+        this.explicitDef = Objects.requireNonNull(explicitDef);
     }
 
     @Override
@@ -74,9 +84,13 @@ public class HapiTokenAirdrop extends HapiBaseTransfer<HapiTokenAirdrop> {
         final TokenAirdropTransactionBody opBody = spec.txns()
                 .<TokenAirdropTransactionBody, TokenAirdropTransactionBody.Builder>body(
                         TokenAirdropTransactionBody.class, b -> {
-                            final var xfers = transfersAllFor(spec);
-                            for (final TokenTransferList scopedXfers : xfers) {
-                                b.addTokenTransfers(scopedXfers);
+                            if (explicitDef != null) {
+                                explicitDef.accept(spec, b);
+                            } else {
+                                final var xfers = transfersAllFor(spec);
+                                for (final TokenTransferList scopedXfers : xfers) {
+                                    b.addTokenTransfers(scopedXfers);
+                                }
                             }
                         });
         return builder -> builder.setTokenAirdrop(opBody);

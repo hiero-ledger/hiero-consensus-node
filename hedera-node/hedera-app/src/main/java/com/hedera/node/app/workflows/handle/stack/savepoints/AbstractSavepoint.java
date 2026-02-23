@@ -34,7 +34,7 @@ import java.util.List;
  * that determine how each type of savepoint constructs state change block items.
  */
 public abstract class AbstractSavepoint extends BuilderSinkImpl implements Savepoint {
-    private static final EnumSet<ResponseCodeEnum> SUCCESSES =
+    public static final EnumSet<ResponseCodeEnum> SUCCESSES =
             EnumSet.of(OK, SUCCESS, FEE_SCHEDULE_FILE_PART_UPLOADED, SUCCESS_BUT_MISSING_EXPECTED_OPERATION);
 
     protected final BuilderSink parent;
@@ -105,7 +105,7 @@ public abstract class AbstractSavepoint extends BuilderSinkImpl implements Savep
     public StreamBuilder createBuilder(
             @NonNull final StreamBuilder.ReversingBehavior reversingBehavior,
             @NonNull final HandleContext.TransactionCategory txnCategory,
-            @NonNull final StreamBuilder.TransactionCustomizer customizer,
+            @NonNull final StreamBuilder.SignedTxCustomizer customizer,
             @NonNull final StreamMode streamMode,
             final boolean isBaseBuilder) {
         requireNonNull(reversingBehavior);

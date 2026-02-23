@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.contract.opcodes;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.NO_CONCURRENT_CREATIONS;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -11,6 +12,7 @@ import static com.hedera.services.bdd.spec.dsl.SpecEntity.forceCreateAndRegister
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.contractCallLocal;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getContractInfo;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractUpdate;
@@ -91,6 +93,7 @@ public class SelfDestructSuite {
         @HapiTest
         @DisplayName("can SELFDESTRUCT in constructor without destroying created child")
         @LeakyHapiTest(requirement = NO_CONCURRENT_CREATIONS)
+        @Tag(MATS)
         final Stream<DynamicTest> hscsEvm008SelfDestructInConstructorWorks() {
             final var contract = "FactorySelfDestructConstructor";
             final var nextAccount = "civilian";
@@ -189,6 +192,7 @@ public class SelfDestructSuite {
 
         @HapiTest
         @DisplayName("cannot SELFDESTRUCT to a beneficiary with receiverSigRequired that has not signed")
+        @Tag(MATS)
         final Stream<DynamicTest> selfDestructFailsWhenBeneficiaryHasReceiverSigRequiredAndHasNotSignedTheTxn50() {
             return selfDestructFailsWhenBeneficiaryHasReceiverSigRequiredAndHasNotSignedTheTxn(
                     HapiSuite.EVM_VERSION_050);
@@ -223,6 +227,7 @@ public class SelfDestructSuite {
         @HapiTest
         @DisplayName("can SELFDESTRUCT in constructor without destroying created child")
         @LeakyHapiTest(requirement = NO_CONCURRENT_CREATIONS)
+        @Tag(MATS)
         final Stream<DynamicTest> hscsEvm008SelfDestructInConstructorWorks() {
             final var contract = "FactorySelfDestructConstructor";
             final var nextAccount = "civilian";
@@ -268,6 +273,18 @@ public class SelfDestructSuite {
             return selfDestructedContractMightBeDeletedWhenPreviouslyCreated(
                     HapiSuite.EVM_VERSION_050, payerAccount, quickSelfDestructContract, selfDestructCallableContract);
         }
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> selfDestructWithInvalidBeneficiary() {
+        final var SELF_DESTRUCT_TXN = "SelfDestructTxn";
+        return hapiTest(
+                contractCreate(SELF_DESTRUCT_CALLABLE_CONTRACT).balance(ONE_HBAR),
+                contractCall(SELF_DESTRUCT_CALLABLE_CONTRACT, "destroyExplicitBeneficiary", mirrorAddrParamFunction(0L))
+                        .gas(1_000_000L)
+                        .hasKnownStatus(INVALID_SOLIDITY_ADDRESS)
+                        .via(SELF_DESTRUCT_TXN),
+                getTxnRecord(SELF_DESTRUCT_TXN).andAllChildRecords().logged());
     }
 
     final Stream<DynamicTest> selfDestructFailsWhenBeneficiaryHasReceiverSigRequiredAndHasNotSignedTheTxn(
@@ -333,6 +350,7 @@ public class SelfDestructSuite {
                 nonExistingAccountsOps));
     }
 
+    @Tag(MATS)
     final Stream<DynamicTest> deletedContractsCannotBeUpdated(@NonNull final String evmVersion) {
         final var contract = SELF_DESTRUCT_CALLABLE_CONTRACT;
         final var beneficiary = BENEFICIARY;

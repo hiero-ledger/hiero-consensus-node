@@ -3,7 +3,8 @@ package com.hedera.services.bdd.suites.contract.ethereum.batch;
 
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asEvmAddress;
-import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
+import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.HapiSpec.namedHapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
@@ -74,6 +75,7 @@ import static com.hedera.services.bdd.suites.contract.ethereum.HelloWorldEthereu
 import static com.hedera.services.bdd.suites.contract.hapi.ContractCallSuite.DEPOSIT;
 import static com.hedera.services.bdd.suites.contract.leaky.LeakyContractTestsSuite.RECEIVER;
 import static com.hedera.services.bdd.suites.contract.precompile.CreatePrecompileSuite.TOKEN_NAME;
+import static com.hedera.services.bdd.suites.contract.precompile.token.GasCalculationIntegrityTest.constantGasAssertion;
 import static com.hedera.services.bdd.suites.crypto.AutoCreateUtils.updateSpecFor;
 import static com.hedera.services.bdd.suites.crypto.CryptoCreateSuite.ACCOUNT;
 import static com.hedera.services.bdd.suites.token.TokenAssociationSpecs.MULTI_KEY;
@@ -98,6 +100,7 @@ import com.esaulpaugh.headlong.abi.Address;
 import com.google.common.io.Files;
 import com.google.protobuf.ByteString;
 import com.hedera.node.app.hapi.utils.contracts.ParsingConstants.FunctionType;
+import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData.EthTransactionType;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.HapiTest;
@@ -122,7 +125,6 @@ import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
@@ -136,14 +138,15 @@ import org.junit.jupiter.api.Tag;
 // This test cases are direct copies of EthereumSuite. The difference here is that
 // we are wrapping the operations in an atomic batch to confirm that everything works as expected.
 @HapiTestLifecycle
-@Tag(SMART_CONTRACT)
+@Tag(ATOMIC_BATCH)
 @SuppressWarnings("java:S5960")
-public class AtomicEthereumSuite {
+class AtomicEthereumSuite {
     public static final long GAS_LIMIT = 1_000_000;
     public static final String ERC20_CONTRACT = "ERC20Contract";
     public static final String EMIT_SENDER_ORIGIN_CONTRACT = "EmitSenderOrigin";
     private static final long DEPOSIT_AMOUNT = 20_000L;
     private static final long ETH_TXN_FAILURE_FEE = 83_333L;
+    private static final long GAS_PRICE = 71;
     private static final String PARTY = "party";
     private static final String LAZY_MEMO = "";
     private static final String PAY_RECEIVABLE_CONTRACT = "PayReceivable";
@@ -160,8 +163,6 @@ public class AtomicEthereumSuite {
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(
-                Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
         testLifecycle.doAdhoc(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
     }
 
@@ -184,7 +185,7 @@ public class AtomicEthereumSuite {
                                 .bytecode(TOKEN_CREATE_CONTRACT)
                                 .gasPrice(10L)
                                 .maxGasAllowance(ONE_HUNDRED_HBARS)
-                                .gasLimit(4_000_000L)
+                                .gasLimit(5_000_000L)
                                 .hasKnownStatusFrom(SUCCESS)
                                 .via("deployTokenCreateContract")
                                 .batchKey(BATCH_OPERATOR))
@@ -290,30 +291,29 @@ public class AtomicEthereumSuite {
     }
 
     List<Stream<DynamicTest>> feePaymentMatrix() {
-        final long gasPrice = 71;
         final long chargedGasLimit = GAS_LIMIT * 4 / 5;
 
         final long noPayment = 0L;
-        final long thirdOfFee = gasPrice / 3;
+        final long thirdOfFee = GAS_PRICE / 3;
         final long thirdOfPayment = thirdOfFee * chargedGasLimit;
-        final long thirdOfLimit = thirdOfFee * GAS_LIMIT;
-        final long fullAllowance = gasPrice * chargedGasLimit * 5 / 4;
-        final long fullPayment = gasPrice * chargedGasLimit;
-        final long ninetyPercentFee = gasPrice * 9 / 10;
+        final long fullAllowance = GAS_PRICE * chargedGasLimit * 5 / 4;
+        final long ninetyPercentFee = GAS_PRICE * 9 / 10;
+        final boolean charged = true;
+        final boolean notCharged = false;
 
         return Stream.of(
-                        new Object[] {false, noPayment, noPayment, noPayment},
-                        new Object[] {false, noPayment, thirdOfPayment, noPayment},
-                        new Object[] {true, noPayment, fullAllowance, noPayment},
-                        new Object[] {false, thirdOfFee, noPayment, noPayment},
-                        new Object[] {false, thirdOfFee, thirdOfPayment, noPayment},
-                        new Object[] {true, thirdOfFee, fullAllowance, thirdOfLimit},
-                        new Object[] {true, thirdOfFee, fullAllowance * 9 / 10, thirdOfLimit},
-                        new Object[] {false, ninetyPercentFee, noPayment, noPayment},
-                        new Object[] {true, ninetyPercentFee, thirdOfPayment, fullPayment},
-                        new Object[] {true, gasPrice, noPayment, fullPayment},
-                        new Object[] {true, gasPrice, thirdOfPayment, fullPayment},
-                        new Object[] {true, gasPrice, fullAllowance, fullPayment})
+                        new Object[] {false, noPayment, noPayment, notCharged},
+                        new Object[] {false, noPayment, thirdOfPayment, notCharged},
+                        new Object[] {true, noPayment, fullAllowance, notCharged},
+                        new Object[] {false, thirdOfFee, noPayment, notCharged},
+                        new Object[] {false, thirdOfFee, thirdOfPayment, notCharged},
+                        new Object[] {true, thirdOfFee, fullAllowance, charged},
+                        new Object[] {true, thirdOfFee, fullAllowance * 9 / 10, charged},
+                        new Object[] {false, ninetyPercentFee, noPayment, notCharged},
+                        new Object[] {true, ninetyPercentFee, thirdOfPayment, charged},
+                        new Object[] {true, GAS_PRICE, noPayment, charged},
+                        new Object[] {true, GAS_PRICE, thirdOfPayment, charged},
+                        new Object[] {true, GAS_PRICE, fullAllowance, charged})
                 .map(params ->
                         // [0] - success
                         // [1] - sender gas price
@@ -322,11 +322,12 @@ public class AtomicEthereumSuite {
                         // relayer charged amount can easily be calculated via
                         // wholeTransactionFee - senderChargedAmount
                         matrixedPayerRelayerTest(
-                                (boolean) params[0], (long) params[1], (long) params[2], (long) params[3]))
+                                (boolean) params[0], (long) params[1], (long) params[2], (boolean) params[3]))
                 .toList();
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> matrixedPayerRelayerTest1() {
         return feePaymentMatrix().get(0);
     }
@@ -387,7 +388,7 @@ public class AtomicEthereumSuite {
     }
 
     final Stream<DynamicTest> matrixedPayerRelayerTest(
-            final boolean success, final long senderGasPrice, final long relayerOffered, final long senderCharged) {
+            final boolean success, final long senderGasPrice, final long relayerOffered, final boolean senderCharged) {
         return Stream.of(namedHapiTest(
                 "feePaymentMatrix " + (success ? "Success/" : "Failure/") + senderGasPrice + "/" + relayerOffered,
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
@@ -401,12 +402,13 @@ public class AtomicEthereumSuite {
                 withOpContext((spec, ignore) -> {
                     final String senderBalance = "senderBalance";
                     final String payerBalance = "payerBalance";
+                    final AtomicLong gasUsed = new AtomicLong();
                     final var subop1 = balanceSnapshot(senderBalance, SECP_256K1_SOURCE_KEY)
                             .accountIsAlias();
                     final var subop2 = balanceSnapshot(payerBalance, RELAYER);
                     final var subop3 = atomicBatch(ethereumCall(
                                             PAY_RECEIVABLE_CONTRACT, "deposit", BigInteger.valueOf(DEPOSIT_AMOUNT))
-                                    .type(EthTransactionType.EIP1559)
+                                    .type(EthTxData.EthTransactionType.EIP1559)
                                     .signingWith(SECP_256K1_SOURCE_KEY)
                                     .payingWith(RELAYER)
                                     .via(PAY_TXN)
@@ -417,6 +419,7 @@ public class AtomicEthereumSuite {
                                     .sending(DEPOSIT_AMOUNT)
                                     .hasKnownStatus(
                                             success ? ResponseCodeEnum.SUCCESS : ResponseCodeEnum.INSUFFICIENT_TX_FEE)
+                                    .exposingGasTo(constantGasAssertion(gasUsed))
                                     .batchKey(BATCH_OPERATOR))
                             .payingWith(BATCH_OPERATOR)
                             .hasKnownStatus(success ? ResponseCodeEnum.SUCCESS : INNER_TRANSACTION_FAILED);
@@ -427,14 +430,15 @@ public class AtomicEthereumSuite {
 
                     final long wholeTransactionFee =
                             hapiGetTxnRecord.getResponseRecord().getTransactionFee();
+                    final var senderGasCharged = senderCharged ? (gasUsed.get() * GAS_PRICE) : 0;
                     final var subop4 = getAutoCreatedAccountBalance(SECP_256K1_SOURCE_KEY)
-                            .hasTinyBars(
-                                    changeFromSnapshot(senderBalance, success ? (-DEPOSIT_AMOUNT - senderCharged) : 0));
+                            .hasTinyBars(changeFromSnapshot(
+                                    senderBalance, success ? (-DEPOSIT_AMOUNT - senderGasCharged) : 0));
                     // The relayer is not charged with Hapi fee unless the relayed transaction failed
                     final var subop5 = getAccountBalance(RELAYER)
                             .hasTinyBars(changeFromSnapshot(
                                     payerBalance,
-                                    success ? -(wholeTransactionFee - senderCharged) : -wholeTransactionFee));
+                                    success ? -(wholeTransactionFee - senderGasCharged) : -wholeTransactionFee));
                     allRunFor(spec, subop4, subop5);
                 })));
     }
@@ -576,10 +580,10 @@ public class AtomicEthereumSuite {
                                 .fee(810000000L)
                                 .maxGasAllowance(0L)
                                 .nonce(999L)
-                                .hasPrecheck(INSUFFICIENT_PAYER_BALANCE)
+                                .hasKnownStatus(WRONG_NONCE)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
-                        .hasKnownStatus(INNER_TRANSACTION_FAILED));
+                        .hasPrecheck(INSUFFICIENT_PAYER_BALANCE));
     }
 
     @HapiTest
@@ -826,6 +830,7 @@ public class AtomicEthereumSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> directTransferWorksForERC20() {
         final var tokenSymbol = "FDFGF";
         final var tokenTotalSupply = 5;
@@ -1026,7 +1031,6 @@ public class AtomicEthereumSuite {
 
     @HapiTest
     final Stream<DynamicTest> accountDeletionResetsTheAliasNonce() {
-
         final AtomicReference<AccountID> partyId = new AtomicReference<>();
         final AtomicReference<byte[]> partyAlias = new AtomicReference<>();
         final AtomicReference<byte[]> counterAlias = new AtomicReference<>();
@@ -1210,12 +1214,11 @@ public class AtomicEthereumSuite {
         final var firstTxn = "firstCreateTxn";
         // RAW_BIG_INTEGER_WEIBAR has high bit _ON_: Negative in two's complement but positive in Ethereum
         final var RAW_BIG_INTEGER_WEIBAR =
-                new BigInteger(Bytes.fromHex("FAC7230489E80000").toByteArray());
-        //             ^^^^ 10000000000000000000 wasn't enough to pay the tx fee, so changed the leading `8` to an `F`
-        final var BIG_INTEGER_WEIBAR = new BigInteger("18070450532247928832"); // this is the actual value
+                new BigInteger(Bytes.fromHex("FAC7230489E8000000").toByteArray());
+        final var BIG_INTEGER_WEIBAR = new BigInteger("4626035336252247928832"); // this is the actual value
         return hapiTest(
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
-                cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, 20 * ONE_HUNDRED_HBARS))
+                cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_MILLION_HBARS))
                         .via(AUTO_ACCOUNT_TRANSACTION_NAME),
                 cryptoCreate(feeCollectorAndAutoRenew)
                         .keyShape(SigControl.ED25519_ON)

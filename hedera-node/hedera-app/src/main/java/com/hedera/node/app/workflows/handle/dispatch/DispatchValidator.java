@@ -19,14 +19,13 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.state.token.Account;
-import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.fees.AppFeeCharging;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.fees.FeeCharging;
+import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.state.HederaRecordCache;
-import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.handle.Dispatch;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -107,10 +106,6 @@ public class DispatchValidator {
                 case OTHER_NODE -> getFinalPayerValidation(payer, DuplicateStatus.DUPLICATE, dispatch);
             };
         }
-    }
-
-    public static boolean isBatchInnerTxn(final @NonNull TransactionBody txnBody) {
-        return txnBody.hasBatchKey();
     }
 
     /**
@@ -205,7 +200,7 @@ public class DispatchValidator {
             @NonNull final ReadableStoreFactory storeFactory,
             @NonNull final AccountID accountID,
             @NonNull final HandleContext.TransactionCategory category) {
-        final var accountStore = storeFactory.getStore(ReadableAccountStore.class);
+        final var accountStore = storeFactory.readableStore(ReadableAccountStore.class);
         final var account = accountStore.getAccountById(accountID);
         return switch (category) {
             case USER, NODE, BATCH_INNER -> {

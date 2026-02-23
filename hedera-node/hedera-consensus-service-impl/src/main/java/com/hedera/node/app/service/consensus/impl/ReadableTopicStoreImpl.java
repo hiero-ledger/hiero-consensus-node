@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.consensus.impl;
 
-import static com.hedera.node.app.service.consensus.impl.ConsensusServiceImpl.TOPICS_KEY;
+import static com.hedera.node.app.service.consensus.impl.schemas.V0490ConsensusSchema.TOPICS_STATE_ID;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.TopicID;
 import com.hedera.hapi.node.state.consensus.Topic;
 import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.service.consensus.ReadableTopicStore;
-import com.hedera.node.app.spi.ids.ReadableEntityCounters;
+import com.hedera.node.app.service.entityid.ReadableEntityCounters;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -21,6 +21,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
  * <p>This class is not exported from the module. It is an internal implementation detail.
  */
 public class ReadableTopicStoreImpl implements ReadableTopicStore {
+
     /** The underlying data storage class that holds the topic data. */
     private final ReadableKVState<TopicID, Topic> topicState;
 
@@ -36,7 +37,7 @@ public class ReadableTopicStoreImpl implements ReadableTopicStore {
 
         requireNonNull(states);
         this.entityCounters = requireNonNull(entityCounters);
-        this.topicState = states.get(TOPICS_KEY);
+        this.topicState = states.get(TOPICS_STATE_ID);
     }
 
     /**

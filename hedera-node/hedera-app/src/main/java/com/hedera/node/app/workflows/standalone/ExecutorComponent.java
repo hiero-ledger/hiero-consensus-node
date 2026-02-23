@@ -2,20 +2,26 @@
 package com.hedera.node.app.workflows.standalone;
 
 import com.hedera.node.app.authorization.AuthorizerInjectionModule;
+import com.hedera.node.app.blocks.BlockStreamModule;
 import com.hedera.node.app.config.BootstrapConfigProviderImpl;
 import com.hedera.node.app.config.ConfigProviderImpl;
 import com.hedera.node.app.fees.AppFeeCharging;
 import com.hedera.node.app.fees.ExchangeRateManager;
+import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.history.HistoryService;
+import com.hedera.node.app.service.addressbook.impl.AddressBookServiceImpl;
+import com.hedera.node.app.service.consensus.impl.ConsensusServiceImpl;
 import com.hedera.node.app.service.contract.impl.ContractServiceImpl;
 import com.hedera.node.app.service.file.impl.FileServiceImpl;
-import com.hedera.node.app.service.schedule.ScheduleService;
+import com.hedera.node.app.service.networkadmin.impl.NetworkServiceImpl;
 import com.hedera.node.app.service.schedule.impl.ScheduleServiceImpl;
+import com.hedera.node.app.service.token.impl.TokenServiceImpl;
 import com.hedera.node.app.service.util.impl.UtilServiceImpl;
 import com.hedera.node.app.services.ServicesInjectionModule;
 import com.hedera.node.app.spi.AppContext;
-import com.hedera.node.app.spi.throttle.Throttle;
+import com.hedera.node.app.spi.records.SelfNodeAccountIdManager;
+import com.hedera.node.app.spi.throttle.ScheduleThrottle;
 import com.hedera.node.app.state.HederaStateInjectionModule;
 import com.hedera.node.app.throttle.ThrottleServiceManager;
 import com.hedera.node.app.throttle.ThrottleServiceModule;
@@ -48,21 +54,28 @@ import javax.inject.Singleton;
             HederaStateInjectionModule.class,
             ThrottleServiceModule.class,
             FacilityInitModule.class,
+            BlockStreamModule.class
         })
 public interface ExecutorComponent {
     @Component.Builder
     interface Builder {
         @BindsInstance
-        Builder fileServiceImpl(FileServiceImpl fileService);
+        Builder tokenServiceImpl(TokenServiceImpl tokenService);
 
         @BindsInstance
-        Builder scheduleService(ScheduleService scheduleService);
+        Builder consensusServiceImpl(ConsensusServiceImpl consensusServiceImpl);
+
+        @BindsInstance
+        Builder fileServiceImpl(FileServiceImpl fileService);
 
         @BindsInstance
         Builder contractServiceImpl(ContractServiceImpl contractService);
 
         @BindsInstance
         Builder utilServiceImpl(UtilServiceImpl utilService);
+
+        @BindsInstance
+        Builder networkServiceImpl(NetworkServiceImpl networkService);
 
         @BindsInstance
         Builder scheduleServiceImpl(ScheduleServiceImpl scheduleService);
@@ -72,6 +85,9 @@ public interface ExecutorComponent {
 
         @BindsInstance
         Builder historyService(HistoryService historyService);
+
+        @BindsInstance
+        Builder addressBookService(AddressBookServiceImpl addressBookService);
 
         @BindsInstance
         Builder configProviderImpl(ConfigProviderImpl configProvider);
@@ -86,10 +102,13 @@ public interface ExecutorComponent {
         Builder metrics(Metrics metrics);
 
         @BindsInstance
-        Builder throttleFactory(Throttle.Factory throttleFactory);
+        Builder throttleFactory(ScheduleThrottle.Factory throttleFactory);
 
         @BindsInstance
         Builder appContext(AppContext appContext);
+
+        @BindsInstance
+        Builder selfNodeAccountIdManager(SelfNodeAccountIdManager selfNodeAccountIdManager);
 
         ExecutorComponent build();
     }
@@ -109,4 +128,6 @@ public interface ExecutorComponent {
     StandaloneDispatchFactory standaloneDispatchFactory();
 
     TransactionChecker transactionChecker();
+
+    FeeManager feeManager();
 }

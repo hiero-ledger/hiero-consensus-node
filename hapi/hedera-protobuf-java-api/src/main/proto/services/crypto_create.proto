@@ -20,6 +20,7 @@ option java_multiple_files = true;
 
 import "services/basic_types.proto";
 import "services/duration.proto";
+import "services/hook_types.proto";
 
 /*
  * Create a new account.
@@ -198,4 +199,9 @@ message CryptoCreateTransactionBody {
      * Once set, an account alias is immutable and MUST NOT be changed.
      */
     bytes alias = 18;
+
+    /**
+     * Details of hooks to add immediately after creating this account.
+     */
+    repeated com.hedera.hapi.node.hooks.HookCreationDetails hook_creation_details = 19;
 }

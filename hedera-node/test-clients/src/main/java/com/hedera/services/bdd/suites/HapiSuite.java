@@ -40,6 +40,8 @@ public abstract class HapiSuite {
     public static String CIVILIAN_PAYER = "CIVILIAN_PAYER";
     private static final String STARTING_SUITE = "-------------- STARTING {} SUITE --------------";
 
+    public static boolean DEFAULT_TEARDOWN = true;
+
     public enum FinalOutcome {
         SUITE_PASSED,
         SUITE_FAILED
@@ -136,6 +138,8 @@ public abstract class HapiSuite {
     public static final String EXCHANGE_RATES =
             HapiSpecSetup.getDefaultInstance().exchangeRatesName();
     public static final String FEE_SCHEDULE = HapiSpecSetup.getDefaultInstance().feeScheduleName();
+    public static final String SIMPLE_FEE_SCHEDULE =
+            HapiSpecSetup.getDefaultInstance().simpleFeesScheduleName();
     public static final String APP_PROPERTIES =
             HapiSpecSetup.getDefaultInstance().appPropertiesFile();
     public static final String API_PERMISSIONS =
@@ -150,7 +154,7 @@ public abstract class HapiSuite {
 
     private boolean deferResultsSummary = false;
     private boolean onlyLogHeader = false;
-    private boolean tearDownClientsAfter = true;
+    private boolean tearDownClientsAfter = DEFAULT_TEARDOWN;
     private List<HapiSpec> finalSpecs = Collections.emptyList();
 
     private Map<String, String> overrides = Collections.emptyMap();

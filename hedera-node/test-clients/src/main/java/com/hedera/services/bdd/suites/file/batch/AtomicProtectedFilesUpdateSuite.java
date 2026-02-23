@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.file.batch;
 
+import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -21,6 +23,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.FEE_SCHEDULE_CONTROL;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.NODE_DETAILS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
+import static com.hedera.services.bdd.suites.HapiSuite.SIMPLE_FEE_SCHEDULE;
 import static com.hedera.services.bdd.suites.HapiSuite.SYSTEM_ADMIN;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.AUTHORIZATION_FAILED;
@@ -31,9 +34,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.OrderedInIsolation;
-import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hedera.services.bdd.spec.queries.file.HapiGetFileContents;
 import com.hedera.services.bdd.spec.utilops.CustomSpecAssert;
@@ -41,7 +42,6 @@ import com.hedera.services.bdd.spec.utilops.UtilVerbs;
 import com.hedera.services.bdd.suites.utils.sysfiles.AddressBookPojo;
 import com.hederahashgraph.api.proto.java.NodeAddress;
 import com.hederahashgraph.api.proto.java.NodeAddressBook;
-import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Map;
 import java.util.SplittableRandom;
 import java.util.function.UnaryOperator;
@@ -51,14 +51,14 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
 
 // This test cases are direct copies of ProtectedFilesUpdateSuite. The difference here is that
 // we are wrapping the operations in an atomic batch to confirm that everything works as expected.
-@HapiTestLifecycle
+@Tag(ATOMIC_BATCH)
 @OrderedInIsolation
-public class AtomicProtectedFilesUpdateSuite {
+class AtomicProtectedFilesUpdateSuite {
 
     private static final String IGNORE = "ignore";
     private static final String TARGET_MEMO = "0.0.5";
@@ -70,12 +70,6 @@ public class AtomicProtectedFilesUpdateSuite {
 
     // The number of chars that separate a property and its value
     private static final int PROPERTY_VALUE_SPACE_LENGTH = 2;
-
-    @BeforeAll
-    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(
-                Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
-    }
 
     @HapiTest
     final Stream<DynamicTest> account2CanUpdateApplicationProperties() {
@@ -93,6 +87,7 @@ public class AtomicProtectedFilesUpdateSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> account2CanUpdateApiPermissions() {
         return specialAccountCanUpdateSpecialPropertyFile(GENESIS, API_PERMISSIONS, "createTopic", "1-*");
     }
@@ -171,8 +166,30 @@ public class AtomicProtectedFilesUpdateSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> unauthorizedAccountCannotUpdateFeeSchedule() {
         return unauthorizedAccountCannotUpdateSpecialFile(FEE_SCHEDULE, NEW_CONTENTS);
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> atomicAccount2CanUpdateSimpleFeeSchedule() {
+        return specialAccountCanUpdateSpecialFile(GENESIS, SIMPLE_FEE_SCHEDULE, IGNORE, IGNORE);
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> atomicAccount50CanUpdateSimpleFeeSchedule() {
+        return specialAccountCanUpdateSpecialFile(SYSTEM_ADMIN, SIMPLE_FEE_SCHEDULE, IGNORE, IGNORE);
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> atomicAccount56CanUpdateSimpleFeesSchedule() {
+        return specialAccountCanUpdateSpecialFile(FEE_SCHEDULE_CONTROL, SIMPLE_FEE_SCHEDULE, IGNORE, IGNORE);
+    }
+
+    @HapiTest
+    @Tag(MATS)
+    final Stream<DynamicTest> atomicUnauthorizedAccountCannotUpdateSimpleFeesSchedule() {
+        return unauthorizedAccountCannotUpdateSpecialFile(SIMPLE_FEE_SCHEDULE, NEW_CONTENTS);
     }
 
     @HapiTest
@@ -305,7 +322,7 @@ public class AtomicProtectedFilesUpdateSuite {
                 atomicBatch(fileUpdate(specialFile)
                                 .contents(newContents)
                                 .payingWith("unauthorizedAccount")
-                                .hasPrecheck(AUTHORIZATION_FAILED)
+                                .hasKnownStatus(AUTHORIZATION_FAILED)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED));

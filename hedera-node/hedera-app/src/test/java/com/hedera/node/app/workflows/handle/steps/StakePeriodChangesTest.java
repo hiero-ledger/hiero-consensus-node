@@ -2,9 +2,9 @@
 package com.hedera.node.app.workflows.handle.steps;
 
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
-import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_KEY;
-import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_KEY;
-import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_KEY;
+import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_STATE_ID;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
 import static com.hedera.node.app.service.token.impl.handlers.staking.StakePeriodManager.DEFAULT_STAKING_PERIOD_MINS;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static org.mockito.ArgumentMatchers.any;
@@ -23,10 +23,10 @@ import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.fees.ExchangeRateManager;
-import com.hedera.node.app.ids.EntityIdService;
 import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.records.ReadableBlockRecordStore;
 import com.hedera.node.app.service.addressbook.AddressBookService;
+import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.service.token.impl.handlers.staking.EndOfStakingPeriodUpdater;
 import com.hedera.node.app.workflows.handle.record.TokenContextImpl;
 import com.hedera.node.app.workflows.handle.stack.SavepointStackImpl;
@@ -51,6 +51,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 public class StakePeriodChangesTest {
+
     private static final Instant CONSENSUS_TIME_1234567 = Instant.ofEpochSecond(1_234_5670L, 1357);
 
     @Mock
@@ -107,7 +108,7 @@ public class StakePeriodChangesTest {
 
         given(exchangeRateManager.exchangeRates()).willReturn(ExchangeRateSet.DEFAULT);
         given(stack.getWritableStates(AddressBookService.NAME)).willReturn(writableStates);
-        given(writableStates.<EntityNumber, Node>get(NODES_KEY)).willReturn(nodesState);
+        given(writableStates.<EntityNumber, Node>get(NODES_STATE_ID)).willReturn(nodesState);
         given(blockStore.getLastBlockInfo())
                 .willReturn(BlockInfo.newBuilder()
                         .consTimeOfLastHandledTxn(Timestamp.newBuilder().seconds(1_234_567L))
@@ -116,7 +117,7 @@ public class StakePeriodChangesTest {
 
         given(parentTxn.stack()).willReturn(stack);
         given(parentTxn.tokenContextImpl()).willReturn(context);
-        given(blockStreamManager.lastHandleTime()).willReturn(Instant.EPOCH);
+        given(blockRecordManager.consTimeOfLastHandledTxn()).willReturn(Instant.EPOCH);
 
         subject.advanceTimeTo(parentTxn, true);
 
@@ -138,7 +139,7 @@ public class StakePeriodChangesTest {
                         .build());
         given(parentTxn.stack()).willReturn(stack);
         given(parentTxn.tokenContextImpl()).willReturn(context);
-        given(blockStreamManager.lastHandleTime()).willReturn(Instant.EPOCH);
+        given(blockRecordManager.consTimeOfLastHandledTxn()).willReturn(Instant.EPOCH);
 
         subject.advanceTimeTo(parentTxn, true);
 
@@ -161,7 +162,7 @@ public class StakePeriodChangesTest {
                         .build());
         given(context.consensusTime()).willReturn(currentConsensusTime);
         given(stack.getWritableStates(AddressBookService.NAME)).willReturn(writableStates);
-        given(writableStates.<EntityNumber, Node>get(NODES_KEY)).willReturn(nodesState);
+        given(writableStates.<EntityNumber, Node>get(NODES_STATE_ID)).willReturn(nodesState);
 
         // Pre-condition check
         Assertions.assertThat(
@@ -171,7 +172,7 @@ public class StakePeriodChangesTest {
 
         given(parentTxn.stack()).willReturn(stack);
         given(parentTxn.tokenContextImpl()).willReturn(context);
-        given(blockStreamManager.lastHandleTime()).willReturn(Instant.EPOCH);
+        given(blockRecordManager.consTimeOfLastHandledTxn()).willReturn(Instant.EPOCH);
         subject.advanceTimeTo(parentTxn, true);
 
         verify(stakingPeriodCalculator)
@@ -195,10 +196,10 @@ public class StakePeriodChangesTest {
                 .isTrue();
         given(exchangeRateManager.exchangeRates()).willReturn(ExchangeRateSet.DEFAULT);
         given(stack.getWritableStates(AddressBookService.NAME)).willReturn(writableStates);
-        given(writableStates.<EntityNumber, Node>get(NODES_KEY)).willReturn(nodesState);
+        given(writableStates.<EntityNumber, Node>get(NODES_STATE_ID)).willReturn(nodesState);
         given(parentTxn.stack()).willReturn(stack);
         given(parentTxn.tokenContextImpl()).willReturn(context);
-        given(blockStreamManager.lastHandleTime()).willReturn(Instant.EPOCH);
+        given(blockStreamManager.lastTopLevelConsensusTime()).willReturn(Instant.EPOCH);
 
         subject.advanceTimeTo(parentTxn, true);
 
@@ -224,10 +225,10 @@ public class StakePeriodChangesTest {
         given(context.consensusTime()).willReturn(CONSENSUS_TIME_1234567.plus(Duration.ofDays(2)));
         given(context.configuration()).willReturn(DEFAULT_CONFIG);
         given(stack.getWritableStates(AddressBookService.NAME)).willReturn(writableStates);
-        given(writableStates.<EntityNumber, Node>get(NODES_KEY)).willReturn(nodesState);
+        given(writableStates.<EntityNumber, Node>get(NODES_STATE_ID)).willReturn(nodesState);
         given(parentTxn.stack()).willReturn(stack);
         given(parentTxn.tokenContextImpl()).willReturn(context);
-        given(blockStreamManager.lastHandleTime()).willReturn(Instant.EPOCH);
+        given(blockRecordManager.consTimeOfLastHandledTxn()).willReturn(Instant.EPOCH);
 
         Assertions.assertThatNoException().isThrownBy(() -> subject.advanceTimeTo(parentTxn, true));
         verify(stakingPeriodCalculator).updateNodes(eq(context), eq(ExchangeRateSet.DEFAULT));
@@ -301,8 +302,8 @@ public class StakePeriodChangesTest {
                 configProvider, stakingPeriodCalculator, exchangeRateManager, blockRecordManager, blockStreamManager);
 
         given(stack.getWritableStates(EntityIdService.NAME)).willReturn(writableStates);
-        given(writableStates.<EntityCounts>getSingleton(ENTITY_COUNTS_KEY)).willReturn(entityCountsState);
-        given(writableStates.<EntityNumber>getSingleton(ENTITY_ID_STATE_KEY)).willReturn(entityIdState);
+        given(writableStates.<EntityCounts>getSingleton(ENTITY_COUNTS_STATE_ID)).willReturn(entityCountsState);
+        given(writableStates.<EntityNumber>getSingleton(ENTITY_ID_STATE_ID)).willReturn(entityIdState);
     }
 
     private Configuration newPeriodMinsConfig() {

@@ -6,6 +6,7 @@ import static com.hedera.hapi.node.freeze.FreezeType.FREEZE_UPGRADE;
 import static com.hedera.hapi.node.freeze.FreezeType.PREPARE_UPGRADE;
 import static com.hedera.hapi.node.freeze.FreezeType.TELEMETRY_UPGRADE;
 import static com.hedera.hapi.node.freeze.FreezeType.UNKNOWN_FREEZE_TYPE;
+import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.FileID;
@@ -16,6 +17,7 @@ import com.hedera.hapi.node.freeze.FreezeTransactionBody;
 import com.hedera.hapi.node.freeze.FreezeType;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.file.ReadableUpgradeFileStore;
 import com.hedera.node.app.service.networkadmin.ReadableFreezeStore;
 import com.hedera.node.app.service.networkadmin.impl.WritableFreezeStore;
@@ -32,11 +34,11 @@ import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.config.data.FilesConfig;
 import com.hedera.node.config.types.LongPair;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.Arrays;
+import java.util.Objects;
 import java.util.concurrent.Executor;
 import javax.inject.Inject;
 import javax.inject.Named;
@@ -213,7 +215,7 @@ public class FreezeHandler implements TransactionHandler {
                 }
             }
             case FREEZE_ONLY -> upgradeActions.scheduleFreezeOnlyAt(requireNonNull(freezeStartTime));
-                // UNKNOWN_FREEZE_TYPE will fail at preHandle, this code should never get called
+            // UNKNOWN_FREEZE_TYPE will fail at preHandle, this code should never get called
             case UNKNOWN_FREEZE_TYPE -> throw new HandleException(ResponseCodeEnum.INVALID_FREEZE_TRANSACTION_BODY);
         }
     }
@@ -293,6 +295,21 @@ public class FreezeHandler implements TransactionHandler {
         }
         if (upgradeStore.peek(updateFileID) == null) {
             throw new PreCheckException(ResponseCodeEnum.FREEZE_UPDATE_FILE_DOES_NOT_EXIST);
+        }
+        if (freezeTxn.freezeType() == PREPARE_UPGRADE
+                || freezeTxn.freezeType() == FREEZE_UPGRADE
+                || freezeTxn.freezeType() == TELEMETRY_UPGRADE) {
+            try {
+                final var fileBytes = upgradeStore.getFull(updateFileID);
+                final var fileHash = noThrowSha384HashOf(fileBytes);
+                if (!Objects.equals(fileHash, freezeTxn.fileHash())) {
+                    throw new PreCheckException(ResponseCodeEnum.UPDATE_FILE_HASH_DOES_NOT_MATCH_PREPARED);
+                }
+            } catch (IOException e) {
+                // This should never happen because we already verified the file wasn't null or empty
+                log.error("Couldn't read (previously non-empty) bytes of file {}!", updateFileID, e);
+                throw new PreCheckException(ResponseCodeEnum.FREEZE_UPDATE_FILE_DOES_NOT_EXIST);
+            }
         }
     }
 }

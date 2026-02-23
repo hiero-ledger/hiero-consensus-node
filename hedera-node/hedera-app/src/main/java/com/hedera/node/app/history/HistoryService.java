@@ -1,10 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.history;
 
+import static com.hedera.node.app.history.impl.ProofControllers.isWrapsExtensible;
+
+import com.hedera.hapi.node.state.hints.HintsConstruction;
+import com.hedera.hapi.node.state.history.ChainOfTrustProof;
+import com.hedera.hapi.node.state.history.HistoryProof;
+import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.node.app.history.handlers.HistoryHandlers;
 import com.hedera.node.app.history.impl.OnProofFinished;
-import com.hedera.node.app.roster.ActiveRosters;
-import com.hedera.node.app.roster.RosterService;
+import com.hedera.node.app.service.roster.impl.ActiveRosters;
+import com.hedera.node.app.service.roster.impl.RosterServiceImpl;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.lifecycle.Service;
@@ -15,7 +21,7 @@ import java.time.Instant;
 /**
  * Proves inclusion of metadata in a history of rosters.
  */
-public interface HistoryService extends Service {
+public interface HistoryService extends Service, OnProofFinished {
     String NAME = "HistoryService";
 
     /**
@@ -27,7 +33,7 @@ public interface HistoryService extends Service {
      * the history service depends on the roster service to know how to set up
      * its ongoing construction work for roster transitions.)
      */
-    int MIGRATION_ORDER = RosterService.MIGRATION_ORDER - 1;
+    int MIGRATION_ORDER = RosterServiceImpl.MIGRATION_ORDER - 1;
 
     @Override
     default @NonNull String getServiceName() {
@@ -38,6 +44,23 @@ public interface HistoryService extends Service {
     default int migrationOrder() {
         return MIGRATION_ORDER;
     }
+
+    /**
+     * Returns true if work on the given construction is completed.
+     * @param construction the construction
+     * @param tssConfig the TSS configuration
+     * @return true if work on the given construction is completed
+     */
+    static boolean isCompleted(
+            @NonNull final HistoryProofConstruction construction, @NonNull final TssConfig tssConfig) {
+        return construction.hasTargetProof()
+                && (!tssConfig.wrapsEnabled() || isWrapsExtensible(construction.targetProofOrThrow()));
+    }
+
+    /**
+     * Returns the verification key for history proofs.
+     */
+    Bytes historyProofVerificationKey();
 
     /**
      * Returns the handlers for the {@link HistoryService}.
@@ -51,6 +74,12 @@ public interface HistoryService extends Service {
     void onFinishedConstruction(@Nullable OnProofFinished cb);
 
     /**
+     * Sets the latest history proof.
+     * @param historyProof the latest history proof
+     */
+    void setLatestHistoryProof(@NonNull HistoryProof historyProof);
+
+    /**
      * Whether this service is ready to provide metadata-enriched proofs.
      */
     boolean isReady();
@@ -58,12 +87,13 @@ public interface HistoryService extends Service {
     /**
      * Reconciles the history of roster proofs with the given active rosters and metadata, if known.
      *
-     * @param activeRosters   the active rosters
+     * @param activeRosters the active rosters
      * @param currentMetadata the current metadata, if known
-     * @param historyStore    the history store
-     * @param now             the current time
-     * @param tssConfig       the TSS configuration
-     * @param isActive        if the platform is active
+     * @param historyStore the history store
+     * @param now the current time
+     * @param tssConfig the TSS configuration
+     * @param isActive if the platform is active
+     * @param activeConstruction the active hinTS construction, if any
      */
     void reconcile(
             @NonNull ActiveRosters activeRosters,
@@ -71,15 +101,17 @@ public interface HistoryService extends Service {
             @NonNull WritableHistoryStore historyStore,
             @NonNull Instant now,
             @NonNull TssConfig tssConfig,
-            final boolean isActive);
+            boolean isActive,
+            @Nullable HintsConstruction activeConstruction);
 
     /**
      * Returns a proof of inclusion of the given metadata for the current roster.
+     *
      * @param metadata the metadata that must be included in the proof
      * @return the proof
      * @throws IllegalStateException if the service is not ready
      * @throws IllegalArgumentException if the metadata for the current roster does not match the given metadata
      */
     @NonNull
-    Bytes getCurrentProof(@NonNull Bytes metadata);
+    ChainOfTrustProof getCurrentChainOfTrustProof(@NonNull Bytes metadata);
 }

@@ -11,9 +11,7 @@ import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.schedulers.TaskScheduler;
 import com.swirlds.component.framework.schedulers.builders.TaskSchedulerConfiguration;
 import com.swirlds.component.framework.schedulers.builders.TaskSchedulerType;
-import com.swirlds.component.framework.transformers.RoutableData;
 import com.swirlds.component.framework.transformers.WireFilter;
-import com.swirlds.component.framework.transformers.WireRouter;
 import com.swirlds.component.framework.transformers.WireTransformer;
 import com.swirlds.component.framework.wires.input.BindableInputWire;
 import com.swirlds.component.framework.wires.input.InputWire;
@@ -83,16 +81,6 @@ public class ComponentWiring<COMPONENT_TYPE, OUTPUT_TYPE> {
      * A splitter (if one has been constructed).
      */
     private OutputWire<Object> splitterOutput;
-
-    /**
-     * A router (if one has been constructed).
-     */
-    private WireRouter<?> router;
-
-    /**
-     * A router that consumes the output of a splitter (if one has been constructed).
-     */
-    private WireRouter<?> splitRouter;
 
     /**
      * Create a new component wiring.
@@ -232,6 +220,21 @@ public class ComponentWiring<COMPONENT_TYPE, OUTPUT_TYPE> {
      */
     public <INPUT_TYPE> InputWire<INPUT_TYPE> getInputWire(
             @NonNull final BiConsumer<COMPONENT_TYPE, INPUT_TYPE> handler) {
+        return getInputWire(handler, null);
+    }
+
+    /**
+     * Get an input wire for this component.
+     *
+     * @param handler      the component method that will handle the input, e.g. "MyComponent::handleInput". Should be a
+     *                     method on the class, not a method on a specific instance.
+     * @param name         the optional name of the input wire. It is only used if the {@code InputWire} has not been
+     *                     created yet.
+     * @param <INPUT_TYPE> the input type
+     * @return the input wire
+     */
+    public <INPUT_TYPE> InputWire<INPUT_TYPE> getInputWire(
+            @NonNull final BiConsumer<COMPONENT_TYPE, INPUT_TYPE> handler, @Nullable final String name) {
 
         Objects.requireNonNull(handler);
 
@@ -242,7 +245,7 @@ public class ComponentWiring<COMPONENT_TYPE, OUTPUT_TYPE> {
                     "Component wiring does not support primitive input types. Use a boxed primitive instead.", e);
         }
 
-        return getOrBuildInputWire(proxy.getMostRecentlyInvokedMethod(), null, handler, null, null);
+        return getOrBuildInputWire(proxy.getMostRecentlyInvokedMethod(), null, handler, null, null, name);
     }
 
     /**
@@ -256,6 +259,22 @@ public class ComponentWiring<COMPONENT_TYPE, OUTPUT_TYPE> {
     @NonNull
     public <INPUT_TYPE> InputWire<INPUT_TYPE> getInputWire(
             @NonNull final Function<COMPONENT_TYPE, OUTPUT_TYPE> handler) {
+        return getInputWire(handler, null);
+    }
+
+    /**
+     * Get an input wire for this component.
+     *
+     * @param handler      the component method that will handle the input, e.g. "MyComponent::handleInput". Should be a
+     *                     method on the class, not a method on a specific instance.
+     * @param name         the optional name of the input wire. It is only used if the {@code InputWire} has not been
+     *                     created yet.
+     * @param <INPUT_TYPE> the input type
+     * @return the input wire
+     */
+    @NonNull
+    public <INPUT_TYPE> InputWire<INPUT_TYPE> getInputWire(
+            @NonNull final Function<COMPONENT_TYPE, OUTPUT_TYPE> handler, @Nullable final String name) {
         Objects.requireNonNull(handler);
 
         try {
@@ -265,7 +284,7 @@ public class ComponentWiring<COMPONENT_TYPE, OUTPUT_TYPE> {
                     "Component wiring does not support primitive input types. Use a boxed primitive instead.", e);
         }
 
-        return getOrBuildInputWire(proxy.getMostRecentlyInvokedMethod(), null, null, handler, null);
+        return getOrBuildInputWire(proxy.getMostRecentlyInvokedMethod(), null, null, handler, null, name);
     }
 
     /**
@@ -367,118 +386,6 @@ public class ComponentWiring<COMPONENT_TYPE, OUTPUT_TYPE> {
             splitterOutput = getOutputWire().buildSplitter(scheduler.getName() + "Splitter", "data");
         }
         return (OutputWire<ELEMENT>) splitterOutput;
-    }
-
-    /**
-     * Get an output wire that will emit a specific type of routed data. Data routing is when a component has multiple
-     * outputs, and different things want to receive a subset of that output. Each output is described by a routing
-     * address, which are implemented by enum values.
-     * <p>
-     * This method should only be used for components which have an output type of
-     * {@link RoutableData RoutableData}. Calling this method more than once with
-     * different enum classes will throw.
-     *
-     * @param address       an enum value that describes one of the different types of data that can be routed
-     * @param <ROUTER_ENUM> the enum that describes the different types of data handled by this router
-     * @param <DATA_TYPE>   the type of data that travels over the output wire
-     * @return the output wire
-     */
-    @NonNull
-    public <ROUTER_ENUM extends Enum<ROUTER_ENUM>, DATA_TYPE> OutputWire<DATA_TYPE> getRoutedOutput(
-            @NonNull final ROUTER_ENUM address) {
-
-        final Class<ROUTER_ENUM> clazz = (Class<ROUTER_ENUM>) address.getClass();
-        return getOrBuildRouter(clazz).getOutput(address);
-    }
-
-    /**
-     * Get an output wire that will receive a specific type of routed data after being split apart. Data routing is when
-     * a component has multiple outputs, and different things want to receive a subset of that output. Each output is
-     * described by a routing address, which are implemented by enum values.
-     * <p>
-     * This method should only be used for components which have an output type of
-     * {@link RoutableData List&lt;RoutableData&gt;}. Calling this method more
-     * than once with different enum classes will throw.
-     *
-     * @param address       an enum value that describes one of the different types of data that can be routed
-     * @param <ROUTER_ENUM> the enum that describes the different types of data handled by this router
-     * @param <DATA_TYPE>   the type of data that travels over the output wire
-     * @return the output wire
-     */
-    @NonNull
-    public <ROUTER_ENUM extends Enum<ROUTER_ENUM>, DATA_TYPE> OutputWire<DATA_TYPE> getSplitAndRoutedOutput(
-            @NonNull final ROUTER_ENUM address) {
-
-        final Class<ROUTER_ENUM> clazz = (Class<ROUTER_ENUM>) address.getClass();
-        return getOrBuildSplitRouter(clazz).getOutput(address);
-    }
-
-    /**
-     * Get the router for this component if one has been built. Build and return a new router if one has not been
-     * built.
-     *
-     * @param routerType    the type of the router
-     * @param <ROUTER_TYPE> the type of the router
-     * @return the router
-     */
-    @NonNull
-    private <ROUTER_TYPE extends Enum<ROUTER_TYPE>> WireRouter<ROUTER_TYPE> getOrBuildRouter(
-            @NonNull final Class<ROUTER_TYPE> routerType) {
-
-        if (splitRouter != null) {
-            throw new IllegalStateException("Only one type of router can be constructed per task scheduler. "
-                    + "This task scheduler already has a router that was built using the split output type, "
-                    + "so a router cannot be created with the unmodified output type.");
-        }
-
-        if (router != null) {
-            if (!router.getRouterType().equals(routerType)) {
-                throw new IllegalArgumentException("Only one type of router can be constructed per task scheduler. "
-                        + "This task scheduler already has a router of type "
-                        + router.getRouterType().getName() + "but an attempt was made to construct a router of type "
-                        + routerType.getName());
-            }
-        } else {
-            router = new WireRouter<>(model, getSchedulerName() + "Router", "data", routerType);
-            getOutputWire().solderTo((InputWire<OUTPUT_TYPE>) router.getInput());
-        }
-
-        return (WireRouter<ROUTER_TYPE>) router;
-    }
-
-    /**
-     * Get the router for split data for this component if one has been built. Build and return a new splitter and
-     * router if one has not been built.
-     *
-     * @param routerType    the type of the router
-     * @param <ROUTER_TYPE> the type of the router
-     * @return the router
-     */
-    @NonNull
-    private <ROUTER_TYPE extends Enum<ROUTER_TYPE>> WireRouter<ROUTER_TYPE> getOrBuildSplitRouter(
-            @NonNull final Class<ROUTER_TYPE> routerType) {
-
-        if (router != null) {
-            throw new IllegalStateException("Only one type of router can be constructed per task scheduler. "
-                    + "This task scheduler already has a router that was built using the unmodified output type, "
-                    + "so a router cannot be created with the split output type.");
-        }
-
-        if (splitRouter != null) {
-            if (!splitRouter.getRouterType().equals(routerType)) {
-                throw new IllegalArgumentException("Only one type of router can be constructed per task scheduler. "
-                        + "This task scheduler already has a router of type "
-                        + router.getRouterType().getName() + "but an attempt was made to construct a router of type "
-                        + routerType.getName());
-            }
-        } else {
-            splitRouter = new WireRouter<>(model, getSchedulerName() + "Router", "data", routerType);
-            final OutputWire<RoutableData<ROUTER_TYPE>> splitOutput = getSplitOutput();
-            final InputWire<RoutableData<ROUTER_TYPE>> routerInput = ((WireRouter<ROUTER_TYPE>) splitRouter).getInput();
-            splitOutput.solderTo(routerInput);
-        }
-
-        return (WireRouter<ROUTER_TYPE>) splitRouter;
     }
 
     /**

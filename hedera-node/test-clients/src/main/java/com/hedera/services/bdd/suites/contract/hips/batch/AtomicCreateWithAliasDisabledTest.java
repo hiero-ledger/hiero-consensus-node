@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.hips.batch;
 
+import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.keys.KeyShape.SECP256K1;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
@@ -53,6 +55,7 @@ import java.util.stream.Stream;
 import org.apache.commons.lang3.ArrayUtils;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
 
 // This test cases are direct copies of CreateWithAliasDisabledTest. The difference here is that
 // we are wrapping the operations in an atomic batch to confirm that everything works as expected.
@@ -61,26 +64,21 @@ import org.junit.jupiter.api.DynamicTest;
  * Tests expected behavior when the {@code cryptoCreateWithAlias.enabled} feature flag is off for
  * <a href="https://hips.hedera.com/hip/hip-583">HIP-583, "Expand alias support in CryptoCreate &amp; CryptoTransfer Transactions"</a>.
  */
+@Tag(ATOMIC_BATCH)
 @HapiTestLifecycle
-public class AtomicCreateWithAliasDisabledTest {
+class AtomicCreateWithAliasDisabledTest {
 
     private static final String BATCH_OPERATOR = "batchOperator";
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(Map.of(
-                "atomicBatch.isEnabled",
-                "true",
-                "atomicBatch.maxNumberOfTransactions",
-                "50",
-                "contracts.throttle.throttleByGas",
-                "false",
-                "cryptoCreateWithAlias.enabled",
-                "false"));
+        testLifecycle.overrideInClass(
+                Map.of("contracts.throttle.throttleByGas", "false", "cryptoCreateWithAlias.enabled", "false"));
         testLifecycle.doAdhoc(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> etx026AccountWithoutAliasCanMakeEthTxnsDueToAutomaticAliasCreation() {
         final String ACCOUNT = "account";
         return hapiTest(

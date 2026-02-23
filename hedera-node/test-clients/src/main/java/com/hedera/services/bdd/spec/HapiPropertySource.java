@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.spec;
 
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromByteString;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.DurationConverter.parseDuration;
 import static com.hedera.services.bdd.suites.utils.sysfiles.BookEntryPojo.asOctets;
 import static java.util.Objects.requireNonNull;
 
@@ -38,7 +39,6 @@ import java.util.stream.Stream;
 
 public interface HapiPropertySource {
     HapiPropertySource defaultSource = initializeDefaultSource();
-    String NODE_BLOCK_STREAM_DIR = String.format("block-%d.%d.3", getSpecDefaultShard(), getSpecDefaultRealm());
     String NODE_RECORD_STREAM_DIR = String.format("record%d.%d.3", getSpecDefaultShard(), getSpecDefaultRealm());
 
     private static HapiPropertySource initializeDefaultSource() {
@@ -47,11 +47,17 @@ public interface HapiPropertySource {
 
     static byte[] explicitBytesOf(@NonNull final Address address) {
         var asBytes = address.value().toByteArray();
-        // Might have a leading zero byte to make it positive
-        if (asBytes.length == 21) {
-            asBytes = Arrays.copyOfRange(asBytes, 1, 21);
+        final byte[] result = new byte[20];
+
+        if (asBytes.length >= 20) {
+            // Take rightmost 20 bytes (handles 21-byte case with leading zero)
+            System.arraycopy(asBytes, asBytes.length - 20, result, 0, 20);
+        } else {
+            // Left-pad with zeros (handles 19-byte or smaller case)
+            System.arraycopy(asBytes, 0, result, 20 - asBytes.length, asBytes.length);
         }
-        return asBytes;
+
+        return result;
     }
 
     String get(String property);
@@ -215,6 +221,16 @@ public interface HapiPropertySource {
 
     default Duration getDurationFromSecs(String property) {
         return Duration.newBuilder().setSeconds(getInteger(property)).build();
+    }
+
+    /**
+     * Parses a {@link java.time.Duration} from the given property using the same format as the
+     * {@link com.swirlds.config.api.Configuration} API.
+     * @param property the property to get the value from
+     * @return the parsed {@link java.time.Duration}
+     */
+    default java.time.Duration getConfigDuration(String property) {
+        return parseDuration(get(property));
     }
 
     default boolean getBoolean(String property) {
@@ -414,17 +430,6 @@ public interface HapiPropertySource {
         } catch (Exception ignore) {
             return asDnsServiceEndpoint(v);
         }
-    }
-
-    /**
-     * Converts the given {@link Bytes} instance to a readable IPv4 address string.
-     * @param ipV4Addr the {@link Bytes} instance to convert
-     * @return the readable IPv4 address string
-     */
-    static String asReadableIp(@NonNull final Bytes ipV4Addr) {
-        requireNonNull(ipV4Addr);
-        final var bytes = ipV4Addr.toByteArray();
-        return (0xff & bytes[0]) + "." + (0xff & bytes[1]) + "." + (0xff & bytes[2]) + "." + (0xff & bytes[3]);
     }
 
     static ServiceEndpoint asServiceEndpoint(String v) {

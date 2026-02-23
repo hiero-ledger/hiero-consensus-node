@@ -3,6 +3,7 @@ package com.hedera.services.yahcli.commands.accounts;
 
 import static com.hedera.services.yahcli.util.ParseUtils.normalizePossibleIdLiteral;
 
+import com.hedera.services.yahcli.config.ConfigManager;
 import com.hedera.services.yahcli.config.ConfigUtils;
 import com.hedera.services.yahcli.suites.BalanceSuite;
 import java.util.Arrays;
@@ -33,7 +34,7 @@ public class BalanceCommand implements Callable<Integer> {
         balanceRegister.append(String.format("%20s | %20s |%n", "Account Id", "Balance"));
         balanceRegister.append(serviceBorder);
 
-        printTable(balanceRegister);
+        printTable(config, balanceRegister);
 
         final var normalizedAccounts = Arrays.stream(accounts)
                 .map(s -> normalizePossibleIdLiteral(config, s))
@@ -41,10 +42,13 @@ public class BalanceCommand implements Callable<Integer> {
         var delegate = new BalanceSuite(config.asSpecConfig(), normalizedAccounts);
         delegate.runSuiteSync();
 
+        delegate.balancesByRepr()
+                .forEach((repr, balance) -> config.output().info(String.format("%20s | %20d |", repr, balance)));
+
         return 0;
     }
 
-    private void printTable(final StringBuilder balanceRegister) {
-        System.out.println(balanceRegister.toString());
+    private void printTable(ConfigManager config, final StringBuilder balanceRegister) {
+        config.output().info(balanceRegister.toString());
     }
 }

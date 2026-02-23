@@ -5,6 +5,7 @@ import com.hedera.node.app.service.networkadmin.impl.FreezeServiceImpl;
 module com.hedera.node.app.service.network.admin.impl {
     requires transitive com.hedera.node.app.hapi.fees;
     requires transitive com.hedera.node.app.service.addressbook;
+    requires transitive com.hedera.node.app.service.entityid;
     requires transitive com.hedera.node.app.service.file;
     requires transitive com.hedera.node.app.service.network.admin;
     requires transitive com.hedera.node.app.service.token;
@@ -12,8 +13,8 @@ module com.hedera.node.app.service.network.admin.impl {
     requires transitive com.hedera.node.hapi;
     requires transitive com.hedera.pbj.runtime;
     requires transitive com.swirlds.config.api;
-    requires transitive com.swirlds.platform.core;
     requires transitive com.swirlds.state.api;
+    requires transitive org.hiero.consensus.platformstate;
     requires transitive dagger;
     requires transitive java.compiler; // javax.annotation.processing.Generated
     requires transitive javax.inject;

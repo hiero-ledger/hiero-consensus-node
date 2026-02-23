@@ -1,11 +1,20 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.schedule.impl;
 
-import static com.hedera.node.app.service.schedule.impl.schemas.V0490ScheduleSchema.SCHEDULES_BY_ID_KEY;
-import static com.hedera.node.app.service.schedule.impl.schemas.V0570ScheduleSchema.SCHEDULED_COUNTS_KEY;
-import static com.hedera.node.app.service.schedule.impl.schemas.V0570ScheduleSchema.SCHEDULED_ORDERS_KEY;
-import static com.hedera.node.app.service.schedule.impl.schemas.V0570ScheduleSchema.SCHEDULED_USAGES_KEY;
-import static com.hedera.node.app.service.schedule.impl.schemas.V0570ScheduleSchema.SCHEDULE_ID_BY_EQUALITY_KEY;
+import static com.hedera.node.app.service.schedule.impl.schemas.V0490ScheduleSchema.SCHEDULES_BY_EQUALITY_STATE_LABEL;
+import static com.hedera.node.app.service.schedule.impl.schemas.V0490ScheduleSchema.SCHEDULES_BY_ID_STATE_ID;
+import static com.hedera.node.app.service.schedule.impl.schemas.V0490ScheduleSchema.SCHEDULES_BY_ID_STATE_LABEL;
+import static com.hedera.node.app.service.schedule.impl.schemas.V0570ScheduleSchema.SCHEDULED_COUNTS_STATE_ID;
+import static com.hedera.node.app.service.schedule.impl.schemas.V0570ScheduleSchema.SCHEDULED_COUNTS_STATE_LABEL;
+import static com.hedera.node.app.service.schedule.impl.schemas.V0570ScheduleSchema.SCHEDULED_ORDERS_STATE_ID;
+import static com.hedera.node.app.service.schedule.impl.schemas.V0570ScheduleSchema.SCHEDULED_ORDERS_STATE_LABEL;
+import static com.hedera.node.app.service.schedule.impl.schemas.V0570ScheduleSchema.SCHEDULED_USAGES_STATE_ID;
+import static com.hedera.node.app.service.schedule.impl.schemas.V0570ScheduleSchema.SCHEDULED_USAGES_STATE_LABEL;
+import static com.hedera.node.app.service.schedule.impl.schemas.V0570ScheduleSchema.SCHEDULE_ID_BY_EQUALITY_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_LABEL;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_STATE_LABEL;
 import static org.mockito.BDDMockito.given;
 
 import com.hedera.hapi.node.addressbook.NodeCreateTransactionBody;
@@ -68,22 +77,21 @@ import com.hedera.hapi.node.token.TokenWipeAccountTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.node.util.UtilPrngTransactionBody;
 import com.hedera.node.app.hapi.utils.EntityType;
-import com.hedera.node.app.ids.ReadableEntityIdStoreImpl;
-import com.hedera.node.app.ids.WritableEntityIdStore;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
+import com.hedera.node.app.service.entityid.ReadableEntityIdStore;
+import com.hedera.node.app.service.entityid.WritableEntityIdStore;
 import com.hedera.node.app.service.schedule.ReadableScheduleStore;
 import com.hedera.node.app.service.schedule.WritableScheduleStore;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.impl.ReadableAccountStoreImpl;
 import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
-import com.hedera.node.app.spi.ids.ReadableEntityIdStore;
 import com.hedera.node.app.spi.workflows.PreCheckException;
-import com.hedera.node.app.store.ReadableStoreFactory;
+import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.config.data.SchedulingConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.utility.Pair;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.state.lifecycle.EntityIdFactory;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableKVStateBase;
 import com.swirlds.state.spi.ReadableStates;
@@ -112,9 +120,7 @@ import org.mockito.quality.Strictness;
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.WARN)
 public class ScheduleTestBase {
-    // These two *should* be constants in token service, but are not, so we have constants here.
-    private static final String ACCOUNT_STATE_KEY = "ACCOUNTS";
-    private static final String ACCOUNT_ALIAS_STATE_KEY = "ALIASES";
+
     protected static final int SHARD = 5;
     protected static final long REALM = 10L;
     // spotless mangles this section randomly, due to incorrect wrapping rules
@@ -170,10 +176,10 @@ public class ScheduleTestBase {
     // spotless:on
 
     @Mock(strictness = Mock.Strictness.LENIENT)
-    protected ReadableStoreFactory mockStoreFactory;
+    protected ReadableStoreFactoryImpl mockStoreFactory;
 
     @Mock
-    protected ReadableEntityIdStoreImpl readableEntityCounters;
+    protected ReadableEntityIdStore readableEntityCounters;
 
     @Mock
     protected WritableEntityIdStore writableEntityCounters;
@@ -205,7 +211,7 @@ public class ScheduleTestBase {
     protected WritableKVState<TimestampSeconds, ScheduledCounts> writableScheduledCounts;
     protected WritableKVState<TimestampSeconds, ThrottleUsageSnapshots> writableScheduledUsages;
     protected WritableKVState<ScheduledOrder, ScheduleID> writableScheduledOrders;
-    protected Map<String, WritableKVState<?, ?>> writableStatesMap;
+    protected Map<Integer, WritableKVState<?, ?>> writableStatesMap;
     protected ReadableStates states;
     protected WritableStates scheduleStates;
 
@@ -240,10 +246,10 @@ public class ScheduleTestBase {
                 alternateCreateTransaction, testConsensusTime, scheduleConfig.maxExpirationFutureSeconds());
 
         setUpStates();
-        given(mockStoreFactory.getStore(ReadableScheduleStore.class)).willReturn(scheduleStore);
-        given(mockStoreFactory.getStore(ReadableAccountStore.class)).willReturn(accountStore);
-        given(mockStoreFactory.getStore(ReadableEntityIdStore.class)).willReturn(readableEntityCounters);
-        given(mockStoreFactory.getStore(WritableEntityIdStore.class)).willReturn(writableEntityCounters);
+        given(mockStoreFactory.readableStore(ReadableScheduleStore.class)).willReturn(scheduleStore);
+        given(mockStoreFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
+        given(mockStoreFactory.readableStore(ReadableEntityIdStore.class)).willReturn(readableEntityCounters);
+        given(mockStoreFactory.readableStore(WritableEntityIdStore.class)).willReturn(writableEntityCounters);
     }
 
     protected void commitScheduleStores() {
@@ -471,21 +477,25 @@ public class ScheduleTestBase {
         scheduledOrders = new HashMap<>(0);
         scheduledUsages = new HashMap<>(0);
         accountsMapById = new HashMap<>(0);
-        writableById = new MapWritableKVState<>(SCHEDULES_BY_ID_KEY, scheduleMapById);
-        writableByEquality = new MapWritableKVState<>(SCHEDULE_ID_BY_EQUALITY_KEY, scheduleMapByEquality);
-        writableScheduledCounts = new MapWritableKVState<>(SCHEDULED_COUNTS_KEY, scheduledCounts);
-        writableScheduledOrders = new MapWritableKVState<>(SCHEDULED_ORDERS_KEY, scheduledOrders);
-        writableScheduledUsages = new MapWritableKVState<>(SCHEDULED_USAGES_KEY, scheduledUsages);
-        accountById = new MapWritableKVState<>(ACCOUNT_STATE_KEY, accountsMapById);
-        accountAliases = new MapWritableKVState<>(ACCOUNT_ALIAS_STATE_KEY, new HashMap<>(0));
+        writableById = new MapWritableKVState<>(SCHEDULES_BY_ID_STATE_ID, SCHEDULES_BY_ID_STATE_LABEL, scheduleMapById);
+        writableByEquality = new MapWritableKVState<>(
+                SCHEDULE_ID_BY_EQUALITY_STATE_ID, SCHEDULES_BY_EQUALITY_STATE_LABEL, scheduleMapByEquality);
+        writableScheduledCounts =
+                new MapWritableKVState<>(SCHEDULED_COUNTS_STATE_ID, SCHEDULED_COUNTS_STATE_LABEL, scheduledCounts);
+        writableScheduledOrders =
+                new MapWritableKVState<>(SCHEDULED_ORDERS_STATE_ID, SCHEDULED_ORDERS_STATE_LABEL, scheduledOrders);
+        writableScheduledUsages =
+                new MapWritableKVState<>(SCHEDULED_USAGES_STATE_ID, SCHEDULED_USAGES_STATE_LABEL, scheduledUsages);
+        accountById = new MapWritableKVState<>(ACCOUNTS_STATE_ID, ACCOUNTS_STATE_LABEL, accountsMapById);
+        accountAliases = new MapWritableKVState<>(ALIASES_STATE_ID, ALIASES_STATE_LABEL, new HashMap<>(0));
         writableStatesMap = new TreeMap<>();
-        writableStatesMap.put(SCHEDULES_BY_ID_KEY, writableById);
-        writableStatesMap.put(SCHEDULE_ID_BY_EQUALITY_KEY, writableByEquality);
-        writableStatesMap.put(SCHEDULED_COUNTS_KEY, writableScheduledCounts);
-        writableStatesMap.put(SCHEDULED_ORDERS_KEY, writableScheduledOrders);
-        writableStatesMap.put(SCHEDULED_USAGES_KEY, writableScheduledUsages);
-        writableStatesMap.put(ACCOUNT_STATE_KEY, accountById);
-        writableStatesMap.put(ACCOUNT_ALIAS_STATE_KEY, accountAliases);
+        writableStatesMap.put(SCHEDULES_BY_ID_STATE_ID, writableById);
+        writableStatesMap.put(SCHEDULE_ID_BY_EQUALITY_STATE_ID, writableByEquality);
+        writableStatesMap.put(SCHEDULED_COUNTS_STATE_ID, writableScheduledCounts);
+        writableStatesMap.put(SCHEDULED_ORDERS_STATE_ID, writableScheduledOrders);
+        writableStatesMap.put(SCHEDULED_USAGES_STATE_ID, writableScheduledUsages);
+        writableStatesMap.put(ACCOUNTS_STATE_ID, accountById);
+        writableStatesMap.put(ALIASES_STATE_ID, accountAliases);
         scheduleStates = new MapWritableStates(writableStatesMap);
         states = new MapReadableStates(writableStatesMap);
         accountStore = new ReadableAccountStoreImpl(states, readableEntityCounters);

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.hip551;
 
+import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
@@ -25,29 +26,22 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.hip869.NodeCreateTest.generateX509Certificates;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_PAYER_SIGNATURE;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 
 import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.support.TestLifecycle;
-import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 
-@HapiTestLifecycle
-public class AtomicBatchMiscSignatureTest {
-
-    @BeforeAll
-    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(
-                Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
-    }
+@Tag(ATOMIC_BATCH)
+class AtomicBatchMiscSignatureTest {
 
     @Nested
     @DisplayName("Airdrop Tests")
@@ -58,7 +52,8 @@ public class AtomicBatchMiscSignatureTest {
         final Stream<DynamicTest> missingSenderSigFails() {
             final var airdropOp = tokenAirdrop(moving(1, "FT").between("owner", "receiver"))
                     .payingWith(DEFAULT_PAYER)
-                    .batchKey("batchOperator");
+                    .batchKey("batchOperator")
+                    .hasKnownStatus(INVALID_SIGNATURE);
 
             return hapiTest(
                     cryptoCreate("batchOperator"),
@@ -85,7 +80,8 @@ public class AtomicBatchMiscSignatureTest {
                                     // Payer is not the receiver
                                     tokenClaimAirdrop(pendingAirdrop("owner", "receiver", "FT"))
                                             .payingWith("fakeReceiver")
-                                            .batchKey("batchOperator"))
+                                            .batchKey("batchOperator")
+                                            .hasKnownStatus(INVALID_SIGNATURE))
                             .payingWith("batchOperator")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
                     // Verify the receiver did not receive the airdrop
@@ -108,9 +104,10 @@ public class AtomicBatchMiscSignatureTest {
                                     // Payer is not the owner
                                     tokenCancelAirdrop(pendingAirdrop("owner", "receiver", "FT"))
                                             .signedBy("receiver")
-                                            .batchKey("batchOperator"))
+                                            .batchKey("batchOperator")
+                                            .hasKnownStatus(INVALID_PAYER_SIGNATURE))
                             .payingWith("batchOperator")
-                            .hasKnownStatus(INNER_TRANSACTION_FAILED));
+                            .hasPrecheck(INVALID_SIGNATURE));
         }
     }
 
@@ -128,14 +125,19 @@ public class AtomicBatchMiscSignatureTest {
         @DisplayName("Node delete inside of a batch can be executed only with privileged account")
         final Stream<DynamicTest> nodeDeleteCanBeExecutedOnlyWithPrivilegedAccount()
                 throws CertificateEncodingException {
+            final var nodeAccount = "nodeAccount";
             return hapiTest(
                     cryptoCreate("payer"),
                     cryptoCreate("batchOperator"),
-                    nodeCreate("node100")
+                    cryptoCreate(nodeAccount),
+                    nodeCreate("node100", nodeAccount)
                             .description("desc")
                             .gossipCaCertificate(gossipCertificates.getFirst().getEncoded()),
                     // The inner txn is not signed by system account, so the transaction will fail
-                    atomicBatch(nodeDelete("node100").payingWith("payer").batchKey("batchOperator"))
+                    atomicBatch(nodeDelete("node100")
+                                    .payingWith("payer")
+                                    .batchKey("batchOperator")
+                                    .hasKnownStatus(INVALID_SIGNATURE))
                             .payingWith("batchOperator")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
                     // Paying with a privileged account should succeed
@@ -147,16 +149,21 @@ public class AtomicBatchMiscSignatureTest {
         @DisplayName("Node update inside of a batch can be executed only with privileged account")
         final Stream<DynamicTest> nodeUpdateCanBeExecutedOnlyWithPrivilegedAccount()
                 throws CertificateEncodingException {
+            final var nodeAccount = "nodeAccount";
             return hapiTest(
                     newKeyNamed("adminKey"),
                     cryptoCreate("payer"),
                     cryptoCreate("batchOperator"),
-                    nodeCreate("node100")
+                    cryptoCreate(nodeAccount),
+                    nodeCreate("node100", nodeAccount)
                             .adminKey("adminKey")
                             .description("desc")
                             .gossipCaCertificate(gossipCertificates.getFirst().getEncoded()),
                     // The inner txn is not signed by system account, so the transaction will fail
-                    atomicBatch(nodeUpdate("node100").payingWith("payer").batchKey("batchOperator"))
+                    atomicBatch(nodeUpdate("node100")
+                                    .payingWith("payer")
+                                    .batchKey("batchOperator")
+                                    .hasKnownStatus(INVALID_SIGNATURE))
                             .payingWith("batchOperator")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
                     // Paying with a privileged account should succeed
@@ -190,7 +197,8 @@ public class AtomicBatchMiscSignatureTest {
                                 .message("TEST")
                                 .payingWith("submitter")
                                 // not signing with the submit key, so the transaction will fail
-                                .signedBy("submitter"))
+                                .signedBy("submitter")
+                                .hasKnownStatus(INVALID_SIGNATURE))
                         .payingWith("batchOperator")
                         .hasKnownStatus(INNER_TRANSACTION_FAILED));
     }

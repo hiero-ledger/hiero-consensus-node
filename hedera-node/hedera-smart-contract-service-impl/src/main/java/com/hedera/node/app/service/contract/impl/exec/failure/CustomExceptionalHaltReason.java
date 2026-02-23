@@ -51,11 +51,11 @@ public enum CustomExceptionalHaltReason implements ExceptionalHaltReason {
         map.put(INVALID_ALIAS_KEY, ResponseCodeEnum.INVALID_ALIAS_KEY);
         map.put(INVALID_SIGNATURE, ResponseCodeEnum.INVALID_SIGNATURE);
         map.put(CONTRACT_ENTITY_LIMIT_REACHED, ResponseCodeEnum.MAX_ENTITIES_IN_PRICE_REGIME_HAVE_BEEN_CREATED);
-        map.put(CustomExceptionalHaltReason.INSUFFICIENT_CHILD_RECORDS, ResponseCodeEnum.MAX_CHILD_RECORDS_EXCEEDED);
-        map.put(CustomExceptionalHaltReason.INVALID_CONTRACT_ID, ResponseCodeEnum.INVALID_CONTRACT_ID);
-        map.put(CustomExceptionalHaltReason.INVALID_FEE_SUBMITTED, ResponseCodeEnum.INVALID_FEE_SUBMITTED);
-        map.put(ExceptionalHaltReason.INSUFFICIENT_GAS, ResponseCodeEnum.INSUFFICIENT_GAS);
-        map.put(ExceptionalHaltReason.ILLEGAL_STATE_CHANGE, ResponseCodeEnum.LOCAL_CALL_MODIFICATION_EXCEPTION);
+        map.put(INSUFFICIENT_CHILD_RECORDS, ResponseCodeEnum.MAX_CHILD_RECORDS_EXCEEDED);
+        map.put(INVALID_CONTRACT_ID, ResponseCodeEnum.INVALID_CONTRACT_ID);
+        map.put(INVALID_FEE_SUBMITTED, ResponseCodeEnum.INVALID_FEE_SUBMITTED);
+        map.put(INSUFFICIENT_GAS, ResponseCodeEnum.INSUFFICIENT_GAS);
+        map.put(ILLEGAL_STATE_CHANGE, ResponseCodeEnum.LOCAL_CALL_MODIFICATION_EXCEPTION);
         HALT_REASON_TO_STATUS = Collections.unmodifiableMap(map);
     }
 

@@ -4,11 +4,15 @@ package org.hiero.otter.fixtures.internal.result;
 import static java.util.Collections.unmodifiableList;
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.platform.state.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.stream.Collectors;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.result.ConsensusRoundSubscriber;
 import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
 import org.hiero.otter.fixtures.result.OtterResult;
@@ -39,7 +43,7 @@ public class MultipleNodeConsensusResultsImpl implements MultipleNodeConsensusRe
         final ConsensusRoundSubscriber metaSubscriber = (nodeId, rounds) -> {
             // iterate over all child-subscribers and eventually remove the ones that wish to be unsubscribed
             consensusRoundSubscribers.removeIf(
-                    current -> current.onConsensusRounds(nodeId, rounds) == SubscriberAction.UNSUBSCRIBE);
+                    current -> current.onConsensusRound(nodeId, rounds) == SubscriberAction.UNSUBSCRIBE);
 
             // the meta-subscriber never unsubscribes
             return SubscriberAction.CONTINUE;
@@ -76,6 +80,19 @@ public class MultipleNodeConsensusResultsImpl implements MultipleNodeConsensusRe
                 .filter(result -> !Objects.equals(nodeId, result.nodeId()))
                 .toList();
         return new MultipleNodeConsensusResultsImpl(newResults);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public MultipleNodeConsensusResults suppressingNodes(@NonNull final Collection<Node> nodes) {
+        final Set<NodeId> nodeIdsToSuppress = nodes.stream().map(Node::selfId).collect(Collectors.toSet());
+        final List<SingleNodeConsensusResult> filtered = results.stream()
+                .filter(result -> !nodeIdsToSuppress.contains(result.nodeId()))
+                .toList();
+        return new MultipleNodeConsensusResultsImpl(filtered);
     }
 
     /**

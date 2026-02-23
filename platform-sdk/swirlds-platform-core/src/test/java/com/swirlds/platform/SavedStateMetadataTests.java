@@ -2,12 +2,12 @@
 package com.swirlds.platform;
 
 import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.CONSENSUS_TIMESTAMP;
+import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.FREEZE_STATE;
 import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.HASH;
 import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.HASH_MNEMONIC;
 import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.LEGACY_RUNNING_EVENT_HASH;
 import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.LEGACY_RUNNING_EVENT_HASH_MNEMONIC;
 import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.MINIMUM_BIRTH_ROUND_NON_ANCIENT;
-import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.MINIMUM_GENERATION_NON_ANCIENT;
 import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.NODE_ID;
 import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.NUMBER_OF_CONSENSUS_EVENTS;
 import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.ROUND;
@@ -18,6 +18,8 @@ import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.TOTAL_
 import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.WALL_CLOCK_TIME;
 import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomHash;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.consensusSnapshotOf;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.legacyRunningEventHashOf;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -28,18 +30,14 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.common.utility.Mnemonics;
-import com.swirlds.platform.state.MerkleNodeState;
-import com.swirlds.platform.state.signed.SigSet;
-import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.snapshot.SavedStateMetadata;
 import com.swirlds.platform.state.snapshot.SavedStateMetadataField;
 import com.swirlds.platform.test.fixtures.roster.RosterServiceStateMock;
-import com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade;
+import com.swirlds.state.merkle.VirtualMapState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -51,9 +49,14 @@ import java.util.stream.Collectors;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.platformstate.PlatformStateUtils;
+import org.hiero.consensus.state.signed.SigSet;
+import org.hiero.consensus.state.signed.SignedState;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.mockito.MockedStatic;
+import org.mockito.Mockito;
 
 @DisplayName("SignedStateMetadata Tests")
 class SavedStateMetadataTests {
@@ -102,6 +105,7 @@ class SavedStateMetadataTests {
         }
         final long signingWeightSum = random.nextLong();
         final long totalWeight = random.nextLong();
+        final Boolean freezeState = random.nextBoolean() ? null : random.nextBoolean();
 
         final SavedStateMetadata metadata = new SavedStateMetadata(
                 round,
@@ -117,7 +121,8 @@ class SavedStateMetadataTests {
                 nodeId,
                 signingNodes,
                 signingWeightSum,
-                totalWeight);
+                totalWeight,
+                freezeState);
 
         final SavedStateMetadata deserialized = serializeDeserialize(metadata);
 
@@ -135,6 +140,7 @@ class SavedStateMetadataTests {
         assertEquals(signingNodes, deserialized.signingNodes());
         assertEquals(signingWeightSum, deserialized.signingWeightSum());
         assertEquals(totalWeight, deserialized.totalWeight());
+        assertEquals(freezeState, deserialized.freezeState());
     }
 
     @Test
@@ -155,6 +161,7 @@ class SavedStateMetadataTests {
         final List<NodeId> signingNodes = new ArrayList<>();
         final long signingWeightSum = random.nextLong();
         final long totalWeight = random.nextLong();
+        final Boolean freezeState = random.nextBoolean() ? null : random.nextBoolean();
 
         final SavedStateMetadata metadata = new SavedStateMetadata(
                 round,
@@ -170,7 +177,8 @@ class SavedStateMetadataTests {
                 nodeId,
                 signingNodes,
                 signingWeightSum,
-                totalWeight);
+                totalWeight,
+                freezeState);
 
         final SavedStateMetadata deserialized = serializeDeserialize(metadata);
 
@@ -186,6 +194,7 @@ class SavedStateMetadataTests {
         assertEquals(signingNodes, deserialized.signingNodes());
         assertEquals(signingWeightSum, deserialized.signingWeightSum());
         assertEquals(totalWeight, deserialized.totalWeight());
+        assertEquals(freezeState, deserialized.freezeState());
     }
 
     @Test
@@ -195,13 +204,10 @@ class SavedStateMetadataTests {
 
         final SignedState signedState = mock(SignedState.class);
         final SigSet sigSet = mock(SigSet.class);
-        final MerkleNodeState state = mock(MerkleNodeState.class);
-        final TestPlatformStateFacade platformStateFacade = mock(TestPlatformStateFacade.class);
+        final VirtualMapState state = mock(VirtualMapState.class);
         final ConsensusSnapshot consensusSnapshot = mock(ConsensusSnapshot.class);
         when(state.getHash()).thenReturn(randomHash(random));
         when(state.getHash()).thenReturn(randomHash(random));
-        when(platformStateFacade.legacyRunningEventHashOf(state)).thenReturn(randomHash(random));
-        when(platformStateFacade.consensusSnapshotOf(state)).thenReturn(consensusSnapshot);
 
         final Roster roster = mock(Roster.class);
         RosterServiceStateMock.setup(state, roster);
@@ -211,10 +217,14 @@ class SavedStateMetadataTests {
         when(sigSet.getSigningNodes())
                 .thenReturn(new ArrayList<>(List.of(NodeId.of(3L), NodeId.of(1L), NodeId.of(2L))));
 
-        final SavedStateMetadata metadata =
-                SavedStateMetadata.create(signedState, NodeId.of(1234), Instant.now(), platformStateFacade);
+        try (final MockedStatic<PlatformStateUtils> facadeMock = Mockito.mockStatic(PlatformStateUtils.class)) {
+            facadeMock.when(() -> legacyRunningEventHashOf(state)).thenReturn(randomHash(random));
+            facadeMock.when(() -> consensusSnapshotOf(state)).thenReturn(consensusSnapshot);
 
-        assertEquals(List.of(NodeId.of(1L), NodeId.of(2L), NodeId.of(3L)), metadata.signingNodes());
+            final SavedStateMetadata metadata = SavedStateMetadata.create(signedState, NodeId.of(1234), Instant.now());
+
+            assertEquals(List.of(NodeId.of(1L), NodeId.of(2L), NodeId.of(3L)), metadata.signingNodes());
+        }
     }
 
     @Test
@@ -238,6 +248,7 @@ class SavedStateMetadataTests {
         }
         final long signingWeightSum = random.nextLong();
         final long totalWeight = random.nextLong();
+        final Boolean freezeState = random.nextBoolean() ? null : random.nextBoolean();
 
         final SavedStateMetadata metadata = new SavedStateMetadata(
                 round,
@@ -253,7 +264,8 @@ class SavedStateMetadataTests {
                 nodeId,
                 signingNodes,
                 signingWeightSum,
-                totalWeight);
+                totalWeight,
+                freezeState);
 
         final SavedStateMetadata deserialized = serializeDeserialize(metadata);
 
@@ -269,20 +281,7 @@ class SavedStateMetadataTests {
         assertEquals(signingNodes, deserialized.signingNodes());
         assertEquals(signingWeightSum, deserialized.signingWeightSum());
         assertEquals(totalWeight, deserialized.totalWeight());
-    }
-
-    @Test
-    @DisplayName("Parse Files With Old Generation Key Test")
-    void testParseFileWithOldGenerationKey() throws IOException {
-        final Path resourceDir = Paths.get("src", "test", "resources");
-        final Path metadataFile = resourceDir
-                .resolve("com")
-                .resolve("swirlds")
-                .resolve("platform")
-                .resolve("state")
-                .resolve("metadata_with_generation_key.txt");
-        final SavedStateMetadata metadata = SavedStateMetadata.parse(metadataFile);
-        assertEquals(123456789, metadata.minimumBirthRoundNonAncient());
+        assertEquals(freezeState, deserialized.freezeState());
     }
 
     private interface FileUpdater {
@@ -306,8 +305,8 @@ class SavedStateMetadataTests {
     /**
      * Test the parsing of a mal-formatted file
      *
-     * @param random        a source of randomness
-     * @param fileUpdater   updates a file in some way
+     * @param random a source of randomness
+     * @param fileUpdater updates a file in some way
      * @param invalidFields the fields expected to be invalid in the mal-formatted file
      */
     private void testMalformedFile(
@@ -319,7 +318,7 @@ class SavedStateMetadataTests {
         final long numberOfConsensusEvents = random.nextLong();
         final Instant timestamp = RandomUtils.randomInstant(random);
         final Hash legacyRunningEventHash = randomHash(random);
-        final long minimumGenerationNonAncient = random.nextLong();
+        final long minimumBirthRoundNonAncient = random.nextLong();
         final SemanticVersion softwareVersion =
                 SemanticVersion.newBuilder().major(random.nextInt()).build();
         final Instant wallClockTime = RandomUtils.randomInstant(random);
@@ -330,6 +329,7 @@ class SavedStateMetadataTests {
         }
         final long signingWeightSum = random.nextLong();
         final long totalWeight = random.nextLong();
+        final boolean freezeState = random.nextBoolean();
 
         final SavedStateMetadata metadata = new SavedStateMetadata(
                 round,
@@ -339,13 +339,14 @@ class SavedStateMetadataTests {
                 timestamp,
                 legacyRunningEventHash,
                 Mnemonics.generateMnemonic(legacyRunningEventHash),
-                minimumGenerationNonAncient,
+                minimumBirthRoundNonAncient,
                 softwareVersion.toString(),
                 wallClockTime,
                 nodeId,
                 signingNodes,
                 signingWeightSum,
-                totalWeight);
+                totalWeight,
+                freezeState);
 
         final Path path = testDirectory.resolve("metadata.txt");
         metadata.write(path);
@@ -394,13 +395,19 @@ class SavedStateMetadataTests {
             assertEquals(
                     Mnemonics.generateMnemonic(legacyRunningEventHash), deserialized.legacyRunningEventHashMnemonic());
         }
-        assertEquals(minimumGenerationNonAncient, deserialized.minimumBirthRoundNonAncient());
+        assertEquals(minimumBirthRoundNonAncient, deserialized.minimumBirthRoundNonAncient());
         assertEquals(softwareVersion.toString(), deserialized.softwareVersion());
         assertEquals(wallClockTime, deserialized.wallClockTime());
         assertEquals(nodeId, deserialized.nodeId());
         assertEquals(signingNodes, deserialized.signingNodes());
         assertEquals(signingWeightSum, deserialized.signingWeightSum());
         assertEquals(totalWeight, deserialized.totalWeight());
+        if (invalidFields.contains(FREEZE_STATE)) {
+            // Invalid values are mapped to "false", whereas "null" is mapped to null
+            assertNull(deserialized.freezeState());
+        } else {
+            assertEquals(freezeState, deserialized.freezeState());
+        }
     }
 
     @Test
@@ -512,7 +519,7 @@ class SavedStateMetadataTests {
         final Random random = getRandomPrintSeed();
         testMalformedFile(
                 random,
-                (s, m) -> s.replace(m.legacyRunningEventHash().toString(), "NOT_A_REAL_HASH"),
+                (s, m) -> s.replace(m.legacyRunningEventHash() + "", "NOT_A_REAL_HASH"),
                 Set.of(LEGACY_RUNNING_EVENT_HASH));
     }
 
@@ -566,10 +573,6 @@ class SavedStateMetadataTests {
                 Set.of(LEGACY_RUNNING_EVENT_HASH_MNEMONIC));
         testMalformedFile(
                 random,
-                (s, m) -> s.replace(MINIMUM_GENERATION_NON_ANCIENT.name(), "notARealKey"),
-                Set.of(MINIMUM_GENERATION_NON_ANCIENT));
-        testMalformedFile(
-                random,
                 (s, m) -> s.replace(MINIMUM_BIRTH_ROUND_NON_ANCIENT.name(), "notARealKey"),
                 Set.of(MINIMUM_BIRTH_ROUND_NON_ANCIENT));
         testMalformedFile(
@@ -580,5 +583,6 @@ class SavedStateMetadataTests {
         testMalformedFile(
                 random, (s, m) -> s.replace(SIGNING_WEIGHT_SUM.name(), "notARealKey"), Set.of(SIGNING_WEIGHT_SUM));
         testMalformedFile(random, (s, m) -> s.replace(TOTAL_WEIGHT.name(), "notARealKey"), Set.of(TOTAL_WEIGHT));
+        testMalformedFile(random, (s, m) -> s.replace(FREEZE_STATE.name(), "notARealKey"), Set.of(FREEZE_STATE));
     }
 }

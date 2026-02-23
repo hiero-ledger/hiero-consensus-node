@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile.airdrops;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.isLiteralResult;
@@ -27,6 +28,7 @@ import org.junit.jupiter.api.Tag;
 public class HRCSetUnlimitedAutoAssociationsTest {
 
     @HapiTest
+    @Tag(MATS)
     public Stream<DynamicTest> hrcSetUnlimitedAutoAssociations() {
         final AtomicReference<AccountID> accountNum = new AtomicReference<>();
         return hapiTest(
@@ -62,6 +64,7 @@ public class HRCSetUnlimitedAutoAssociationsTest {
     }
 
     @HapiTest
+    @Tag(MATS)
     public Stream<DynamicTest> hrcSetDisabledAutoAssociations() {
         final AtomicReference<AccountID> accountNum = new AtomicReference<>();
         return hapiTest(

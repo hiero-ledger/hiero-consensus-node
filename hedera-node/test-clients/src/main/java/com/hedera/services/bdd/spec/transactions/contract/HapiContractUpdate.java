@@ -1,18 +1,21 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.transactions.contract;
 
+import static com.hedera.node.app.hapi.utils.CommonPbjConverters.pbjToProto;
 import static com.hedera.services.bdd.spec.keys.SigMapGenerator.Nature.FULL_PREFIXES;
 import static com.hedera.services.bdd.spec.transactions.TxnFactory.expiryNowFor;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.asId;
 import static com.hedera.services.bdd.spec.transactions.contract.HapiContractCall.HEXED_EVM_ADDRESS_LEN;
 import static com.hedera.services.bdd.spec.transactions.contract.HapiContractCreate.DEPRECATED_CID_ADMIN_KEY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
+import static java.util.Objects.requireNonNull;
 
 import com.google.common.base.MoreObjects;
 import com.google.protobuf.BoolValue;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.Int32Value;
 import com.google.protobuf.StringValue;
+import com.hedera.hapi.node.hooks.HookCreationDetails;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.fees.FeeCalculator;
 import com.hedera.services.bdd.spec.keys.KeyRole;
@@ -27,10 +30,11 @@ import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.Timestamp;
 import com.hederahashgraph.api.proto.java.Transaction;
 import com.hederahashgraph.api.proto.java.TransactionBody;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
-import java.util.OptionalLong;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
@@ -43,7 +47,6 @@ public class HapiContractUpdate extends HapiTxnOp<HapiContractUpdate> {
     private final String contract;
     private boolean useDeprecatedAdminKey = false;
     private Optional<Long> newExpirySecs = Optional.empty();
-    private OptionalLong newExpiryTime = OptionalLong.empty();
     private Optional<String> newKey = Optional.empty();
     private Optional<String> newMemo = Optional.empty();
     private Optional<Long> newAutoRenew = Optional.empty();
@@ -57,6 +60,8 @@ public class HapiContractUpdate extends HapiTxnOp<HapiContractUpdate> {
     private Optional<String> newProxy = Optional.empty();
     private Optional<String> newAutoRenewAccount = Optional.empty();
     private Optional<Integer> newMaxAutomaticAssociations = Optional.empty();
+    private List<Long> hookIdsToDelete = List.of();
+    private List<Function<HapiSpec, HookCreationDetails>> hookFactories = List.of();
 
     public HapiContractUpdate(String contract) {
         this.contract = contract;
@@ -78,8 +83,40 @@ public class HapiContractUpdate extends HapiTxnOp<HapiContractUpdate> {
         return this;
     }
 
-    public HapiContractUpdate newExpiryTime(long t) {
-        newExpiryTime = OptionalLong.of(t);
+    public HapiContractUpdate withHook(@NonNull final Function<HapiSpec, HookCreationDetails> hookFactory) {
+        requireNonNull(hookFactory);
+        if (this.hookFactories.isEmpty()) {
+            this.hookFactories = new ArrayList<>();
+        }
+        this.hookFactories.add(hookFactory);
+        return this;
+    }
+
+    @SafeVarargs
+    @SuppressWarnings("varargs")
+    public final HapiContractUpdate withHooks(@NonNull final Function<HapiSpec, HookCreationDetails>... hookFactory) {
+        requireNonNull(hookFactory);
+        if (this.hookFactories.isEmpty()) {
+            this.hookFactories = new ArrayList<>();
+        }
+        hookFactories.addAll(Arrays.asList(hookFactory));
+        return this;
+    }
+
+    public HapiContractUpdate removingHook(final long hookId) {
+        if (this.hookIdsToDelete.isEmpty()) {
+            this.hookIdsToDelete = new ArrayList<>();
+        }
+        this.hookIdsToDelete.add(hookId);
+        return this;
+    }
+
+    public HapiContractUpdate removingHooks(@NonNull final Long... hookIds) {
+        requireNonNull(hookIds);
+        if (this.hookIdsToDelete.isEmpty()) {
+            this.hookIdsToDelete = new ArrayList<>();
+        }
+        this.hookIdsToDelete.addAll(List.of(hookIds));
         return this;
     }
 
@@ -208,6 +245,11 @@ public class HapiContractUpdate extends HapiTxnOp<HapiContractUpdate> {
                                 newStakedNodeId.ifPresent(b::setStakedNodeId);
                             }
                             newDeclinedReward.ifPresent(p -> b.setDeclineReward(BoolValue.of(p)));
+                            hookIdsToDelete.forEach(b::addHookIdsToDelete);
+                            hookFactories.forEach(factory -> b.addHookCreationDetails(pbjToProto(
+                                    factory.apply(spec),
+                                    HookCreationDetails.class,
+                                    com.hedera.hapi.node.hooks.legacy.HookCreationDetails.class)));
                         });
         return builder -> builder.setContractUpdateInstance(opBody);
     }

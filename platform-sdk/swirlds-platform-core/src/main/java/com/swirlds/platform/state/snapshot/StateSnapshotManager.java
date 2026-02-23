@@ -2,12 +2,10 @@
 package com.swirlds.platform.state.snapshot;
 
 import com.swirlds.platform.listeners.StateWriteToDiskCompleteNotification;
-import com.swirlds.platform.state.signed.ReservedSignedState;
-import com.swirlds.platform.system.status.actions.PlatformStatusAction;
-import com.swirlds.platform.system.status.actions.StateWrittenToDiskAction;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import org.hiero.consensus.model.state.StateSavingResult;
+import org.hiero.consensus.state.signed.ReservedSignedState;
 
 /**
  * This class is responsible for managing the signed state writing pipeline.
@@ -57,16 +55,5 @@ public interface StateSnapshotManager {
     @NonNull
     default Long extractOldestMinimumBirthRoundOnDisk(@NonNull final StateSavingResult result) {
         return result.oldestMinimumBirthRoundOnDisk();
-    }
-
-    /**
-     * Convert a {@link StateSavingResult} to a {@link PlatformStatusAction}.
-     *
-     * @param result the result of the state saving operation
-     * @return the action
-     */
-    @NonNull
-    default PlatformStatusAction toStateWrittenToDiskAction(@NonNull final StateSavingResult result) {
-        return new StateWrittenToDiskAction(result.round(), result.freezeState());
     }
 }

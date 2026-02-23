@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures;
 
+import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.consensus.model.quiescence.QuiescenceCommand;
+
 /**
- * Interface for performing asynchronous network actions such as starting, freezing, and shutting down the network
- * with a specified timeout.
+ * Interface for performing asynchronous network actions such as starting, freezing, and shutting down the network with
+ * a specified timeout.
  */
 @SuppressWarnings("unused")
 public interface AsyncNetworkActions {
@@ -19,17 +22,27 @@ public interface AsyncNetworkActions {
      * Freezes the network with the configured timeout.
      *
      * @see Network#freeze()
-     *
-     * @throws InterruptedException if the thread is interrupted while waiting
      */
-    void freeze() throws InterruptedException;
+    void freeze();
 
     /**
      * Shuts down the network with the configured timeout.
      *
      * @see Network#shutdown()
-     *
-     * @throws InterruptedException if the thread is interrupted while waiting
      */
-    void shutdown() throws InterruptedException;
+    void shutdown();
+
+    /**
+     * Triggers a catastrophic ISS. All nodes in the network will calculate different hashes for an upcoming round.
+     */
+    void triggerCatastrophicIss();
+
+    /**
+     * Sets the quiescence command of the network.
+     *
+     * <p>The default command is {@link QuiescenceCommand#DONT_QUIESCE}.
+     *
+     * @param command the new quiescence command
+     */
+    void sendQuiescenceCommand(@NonNull QuiescenceCommand command);
 }

@@ -4,6 +4,7 @@ package com.hedera.node.app.blocks;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.ETHEREUM_TRANSACTION;
+import static com.hedera.hapi.node.base.HederaFunctionality.HOOK_DISPATCH;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asBesuLog;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.bloomFor;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.bloomForAll;
@@ -30,7 +31,7 @@ import com.hedera.node.app.blocks.impl.contexts.SubmitOpContext;
 import com.hedera.node.app.blocks.impl.contexts.SupplyChangeOpContext;
 import com.hedera.node.app.blocks.impl.contexts.TokenOpContext;
 import com.hedera.node.app.blocks.impl.contexts.TopicOpContext;
-import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
+import com.hedera.node.app.hapi.utils.contracts.HookUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
@@ -143,10 +144,18 @@ public class BlockItemsTranslator {
                 .automaticTokenAssociations(result.automaticTokenAssociations())
                 .assessedCustomFees(result.assessedCustomFees())
                 .paidStakingRewards(result.paidStakingRewards());
+        if (result.highVolumePricingMultiplier() != 0) {
+            recordBuilder.highVolumePricingMultiplier(result.highVolumePricingMultiplier());
+        }
         final var function = context.functionality();
         switch (function) {
-            case CONTRACT_CALL, CONTRACT_CREATE, CONTRACT_DELETE, CONTRACT_UPDATE, ETHEREUM_TRANSACTION -> {
-                if (function == CONTRACT_CALL) {
+            case HOOK_DISPATCH,
+                    CONTRACT_CALL,
+                    CONTRACT_CREATE,
+                    CONTRACT_DELETE,
+                    CONTRACT_UPDATE,
+                    ETHEREUM_TRANSACTION -> {
+                if (function == CONTRACT_CALL || function == HOOK_DISPATCH) {
                     recordBuilder.contractCallResult(outputValueIfPresent(
                             TransactionOutput::hasContractCall,
                             translatingExtractor(CONTRACT_CALL_EXTRACTOR, context, logs),
@@ -161,7 +170,7 @@ public class BlockItemsTranslator {
                     final var ethOutput = outputValueIfPresent(
                             TransactionOutput::hasEthereumCall, TransactionOutput::ethereumCallOrThrow, outputs);
                     if (ethOutput != null) {
-                        switch (ethOutput.txnResult().kind()) {
+                        switch (ethOutput.transactionResult().kind()) {
                             case EVM_CALL_TRANSACTION_RESULT ->
                                 recordBuilder.contractCallResult(
                                         legacyResultFrom(ethOutput.evmCallTransactionResultOrThrow(), context, logs));
@@ -250,7 +259,7 @@ public class BlockItemsTranslator {
             final List<ContractLoginfo> verboseLogs = new ArrayList<>(logs.size());
             for (final var log : logs) {
                 final var paddedTopics =
-                        log.topics().stream().map(ConversionUtils::leftPad32).toList();
+                        log.topics().stream().map(HookUtils::leftPad32).toList();
                 final var besuLog = asBesuLog(log, paddedTopics);
                 besuLogs.add(besuLog);
                 verboseLogs.add(ContractLoginfo.newBuilder()

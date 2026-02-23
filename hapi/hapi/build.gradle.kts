@@ -3,8 +3,7 @@ plugins {
     id("org.hiero.gradle.module.library")
     id("org.hiero.gradle.feature.protobuf")
     id("org.hiero.gradle.feature.test-fixtures")
-    id("com.hedera.pbj.pbj-compiler") version "0.11.6"
-    // ATTENTION: keep in sync with pbj version in 'hiero-dependency-versions/build.gradle.kts'
+    id("com.hedera.pbj.pbj-compiler")
 }
 
 description = "Hedera API"
@@ -15,18 +14,32 @@ tasks.withType<JavaCompile>().configureEach {
     options.compilerArgs.add("-Xlint:-exports,-deprecation,-removal")
 }
 
+// If the 'block-node-protobuf-sources.jar' would also contain the generated Java classes, we could
+// replace the 'dependencies' block with a 'requires org.hiero.block.protobuf.sources' entry in
+// 'module-info.java'. Then, the 'srcDir(tasks.extractProto)' below inside the 'main { pbj {} }'
+// block would not be needed.
+dependencies {
+    protobuf(platform(project(":hiero-dependency-versions")))
+    protobuf("org.hiero.block-node:protobuf-sources")
+}
+
 sourceSets {
-    val protoApiSrc = "../hedera-protobuf-java-api/src/main/proto"
+    val protoApiSrc = layout.projectDirectory.dir("../hedera-protobuf-java-api/src/main/proto")
     main {
         pbj {
-            srcDir(layout.projectDirectory.dir(protoApiSrc))
-            exclude("mirror", "sdk")
+            srcDir(protoApiSrc)
+            srcDir(tasks.extractProto) // see comment on the 'dependencies' block
+            // (FUTURE) Remove provision for proof_service.proto when it no longer conflicts with
+            // the block node protos (v0.22)
+            exclude("mirror", "sdk", "internal", "block-node/api/proof_service.proto")
         }
         // The below should be replaced with a 'requires com.hedera.protobuf.java.api'
         // in testFixtures scope - #14026
         proto {
-            srcDir(layout.projectDirectory.dir(protoApiSrc))
-            exclude("mirror", "sdk")
+            srcDir(protoApiSrc)
+            // (FUTURE) Remove provision for proof_service.proto when it no longer conflicts with
+            // the block node protos (v0.22)
+            exclude("mirror", "sdk", "internal", "block-node/api/proof_service.proto")
         }
     }
 }

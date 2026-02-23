@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.contract.precompile.token.address_16c;
 
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
@@ -204,6 +205,7 @@ public class TokenMetadataTest {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> createTokenVersionedWithKeyAndCustomFeesHappyPath() {
         final AtomicReference<Address> newToken = new AtomicReference<>();
         final AtomicReference<ByteString> ledgerId = new AtomicReference<>();
@@ -332,6 +334,7 @@ public class TokenMetadataTest {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> createNftWithMetaAndKeyAndCustomFeesHappyPath() {
         final AtomicReference<Address> newToken = new AtomicReference<>();
         final AtomicReference<ByteString> ledgerId = new AtomicReference<>();

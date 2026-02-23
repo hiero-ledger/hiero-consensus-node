@@ -4,24 +4,24 @@ package com.hedera.node.app.metrics;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.roster.RosterEntry;
-import com.swirlds.common.metrics.RunningAverageMetric;
 import com.swirlds.metrics.api.DoubleGauge;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.metrics.RunningAverageMetric;
 
 @Singleton
 public class NodeMetrics {
     private static final String APP_CATEGORY = "app_";
     private static final Logger log = LogManager.getLogger(NodeMetrics.class);
-    private final Map<Long, RunningAverageMetric> activeRoundsAverages = new HashMap<>();
-    private final Map<Long, DoubleGauge> activeRoundsSnapshots = new HashMap<>();
+    private final Map<Long, RunningAverageMetric> activeRoundsAverages = new ConcurrentHashMap<>();
+    private final Map<Long, DoubleGauge> activeRoundsSnapshots = new ConcurrentHashMap<>();
     private final Metrics metrics;
 
     @Inject

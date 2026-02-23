@@ -13,6 +13,7 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -28,9 +29,12 @@ import com.hedera.node.app.service.token.impl.WritableAirdropStore;
 import com.hedera.node.app.service.token.impl.handlers.TokenCancelAirdropHandler;
 import com.hedera.node.app.service.token.impl.test.handlers.util.TokenHandlerTestBase;
 import com.hedera.node.app.service.token.impl.util.PendingAirdropUpdater;
+import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.node.app.spi.workflows.PreCheckException;
+import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.config.api.Configuration;
 import java.util.Collections;
@@ -58,10 +62,12 @@ class TokenCancelAirdropHandlerTest extends TokenHandlerTestBase {
     private HandleContext handleContext;
 
     @Mock
+    private PureChecksContext pureChecksContext;
+
+    @Mock
     private StoreFactory storeFactory;
 
     private WritableAirdropStore airdropStore;
-    private WritableAccountStore writableAccountStore;
     protected Configuration testConfig;
     private static final AccountID senderId = asAccount(0L, 0L, 1001);
     private static final AccountID receiverId = asAccount(0L, 0L, 1010);
@@ -76,20 +82,12 @@ class TokenCancelAirdropHandlerTest extends TokenHandlerTestBase {
                 .withValue("tokens.airdrops.cancel.enabled", true)
                 .getOrCreateConfig();
         airdropStore = newWritableStoreWithAirdrops();
-
-        when(handleContext.configuration()).thenReturn(testConfig);
-        when(handleContext.storeFactory()).thenReturn(storeFactory);
-        writableAccountStore = newWritableStoreWithAccounts(
-                Account.newBuilder()
-                        .accountId(senderId)
-                        .headPendingAirdropId(PendingAirdropId.DEFAULT)
-                        .build(),
-                Account.newBuilder().accountId(receiverId).build());
-        when(storeFactory.writableStore(WritableAccountStore.class)).thenReturn(writableAccountStore);
     }
 
     @Test
     void cancelAirdropHappyPath() {
+        mockHandleContext();
+        mockAccountStore();
         transactionBody = TransactionBody.newBuilder()
                 .tokenCancelAirdrop(tokenCancelAirdrops())
                 .build();
@@ -101,13 +99,7 @@ class TokenCancelAirdropHandlerTest extends TokenHandlerTestBase {
         readableTokenStore = newReadableStoreWithTokens(
                 Token.newBuilder().tokenId(fungibleTokenId).build());
 
-        writableAccountStore = newWritableStoreWithAccounts(
-                Account.newBuilder()
-                        .headPendingAirdropId(getFungibleAirdrop())
-                        .accountId(senderId)
-                        .build(),
-                Account.newBuilder().accountId(receiverId).build());
-        when(storeFactory.writableStore(WritableAccountStore.class)).thenReturn(writableAccountStore);
+        mockAccountStore();
 
         // Act
         assertDoesNotThrow(() -> subject.handle(handleContext));
@@ -119,9 +111,9 @@ class TokenCancelAirdropHandlerTest extends TokenHandlerTestBase {
 
     @Test
     void cancelAirdropWithNoPendingAirdropsThrowsException() {
-        // Arrange
-
         // setup common mocks
+        mockHandleContext();
+        mockAccountStore();
         readableTokenStore = newReadableStoreWithTokens(
                 Token.newBuilder().tokenId(fungibleTokenId).build());
 
@@ -143,9 +135,8 @@ class TokenCancelAirdropHandlerTest extends TokenHandlerTestBase {
 
     @Test
     void cancelAirdropWithInvalidTokenIdThrowsException() {
-        // Arrange
-
-        // setup common mocks
+        mockHandleContext();
+        mockAccountStore();
         readableTokenStore = newReadableStoreWithTokens();
 
         // Transaction body with token id that doesn't exist in the token store
@@ -164,9 +155,8 @@ class TokenCancelAirdropHandlerTest extends TokenHandlerTestBase {
 
     @Test
     void cancelAirdropWithInvalidNftIdThrowsException() {
-        // Arrange
-
-        // setup common mocks
+        mockHandleContext();
+        mockAccountStore();
         readableTokenStore = newReadableStoreWithTokens();
 
         // Transaction body with nfId that doesn't exist in the nft store
@@ -192,6 +182,8 @@ class TokenCancelAirdropHandlerTest extends TokenHandlerTestBase {
         @ParameterizedTest
         @MethodSource("maxAirdropsExceededArguments")
         void maxAirdropsExceeded(PendingAirdropId airdrop) {
+            mockHandleContext();
+            mockAccountStore();
             transactionBody = TransactionBody.newBuilder()
                     .tokenCancelAirdrop(tokenCancelRepeatedAirdrop(airdrop, 11))
                     .build();
@@ -241,6 +233,61 @@ class TokenCancelAirdropHandlerTest extends TokenHandlerTestBase {
         private PendingAirdropId[] repeatedAirdrops(final PendingAirdropId airDrop, final int count) {
             return Collections.nCopies(count, airDrop).toArray(new PendingAirdropId[0]);
         }
+    }
+
+    @Test
+    void pureChecksThrowsForDuplicateAirdropIds() {
+        var duplicateAirdrop = PendingAirdropId.newBuilder()
+                .senderId(senderId)
+                .receiverId(receiverId)
+                .fungibleTokenType(fungibleTokenId)
+                .build();
+        transactionBody = TransactionBody.newBuilder()
+                .tokenCancelAirdrop(TokenCancelAirdropTransactionBody.newBuilder()
+                        .pendingAirdrops(duplicateAirdrop, duplicateAirdrop)
+                        .build())
+                .build();
+        when(pureChecksContext.body()).thenReturn(transactionBody);
+
+        assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
+    }
+
+    @Test
+    void handleThrowsWhenCancelDisabled() {
+        testConfig = HederaTestConfigBuilder.create()
+                .withValue("tokens.airdrops.cancel.enabled", false)
+                .getOrCreateConfig();
+        when(handleContext.configuration()).thenReturn(testConfig);
+
+        transactionBody = TransactionBody.newBuilder()
+                .tokenCancelAirdrop(tokenCancelAirdrops())
+                .build();
+        when(handleContext.body()).thenReturn(transactionBody);
+
+        assertThrows(HandleException.class, () -> subject.handle(handleContext));
+    }
+
+    @Test
+    void calculateFeesThrowsWhenCancelDisabled() {
+        var testConfig = HederaTestConfigBuilder.create()
+                .withValue("tokens.airdrops.cancel.enabled", false)
+                .getOrCreateConfig();
+        var feeContext = mock(FeeContext.class);
+        when(feeContext.configuration()).thenReturn(testConfig);
+
+        assertThrows(HandleException.class, () -> subject.calculateFees(feeContext));
+    }
+
+    private void mockHandleContext() {
+        when(handleContext.configuration()).thenReturn(testConfig);
+        when(handleContext.storeFactory()).thenReturn(storeFactory);
+    }
+
+    private void mockAccountStore() {
+        WritableAccountStore writableAccountStore = newWritableStoreWithAccounts(
+                Account.newBuilder().accountId(senderId).build(),
+                Account.newBuilder().accountId(receiverId).build());
+        when(storeFactory.writableStore(WritableAccountStore.class)).thenReturn(writableAccountStore);
     }
 
     private static TokenCancelAirdropTransactionBody tokenCancelAirdrop(final boolean isFungible) {

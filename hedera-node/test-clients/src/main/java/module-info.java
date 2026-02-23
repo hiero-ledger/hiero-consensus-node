@@ -56,6 +56,7 @@ open module com.hedera.node.test.clients {
     exports com.hedera.services.bdd.spec.assertions.matchers;
     exports com.hedera.services.bdd.junit;
     exports com.hedera.services.bdd.junit.hedera;
+    exports com.hedera.services.bdd.junit.hedera.utils;
     exports com.hedera.services.bdd.junit.hedera.embedded;
     exports com.hedera.services.bdd.junit.hedera.embedded.fakes;
     exports com.hedera.services.bdd.junit.hedera.subprocess;
@@ -68,15 +69,22 @@ open module com.hedera.node.test.clients {
     exports com.hedera.services.bdd.junit.restart;
     exports com.hedera.services.bdd.junit.hedera.remote;
     exports com.hedera.services.bdd.spec.remote;
+    exports com.hedera.services.bdd.suites.utils.sysfiles;
 
     provides LauncherSessionListener with
             SharedNetworkLauncherSessionListener;
 
+    requires com.hedera.cryptography.wraps;
     requires com.hedera.node.app.hapi.fees;
     requires com.hedera.node.app.hapi.utils;
     requires com.hedera.node.app.service.addressbook.impl;
     requires com.hedera.node.app.service.addressbook;
     requires com.hedera.node.app.service.contract.impl;
+    requires com.hedera.node.app.service.contract;
+    requires com.hedera.node.app.service.entityid.impl;
+    requires com.hedera.node.app.service.entityid;
+    requires com.hedera.node.app.service.roster.impl;
+    requires com.hedera.node.app.service.roster;
     requires com.hedera.node.app.service.schedule.impl;
     requires com.hedera.node.app.service.schedule;
     requires com.hedera.node.app.service.token.impl;
@@ -86,20 +94,25 @@ open module com.hedera.node.test.clients {
     requires com.hedera.node.app;
     requires com.hedera.node.config;
     requires com.hedera.node.hapi;
+    requires com.hedera.pbj.grpc.helidon.config;
+    requires com.hedera.pbj.grpc.helidon;
     requires com.swirlds.base.test.fixtures;
     requires com.swirlds.base;
     requires com.swirlds.common;
     requires com.swirlds.config.api;
     requires com.swirlds.merkledb;
     requires com.swirlds.metrics.api;
-    requires com.swirlds.platform.core.test.fixtures;
     requires com.swirlds.platform.core;
     requires com.swirlds.state.api;
+    requires com.swirlds.state.impl;
     requires com.swirlds.virtualmap;
     requires org.hiero.base.concurrent;
     requires org.hiero.base.crypto;
     requires org.hiero.base.utility;
+    requires org.hiero.consensus.metrics;
     requires org.hiero.consensus.model;
+    requires org.hiero.consensus.platformstate;
+    requires org.hiero.consensus.roster;
     requires org.hiero.consensus.utility;
     requires com.esaulpaugh.headlong;
     requires com.fasterxml.jackson.annotation;
@@ -112,6 +125,8 @@ open module com.hedera.node.test.clients {
     requires io.grpc.netty;
     requires io.grpc.stub;
     requires io.grpc;
+    requires io.helidon.common;
+    requires io.helidon.webserver;
     requires io.netty.handler;
     requires java.desktop;
     requires java.net.http;

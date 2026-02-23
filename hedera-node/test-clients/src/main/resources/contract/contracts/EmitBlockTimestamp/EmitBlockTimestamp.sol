@@ -32,4 +32,8 @@ contract EmitBlockTimestamp {
         }
         return blockHashes;
     }
+
+    function getBlockHash(uint bNo) external view returns (bytes32) {
+        return blockhash(block.number - bNo);
+    }
 }

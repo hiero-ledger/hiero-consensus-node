@@ -1,6 +1,19 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.test.handlers.util;
 
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_LABEL;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_STATE_LABEL;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.NFTS_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.NFTS_STATE_LABEL;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.TOKENS_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.TOKENS_STATE_LABEL;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.TOKEN_RELS_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.TOKEN_RELS_STATE_LABEL;
+import static com.hedera.node.app.service.token.impl.schemas.V0530TokenSchema.AIRDROPS_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0530TokenSchema.AIRDROPS_STATE_LABEL;
+
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.NftID;
 import com.hedera.hapi.node.base.PendingAirdropId;
@@ -21,101 +34,70 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  *
  */
 public class StateBuilderUtil {
-    /**
-     * The state key for accounts.
-     */
-    public static final String ACCOUNTS = "ACCOUNTS";
-    /**
-     * The state key for pending airdrops.
-     */
-    public static final String AIRDROPS = "PENDING_AIRDROPS";
-    /**
-     * The state key for aliases.
-     */
-    public static final String ALIASES = "ALIASES";
-    /**
-     * The state key for tokens.
-     */
-    public static final String TOKENS = "TOKENS";
-    /**
-     * The state key for token relations.
-     */
-    public static final String TOKEN_RELS = "TOKEN_RELS";
-    /**
-     * The state key for NFTs.
-     */
-    public static final String NFTS = "NFTS";
-    /**
-     * The state key for staking infos.
-     */
-    public static final String STAKING_INFO = "STAKING_INFOS";
-    /**
-     * The state key for network rewards.
-     */
-    public static final String NETWORK_REWARDS = "STAKING_NETWORK_REWARDS";
 
     @NonNull
     protected MapReadableKVState.Builder<AccountID, Account> emptyReadableAccountStateBuilder() {
-        return MapReadableKVState.builder(ACCOUNTS);
+        return MapReadableKVState.builder(ACCOUNTS_STATE_ID, ACCOUNTS_STATE_LABEL);
     }
 
     @NonNull
     protected MapWritableKVState.Builder<AccountID, Account> emptyWritableAccountStateBuilder() {
-        return MapWritableKVState.builder(ACCOUNTS);
+        return MapWritableKVState.builder(ACCOUNTS_STATE_ID, ACCOUNTS_STATE_LABEL);
     }
 
     @NonNull
     protected MapReadableKVState.Builder<PendingAirdropId, AccountPendingAirdrop> emptyReadableAirdropStateBuilder() {
-        return MapReadableKVState.builder(AIRDROPS);
+        return MapReadableKVState.builder(AIRDROPS_STATE_ID, AIRDROPS_STATE_LABEL);
     }
 
     @NonNull
     protected MapWritableKVState.Builder<PendingAirdropId, AccountPendingAirdrop> emptyWritableAirdropStateBuilder() {
-        return MapWritableKVState.builder(AIRDROPS);
+        return MapWritableKVState.builder(AIRDROPS_STATE_ID, AIRDROPS_STATE_LABEL);
     }
 
     @NonNull
     protected MapReadableKVState.Builder<EntityIDPair, TokenRelation> emptyReadableTokenRelsStateBuilder() {
-        return MapReadableKVState.builder(TOKEN_RELS);
+        return MapReadableKVState.builder(TOKEN_RELS_STATE_ID, TOKEN_RELS_STATE_LABEL);
     }
 
     @NonNull
     protected MapWritableKVState.Builder<EntityIDPair, TokenRelation> emptyWritableTokenRelsStateBuilder() {
-        return MapWritableKVState.builder(TOKEN_RELS);
+        return MapWritableKVState.builder(TOKEN_RELS_STATE_ID, TOKEN_RELS_STATE_LABEL);
     }
 
     @NonNull
     protected MapReadableKVState.Builder<NftID, Nft> emptyReadableNftStateBuilder() {
-        return MapReadableKVState.builder(NFTS);
+        return MapReadableKVState.builder(NFTS_STATE_ID, NFTS_STATE_LABEL);
     }
 
     @NonNull
     protected MapWritableKVState.Builder<NftID, Nft> emptyWritableNftStateBuilder() {
-        return MapWritableKVState.builder(NFTS);
+        return MapWritableKVState.builder(NFTS_STATE_ID, NFTS_STATE_LABEL);
     }
 
     @NonNull
     protected MapReadableKVState.Builder<TokenID, Token> emptyReadableTokenStateBuilder() {
-        return MapReadableKVState.builder(TOKENS);
+        return MapReadableKVState.builder(TOKENS_STATE_ID, TOKENS_STATE_LABEL);
     }
 
     @NonNull
     protected MapWritableKVState.Builder<TokenID, Token> emptyWritableTokenStateBuilder() {
-        return MapWritableKVState.builder(TOKENS);
+        return MapWritableKVState.builder(TOKENS_STATE_ID, TOKENS_STATE_LABEL);
     }
 
     @NonNull
     protected MapWritableKVState.Builder<ProtoBytes, AccountID> emptyWritableAliasStateBuilder() {
-        return MapWritableKVState.builder(ALIASES);
+        return MapWritableKVState.builder(ALIASES_STATE_ID, ALIASES_STATE_LABEL);
     }
 
     @NonNull
     protected MapReadableKVState.Builder<ProtoBytes, AccountID> emptyReadableAliasStateBuilder() {
-        return MapReadableKVState.builder(ALIASES);
+        return MapReadableKVState.builder(ALIASES_STATE_ID, ALIASES_STATE_LABEL);
     }
 
     @NonNull
     protected MapWritableKVState<TokenID, Token> emptyWritableTokenState() {
-        return MapWritableKVState.<TokenID, Token>builder(TOKENS).build();
+        return MapWritableKVState.<TokenID, Token>builder(TOKENS_STATE_ID, TOKENS_STATE_LABEL)
+                .build();
     }
 }

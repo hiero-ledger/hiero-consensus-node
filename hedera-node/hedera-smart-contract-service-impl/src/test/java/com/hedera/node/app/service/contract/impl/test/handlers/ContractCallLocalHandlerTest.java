@@ -29,6 +29,7 @@ import com.hedera.node.app.service.contract.impl.exec.ContextQueryProcessor;
 import com.hedera.node.app.service.contract.impl.exec.QueryComponent;
 import com.hedera.node.app.service.contract.impl.handlers.ContractCallLocalHandler;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.spi.fees.FeeCalculator;
@@ -39,7 +40,6 @@ import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hederahashgraph.api.proto.java.FeeComponents;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.state.lifecycle.EntityIdFactory;
 import java.time.InstantSource;
 import java.util.function.Function;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
@@ -264,10 +264,9 @@ class ContractCallLocalHandlerTest {
                 null,
                 null,
                 null,
-                null,
-                null,
                 SUCCESS_RESULT.asEvmQueryResult(),
                 SUCCESS_RESULT.signerNonce(),
+                null,
                 null);
         given(processor.call()).willReturn(expectedOutcome);
 

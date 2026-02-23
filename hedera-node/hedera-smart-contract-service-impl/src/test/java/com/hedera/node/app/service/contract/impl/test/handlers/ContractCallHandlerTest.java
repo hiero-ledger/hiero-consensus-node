@@ -6,7 +6,6 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CALLED_
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.HALT_RESULT;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SUCCESS_RESULT;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.assertFailsWith;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -14,6 +13,7 @@ import static org.mockito.ArgumentMatchers.notNull;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 
+import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.contract.ContractCallTransactionBody;
@@ -27,7 +27,10 @@ import com.hedera.node.app.service.contract.impl.exec.scope.HederaOperations;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import com.hedera.node.app.service.contract.impl.handlers.ContractCallHandler;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
+import com.hedera.node.app.service.contract.impl.state.EvmFrameStates;
 import com.hedera.node.app.service.contract.impl.state.RootProxyWorldUpdater;
+import com.hedera.node.app.service.contract.impl.utils.ConstantUtils;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
 import com.hedera.node.app.spi.fees.FeeContext;
@@ -36,8 +39,8 @@ import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.config.data.ContractsConfig;
-import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.metrics.api.Metrics;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -55,7 +58,10 @@ class ContractCallHandlerTest extends ContractHandlerTestBase {
     private TransactionComponent component;
 
     @Mock
-    private HandleContext handleContext;
+    private HandleContext context;
+
+    @Mock
+    private EntityIdFactory entityIdFactory;
 
     @Mock
     private PureChecksContext pureChecksContext;
@@ -99,14 +105,15 @@ class ContractCallHandlerTest extends ContractHandlerTestBase {
     void setUp() {
         contractMetrics.createContractPrimaryMetrics();
         given(contractServiceComponent.contractMetrics()).willReturn(contractMetrics);
-        subject = new ContractCallHandler(() -> factory, gasCalculator, contractServiceComponent);
+        subject = new ContractCallHandler(() -> factory, gasCalculator, entityIdFactory, contractServiceComponent);
     }
 
     @Test
     void delegatesToCreatedComponentAndExposesSuccess() {
-        given(factory.create(handleContext, HederaFunctionality.CONTRACT_CALL)).willReturn(component);
+        given(factory.create(context, HederaFunctionality.CONTRACT_CALL, EvmFrameStates.DEFAULT))
+                .willReturn(component);
         given(component.contextTransactionProcessor()).willReturn(processor);
-        given(handleContext.savepointStack()).willReturn(stack);
+        given(context.savepointStack()).willReturn(stack);
         given(stack.getBaseBuilder(ContractCallStreamBuilder.class)).willReturn(recordBuilder);
         given(baseProxyWorldUpdater.entityIdFactory()).willReturn(entityIdFactory);
         final var expectedResult = SUCCESS_RESULT.asProtoResultOf(null, baseProxyWorldUpdater, null);
@@ -118,27 +125,28 @@ class ContractCallHandlerTest extends ContractHandlerTestBase {
                 null,
                 null,
                 null,
-                null,
-                null,
-                SUCCESS_RESULT.asEvmTxResultOf(null, null),
+                SUCCESS_RESULT.asEvmTxResultOf(null, baseProxyWorldUpdater, null, null),
                 SUCCESS_RESULT.signerNonce(),
+                null,
                 null);
         given(processor.call()).willReturn(expectedOutcome);
         given(component.hederaOperations()).willReturn(hederaOperations);
 
         given(recordBuilder.contractID(CALLED_CONTRACT_ID)).willReturn(recordBuilder);
         given(recordBuilder.contractCallResult(expectedResult)).willReturn(recordBuilder);
-        given(recordBuilder.withCommonFieldsSetFrom(expectedOutcome)).willReturn(recordBuilder);
+        given(recordBuilder.withCommonFieldsSetFrom(expectedOutcome, context, entityIdFactory))
+                .willReturn(recordBuilder);
 
-        assertDoesNotThrow(() -> subject.handle(handleContext));
+        assertDoesNotThrow(() -> subject.handle(context));
     }
 
     @Test
     void delegatesToCreatedComponentAndThrowsOnFailure() {
-        given(factory.create(handleContext, HederaFunctionality.CONTRACT_CALL)).willReturn(component);
+        given(factory.create(context, HederaFunctionality.CONTRACT_CALL, EvmFrameStates.DEFAULT))
+                .willReturn(component);
         given(component.contextTransactionProcessor()).willReturn(processor);
         given(component.hederaOperations()).willReturn(hederaOperations);
-        given(handleContext.savepointStack()).willReturn(stack);
+        given(context.savepointStack()).willReturn(stack);
         given(stack.getBaseBuilder(ContractCallStreamBuilder.class)).willReturn(recordBuilder);
         final var expectedResult = HALT_RESULT.asProtoResultOf(null, baseProxyWorldUpdater, null);
         final var expectedOutcome = new CallOutcome(
@@ -149,18 +157,18 @@ class ContractCallHandlerTest extends ContractHandlerTestBase {
                 null,
                 null,
                 null,
+                HALT_RESULT.asEvmTxResultOf(null, baseProxyWorldUpdater, null, null),
                 null,
-                null,
-                HALT_RESULT.asEvmTxResultOf(null, null),
                 null,
                 null);
         given(processor.call()).willReturn(expectedOutcome);
 
         given(recordBuilder.contractID(null)).willReturn(recordBuilder);
         given(recordBuilder.contractCallResult(expectedResult)).willReturn(recordBuilder);
-        given(recordBuilder.withCommonFieldsSetFrom(expectedOutcome)).willReturn(recordBuilder);
+        given(recordBuilder.withCommonFieldsSetFrom(expectedOutcome, context, entityIdFactory))
+                .willReturn(recordBuilder);
 
-        assertFailsWith(INVALID_SIGNATURE, () -> subject.handle(handleContext));
+        assertFailsWith(INVALID_SIGNATURE, () -> subject.handle(context));
     }
 
     @Test
@@ -181,15 +189,25 @@ class ContractCallHandlerTest extends ContractHandlerTestBase {
         assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
 
         // check at least intrinsic gas
-        final var txn2 = contractCallTransactionWithInsufficientGas();
-        given(gasCalculator.transactionIntrinsicGasCost(org.apache.tuweni.bytes.Bytes.wrap(new byte[0]), false))
+        final var txn2 = contractCallTransactionWithContractId(targetContract, INTRINSIC_GAS_FOR_0_ARG_METHOD - 1);
+        given(gasCalculator.transactionIntrinsicGasCost(org.apache.tuweni.bytes.Bytes.wrap(new byte[0]), false, 0L))
                 .willReturn(INTRINSIC_GAS_FOR_0_ARG_METHOD);
         given(pureChecksContext.body()).willReturn(txn2);
         assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
 
         // check that invalid contract id is rejected
-        final var txn3 = contractCallTransactionWithInvalidContractId();
+        final var txn3 = contractCallTransactionWithContractId(invalidContract);
         given(pureChecksContext.body()).willReturn(txn3);
+        assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
+
+        // check that zero contract id is rejected
+        final var txn4 = contractCallTransactionWithContractId(ConstantUtils.ZERO_CONTRACT_ID);
+        given(pureChecksContext.body()).willReturn(txn4);
+        assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
+
+        // check that emv zero address contract id is rejected
+        final var txn5 = contractCallTransactionWithContractId(ConstantUtils.EVM_ZERO_CONTRACT_ID);
+        given(pureChecksContext.body()).willReturn(txn5);
         assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
     }
 
@@ -226,23 +244,15 @@ class ContractCallHandlerTest extends ContractHandlerTestBase {
                 .build();
     }
 
-    private TransactionBody contractCallTransactionWithInvalidContractId() {
-        final var transactionID = TransactionID.newBuilder().accountID(payer).transactionValidStart(consensusTimestamp);
-        return TransactionBody.newBuilder()
-                .transactionID(transactionID)
-                .contractCall(ContractCallTransactionBody.newBuilder()
-                        .gas(INTRINSIC_GAS_FOR_0_ARG_METHOD - 1)
-                        .contractID(invalidContract))
-                .build();
+    private TransactionBody contractCallTransactionWithContractId(final ContractID contractId) {
+        return contractCallTransactionWithContractId(contractId, INTRINSIC_GAS_FOR_0_ARG_METHOD);
     }
 
-    private TransactionBody contractCallTransactionWithInsufficientGas() {
+    private TransactionBody contractCallTransactionWithContractId(final ContractID contractId, final long gas) {
         final var transactionID = TransactionID.newBuilder().accountID(payer).transactionValidStart(consensusTimestamp);
         return TransactionBody.newBuilder()
                 .transactionID(transactionID)
-                .contractCall(ContractCallTransactionBody.newBuilder()
-                        .gas(INTRINSIC_GAS_FOR_0_ARG_METHOD - 1)
-                        .contractID(targetContract))
+                .contractCall(ContractCallTransactionBody.newBuilder().gas(gas).contractID(contractId))
                 .build();
     }
 }

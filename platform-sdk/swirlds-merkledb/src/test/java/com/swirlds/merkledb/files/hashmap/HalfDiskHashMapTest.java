@@ -2,35 +2,33 @@
 package com.swirlds.merkledb.files.hashmap;
 
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.merkledb.collections.LongList;
 import com.swirlds.merkledb.collections.LongListHeap;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.files.DataFileCompactor;
 import com.swirlds.merkledb.files.MemoryIndexDiskKeyValueStore;
-import com.swirlds.merkledb.test.fixtures.ExampleLongKeyFixedSize;
 import com.swirlds.merkledb.test.fixtures.files.FilesTestType;
-import com.swirlds.virtualmap.VirtualKey;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
-import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
-@SuppressWarnings({"SameParameterValue", "unchecked"})
+@SuppressWarnings({"SameParameterValue"})
 class HalfDiskHashMapTest {
 
     /** Temporary directory provided by JUnit */
@@ -64,8 +62,8 @@ class HalfDiskHashMapTest {
             throws IOException {
         map.startWriting();
         for (int i = start; i < (start + count); i++) {
-            final VirtualKey key = testType.createVirtualLongKey(i);
-            map.put(testType.keySerializer.toBytes(key), key.hashCode(), i * dataMultiplier);
+            final Bytes key = testType.createVirtualLongKey(i);
+            map.put(key, i * dataMultiplier);
         }
         //        map.debugDumpTransactionCache();
         long START = System.currentTimeMillis();
@@ -82,12 +80,9 @@ class HalfDiskHashMapTest {
             throws IOException {
         long START = System.currentTimeMillis();
         for (int i = start; i < (start + count); i++) {
-            final var key = testType.createVirtualLongKey(i);
-            long result = map.get(testType.keySerializer.toBytes(key), key.hashCode(), -1);
-            assertEquals(
-                    i * dataMultiplier,
-                    result,
-                    "Failed to read key=" + testType.createVirtualLongKey(i) + " dataMultiplier=" + dataMultiplier);
+            final Bytes key = testType.createVirtualLongKey(i);
+            long result = map.get(key, -1);
+            assertEquals(i * dataMultiplier, result, "Failed to read key=" + key + " dataMultiplier=" + dataMultiplier);
         }
         printTestUpdate(START, count, "Read");
     }
@@ -110,8 +105,8 @@ class HalfDiskHashMapTest {
             Random random = new Random(1234);
             for (int j = 1; j < (count * 2); j++) {
                 int i = 1 + random.nextInt(count);
-                final VirtualKey key = testType.createVirtualLongKey(i);
-                long result = map.get(testType.keySerializer.toBytes(key), key.hashCode(), 0);
+                final Bytes key = testType.createVirtualLongKey(i);
+                long result = map.get(key, 0);
                 assertEquals(i, result, "unexpected value of newVirtualLongKey");
             }
             // create snapshot
@@ -123,28 +118,23 @@ class HalfDiskHashMapTest {
             checkData(testType, mapFromSnapshot, 1, count, 1);
             // check deletion
             map.startWriting();
-            final VirtualKey key5 = testType.createVirtualLongKey(5);
-            final VirtualKey key50 = testType.createVirtualLongKey(50);
-            final VirtualKey key500 = testType.createVirtualLongKey(500);
-            map.delete(testType.keySerializer.toBytes(key5), key5.hashCode());
-            map.delete(testType.keySerializer.toBytes(key50), key50.hashCode());
-            map.delete(testType.keySerializer.toBytes(key500), key500.hashCode());
+            final Bytes key5 = testType.createVirtualLongKey(5);
+            final Bytes key50 = testType.createVirtualLongKey(50);
+            final Bytes key500 = testType.createVirtualLongKey(500);
+            map.delete(key5);
+            map.delete(key50);
+            map.delete(key500);
             map.endWriting();
-            assertEquals(-1, map.get(testType.keySerializer.toBytes(key5), key5.hashCode(), -1), "Expect not to exist");
-            assertEquals(
-                    -1, map.get(testType.keySerializer.toBytes(key50), key50.hashCode(), -1), "Expect not to exist");
-            assertEquals(
-                    -1, map.get(testType.keySerializer.toBytes(key500), key500.hashCode(), -1), "Expect not to exist");
+            assertEquals(-1, map.get(key5, -1), "Expect not to exist");
+            assertEquals(-1, map.get(key50, -1), "Expect not to exist");
+            assertEquals(-1, map.get(key500, -1), "Expect not to exist");
             checkData(testType, map, 1, 4, 1);
             checkData(testType, map, 6, 43, 1);
             checkData(testType, map, 51, 448, 1);
             checkData(testType, map, 501, 9499, 1);
             // check close and try read after
             map.close();
-            assertEquals(
-                    -1,
-                    map.get(testType.keySerializer.toBytes(key5), key5.hashCode(), -1),
-                    "Expect not found result as just closed the map!");
+            assertEquals(-1, map.get(key5, -1), "Expect not found result as just closed the map!");
         }
     }
 
@@ -195,60 +185,45 @@ class HalfDiskHashMapTest {
     }
 
     @Test
-    void testOverwritesWithCollision() throws IOException {
-        final FilesTestType testType = FilesTestType.fixed;
-        try (HalfDiskHashMap map = createNewTempMap("testOverwritesWithCollision", 1000)) {
-            map.startWriting();
-            for (int i = 100; i < 300; i++) {
-                final VirtualKey key = new CollidableFixedLongKey(i);
-                map.put(testType.keySerializer.toBytes(key), key.hashCode(), i);
-            }
-            assertDoesNotThrow(map::endWriting);
-        }
-    }
-
-    @Test
     void testRebuildMap() throws Exception {
         final FilesTestType testType = FilesTestType.variable;
         try (HalfDiskHashMap map = createNewTempMap("testRebuildMap", 100)) {
             map.startWriting();
-            final VirtualKey key1 = testType.createVirtualLongKey(1);
-            map.put(testType.keySerializer.toBytes(key1), key1.hashCode(), 1);
-            final VirtualKey key2 = testType.createVirtualLongKey(2);
-            map.put(testType.keySerializer.toBytes(key2), key2.hashCode(), 2);
+            final Bytes key1 = testType.createVirtualLongKey(1);
+            map.put(key1, 1);
+            final Bytes key2 = testType.createVirtualLongKey(2);
+            map.put(key2, 2);
             map.endWriting();
             map.startWriting();
-            final VirtualKey key3 = testType.createVirtualLongKey(3);
-            map.put(testType.keySerializer.toBytes(key3), key3.hashCode(), 3);
-            final VirtualKey key4 = testType.createVirtualLongKey(4);
-            map.put(testType.keySerializer.toBytes(key4), key4.hashCode(), 4);
+            final Bytes key3 = testType.createVirtualLongKey(3);
+            map.put(key3, 3);
+            final Bytes key4 = testType.createVirtualLongKey(4);
+            map.put(key4, 4);
             map.endWriting();
 
-            assertEquals(1, map.get(testType.keySerializer.toBytes(key1), key1.hashCode(), -1));
-            assertEquals(2, map.get(testType.keySerializer.toBytes(key2), key2.hashCode(), -1));
-            assertEquals(3, map.get(testType.keySerializer.toBytes(key3), key3.hashCode(), -1));
-            assertEquals(4, map.get(testType.keySerializer.toBytes(key4), key4.hashCode(), -1));
+            assertEquals(1, map.get(key1, -1));
+            assertEquals(2, map.get(key2, -1));
+            assertEquals(3, map.get(key3, -1));
+            assertEquals(4, map.get(key4, -1));
 
-            final MemoryIndexDiskKeyValueStore kv = createNewTempKV("testRebuildMap", 100);
-            kv.startWriting();
-            kv.updateValidKeyRange(2, 4);
-            final VirtualLeafBytes rec2 =
-                    new VirtualLeafBytes(2, testType.keySerializer.toBytes(key2), key2.hashCode(), Bytes.wrap("12"));
-            kv.put(2, rec2::writeTo, rec2.getSizeInBytes());
-            final VirtualLeafBytes rec3 =
-                    new VirtualLeafBytes(3, testType.keySerializer.toBytes(key3), key3.hashCode(), Bytes.wrap("13"));
-            kv.put(3, rec3::writeTo, rec3.getSizeInBytes());
-            final VirtualLeafBytes rec4 =
-                    new VirtualLeafBytes(4, testType.keySerializer.toBytes(key4), key4.hashCode(), Bytes.wrap("14"));
-            kv.put(4, rec4::writeTo, rec4.getSizeInBytes());
-            kv.endWriting();
+            try (final MemoryIndexDiskKeyValueStore kv = createNewTempKV("testRebuildMap", 100)) {
+                kv.startWriting();
+                kv.updateValidKeyRange(2, 4);
+                final VirtualLeafBytes rec2 = new VirtualLeafBytes(2, key2, Bytes.wrap("12"));
+                kv.put(2, rec2::writeTo, rec2.getSizeInBytes());
+                final VirtualLeafBytes rec3 = new VirtualLeafBytes(3, key3, Bytes.wrap("13"));
+                kv.put(3, rec3::writeTo, rec3.getSizeInBytes());
+                final VirtualLeafBytes rec4 = new VirtualLeafBytes(4, key4, Bytes.wrap("14"));
+                kv.put(4, rec4::writeTo, rec4.getSizeInBytes());
+                kv.endWriting();
 
-            map.repair(2, 4, kv);
+                map.repair(2, 4, kv);
 
-            assertEquals(-1, map.get(testType.keySerializer.toBytes(key1), key1.hashCode(), -1));
-            assertEquals(2, map.get(testType.keySerializer.toBytes(key2), key2.hashCode(), -1));
-            assertEquals(3, map.get(testType.keySerializer.toBytes(key3), key3.hashCode(), -1));
-            assertEquals(4, map.get(testType.keySerializer.toBytes(key4), key4.hashCode(), -1));
+                assertEquals(-1, map.get(key1, -1));
+                assertEquals(2, map.get(key2, -1));
+                assertEquals(3, map.get(key3, -1));
+                assertEquals(4, map.get(key4, -1));
+            }
         }
     }
 
@@ -257,36 +232,49 @@ class HalfDiskHashMapTest {
         final FilesTestType testType = FilesTestType.variable;
         try (HalfDiskHashMap map = createNewTempMap("testRebuildIncompleteMap", 100)) {
             map.startWriting();
-            final VirtualKey key1 = testType.createVirtualLongKey(1);
-            map.put(testType.keySerializer.toBytes(key1), key1.hashCode(), 1);
-            final VirtualKey key2 = testType.createVirtualLongKey(2);
-            map.put(testType.keySerializer.toBytes(key2), key2.hashCode(), 2);
-            final VirtualKey key3 = testType.createVirtualLongKey(3);
-            map.put(testType.keySerializer.toBytes(key3), key3.hashCode(), 3);
-            final VirtualKey key4 = testType.createVirtualLongKey(4);
+            final Bytes key1 = testType.createVirtualLongKey(1);
+            map.put(key1, 1);
+            final Bytes key2 = testType.createVirtualLongKey(2);
+            map.put(key2, 2);
+            final Bytes key3 = testType.createVirtualLongKey(3);
+            map.put(key3, 3);
+            final Bytes key4 = testType.createVirtualLongKey(4);
             // No entry for key 4
             map.endWriting();
 
-            assertEquals(1, map.get(testType.keySerializer.toBytes(key1), key1.hashCode(), -1));
-            assertEquals(2, map.get(testType.keySerializer.toBytes(key2), key2.hashCode(), -1));
-            assertEquals(3, map.get(testType.keySerializer.toBytes(key3), key3.hashCode(), -1));
+            assertEquals(1, map.get(key1, -1));
+            assertEquals(2, map.get(key2, -1));
+            assertEquals(3, map.get(key3, -1));
 
-            final MemoryIndexDiskKeyValueStore kv = createNewTempKV("testRebuildIncompleteMap", 100);
-            kv.startWriting();
-            kv.updateValidKeyRange(2, 4);
-            final VirtualLeafBytes rec2 =
-                    new VirtualLeafBytes(2, testType.keySerializer.toBytes(key2), key2.hashCode(), Bytes.wrap("12"));
-            kv.put(2, rec2::writeTo, rec2.getSizeInBytes());
-            final VirtualLeafBytes rec3 =
-                    new VirtualLeafBytes(3, testType.keySerializer.toBytes(key3), key3.hashCode(), Bytes.wrap("13"));
-            kv.put(3, rec3::writeTo, rec3.getSizeInBytes());
-            final VirtualLeafBytes rec4 =
-                    new VirtualLeafBytes(4, testType.keySerializer.toBytes(key4), key4.hashCode(), Bytes.wrap("14"));
-            kv.put(4, rec4::writeTo, rec4.getSizeInBytes());
-            kv.endWriting();
+            try (final MemoryIndexDiskKeyValueStore kv = createNewTempKV("testRebuildIncompleteMap", 100)) {
+                kv.startWriting();
+                kv.updateValidKeyRange(2, 4);
+                final VirtualLeafBytes rec2 = new VirtualLeafBytes(2, key2, Bytes.wrap("12"));
+                kv.put(2, rec2::writeTo, rec2.getSizeInBytes());
+                final VirtualLeafBytes rec3 = new VirtualLeafBytes(3, key3, Bytes.wrap("13"));
+                kv.put(3, rec3::writeTo, rec3.getSizeInBytes());
+                final VirtualLeafBytes rec4 = new VirtualLeafBytes(4, key4, Bytes.wrap("14"));
+                kv.put(4, rec4::writeTo, rec4.getSizeInBytes());
+                kv.endWriting();
 
-            // key4 is missing in the map, it cannot be restored from pathToKeyValue store
-            assertThrows(IOException.class, () -> map.repair(2, 4, kv));
+                // key4 is missing in the map, it cannot be restored from pathToKeyValue store
+                assertThrows(IOException.class, () -> map.repair(2, 4, kv));
+            }
+        }
+    }
+
+    @Test
+    void testInitialBucketIndexCapacity() throws Exception {
+        final MerkleDbConfig merkleDbConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
+        final long maxNumOfKeys = merkleDbConfig.maxNumOfKeys();
+        final long goodAverageBucketEntryCount = merkleDbConfig.goodAverageBucketEntryCount();
+        // Bucket index capacity doesn't depend on HDHM initial size, so 1024 below can be anything
+        try (final HalfDiskHashMap hdhm = createNewTempMap("testInitialBucketIndexCapacity", 1024)) {
+            final LongList bucketIndex = (LongList) hdhm.getBucketIndexToBucketLocation();
+            final long maxNumOfBuckets = maxNumOfKeys / goodAverageBucketEntryCount;
+            final long expectedCapacity =
+                    Long.highestOneBit(maxNumOfBuckets * 100 / HalfDiskHashMap.PERCENT_START_RESIZE) * 2;
+            assertEquals(expectedCapacity, bucketIndex.capacity());
         }
     }
 
@@ -317,16 +305,16 @@ class HalfDiskHashMapTest {
             assertEquals(initialNumOfBuckets, map.getNumOfBuckets());
             map.startWriting();
             for (int i = 0; i < 100; i++) {
-                map.put(Bytes.wrap(new byte[] {(byte) i, 10}), 1000 + i, i * 2);
+                map.put(Bytes.wrap(new byte[] {(byte) i, 10}), i * 2);
             }
             map.endWriting();
             map.resizeIfNeeded(499, 998);
             for (int i = 0; i < 100; i++) {
-                final long path = map.get(Bytes.wrap(new byte[] {(byte) i, 10}), 1000 + i, -1);
+                final long path = map.get(Bytes.wrap(new byte[] {(byte) i, 10}), -1);
                 assertEquals(i * 2, path);
             }
             for (int i = 100; i < 200; i++) {
-                final long path = map.get(Bytes.wrap(new byte[] {(byte) i, 10}), 1000 + i, -1);
+                final long path = map.get(Bytes.wrap(new byte[] {(byte) i, 10}), -1);
                 assertEquals(-1, path);
             }
         }
@@ -339,7 +327,7 @@ class HalfDiskHashMapTest {
             assertEquals(initialNumOfBuckets, map.getNumOfBuckets()); // should be 8
             map.startWriting();
             for (int i = 0; i < 100; i++) {
-                map.put(Bytes.wrap(new byte[] {(byte) i, 10}), 1000 + i, i * 2);
+                map.put(Bytes.wrap(new byte[] {(byte) i, 10}), i * 2);
             }
             map.endWriting();
             final List<Long> bucketIndexValues = new ArrayList<>();
@@ -418,6 +406,32 @@ class HalfDiskHashMapTest {
     }
 
     @Test
+    void skipAllBucketsNoUpdates() throws Exception {
+        try (HalfDiskHashMap map = createNewTempMap("skipAllBucketsNoUpdates", 200)) {
+            final int numOfBuckets = calcExpectedNumOfBuckets(200);
+            map.startWriting();
+            for (int i = 0; i < numOfBuckets; i++) {
+                map.put(Bytes.wrap(new byte[] {(byte) i}), i, i * 3L);
+            }
+            map.endWriting();
+            map.startWriting();
+            for (int i = 0; i < numOfBuckets; i++) {
+                map.put(Bytes.wrap(new byte[] {(byte) i}), i, i * 3L);
+            }
+            map.endWriting();
+            final LongList bucketIndex = (LongList) map.getBucketIndexToBucketLocation();
+            for (int i = 0; i < numOfBuckets; i++) {
+                final BufferedData bucketData = map.getFileCollection().readDataItemUsingIndex(bucketIndex, i);
+                assertNotNull(bucketData);
+                try (ParsedBucket bucket = new ParsedBucket()) {
+                    bucket.readFrom(bucketData);
+                    assertEquals(i * 3L, bucket.findValue(i, Bytes.wrap(new byte[] {(byte) i}), -1));
+                }
+            }
+        }
+    }
+
+    @Test
     void checkBucketsAfterResize() throws Exception {
         try (HalfDiskHashMap map = createNewTempMap("checkBucketsAfterResize", 200)) {
             final int initialNumOfBuckets = calcExpectedNumOfBuckets(200);
@@ -484,7 +498,23 @@ class HalfDiskHashMapTest {
             }
             map.endWriting();
             final LongList bucketIndex = (LongList) map.getBucketIndexToBucketLocation();
-            for (int i = 0; i < initialNumOfBuckets; i++) {
+            // Check bucket 0, it was not updated -> not sanitized
+            {
+                final BufferedData bucketData = map.getFileCollection().readDataItemUsingIndex(bucketIndex, 0);
+                assertNotNull(bucketData);
+                try (ParsedBucket bucket = new ParsedBucket()) {
+                    bucket.readFrom(bucketData);
+                    assertEquals(0, bucket.getBucketIndex());
+                    assertEquals(2, bucket.getBucketEntryCount());
+                    assertEquals(0, bucket.findValue(0, Bytes.wrap(new byte[] {(byte) 0}), -1));
+                    // Bucket 0 was not updated, its sanitization was skipped
+                    assertEquals(
+                            3, // i + 3L
+                            bucket.findValue(initialNumOfBuckets, Bytes.wrap(new byte[] {(byte) (100)}), -1));
+                }
+            }
+            // Check buckets [1, initialNumOfBuckets), they were updated and sanitized
+            for (int i = 1; i < initialNumOfBuckets; i++) {
                 final BufferedData bucketData = map.getFileCollection().readDataItemUsingIndex(bucketIndex, i);
                 assertNotNull(bucketData);
                 try (ParsedBucket bucket = new ParsedBucket()) {
@@ -497,6 +527,7 @@ class HalfDiskHashMapTest {
                             bucket.findValue(i + initialNumOfBuckets, Bytes.wrap(new byte[] {(byte) (i + 100)}), -1));
                 }
             }
+            // Check buckets [initialNumOfBuckets, initialNumOfBuckets * 2), they are new
             for (int i = initialNumOfBuckets; i < initialNumOfBuckets * 2; i++) {
                 // The old index (before resize)
                 final int ei = i - initialNumOfBuckets;
@@ -535,14 +566,14 @@ class HalfDiskHashMapTest {
                 final int hash1 = i;
                 final long path1 = first + i;
                 map.put(key1, hash1, path1);
-                final VirtualLeafBytes rec1 = new VirtualLeafBytes(path1, key1, hash1, Bytes.wrap("" + i));
+                final VirtualLeafBytes rec1 = new VirtualLeafBytes(path1, key1, Bytes.wrap("" + i));
                 kvStore.put(path1, rec1::writeTo, rec1.getSizeInBytes());
                 // KV 2
                 final Bytes key2 = Bytes.wrap(intToByteArray(i + 1001));
                 final int hash2 = i + initialNumOfBuckets;
                 final long path2 = first + N + i;
                 map.put(key2, hash2, path2);
-                final VirtualLeafBytes rec2 = new VirtualLeafBytes(path2, key2, hash2, Bytes.wrap("" + i));
+                final VirtualLeafBytes rec2 = new VirtualLeafBytes(path2, key2, Bytes.wrap("" + i));
                 kvStore.put(path2, rec2::writeTo, rec2.getSizeInBytes());
             }
             map.endWriting();
@@ -563,6 +594,36 @@ class HalfDiskHashMapTest {
         }
     }
 
+    @Test
+    void testResizeRespectsBucketIndexCapacity() throws Exception {
+        final Configuration config = ConfigurationBuilder.create()
+                .withConfigDataType(MerkleDbConfig.class)
+                .withValue("merkleDb.maxNumOfKeys", "500")
+                .build();
+        final HalfDiskHashMap hdhm = new HalfDiskHashMap(
+                config, 100, tempDirPath.resolve("test"), "testResizeRespectsBucketIndexCapacity", null, false);
+        try {
+            final LongList bucketIndex = (LongList) hdhm.getBucketIndexToBucketLocation();
+            // 500 / 32 / 0.7, rounded up -> 32
+            assertEquals(32, bucketIndex.capacity());
+            assertEquals(4, hdhm.getNumOfBuckets());
+            // Resize to 8 buckets
+            hdhm.resizeIfNeeded(800, 1600);
+            assertEquals(8, hdhm.getNumOfBuckets());
+            // Resize again, 16 buckets
+            hdhm.resizeIfNeeded(800, 1600);
+            assertEquals(16, hdhm.getNumOfBuckets());
+            // Resize again, 32 buckets
+            hdhm.resizeIfNeeded(800, 1600);
+            assertEquals(32, hdhm.getNumOfBuckets());
+            // And again. This time resizeIfNeeded() should stay at 32 buckets to respect bucket index capacity
+            hdhm.resizeIfNeeded(800, 1600);
+            assertEquals(32, hdhm.getNumOfBuckets());
+        } finally {
+            hdhm.close();
+        }
+    }
+
     private int calcExpectedNumOfBuckets(final long mapSizeHint) {
         int goodAverageBucketEntryCount =
                 CONFIGURATION.getConfigData(MerkleDbConfig.class).goodAverageBucketEntryCount();
@@ -579,33 +640,5 @@ class HalfDiskHashMapTest {
         double timeSeconds = (double) took / 1000d;
         double perSecond = (double) count / timeSeconds;
         System.out.printf("%s : [%,d] at %,.0f per/sec, took %,.2f seconds\n", msg, count, perSecond, timeSeconds);
-    }
-
-    public static class CollidableFixedLongKey extends ExampleLongKeyFixedSize {
-        private static long CLASS_ID = 0x7b305246cffbf8efL;
-
-        public CollidableFixedLongKey() {
-            super();
-        }
-
-        public CollidableFixedLongKey(final long value) {
-            super(value);
-        }
-
-        @Override
-        public int hashCode() {
-            return (int) getValue() % 100;
-        }
-
-        @Override
-        public long getClassId() {
-            return CLASS_ID;
-        }
-
-        @Override
-        public void deserialize(final SerializableDataInputStream in, final int dataVersion) throws IOException {
-            assertEquals(getVersion(), dataVersion);
-            super.deserialize(in, dataVersion);
-        }
     }
 }

@@ -2,9 +2,14 @@
 package com.hedera.node.app.hints.impl;
 
 import static com.hedera.hapi.node.state.hints.CRSStage.COMPLETED;
+import static com.hedera.hapi.node.state.hints.CRSStage.GATHERING_CONTRIBUTIONS;
+import static com.hedera.node.app.hints.schemas.V059HintsSchema.ACTIVE_HINTS_CONSTRUCTION_STATE_ID;
+import static com.hedera.node.app.hints.schemas.V059HintsSchema.NEXT_HINTS_CONSTRUCTION_STATE_ID;
+import static com.hedera.node.app.hints.schemas.V060HintsSchema.CRS_STATE_STATE_ID;
 import static java.util.Objects.requireNonNull;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.hedera.hapi.node.state.hints.CRSState;
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.node.app.hints.HintsLibrary;
@@ -13,19 +18,19 @@ import com.hedera.node.app.hints.WritableHintsStore;
 import com.hedera.node.app.hints.handlers.HintsHandlers;
 import com.hedera.node.app.hints.schemas.V059HintsSchema;
 import com.hedera.node.app.hints.schemas.V060HintsSchema;
-import com.hedera.node.app.roster.ActiveRosters;
+import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.lifecycle.SchemaRegistry;
+import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -39,9 +44,6 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
 
     private final HintsLibrary library;
 
-    @NonNull
-    private final AtomicReference<Roster> currentRoster = new AtomicReference<>();
-
     @Nullable
     private OnHintsFinished cb;
 
@@ -54,19 +56,13 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
         this.library = requireNonNull(library);
         // Fully qualified for benefit of javadoc
         this.component = com.hedera.node.app.hints.impl.DaggerHintsServiceComponent.factory()
-                .create(library, appContext, executor, metrics, currentRoster, blockPeriod, this);
+                .create(library, appContext, executor, metrics, blockPeriod, this);
     }
 
     @VisibleForTesting
     HintsServiceImpl(@NonNull final HintsServiceComponent component, @NonNull final HintsLibrary library) {
         this.component = requireNonNull(component);
         this.library = requireNonNull(library);
-    }
-
-    @Override
-    public void initCurrentRoster(@NonNull final Roster roster) {
-        requireNonNull(roster);
-        currentRoster.set(roster);
     }
 
     @Override
@@ -92,18 +88,32 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
         return component.signingContext().isReady();
     }
 
-    @Override
-    public long schemeId() {
-        return component.signingContext().activeSchemeIdOrThrow();
-    }
-
-    @Override
     public Bytes verificationKey() {
         return component.signingContext().verificationKeyOrThrow();
     }
 
     @Override
-    public void manageRosterAdoption(
+    public HintsContext.Signing sign(@NonNull final Bytes blockHash) {
+        if (!isReady()) {
+            throw new IllegalStateException("hinTS service not ready to sign block hash " + blockHash);
+        }
+        final var signing = component.signings().computeIfAbsent(blockHash, b -> component
+                .signingContext()
+                .newSigning(b, () -> component.signings().remove(blockHash)));
+        component.submissions().submitPartialSignature(blockHash).exceptionally(t -> {
+            logger.warn("Failed to submit partial signature for block hash {}", blockHash, t);
+            return null;
+        });
+        return signing;
+    }
+
+    @Override
+    public @Nullable HintsConstruction activeConstruction() {
+        return component.signingContext().activeConstruction();
+    }
+
+    @Override
+    public void handoff(
             @NonNull final WritableHintsStore hintsStore,
             @NonNull final Roster previousRoster,
             @NonNull final Roster adoptedRoster,
@@ -135,8 +145,9 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
             case BOOTSTRAP, TRANSITION -> {
                 final var construction = hintsStore.getOrCreateConstruction(activeRosters, now, tssConfig);
                 if (!construction.hasHintsScheme()) {
-                    final var controller =
-                            component.controllers().getOrCreateFor(activeRosters, construction, hintsStore);
+                    final var controller = component
+                            .controllers()
+                            .getOrCreateFor(activeRosters, construction, hintsStore, activeConstruction());
                     controller.advanceConstruction(now, hintsStore, isActive);
                 }
             }
@@ -144,7 +155,6 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
                 // No-op
             }
         }
-        currentRoster.set(activeRosters.findRelatedRoster(activeRosters.currentRosterHash()));
     }
 
     @Override
@@ -177,22 +187,33 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
     public void registerSchemas(@NonNull final SchemaRegistry registry) {
         requireNonNull(registry);
         registry.register(new V059HintsSchema());
-        registry.register(new V060HintsSchema(component.signingContext(), library));
+        registry.register(new V060HintsSchema(component.signingContext()));
     }
 
     @Override
-    public CompletableFuture<Bytes> signFuture(@NonNull final Bytes blockHash) {
-        if (!isReady()) {
-            throw new IllegalStateException("hinTS service not ready to sign block hash " + blockHash);
+    public boolean doGenesisSetup(
+            @NonNull final WritableStates writableStates, @NonNull final Configuration configuration) {
+        requireNonNull(writableStates);
+        requireNonNull(configuration);
+        writableStates
+                .<HintsConstruction>getSingleton(ACTIVE_HINTS_CONSTRUCTION_STATE_ID)
+                .put(HintsConstruction.DEFAULT);
+        writableStates
+                .<HintsConstruction>getSingleton(NEXT_HINTS_CONSTRUCTION_STATE_ID)
+                .put(HintsConstruction.DEFAULT);
+        final var tssConfig = configuration.getConfigData(TssConfig.class);
+        final var crsState = writableStates.<CRSState>getSingleton(CRS_STATE_STATE_ID);
+        if (tssConfig.hintsEnabled()) {
+            final var initialCrs = library.newCrs(tssConfig.initialCrsParties());
+            crsState.put(CRSState.newBuilder()
+                    .stage(GATHERING_CONTRIBUTIONS)
+                    .nextContributingNodeId(0L)
+                    .crs(initialCrs)
+                    .build());
+        } else {
+            crsState.put(CRSState.DEFAULT);
         }
-        final var signing = component.signings().computeIfAbsent(blockHash, b -> component
-                .signingContext()
-                .newSigning(b, () -> component.signings().remove(blockHash)));
-        component.submissions().submitPartialSignature(blockHash).exceptionally(t -> {
-            logger.warn("Failed to submit partial signature for block hash {}", blockHash, t);
-            return null;
-        });
-        return signing.future();
+        return true;
     }
 
     @Override

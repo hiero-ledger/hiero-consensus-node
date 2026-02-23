@@ -8,12 +8,12 @@ import com.swirlds.base.time.Time;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.function.BooleanSupplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.otter.fixtures.TimeManager;
+import org.hiero.otter.fixtures.exceptions.TimeoutException;
+import org.hiero.otter.fixtures.internal.AbstractTimeManager;
 
 /**
  * A time manager for the turtle network.
@@ -21,13 +21,11 @@ import org.hiero.otter.fixtures.TimeManager;
  * <p>This class implements the {@link TimeManager} interface and provides methods to control the time
  * in the turtle network. Time is simulated in the turtle framework.
  */
-public class TurtleTimeManager implements TimeManager {
+public class TurtleTimeManager extends AbstractTimeManager {
 
     private static final Logger log = LogManager.getLogger();
 
     private final FakeTime time;
-    private final Duration granularity;
-    private final List<TimeTickReceiver> timeTickReceivers = new ArrayList<>();
 
     /**
      * Constructor for the {@link TurtleTimeManager} class.
@@ -36,18 +34,48 @@ public class TurtleTimeManager implements TimeManager {
      * @param granularity the granularity of time
      */
     public TurtleTimeManager(@NonNull final FakeTime time, @NonNull final Duration granularity) {
+        super(granularity);
         this.time = requireNonNull(time);
-        this.granularity = requireNonNull(granularity);
     }
 
     /**
-     * Returns the time source for this simulation.
-     *
-     * @return the time source
+     * {@inheritDoc}
      */
-    @NonNull
-    public Time time() {
-        return time;
+    @Override
+    public void waitForConditionInRealTime(@NonNull final BooleanSupplier condition, @NonNull final Duration waitTime)
+            throws TimeoutException {
+        waitForConditionInRealTime(condition, waitTime, "Condition not met within the allotted time.");
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void waitForConditionInRealTime(
+            @NonNull final BooleanSupplier condition, @NonNull final Duration waitTime, @NonNull final String message)
+            throws TimeoutException {
+        log.debug("Waiting up to {} (in real-time!) for condition to become true...", waitTime);
+
+        final Instant start = Instant.now();
+        final Instant end = start.plus(waitTime);
+
+        Instant now = start;
+        while (!condition.getAsBoolean() && now.isBefore(end)) {
+            for (final TimeTickReceiver receiver : timeTickReceivers) {
+                receiver.tick(this.now()); // here we need to pass the simulated time
+            }
+            advanceTime(granularity); // advance simulated time
+            try {
+                Thread.sleep(granularity); // advance real time
+            } catch (final InterruptedException e) {
+                throw new AssertionError("Interrupted while advancing real time", e);
+            }
+            now = Instant.now();
+        }
+
+        if (!condition.getAsBoolean()) {
+            throw new TimeoutException(message);
+        }
     }
 
     /**
@@ -63,65 +91,17 @@ public class TurtleTimeManager implements TimeManager {
      * {@inheritDoc}
      */
     @Override
-    public void waitFor(@NonNull final Duration waitTime) {
-        log.info("Waiting for {}...", waitTime);
-
-        final Instant simulatedStart = time.now();
-        final Instant simulatedEnd = simulatedStart.plus(waitTime);
-
-        while (time.now().isBefore(simulatedEnd)) {
-            time.tick(granularity);
-            final Instant now = time.now();
-            for (final TimeTickReceiver receiver : timeTickReceivers) {
-                receiver.tick(now);
-            }
-        }
+    protected void advanceTime(@NonNull final Duration duration) {
+        time.tick(duration);
     }
 
     /**
-     * {@inheritDoc}
-     */
-    @Override
-    public boolean waitForCondition(@NonNull final BooleanSupplier condition, @NonNull final Duration waitTime) {
-        log.debug("Waiting up to {} for condition to become true...", waitTime);
-
-        final Instant simulatedStart = time.now();
-        final Instant simulatedEnd = simulatedStart.plus(waitTime);
-
-        while (!condition.getAsBoolean() && time.now().isBefore(simulatedEnd)) {
-            time.tick(granularity);
-            final Instant now = time.now();
-            for (final TimeTickReceiver receiver : timeTickReceivers) {
-                receiver.tick(now);
-            }
-        }
-
-        return condition.getAsBoolean();
-    }
-
-    /**
-     * Adds a {@link TimeTickReceiver} to the list of receivers that will be notified when time ticks.
+     * Returns the underlying {@link Time} instance.
      *
-     * @param receiver the receiver to add
+     * @return the underlying {@link Time} instance
      */
-    public void addTimeTickReceiver(@NonNull final TimeTickReceiver receiver) {
-        timeTickReceivers.add(receiver);
-    }
-
-    /**
-     * A receiver of time ticks.
-     *
-     * <p>A receiver of time ticks is notified when the time manager advances time by the granularity specified in
-     * {@link TurtleTestEnvironment#GRANULARITY}. It is expected to perform any necessary actions that happened
-     * between this call and the previous call.
-     */
-    public interface TimeTickReceiver {
-
-        /**
-         * Called when the time manager advances the time by the configured granularity.
-         *
-         * @param now the current time in the simulation
-         */
-        void tick(@NonNull final Instant now);
+    @NonNull
+    public Time time() {
+        return time;
     }
 }

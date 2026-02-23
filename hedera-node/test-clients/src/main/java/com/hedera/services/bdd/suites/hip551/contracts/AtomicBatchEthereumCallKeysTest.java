@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.hip551.contracts;
 
+import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccountString;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AssertUtils.inOrder;
@@ -60,25 +62,25 @@ import com.hederahashgraph.api.proto.java.TokenType;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.util.Arrays;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
 
+@Tag(ATOMIC_BATCH)
 @HapiTestLifecycle
-public class AtomicBatchEthereumCallKeysTest {
+@Tag(MATS)
+class AtomicBatchEthereumCallKeysTest {
     private static final String DEFAULT_BATCH_OPERATOR = "defaultBatchOperator";
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(
-                Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
         testLifecycle.doAdhoc(cryptoCreate(DEFAULT_BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
     }
 
     @HapiTest
-    public final Stream<DynamicTest> canCreateTokenWithCryptoAdminKeyOnlyIfHasTopLevelSig() {
+    final Stream<DynamicTest> canCreateTokenWithCryptoAdminKeyOnlyIfHasTopLevelSig() {
         final var cryptoKey = "cryptoKey";
         final var thresholdKey = "thresholdKey";
         final String contract = "TestTokenCreateContract";
@@ -117,7 +119,8 @@ public class AtomicBatchEthereumCallKeysTest {
                                         adminKey.get())
                                 .via("creationWithoutTopLevelSig")
                                 .gas(5_000_000L)
-                                .sending(100 * ONE_HBAR))
+                                .sending(100 * ONE_HBAR)
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 // Next verify we succeed when using the top-level SignatureMap to
                 // sign with the admin key
@@ -160,7 +163,7 @@ public class AtomicBatchEthereumCallKeysTest {
     }
 
     @HapiTest
-    public final Stream<DynamicTest> precompileCallFailsWhenSignatureMissingFromBothEthereumAndHederaTxn() {
+    final Stream<DynamicTest> precompileCallFailsWhenSignatureMissingFromBothEthereumAndHederaTxn() {
         final AtomicReference<TokenID> fungible = new AtomicReference<>();
         final String fungibleToken = "token";
         final String mintTxn = "mintTxn";

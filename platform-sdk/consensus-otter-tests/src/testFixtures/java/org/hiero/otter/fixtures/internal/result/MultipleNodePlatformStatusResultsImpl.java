@@ -4,15 +4,19 @@ package org.hiero.otter.fixtures.internal.result;
 import static java.util.Collections.unmodifiableList;
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.platform.state.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.stream.Collectors;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.result.MultipleNodePlatformStatusResults;
 import org.hiero.otter.fixtures.result.OtterResult;
 import org.hiero.otter.fixtures.result.PlatformStatusSubscriber;
-import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResults;
+import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
 import org.hiero.otter.fixtures.result.SubscriberAction;
 
 /**
@@ -20,15 +24,15 @@ import org.hiero.otter.fixtures.result.SubscriberAction;
  */
 public class MultipleNodePlatformStatusResultsImpl implements MultipleNodePlatformStatusResults {
 
-    private final List<SingleNodePlatformStatusResults> results;
+    private final List<SingleNodePlatformStatusResult> results;
     private final List<PlatformStatusSubscriber> platformStatusSubscribers = new CopyOnWriteArrayList<>();
 
     /**
      * Constructor for {@link MultipleNodePlatformStatusResultsImpl}.
      *
-     * @param results the list of {@link SingleNodePlatformStatusResults} for all nodes
+     * @param results the list of {@link SingleNodePlatformStatusResult} for all nodes
      */
-    public MultipleNodePlatformStatusResultsImpl(@NonNull final List<SingleNodePlatformStatusResults> results) {
+    public MultipleNodePlatformStatusResultsImpl(@NonNull final List<SingleNodePlatformStatusResult> results) {
         this.results = unmodifiableList(requireNonNull(results));
 
         // The subscription mechanism is a bit tricky, because we have two levels of subscriptions.
@@ -44,7 +48,7 @@ public class MultipleNodePlatformStatusResultsImpl implements MultipleNodePlatfo
             // the meta-subscriber never unsubscribes
             return SubscriberAction.CONTINUE;
         };
-        for (final SingleNodePlatformStatusResults result : results) {
+        for (final SingleNodePlatformStatusResult result : results) {
             result.subscribe(metaSubscriber);
         }
     }
@@ -54,7 +58,7 @@ public class MultipleNodePlatformStatusResultsImpl implements MultipleNodePlatfo
      */
     @Override
     @NonNull
-    public List<SingleNodePlatformStatusResults> results() {
+    public List<SingleNodePlatformStatusResult> results() {
         return results;
     }
 
@@ -72,8 +76,20 @@ public class MultipleNodePlatformStatusResultsImpl implements MultipleNodePlatfo
     @Override
     @NonNull
     public MultipleNodePlatformStatusResults suppressingNode(@NonNull final NodeId nodeId) {
-        final List<SingleNodePlatformStatusResults> filtered = results.stream()
+        final List<SingleNodePlatformStatusResult> filtered = results.stream()
                 .filter(result -> !Objects.equals(nodeId, result.nodeId()))
+                .toList();
+        return new MultipleNodePlatformStatusResultsImpl(filtered);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public @NonNull MultipleNodePlatformStatusResults suppressingNodes(@NonNull final Collection<Node> nodes) {
+        final Set<NodeId> nodeIdsToSuppress = nodes.stream().map(Node::selfId).collect(Collectors.toSet());
+        final List<SingleNodePlatformStatusResult> filtered = results.stream()
+                .filter(result -> !nodeIdsToSuppress.contains(result.nodeId()))
                 .toList();
         return new MultipleNodePlatformStatusResultsImpl(filtered);
     }

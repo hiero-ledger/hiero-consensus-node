@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.token.batch;
 
-import static com.hedera.services.bdd.junit.TestTags.TOKEN;
+import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTokenInfo;
@@ -59,7 +60,6 @@ import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
@@ -68,8 +68,9 @@ import org.junit.jupiter.api.Tag;
 // This test cases are direct copies of TokenUpdateSpecs. The difference here is that
 // we are wrapping the operations in an atomic batch to confirm that everything works as expected.
 @HapiTestLifecycle
-@Tag(TOKEN)
-public class AtomicTokenUpdateSpecs {
+@Tag(ATOMIC_BATCH)
+@Tag(MATS)
+class AtomicTokenUpdateSpecs {
 
     private static final int MAX_NAME_LENGTH = 100;
     private static final int MAX_SYMBOL_LENGTH = 100;
@@ -80,8 +81,6 @@ public class AtomicTokenUpdateSpecs {
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(
-                Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
         testLifecycle.doAdhoc(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
     }
 
@@ -337,7 +336,7 @@ public class AtomicTokenUpdateSpecs {
                 .then(atomicBatch(tokenUpdate("tbu")
                                 .name(tooLongName)
                                 .signedByPayerAnd("adminKey")
-                                .hasPrecheck(TOKEN_NAME_TOO_LONG)
+                                .hasKnownStatus(TOKEN_NAME_TOO_LONG)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED));
@@ -353,7 +352,7 @@ public class AtomicTokenUpdateSpecs {
                 .then(atomicBatch(tokenUpdate("tbu")
                                 .symbol(tooLongSymbol)
                                 .signedByPayerAnd("adminKey")
-                                .hasPrecheck(TOKEN_SYMBOL_TOO_LONG)
+                                .hasKnownStatus(TOKEN_SYMBOL_TOO_LONG)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED));

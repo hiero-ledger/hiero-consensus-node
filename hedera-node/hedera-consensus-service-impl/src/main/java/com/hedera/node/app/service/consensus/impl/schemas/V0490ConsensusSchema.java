@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.consensus.impl.schemas;
 
-import static com.hedera.node.app.service.consensus.impl.ConsensusServiceImpl.TOPICS_KEY;
+import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
+import static com.swirlds.state.lifecycle.StateMetadata.computeLabel;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.TopicID;
 import com.hedera.hapi.node.state.consensus.Topic;
-import com.swirlds.state.lifecycle.MigrationContext;
+import com.hedera.hapi.platform.state.StateKey;
+import com.hedera.node.app.service.consensus.ConsensusService;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StateDefinition;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -18,7 +20,15 @@ import java.util.Set;
  * <p>See <a href="https://github.com/hashgraph/hedera-services/tree/release/0.49">this branch</a> for the
  * details of the migration from mono state.
  */
-public class V0490ConsensusSchema extends Schema {
+public class V0490ConsensusSchema extends Schema<SemanticVersion> {
+
+    /** Topics state ID */
+    public static final int TOPICS_STATE_ID = StateKey.KeyOneOfType.CONSENSUSSERVICE_I_TOPICS.protoOrdinal();
+    /** Topics state key */
+    public static final String TOPICS_KEY = "TOPICS";
+    /** Topics state label */
+    public static final String TOPICS_STATE_LABEL = computeLabel(ConsensusService.NAME, TOPICS_KEY);
+
     /**
      * The version of the schema.
      */
@@ -31,17 +41,12 @@ public class V0490ConsensusSchema extends Schema {
      * Constructor for this schema.
      */
     public V0490ConsensusSchema() {
-        super(VERSION);
+        super(VERSION, SEMANTIC_VERSION_COMPARATOR);
     }
 
     @NonNull
     @Override
     public Set<StateDefinition> statesToCreate() {
-        return Set.of(StateDefinition.onDisk(TOPICS_KEY, TopicID.PROTOBUF, Topic.PROTOBUF, MAX_TOPICS));
-    }
-
-    @Override
-    public void migrate(@NonNull final MigrationContext ctx) {
-        // There are no topics at genesis
+        return Set.of(StateDefinition.keyValue(TOPICS_STATE_ID, TOPICS_KEY, TopicID.PROTOBUF, Topic.PROTOBUF));
     }
 }

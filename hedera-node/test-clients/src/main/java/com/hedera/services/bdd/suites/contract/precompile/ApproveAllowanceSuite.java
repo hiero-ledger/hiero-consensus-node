@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountDetailsAsserts.accountDetailsWith;
@@ -240,6 +241,7 @@ public class ApproveAllowanceSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> htsTokenAllowance() {
         final var theSpender = SPENDER;
         final var allowanceTxn = ALLOWANCE_TX;
@@ -572,6 +574,7 @@ public class ApproveAllowanceSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> testIndirectApprovalWithDelegatePrecompileCallee() {
         return testIndirectApprovalWith("DelegatePrecompileCallee", DELEGATE_PRECOMPILE_CALLEE, false);
     }
@@ -587,6 +590,7 @@ public class ApproveAllowanceSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> testIndirectApprovalWithDirectErc20Callee() {
         return testIndirectApprovalWith("DirectErc20Callee", DIRECT_ERC_CALLEE, true);
     }

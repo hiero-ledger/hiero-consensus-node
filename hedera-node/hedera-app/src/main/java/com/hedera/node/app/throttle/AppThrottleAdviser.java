@@ -29,7 +29,18 @@ public class AppThrottleAdviser implements ThrottleAdviser {
     }
 
     @Override
-    public boolean shouldThrottleByOpsDuration(final long currentOpsDuration) {
-        return networkUtilizationManager.shouldThrottleByOpsDuration(currentOpsDuration, consensusNow);
+    public long availableOpsDurationCapacity() {
+        return networkUtilizationManager.availableOpsDurationCapacity(consensusNow);
+    }
+
+    @Override
+    public void consumeOpsDurationThrottleCapacity(final long opsDurationUnitsToConsume) {
+        networkUtilizationManager.consumeOpsDurationThrottleCapacity(opsDurationUnitsToConsume, consensusNow);
+    }
+
+    @Override
+    public int highVolumeThrottleUtilization(@NonNull final HederaFunctionality function) {
+        requireNonNull(function);
+        return networkUtilizationManager.highVolumeThrottleUtilization(function, consensusNow);
     }
 }

@@ -2,6 +2,8 @@
 package com.hedera.services.bdd.junit.support.translators.inputs;
 
 import static com.hedera.hapi.util.HapiUtils.functionOf;
+import static com.hedera.node.app.hapi.utils.CommonPbjConverters.MAX_PBJ_RECORD_SIZE;
+import static com.hedera.pbj.runtime.Codec.DEFAULT_MAX_DEPTH;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
@@ -35,28 +37,66 @@ public record TransactionParts(
 
     /**
      * Constructs a {@link TransactionParts} from a serialized {@link Transaction}.
-     * @param serializedTransaction the serialized transaction to convert
+     * @param serializedSignedTx the serialized transaction to convert
      * @return the constructed parts
      * @throws IllegalArgumentException if the transaction is invalid
      */
-    public static TransactionParts from(@NonNull final Bytes serializedTransaction) {
+    public static TransactionParts from(@NonNull final Bytes serializedSignedTx) {
         try {
-            final var transaction = Transaction.PROTOBUF.parse(serializedTransaction);
-            final var bodyBytes = bodyBytesOf(transaction);
-            final var body = TransactionBody.PROTOBUF.parse(bodyBytes);
-            return new TransactionParts(transaction, body, functionOf(body));
+            final var signedTx = SignedTransaction.PROTOBUF.parse(
+                    serializedSignedTx.toReadableSequentialData(),
+                    false,
+                    false,
+                    DEFAULT_MAX_DEPTH,
+                    MAX_PBJ_RECORD_SIZE);
+            final Transaction wrapper;
+            if (signedTx.useSerializedTxMessageHashAlgorithm()) {
+                wrapper = Transaction.newBuilder()
+                        .bodyBytes(signedTx.bodyBytes())
+                        .sigMap(signedTx.sigMap())
+                        .build();
+            } else {
+                wrapper = Transaction.newBuilder()
+                        .signedTransactionBytes(serializedSignedTx)
+                        .build();
+            }
+            final var body = TransactionBody.PROTOBUF.parse(
+                    signedTx.bodyBytes().toReadableSequentialData(),
+                    false,
+                    false,
+                    DEFAULT_MAX_DEPTH,
+                    MAX_PBJ_RECORD_SIZE);
+            return new TransactionParts(wrapper, body, functionOf(body));
         } catch (ParseException | UnknownHederaFunctionality e) {
             // Fail immediately with invalid transactions that should not be in any production record stream
             throw new IllegalArgumentException(e);
         }
     }
 
-    private static Bytes bodyBytesOf(final Transaction txn) throws ParseException {
-        if (txn.signedTransactionBytes().length() > 0) {
-            final var signedTxn = SignedTransaction.PROTOBUF.parse(txn.signedTransactionBytes());
-            return signedTxn.bodyBytes();
-        } else {
-            return txn.bodyBytes();
+    /**
+     * Constructs a {@link TransactionParts} from a serialized {@link Transaction}.
+     * @param signedTx the signed transaction to convert
+     * @return the constructed parts
+     * @throws IllegalArgumentException if the transaction is invalid
+     */
+    public static TransactionParts from(@NonNull final SignedTransaction signedTx) {
+        try {
+            final Transaction wrapper;
+            if (signedTx.useSerializedTxMessageHashAlgorithm()) {
+                wrapper = Transaction.newBuilder()
+                        .bodyBytes(signedTx.bodyBytes())
+                        .sigMap(signedTx.sigMap())
+                        .build();
+            } else {
+                wrapper = Transaction.newBuilder()
+                        .signedTransactionBytes(SignedTransaction.PROTOBUF.toBytes(signedTx))
+                        .build();
+            }
+            final var body = TransactionBody.PROTOBUF.parse(signedTx.bodyBytes());
+            return new TransactionParts(wrapper, body, functionOf(body));
+        } catch (ParseException | UnknownHederaFunctionality e) {
+            // Fail immediately with invalid transactions that should not be in any production record stream
+            throw new IllegalArgumentException(e);
         }
     }
 }

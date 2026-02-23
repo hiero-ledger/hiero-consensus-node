@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.networkadmin.impl;
 
-import static com.hedera.node.app.service.networkadmin.impl.schemas.V0490FreezeSchema.FREEZE_TIME_KEY;
-import static com.hedera.node.app.service.networkadmin.impl.schemas.V0490FreezeSchema.UPGRADE_FILE_HASH_KEY;
+import static com.hedera.node.app.service.networkadmin.impl.schemas.V0490FreezeSchema.FREEZE_TIME_STATE_ID;
+import static com.hedera.node.app.service.networkadmin.impl.schemas.V0490FreezeSchema.UPGRADE_FILE_HASH_STATE_ID;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.Timestamp;
@@ -18,6 +18,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
  * working with freeze states.
  */
 public class WritableFreezeStore extends ReadableFreezeStoreImpl {
+
     /** The underlying data storage classes that hold the freeze state data. */
     private final WritableSingletonState<Timestamp> freezeTimeState;
 
@@ -32,8 +33,8 @@ public class WritableFreezeStore extends ReadableFreezeStoreImpl {
     public WritableFreezeStore(@NonNull final WritableStates states) {
         super(states);
         requireNonNull(states);
-        freezeTimeState = states.getSingleton(FREEZE_TIME_KEY);
-        updateFileHash = states.getSingleton(UPGRADE_FILE_HASH_KEY);
+        freezeTimeState = states.getSingleton(FREEZE_TIME_STATE_ID);
+        updateFileHash = states.getSingleton(UPGRADE_FILE_HASH_STATE_ID);
     }
 
     /**
@@ -45,11 +46,11 @@ public class WritableFreezeStore extends ReadableFreezeStoreImpl {
         freezeTimeState.put(freezeTime);
     }
 
-    @Override
-    @Nullable
     /**
      * Gets the scheduled freeze time. If no freeze has been scheduled, returns null.
      */
+    @Override
+    @Nullable
     public Timestamp freezeTime() {
         return Timestamp.DEFAULT.equals(freezeTimeState.get()) ? null : freezeTimeState.get();
     }

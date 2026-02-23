@@ -3,28 +3,16 @@ package com.swirlds.benchmark;
 
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
-import com.swirlds.virtualmap.VirtualValue;
-import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.function.LongUnaryOperator;
-import org.hiero.base.io.streams.SerializableDataInputStream;
-import org.hiero.base.io.streams.SerializableDataOutputStream;
 
-public class BenchmarkValue implements VirtualValue {
-
-    static final long CLASS_ID = 0x2af5b26682153acfL;
-    static final int VERSION = 1;
+public class BenchmarkValue {
 
     private static int valueSize = 16;
     private byte[] valueBytes;
 
     public static void setValueSize(int size) {
         valueSize = size;
-    }
-
-    public static int getValueSize() {
-        return valueSize;
     }
 
     public BenchmarkValue() {
@@ -36,38 +24,35 @@ public class BenchmarkValue implements VirtualValue {
         Utils.toBytes(seed, valueBytes);
     }
 
-    public BenchmarkValue(BenchmarkValue other) {
-        valueBytes = Arrays.copyOf(other.valueBytes, other.valueBytes.length);
+    private BenchmarkValue(byte[] valueBytes) {
+        this.valueBytes = Arrays.copyOf(valueBytes, valueBytes.length);
+    }
+
+    protected BenchmarkValue(BenchmarkValue other) {
+        this(other.valueBytes);
+    }
+
+    public BenchmarkValue(final ReadableSequentialData in) {
+        final int len = in.readInt();
+        valueBytes = new byte[len];
+        in.readBytes(valueBytes);
     }
 
     public long toLong() {
         return Utils.fromBytes(valueBytes);
     }
 
-    public void update(LongUnaryOperator updater) {
-        long value = Utils.fromBytes(valueBytes);
-        value = updater.applyAsLong(value);
-        Utils.toBytes(value, valueBytes);
+    public Builder copyBuilder() {
+        return new Builder(this);
     }
 
-    @Override
-    public VirtualValue copy() {
-        return new BenchmarkValue(this);
+    public int getSizeInBytes() {
+        return Integer.BYTES + valueBytes.length;
     }
 
-    @Override
-    public VirtualValue asReadOnly() {
-        return new BenchmarkValue(this);
-    }
-
-    public static int getSerializedSize() {
-        return Integer.BYTES + valueSize;
-    }
-
-    @Override
-    public void serialize(SerializableDataOutputStream outputStream) throws IOException {
-        outputStream.writeInt(valueBytes.length);
-        outputStream.write(valueBytes);
+    public void writeTo(final WritableSequentialData out) {
+        out.writeInt(valueBytes.length);
+        out.writeBytes(valueBytes);
     }
 
     public void serialize(final WritableSequentialData out) {
@@ -75,44 +60,10 @@ public class BenchmarkValue implements VirtualValue {
         out.writeBytes(valueBytes);
     }
 
-    @Deprecated
-    void serialize(ByteBuffer buffer) {
-        buffer.putInt(valueBytes.length);
-        buffer.put(valueBytes);
-    }
-
     public void deserialize(final ReadableSequentialData in) {
         int n = in.readInt();
         valueBytes = new byte[n];
         in.readBytes(valueBytes);
-    }
-
-    @Override
-    public void deserialize(SerializableDataInputStream inputStream, int dataVersion) throws IOException {
-        assert dataVersion == getVersion() : "dataVersion=" + dataVersion + " != getVersion()=" + getVersion();
-        int n = inputStream.readInt();
-        valueBytes = new byte[n];
-        while (n > 0) {
-            n -= inputStream.read(valueBytes, valueBytes.length - n, n);
-        }
-    }
-
-    @Deprecated
-    void deserialize(ByteBuffer buffer, int dataVersion) {
-        assert dataVersion == getVersion() : "dataVersion=" + dataVersion + " != getVersion()=" + getVersion();
-        int n = buffer.getInt();
-        valueBytes = new byte[n];
-        buffer.get(valueBytes);
-    }
-
-    @Override
-    public long getClassId() {
-        return CLASS_ID;
-    }
-
-    @Override
-    public int getVersion() {
-        return VERSION;
     }
 
     @Override
@@ -124,5 +75,25 @@ public class BenchmarkValue implements VirtualValue {
     @Override
     public int hashCode() {
         return Arrays.hashCode(valueBytes);
+    }
+
+    public static final class Builder {
+
+        private byte[] valueBytes;
+
+        public Builder(final BenchmarkValue value) {
+            this.valueBytes = Arrays.copyOf(value.valueBytes, value.valueBytes.length);
+        }
+
+        public Builder update(LongUnaryOperator updater) {
+            long value = Utils.fromBytes(valueBytes);
+            value = updater.applyAsLong(value);
+            Utils.toBytes(value, valueBytes);
+            return this;
+        }
+
+        public BenchmarkValue build() {
+            return new BenchmarkValue(valueBytes);
+        }
     }
 }

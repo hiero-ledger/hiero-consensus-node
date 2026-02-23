@@ -4,6 +4,7 @@ package com.hedera.node.app.service.token.impl.test.handlers.staking;
 import static com.hedera.node.app.service.token.impl.TokenServiceImpl.HBARS_TO_TINYBARS;
 import static com.hedera.node.app.service.token.impl.handlers.staking.StakingUtilities.roundedToHbar;
 import static com.hedera.node.app.service.token.impl.handlers.staking.StakingUtilities.totalStake;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_ID;
 import static java.util.Collections.emptyMap;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -13,6 +14,7 @@ import static org.mockito.Mockito.mock;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.token.Account;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.impl.ReadableAccountStoreImpl;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
@@ -30,7 +32,6 @@ import com.hedera.node.app.spi.workflows.record.DeleteCapableTransactionStreamBu
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.HederaConfig;
-import com.swirlds.state.lifecycle.EntityIdFactory;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.time.Instant;
@@ -48,6 +49,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class StakingRewardsHandlerImplTest extends CryptoTokenHandlerTestBase {
+
     @Mock(strictness = Mock.Strictness.LENIENT)
     private ConfigProvider configProvider;
 
@@ -1248,11 +1250,11 @@ class StakingRewardsHandlerImplTest extends CryptoTokenHandlerTestBase {
         readableAccounts = readableBuilder.build();
         writableAccounts = writableBuilder.build();
 
-        given(readableStates.<AccountID, Account>get(ACCOUNTS)).willReturn(readableAccounts);
+        given(readableStates.<AccountID, Account>get(ACCOUNTS_STATE_ID)).willReturn(readableAccounts);
         readableAccountStore = new ReadableAccountStoreImpl(readableStates, readableEntityCounters);
         given(context.readableStore(ReadableAccountStore.class)).willReturn(readableAccountStore);
 
-        given(writableStates.<AccountID, Account>get(ACCOUNTS)).willReturn(writableAccounts);
+        given(writableStates.<AccountID, Account>get(ACCOUNTS_STATE_ID)).willReturn(writableAccounts);
         writableAccountStore = new WritableAccountStore(writableStates, writableEntityCounters);
         given(context.writableStore(WritableAccountStore.class)).willReturn(writableAccountStore);
     }

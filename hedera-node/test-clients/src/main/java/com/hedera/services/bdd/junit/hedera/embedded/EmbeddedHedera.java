@@ -70,6 +70,12 @@ public interface EmbeddedHedera {
     Instant now();
 
     /**
+     * Returns the duration of elapsed synthetic time in the embedded Hedera node.
+     * @return the duration of elapsed synthetic time
+     */
+    Duration restartOffset();
+
+    /**
      * Returns the embedded Hedera.
      * @return the embedded Hedera
      */

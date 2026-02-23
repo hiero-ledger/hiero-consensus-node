@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.hip991;
 
+import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTopicInfo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
@@ -21,24 +22,24 @@ import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import com.hederahashgraph.api.proto.java.TokenType;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
 
 // This test cases are direct copies of TopicCustomFeeGetTopicInfoTest. The difference here is that
 // we are wrapping the operations in an atomic batch to confirm the fees are the same
+@Tag(ATOMIC_BATCH)
 @HapiTestLifecycle
 @DisplayName("Topic get info")
-public class AtomicTopicCustomFeeGetTopicInfoTest extends TopicCustomFeeBase {
+class AtomicTopicCustomFeeGetTopicInfoTest extends TopicCustomFeeBase {
 
     private static final String BATCH_OPERATOR = "batchOperator";
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle lifecycle) {
         lifecycle.doAdhoc(setupBaseKeys());
-        lifecycle.overrideInClass(Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
     }
 
     @HapiTest

@@ -5,7 +5,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.GRPC_WEB_PROXY_NOT_SUPP
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ADMIN_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_GOSSIP_CA_CERTIFICATE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_GOSSIP_ENDPOINT;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SERVICE_ENDPOINT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_NODES_CREATED;
 import static com.hedera.node.app.service.addressbook.AddressBookHelper.checkDABEnabled;
@@ -19,6 +18,7 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.state.addressbook.Node;
+import com.hedera.node.app.service.addressbook.impl.WritableAccountNodeRelStore;
 import com.hedera.node.app.service.addressbook.impl.WritableNodeStore;
 import com.hedera.node.app.service.addressbook.impl.records.NodeCreateStreamBuilder;
 import com.hedera.node.app.service.addressbook.impl.validators.AddressBookValidator;
@@ -87,11 +87,13 @@ public class NodeCreateHandler implements TransactionHandler {
         final var nodeConfig = handleContext.configuration().getConfigData(NodesConfig.class);
         final var storeFactory = handleContext.storeFactory();
         final var nodeStore = storeFactory.writableStore(WritableNodeStore.class);
+        final var accountNodeRelStore = storeFactory.writableStore(WritableAccountNodeRelStore.class);
         final var accountStore = storeFactory.readableStore(ReadableAccountStore.class);
         final var accountId = op.accountIdOrElse(AccountID.DEFAULT);
 
         validateFalse(nodeStore.sizeOfState() >= nodeConfig.maxNumber(), MAX_NODES_CREATED);
-        validateTrue(accountStore.contains(accountId), INVALID_NODE_ACCOUNT_ID);
+        addressBookValidator.validateAccount(
+                accountId, accountStore, accountNodeRelStore, handleContext.expiryValidator());
         addressBookValidator.validateDescription(op.description(), nodeConfig);
         addressBookValidator.validateGossipEndpoint(op.gossipEndpoint(), nodeConfig);
         addressBookValidator.validateServiceEndpoint(op.serviceEndpoint(), nodeConfig);
@@ -119,6 +121,8 @@ public class NodeCreateHandler implements TransactionHandler {
         final var node = nodeBuilder.nodeId(nodeStore.sizeOfState()).build();
 
         nodeStore.putAndIncrementCount(node);
+        // add account id relation
+        accountNodeRelStore.put(op.accountIdOrThrow(), node.nodeId());
 
         final var recordBuilder = handleContext.savepointStack().getBaseBuilder(NodeCreateStreamBuilder.class);
 

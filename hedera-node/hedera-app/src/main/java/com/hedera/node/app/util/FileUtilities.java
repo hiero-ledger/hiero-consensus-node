@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.util;
 
-import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.BLOBS_KEY;
+import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.FILES_STATE_ID;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.FileID;
@@ -23,7 +23,7 @@ public class FileUtilities {
     @NonNull
     public static Bytes getFileContent(@NonNull final State state, @NonNull final FileID fileID) {
         final var states = state.getReadableStates(FileService.NAME);
-        final var filesMap = states.<FileID, File>get(BLOBS_KEY);
+        final var filesMap = states.<FileID, File>get(FILES_STATE_ID);
         final var file = filesMap.get(fileID);
         return file != null ? file.contents() : Bytes.EMPTY;
     }

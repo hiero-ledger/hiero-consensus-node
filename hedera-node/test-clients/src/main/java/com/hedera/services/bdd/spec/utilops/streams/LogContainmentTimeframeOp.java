@@ -56,7 +56,9 @@ public class LogContainmentTimeframeOp extends UtilOp {
             @NonNull final Supplier<Instant> startTimeSupplier,
             @NonNull final Duration timeframe,
             @NonNull final Duration waitTimeout) {
-        if (path != ExternalPath.APPLICATION_LOG && path != ExternalPath.SWIRLDS_LOG) {
+        if (path != ExternalPath.APPLICATION_LOG
+                && path != ExternalPath.BLOCK_NODE_COMMS_LOG
+                && path != ExternalPath.SWIRLDS_LOG) {
             throw new IllegalArgumentException(path + " is not a log");
         }
         this.path = requireNonNull(path);

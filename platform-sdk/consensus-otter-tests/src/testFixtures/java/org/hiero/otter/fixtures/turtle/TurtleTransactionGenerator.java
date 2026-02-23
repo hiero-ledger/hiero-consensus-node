@@ -3,15 +3,17 @@ package org.hiero.otter.fixtures.turtle;
 
 import static java.util.Objects.requireNonNull;
 
-import com.swirlds.common.test.fixtures.Randotron;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.consensus.test.fixtures.Randotron;
+import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TransactionFactory;
 import org.hiero.otter.fixtures.TransactionGenerator;
+import org.hiero.otter.fixtures.network.transactions.OtterTransaction;
 
 /**
  * A transaction generator for the Turtle framework.
@@ -68,7 +70,7 @@ public class TurtleTransactionGenerator implements TransactionGenerator {
      * @param now the current time
      * @param nodes the list of nodes in the network
      */
-    public void tick(@NonNull final Instant now, @NonNull final List<TurtleNode> nodes) {
+    public void tick(@NonNull final Instant now, @NonNull final List<Node> nodes) {
         if (!running) {
             return;
         }
@@ -78,15 +80,15 @@ public class TurtleTransactionGenerator implements TransactionGenerator {
             final long previousCount =
                     Duration.between(startTime, lastTimestamp).dividedBy(CYCLE_DURATION);
             final long currentCount = Duration.between(startTime, now).dividedBy(CYCLE_DURATION);
-            final List<TurtleNode> activeNodes = nodes.stream()
+            final List<Node> activeNodes = nodes.stream()
                     .filter(node -> node.platformStatus() == PlatformStatus.ACTIVE)
                     .toList();
             for (long i = previousCount; i < currentCount; i++) {
-                for (final TurtleNode node : activeNodes) {
+                for (final Node node : activeNodes) {
                     // Generate a random transaction and submit it to the node.
-                    final byte[] transaction = TransactionFactory.createEmptyTransaction(randotron.nextInt())
-                            .toByteArray();
-                    node.submitTransaction(transaction);
+                    final OtterTransaction transaction =
+                            TransactionFactory.createEmptyTransaction(randotron.nextLong());
+                    ((TurtleNode) node).submitTransaction(transaction);
                 }
             }
         }

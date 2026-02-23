@@ -4,8 +4,11 @@ package com.hedera.services.bdd.suites.crypto;
 import static com.google.protobuf.ByteString.copyFromUtf8;
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
 import static com.hedera.services.bdd.junit.ContextRequirement.FEE_SCHEDULE_OVERRIDES;
+import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW;
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
+import static com.hedera.services.bdd.junit.TestTags.ONLY_EMBEDDED;
+import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.CONCURRENT;
 import static com.hedera.services.bdd.spec.HapiSpec.customizedHapiTest;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountDetailsAsserts.accountDetailsWith;
@@ -25,6 +28,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoApproveAl
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoUpdate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.explicit;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.mintToken;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
@@ -50,8 +54,8 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingTwo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.reduceFeeFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
+import static com.hedera.services.bdd.suites.HapiSuite.CIVILIAN_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.FIVE_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
@@ -77,13 +81,26 @@ import static com.hedera.services.bdd.suites.crypto.CryptoApproveAllowanceSuite.
 import static com.hedera.services.bdd.suites.crypto.CryptoApproveAllowanceSuite.SPENDER;
 import static com.hedera.services.bdd.suites.crypto.CryptoApproveAllowanceSuite.THIRD_SPENDER;
 import static com.hedera.services.bdd.suites.file.FileUpdateSuite.CIVILIAN;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateFees;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_UPDATE_FEE;
 import static com.hedera.services.bdd.suites.token.TokenTransactSpecs.SUPPLY_KEY;
 import static com.hedera.services.bdd.suites.token.TokenTransactSpecs.TRANSFER_TXN;
 import static com.hedera.services.bdd.suites.token.TokenTransactSpecs.UNIQUE;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ContractCreate;
+import static com.hederahashgraph.api.proto.java.HederaFunctionality.CrsPublication;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoCreate;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoTransfer;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoUpdate;
+import static com.hederahashgraph.api.proto.java.HederaFunctionality.HintsKeyPublication;
+import static com.hederahashgraph.api.proto.java.HederaFunctionality.HintsPartialSignature;
+import static com.hederahashgraph.api.proto.java.HederaFunctionality.HintsPreprocessingVote;
+import static com.hederahashgraph.api.proto.java.HederaFunctionality.HistoryAssemblySignature;
+import static com.hederahashgraph.api.proto.java.HederaFunctionality.HistoryProofKeyPublication;
+import static com.hederahashgraph.api.proto.java.HederaFunctionality.HistoryProofVote;
+import static com.hederahashgraph.api.proto.java.HederaFunctionality.HookDispatch;
+import static com.hederahashgraph.api.proto.java.HederaFunctionality.NodeStakeUpdate;
+import static com.hederahashgraph.api.proto.java.HederaFunctionality.StateSignatureTransaction;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_ACCOUNT_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_SENDER_ACCOUNT_BALANCE_FOR_CUSTOM_FEE;
@@ -99,11 +116,20 @@ import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 
 import com.google.protobuf.ByteString;
+import com.hedera.hapi.node.hooks.legacy.HookDispatchTransactionBody;
+import com.hedera.hapi.services.auxiliary.hints.legacy.CrsPublicationTransactionBody;
+import com.hedera.hapi.services.auxiliary.hints.legacy.HintsKeyPublicationTransactionBody;
+import com.hedera.hapi.services.auxiliary.hints.legacy.HintsPartialSignatureTransactionBody;
+import com.hedera.hapi.services.auxiliary.hints.legacy.HintsPreprocessingVoteTransactionBody;
+import com.hedera.hapi.services.auxiliary.history.legacy.HistoryProofKeyPublicationTransactionBody;
+import com.hedera.hapi.services.auxiliary.history.legacy.HistoryProofSignatureTransactionBody;
+import com.hedera.hapi.services.auxiliary.history.legacy.HistoryProofVoteTransactionBody;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
 import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.RepeatableHapiTest;
+import com.hedera.services.bdd.junit.TargetEmbeddedMode;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts;
@@ -111,6 +137,7 @@ import com.hedera.services.bdd.spec.assertions.ContractInfoAsserts;
 import com.hedera.services.bdd.spec.transactions.TxnVerbs;
 import com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
+import com.hederahashgraph.api.proto.java.NodeStakeUpdateTransactionBody;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import com.hederahashgraph.api.proto.java.TokenSupplyType;
 import com.hederahashgraph.api.proto.java.TokenType;
@@ -130,7 +157,9 @@ import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 
+@Tag(ONLY_EMBEDDED)
 @Tag(CRYPTO)
+@TargetEmbeddedMode(CONCURRENT)
 @OrderedInIsolation
 public class LeakyCryptoTestsSuite {
     private static final Logger log = LogManager.getLogger(LeakyCryptoTestsSuite.class);
@@ -142,13 +171,15 @@ public class LeakyCryptoTestsSuite {
     public static final String CREATE_TX = "createTX";
 
     @Order(16)
-    @LeakyHapiTest(overrides = {"ledger.maxAutoAssociations", "ledger.autoRenewPeriod.minDuration"})
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"ledger.maxAutoAssociations", "ledger.autoRenewPeriod.minDuration"})
     final Stream<DynamicTest> autoAssociationPropertiesWorkAsExpected() {
         final var shortLivedAutoAssocUser = "shortLivedAutoAssocUser";
         final var longLivedAutoAssocUser = "longLivedAutoAssocUser";
         final var payerBalance = 100 * ONE_HUNDRED_HBARS;
         final var updateWithExpiredAccount = "updateWithExpiredAccount";
-        final var baseFee = 0.000214;
+        final var baseFee = 0.0002167032;
         return customizedHapiTest(
                 Map.of("memo.useSpecName", "false"),
                 overridingTwo(
@@ -164,7 +195,7 @@ public class LeakyCryptoTestsSuite {
                         .payingWith(shortLivedAutoAssocUser)
                         .maxAutomaticAssociations(10)
                         .via(updateWithExpiredAccount),
-                validateChargedUsd(updateWithExpiredAccount, baseFee, 5));
+                validateFees(updateWithExpiredAccount, baseFee, CRYPTO_UPDATE_FEE));
     }
 
     @RepeatableHapiTest(NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW)
@@ -218,7 +249,9 @@ public class LeakyCryptoTestsSuite {
     }
 
     @Order(1)
-    @LeakyHapiTest(overrides = {"ledger.autoRenewPeriod.minDuration"})
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"ledger.autoRenewPeriod.minDuration"})
     final Stream<DynamicTest> cannotDissociateFromExpiredTokenWithNonZeroBalance() {
         final var civilian = "civilian";
         final long initialSupply = 100L;
@@ -251,7 +284,9 @@ public class LeakyCryptoTestsSuite {
     }
 
     @Order(2)
-    @LeakyHapiTest(overrides = {"hedera.allowances.maxTransactionLimit", "hedera.allowances.maxAccountLimit"})
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"hedera.allowances.maxTransactionLimit", "hedera.allowances.maxAccountLimit"})
     final Stream<DynamicTest> cannotExceedAccountAllowanceLimit() {
         return hapiTest(
                 overridingTwo(
@@ -294,7 +329,7 @@ public class LeakyCryptoTestsSuite {
                         .addCryptoAllowance(OWNER, SECOND_SPENDER, 100L)
                         .addTokenAllowance(OWNER, FUNGIBLE_TOKEN, SPENDER, 100L)
                         .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, SPENDER, false, List.of(1L))
-                        .fee(ONE_HBAR),
+                        .fee(ONE_HUNDRED_HBARS),
                 getAccountDetails(OWNER)
                         .payingWith(GENESIS)
                         .has(accountDetailsWith()
@@ -305,12 +340,14 @@ public class LeakyCryptoTestsSuite {
                 cryptoApproveAllowance()
                         .payingWith(OWNER)
                         .addCryptoAllowance(OWNER, ANOTHER_SPENDER, 100L)
-                        .fee(ONE_HBAR)
+                        .fee(ONE_HUNDRED_HBARS)
                         .hasKnownStatus(MAX_ALLOWANCES_EXCEEDED));
     }
 
     @Order(3)
-    @LeakyHapiTest(overrides = {"hedera.allowances.maxTransactionLimit", "hedera.allowances.maxAccountLimit"})
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"hedera.allowances.maxTransactionLimit", "hedera.allowances.maxAccountLimit"})
     final Stream<DynamicTest> cannotExceedAllowancesTransactionLimit() {
         return hapiTest(
                 newKeyNamed(SUPPLY_KEY),
@@ -381,7 +418,77 @@ public class LeakyCryptoTestsSuite {
                         .hasKnownStatus(MAX_ALLOWANCES_EXCEEDED));
     }
 
-    @LeakyHapiTest(requirement = FEE_SCHEDULE_OVERRIDES)
+    /**
+     * Characterize the current behavior of the network when submitting internal txs via a normal payer account.
+     * <p>
+     * (FUTURE) Revisit this with superuser payer.
+     */
+    @HapiTest
+    final Stream<DynamicTest> internalTxsCannotBeSubmittedByUserAccounts() {
+        return hapiTest(
+                cryptoCreate(CIVILIAN_PAYER),
+                explicit(
+                                StateSignatureTransaction,
+                                (spec, b) ->
+                                        b.setStateSignatureTransaction(com.hedera.hapi.platform.event.legacy
+                                                .StateSignatureTransaction.getDefaultInstance()))
+                        .payingWith(CIVILIAN_PAYER)
+                        .hasPrecheck(BUSY),
+                explicit(
+                                HintsPreprocessingVote,
+                                (spec, b) -> b.setHintsPreprocessingVote(
+                                        HintsPreprocessingVoteTransactionBody.getDefaultInstance()))
+                        .payingWith(CIVILIAN_PAYER)
+                        .hasPrecheck(BUSY),
+                explicit(
+                                HintsKeyPublication,
+                                (spec, b) -> b.setHintsKeyPublication(
+                                        HintsKeyPublicationTransactionBody.getDefaultInstance()))
+                        .payingWith(CIVILIAN_PAYER)
+                        .hasPrecheck(BUSY),
+                explicit(
+                                HintsPartialSignature,
+                                (spec, b) -> b.setHintsPartialSignature(
+                                        HintsPartialSignatureTransactionBody.getDefaultInstance()))
+                        .payingWith(CIVILIAN_PAYER)
+                        .hasPrecheck(BUSY),
+                explicit(
+                                HistoryProofKeyPublication,
+                                (spec, b) -> b.setHistoryProofKeyPublication(
+                                        HistoryProofKeyPublicationTransactionBody.getDefaultInstance()))
+                        .payingWith(CIVILIAN_PAYER)
+                        .hasPrecheck(BUSY),
+                explicit(
+                                HistoryAssemblySignature,
+                                (spec, b) -> b.setHistoryProofSignature(
+                                        HistoryProofSignatureTransactionBody.getDefaultInstance()))
+                        .payingWith(CIVILIAN_PAYER)
+                        .hasPrecheck(BUSY),
+                explicit(
+                                HistoryProofVote,
+                                (spec, b) ->
+                                        b.setHistoryProofVote(HistoryProofVoteTransactionBody.getDefaultInstance()))
+                        .payingWith(CIVILIAN_PAYER)
+                        .hasPrecheck(BUSY),
+                explicit(
+                                CrsPublication,
+                                (spec, b) -> b.setCrsPublication(CrsPublicationTransactionBody.getDefaultInstance()))
+                        .payingWith(CIVILIAN_PAYER)
+                        .hasPrecheck(BUSY),
+                explicit(HookDispatch, (spec, b) -> b.setHookDispatch(HookDispatchTransactionBody.getDefaultInstance()))
+                        .payingWith(CIVILIAN_PAYER)
+                        .hasPrecheck(BUSY),
+                explicit(
+                                NodeStakeUpdate,
+                                (spec, b) -> b.setNodeStakeUpdate(NodeStakeUpdateTransactionBody.getDefaultInstance()))
+                        .payingWith(CIVILIAN_PAYER)
+                        .hasPrecheck(BUSY));
+    }
+
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            requirement = FEE_SCHEDULE_OVERRIDES,
+            overrides = "fees.simpleFeesEnabled")
     final Stream<DynamicTest> hollowAccountCreationChargesExpectedFees() {
         final long REDUCED_NODE_FEE = 2L;
         final long REDUCED_NETWORK_FEE = 3L;
@@ -390,6 +497,7 @@ public class LeakyCryptoTestsSuite {
         final var payer = "payer";
         final var secondKey = "secondKey";
         return hapiTest(
+                overriding("fees.simpleFeesEnabled", "false"),
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
                 newKeyNamed(secondKey).shape(SECP_256K1_SHAPE),
                 cryptoCreate(payer).balance(0L),
@@ -457,7 +565,9 @@ public class LeakyCryptoTestsSuite {
     }
 
     @Order(14)
-    @LeakyHapiTest(overrides = {"contracts.evm.version"})
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"contracts.evm.version"})
     final Stream<DynamicTest> contractDeployAfterEthereumTransferLazyCreate() {
         final var RECIPIENT_KEY = LAZY_ACCOUNT_RECIPIENT;
         final var lazyCreateTxn = PAY_TXN;
@@ -499,7 +609,9 @@ public class LeakyCryptoTestsSuite {
                 }));
     }
 
-    @LeakyHapiTest(overrides = {"contracts.evm.version"})
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"contracts.evm.version"})
     final Stream<DynamicTest> contractCallAfterEthereumTransferLazyCreate() {
         final var RECIPIENT_KEY = LAZY_ACCOUNT_RECIPIENT;
         final var lazyCreateTxn = PAY_TXN;

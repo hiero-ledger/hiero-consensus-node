@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.changeFromSnapshot;
@@ -113,7 +114,9 @@ public class CreatePrecompileSuite {
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(Map.of("contracts.throttle.throttleByGas", "false"));
+        testLifecycle.overrideInClass(Map.of(
+                "contracts.throttle.throttleByGas", "false",
+                "contracts.throttle.throttleByOpsDuration", "false"));
     }
 
     // TEST-001
@@ -233,6 +236,7 @@ public class CreatePrecompileSuite {
 
     // TEST-002
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> inheritsSenderAutoRenewAccountIfAnyForNftCreate() {
         final var createdNftTokenNum = new AtomicLong();
         final AtomicReference<byte[]> ed2551Key = new AtomicReference<>();
@@ -543,6 +547,7 @@ public class CreatePrecompileSuite {
 
     // TEST-006
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> nonFungibleTokenCreateThenQuery() {
         final var createdTokenNum = new AtomicLong();
         return hapiTest(
@@ -886,9 +891,7 @@ public class CreatePrecompileSuite {
                 withOpContext((spec, opLog) ->
                         allRunFor(spec, contractCreate(TOKEN_CREATE_CONTRACT).gas(CONTRACT_CREATE_GAS_TO_OFFER))),
                 withOpContext((spec, ignore) -> {
-                    final var balanceSnapshot = spec.isUsingEthCalls()
-                            ? balanceSnapshot(ACCOUNT_BALANCE, DEFAULT_CONTRACT_SENDER)
-                            : balanceSnapshot(ACCOUNT_BALANCE, ACCOUNT);
+                    final var balanceSnapshot = balanceSnapshot(ACCOUNT_BALANCE, ACCOUNT);
                     final long sentAmount = ONE_HBAR / 100;
                     final var hapiContractCall = contractCall(
                                     TOKEN_CREATE_CONTRACT,
@@ -921,12 +924,9 @@ public class CreatePrecompileSuite {
                                             .status(INSUFFICIENT_TX_FEE)
                                             .contractCallResult(ContractFnResultAsserts.resultWith()
                                                     .error(INSUFFICIENT_TX_FEE.name()))));
-                    final var delta = spec.isUsingEthCalls()
-                            ? GAS_TO_OFFER * HapiEthereumCall.DEFAULT_GAS_PRICE_TINYBARS
-                            : txnRecord.getResponseRecord().getTransactionFee();
-                    final var effectivePayer = spec.isUsingEthCalls() ? DEFAULT_CONTRACT_SENDER : ACCOUNT;
-                    var changeFromSnapshot = getAccountBalance(effectivePayer)
-                            .hasTinyBars(changeFromSnapshot(ACCOUNT_BALANCE, -(delta)));
+                    final long expectedDelta = txnRecord.getResponseRecord().getTransactionFee();
+                    var changeFromSnapshot =
+                            getAccountBalance(ACCOUNT).hasTinyBars(changeFromSnapshot(ACCOUNT_BALANCE, -expectedDelta));
                     allRunFor(spec, changeFromSnapshot);
                 }),
                 getTxnRecord(FIRST_CREATE_TXN).andAllChildRecords(),

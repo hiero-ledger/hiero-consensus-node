@@ -6,7 +6,6 @@ import com.swirlds.state.spi.ReadableKVStateBase;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
 
@@ -18,12 +17,13 @@ import java.util.Objects;
  * some strange case, or in some other way work with the backing map directly.
  *
  * <p>A convenient {@link Builder} is provided to create the map (since there are no map literals in
- * Java). The {@link #builder(String)} method can be used to create the builder.
+ * Java). The {@link #builder(String, int)} method can be used to create the builder.
  *
  * @param <K> The key type
  * @param <V> The value type
  */
 public class MapReadableKVState<K, V> extends ReadableKVStateBase<K, V> {
+
     /** Represents the backing storage for this state */
     private final Map<K, V> backingStore;
 
@@ -32,23 +32,18 @@ public class MapReadableKVState<K, V> extends ReadableKVStateBase<K, V> {
      * pre-populate the map, or if you want to use Mockito to mock it or cause it to throw
      * exceptions when certain keys are accessed, etc.
      *
-     * @param stateKey The state key for this state
+     * @param stateId      The state ID for this state
+     * @param label        The service label
      * @param backingStore The backing store to use
      */
-    public MapReadableKVState(@NonNull final String stateKey, @NonNull final Map<K, V> backingStore) {
-        super(stateKey);
+    public MapReadableKVState(final int stateId, final String label, @NonNull final Map<K, V> backingStore) {
+        super(stateId, label);
         this.backingStore = Objects.requireNonNull(backingStore);
     }
 
     @Override
     protected V readFromDataSource(@NonNull K key) {
         return backingStore.get(key);
-    }
-
-    @NonNull
-    @Override
-    protected Iterator<K> iterateFromDataSource() {
-        return backingStore.keySet().iterator();
     }
 
     /** {@inheritDoc} */
@@ -61,14 +56,15 @@ public class MapReadableKVState<K, V> extends ReadableKVStateBase<K, V> {
      * Create a new {@link Builder} for building a {@link MapReadableKVState}. The builder has
      * convenience methods for pre-populating the map.
      *
-     * @param stateKey The state key
+     * @param <K>         The key type
+     * @param <V>         The value type
+     * @param stateId     The state ID
+     * @param label       The state label
      * @return A {@link Builder} to be used for creating a {@link MapReadableKVState}.
-     * @param <K> The key type
-     * @param <V> The value type
      */
     @NonNull
-    public static <K, V> Builder<K, V> builder(@NonNull final String stateKey) {
-        return new Builder<>(stateKey);
+    public static <K, V> Builder<K, V> builder(final int stateId, @NonNull final String label) {
+        return new Builder<>(stateId, label);
     }
 
     /**
@@ -76,11 +72,14 @@ public class MapReadableKVState<K, V> extends ReadableKVStateBase<K, V> {
      * MapReadableKVState}.
      */
     public static final class Builder<K, V> {
-        private final Map<K, V> backingStore = new HashMap<>();
-        private final String stateKey;
 
-        Builder(@NonNull final String stateKey) {
-            this.stateKey = stateKey;
+        private final int stateId;
+        private final String label;
+        private final Map<K, V> backingStore = new HashMap<>();
+
+        Builder(final int stateId, final String label) {
+            this.stateId = stateId;
+            this.label = label;
         }
 
         /**
@@ -104,7 +103,7 @@ public class MapReadableKVState<K, V> extends ReadableKVStateBase<K, V> {
          */
         @NonNull
         public MapReadableKVState<K, V> build() {
-            return new MapReadableKVState<>(stateKey, new HashMap<>(backingStore));
+            return new MapReadableKVState<>(stateId, label, new HashMap<>(backingStore));
         }
     }
 }

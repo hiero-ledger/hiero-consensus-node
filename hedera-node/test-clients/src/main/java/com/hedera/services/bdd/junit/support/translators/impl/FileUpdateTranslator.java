@@ -6,13 +6,16 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.trace.TraceData;
+import com.hedera.hapi.node.base.HookId;
 import com.hedera.hapi.node.base.ServicesConfigurationList;
 import com.hedera.hapi.node.base.Setting;
 import com.hedera.node.app.state.SingleTransactionRecord;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.services.bdd.junit.support.translators.BaseTranslator;
 import com.hedera.services.bdd.junit.support.translators.BlockTransactionPartsTranslator;
+import com.hedera.services.bdd.junit.support.translators.ScopedTraceData;
 import com.hedera.services.bdd.junit.support.translators.inputs.BlockTransactionParts;
+import com.hedera.services.bdd.junit.support.translators.inputs.HookMetadata;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
@@ -33,7 +36,9 @@ public class FileUpdateTranslator implements BlockTransactionPartsTranslator {
             @NonNull final BaseTranslator baseTranslator,
             @NonNull final List<StateChange> remainingStateChanges,
             @Nullable final List<TraceData> tracesSoFar,
-            @NonNull final List<TraceData> followingUnitTraces) {
+            @NonNull final List<ScopedTraceData> followingUnitTraces,
+            @Nullable final HookId executingHookId,
+            @Nullable final HookMetadata hookMetadata) {
         requireNonNull(parts);
         requireNonNull(baseTranslator);
         requireNonNull(remainingStateChanges);
@@ -41,6 +46,14 @@ public class FileUpdateTranslator implements BlockTransactionPartsTranslator {
                 parts,
                 (receiptBuilder, recordBuilder) -> {
                     if (parts.status() == SUCCESS) {
+                        final var update = parts.body().fileUpdateOrThrow();
+                        final long fileNum = update.fileIDOrThrow().fileNum();
+                        if (fileNum > 1000) {
+                            final var opContents = update.contents();
+                            if (opContents.length() > 0) {
+                                baseTranslator.setFile(fileNum, opContents);
+                            }
+                        }
                         for (final var stateChange : remainingStateChanges) {
                             if (stateChange.hasMapUpdate()
                                     && stateChange
@@ -83,6 +96,7 @@ public class FileUpdateTranslator implements BlockTransactionPartsTranslator {
                     }
                 },
                 remainingStateChanges,
-                followingUnitTraces);
+                followingUnitTraces,
+                executingHookId);
     }
 }

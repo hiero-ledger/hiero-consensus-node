@@ -1,20 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state;
 
-import com.swirlds.base.time.Time;
 import com.swirlds.common.FastCopyable;
-import com.swirlds.common.merkle.crypto.MerkleCryptography;
-import com.swirlds.metrics.api.Metrics;
+import com.swirlds.state.lifecycle.StateMetadata;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
-import java.io.IOException;
-import java.nio.file.Path;
-import java.util.function.LongSupplier;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Hashable;
 
@@ -24,15 +18,6 @@ import org.hiero.base.crypto.Hashable;
  * detail, and are happy with just the API provided by this interface.
  */
 public interface State extends FastCopyable, Hashable {
-    /**
-     * Initializes the state with the given parameters.
-     * @param time The time provider.
-     * @param metrics The metrics provider.
-     * @param merkleCryptography The merkle cryptography provider.
-     * @param roundSupplier The round supplier.
-     */
-    void init(Time time, Metrics metrics, MerkleCryptography merkleCryptography, LongSupplier roundSupplier);
-
     /**
      * Returns a {@link ReadableStates} for the given named service. If such a service doesn't
      * exist, an empty {@link ReadableStates} is returned.
@@ -86,8 +71,17 @@ public interface State extends FastCopyable, Hashable {
     /**
      * Returns a calculated hash of the state.
      */
-    @Nullable
+    @NonNull
     default Hash getHash() {
+        throw new UnsupportedOperationException();
+    }
+
+    /**
+     * Answers the question if the state is already hashed.
+     *
+     * @return true if the state is already hashed, false otherwise.
+     */
+    default boolean isHashed() {
         throw new UnsupportedOperationException();
     }
 
@@ -99,18 +93,30 @@ public interface State extends FastCopyable, Hashable {
     }
 
     /**
-     * Creates a snapshot for the state. The state has to be hashed and immutable before calling this method.
-     * @param targetPath The path to save the snapshot.
+     * Returns a JSON string containing information about the current state.
+     * @return A JSON representation of the state information, or an empty string if no information is available.
      */
-    default void createSnapshot(final @NonNull Path targetPath) {
-        throw new UnsupportedOperationException();
+    default String getInfoJson() {
+        return "";
     }
 
     /**
-     * Loads a snapshot of a state.
-     * @param targetPath The path to load the snapshot from.
+     * Commit all singleton states for every registered service.
      */
-    default State loadSnapshot(final @NonNull Path targetPath) throws IOException {
-        throw new UnsupportedOperationException();
-    }
+    default void commitSingletons() {}
+
+    /**
+     * Initializes the defined service state.
+     *
+     * @param md The metadata associated with the state.
+     */
+    default void initializeState(@NonNull StateMetadata<?, ?> md) {}
+
+    /**
+     * Removes the node and metadata from the state merkle tree.
+     *
+     * @param serviceName The service name. Cannot be null.
+     * @param stateId The state ID
+     */
+    default void removeServiceState(@NonNull String serviceName, int stateId) {}
 }

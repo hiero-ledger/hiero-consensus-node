@@ -2,8 +2,19 @@
 name: "ZXCron: [CITR] Extended Test Suite"
 on:
   workflow_dispatch:
+    inputs:
+      rc-tag:
+        required: false
+        description: "Release Candidate Tag:"
+        type: string
+        default: ""
+      enable-promotion:
+        required: false
+        description: "Tag with epoch timestamp (enables promotion)"
+        default: false
+        type: boolean
   schedule:
-    # Runs Extended Test Suite every three hours
+    # Runs Extended Test Suite every three hours Monday to Friday
     - cron: "0 */3 * * *"
 
 permissions:
@@ -22,11 +33,37 @@ env:
   XTS_CANDIDATE_TAG: "xts-candidate"
   XTS_PASS_GREP_PATTERN: "xts-pass-*"
   PROMOTED_GREP_PATTERN: "build-.{5}"
+  BUILD_GREP_PATTERN: "build-*"
 
 jobs:
+  parameters:
+    name: Determine Configurable Parameters
+    runs-on: hl-cn-default-lin-sm
+    outputs:
+      solo-ge-0440: ${{ steps.set-parameters.outputs.solo-ge-0440 }}
+      solo-version: ${{ steps.set-parameters.outputs.solo-version }}
+      helm-release-name: ${{ steps.set-parameters.outputs.helm-release-name }}
+    steps:
+      - name: Initialize GitHub Job
+        uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
+
+      - name: Set Parameters
+        id: set-parameters
+        run: |
+          SOLO_GE_0440=$([[ "$(printf '%s\n' "${{vars.CITR_SOLO_VERSION}}" "v0.44.0" | sort -V | head -n1)" == "v0.44.0" ]] && echo "true" || echo "false")
+          HELM_NAME="mirror"
+          if [[ "${SOLO_GE_0440}" == "true" ]]; then
+            HELM_NAME="mirror-1"
+          fi
+
+          echo "::debug::SOLO_GE_0440=${SOLO_GE_0440}"
+          echo "helm-release-name=${HELM_NAME}" >> "${GITHUB_OUTPUT}"
+          echo "solo-ge-0440=${SOLO_GE_0440}" >> "${GITHUB_OUTPUT}"
+          echo "solo-version=${{ vars.CITR_SOLO_VERSION }}" >> "${GITHUB_OUTPUT}"
+
   fetch-xts-candidate:
     name: Fetch XTS Candidate Tag
-    runs-on: hiero-citr-linux-medium
+    runs-on: hl-cn-default-lin-sm
     outputs:
       xts-tag-exists: ${{ steps.check-tags-exist.outputs.xts-tag-exists }}
       xts-tag-commit: ${{ steps.check-tags-exist.outputs.xts-tag-commit }}
@@ -34,19 +71,16 @@ jobs:
       xts-commit-branch: ${{ steps.check-tags-exist.outputs.xts-commit-branch }}
       xts-tag-commit-author: ${{ steps.check-tags-exist.outputs.xts-tag-commit-author }}
       xts-tag-commit-email: ${{ steps.check-tags-exist.outputs.xts-tag-commit-email }}
+      xts-info: ${{ steps.check-tags-exist.outputs.xts-info }}
+      commit-list: ${{ steps.check-tags-exist.outputs.commit-list }}
     steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+      - name: Initialize GitHub Job
+        uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
         with:
-          egress-policy: audit
-
-      # Checkout the latest from dev
-      - name: Checkout Code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          fetch-depth: "0"
-          ref: main
-          token: ${{ secrets.GH_ACCESS_TOKEN }}
+          checkout: "true"
+          checkout-ref: "main"
+          checkout-fetch-depth: "0"
+          checkout-token: "${{ secrets.GH_ACCESS_TOKEN }}"
 
       # Check if the xts-candidate tag exists
       # the command git branch --contains xts-tag-commit | grep --quiet <default branch>
@@ -58,180 +92,239 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           XTS_PASS_PATTERN: ${{ env.XTS_PASS_GREP_PATTERN }}
           BUILD_PROMO_PATTERN: ${{ env.PROMOTED_GREP_PATTERN }}
+          BUILD_PATTERN: ${{ env.BUILD_GREP_PATTERN }}
+          RC_TAG: ${{ inputs.rc-tag || '' }}
+          DEFAULT_BRANCH_NAME: "main"
         run: |
           # Check if the tag exists and if so grab its commit id
-          set +e
-          XTS_COMMIT=$(git rev-list -n 1 "${XTS_CANDIDATE_TAG}") >/dev/null 2>&1
-          XTS_COMMIT_FOUND="${?}"
-          set -e
+          echo "::group::Check for XTS Candidate Tag"
+          if [[ -n "${RC_TAG}" ]]; then
+            echo "::group::Use RC Tag"
+            echo "::debug::Using RC Tag: ${RC_TAG}"
+            XTS_COMMIT=$(git rev-list -n 1 "${RC_TAG}") >/dev/null 2>&1
+            XTS_COMMIT_FOUND="${?}"
+            set -e
 
-          # Cancel out if the tag does not exist
-          if [[ "${XTS_COMMIT_FOUND}" -ne 0 ]]; then
-            gh run cancel ${{ github.run_id }}
-          fi
+            # Cancel out if the tag does not exist
+            if [[ "${XTS_COMMIT_FOUND}" -ne 0 ]]; then
+              echo "::debug::Tag ${RC_TAG} not found. Cancelling out."
+              gh run cancel ${{ github.run_id }}
+            fi
 
-          # Get the short commit id
-          XTS_SHORT_COMMIT=$(git rev-parse --short "${XTS_COMMIT}")
-
-          # Get the branch name for the commit
-          XTS_COMMIT_BRANCH=$(git name-rev --name-only "${XTS_COMMIT}" | sed 's/~.*//')
-
-          # Check if this commit has already been tagged xts-pass-* or build-*
-          set +e
-          XTS_PASS_TAGGED=$(git tag --contains "${XTS_COMMIT}" | grep -E "${XTS_PASS_PATTERN}")
-          BUILD_PROMOTED_TAGGED=$(git tag --contains "${XTS_COMMIT}" | grep -E "${BUILD_PROMO_PATTERN}")
-          set -e
-
-          # Use -n; if the BUILD_PROMOTED_TAGGED/XTS_PASS_TAGGED flags are not empty than the commit has been tagged.
-          if [[ -n "${XTS_PASS_TAGGED}" || -n "${BUILD_PROMOTED_TAGGED}" ]]; then
-            gh run cancel ${{ github.run_id }}
-          fi
-
-          # Get the list of commits between the previous XTS Pass and the current commit
-          COMMIT_LIST=""
-          LATEST_XTS_PASS_TAG=$(git tag --list --sort=-version:refname "xts-pass-*" | head --lines 1)
-          if [[ -n "${LATEST_XTS_PASS_TAG}" ]]; then
-            echo "Latest XTS Pass Tag: ${LATEST_XTS_PASS_TAG}"
-            LATEST_XTS_PASS_COMMIT=$(git rev-list -n 1 "${LATEST_XTS_PASS_TAG}")
-            COMMIT_LIST="$(git log --pretty=format:"- [%h: %s](https://github.com/${{ github.repository }}/commit/%H)" "${LATEST_XTS_PASS_COMMIT}..${XTS_COMMIT}")"
-          fi
-
-          # Check if the tag exists on the main branch
-          if [[ "${XTS_COMMIT_BRANCH}" != "main" ]]; then
-            COMMIT_ON_DEFAULT_BRANCH=0
+            COMMIT_LIST="$(git log -n 1 --pretty=format:"- [%h: %s](https://github.com/${{ github.repository }}/commit/%H)" "${XTS_COMMIT}")"
+            echo "::endgroup::" # Use RC Tag
           else
-            COMMIT_ON_DEFAULT_BRANCH=1
+            echo "::group::Use XTS Candidate Tag"
+            set +e
+            XTS_COMMIT="$(git rev-list -n 1 "${XTS_CANDIDATE_TAG}")" >/dev/null 2>&1
+            XTS_COMMIT_FOUND="${?}"
+            set -e
+
+            # Cancel out if the tag does not exist
+            if [[ "${XTS_COMMIT_FOUND}" -ne 0 ]]; then
+              echo "::debug::Tag ${XTS_CANDIDATE_TAG} not found. Cancelling out."
+              gh run cancel ${{ github.run_id }}
+            fi
+
+            # Check if this commit has already been tagged xts-pass-* or build-*
+            set +e
+            XTS_PASS_TAGGED="$(git tag --contains "${XTS_COMMIT}" | grep -E "${XTS_PASS_PATTERN}")"
+            BUILD_PROMOTED_TAGGED="$(git tag --contains "${XTS_COMMIT}" | grep -E "${BUILD_PROMO_PATTERN}")"
+            set -e
+
+            # Use -n; if the BUILD_PROMOTED_TAGGED/XTS_PASS_TAGGED flags are not empty than the commit has been tagged.
+            if [[ -n "${XTS_PASS_TAGGED}" || -n "${BUILD_PROMOTED_TAGGED}" ]]; then
+              echo "::debug::Commit ${XTS_COMMIT} has already been tagged as xts-pass or build. Cancelling out."
+              gh run cancel ${{ github.run_id }}
+            fi
+
+            # Get the list of commits between the previous XTS Pass and the current commit
+            COMMIT_LIST=""
+            LATEST_XTS_PASS_TAG="$(git tag --list --sort=-version:refname "${XTS_PASS_PATTERN}" | head --lines 1)"
+            LATEST_PROMOTED_BUILD_TAG="$(git tag --list --sort=-version:refname "${BUILD_PATTERN}" | head --lines 1)"
+            if [[ -n "${LATEST_XTS_PASS_TAG}" ]]; then
+              echo "::debug::Using latest xts-pass tag"
+              echo "Latest XTS Pass Tag: ${LATEST_XTS_PASS_TAG}"
+              LATEST_XTS_PASS_COMMIT="$(git rev-list -n 1 "${LATEST_XTS_PASS_TAG}")"
+              COMMIT_LIST="$(git log --pretty=format:"- [%h: %s](https://github.com/${{ github.repository }}/commit/%H)" "${LATEST_XTS_PASS_COMMIT}..${XTS_COMMIT}")"
+            elif [[ -n "${LATEST_PROMOTED_BUILD_TAG}" ]]; then
+              echo "::debug::Using latest promoted build tag as no xts-pass tag found"
+              echo "Latest Promoted Tag: ${LATEST_PROMOTED_BUILD_TAG}"
+              LATEST_PROMOTED_BUILD_COMMIT="$(git rev-list -n 1 "${LATEST_PROMOTED_BUILD_TAG}")"
+              COMMIT_LIST="$(git log --pretty=format:"- [%h: %s](https://github.com/${{ github.repository }}/commit/%H)" "${LATEST_PROMOTED_BUILD_COMMIT}..${XTS_COMMIT}")"
+            fi
+            echo "::endgroup::" # Use XTS Candidate Tag
           fi
+          echo "::endgroup::" # Check for XTS Candidate Tag
+
+          echo "::group::Check if XTS COMMIT is on default branch"
+          # Determine which branch the commit belongs to
+          XTS_COMMIT_BRANCHES="$(git branch -r --contains "${XTS_COMMIT}" | sed 's/^[ *]*//')"
+          echo "::debug::XTS_COMMIT_BRANCHES=${XTS_COMMIT_BRANCHES}"
+
+          XTS_COMMIT_BRANCH="${DEFAULT_BRANCH_NAME}"
+          COMMIT_ON_DEFAULT_BRANCH=0
+
+          # Check if the commit on the default branch
+          if echo "${XTS_COMMIT_BRANCHES}" | grep -qE "(^|/)${DEFAULT_BRANCH_NAME}$"; then
+            echo "::debug::Commit ${XTS_COMMIT} found on main branch."
+          else
+            echo "::debug::Commit ${XTS_COMMIT} not found on main branch, determining actual branch."
+            COMMIT_ON_DEFAULT_BRANCH=1
+            XTS_COMMIT_BRANCH="$(
+              git name-rev --name-only --refs="refs/remotes/*" "${XTS_COMMIT}" \
+              | sed 's~^.*origin/~~' \
+              | sed 's/~.*//'
+            )"
+          fi
+
+          # Print branch debug info
+          echo "::debug::XTS_COMMIT_BRANCH=${XTS_COMMIT_BRANCH}"
+          echo "::debug::COMMIT_ON_DEFAULT_BRANCH=${COMMIT_ON_DEFAULT_BRANCH}"
+          echo "::endgroup::" # XTS COMMIT is on default branch
+
+          echo "::group::Get XTS Commit Information"
+          # Get the short commit id
+          XTS_SHORT_COMMIT="$(git rev-parse --short "${XTS_COMMIT}")"
+          echo "::debug::XTS_SHORT_COMMIT=${XTS_SHORT_COMMIT}"
 
           # Get commit author
-          AUTHOR_NAME=$(git log -1 --format='%an' "${XTS_COMMIT}")
-          AUTHOR_EMAIL=$(git log -1 --format='%ae' "${XTS_COMMIT}")
+          AUTHOR_NAME="$(git log -1 --format='%an' "${XTS_COMMIT}")"
+          AUTHOR_EMAIL="$(git log -1 --format='%ae' "${XTS_COMMIT}")"
+          echo "::endgroup::" # Get XTS Commit Information
 
+          echo "::group::Set Outputs"
           # If the tag exists on the Main Branch set the output variables as appropriate
           # Otherwise cancel out
           if [[ "${COMMIT_ON_DEFAULT_BRANCH}" -eq 0 ]]; then
+            # GitHub Outputs
             echo "xts-tag-exists=true" >> "${GITHUB_OUTPUT}"
             echo "xts-tag-commit=${XTS_COMMIT}" >> "${GITHUB_OUTPUT}"
             echo "xts-tag-short-commit=${XTS_SHORT_COMMIT}" >> "${GITHUB_OUTPUT}"
             echo "xts-tag-commit-author=${AUTHOR_NAME} <${AUTHOR_EMAIL}>" >> "${GITHUB_OUTPUT}"
             echo "xts-commit-branch=${XTS_COMMIT_BRANCH}" >> "${GITHUB_OUTPUT}"
             echo "xts-tag-commit-email=${AUTHOR_EMAIL}" >> "${GITHUB_OUTPUT}"
+            echo "xts-info=${XTS_COMMIT_BRANCH} - ${XTS_SHORT_COMMIT}" >> "${GITHUB_OUTPUT}"
+
+            COMMIT_COUNT=$(echo "$COMMIT_LIST" | wc -l)
+            COMMIT_LIST_STR=""
+            if [[ -z "${COMMIT_LIST//[[:space:]]/}" ]]; then
+              # should never get here.
+              echo "::error file=zxcron-extended-test-suite.yaml,line=213::No commits associated with this release; exiting."
+              exit 1
+            elif [[ ${COMMIT_COUNT} -gt 15 ]]; then
+              COMMIT_LIST_STR="Please refer to the workflow summary for the full list of associated commits."
+            else
+              PARSED_COMMIT_LIST="${COMMIT_LIST//\`/}"
+              ESCAPED_COMMIT_LIST=$(jq -Rs . <<< "${PARSED_COMMIT_LIST}")
+              COMMIT_LIST_STR=${ESCAPED_COMMIT_LIST:1:-1}
+            fi
+            echo "commit-list=${COMMIT_LIST_STR}" >> "${GITHUB_OUTPUT}"
+
+            # GitHub Step Summary
             echo "### XTS-Candidate commit found" >>  "${GITHUB_STEP_SUMMARY}"
             echo "xts-tag-commit=${XTS_COMMIT}" >> "${GITHUB_STEP_SUMMARY}"
             echo "### Commit List" >> "${GITHUB_STEP_SUMMARY}"
-            echo "${COMMIT_LIST}" >> "${GITHUB_STEP_SUMMARY}"
+            echo -e "${COMMIT_LIST}" >> "${GITHUB_STEP_SUMMARY}"
+            echo "### XTS Information" >> "${GITHUB_STEP_SUMMARY}"
+            echo "xts-info=${XTS_COMMIT_BRANCH} - ${XTS_SHORT_COMMIT}" >> "${GITHUB_STEP_SUMMARY}"
 
-            git push --delete origin "${XTS_CANDIDATE_TAG}"
-            git tag -d "${XTS_CANDIDATE_TAG}"
+            if [[ -z "${RC_TAG}" ]]; then
+              echo "::debug::Deleting the XTS candidate tag so we can recreate it later."
+              git push --delete origin "${XTS_CANDIDATE_TAG}"
+              git tag -d "${XTS_CANDIDATE_TAG}"
+            fi
           else
-            gh run cancel ${{ github.run_id }}
+            echo "::debug::Commit ${XTS_COMMIT} not found on main branch. Cancelling out."
+            gh run cancel "${{ github.run_id }}"
           fi
+          echo "::endgroup::" # Set Outputs
 
-  extended-test-suite:
-    name: Execute eXtended Test Suite
-    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
-    needs: fetch-xts-candidate
+  state-validator-uberjar:
+    name: Build & Publish Hedera State Validator Uber JAR
+    needs:
+      - fetch-xts-candidate
     if: ${{ needs.fetch-xts-candidate.result == 'success' && needs.fetch-xts-candidate.outputs.xts-tag-exists == 'true' }}
+    uses: ./.github/workflows/zxc-build-publish-state-validator.yaml
     with:
-      custom-job-label: Execute eXtended Test Suite
-      enable-timing-sensitive-tests: true
-      enable-time-consuming-tests: true
-      enable-hammer-tests: true
-      enable-hapi-tests-time-consuming: true
-      enable-network-log-capture: true
       ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
+
+  xts-execution:
+    name: Execute XTS
+    needs:
+      - fetch-xts-candidate
+      - parameters
+      - state-validator-uberjar
+    if: ${{ needs.fetch-xts-candidate.result == 'success' && needs.fetch-xts-candidate.outputs.xts-tag-exists == 'true' }}
+    uses: ./.github/workflows/zxc-xts-tests.yaml
+    with:
+      ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
+      branch_name: ${{ needs.fetch-xts-candidate.outputs.xts-commit-branch }}
+      solo-version: ${{ needs.parameters.outputs.solo-version }}
+      solo-ge-0440: ${{ needs.parameters.outputs.solo-ge-0440 }}
+      helm-release-name: ${{ needs.parameters.outputs.helm-release-name }}
+      custom-job-label: "XTS (main):"
+      enable-timing-sensitive-test-suite: "true"
+      enable-hammer-test-suite: "true"
+      enable-hapi-test-suite: "true"
+      enable-otter-test-suite: "true"
+      enable-hedera-node-jrs-panel: "true"
+      enable-sdk-tck-regression-panel: "true"
     secrets:
       access-token: ${{ secrets.GITHUB_TOKEN }}
-      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
-      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
-
-  abbreviated-panel:
-    name: JRS Panel
-    uses: ./.github/workflows/zxc-jrs-regression.yaml
-    needs: fetch-xts-candidate
-    if: ${{ needs.fetch-xts-candidate.result == 'success' && needs.fetch-xts-candidate.outputs.xts-tag-exists == 'true' }}
-    with:
-      custom-job-name: "Platform SDK"
-      panel-config: "configs/suites/GCP-PRCheck-Abbrev-4N.json"
-      ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }} # pass the xts-candidate tag to the JRS panel for checkout
-      branch-name: ${{ github.head_ref || github.ref_name }}
-      base-branch-name: ${{ github.base_ref || '' }}
-      slack-results-channel: "regression-test"
-      slack-summary-channel: "regression-test"
-      use-branch-for-slack-channel: false
-    secrets:
-      access-token: ${{ secrets.PLATFORM_GH_ACCESS_TOKEN }}
-      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
-      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
-      jrs-ssh-user-name: ${{ secrets.PLATFORM_JRS_SSH_USER_NAME }}
-      jrs-ssh-key-file: ${{ secrets.PLATFORM_JRS_SSH_KEY_FILE }}
+      platform-access-token: ${{ secrets.PLATFORM_GH_ACCESS_TOKEN }}
+      regression-access-token: ${{ secrets.GH_ACCESS_TOKEN }}
       gcp-project-number: ${{ secrets.PLATFORM_GCP_PROJECT_NUMBER }}
       gcp-sa-key-contents: ${{ secrets.PLATFORM_GCP_KEY_FILE }}
-      slack-api-token: ${{ secrets.PLATFORM_SLACK_API_TOKEN }}
-      grafana-agent-username: ${{ secrets.GRAFANA_AGENT_USERNAME }}
-      grafana-agent-password: ${{ secrets.GRAFANA_AGENT_PASSWORD }}
-
-  hedera-node-jrs-panel:
-    name: Hedera Node JRS Panel
-    uses: ./.github/workflows/zxc-jrs-regression.yaml
-    needs: fetch-xts-candidate
-    if: ${{ needs.fetch-xts-candidate.result == 'success' && needs.fetch-xts-candidate.outputs.xts-tag-exists == 'true' }}
-    with:
-      custom-job-name: "Abbrev Update Test"
-      ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }} # pass the xts-candidate tag to the JRS panel for checkout
-      branch-name: ${{ github.head_ref || github.ref_name }}
-      hedera-tests-enabled: true
-      use-branch-for-slack-channel: false
-      panel-config: "configs/services/suites/daily/GCP-Daily-Services-Abbrev-DAB-Update-4N-2C.json"
-    secrets:
-      access-token: ${{ secrets.PLATFORM_GH_ACCESS_TOKEN }}
-      jrs-ssh-user-name: ${{ secrets.PLATFORM_JRS_SSH_USER_NAME }}
-      jrs-ssh-key-file: ${{ secrets.PLATFORM_JRS_SSH_KEY_FILE }}
-      gcp-project-number: ${{ secrets.PLATFORM_GCP_PROJECT_NUMBER }}
-      gcp-sa-key-contents: ${{ secrets.PLATFORM_GCP_KEY_FILE }}
-      slack-api-token: ${{ secrets.PLATFORM_SLACK_API_TOKEN }}
       gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
       grafana-agent-username: ${{ secrets.GRAFANA_AGENT_USERNAME }}
       grafana-agent-password: ${{ secrets.GRAFANA_AGENT_PASSWORD }}
+      jrs-ssh-user-name: ${{ secrets.PLATFORM_JRS_SSH_USER_NAME }}
+      jrs-ssh-key-file: ${{ secrets.PLATFORM_JRS_SSH_KEY_FILE }}
+      slack-api-token: ${{ secrets.PLATFORM_SLACK_API_TOKEN }}
+      slack-citr-details-token: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
+      slack-tck-report-webhook: ${{ secrets.SLACK_TCK_MONITOR_WEBHOOK }}
 
-  sdk-tck-regression-panel:
-    name: SDK TCK Regression Panel
-    needs: fetch-xts-candidate
+  xts-optional-execution:
+    name: Execute Optional XTS Tests
+    needs:
+      - fetch-xts-candidate
+      - parameters
+      - state-validator-uberjar
     if: ${{ needs.fetch-xts-candidate.result == 'success' && needs.fetch-xts-candidate.outputs.xts-tag-exists == 'true' }}
-    uses: ./.github/workflows/zxc-tck-regression.yaml
+    uses: ./.github/workflows/zxc-xts-tests.yaml
     with:
-      ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }} # pass the xts-candidate tag to the JRS panel for checkout
-      custom-job-name: "SDK TCK Regression"
+      ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
+      branch_name: ${{ needs.fetch-xts-candidate.outputs.xts-commit-branch }}
+      solo-version: ${{ needs.parameters.outputs.solo-version }}
+      solo-ge-0440: ${{ needs.parameters.outputs.solo-ge-0440 }}
+      helm-release-name: ${{ needs.parameters.outputs.helm-release-name }}
+      mirror-node-version: ${{ vars.CITR_MIRROR_NODE_VERSION }}
+      custom-job-label: "XTS (Optional):"
+      enable-mirror-node-regression-panel: "true"
+      enable-rpc-relay-regression-panel: "true"
+      enable-block-node-regression-panel: "true"
+      enable-chaos-otter-test-suite: "true"
     secrets:
       access-token: ${{ secrets.GH_ACCESS_TOKEN }}
-      slack-tck-report-webhook: ${{ secrets.SLACK_TCK_MONITOR_WEBHOOK }}
-      slack-detailed-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
+      slack-citr-details-token: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
 
   tag-for-promotion:
     name: Tag as XTS-Passing
-    runs-on: hiero-citr-linux-medium
+    runs-on: hl-cn-default-lin-sm
     needs:
-      - abbreviated-panel
-      - extended-test-suite
       - fetch-xts-candidate
-      - hedera-node-jrs-panel
-    #  - sdk-tck-regression-panel # currently we are not gating XTS-PASS on TCK Regression Panel success
-    if: ${{ needs.abbreviated-panel.result == 'success' || needs.extended-test-suite.result == 'success' || needs.hedera-node-jrs-panel.result == 'success' }}
+      - xts-execution
+    if: ${{ needs.xts-execution.result == 'success' }}
     steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+      - name: Initialize GitHub Job
+        uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
         with:
-          egress-policy: audit
-
-      - name: Checkout Tagged Code
-        id: checkout_tagged_code
-        if: ${{ needs.fetch-xts-candidate.outputs.xts-tag-exists == 'true' }}
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          fetch-depth: "0"
-          ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
-          token: ${{ secrets.GH_ACCESS_TOKEN }}
+          checkout: "true"
+          checkout-ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
+          checkout-fetch-depth: "0"
+          checkout-token: ${{ secrets.GH_ACCESS_TOKEN }}
 
       - name: Import GPG Key
         id: gpg_importer
@@ -245,39 +338,58 @@ jobs:
 
       # Now that the XTS suite has run we should be able to tag for promotion
       - name: Tag for XTS promotion
+        env:
+          RC_TAG: ${{ inputs.rc-tag || '' }}
+          TAG_WITH_EPOCH: ${{ inputs.enable-promotion || 'false' }}
         run: |
-          EPOCH_TIME=$(date +%s)
-          TAG=xts-pass-${EPOCH_TIME}
-          git tag --annotate ${TAG} --message "chore: tagging commit for build candidate promotion"
-          git push --set-upstream origin --tags
-          echo "### Commit Tagged for Promotion" >>  "${GITHUB_STEP_SUMMARY}"
-          echo "promotion-tag=${TAG}" >> "${GITHUB_STEP_SUMMARY}"
+          if [[ -n "${RC_TAG}" ]] && [[ "${TAG_WITH_EPOCH}" == "false" ]]; then
+            echo "::debug::Tagging adhoc commit as XTS passing"
+            TAG="adhoc-xts-pass-${RC_TAG}"
+
+            set +e
+              TAG_COMMIT="$(git rev-list -n 1 "${TAG}")" >/dev/null 2>&1
+              TAG_EXISTS="${?}"
+            set -e
+
+            if [[ "${TAG_EXISTS}" -eq 0 ]]; then
+              echo "::debug::Tag exists, recreate it"
+              echo "Tag ${TAG} already exists. Deleting."
+              git push --delete origin "${TAG}"
+              git tag -d "${TAG}"
+            fi
+
+            echo "::debug::Push the new tag ${TAG}"
+            git tag --annotate "${TAG}" --message "chore: tagging release candidate as XTS passing"
+            git push --set-upstream origin "${TAG}"
+            echo "### Commit Tagged as XTS-Passing" >>  "${GITHUB_STEP_SUMMARY}"
+            echo "xts-pass-tag=${TAG}" >> "${GITHUB_STEP_SUMMARY}"
+          else
+            echo "::debug::Tagging commit with epoch timestamp as XTS passing"
+            EPOCH_TIME="$(date +%s)"
+            TAG="xts-pass-${EPOCH_TIME}"
+            git tag --annotate "${TAG}" --message "chore: tagging commit for build candidate promotion"
+            git push --set-upstream origin --tags
+            echo "### Commit Tagged for Promotion" >>  "${GITHUB_STEP_SUMMARY}"
+            echo "promotion-tag=${TAG}" >> "${GITHUB_STEP_SUMMARY}"
+          fi
 
   report-success:
     name: Report XTS execution success
-    runs-on: hiero-citr-linux-medium
+    runs-on: hl-cn-default-lin-sm
     needs:
-      - abbreviated-panel
-      - extended-test-suite
       - fetch-xts-candidate
-      - hedera-node-jrs-panel
+      - xts-execution
       - tag-for-promotion
-    if: ${{ (needs.abbreviated-panel.result == 'success' &&
-      needs.extended-test-suite.result == 'success' &&
-      needs.fetch-xts-candidate.result == 'success' &&
-      needs.hedera-node-jrs-panel.result == 'success' &&
+    if: ${{ (needs.fetch-xts-candidate.result == 'success' &&
+      needs.xts-execution.result == 'success' &&
       needs.tag-for-promotion.result == 'success') &&
       !cancelled() }}
     steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
-        with:
-          egress-policy: audit
+      - name: Initialize GitHub Job
+        uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
 
       - name: Report Success (slack)
         uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
-        env:
-          XTS_INFO: "${{ needs.fetch-xts-candidate.outputs.xts-commit-branch }} - ${{ needs.fetch-xts-candidate.outputs.xts-tag-short-commit }}"
         with:
           webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
           webhook-type: incoming-webhook
@@ -292,7 +404,7 @@ jobs:
                       "type": "header",
                       "text": {
                         "type": "plain_text",
-                        "text": ":tada: XTS - eXtended Test Suite Passing Report (${XTS_INFO}) Passed",
+                        "text": ":tada: XTS - eXtended Test Suite Passing Report (${{ needs.fetch-xts-candidate.outputs.xts-info }}) Passed",
                         "emoji": true
                       }
                     },
@@ -312,19 +424,7 @@ jobs:
                         },
                         {
                           "type": "plain_text",
-                          "text": "Execute eXtended Test Suite: ${{ needs.extended-test-suite.result }}"
-                        },
-                        {
-                          "type": "plain_text",
-                          "text": "JRS Panel: ${{ needs.abbreviated-panel.result }}"
-                        },
-                        {
-                          "type": "plain_text",
-                          "text": "Hedera Node JRS Panel: ${{ needs.hedera-node-jrs-panel.result }}"
-                        },
-                        {
-                          "type": "plain_text",
-                          "text": "SDK TCK Regression Panel: ${{ needs.sdk-tck-regression-panel.result }}"
+                          "text": "XTS Execution: ${{ needs.xts-execution.result }}"
                         },
                         {
                           "type": "plain_text",
@@ -375,6 +475,22 @@ jobs:
                           "text": "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
                         }
                       ]
+                    },
+                    {
+                      "type": "divider"
+                    },
+                    {
+                      "type": "section",
+                      "text": {
+                        "type": "mrkdwn",
+                        "text": "*Commit List*:"
+                      },
+                      "fields": [
+                        {
+                          "type": "mrkdwn",
+                          "text": "${{ needs.fetch-xts-candidate.outputs.commit-list }}"
+                        }
+                      ]
                     }
                   ]
                 }
@@ -383,43 +499,34 @@ jobs:
 
   report-failure:
     name: Report XTS execution failure
-    runs-on: hiero-citr-linux-medium
+    runs-on: hl-cn-default-lin-sm
     needs:
-      - abbreviated-panel
-      - extended-test-suite
       - fetch-xts-candidate
-      - hedera-node-jrs-panel
-      - sdk-tck-regression-panel
+      - xts-execution
       - tag-for-promotion
-    if: ${{ (needs.abbreviated-panel.result != 'success' ||
-      needs.extended-test-suite.result != 'success' ||
-      needs.fetch-xts-candidate.result != 'success' ||
-      needs.hedera-node-jrs-panel.result != 'success' ||
+    if: ${{ (needs.fetch-xts-candidate.result != 'success' ||
+      needs.xts-execution.result != 'success' ||
       needs.tag-for-promotion.result != 'success') &&
       !cancelled() && always() }}
 
     steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+      - name: Initialize GitHub Job
+        uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
         with:
-          egress-policy: audit
-
-      - name: Checkout Code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          fetch-depth: "0"
-          ref: main
-          token: ${{ secrets.GH_ACCESS_TOKEN }}
+          checkout: "true"
+          checkout-ref: main
+          checkout-fetch-depth: "0"
+          checkout-token: ${{ secrets.GH_ACCESS_TOKEN }}
 
       - name: Collect run logs in a log file
         env:
           GH_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
         continue-on-error: true
         run: |
-          for job_id in $(gh run view ${{ github.run_id }} --json jobs --jq '.jobs | map(.databaseId) | .[0:-1] | .[]'); do
+          for job_id in "$(gh run view "${{ github.run_id }}" --json jobs --jq '.jobs | map(.databaseId) | .[0:-1] | .[]')"; do
             echo "Fetching logs for job $job_id..."
 
-            current_job_name=$(gh run view ${{ github.run_id }} --json jobs | jq --argjson job_id "$job_id" -r '.jobs[] | select(.databaseId == $job_id) | .name')
+            current_job_name="$(gh run view ${{ github.run_id }} --json jobs | jq --argjson job_id "$job_id" -r '.jobs[] | select(.databaseId == $job_id) | .name')"
 
             echo "Logs for job $current_job_name :" >> run.log
 
@@ -455,10 +562,81 @@ jobs:
           fi
           echo "slack-user-id=${SLACK_USER_ID}" >> "${GITHUB_OUTPUT}"
 
+      - name: Determine failure mode
+        id: extended-test-suite-failure
+        if: ${{ needs.xts-execution.result != 'success' }}
+        run: |
+          failure_mode="${{ needs.xts-execution.outputs.failure-mode || 'general' }}"
+          echo "mode=${failure_mode}" >> "${GITHUB_OUTPUT}"
+
+      - name: Set Rootly Service Name
+        id: set-rootly-service
+        run: |
+          ROOTLY_SERVICE_NAME="CITR General"
+          if [[ "${{ needs.fetch-xts-candidate.result }}" =~ ^(cancelled|failure)$ ]] \
+            || [[ "${{ needs.tag-for-promotion.result }}" =~ ^(cancelled|failure)$ ]] \
+            || [[ "${{ steps.extended-test-suite-failure.outputs.mode || 'general' }}" == "workflow" ]]; then
+            ROOTLY_SERVICE_NAME="CI/CD Workflows"
+          fi
+          echo "service=${ROOTLY_SERVICE_NAME}" >> "${GITHUB_OUTPUT}"
+
+      - name: Build Rootly Summary
+        id: rootly-summary
+        env:
+          PRINT_FAILED_TESTS_SCRIPT: ".github/workflows/support/scripts/print-failed-tests.sh"
+        run: |
+          title="The eXtended Test Suite job failed (${{ needs.fetch-xts-candidate.outputs.xts-info }})."
+
+          echo "title=${title}" >> "${GITHUB_OUTPUT}"
+          {
+            echo 'summary<<EOF'
+            echo "------------------------------------"
+            echo "Status of each jobs:"
+            echo "- Execute XTS: ${{ needs.xts-execution.result }}"
+            echo "- Tag for Promotion: ${{ needs.tag-for-promotion.result }}"
+            echo "------------------------------------"
+            if [[ "${{ needs.xts-execution.result }}" != "success" ]]; then
+              echo "XTS tests failed due to a ${{ needs.xts-execution.outputs.failure-mode }} error."
+              echo "Failing Test(s):"
+              bash "${{ github.workspace }}/${{ env.PRINT_FAILED_TESTS_SCRIPT }}" "${{ needs.xts-execution.outputs.failed-tests }}"
+              echo "------------------------------------"
+            fi
+            echo "Commit information:"
+            echo "- Author: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit-author }}"
+            echo "- Commit: <${{ github.server_url }}/${{ github.repository }}/commit/${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}>"
+            echo "- Workflow: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
+            echo "------------------------------------"
+            echo "Commit List:"
+            echo -e "${{ needs.fetch-xts-candidate.outputs.commit-list }}"
+            echo EOF
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Log Rootly Summary
+        run: |
+          echo "## Rootly Summary:"
+          echo "### Title: ${{ steps.rootly-summary.outputs.title }}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "${{ steps.rootly-summary.outputs.summary }}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "### Rootly Service" >> "${GITHUB_STEP_SUMMARY}"
+          echo "${{ steps.set-rootly-service.outputs.service }}" >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Create Rootly Alert
+        id: create-rootly-alert
+        uses: pandaswhocode/rootly-alert-action@fdae1529e5aed62040016accf719a0ceb7dae57f # v1.0.0
+        continue-on-error: true
+        with:
+          api_key: ${{ secrets.ROOTLY_API_TOKEN }}
+          summary: "${{ steps.rootly-summary.outputs.title }}"
+          details: "${{ steps.rootly-summary.outputs.summary }}"
+          notification_target_type: "Service"
+          notification_target: ${{ steps.set-rootly-service.outputs.service }}
+          set_as_noise: "false"
+          alert_urgency: "High"
+          external_id: ${{ github.run_id }}
+          external_url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          environments: "CITR"
+
       - name: Build Slack Payload Message
         id: payload
-        env:
-          XTS_INFO: "${{ needs.fetch-xts-candidate.outputs.xts-commit-branch }} - ${{ needs.fetch-xts-candidate.outputs.xts-tag-short-commit }}"
         run: |
           cat <<EOF > slack_payload.json
           {
@@ -470,7 +648,7 @@ jobs:
                     "type": "header",
                     "text": {
                       "type": "plain_text",
-                      "text": ":grey_exclamation: XTS - eXtended Test Suite Failure Report (${XTS_INFO}) Failed",
+                      "text": ":grey_exclamation: XTS - eXtended Test Suite Failure Report (${{ needs.fetch-xts-candidate.outputs.xts-info }}) Failed",
                       "emoji": true
                     }
                   },
@@ -490,19 +668,7 @@ jobs:
                       },
                       {
                         "type": "plain_text",
-                        "text": "Execute eXtended Test Suite: ${{ needs.extended-test-suite.result }}"
-                      },
-                      {
-                        "type": "plain_text",
-                        "text": "JRS Panel: ${{ needs.abbreviated-panel.result }}"
-                      },
-                      {
-                        "type": "plain_text",
-                        "text": "Hedera Node JRS Panel: ${{ needs.hedera-node-jrs-panel.result }}"
-                      },
-                      {
-                        "type": "plain_text",
-                        "text": "SDK TCK Regression Panel: ${{ needs.sdk-tck-regression-panel.result }}"
+                        "text": "XTS Execution: ${{ needs.xts-execution.result }}"
                       },
                       {
                         "type": "plain_text",
@@ -561,6 +727,22 @@ jobs:
                         "text": "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
                       }
                     ]
+                  },
+                  {
+                    "type": "divider"
+                  },
+                  {
+                    "type": "section",
+                    "text": {
+                      "type": "mrkdwn",
+                      "text": "*Commit List*:"
+                    },
+                    "fields": [
+                      {
+                        "type": "mrkdwn",
+                        "text": "${{ needs.fetch-xts-candidate.outputs.commit-list }}"
+                      }
+                    ]
                   }
                 ]
               }
@@ -569,9 +751,19 @@ jobs:
           EOF
 
       - name: Report failure (slack citr-operations)
+        if: ${{ steps.set-rootly-service.outputs.service != 'CI/CD Workflows' }}
         uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
         with:
           webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
+          webhook-type: incoming-webhook
+          payload-templated: true
+          payload-file-path: slack_payload.json
+
+      - name: Report failure (slack citr-failures)
+        if: ${{ steps.set-rootly-service.outputs.service == 'CI/CD Workflows' }}
+        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+        with:
+          webhook: ${{ secrets.SLACK_CITR_FAILURES_WEBHOOK }}
           webhook-type: incoming-webhook
           payload-templated: true
           payload-file-path: slack_payload.json

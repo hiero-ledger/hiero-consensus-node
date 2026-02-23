@@ -11,7 +11,6 @@ import edu.umd.cs.findbugs.annotations.Nullable;
  * This class contains common functionality needed for crypto handlers.
  */
 public class BaseCryptoHandler {
-
     /**
      * Gets the accountId from the account number provided.
      * @param shard the account shard

@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec;
 
-import static com.hedera.node.app.roster.schemas.V0540RosterSchema.ROSTER_STATES_KEY;
-import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_KEY;
-import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_KEY;
-import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_INFO_KEY;
-import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.TOKENS_KEY;
+import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_STATE_ID;
+import static com.hedera.node.app.service.schedule.impl.schemas.V0570ScheduleSchema.SCHEDULED_COUNTS_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_INFOS_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.TOKENS_STATE_ID;
 import static com.hedera.services.bdd.junit.extensions.NetworkTargetingExtension.REPEATABLE_KEY_GENERATOR;
 import static com.hedera.services.bdd.junit.extensions.NetworkTargetingExtension.SHARED_NETWORK;
 import static com.hedera.services.bdd.junit.hedera.BlockNodeNetwork.BLOCK_NODE_LOCAL_PORT;
@@ -46,6 +46,7 @@ import static java.util.concurrent.CompletableFuture.allOf;
 import static java.util.concurrent.CompletableFuture.runAsync;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.stream.Collectors.joining;
+import static org.hiero.consensus.roster.RosterStateId.ROSTER_STATE_STATE_ID;
 
 import com.google.common.base.MoreObjects;
 import com.hedera.hapi.node.base.TimestampSeconds;
@@ -57,9 +58,8 @@ import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.StakingNodeInfo;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.node.app.fixtures.state.FakeState;
-import com.hedera.node.app.roster.RosterService;
+import com.hedera.node.app.service.roster.RosterService;
 import com.hedera.node.app.service.schedule.ScheduleService;
-import com.hedera.node.app.service.schedule.impl.schemas.V0570ScheduleSchema;
 import com.hedera.node.app.service.token.TokenService;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.extensions.NetworkTargetingExtension;
@@ -73,6 +73,8 @@ import com.hedera.services.bdd.junit.hedera.embedded.EmbeddedNetwork;
 import com.hedera.services.bdd.junit.hedera.embedded.RepeatableEmbeddedHedera;
 import com.hedera.services.bdd.junit.hedera.remote.RemoteNetwork;
 import com.hedera.services.bdd.junit.hedera.simulator.SimulatedBlockNodeServer;
+import com.hedera.services.bdd.junit.hedera.subprocess.PrometheusClient;
+import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.fees.FeeCalculator;
 import com.hedera.services.bdd.spec.fees.FeesAndRatesProvider;
@@ -90,8 +92,11 @@ import com.hedera.services.bdd.spec.utilops.streams.assertions.AbstractEventualS
 import com.hedera.services.bdd.spec.verification.traceability.SidecarWatcher;
 import com.hedera.services.bdd.suites.regression.system.LifecycleTest;
 import com.hederahashgraph.api.proto.java.AccountID;
+import com.hederahashgraph.api.proto.java.ContractID;
+import com.hederahashgraph.api.proto.java.FileID;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import com.hederahashgraph.api.proto.java.Timestamp;
+import com.hederahashgraph.api.proto.java.TopicID;
 import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableSingletonState;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -123,6 +128,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+import java.util.function.LongFunction;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -141,6 +147,7 @@ import org.junit.jupiter.api.function.Executable;
  * some operations do require an embedded or subprocess network.
  */
 public class HapiSpec implements Runnable, Executable, LifecycleTest {
+
     private static final int CONCURRENT_EMBEDDED_STATUS_WAIT_SLEEP_MS = 1;
     private static final String CI_CHECK_NAME_SYSTEM_PROPERTY = "ci.check.name";
     private static final String QUIET_MODE_SYSTEM_PROPERTY = "hapi.spec.quiet.mode";
@@ -176,7 +183,7 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
      * stake weights change each stake period boundary.
      * @param stakerIds the set of staker IDs to use
      */
-    public static void setStakerIds(@NonNull final Set<AccountID> stakerIds) {
+    public static void setStakerIds(@Nullable final Set<AccountID> stakerIds) {
         HapiSpec.stakerIds = stakerIds;
     }
 
@@ -269,6 +276,11 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
      */
     @Nullable
     private HederaNetwork targetNetwork;
+    /**
+     * If non-null, the non-remote block node network to target with this spec.
+     */
+    @Nullable
+    private BlockNodeNetwork blockNodeNetwork;
     /**
      * If non-null, an observer to receive the final state of this spec's register and key factory
      * after it has executed.
@@ -371,6 +383,10 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
         return targetNetworkOrThrow().type();
     }
 
+    public PrometheusClient prometheusClient() {
+        return targetNetworkOrThrow().prometheusClient();
+    }
+
     public void setSpecStateObserver(@NonNull final SpecStateObserver specStateObserver) {
         this.specStateObserver = specStateObserver;
     }
@@ -437,6 +453,10 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
         this.targetNetwork = requireNonNull(targetNetwork);
     }
 
+    public void setBlockNodeNetwork(@NonNull final BlockNodeNetwork blockNodeNetwork) {
+        this.blockNodeNetwork = requireNonNull(blockNodeNetwork);
+    }
+
     public void setSharedStates(@NonNull final List<SpecStateObserver.SpecState> sharedStates) {
         this.sharedStates = sharedStates;
     }
@@ -453,7 +473,7 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
      * @return the path to the record stream
      * @throws RuntimeException if the spec has no target network or the node is not found
      */
-    public @NonNull Path streamsLoc(@NonNull final NodeSelector selector) {
+    public @NonNull Path recordStreamsLoc(@NonNull final NodeSelector selector) {
         requireNonNull(selector);
         return targetNetworkOrThrow().getRequiredNode(selector).getExternalPath(RECORD_STREAMS_DIR);
     }
@@ -465,6 +485,54 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
      */
     public @NonNull HederaNetwork targetNetworkOrThrow() {
         return requireNonNull(targetNetwork);
+    }
+
+    /**
+     * Returns a function mapping an entity number to an {@link ContractID} for the target network.
+     * @return the contract ID factory function
+     */
+    public LongFunction<ContractID> contractIdFactory() {
+        return num -> ContractID.newBuilder()
+                .setShardNum(shard())
+                .setRealmNum(realm())
+                .setContractNum(num)
+                .build();
+    }
+
+    /**
+     * Returns a function mapping an entity number to an {@link AccountID} for the target network.
+     * @return the account ID factory function
+     */
+    public LongFunction<AccountID> accountIdFactory() {
+        return num -> AccountID.newBuilder()
+                .setShardNum(shard())
+                .setRealmNum(realm())
+                .setAccountNum(num)
+                .build();
+    }
+
+    /**
+     * Returns a function mapping an entity number to an {@link FileID} for the target network.
+     * @return the file ID factory function
+     */
+    public LongFunction<FileID> fileIdFactory() {
+        return num -> FileID.newBuilder()
+                .setShardNum(shard())
+                .setRealmNum(realm())
+                .setFileNum(num)
+                .build();
+    }
+
+    /**
+     * Returns a function mapping an entity number to an {@link TopicID} for the target network.
+     * @return the topic ID factory function
+     */
+    public LongFunction<TopicID> topicIdFactory() {
+        return num -> TopicID.newBuilder()
+                .setShardNum(shard())
+                .setRealmNum(realm())
+                .setTopicNum(num)
+                .build();
     }
 
     /**
@@ -515,6 +583,17 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
     }
 
     /**
+     * Returns the {@link SubProcessNetwork} if the target network is of that type, or throws.
+     * @return the target subprocess network
+     */
+    public SubProcessNetwork subProcessNetworkOrThrow() {
+        if (!(targetNetworkOrThrow() instanceof SubProcessNetwork network)) {
+            throw new IllegalStateException("Target network is not subprocess");
+        }
+        return network;
+    }
+
+    /**
      * Sleeps for the approximate wall clock time it will take for the spec's target
      * network to advance consensus time by the given duration.
      *
@@ -550,7 +629,7 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
      */
     public @NonNull WritableKVState<com.hedera.hapi.node.base.AccountID, Account> embeddedAccountsOrThrow() {
         final var state = embeddedStateOrThrow();
-        return state.getWritableStates(TokenService.NAME).get(ACCOUNTS_KEY);
+        return state.getWritableStates(TokenService.NAME).get(ACCOUNTS_STATE_ID);
     }
 
     /**
@@ -561,7 +640,7 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
      */
     public @NonNull WritableKVState<com.hedera.hapi.node.base.TokenID, Token> embeddedTokensOrThrow() {
         final var state = embeddedStateOrThrow();
-        return state.getWritableStates(TokenService.NAME).get(TOKENS_KEY);
+        return state.getWritableStates(TokenService.NAME).get(TOKENS_STATE_ID);
     }
 
     /**
@@ -572,7 +651,7 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
      */
     public @NonNull WritableKVState<EntityNumber, StakingNodeInfo> embeddedStakingInfosOrThrow() {
         final var state = embeddedStateOrThrow();
-        return state.getWritableStates(TokenService.NAME).get(STAKING_INFO_KEY);
+        return state.getWritableStates(TokenService.NAME).get(STAKING_INFOS_STATE_ID);
     }
 
     /**
@@ -584,7 +663,7 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
      */
     public @NonNull WritableKVState<TimestampSeconds, ScheduledCounts> embeddedScheduleCountsOrThrow() {
         final var state = embeddedStateOrThrow();
-        return state.getWritableStates(ScheduleService.NAME).get(V0570ScheduleSchema.SCHEDULED_COUNTS_KEY);
+        return state.getWritableStates(ScheduleService.NAME).get(SCHEDULED_COUNTS_STATE_ID);
     }
 
     /**
@@ -596,7 +675,7 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
      */
     public @NonNull WritableSingletonState<RosterState> embeddedRosterStateOrThrow() {
         final var state = embeddedStateOrThrow();
-        return state.getWritableStates(RosterService.NAME).getSingleton(ROSTER_STATES_KEY);
+        return state.getWritableStates(RosterService.NAME).getSingleton(ROSTER_STATE_STATE_ID);
     }
 
     /**
@@ -608,7 +687,7 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
     public @NonNull WritableKVState<EntityNumber, Node> embeddedNodesOrThrow() {
         final var state = embeddedStateOrThrow();
         return state.getWritableStates(com.hedera.node.app.service.addressbook.AddressBookService.NAME)
-                .get(NODES_KEY);
+                .get(NODES_STATE_ID);
     }
 
     /**
@@ -623,13 +702,17 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
         return requireNonNull(targetNetwork).nodes();
     }
 
+    public Set<Long> getBlockNodeNetworkIds() {
+        return requireNonNull(blockNodeNetwork).nodeIds();
+    }
+
     public int getBlockNodePortById(final long nodeId) {
         final BlockNodeNetwork blockNodeNetwork = TARGET_BLOCK_NODE_NETWORK.get();
         final BlockNodeMode mode = blockNodeNetwork.getBlockNodeModeById().get(nodeId);
         if (mode == null) {
             throw new IllegalStateException("Node " + nodeId + " is not a block node");
         } else if (mode == BlockNodeMode.REAL) {
-            return blockNodeNetwork.getBlockNodeContainerById().get(nodeId).getGrpcPort();
+            return blockNodeNetwork.getBlockNodeContainerById().get(nodeId).getPort();
         } else if (mode == BlockNodeMode.SIMULATOR) {
             return blockNodeNetwork.getSimulatedBlockNodeById().get(nodeId).getPort();
         } else if (mode == BlockNodeMode.LOCAL_NODE) {
@@ -863,11 +946,10 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
                     "default.shard", "" + targetNetwork.shard(),
                     "default.realm", "" + targetNetwork.realm()));
         } catch (Exception ignore) {
+            final long shard = HapiPropertySource.getConfigShard();
+            final long realm = HapiPropertySource.getConfigRealm();
             targetNetwork = RemoteNetwork.newRemoteNetwork(
-                    hapiSetup.nodes(),
-                    clientsFor(hapiSetup),
-                    HapiPropertySource.getConfigShard(),
-                    HapiPropertySource.getConfigRealm());
+                    hapiSetup.nodes(shard, realm), clientsFor(hapiSetup, shard, realm), shard, realm);
         }
     }
 
@@ -1164,7 +1246,7 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
             ciPropsSource.put("node.selector", nodeSelectorFromCi);
 
             dynamicNodes = Arrays.stream(dynamicNodes.split(","))
-                    .map(NodeConnectInfo::new)
+                    .map(inString -> new NodeConnectInfo(inString, 0, 0))
                     .map(info -> {
                         final var acct = info.getAccount();
                         return info.uri() + ":"
@@ -1420,6 +1502,13 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
         interface Then {
             Stream<DynamicTest> then(SpecOperation... ops);
         }
+    }
+
+    public boolean simpleFeesEnabled() {
+        return this.targetNetworkOrThrow()
+                .startupProperties()
+                .get("fees.simpleFeesEnabled")
+                .equals("true");
     }
 
     @Override

@@ -1,23 +1,22 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl;
 
-import static com.hedera.node.app.service.token.impl.schemas.V0610TokenSchema.NODE_REWARDS_KEY;
+import static com.hedera.node.app.service.token.impl.schemas.V0610TokenSchema.NODE_REWARDS_STATE_ID;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.token.NodeRewards;
-import com.hedera.node.app.service.token.ReadableNetworkStakingRewardsStore;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 
 /**
- * Default implementation of {@link ReadableNetworkStakingRewardsStore}.
+ * Default implementation of {@link ReadableNodeRewardsStoreImpl}.
  */
 public class WritableNodeRewardsStoreImpl extends ReadableNodeRewardsStoreImpl {
 
     /**
-     * The underlying data storage class that holds staking reward data for all nodes.
+     * The underlying data storage class that holds node reward data for all nodes.
      */
     private final WritableSingletonState<NodeRewards> nodeRewardsState;
 
@@ -28,7 +27,7 @@ public class WritableNodeRewardsStoreImpl extends ReadableNodeRewardsStoreImpl {
      */
     public WritableNodeRewardsStoreImpl(@NonNull final WritableStates states) {
         super(states);
-        this.nodeRewardsState = requireNonNull(states).getSingleton(NODE_REWARDS_KEY);
+        this.nodeRewardsState = requireNonNull(states).getSingleton(NODE_REWARDS_STATE_ID);
     }
 
     /**

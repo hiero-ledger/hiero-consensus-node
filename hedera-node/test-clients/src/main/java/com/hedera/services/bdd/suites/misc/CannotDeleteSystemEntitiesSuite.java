@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.misc;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoDelete;
@@ -22,11 +23,13 @@ import java.util.Arrays;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
 
 public class CannotDeleteSystemEntitiesSuite {
     final int[] sysFileIds = {101, 102, 111, 112, 121, 122, 150};
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> genesisCannotDeleteSystemAccountsFrom1To100() {
         return systemUserCannotDeleteSystemAccounts(1, 100, GENESIS);
     }
@@ -57,6 +60,7 @@ public class CannotDeleteSystemEntitiesSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> normalUserCannotDeleteSystemAccountsFrom1To100() {
         return normalUserCannotDeleteSystemAccounts(1, 100);
     }

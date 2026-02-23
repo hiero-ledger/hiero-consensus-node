@@ -29,7 +29,7 @@ public class BookEntryPojo {
         private static String asReadableIp(final ByteString octets) {
             final byte[] raw = octets.toByteArray();
             final var sb = new StringBuilder();
-            for (int i = 0; i < 4; i++) {
+            for (int i = 0; i < raw.length; i++) {
                 sb.append("" + (0xff & raw[i]));
                 if (i != 3) {
                     sb.append(".");

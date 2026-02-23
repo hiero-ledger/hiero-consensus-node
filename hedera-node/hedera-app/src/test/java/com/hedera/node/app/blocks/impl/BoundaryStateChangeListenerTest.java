@@ -1,23 +1,18 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl;
 
-import static com.hedera.hapi.block.stream.output.StateChange.ChangeOperationOneOfType.QUEUE_POP;
-import static com.hedera.hapi.block.stream.output.StateChange.ChangeOperationOneOfType.QUEUE_PUSH;
 import static com.hedera.hapi.block.stream.output.StateChange.ChangeOperationOneOfType.SINGLETON_UPDATE;
-import static com.hedera.node.app.blocks.impl.BlockImplUtils.stateIdFor;
-import static com.swirlds.state.StateChangeListener.StateType.QUEUE;
 import static com.swirlds.state.StateChangeListener.StateType.SINGLETON;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.hedera.hapi.block.stream.BlockItem;
+import com.hedera.hapi.block.stream.output.SingletonUpdateChange;
 import com.hedera.hapi.block.stream.output.StateChange;
+import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.entity.EntityCounts;
-import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.primitives.ProtoString;
-import com.hedera.node.app.blocks.BlockStreamService;
-import com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema;
+import com.hedera.hapi.node.state.token.NodePayment;
+import com.hedera.hapi.node.state.token.NodePayments;
 import com.hedera.node.app.metrics.StoreMetricsImpl;
 import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
 import com.hedera.node.app.spi.metrics.StoreMetricsService;
@@ -29,20 +24,21 @@ import com.hedera.node.config.data.SchedulingConfig;
 import com.hedera.node.config.data.TokensConfig;
 import com.hedera.node.config.data.TopicsConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.config.api.Configuration;
-import java.time.Instant;
 import java.util.List;
 import java.util.Set;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.junit.jupiter.MockitoExtension;
 
+@ExtendWith(MockitoExtension.class)
 class BoundaryStateChangeListenerTest {
+
     private static final int STATE_ID = 1;
     private static final int STATE_ID_ENTITY_COUNTS = 41;
     public static final ProtoString PROTO_STRING = new ProtoString("test");
-    public static final ProtoBytes PROTO_BYTES = new ProtoBytes(Bytes.wrap(new byte[] {1, 2, 3}));
     public static final EntityCounts ENTITY_COUNTS = EntityCounts.newBuilder()
             .numNfts(1)
             .numAccounts(2)
@@ -70,53 +66,16 @@ class BoundaryStateChangeListenerTest {
     }
 
     @Test
-    void targetTypesAreSingletonAndQueue() {
-        assertEquals(Set.of(SINGLETON, QUEUE), listener.stateTypes());
-    }
-
-    @Test
-    void understandsStateIds() {
-        final var service = BlockStreamService.NAME;
-        final var stateKey = V0560BlockStreamSchema.BLOCK_STREAM_INFO_KEY;
-        assertEquals(stateIdFor(service, stateKey), listener.stateIdFor(service, stateKey));
-    }
-
-    @Test
-    void testFlushChanges() {
-        listener.setBoundaryTimestamp(Instant.now());
-        listener.singletonUpdateChange(STATE_ID, PROTO_STRING);
-        BlockItem blockItem = listener.flushChanges();
-
-        assertNotNull(blockItem);
-        assertTrue(listener.allStateChanges().isEmpty());
+    void targetTypeIsSingleton() {
+        assertEquals(Set.of(SINGLETON), listener.stateTypes());
     }
 
     @Test
     void testAllStateChanges() {
         listener.singletonUpdateChange(STATE_ID, PROTO_STRING);
-        listener.queuePushChange(STATE_ID, PROTO_BYTES);
 
         List<StateChange> stateChanges = listener.allStateChanges();
-        assertEquals(2, stateChanges.size());
-    }
-
-    @Test
-    void testQueuePushChange() {
-        listener.queuePushChange(STATE_ID, PROTO_BYTES);
-
-        StateChange stateChange = listener.allStateChanges().getFirst();
-        assertEquals(QUEUE_PUSH, stateChange.changeOperation().kind());
-        assertEquals(STATE_ID, stateChange.stateId());
-        assertEquals(PROTO_BYTES.value(), stateChange.queuePush().protoBytesElement());
-    }
-
-    @Test
-    void testQueuePopChange() {
-        listener.queuePopChange(STATE_ID);
-
-        StateChange stateChange = listener.allStateChanges().getFirst();
-        assertEquals(QUEUE_POP, stateChange.changeOperation().kind());
-        assertEquals(STATE_ID, stateChange.stateId());
+        assertEquals(1, stateChanges.size());
     }
 
     @Test
@@ -220,5 +179,66 @@ class BoundaryStateChangeListenerTest {
                         .getCount()
                         .get(),
                 ENTITY_COUNTS.numTopics());
+    }
+
+    @Test
+    void testSingletonUpdateChangeForNodePayments() {
+        final var nodePayments = NodePayments.newBuilder()
+                .payments(List.of(
+                        NodePayment.newBuilder()
+                                .nodeAccountId(
+                                        AccountID.newBuilder().accountNum(3).build())
+                                .fees(100L)
+                                .build(),
+                        NodePayment.newBuilder()
+                                .nodeAccountId(
+                                        AccountID.newBuilder().accountNum(4).build())
+                                .fees(200L)
+                                .build()))
+                .lastNodeFeeDistributionTime(
+                        Timestamp.newBuilder().seconds(1000L).build())
+                .build();
+        final int nodePaymentsStateId = 55; // STATE_ID_NODE_PAYMENTS
+
+        listener.singletonUpdateChange(nodePaymentsStateId, nodePayments);
+
+        StateChange stateChange = listener.allStateChanges().getFirst();
+        assertEquals(SINGLETON_UPDATE, stateChange.changeOperation().kind());
+        assertEquals(nodePaymentsStateId, stateChange.stateId());
+        assertEquals(nodePayments, stateChange.singletonUpdate().nodePaymentsValue());
+    }
+
+    @Test
+    void testSingletonUpdateChangeValueForNodePayments() {
+        final var nodePayments = NodePayments.newBuilder()
+                .payments(List.of(NodePayment.newBuilder()
+                        .nodeAccountId(AccountID.newBuilder().accountNum(5).build())
+                        .fees(500L)
+                        .build()))
+                .build();
+
+        final var result = BoundaryStateChangeListener.singletonUpdateChangeValueFor(nodePayments);
+
+        assertEquals(SingletonUpdateChange.NewValueOneOfType.NODE_PAYMENTS_VALUE, result.kind());
+        assertEquals(nodePayments, result.value());
+    }
+
+    @Test
+    void testResetCollectedNodeFees() {
+        listener.trackCollectedNodeFees(100);
+        assertEquals(100, listener.nodeFeesCollected());
+
+        listener.resetCollectedNodeFees();
+
+        assertEquals(0, listener.nodeFeesCollected());
+    }
+
+    @Test
+    void testTrackCollectedNodeFeesAccumulates() {
+        listener.trackCollectedNodeFees(100);
+        listener.trackCollectedNodeFees(50);
+        listener.trackCollectedNodeFees(25);
+
+        assertEquals(175, listener.nodeFeesCollected());
     }
 }

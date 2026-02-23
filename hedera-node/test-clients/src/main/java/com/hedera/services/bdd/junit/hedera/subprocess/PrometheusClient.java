@@ -12,7 +12,9 @@ import java.net.URISyntaxException;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
@@ -32,7 +34,8 @@ public class PrometheusClient {
             Pattern.compile("# HELP platform_PlatformStatus (.*)");
     private static final Pattern PROM_PLATFORM_STATUS_PATTERN =
             Pattern.compile("platform_PlatformStatus\\{.*\\} (\\d+)\\.\\d+");
-
+    private static final Pattern PROM_OPS_DURATION_THROTTLE_PERCENT_USED_METRIC_PATTERN =
+            Pattern.compile("app_consOpsDurationPercentUsed\\{.*\\}.*");
     private final HttpClient httpClient = HttpClient.newHttpClient();
 
     /**
@@ -65,6 +68,37 @@ public class PrometheusClient {
             throw new IllegalStateException(e);
         }
         return newPrometheusAttempt(statusMap.get(statusKey.get()), failureReason);
+    }
+
+    /**
+     * Returns a list of throttle duration metrics from the Prometheus endpoint
+     * @param port the prometheus port
+     * @return a list with string representations of throttle duration metrics
+     */
+    public List<String> getOpsDurationThrottlePercentUsedMetrics(final int port) {
+        return getMetrics(port, PROM_OPS_DURATION_THROTTLE_PERCENT_USED_METRIC_PATTERN);
+    }
+
+    private List<String> getMetrics(final int port, final Pattern pattern) {
+        try {
+            final var list = new ArrayList<String>();
+            final var request = prometheusRequest(port);
+            final var response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            final var reader = new BufferedReader(new StringReader(response.body()));
+            reader.lines().forEach(line -> {
+                final var matcher = pattern.matcher(line);
+                if (matcher.matches()) {
+                    list.add(line);
+                }
+            });
+            return list;
+        } catch (IOException ignore) {
+            // We allow unavailable statuses
+            return List.of();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(e);
+        }
     }
 
     private void setStatusIfCurrent(@NonNull final String line, @NonNull final AtomicReference<String> statusKey) {

@@ -2,6 +2,8 @@
 package com.hedera.services.bdd.suites.hip551.contracts;
 
 import static com.google.protobuf.ByteString.copyFromUtf8;
+import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
 import static com.hedera.services.bdd.spec.assertions.SomeFungibleTransfers.changingFungibleBalances;
@@ -75,11 +77,11 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
 
 /**
  * This class tests the behavior of atomic batch operations
@@ -87,8 +89,9 @@ import org.junit.jupiter.api.DynamicTest;
  * It includes various scenarios for minting, burning, associating,
  * and dissociating tokens using contract and delegate keys.
  */
+@Tag(ATOMIC_BATCH)
 @HapiTestLifecycle
-public class AtomicBatchContractKeysHtsTest {
+class AtomicBatchContractKeysHtsTest {
     private static final String DEFAULT_BATCH_OPERATOR = "defaultBatchOperator";
     private static final long GAS_TO_OFFER = 1_500_000L;
 
@@ -141,8 +144,6 @@ public class AtomicBatchContractKeysHtsTest {
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(
-                Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
         testLifecycle.doAdhoc(
                 cryptoCreate(DEFAULT_BATCH_OPERATOR).balance(ONE_MILLION_HBARS),
                 uploadInitCode(
@@ -162,7 +163,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    public final Stream<DynamicTest> burnWithKeyAsPartOf1OfXThreshold() {
+    final Stream<DynamicTest> burnWithKeyAsPartOf1OfXThreshold() {
         final var delegateContractKeyShape = KeyShape.threshOf(1, SIMPLE, DELEGATE_CONTRACT);
         final var contractKeyShape = KeyShape.threshOf(1, SIMPLE, KeyShape.CONTRACT);
         final var tokenAddress = new AtomicReference<Address>();
@@ -215,7 +216,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    public final Stream<DynamicTest> delegateCallForBurnWithContractKey() {
+    final Stream<DynamicTest> delegateCallForBurnWithContractKey() {
         final AtomicReference<Address> vanillaTokenTokenAddress = new AtomicReference<>();
         return hapiTest(
                 tokenCreate(VANILLA_TOKEN)
@@ -241,7 +242,8 @@ public class AtomicBatchContractKeysHtsTest {
                                                 BigInteger.ZERO,
                                                 new long[] {1L})
                                         .via(DELEGATE_BURN_CALL_WITH_CONTRACT_KEY_TXN)
-                                        .gas(GAS_TO_OFFER))
+                                        .gas(GAS_TO_OFFER)
+                                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 childRecordsCheck(
                         DELEGATE_BURN_CALL_WITH_CONTRACT_KEY_TXN,
@@ -256,7 +258,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    public final Stream<DynamicTest> delegateCallForMintWithContractKey() {
+    final Stream<DynamicTest> delegateCallForMintWithContractKey() {
         final AtomicReference<Address> vanillaTokenTokenAddress = new AtomicReference<>();
         return hapiTest(
                 tokenCreate(VANILLA_TOKEN)
@@ -279,7 +281,8 @@ public class AtomicBatchContractKeysHtsTest {
                                                 vanillaTokenTokenAddress.get(),
                                                 BigInteger.ONE)
                                         .via(DELEGATE_BURN_CALL_WITH_CONTRACT_KEY_TXN)
-                                        .gas(GAS_TO_OFFER))
+                                        .gas(GAS_TO_OFFER)
+                                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 childRecordsCheck(
                         DELEGATE_BURN_CALL_WITH_CONTRACT_KEY_TXN,
@@ -295,7 +298,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    public final Stream<DynamicTest> staticCallForDissociatePrecompileFails() {
+    final Stream<DynamicTest> staticCallForDissociatePrecompileFails() {
         final AtomicReference<Address> accountAddress = new AtomicReference<>();
         final AtomicReference<Address> vanillaTokenTokenAddress = new AtomicReference<>();
         return hapiTest(
@@ -313,14 +316,15 @@ public class AtomicBatchContractKeysHtsTest {
                                         accountAddress.get(),
                                         vanillaTokenTokenAddress.get())
                                 .via("staticDissociateCallTxn")
-                                .gas(GAS_TO_OFFER))
+                                .gas(GAS_TO_OFFER)
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 emptyChildRecordsCheck("staticDissociateCallTxn", CONTRACT_REVERT_EXECUTED),
                 getAccountInfo(ACCOUNT).hasToken(relationshipWith(VANILLA_TOKEN)));
     }
 
     @HapiTest
-    public final Stream<DynamicTest> staticCallForTransferWithContractKey() {
+    final Stream<DynamicTest> staticCallForTransferWithContractKey() {
         final AtomicReference<Address> accountAddress = new AtomicReference<>();
         final AtomicReference<Address> vanillaTokenTokenAddress = new AtomicReference<>();
         final AtomicReference<Address> receiverAddress = new AtomicReference<>();
@@ -352,13 +356,15 @@ public class AtomicBatchContractKeysHtsTest {
                                                 receiverAddress.get(),
                                                 1L)
                                         .via("staticTransferCallWithContractKeyTxn")
-                                        .gas(GAS_TO_OFFER))
+                                        .gas(GAS_TO_OFFER)
+                                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 emptyChildRecordsCheck("staticTransferCallWithContractKeyTxn", CONTRACT_REVERT_EXECUTED));
     }
 
     @HapiTest
-    public final Stream<DynamicTest> staticCallForBurnWithContractKey() {
+    @Tag(MATS)
+    final Stream<DynamicTest> staticCallForBurnWithContractKey() {
         final AtomicReference<Address> vanillaTokenTokenAddress = new AtomicReference<>();
         return hapiTest(
                 tokenCreate(VANILLA_TOKEN)
@@ -384,13 +390,14 @@ public class AtomicBatchContractKeysHtsTest {
                                                 BigInteger.ZERO,
                                                 new long[] {1L})
                                         .via(STATIC_BURN_CALL_WITH_CONTRACT_KEY_TXN)
-                                        .gas(GAS_TO_OFFER))
+                                        .gas(GAS_TO_OFFER)
+                                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 emptyChildRecordsCheck(STATIC_BURN_CALL_WITH_CONTRACT_KEY_TXN, CONTRACT_REVERT_EXECUTED));
     }
 
     @HapiTest
-    public final Stream<DynamicTest> staticCallForMintWithContractKey() {
+    final Stream<DynamicTest> staticCallForMintWithContractKey() {
         final AtomicReference<Address> vanillaTokenTokenAddress = new AtomicReference<>();
         return hapiTest(
                 tokenCreate(VANILLA_TOKEN)
@@ -413,13 +420,14 @@ public class AtomicBatchContractKeysHtsTest {
                                                 vanillaTokenTokenAddress.get(),
                                                 BigInteger.ONE)
                                         .via(STATIC_BURN_CALL_WITH_CONTRACT_KEY_TXN)
-                                        .gas(GAS_TO_OFFER))
+                                        .gas(GAS_TO_OFFER)
+                                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 emptyChildRecordsCheck(STATIC_BURN_CALL_WITH_CONTRACT_KEY_TXN, CONTRACT_REVERT_EXECUTED));
     }
 
     @HapiTest
-    public final Stream<DynamicTest> staticCallForTransferWithDelegateContractKey() {
+    final Stream<DynamicTest> staticCallForTransferWithDelegateContractKey() {
         final AtomicReference<Address> accountAddress = new AtomicReference<>();
         final AtomicReference<Address> vanillaTokenTokenAddress = new AtomicReference<>();
         final AtomicReference<Address> receiverAddress = new AtomicReference<>();
@@ -451,13 +459,14 @@ public class AtomicBatchContractKeysHtsTest {
                                                 receiverAddress.get(),
                                                 1L)
                                         .via("staticTransferCallWithDelegateContractKeyTxn")
-                                        .gas(GAS_TO_OFFER))
+                                        .gas(GAS_TO_OFFER)
+                                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 emptyChildRecordsCheck("staticTransferCallWithDelegateContractKeyTxn", CONTRACT_REVERT_EXECUTED));
     }
 
     @HapiTest
-    public final Stream<DynamicTest> staticCallForBurnWithDelegateContractKey() {
+    final Stream<DynamicTest> staticCallForBurnWithDelegateContractKey() {
         final AtomicReference<Address> vanillaTokenTokenAddress = new AtomicReference<>();
         return hapiTest(
                 tokenCreate(VANILLA_TOKEN)
@@ -483,13 +492,14 @@ public class AtomicBatchContractKeysHtsTest {
                                                 BigInteger.ZERO,
                                                 new long[] {1L})
                                         .via(STATIC_BURN_CALL_WITH_DELEGATE_CONTRACT_KEY_TXN)
-                                        .gas(GAS_TO_OFFER))
+                                        .gas(GAS_TO_OFFER)
+                                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 emptyChildRecordsCheck(STATIC_BURN_CALL_WITH_DELEGATE_CONTRACT_KEY_TXN, CONTRACT_REVERT_EXECUTED));
     }
 
     @HapiTest
-    public final Stream<DynamicTest> staticCallForMintWithDelegateContractKey() {
+    final Stream<DynamicTest> staticCallForMintWithDelegateContractKey() {
         final AtomicReference<Address> vanillaTokenTokenAddress = new AtomicReference<>();
         return hapiTest(
                 tokenCreate(VANILLA_TOKEN)
@@ -512,13 +522,14 @@ public class AtomicBatchContractKeysHtsTest {
                                                 vanillaTokenTokenAddress.get(),
                                                 BigInteger.ONE)
                                         .via(STATIC_BURN_CALL_WITH_DELEGATE_CONTRACT_KEY_TXN)
-                                        .gas(GAS_TO_OFFER))
+                                        .gas(GAS_TO_OFFER)
+                                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 emptyChildRecordsCheck(STATIC_BURN_CALL_WITH_DELEGATE_CONTRACT_KEY_TXN, CONTRACT_REVERT_EXECUTED));
     }
 
     @HapiTest
-    public final Stream<DynamicTest> staticCallForAssociatePrecompileFails() {
+    final Stream<DynamicTest> staticCallForAssociatePrecompileFails() {
         final AtomicReference<Address> accountAddress = new AtomicReference<>();
         final AtomicReference<Address> vanillaTokenTokenAddress = new AtomicReference<>();
         return hapiTest(
@@ -536,14 +547,15 @@ public class AtomicBatchContractKeysHtsTest {
                                         vanillaTokenTokenAddress.get())
                                 .payingWith(ACCOUNT)
                                 .via("staticAssociateCallTxn")
-                                .gas(GAS_TO_OFFER))
+                                .gas(GAS_TO_OFFER)
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 emptyChildRecordsCheck("staticAssociateCallTxn", CONTRACT_REVERT_EXECUTED),
                 getAccountInfo(ACCOUNT).hasNoTokenRelationship(VANILLA_TOKEN));
     }
 
     @HapiTest
-    public final Stream<DynamicTest> callForMintWithContractKey() {
+    final Stream<DynamicTest> callForMintWithContractKey() {
         final var firstMintTxn = "firstMintTxn";
         final var amount = 10L;
         final AtomicReference<Address> fungibleAddress = new AtomicReference<>();
@@ -586,7 +598,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    public final Stream<DynamicTest> callForMintWithDelegateContractKey() {
+    final Stream<DynamicTest> callForMintWithDelegateContractKey() {
         final var firstMintTxn = "firstMintTxn";
         final var amount = 10L;
         final AtomicReference<Address> fungibleAddress = new AtomicReference<>();
@@ -630,7 +642,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    public final Stream<DynamicTest> callForTransferWithContractKey() {
+    final Stream<DynamicTest> callForTransferWithContractKey() {
         final AtomicReference<Address> nftAddress = new AtomicReference<>();
         final AtomicReference<Address> accountAddress = new AtomicReference<>();
         final AtomicReference<Address> receiverAddress = new AtomicReference<>();
@@ -680,7 +692,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    public final Stream<DynamicTest> callForTransferWithDelegateContractKey() {
+    final Stream<DynamicTest> callForTransferWithDelegateContractKey() {
         final AtomicReference<Address> nftAddress = new AtomicReference<>();
         final AtomicReference<Address> accountAddress = new AtomicReference<>();
         final AtomicReference<Address> receiverAddress = new AtomicReference<>();
@@ -733,7 +745,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    public final Stream<DynamicTest> callForAssociateWithDelegateContractKey() {
+    final Stream<DynamicTest> callForAssociateWithDelegateContractKey() {
         final AtomicReference<Address> accountAddress = new AtomicReference<>();
         final AtomicReference<Address> vanillaTokenAddress = new AtomicReference<>();
         return hapiTest(
@@ -766,7 +778,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    public final Stream<DynamicTest> callForAssociateWithContractKey() {
+    final Stream<DynamicTest> callForAssociateWithContractKey() {
         final AtomicReference<Address> accountAddress = new AtomicReference<>();
         final AtomicReference<Address> vanillaTokenAddress = new AtomicReference<>();
         return hapiTest(
@@ -798,7 +810,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    public final Stream<DynamicTest> callForDissociateWithDelegateContractKey() {
+    final Stream<DynamicTest> callForDissociateWithDelegateContractKey() {
         final AtomicReference<Address> accountAddress = new AtomicReference<>();
         final AtomicReference<Address> vanillaTokenAddress = new AtomicReference<>();
         final var totalSupply = 1_000;
@@ -823,7 +835,8 @@ public class AtomicBatchContractKeysHtsTest {
                                                 accountAddress.get(),
                                                 vanillaTokenAddress.get())
                                         .via(NON_ZERO_TOKEN_BALANCE_DISSOCIATE_WITH_DELEGATE_CONTRACT_KEY_FAILED_TXN)
-                                        .gas(GAS_TO_OFFER))
+                                        .gas(GAS_TO_OFFER)
+                                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 sourcing(() -> atomicBatchDefaultOperator(
                         cryptoTransfer(moving(1, VANILLA_TOKEN).between(ACCOUNT, TOKEN_TREASURY)),
@@ -854,7 +867,8 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    public final Stream<DynamicTest> callForDissociateWithContractKey() {
+    @Tag(MATS)
+    final Stream<DynamicTest> callForDissociateWithContractKey() {
         final AtomicReference<Address> accountAddress = new AtomicReference<>();
         final AtomicReference<Address> vanillaTokenAddress = new AtomicReference<>();
         final var totalSupply = 1_000;
@@ -879,7 +893,8 @@ public class AtomicBatchContractKeysHtsTest {
                                         accountAddress.get(),
                                         vanillaTokenAddress.get())
                                 .via("nonZeroTokenBalanceDissociateWithContractKeyFailedTxn")
-                                .gas(GAS_TO_OFFER))
+                                .gas(GAS_TO_OFFER)
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 sourcing(() -> atomicBatchDefaultOperator(
                         cryptoTransfer(moving(1, VANILLA_TOKEN).between(ACCOUNT, TOKEN_TREASURY)),
@@ -910,7 +925,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    public final Stream<DynamicTest> callForBurnWithDelegateContractKey() {
+    final Stream<DynamicTest> callForBurnWithDelegateContractKey() {
         final AtomicReference<Address> tokenAddress = new AtomicReference<>();
         return hapiTest(
                 tokenCreate(TOKEN_USAGE)
@@ -943,7 +958,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    public final Stream<DynamicTest> delegateCallForAssociatePrecompileSignedWithDelegateContractKeyWorks() {
+    final Stream<DynamicTest> delegateCallForAssociatePrecompileSignedWithDelegateContractKeyWorks() {
         final AtomicReference<Address> accountAddress = new AtomicReference<>();
         final AtomicReference<Address> vanillaTokenTokenAddress = new AtomicReference<>();
         return hapiTest(
@@ -978,7 +993,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    public final Stream<DynamicTest> delegateCallForDissociatePrecompileSignedWithDelegateContractKeyWorks() {
+    final Stream<DynamicTest> delegateCallForDissociatePrecompileSignedWithDelegateContractKeyWorks() {
         final AtomicReference<Address> accountAddress = new AtomicReference<>();
         final AtomicReference<Address> vanillaTokenTokenAddress = new AtomicReference<>();
 
@@ -1015,7 +1030,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    public final Stream<DynamicTest> associatePrecompileWithDelegateContractKeyForNonFungibleWithKyc() {
+    final Stream<DynamicTest> associatePrecompileWithDelegateContractKeyForNonFungibleWithKyc() {
         final AtomicReference<Address> accountAddress = new AtomicReference<>();
         final AtomicReference<Address> kycTokenAddress = new AtomicReference<>();
 
@@ -1035,7 +1050,8 @@ public class AtomicBatchContractKeysHtsTest {
                                         accountAddress.get(),
                                         kycTokenAddress.get())
                                 .via("kycNFTAssociateFailsTxn")
-                                .gas(GAS_TO_OFFER))
+                                .gas(GAS_TO_OFFER)
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 newKeyNamed(DELEGATE_KEY)
                         .shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, ASSOCIATE_DISSOCIATE_CONTRACT))),
@@ -1055,7 +1071,8 @@ public class AtomicBatchContractKeysHtsTest {
                                         accountAddress.get(),
                                         kycTokenAddress.get())
                                 .via("kycNFTSecondAssociateFailsTxn")
-                                .gas(GAS_TO_OFFER))
+                                .gas(GAS_TO_OFFER)
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 childRecordsCheck(
                         "kycNFTAssociateFailsTxn",
@@ -1085,7 +1102,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    public final Stream<DynamicTest> dissociatePrecompileWithDelegateContractKeyForFungibleVanilla() {
+    final Stream<DynamicTest> dissociatePrecompileWithDelegateContractKeyForFungibleVanilla() {
         final AtomicReference<Address> accountAddress = new AtomicReference<>();
         final AtomicReference<Address> treasuryAddress = new AtomicReference<>();
         final AtomicReference<Address> vanillaTokenAddress = new AtomicReference<>();
@@ -1109,7 +1126,8 @@ public class AtomicBatchContractKeysHtsTest {
                                         treasuryAddress.get(),
                                         vanillaTokenAddress.get())
                                 .via("tokenDissociateFromTreasuryFailedTxn")
-                                .gas(GAS_TO_OFFER))
+                                .gas(GAS_TO_OFFER)
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 sourcing(() -> atomicBatchDefaultOperator(contractCall(
                                         ASSOCIATE_DISSOCIATE_CONTRACT,
@@ -1117,7 +1135,8 @@ public class AtomicBatchContractKeysHtsTest {
                                         accountAddress.get(),
                                         vanillaTokenAddress.get())
                                 .via("tokenDissociateWithDelegateContractKeyFailedTxn")
-                                .gas(GAS_TO_OFFER))
+                                .gas(GAS_TO_OFFER)
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 tokenAssociate(ACCOUNT, VANILLA_TOKEN),
                 cryptoTransfer(moving(1, VANILLA_TOKEN).between(TOKEN_TREASURY, ACCOUNT)),
@@ -1127,7 +1146,8 @@ public class AtomicBatchContractKeysHtsTest {
                                         accountAddress.get(),
                                         vanillaTokenAddress.get())
                                 .via(NON_ZERO_TOKEN_BALANCE_DISSOCIATE_WITH_DELEGATE_CONTRACT_KEY_FAILED_TXN)
-                                .gas(GAS_TO_OFFER))
+                                .gas(GAS_TO_OFFER)
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 sourcing(() -> atomicBatchDefaultOperator(
                         cryptoTransfer(moving(1, VANILLA_TOKEN).between(ACCOUNT, TOKEN_TREASURY)),
@@ -1175,7 +1195,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    public final Stream<DynamicTest> dissociatePrecompileWithDelegateContractKeyForFungibleFrozen() {
+    final Stream<DynamicTest> dissociatePrecompileWithDelegateContractKeyForFungibleFrozen() {
         final AtomicReference<Address> accountAddress = new AtomicReference<>();
         final AtomicReference<Address> frozenTokenAddress = new AtomicReference<>();
 
@@ -1198,7 +1218,8 @@ public class AtomicBatchContractKeysHtsTest {
                                         accountAddress.get(),
                                         frozenTokenAddress.get())
                                 .via("frozenTokenAssociateWithDelegateContractKeyTxn")
-                                .gas(GAS_TO_OFFER))
+                                .gas(GAS_TO_OFFER)
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 sourcing(() -> atomicBatchDefaultOperator(
                         tokenUnfreeze(FROZEN_TOKEN, ACCOUNT),
@@ -1230,7 +1251,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    public final Stream<DynamicTest> dissociatePrecompileWithDelegateContractKeyForFungibleWithKyc() {
+    final Stream<DynamicTest> dissociatePrecompileWithDelegateContractKeyForFungibleWithKyc() {
         final AtomicReference<Address> accountAddress = new AtomicReference<>();
         final AtomicReference<Address> kycTokenAddress = new AtomicReference<>();
 
@@ -1251,7 +1272,8 @@ public class AtomicBatchContractKeysHtsTest {
                                         accountAddress.get(),
                                         kycTokenAddress.get())
                                 .via("kycTokenDissociateWithDelegateContractKeyFailedTxn")
-                                .gas(GAS_TO_OFFER))
+                                .gas(GAS_TO_OFFER)
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 sourcing(() -> atomicBatchDefaultOperator(
                         tokenAssociate(ACCOUNT, KYC_TOKEN),
@@ -1283,7 +1305,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    public final Stream<DynamicTest> dissociatePrecompileWithDelegateContractKeyForNonFungibleVanilla() {
+    final Stream<DynamicTest> dissociatePrecompileWithDelegateContractKeyForNonFungibleVanilla() {
         final AtomicReference<Address> accountAddress = new AtomicReference<>();
         final AtomicReference<Address> treasuryAddress = new AtomicReference<>();
         final AtomicReference<Address> vanillaTokenAddress = new AtomicReference<>();
@@ -1309,7 +1331,8 @@ public class AtomicBatchContractKeysHtsTest {
                                         treasuryAddress.get(),
                                         vanillaTokenAddress.get())
                                 .via("NFTDissociateFromTreasuryFailedTxn")
-                                .gas(GAS_TO_OFFER))
+                                .gas(GAS_TO_OFFER)
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 sourcing(() -> atomicBatchDefaultOperator(contractCall(
                                         ASSOCIATE_DISSOCIATE_CONTRACT,
@@ -1317,7 +1340,8 @@ public class AtomicBatchContractKeysHtsTest {
                                         accountAddress.get(),
                                         vanillaTokenAddress.get())
                                 .via("NFTDissociateWithDelegateContractKeyFailedTxn")
-                                .gas(GAS_TO_OFFER))
+                                .gas(GAS_TO_OFFER)
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 tokenAssociate(ACCOUNT, VANILLA_TOKEN),
                 cryptoTransfer(movingUnique(VANILLA_TOKEN, 1).between(TOKEN_TREASURY, ACCOUNT)),
@@ -1327,7 +1351,8 @@ public class AtomicBatchContractKeysHtsTest {
                                         accountAddress.get(),
                                         vanillaTokenAddress.get())
                                 .via("nonZeroNFTBalanceDissociateWithDelegateContractKeyFailedTxn")
-                                .gas(GAS_TO_OFFER))
+                                .gas(GAS_TO_OFFER)
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 sourcing(() -> atomicBatchDefaultOperator(
                         cryptoTransfer(movingUnique(VANILLA_TOKEN, 1).between(ACCOUNT, TOKEN_TREASURY)),
@@ -1375,7 +1400,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    public final Stream<DynamicTest> dissociatePrecompileWithDelegateContractKeyForNonFungibleFrozen() {
+    final Stream<DynamicTest> dissociatePrecompileWithDelegateContractKeyForNonFungibleFrozen() {
         final AtomicReference<Address> accountAddress = new AtomicReference<>();
         final AtomicReference<Address> frozenTokenAddress = new AtomicReference<>();
         return hapiTest(
@@ -1399,7 +1424,8 @@ public class AtomicBatchContractKeysHtsTest {
                                         accountAddress.get(),
                                         frozenTokenAddress.get())
                                 .via("frozenNFTAssociateWithDelegateContractKeyTxn")
-                                .gas(GAS_TO_OFFER))
+                                .gas(GAS_TO_OFFER)
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 sourcing(() -> atomicBatchDefaultOperator(
                         tokenUnfreeze(FROZEN_TOKEN, ACCOUNT),
@@ -1431,7 +1457,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    public final Stream<DynamicTest> dissociatePrecompileWithDelegateContractKeyForNonFungibleWithKyc() {
+    final Stream<DynamicTest> dissociatePrecompileWithDelegateContractKeyForNonFungibleWithKyc() {
         final AtomicReference<Address> accountAddress = new AtomicReference<>();
         final AtomicReference<Address> kycTokenAddress = new AtomicReference<>();
         return hapiTest(
@@ -1453,7 +1479,8 @@ public class AtomicBatchContractKeysHtsTest {
                                         accountAddress.get(),
                                         kycTokenAddress.get())
                                 .via("kycNFTDissociateWithDelegateContractKeyFailedTxn")
-                                .gas(GAS_TO_OFFER))
+                                .gas(GAS_TO_OFFER)
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 sourcing(() -> atomicBatchDefaultOperator(
                         tokenAssociate(ACCOUNT, KYC_TOKEN),
@@ -1485,7 +1512,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    public final Stream<DynamicTest> associatePrecompileWithDelegateContractKeyForNonFungibleFrozen() {
+    final Stream<DynamicTest> associatePrecompileWithDelegateContractKeyForNonFungibleFrozen() {
         final AtomicReference<Address> accountAddress = new AtomicReference<>();
         final AtomicReference<Address> frozenTokenAddress = new AtomicReference<>();
         return hapiTest(
@@ -1505,7 +1532,8 @@ public class AtomicBatchContractKeysHtsTest {
                                         accountAddress.get(),
                                         frozenTokenAddress.get())
                                 .via("frozenNFTAssociateFailsTxn")
-                                .gas(GAS_TO_OFFER))
+                                .gas(GAS_TO_OFFER)
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 newKeyNamed(DELEGATE_KEY)
                         .shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, ASSOCIATE_DISSOCIATE_CONTRACT))),
@@ -1525,7 +1553,8 @@ public class AtomicBatchContractKeysHtsTest {
                                         accountAddress.get(),
                                         frozenTokenAddress.get())
                                 .via("frozenNFTSecondAssociateFailsTxn")
-                                .gas(GAS_TO_OFFER))
+                                .gas(GAS_TO_OFFER)
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 childRecordsCheck(
                         "frozenNFTAssociateFailsTxn",
@@ -1555,7 +1584,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    public final Stream<DynamicTest> associatePrecompileWithDelegateContractKeyForNonFungibleVanilla() {
+    final Stream<DynamicTest> associatePrecompileWithDelegateContractKeyForNonFungibleVanilla() {
         final AtomicReference<Address> accountAddress = new AtomicReference<>();
         final AtomicReference<Address> vanillaTokenAddress = new AtomicReference<>();
         return hapiTest(
@@ -1573,7 +1602,8 @@ public class AtomicBatchContractKeysHtsTest {
                                         accountAddress.get(),
                                         vanillaTokenAddress.get())
                                 .via("vanillaNFTAssociateFailsTxn")
-                                .gas(GAS_TO_OFFER))
+                                .gas(GAS_TO_OFFER)
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 newKeyNamed(DELEGATE_KEY)
                         .shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, ASSOCIATE_DISSOCIATE_CONTRACT))),
@@ -1593,7 +1623,8 @@ public class AtomicBatchContractKeysHtsTest {
                                         accountAddress.get(),
                                         vanillaTokenAddress.get())
                                 .via("vanillaNFTSecondAssociateFailsTxn")
-                                .gas(GAS_TO_OFFER))
+                                .gas(GAS_TO_OFFER)
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 childRecordsCheck(
                         "vanillaNFTAssociateFailsTxn",
@@ -1623,7 +1654,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    public final Stream<DynamicTest> associatePrecompileWithDelegateContractKeyForFungibleWithKyc() {
+    final Stream<DynamicTest> associatePrecompileWithDelegateContractKeyForFungibleWithKyc() {
         final AtomicReference<Address> accountAddress = new AtomicReference<>();
         final AtomicReference<Address> kycTokenAddress = new AtomicReference<>();
         return hapiTest(
@@ -1640,7 +1671,8 @@ public class AtomicBatchContractKeysHtsTest {
                                         accountAddress.get(),
                                         kycTokenAddress.get())
                                 .via("kycTokenAssociateFailsTxn")
-                                .gas(GAS_TO_OFFER))
+                                .gas(GAS_TO_OFFER)
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 newKeyNamed(DELEGATE_KEY)
                         .shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, ASSOCIATE_DISSOCIATE_CONTRACT))),
@@ -1660,7 +1692,8 @@ public class AtomicBatchContractKeysHtsTest {
                                         accountAddress.get(),
                                         kycTokenAddress.get())
                                 .via("kycTokenSecondAssociateFailsTxn")
-                                .gas(GAS_TO_OFFER))
+                                .gas(GAS_TO_OFFER)
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 childRecordsCheck(
                         "kycTokenAssociateFailsTxn",
@@ -1690,7 +1723,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    public final Stream<DynamicTest> associatePrecompileWithDelegateContractKeyForFungibleFrozen() {
+    final Stream<DynamicTest> associatePrecompileWithDelegateContractKeyForFungibleFrozen() {
         final AtomicReference<Address> accountAddress = new AtomicReference<>();
         final AtomicReference<Address> frozenTokenAddress = new AtomicReference<>();
         return hapiTest(
@@ -1709,7 +1742,8 @@ public class AtomicBatchContractKeysHtsTest {
                                         accountAddress.get(),
                                         frozenTokenAddress.get())
                                 .via("frozenTokenAssociateFailsTxn")
-                                .gas(GAS_TO_OFFER))
+                                .gas(GAS_TO_OFFER)
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 newKeyNamed(DELEGATE_KEY)
                         .shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, ASSOCIATE_DISSOCIATE_CONTRACT))),
@@ -1729,7 +1763,8 @@ public class AtomicBatchContractKeysHtsTest {
                                         accountAddress.get(),
                                         frozenTokenAddress.get())
                                 .via("frozenTokenSecondAssociateFailsTxn")
-                                .gas(GAS_TO_OFFER))
+                                .gas(GAS_TO_OFFER)
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 childRecordsCheck(
                         "frozenTokenAssociateFailsTxn",
@@ -1759,7 +1794,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    public final Stream<DynamicTest> associatePrecompileWithDelegateContractKeyForFungibleVanilla() {
+    final Stream<DynamicTest> associatePrecompileWithDelegateContractKeyForFungibleVanilla() {
         final AtomicReference<Address> accountAddress = new AtomicReference<>();
         final AtomicReference<Address> vanillaTokenAddress = new AtomicReference<>();
         return hapiTest(
@@ -1775,7 +1810,8 @@ public class AtomicBatchContractKeysHtsTest {
                                         accountAddress.get(),
                                         vanillaTokenAddress.get())
                                 .via("vanillaTokenAssociateFailsTxn")
-                                .gas(GAS_TO_OFFER))
+                                .gas(GAS_TO_OFFER)
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 newKeyNamed(DELEGATE_KEY)
                         .shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, ASSOCIATE_DISSOCIATE_CONTRACT))),
@@ -1795,7 +1831,8 @@ public class AtomicBatchContractKeysHtsTest {
                                         accountAddress.get(),
                                         vanillaTokenAddress.get())
                                 .via("vanillaTokenSecondAssociateFailsTxn")
-                                .gas(GAS_TO_OFFER))
+                                .gas(GAS_TO_OFFER)
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 childRecordsCheck(
                         "vanillaTokenAssociateFailsTxn",
@@ -1825,7 +1862,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    public final Stream<DynamicTest> delegateCallForAssociatePrecompileSignedWithContractKeyFails() {
+    final Stream<DynamicTest> delegateCallForAssociatePrecompileSignedWithContractKeyFails() {
         final AtomicReference<Address> accountAddress = new AtomicReference<>();
         final AtomicReference<Address> vanillaTokenTokenAddress = new AtomicReference<>();
         return hapiTest(
@@ -1860,7 +1897,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    public final Stream<DynamicTest> delegateCallForDissociatePrecompileSignedWithContractKeyFails() {
+    final Stream<DynamicTest> delegateCallForDissociatePrecompileSignedWithContractKeyFails() {
         final AtomicReference<Address> accountAddress = new AtomicReference<>();
         final AtomicReference<Address> vanillaTokenTokenAddress = new AtomicReference<>();
         return hapiTest(
@@ -1881,7 +1918,8 @@ public class AtomicBatchContractKeysHtsTest {
                                                 accountAddress.get(),
                                                 vanillaTokenTokenAddress.get())
                                         .via("delegateDissociateCallWithContractKeyTxn")
-                                        .gas(GAS_TO_OFFER))
+                                        .gas(GAS_TO_OFFER)
+                                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 childRecordsCheck(
                         "delegateDissociateCallWithContractKeyTxn",
@@ -1895,7 +1933,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    public final Stream<DynamicTest> callForBurnWithContractKey() {
+    final Stream<DynamicTest> callForBurnWithContractKey() {
         final AtomicReference<Address> tokenAddress = new AtomicReference<>();
         return hapiTest(
                 tokenCreate(TOKEN_USAGE)

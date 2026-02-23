@@ -1,19 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.test.fixtures;
 
-import com.swirlds.virtualmap.VirtualValue;
-import java.io.IOException;
+import com.hedera.pbj.runtime.io.ReadableSequentialData;
+import com.hedera.pbj.runtime.io.WritableSequentialData;
+import com.hedera.pbj.runtime.io.buffer.BufferedData;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
+import java.nio.charset.StandardCharsets;
 import java.util.Objects;
-import org.hiero.base.io.streams.SerializableDataInputStream;
-import org.hiero.base.io.streams.SerializableDataOutputStream;
 
-public final class TestValue implements VirtualValue {
+public final class TestValue {
 
     private String s;
-    public boolean readOnly = false;
-    private boolean released = false;
-
-    public TestValue() {}
 
     public TestValue(long path) {
         this("Value " + path);
@@ -23,37 +20,28 @@ public final class TestValue implements VirtualValue {
         this.s = s;
     }
 
-    @Override
-    public long getClassId() {
-        return 0x155bb9565ebfad3aL;
+    public TestValue(ReadableSequentialData in) {
+        final int len = in.readInt();
+        final byte[] value = new byte[len];
+        in.readBytes(value);
+        this.s = new String(value, StandardCharsets.UTF_8);
     }
 
-    @Override
-    public int getVersion() {
-        return 1;
+    public int getSizeInBytes() {
+        final byte[] value = s.getBytes(StandardCharsets.UTF_8);
+        return Integer.BYTES + value.length;
     }
 
-    String getValue() {
-        return s;
+    public void writeTo(final WritableSequentialData out) {
+        final byte[] value = s.getBytes(StandardCharsets.UTF_8);
+        out.writeInt(value.length);
+        out.writeBytes(value);
     }
 
-    public void setValue(String s) {
-        assertMutable("setValue");
-        assertNotReleased("setValue");
-        this.s = s;
-    }
-
-    @Override
-    public void serialize(SerializableDataOutputStream out) throws IOException {
-        assertNotReleased("serialize");
-        out.writeNormalisedString(s);
-    }
-
-    @Override
-    public void deserialize(SerializableDataInputStream in, int version) throws IOException {
-        assertNotReleased("deserialize");
-        assertMutable("deserialize");
-        s = in.readNormalisedString(1024);
+    public Bytes toBytes() {
+        final byte[] bytes = new byte[getSizeInBytes()];
+        writeTo(BufferedData.wrap(bytes));
+        return Bytes.wrap(bytes);
     }
 
     @Override
@@ -64,8 +52,7 @@ public final class TestValue implements VirtualValue {
         return Objects.equals(s, other.s);
     }
 
-    public String value() {
-        assertNotReleased("fetch value");
+    public String getValue() {
         return s;
     }
 
@@ -77,45 +64,5 @@ public final class TestValue implements VirtualValue {
     @Override
     public String toString() {
         return "TestValue{ " + s + " }";
-    }
-
-    @Override
-    public TestValue copy() {
-        assertNotReleased("copy");
-        readOnly = true;
-        return new TestValue(s);
-    }
-
-    @Override
-    public VirtualValue asReadOnly() {
-        assertNotReleased("make readonly copy");
-        TestValue value = new TestValue(s);
-        value.readOnly = true;
-        return value;
-    }
-
-    @Override
-    public boolean release() {
-        assertNotReleased("release");
-        released = true;
-        return true;
-    }
-
-    private void assertMutable(String action) {
-        throwIfImmutable("Trying to " + action + " when already immutable.");
-    }
-
-    private void assertNotReleased(String action) {
-        throwIfDestroyed("Trying to " + action + " when released.");
-    }
-
-    @Override
-    public boolean isDestroyed() {
-        return released;
-    }
-
-    @Override
-    public boolean isImmutable() {
-        return readOnly;
     }
 }

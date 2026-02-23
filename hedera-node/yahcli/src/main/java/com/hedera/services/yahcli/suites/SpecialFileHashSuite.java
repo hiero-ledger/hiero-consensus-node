@@ -2,7 +2,6 @@
 package com.hedera.services.yahcli.suites;
 
 import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
-import static com.hedera.services.yahcli.output.CommonMessages.COMMON_MESSAGES;
 
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
@@ -46,7 +45,7 @@ public class SpecialFileHashSuite extends HapiSuite {
                                 .getFileGetInfo()
                                 .getFileInfo()
                                 .getMemo();
-                        COMMON_MESSAGES.info("The SHA-384 hash of the " + specialFile + " is:\n" + synthMemo);
+                        configManager.output().info("The SHA-384 hash of the " + specialFile + " is:\n" + synthMemo);
                     })
                 });
         return HapiSpecUtils.targeted(fileSpec, configManager);

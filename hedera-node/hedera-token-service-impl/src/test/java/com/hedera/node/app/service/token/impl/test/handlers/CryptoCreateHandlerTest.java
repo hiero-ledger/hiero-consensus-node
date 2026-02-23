@@ -16,8 +16,8 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.KEY_REQUIRED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MEMO_TOO_LONG;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PROXY_ACCOUNT_ID_FIELD_IS_DEPRECATED;
 import static com.hedera.hapi.node.base.SubType.DEFAULT;
-import static com.hedera.node.app.service.token.impl.test.handlers.util.StateBuilderUtil.ACCOUNTS;
-import static com.hedera.node.app.service.token.impl.test.handlers.util.StateBuilderUtil.ALIASES;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_STATE_ID;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
@@ -51,18 +51,22 @@ import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.service.entityid.EntityNumGenerator;
+import com.hedera.node.app.service.entityid.WritableEntityCounters;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
 import com.hedera.node.app.service.token.impl.handlers.CryptoCreateHandler;
 import com.hedera.node.app.service.token.impl.test.handlers.util.CryptoHandlerTestBase;
 import com.hedera.node.app.service.token.impl.validators.CryptoCreateValidator;
 import com.hedera.node.app.service.token.records.CryptoCreateStreamBuilder;
+import com.hedera.node.app.service.token.records.HookDispatchStreamBuilder;
 import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.fixtures.fees.FakeFeeCalculator;
+import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
 import com.hedera.node.app.spi.fixtures.workflows.FakePreHandleContext;
-import com.hedera.node.app.spi.ids.EntityNumGenerator;
-import com.hedera.node.app.spi.ids.WritableEntityCounters;
+import com.hedera.node.app.spi.info.NetworkInfo;
+import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.validation.AttributeValidator;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
@@ -72,8 +76,6 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.state.lifecycle.info.NetworkInfo;
-import com.swirlds.state.lifecycle.info.NodeInfo;
 import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -87,6 +89,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
  */
 @ExtendWith(MockitoExtension.class)
 class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
+
     @Mock(strictness = LENIENT)
     private HandleContext handleContext;
 
@@ -98,6 +101,9 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
 
     @Mock
     private CryptoCreateStreamBuilder recordBuilder;
+
+    @Mock
+    private HookDispatchStreamBuilder hookDispatchStreamBuilder;
 
     @Mock
     private HandleContext.SavepointStack stack;
@@ -123,6 +129,8 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
     @Mock
     private PureChecksContext pureChecksContext;
 
+    private FakeEntityIdFactoryImpl idFactory = new FakeEntityIdFactoryImpl(0, 0);
+
     private CryptoCreateHandler subject;
 
     private TransactionBody txn;
@@ -145,7 +153,7 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
         lenient().when(handleContext.entityNumGenerator()).thenReturn(entityNumGenerator);
 
         given(handleContext.networkInfo()).willReturn(networkInfo);
-        subject = new CryptoCreateHandler(new CryptoCreateValidator(), null);
+        subject = new CryptoCreateHandler(new CryptoCreateValidator(), null, idFactory);
     }
 
     @Test
@@ -726,7 +734,7 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
         final var writableAliases = emptyWritableAliasStateBuilder()
                 .value(new ProtoBytes(Bytes.wrap(evmAddress)), idFactory.newAccountId(accountNum))
                 .build();
-        given(writableStates.<ProtoBytes, AccountID>get(ALIASES)).willReturn(writableAliases);
+        given(writableStates.<ProtoBytes, AccountID>get(ALIASES_STATE_ID)).willReturn(writableAliases);
         writableStore = new WritableAccountStore(writableStates, entityCounters);
         when(storeFactory.writableStore(WritableAccountStore.class)).thenReturn(writableStore);
 
@@ -764,7 +772,7 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
     private void changeAccountToDeleted() {
         final var copy = account.copyBuilder().deleted(true).build();
         writableAccounts.put(id, copy);
-        given(writableStates.<AccountID, Account>get(ACCOUNTS)).willReturn(writableAccounts);
+        given(writableStates.<AccountID, Account>get(ACCOUNTS_STATE_ID)).willReturn(writableAccounts);
         writableStore = new WritableAccountStore(writableStates, entityCounters);
     }
 

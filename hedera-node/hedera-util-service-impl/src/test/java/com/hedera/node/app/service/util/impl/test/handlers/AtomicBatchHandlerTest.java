@@ -105,7 +105,6 @@ class AtomicBatchHandlerTest {
     @BeforeEach
     void setUp() {
         final var config = HederaTestConfigBuilder.create()
-                .withValue("atomicBatch.isEnabled", true)
                 .withValue("atomicBatch.maxNumberOfTransactions", 2)
                 .getOrCreateConfig();
         given(handleContext.configuration()).willReturn(config);
@@ -431,6 +430,7 @@ class AtomicBatchHandlerTest {
     void recordedFeeChargingReplayAndRefund() {
         var delegate = mock(FeeCharging.class);
         var ctx = mock(FeeCharging.Context.class);
+        given(ctx.payerId()).willReturn(payerId1);
         var fees = mock(Fees.class);
 
         var rfc = new AtomicBatchHandler.RecordedFeeCharging(delegate);
@@ -439,7 +439,7 @@ class AtomicBatchHandlerTest {
         rfc.finishRecordingTo(mock(ReplayableFeeStreamBuilder.class));
         rfc.forEachRecorded((sb, charges) -> assertNotNull(charges));
         rfc.refund(ctx, fees);
-        verify(delegate).refund(ctx, fees);
+        verify(delegate).refund(payerId1, ctx, fees);
     }
 
     private TransactionBody newAtomicBatch(AccountID payerId, Timestamp consensusTimestamp, List<Bytes> transactions) {

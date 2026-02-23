@@ -2,7 +2,8 @@
 package com.hedera.services.bdd.suites.contract.hips.batch;
 
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPrivateKey;
-import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
+import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
@@ -82,10 +83,10 @@ import org.junit.jupiter.api.Tag;
  * when the {@code contracts.systemContract.accountService.isAuthorizedRawEnabled} feature flag is on (which is
  * true by default in  the current release.)
  */
-@Tag(SMART_CONTRACT)
+@Tag(ATOMIC_BATCH)
 @HapiTestLifecycle
 @SuppressWarnings("java:S1192") // "String literals should not be duplicated" - would impair readability here
-public class AtomicIsAuthorizedTest {
+class AtomicIsAuthorizedTest {
 
     public static final String ACCOUNT = "account";
     public static final String ANOTHER_ACCOUNT = "anotherAccount";
@@ -109,15 +110,8 @@ public class AtomicIsAuthorizedTest {
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(Map.of(
-                "atomicBatch.isEnabled",
-                "true",
-                "atomicBatch.maxNumberOfTransactions",
-                "50",
-                "contracts.throttle.throttleByGas",
-                "false",
-                "cryptoCreateWithAlias.enabled",
-                "false"));
+        testLifecycle.overrideInClass(
+                Map.of("contracts.throttle.throttleByGas", "false", "cryptoCreateWithAlias.enabled", "false"));
         testLifecycle.doAdhoc(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
     }
 
@@ -221,39 +215,6 @@ public class AtomicIsAuthorizedTest {
         }
 
         @HapiTest
-        final Stream<DynamicTest> isAuthorizedRawECDSAInvalidVValue() {
-            return hapiTest(
-                    newKeyNamed(ECDSA_KEY).shape(SECP_256K1_SHAPE).generator(new RepeatableKeyGenerator()),
-                    cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, ECDSA_KEY, ONE_HUNDRED_HBARS)),
-                    uploadInitCode(HRC632_CONTRACT),
-                    contractCreate(HRC632_CONTRACT),
-                    withOpContext((spec, opLog) -> {
-                        final var messageHash = new Keccak.Digest256().digest("submit".getBytes());
-
-                        final var privateKey = getEcdsaPrivateKeyFromSpec(spec, ECDSA_KEY);
-                        final var addressBytes = recoverAddressFromPrivateKey(privateKey);
-                        final var signature = Signing.signMessage(messageHash, privateKey);
-                        signature[signature.length - 1] = (byte) 2;
-
-                        final var call = atomicBatch(contractCall(
-                                                HRC632_CONTRACT,
-                                                "isAuthorizedRawCall",
-                                                asHeadlongAddress(addressBytes),
-                                                messageHash,
-                                                signature)
-                                        .via("authorizeCall")
-                                        .gas(2_000_000L)
-                                        .batchKey(BATCH_OPERATOR))
-                                .payingWith(BATCH_OPERATOR);
-                        allRunFor(spec, call);
-                    }),
-                    getTxnRecord("authorizeCall")
-                            .hasPriority(recordWith()
-                                    .status(SUCCESS)
-                                    .contractCallResult(resultWith().contractCallResult(BoolResult.flag(false)))));
-        }
-
-        @HapiTest
         final Stream<DynamicTest> isAuthorizedRawECDSAInvalidSignatureLength() {
             return hapiTest(
                     newKeyNamed(ECDSA_KEY).shape(SECP_256K1_SHAPE).generator(new RepeatableKeyGenerator()),
@@ -288,6 +249,7 @@ public class AtomicIsAuthorizedTest {
         }
 
         @HapiTest
+        @Tag(MATS)
         final Stream<DynamicTest> isAuthorizedRawEDHappyPath() {
             final AtomicReference<Address> accountNum = new AtomicReference<>();
 
@@ -300,7 +262,7 @@ public class AtomicIsAuthorizedTest {
                     uploadInitCode(HRC632_CONTRACT),
                     contractCreate(HRC632_CONTRACT),
                     withOpContext((spec, opLog) -> {
-                        final var messageHash = new Digest().digest("submit".getBytes());
+                        final var messageHash = new Keccak.Digest256().digest("submit".getBytes());
 
                         final var edKey = spec.registry().getKey(ED25519_KEY);
                         final var privateKey = spec.keys()
@@ -339,8 +301,8 @@ public class AtomicIsAuthorizedTest {
                     uploadInitCode(HRC632_CONTRACT),
                     contractCreate(HRC632_CONTRACT),
                     withOpContext((spec, opLog) -> {
-                        final var messageHash = new Digest().digest("submit".getBytes());
-                        final var differentHash = new Digest().digest("submit1".getBytes());
+                        final var messageHash = new Keccak.Digest256().digest("submit".getBytes());
+                        final var differentHash = new Keccak.Digest256().digest("submit1".getBytes());
 
                         final var edKey = spec.registry().getKey(ED25519_KEY);
                         final var privateKey = spec.keys()
@@ -572,7 +534,7 @@ public class AtomicIsAuthorizedTest {
                     uploadInitCode(HRC632_CONTRACT),
                     contractCreate(HRC632_CONTRACT),
                     withOpContext((spec, opLog) -> {
-                        final var messageHash = new Digest().digest("submit".getBytes());
+                        final var messageHash = new Keccak.Digest256().digest("submit".getBytes());
                         final var messageHash32Bytes = new Keccak.Digest256().digest("submit".getBytes());
 
                         // Sign message with ED25519
@@ -687,7 +649,7 @@ public class AtomicIsAuthorizedTest {
                             final var addressBytes = recoverAddressFromPrivateKey(privateKey);
                             final var signedBytes = Signing.signMessage(messageHash, privateKey);
 
-                            var call = atomicBatch(contractCall(
+                            final var call = atomicBatch(contractCall(
                                                     HRC632_CONTRACT,
                                                     "isAuthorizedRawCall",
                                                     asHeadlongAddress(addressBytes),
@@ -695,7 +657,8 @@ public class AtomicIsAuthorizedTest {
                                                     signedBytes)
                                             .via(recordName)
                                             .gas(testCase.gasAmount())
-                                            .batchKey(BATCH_OPERATOR))
+                                            .batchKey(BATCH_OPERATOR)
+                                            .hasKnownStatusFrom(SUCCESS, INSUFFICIENT_GAS))
                                     .payingWith(BATCH_OPERATOR)
                                     .hasKnownStatusFrom(SUCCESS, INNER_TRANSACTION_FAILED);
                             allRunFor(spec, call);
@@ -716,6 +679,7 @@ public class AtomicIsAuthorizedTest {
         }
 
         @HapiTest
+        @Tag(MATS)
         final Stream<DynamicTest> isAuthorizedRawED25519CheckGasRequirements() {
 
             // Intrinsic gas is 21_000, hard-coded verification charge is 1_500_000, but there's also the contract
@@ -730,7 +694,7 @@ public class AtomicIsAuthorizedTest {
             for (long g = 1_550_000; g < 1_554_000; g += 1000) {
                 testCases.add(new TestCase(g, INSUFFICIENT_GAS));
             }
-            for (long g = 1_554_000; g < 1_554_500; g += 100) {
+            for (long g = 1_553_500; g < 1_554_000; g += 100) {
                 testCases.add(new TestCase(g, INSUFFICIENT_GAS));
             }
             for (long g = 1_554_500; g < 1_555_000; g += 100) {
@@ -758,7 +722,7 @@ public class AtomicIsAuthorizedTest {
                                 uploadInitCode(HRC632_CONTRACT),
                                 contractCreate(HRC632_CONTRACT))
                         .when(withOpContext((spec, opLog) -> {
-                            final var messageHash = new Digest().digest("submit".getBytes());
+                            final var messageHash = new Keccak.Digest256().digest("submit".getBytes());
 
                             final var edKey = spec.registry().getKey(ED25519_KEY);
                             final var privateKey = spec.keys()
@@ -766,7 +730,7 @@ public class AtomicIsAuthorizedTest {
                                             CommonUtils.hex(edKey.toByteArray()).substring(4));
                             final var signedBytes = SignatureGenerator.signBytes(messageHash, privateKey);
 
-                            var call = atomicBatch(contractCall(
+                            final var call = atomicBatch(contractCall(
                                                     HRC632_CONTRACT,
                                                     "isAuthorizedRawCall",
                                                     accountNum.get(),
@@ -774,7 +738,8 @@ public class AtomicIsAuthorizedTest {
                                                     signedBytes)
                                             .via(recordName)
                                             .gas(testCase.gasAmount())
-                                            .batchKey(BATCH_OPERATOR))
+                                            .batchKey(BATCH_OPERATOR)
+                                            .hasKnownStatusFrom(SUCCESS, CONTRACT_REVERT_EXECUTED))
                                     .payingWith(BATCH_OPERATOR)
                                     .hasKnownStatusFrom(SUCCESS, INNER_TRANSACTION_FAILED);
                             allRunFor(spec, call);

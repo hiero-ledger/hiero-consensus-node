@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.state.merkle;
 
-import com.swirlds.platform.state.MerkleNodeState;
+import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.Schema;
 
 /**
  * Enumerates the ways the {@link MerkleSchemaRegistry} may apply a {@link Schema}
- * to the {@link MerkleNodeState}.
+ * to the {@link State}.
  */
 public enum SchemaApplicationType {
     /**
-     * A schema may contribute state definitions to the {@link MerkleNodeState}
+     * A schema may contribute state definitions to the {@link State}
      * no matter if it was first registered before or after the version of the
      * deserialized state. The only two conditions under which a schema {@code X}
      * need not be used for state definitions are:

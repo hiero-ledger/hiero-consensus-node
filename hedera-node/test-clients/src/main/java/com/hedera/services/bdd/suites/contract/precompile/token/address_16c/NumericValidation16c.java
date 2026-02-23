@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.contract.precompile.token.address_16c;
 
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecContract.VARIANT_16C;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.ADMIN_KEY;
@@ -28,6 +29,7 @@ import java.util.List;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
 
 public class NumericValidation16c {
 
@@ -69,6 +71,7 @@ public class NumericValidation16c {
 
     @HapiTest
     @DisplayName("when using getTokenKey should return metadata key")
+    @Tag(MATS)
     public Stream<DynamicTest> succeedToGetTokenKey() {
         return hapiTest(numericContract
                 .call("getTokenKey", nft, BigInteger.valueOf(128L))
@@ -78,6 +81,7 @@ public class NumericValidation16c {
 
     @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     @DisplayName("when using getTokenKey for NFT")
+    @Tag(MATS)
     public Stream<DynamicTest> failToGetTokenKeyNFT() {
         return ALL_FAIL.stream()
                 .flatMap(testCase -> hapiTest(numericContract

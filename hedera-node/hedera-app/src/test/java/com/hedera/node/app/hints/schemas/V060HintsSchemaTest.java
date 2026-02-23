@@ -30,6 +30,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class V060HintsSchemaTest {
+
     @Mock
     private WritableStates writableStates;
 
@@ -55,7 +56,7 @@ class V060HintsSchemaTest {
 
     @BeforeEach
     void setUp() {
-        subject = new V060HintsSchema(signingContext, library);
+        subject = new V060HintsSchema(signingContext);
     }
 
     @Test
@@ -73,18 +74,13 @@ class V060HintsSchemaTest {
                         .withValue("tss.hintsEnabled", "true")
                         .getOrCreateConfig());
         given(migrationContext.newStates()).willReturn(writableStates);
-        given(writableStates.<HintsConstruction>getSingleton(V059HintsSchema.ACTIVE_HINT_CONSTRUCTION_KEY))
+        given(writableStates.<HintsConstruction>getSingleton(V059HintsSchema.ACTIVE_HINTS_CONSTRUCTION_STATE_ID))
                 .willReturn(activeConstructionState);
         given(activeConstructionState.get()).willReturn(HintsConstruction.DEFAULT);
-        given(writableStates.<HintsConstruction>getSingleton(V059HintsSchema.NEXT_HINT_CONSTRUCTION_KEY))
-                .willReturn(nextConstructionState);
-        given(writableStates.<CRSState>getSingleton(CRS_STATE_KEY)).willReturn(crsState);
         final var construction = HintsConstruction.newBuilder()
                 .hintsScheme(new HintsScheme(PreprocessedKeys.DEFAULT, List.of()))
                 .build();
         given(activeConstructionState.get()).willReturn(construction);
-        given(crsState.get()).willReturn(CRSState.DEFAULT);
-        given(nextConstructionState.get()).willReturn(HintsConstruction.DEFAULT);
 
         subject.restart(migrationContext);
 
@@ -94,13 +90,6 @@ class V060HintsSchemaTest {
     @Test
     void restartDoesNotSetUnfinishedConstructionInContext() {
         given(migrationContext.appConfig()).willReturn(DEFAULT_CONFIG);
-        given(migrationContext.newStates()).willReturn(writableStates);
-        given(writableStates.<HintsConstruction>getSingleton(V059HintsSchema.ACTIVE_HINT_CONSTRUCTION_KEY))
-                .willReturn(activeConstructionState);
-        given(activeConstructionState.get()).willReturn(HintsConstruction.DEFAULT);
-        given(writableStates.<HintsConstruction>getSingleton(V059HintsSchema.NEXT_HINT_CONSTRUCTION_KEY))
-                .willReturn(nextConstructionState);
-        given(writableStates.<CRSState>getSingleton(CRS_STATE_KEY)).willReturn(crsState);
 
         subject.restart(migrationContext);
 

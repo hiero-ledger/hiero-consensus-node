@@ -3,6 +3,7 @@ package com.hedera.node.app.service.token.impl.test.handlers.transfer;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.token.impl.handlers.BaseCryptoHandler.asAccount;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_STATE_ID;
 import static com.hedera.node.app.service.token.impl.test.handlers.transfer.AccountAmountUtils.aaAlias;
 import static com.hedera.node.app.service.token.impl.test.handlers.transfer.AccountAmountUtils.aaWith;
 import static com.hedera.node.app.service.token.impl.test.handlers.transfer.AccountAmountUtils.asAccountWithAlias;
@@ -36,6 +37,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class EnsureAliasesStepTest extends StepsBase {
+
     @BeforeEach
     public void setUp() {
         ensureAliasesInternalSetup(true);
@@ -280,7 +282,6 @@ class EnsureAliasesStepTest extends StepsBase {
                                 aaWith(ownerId, -1_000),
                                 aaWith(unknownAliasedId, +1_000))
                         .build())
-                .tokenTransfers()
                 .build();
         txn = asTxn(body, payerId);
         given(handleContext.body()).willReturn(txn);
@@ -346,7 +347,7 @@ class EnsureAliasesStepTest extends StepsBase {
         writableBuilder.value(edKeyAlias, asAccount(0L, 0L, tokenReceiver));
         writableAliases = writableBuilder.build();
 
-        given(writableStates.<ProtoBytes, AccountID>get(ALIASES)).willReturn(writableAliases);
+        given(writableStates.<ProtoBytes, AccountID>get(ALIASES_STATE_ID)).willReturn(writableAliases);
         writableAccountStore = new WritableAccountStore(writableStates, writableEntityCounters);
 
         writableAccountStore.put(account.copyBuilder()

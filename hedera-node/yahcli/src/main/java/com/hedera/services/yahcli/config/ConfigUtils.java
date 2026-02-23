@@ -2,7 +2,6 @@
 package com.hedera.services.yahcli.config;
 
 import static com.hedera.services.bdd.spec.utilops.inventory.AccessoryUtils.keyFileAt;
-import static com.hedera.services.yahcli.output.CommonMessages.COMMON_MESSAGES;
 
 import com.hedera.node.app.config.ConfigProviderBase;
 import com.hedera.services.bdd.spec.HapiSpec;
@@ -42,19 +41,6 @@ public class ConfigUtils {
         throw new UnsupportedOperationException("Utility Class");
     }
 
-    public static String asId(String entity) {
-        try {
-            int number = Integer.parseInt(entity);
-            return "0.0." + number;
-        } catch (NumberFormatException ignore) {
-        }
-        return entity;
-    }
-
-    public static boolean isLiteral(String entity) {
-        return entity.startsWith("0.0.");
-    }
-
     public static Optional<File> keyFileFor(String keysLoc, String typedNum) {
         return keyFileAt(keysLoc + File.separator + typedNum);
     }
@@ -83,7 +69,7 @@ public class ConfigUtils {
         AccessoryUtils.setLogLevels(yahcli.getLogLevel(), YAHCLI_LOGGING_CLASSES);
         var config = ConfigManager.from(yahcli);
         config.assertNoMissingDefaults();
-        COMMON_MESSAGES.printGlobalInfo(config);
+        config.output().printGlobalInfo(config);
         return config;
     }
 

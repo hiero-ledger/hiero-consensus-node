@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.hapi.batch;
 
-import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
+import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
 import static com.hedera.services.bdd.spec.assertions.ContractInfoAsserts.contractWith;
@@ -62,8 +63,8 @@ import org.junit.jupiter.api.Tag;
 // This test cases are direct copies of ContractDeleteSuite. The difference here is that
 // we are wrapping the operations in an atomic batch to confirm that everything works as expected.
 @HapiTestLifecycle
-@Tag(SMART_CONTRACT)
-public class AtomicContractDeleteSuite {
+@Tag(ATOMIC_BATCH)
+class AtomicContractDeleteSuite {
 
     private static final String CONTRACT = "Multipurpose";
     private static final String PAYABLE_CONSTRUCTOR = "PayableConstructor";
@@ -74,13 +75,7 @@ public class AtomicContractDeleteSuite {
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(Map.of(
-                "atomicBatch.isEnabled",
-                "true",
-                "atomicBatch.maxNumberOfTransactions",
-                "50",
-                "contracts.throttle.throttleByGas",
-                "false"));
+        testLifecycle.overrideInClass(Map.of("contracts.throttle.throttleByGas", "false"));
         testLifecycle.doAdhoc(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
     }
 
@@ -207,6 +202,7 @@ public class AtomicContractDeleteSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> deleteWorksWithMutableContract() {
         final var tbdFile = "FTBD";
         final var tbdContract = "CTBD";
@@ -262,6 +258,7 @@ public class AtomicContractDeleteSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> deleteTransfersToContract() {
         final var suffix = "Receiver";
 

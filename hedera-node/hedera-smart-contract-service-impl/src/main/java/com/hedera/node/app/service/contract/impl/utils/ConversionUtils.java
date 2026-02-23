@@ -3,12 +3,14 @@ package com.hedera.node.app.service.contract.impl.utils;
 
 import static com.esaulpaugh.headlong.abi.Address.toChecksumAddress;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
+import static com.hedera.node.app.hapi.utils.contracts.HookUtils.leftPad32;
 import static com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations.MISSING_ENTITY_NUMBER;
 import static com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations.NON_CANONICAL_REFERENCE_NUMBER;
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes.ZERO_CONTRACT_ID;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.proxyUpdaterFor;
+import static com.hedera.node.app.service.contract.impl.utils.ConstantUtils.ZERO_CONTRACT_ID;
 import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.hasNonDegenerateAutoRenewAccountId;
 import static com.hedera.node.app.service.token.AliasUtils.extractEvmAddress;
+import static java.math.BigInteger.ZERO;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.base.utility.CommonUtils.unhex;
 
@@ -16,6 +18,7 @@ import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.block.stream.trace.ContractSlotUsage;
 import com.hedera.hapi.block.stream.trace.EvmTransactionLog;
 import com.hedera.hapi.block.stream.trace.SlotRead;
+import com.hedera.hapi.block.stream.trace.WrittenSlotKeys;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.Duration;
@@ -33,12 +36,16 @@ import com.hedera.node.app.service.contract.impl.exec.CallOutcome;
 import com.hedera.node.app.service.contract.impl.exec.scope.HandleHederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaOperations;
+import com.hedera.node.app.service.contract.impl.infra.StorageAccessTracker;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
+import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
+import com.hedera.node.app.service.contract.impl.state.RootProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.state.StorageAccesses;
+import com.hedera.node.app.service.contract.impl.state.TxStorageUsage;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.config.data.HederaConfig;
-import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.math.BigInteger;
@@ -107,7 +114,7 @@ public class ConversionUtils {
 
     /**
      * Given a {@link com.esaulpaugh.headlong.abi.Address}, returns its implied token id.
-     *
+     * <p>
      * Use the passed in EntityIdFactory to create the TokenID.  This means that the new TokenID
      * will have the same shard and realm as the EntityIdFactory's default shard and realm which it reads from configuration.
      *
@@ -134,6 +141,24 @@ public class ConversionUtils {
             return 0L;
         }
         return value.longValueExact();
+    }
+
+    /**
+     * Given a {@link BigInteger} representing 'uint' value.
+     * Returns either:
+     * <br>
+     * - its long value
+     * <br>
+     * - ZERO if it is less than ZERO
+     * <br>
+     * - MAX_LONG_VALUE if it is more than MAX_LONG_VALUE
+     *
+     * @param value the {@link BigInteger}
+     * @return long value
+     */
+    public static long asLongLimitedToZeroOrMax(@NonNull final BigInteger value) {
+        requireNonNull(value);
+        return ZERO.max(MAX_LONG_VALUE.min(value)).longValueExact();
     }
 
     /**
@@ -319,26 +344,34 @@ public class ConversionUtils {
 
     /**
      * Given a list of {@link StorageAccesses}, converts them to a list of PBJ {@link ContractSlotUsage}s.
-     *
      * @param storageAccesses the {@link StorageAccesses}
+     * @param traceExplicitWrites whether the writes should be traced explicitly
      * @return the list of slot usages
      */
     public static @Nullable List<ContractSlotUsage> asPbjSlotUsages(
-            @Nullable final List<StorageAccesses> storageAccesses) {
+            @Nullable final List<StorageAccesses> storageAccesses, final boolean traceExplicitWrites) {
         if (storageAccesses == null) {
             return null;
         }
         final List<ContractSlotUsage> slotUsages = new ArrayList<>();
         for (final var storageAccess : storageAccesses) {
             final List<SlotRead> reads = new ArrayList<>();
-            final List<com.hedera.pbj.runtime.io.buffer.Bytes> writes = new ArrayList<>();
+            final List<com.hedera.pbj.runtime.io.buffer.Bytes> writes = traceExplicitWrites ? new ArrayList<>() : null;
             for (final var access : storageAccess.accesses()) {
                 if (!access.isReadOnly()) {
-                    writes.add(access.trimmedKeyBytes());
-                    reads.add(SlotRead.newBuilder()
-                            .index(writes.size() - 1)
-                            .readValue(access.trimmedValueBytes())
-                            .build());
+                    if (writes != null) {
+                        writes.add(access.trimmedKeyBytes());
+                        reads.add(SlotRead.newBuilder()
+                                .index(writes.size() - 1)
+                                .readValue(access.trimmedValueBytes())
+                                .build());
+                    } else {
+                        // The block stream builder replaces the key with its index in the writes list once known
+                        reads.add(SlotRead.newBuilder()
+                                .key(tuweniToPbjBytes(access.key()))
+                                .readValue(access.trimmedValueBytes())
+                                .build());
+                    }
                 } else {
                     reads.add(SlotRead.newBuilder()
                             .key(access.trimmedKeyBytes())
@@ -346,14 +379,21 @@ public class ConversionUtils {
                             .build());
                 }
             }
-            slotUsages.add(new ContractSlotUsage(storageAccess.contractID(), writes, reads));
+            if (traceExplicitWrites) {
+                slotUsages.add(ContractSlotUsage.newBuilder()
+                        .contractId(storageAccess.contractID())
+                        .writtenSlotKeys(new WrittenSlotKeys(writes))
+                        .slotReads(reads)
+                        .build());
+            } else {
+                slotUsages.add(new ContractSlotUsage(storageAccess.contractID(), null, reads));
+            }
         }
         return slotUsages;
     }
 
     /**
      * Given a Besu {@link Log}, converts it a PBJ {@link ContractLoginfo}.
-     *
      * @param entityIdFactory the entity id factory
      * @param log the Besu {@link Log}
      * @return the PBJ {@link ContractLoginfo}
@@ -611,6 +651,24 @@ public class ConversionUtils {
     }
 
     /**
+     * Converts
+     * - a long-zero address to a PBJ {@link ContractID} with id number instead of alias.
+     * - an EVM address to a PBJ {@link ContractID} with alias instead of id number.
+     *
+     * @param entityIdFactory the entity id factory
+     * @param address the EVM address
+     * @return the PBJ {@link ContractID}
+     */
+    public static ContractID asContractId(
+            @NonNull final EntityIdFactory entityIdFactory, @NonNull final Address address) {
+        if (isLongZero(address)) {
+            return entityIdFactory.newContractId(numberOfLongZero(address));
+        } else {
+            return asEvmContractId(entityIdFactory, address);
+        }
+    }
+
+    /**
      * Converts a headlong address to a PBJ {@link ScheduleID}.
      *
      * @param entityIdFactory the entity id factory
@@ -719,7 +777,13 @@ public class ConversionUtils {
      * @throws IllegalArgumentException if the bytes are more than 32 bytes long
      */
     public static @NonNull UInt256 pbjToTuweniUInt256(@NonNull final com.hedera.pbj.runtime.io.buffer.Bytes bytes) {
-        return (bytes.length() == 0) ? UInt256.ZERO : UInt256.fromBytes(Bytes32.wrap(clampedBytes(bytes, 0, 32)));
+        if (bytes.length() == 0) {
+            return UInt256.ZERO;
+        } else if (bytes.length() == 32) {
+            return UInt256.fromBytes(Bytes32.wrap(bytes.toByteArray()));
+        } else {
+            return UInt256.fromBytes(Bytes32.wrap(leftPad32(bytes).toByteArray()));
+        }
     }
 
     /**
@@ -1043,23 +1107,6 @@ public class ConversionUtils {
     }
 
     /**
-     * Pads the given bytes to 32 bytes by left-padding with zeros.
-     * @param bytes the bytes to pad
-     * @return the left-padded bytes, or the original bytes if they are already 32 bytes long
-     */
-    public static com.hedera.pbj.runtime.io.buffer.Bytes leftPad32(
-            @NonNull final com.hedera.pbj.runtime.io.buffer.Bytes bytes) {
-        requireNonNull(bytes);
-        final int n = (int) bytes.length();
-        if (n == 32) {
-            return bytes;
-        }
-        final var padded = new byte[32];
-        bytes.getBytes(0, padded, 32 - n, n);
-        return com.hedera.pbj.runtime.io.buffer.Bytes.wrap(padded);
-    }
-
-    /**
      * Converts a concise EVM transaction log into a Besu {@link Log}.
      *
      * @param log the concise EVM transaction log to convert
@@ -1078,5 +1125,45 @@ public class ConversionUtils {
                         .map(ConversionUtils::pbjToTuweniBytes)
                         .map(LogTopic::create)
                         .toList());
+    }
+
+    /**
+     * Takes the available context for an EVM transaction's storage usage and summarizes them, if applicable, in a
+     * {@link TxStorageUsage}.
+     * <p>
+     * The available context includes up to two parts, both of them optional:
+     * <ol>
+     *     <li>The root {@link ProxyWorldUpdater} for the transaction (possibly null if it was aborted before
+     *     entering the EVM); and,</li>
+     *     <li>A {@link StorageAccessTracker} capturing the transaction's <i>read</i> storage slots.</li>
+     * </ol>
+     * If no context is available, returns null. Otherwise returns a {@link TxStorageUsage} with at least the read
+     * usage; and, if the updater is available and {@code checkForWrites} is true, also the write usage.
+     * @param updater the proxy world updater to extract write accesses from
+     * @param accessTracker the access tracker to extract reads from
+     * @param checkForWrites whether to check if the updater has writes to include
+     * @return the storage usage for the transaction, or null if the frame has no access tracker
+     */
+    public static @Nullable TxStorageUsage txStorageUsageFrom(
+            @Nullable final ProxyWorldUpdater updater,
+            @Nullable final StorageAccessTracker accessTracker,
+            final boolean checkForWrites) {
+        if (accessTracker == null) {
+            return null;
+        } else {
+            if (checkForWrites) {
+                requireNonNull(updater);
+                if (updater instanceof RootProxyWorldUpdater rootProxyWorldUpdater) {
+                    final var txStorageUsage = rootProxyWorldUpdater.getTxStorageUsage();
+                    final var accesses = accessTracker.getReadsMergedWith(txStorageUsage.accesses());
+                    return new TxStorageUsage(accesses, txStorageUsage.changedKeys());
+                } else {
+                    // This was a static call, so we only have reads
+                    return new TxStorageUsage(accessTracker.getJustReads(), null);
+                }
+            } else {
+                return new TxStorageUsage(accessTracker.getJustReads(), null);
+            }
+        }
     }
 }

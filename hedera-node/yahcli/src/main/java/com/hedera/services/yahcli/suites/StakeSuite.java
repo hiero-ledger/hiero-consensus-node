@@ -83,7 +83,7 @@ public class StakeSuite extends HapiSuite {
 
     private HapiCryptoUpdate customized(final HapiCryptoUpdate baseUpdate) {
         if (targetType == TargetType.ACCOUNT) {
-            baseUpdate.newStakedAccountId(ConfigUtils.asId(target));
+            baseUpdate.newStakedAccountId(target);
         } else if (targetType == TargetType.NODE) {
             baseUpdate.newStakedNodeId(Long.parseLong(target));
         }

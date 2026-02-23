@@ -2,8 +2,8 @@
 package com.hedera.node.app.service.networkadmin.impl;
 
 import static com.hedera.node.app.service.networkadmin.impl.WritableFreezeStore.effectiveUpdateFileHash;
-import static com.hedera.node.app.service.networkadmin.impl.schemas.V0490FreezeSchema.FREEZE_TIME_KEY;
-import static com.hedera.node.app.service.networkadmin.impl.schemas.V0490FreezeSchema.UPGRADE_FILE_HASH_KEY;
+import static com.hedera.node.app.service.networkadmin.impl.schemas.V0490FreezeSchema.FREEZE_TIME_STATE_ID;
+import static com.hedera.node.app.service.networkadmin.impl.schemas.V0490FreezeSchema.UPGRADE_FILE_HASH_STATE_ID;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.Timestamp;
@@ -19,6 +19,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
  * Default implementation of {@link ReadableFreezeStore}.
  */
 public class ReadableFreezeStoreImpl implements ReadableFreezeStore {
+
     /** The underlying data storage classes that hold the freeze state data. */
     private final ReadableSingletonState<Timestamp> freezeTime;
 
@@ -32,8 +33,8 @@ public class ReadableFreezeStoreImpl implements ReadableFreezeStore {
      */
     public ReadableFreezeStoreImpl(@NonNull final ReadableStates states) {
         requireNonNull(states);
-        this.freezeTime = states.getSingleton(FREEZE_TIME_KEY);
-        this.updateFileHash = states.getSingleton(UPGRADE_FILE_HASH_KEY);
+        this.freezeTime = states.getSingleton(FREEZE_TIME_STATE_ID);
+        this.updateFileHash = states.getSingleton(UPGRADE_FILE_HASH_STATE_ID);
     }
 
     @Override

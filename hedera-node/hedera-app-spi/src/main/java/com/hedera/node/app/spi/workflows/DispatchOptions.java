@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.spi.workflows;
 
-import static com.hedera.node.app.spi.fees.NoopFeeCharging.NOOP_FEE_CHARGING;
+import static com.hedera.node.app.spi.fees.NoopFeeCharging.UNIVERSAL_NOOP_FEE_CHARGING;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.EMPTY_METADATA;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CUSTOM_FEE_CHARGING;
-import static com.hedera.node.app.spi.workflows.record.StreamBuilder.TransactionCustomizer.NOOP_TRANSACTION_CUSTOMIZER;
+import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
+import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.SUPPRESSING_SIGNED_TX_CUSTOMIZER;
 import static java.util.Collections.emptySet;
 import static java.util.Objects.requireNonNull;
 
@@ -37,7 +38,7 @@ public record DispatchOptions<T extends StreamBuilder>(
         @NonNull ConsensusThrottling throttling,
         @NonNull Class<T> streamBuilderType,
         @NonNull ReversingBehavior reversingBehavior,
-        @NonNull StreamBuilder.TransactionCustomizer transactionCustomizer,
+        @NonNull StreamBuilder.SignedTxCustomizer signedTxCustomizer,
         @NonNull DispatchMetadata dispatchMetadata,
         @Nullable FeeCharging customFeeCharging) {
     /**
@@ -123,7 +124,7 @@ public record DispatchOptions<T extends StreamBuilder>(
         requireNonNull(authorizingKeys);
         requireNonNull(streamBuilderType);
         requireNonNull(reversingBehavior);
-        requireNonNull(transactionCustomizer);
+        requireNonNull(signedTxCustomizer);
         requireNonNull(dispatchMetadata);
     }
 
@@ -173,9 +174,9 @@ public record DispatchOptions<T extends StreamBuilder>(
                 ConsensusThrottling.OFF,
                 streamBuilderType,
                 ReversingBehavior.IRREVERSIBLE,
-                NOOP_TRANSACTION_CUSTOMIZER,
+                NOOP_SIGNED_TX_CUSTOMIZER,
                 EMPTY_METADATA,
-                NOOP_FEE_CHARGING);
+                UNIVERSAL_NOOP_FEE_CHARGING);
     }
 
     /**
@@ -211,7 +212,7 @@ public record DispatchOptions<T extends StreamBuilder>(
                 ConsensusThrottling.ON,
                 streamBuilderType,
                 ReversingBehavior.REMOVABLE,
-                NOOP_TRANSACTION_CUSTOMIZER,
+                NOOP_SIGNED_TX_CUSTOMIZER,
                 EMPTY_METADATA,
                 customFeeCharging);
     }
@@ -270,7 +271,7 @@ public record DispatchOptions<T extends StreamBuilder>(
                 ConsensusThrottling.ON,
                 streamBuilderType,
                 ReversingBehavior.REVERSIBLE,
-                NOOP_TRANSACTION_CUSTOMIZER,
+                NOOP_SIGNED_TX_CUSTOMIZER,
                 metadata,
                 customFeeCharging);
     }
@@ -285,7 +286,7 @@ public record DispatchOptions<T extends StreamBuilder>(
      * @param payerId the account to pay for the dispatch
      * @param body the transaction to dispatch
      * @param streamBuilderType the type of stream builder to use for the dispatch
-     * @param transactionCustomizer the customizer for the transaction
+     * @param signedTxCustomizer the customizer for the transaction
      * @return the options for the sub-dispatch
      * @param <T> the type of stream builder to use for the dispatch
      */
@@ -293,7 +294,33 @@ public record DispatchOptions<T extends StreamBuilder>(
             @NonNull final AccountID payerId,
             @NonNull final TransactionBody body,
             @NonNull final Class<T> streamBuilderType,
-            @NonNull final StreamBuilder.TransactionCustomizer transactionCustomizer) {
+            @NonNull final StreamBuilder.SignedTxCustomizer signedTxCustomizer) {
+        return stepDispatch(
+                payerId, body, streamBuilderType, signedTxCustomizer, ReversingBehavior.REMOVABLE, EMPTY_METADATA);
+    }
+    /**
+     * Returns options for a dispatch that is a step in the parent dispatch's business logic, but only appropriate
+     * to externalize if the parent succeeds.
+     * <ul>
+     *     <li>Dispatching an internal contract creation in the EVM.</li>
+     * </ul>
+     *
+     * @param <T> the type of stream builder to use for the dispatch
+     * @param payerId the account to pay for the dispatch
+     * @param body the transaction to dispatch
+     * @param streamBuilderType the type of stream builder to use for the dispatch
+     * @param signedTxCustomizer the customizer for the transaction
+     * @param reversingBehavior the reversing behavior for the dispatch
+     * @param metadata the metadata for the dispatch
+     * @return the options for the sub-dispatch
+     */
+    public static <T extends StreamBuilder> DispatchOptions<T> stepDispatch(
+            @NonNull final AccountID payerId,
+            @NonNull final TransactionBody body,
+            @NonNull final Class<T> streamBuilderType,
+            @NonNull final StreamBuilder.SignedTxCustomizer signedTxCustomizer,
+            @NonNull final ReversingBehavior reversingBehavior,
+            @NonNull final DispatchMetadata metadata) {
         return new DispatchOptions<>(
                 Commit.WITH_PARENT,
                 payerId,
@@ -304,10 +331,10 @@ public record DispatchOptions<T extends StreamBuilder>(
                 TransactionCategory.CHILD,
                 ConsensusThrottling.OFF,
                 streamBuilderType,
-                ReversingBehavior.REMOVABLE,
-                transactionCustomizer,
-                EMPTY_METADATA,
-                NOOP_FEE_CHARGING);
+                reversingBehavior,
+                signedTxCustomizer,
+                metadata,
+                UNIVERSAL_NOOP_FEE_CHARGING);
     }
 
     /**
@@ -320,7 +347,7 @@ public record DispatchOptions<T extends StreamBuilder>(
      * @param payerId the account to pay for the dispatch
      * @param body the transaction to dispatch
      * @param streamBuilderType the type of stream builder to use for the dispatch
-     * @param transactionCustomizer the customizer for the transaction
+     * @param signedTxCustomizer the customizer for the transaction
      * @return the options for the sub-dispatch
      * @param <T> the type of stream builder to use for the dispatch
      */
@@ -328,7 +355,7 @@ public record DispatchOptions<T extends StreamBuilder>(
             @NonNull final AccountID payerId,
             @NonNull final TransactionBody body,
             @NonNull final Class<T> streamBuilderType,
-            @NonNull final StreamBuilder.TransactionCustomizer transactionCustomizer,
+            @NonNull final StreamBuilder.SignedTxCustomizer signedTxCustomizer,
             @NonNull final DispatchMetadata metaData) {
         return new DispatchOptions<>(
                 Commit.WITH_PARENT,
@@ -341,9 +368,9 @@ public record DispatchOptions<T extends StreamBuilder>(
                 ConsensusThrottling.OFF,
                 streamBuilderType,
                 ReversingBehavior.REMOVABLE,
-                transactionCustomizer,
+                signedTxCustomizer,
                 metaData,
-                NOOP_FEE_CHARGING);
+                UNIVERSAL_NOOP_FEE_CHARGING);
     }
 
     /**
@@ -354,7 +381,7 @@ public record DispatchOptions<T extends StreamBuilder>(
      * @param body the transaction to dispatch
      * @param streamBuilderType the type of stream builder to use for the dispatch
      * @param customFeeCharging the custom fee charging strategy for the dispatch
-     * @param innerTransactionBytes inner txn bytes used for pre-handling on dispatch
+     * @param dispatchMetadata metadata with the inner txn bytes used for pre-handling
      * @return the options for the atomic batch
      */
     public static <T extends StreamBuilder> DispatchOptions<T> atomicBatchDispatch(
@@ -362,7 +389,7 @@ public record DispatchOptions<T extends StreamBuilder>(
             @NonNull final TransactionBody body,
             @NonNull final Class<T> streamBuilderType,
             @NonNull final FeeCharging customFeeCharging,
-            @NonNull final DispatchMetadata innerTransactionBytes) {
+            @NonNull final DispatchMetadata dispatchMetadata) {
         return new DispatchOptions<>(
                 Commit.WITH_PARENT,
                 payerId,
@@ -374,8 +401,47 @@ public record DispatchOptions<T extends StreamBuilder>(
                 ConsensusThrottling.ON,
                 streamBuilderType,
                 ReversingBehavior.REVERSIBLE,
-                NOOP_TRANSACTION_CUSTOMIZER,
-                innerTransactionBytes,
+                NOOP_SIGNED_TX_CUSTOMIZER,
+                dispatchMetadata,
                 customFeeCharging);
+    }
+
+    /**
+     * Returns options for a dispatch that is a step in the parent dispatch's business logic, but only appropriate
+     * to externalize if the parent succeeds. This is used for hook dispatches that don't need to externalize a stream
+     * builder.
+     * @param payerId the account to pay for the dispatch
+     * @param body the transaction to dispatch
+     * @param streamBuilderType the type of stream builder to use for the dispatch
+     * @return the options for the sub-dispatch
+     * @param <T> the type of stream builder to use for the dispatch
+     */
+    public static <T extends StreamBuilder> DispatchOptions<T> hookDispatch(
+            @NonNull final AccountID payerId,
+            @NonNull final TransactionBody body,
+            @NonNull final Class<T> streamBuilderType) {
+        return stepDispatch(payerId, body, streamBuilderType, SUPPRESSING_SIGNED_TX_CUSTOMIZER);
+    }
+
+    /**
+     * Returns options for a dispatch that is a step in the parent dispatch's business logic, but only appropriate
+     * to externalize if the parent succeeds. This is used for hook dispatches.
+     *
+     * @param <T> the type of stream builder to use for the dispatch
+     * @param payerId the account to pay for the dispatch
+     * @param body the transaction to dispatch
+     * @param streamBuilderType the type of stream builder to use for the dispatch
+     * @param signedTxCustomizer the customizer for the transaction
+     * @param metadata metadata with a flag whether more than one hook is being executed in the parent tx
+     * @return the options for the sub-dispatch
+     */
+    public static <T extends StreamBuilder> DispatchOptions<T> hookDispatchForExecution(
+            @NonNull final AccountID payerId,
+            @NonNull final TransactionBody body,
+            @NonNull final Class<T> streamBuilderType,
+            @NonNull final StreamBuilder.SignedTxCustomizer signedTxCustomizer,
+            @NonNull final DispatchMetadata metadata) {
+        return stepDispatch(
+                payerId, body, streamBuilderType, signedTxCustomizer, ReversingBehavior.REVERSIBLE, metadata);
     }
 }

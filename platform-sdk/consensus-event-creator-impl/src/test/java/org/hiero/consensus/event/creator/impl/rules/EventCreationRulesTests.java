@@ -22,12 +22,11 @@ import java.util.List;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Supplier;
+import org.hiero.consensus.event.creator.config.EventCreationConfig_;
 import org.hiero.consensus.event.creator.impl.EventCreator;
-import org.hiero.consensus.event.creator.impl.config.EventCreationConfig_;
-import org.hiero.consensus.event.creator.impl.pool.TransactionPoolNexus;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.consensus.model.transaction.SignatureTransactionCheck;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -110,12 +109,9 @@ class EventCreationRulesTests {
 
     @Test
     void blockedByFreeze() {
-        final Supplier<PlatformStatus> platformStatusSupplier = () -> FREEZING;
 
         final AtomicInteger numSignatureTransactions = new AtomicInteger(0);
-        final TransactionPoolNexus transactionPoolNexus = mock(TransactionPoolNexus.class);
-        when(transactionPoolNexus.hasBufferedSignatureTransactions())
-                .thenAnswer(invocation -> numSignatureTransactions.get() > 0);
+        final SignatureTransactionCheck signatureTransactionCheck = () -> numSignatureTransactions.get() > 0;
 
         final AtomicInteger eventCreationCount = new AtomicInteger(0);
         final EventCreator baseEventCreator = mock(EventCreator.class);
@@ -124,7 +120,8 @@ class EventCreationRulesTests {
             return null;
         });
 
-        final EventCreationRule rule = new PlatformStatusRule(platformStatusSupplier, transactionPoolNexus);
+        final PlatformStatusRule rule = new PlatformStatusRule(signatureTransactionCheck);
+        rule.setPlatformStatus(PlatformStatus.FREEZING);
 
         assertFalse(rule.isEventCreationPermitted());
         numSignatureTransactions.set(1);
@@ -133,9 +130,6 @@ class EventCreationRulesTests {
 
     @Test
     void blockedByStatus() {
-        final TransactionPoolNexus transactionPoolNexus = mock(TransactionPoolNexus.class);
-
-        final AtomicReference<PlatformStatus> status = new AtomicReference<>();
 
         final AtomicInteger eventCreationCount = new AtomicInteger(0);
         final EventCreator baseEventCreator = mock(EventCreator.class);
@@ -144,7 +138,7 @@ class EventCreationRulesTests {
             return null;
         });
 
-        final EventCreationRule rule = new PlatformStatusRule(status::get, transactionPoolNexus);
+        final PlatformStatusRule rule = new PlatformStatusRule(() -> false);
 
         for (final PlatformStatus platformStatus : PlatformStatus.values()) {
             if (platformStatus == FREEZING) {
@@ -152,7 +146,7 @@ class EventCreationRulesTests {
                 continue;
             }
 
-            status.set(platformStatus);
+            rule.setPlatformStatus(platformStatus);
 
             if (platformStatus == ACTIVE || platformStatus == CHECKING) {
                 assertTrue(rule.isEventCreationPermitted());

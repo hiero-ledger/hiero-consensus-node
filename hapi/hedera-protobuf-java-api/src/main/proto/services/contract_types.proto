@@ -23,6 +23,9 @@ import "google/protobuf/wrappers.proto";
 
 /**
  * Context of an internal call in an EVM transaction that is not otherwise externalized.<br/>
+ * This message does not say anything about whether an EVM transaction is itself a logical
+ * transaction in a Hiero transactional unit. It simply provides context on an internal
+ * message call within an EVM transaction.
  */
 message InternalCallContext {
     /**
@@ -77,6 +80,25 @@ message EvmTransactionResult {
      * internal call producing this result.
      */
     InternalCallContext internal_call_context = 6;
+
+    /**
+     * If set, the id of the executed hook.
+     */
+    proto.HookId executed_hook_id = 7;
+
+    /**
+     * A list of contract account nonce values.<br/>
+     * This list SHALL contain a nonce value for each contract account modified
+     * as a result of this contract call. These nonce values SHALL be the value
+     * after the contract call is completed.
+     */
+    repeated ContractNonceInfo contract_nonces = 8;
+
+    /**
+     * In an EthereumTransaction, the nonce of the signer account at the end of
+     * the transaction.<br/>
+     */
+    google.protobuf.Int64Value signer_nonce = 9;
 }
 
 /**

@@ -1,0 +1,99 @@
+// SPDX-License-Identifier: Apache-2.0
+package com.hedera.node.app.service.roster.impl.schemas;
+
+import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
+import static java.util.Objects.requireNonNull;
+
+import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.node.app.service.roster.RosterTransplantSchema;
+import com.hedera.node.app.spi.migrate.HederaMigrationContext;
+import com.hedera.node.config.data.HederaConfig;
+import com.hedera.node.config.data.VersionConfig;
+import com.swirlds.platform.state.service.schemas.V0540RosterBaseSchema;
+import com.swirlds.state.lifecycle.MigrationContext;
+import com.swirlds.state.lifecycle.Schema;
+import com.swirlds.state.lifecycle.StateDefinition;
+import com.swirlds.state.spi.WritableStates;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Set;
+import java.util.function.BiConsumer;
+import java.util.function.Function;
+import java.util.function.Predicate;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.roster.WritableRosterStore;
+
+/**
+ * Initial {@link com.hedera.node.app.service.roster.RosterService} schema that registers two states,
+ * <ol>
+ *     <li>A mapping from roster hashes to rosters (which may be either candidate or active).</li>
+ *     <li>A singleton that contains the history of active rosters along with the round numbers where
+ *     they were adopted; along with the hash of a candidate roster if there is one.</li>
+ * </ol>
+ */
+public class V0540RosterSchema extends Schema<SemanticVersion> implements RosterTransplantSchema {
+    private static final Logger log = LogManager.getLogger(V0540RosterSchema.class);
+
+    public static final String ROSTER_KEY = "ROSTERS";
+    public static final String ROSTER_STATES_KEY = "ROSTER_STATE";
+
+    private static final SemanticVersion VERSION =
+            SemanticVersion.newBuilder().major(0).minor(54).patch(0).build();
+
+    /**
+     * A callback to invoke with an outgoing roster being replaced by a new roster hash.
+     */
+    private final BiConsumer<Roster, Roster> onAdopt;
+    /**
+     * The test to use to determine if a candidate roster may be adopted at an upgrade boundary.
+     */
+    private final Predicate<Roster> canAdopt;
+    /**
+     * The factory to use to create the writable roster store.
+     */
+    private final Function<WritableStates, WritableRosterStore> rosterStoreFactory;
+
+    public V0540RosterSchema(
+            @NonNull final BiConsumer<Roster, Roster> onAdopt,
+            @NonNull final Predicate<Roster> canAdopt,
+            @NonNull final Function<WritableStates, WritableRosterStore> rosterStoreFactory) {
+        super(VERSION, SEMANTIC_VERSION_COMPARATOR);
+        this.onAdopt = requireNonNull(onAdopt);
+        this.canAdopt = requireNonNull(canAdopt);
+        this.rosterStoreFactory = requireNonNull(rosterStoreFactory);
+    }
+
+    @Override
+    public @NonNull Set<StateDefinition> statesToCreate() {
+        return new V0540RosterBaseSchema().statesToCreate();
+    }
+
+    @Override
+    public void restart(@NonNull final MigrationContext<SemanticVersion> ctx) {
+        requireNonNull(ctx);
+        if (!ctx.isGenesis()
+                && !RosterTransplantSchema.super.restart((HederaMigrationContext) ctx, onAdopt, rosterStoreFactory)) {
+            final var rosterStore = rosterStoreFactory.apply(ctx.newStates());
+            final var activeRoundNumber = ctx.roundNumber() + 1;
+            if (ctx.isUpgrade(ctx.appConfig()
+                    .getConfigData(VersionConfig.class)
+                    .servicesVersion()
+                    .copyBuilder()
+                    .build(""
+                            + ctx.appConfig().getConfigData(HederaConfig.class).configVersion())
+                    .build())) {
+                final var candidateRoster = rosterStore.getCandidateRoster();
+                if (candidateRoster == null) {
+                    log.info("No candidate roster to adopt in round {}", activeRoundNumber);
+                } else if (canAdopt.test(candidateRoster)) {
+                    log.info("Adopting candidate roster in round {}", activeRoundNumber);
+                    onAdopt.accept(requireNonNull(rosterStore.getActiveRoster()), candidateRoster);
+                    rosterStore.adoptCandidateRoster(activeRoundNumber);
+                } else {
+                    log.info("Rejecting candidate roster in round {}", activeRoundNumber);
+                }
+            }
+        }
+    }
+}

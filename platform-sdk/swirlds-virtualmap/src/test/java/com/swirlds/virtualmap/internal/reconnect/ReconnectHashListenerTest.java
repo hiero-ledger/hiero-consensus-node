@@ -14,16 +14,11 @@ import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
-import com.swirlds.virtualmap.datasource.VirtualLeafRecord;
 import com.swirlds.virtualmap.internal.hash.VirtualHasher;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapStatistics;
-import com.swirlds.virtualmap.serialize.KeySerializer;
-import com.swirlds.virtualmap.serialize.ValueSerializer;
 import com.swirlds.virtualmap.test.fixtures.InMemoryBuilder;
 import com.swirlds.virtualmap.test.fixtures.TestKey;
-import com.swirlds.virtualmap.test.fixtures.TestKeySerializer;
 import com.swirlds.virtualmap.test.fixtures.TestValue;
-import com.swirlds.virtualmap.test.fixtures.TestValueSerializer;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -51,16 +46,16 @@ class ReconnectHashListenerTest {
     void nullFlusherThrows() {
         assertThrows(
                 NullPointerException.class,
-                () -> new ReconnectHashListener<TestKey, TestValue>(null),
+                () -> new ReconnectHashListener(null),
                 "A null flusher should produce an NPE");
     }
 
     @Test
     @DisplayName("Valid configurations create an instance")
     void goodLeafPaths() {
-        final ReconnectHashLeafFlusher<TestKey, TestValue> flusher = mock(ReconnectHashLeafFlusher.class);
+        final ReconnectHashLeafFlusher flusher = mock(ReconnectHashLeafFlusher.class);
         try {
-            new ReconnectHashListener<>(flusher);
+            new ReconnectHashListener(flusher);
         } catch (Exception e) {
             fail("Should have been able to create the instance", e);
         }
@@ -71,20 +66,17 @@ class ReconnectHashListenerTest {
     @ValueSource(ints = {1, 2, 10, 100, 1000, 10_000, 100_000, 1_000_000})
     @DisplayName("Flushed data is always done in the right order")
     void flushOrder(int size) {
-        final VirtualDataSourceSpy ds = new VirtualDataSourceSpy(new InMemoryBuilder().build("flushOrder", true));
+        final VirtualDataSourceSpy ds =
+                new VirtualDataSourceSpy(new InMemoryBuilder().build("flushOrder", null, true, false));
 
         final VirtualMapStatistics statistics = mock(VirtualMapStatistics.class);
-        final ReconnectHashLeafFlusher<TestKey, TestValue> flusher = new ReconnectHashLeafFlusher<>(
-                TestKeySerializer.INSTANCE,
-                TestValueSerializer.INSTANCE,
-                ds,
-                VIRTUAL_MAP_CONFIG.reconnectFlushInterval(),
-                statistics);
+        final ReconnectHashLeafFlusher flusher =
+                new ReconnectHashLeafFlusher(ds, VIRTUAL_MAP_CONFIG.reconnectFlushInterval(), statistics);
 
         // 100 leaves would have firstLeafPath = 99, lastLeafPath = 198
         final long last = size + size;
-        final ReconnectHashListener<TestKey, TestValue> listener = new ReconnectHashListener<>(flusher);
-        final VirtualHasher<TestKey, TestValue> hasher = new VirtualHasher<>();
+        final ReconnectHashListener listener = new ReconnectHashListener(flusher);
+        final VirtualHasher hasher = new VirtualHasher();
         hasher.hash(
                 this::hash,
                 LongStream.range(size, last).mapToObj(this::leaf).iterator(),
@@ -124,8 +116,8 @@ class ReconnectHashListenerTest {
         }
     }
 
-    private VirtualLeafRecord<TestKey, TestValue> leaf(long path) {
-        return new VirtualLeafRecord<>(path, new TestKey(path), new TestValue(path));
+    private VirtualLeafBytes leaf(long path) {
+        return new VirtualLeafBytes(path, TestKey.longToKey(path), new TestValue(path).toBytes());
     }
 
     private Hash hash(long path) {
@@ -166,26 +158,8 @@ class ReconnectHashListenerTest {
         }
 
         @Override
-        public void saveRecords(
-                final long firstLeafPath,
-                final long lastLeafPath,
-                @NonNull final Stream<VirtualHashRecord> pathHashRecordsToUpdate,
-                @NonNull final Stream<VirtualLeafBytes> leafRecordsToAddOrUpdate,
-                @NonNull final Stream<VirtualLeafBytes> leafRecordsToDelete)
-                throws IOException {
-
-            saveRecords(
-                    firstLeafPath,
-                    lastLeafPath,
-                    pathHashRecordsToUpdate,
-                    leafRecordsToAddOrUpdate,
-                    leafRecordsToDelete,
-                    true);
-        }
-
-        @Override
-        public VirtualLeafBytes loadLeafRecord(final Bytes key, final int keyHashCode) throws IOException {
-            return delegate.loadLeafRecord(key, keyHashCode);
+        public VirtualLeafBytes loadLeafRecord(final Bytes key) throws IOException {
+            return delegate.loadLeafRecord(key);
         }
 
         @Override
@@ -194,8 +168,8 @@ class ReconnectHashListenerTest {
         }
 
         @Override
-        public long findKey(final Bytes key, final int keyHashCode) throws IOException {
-            return delegate.findKey(key, keyHashCode);
+        public long findKey(final Bytes key) throws IOException {
+            return delegate.findKey(key);
         }
 
         @Override
@@ -242,18 +216,6 @@ class ReconnectHashListenerTest {
         @Override
         public void stopAndDisableBackgroundCompaction() {
             // no op
-        }
-
-        @Override
-        @SuppressWarnings("rawtypes")
-        public KeySerializer getKeySerializer() {
-            throw new UnsupportedOperationException("This method should never be called");
-        }
-
-        @Override
-        @SuppressWarnings("rawtypes")
-        public ValueSerializer getValueSerializer() {
-            throw new UnsupportedOperationException("This method should never be called");
         }
     }
 }

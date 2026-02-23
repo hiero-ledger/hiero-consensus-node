@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.result;
 
-import com.hedera.hapi.platform.state.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.List;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Defines a subscriber that will receive {@link ConsensusRound}s.
@@ -13,11 +12,11 @@ import org.hiero.consensus.model.hashgraph.ConsensusRound;
 public interface ConsensusRoundSubscriber {
 
     /**
-     * Called when new {@link ConsensusRound}s are available.
+     * Called when a new {@link ConsensusRound} is available.
      *
      * @param nodeId the node that created the round
-     * @param rounds the new {@link ConsensusRound}s
+     * @param round the new {@link ConsensusRound}
      * @return {@link SubscriberAction#UNSUBSCRIBE} to unsubscribe, {@link SubscriberAction#CONTINUE} to continue
      */
-    SubscriberAction onConsensusRounds(@NonNull NodeId nodeId, @NonNull List<ConsensusRound> rounds);
+    SubscriberAction onConsensusRound(@NonNull NodeId nodeId, @NonNull ConsensusRound round);
 }

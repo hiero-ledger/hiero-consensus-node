@@ -2,15 +2,14 @@
 package com.hedera.node.app.workflows;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_CREATE_TOPIC;
+import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_TRANSFER;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_DURATION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_START;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ZERO_BYTE_IN_STRING;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.KEY_PREFIX_MISMATCH;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.MEMO_TOO_LONG;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PAYER_ACCOUNT_NOT_FOUND;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_EXPIRED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_HAS_UNKNOWN_FIELDS;
@@ -47,14 +46,18 @@ import com.hedera.node.app.fixtures.AppTestBase;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
+import com.hedera.node.config.data.GovernanceTransactionsConfig;
 import com.hedera.node.config.data.JumboTransactionsConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.stream.Stream;
+import org.apache.commons.lang3.StringUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Named;
@@ -68,20 +71,18 @@ import org.mockito.MockedStatic;
 
 final class TransactionCheckerTest extends AppTestBase {
     private static final int MAX_TX_SIZE = 1024 * 6;
-    private static final int MAX_JUMBO_TX_SIZE = 1024 * 130;
-    private static final int MAX_MEMO_SIZE = 100;
+    private static final int MAX_LARGE_TX_SIZE = 1024 * 130;
     private static final long MAX_DURATION = 120L;
     private static final long MIN_DURATION = 10L;
     private static final int MIN_VALIDITY_BUFFER = 2;
+    private static final String GOVERNANCE_ACCOUNTS_RANGE = "2,42-799";
+
     /** Value for {@link TransactionBody#memo()} for most tests */
     private static final Bytes CONTENT = Bytes.wrap("Hello world!");
     /** The standard {@link TransactionBody#transactionValidDuration()} for most tests */
     private static final Duration ONE_MINUTE = Duration.newBuilder().seconds(60).build();
 
     private ConfigProvider props;
-
-    private final int maxBytes = MAX_TX_SIZE;
-
     private Transaction tx;
     private SignatureMap signatureMap;
     private SignedTransaction signedTx;
@@ -160,7 +161,6 @@ final class TransactionCheckerTest extends AppTestBase {
         // Set up the properties
         props = () -> new VersionedConfigImpl(
                 HederaTestConfigBuilder.create()
-                        .withValue("hedera.transaction.maxMemoUtf8Bytes", MAX_MEMO_SIZE)
                         .withValue("hedera.transaction.minValidityBufferSecs", MIN_VALIDITY_BUFFER)
                         .withValue("hedera.transaction.minValidDuration", MIN_DURATION)
                         .withValue("hedera.transaction.maxValidDuration", MAX_DURATION)
@@ -169,7 +169,7 @@ final class TransactionCheckerTest extends AppTestBase {
                 1);
 
         // And create the checker itself
-        checker = new TransactionChecker(nodeSelfAccountId, props, metrics);
+        checker = new TransactionChecker(props, metrics);
     }
 
     @Nested
@@ -179,12 +179,8 @@ final class TransactionCheckerTest extends AppTestBase {
         @SuppressWarnings("ConstantConditions")
         @DisplayName("Constructor throws on illegal arguments")
         void testConstructorWithIllegalArguments() {
-            assertThatThrownBy(() -> new TransactionChecker(null, props, metrics))
-                    .isInstanceOf(NullPointerException.class);
-            assertThatThrownBy(() -> new TransactionChecker(nodeSelfAccountId, null, metrics))
-                    .isInstanceOf(NullPointerException.class);
-            assertThatThrownBy(() -> new TransactionChecker(nodeSelfAccountId, props, null))
-                    .isInstanceOf(NullPointerException.class);
+            assertThatThrownBy(() -> new TransactionChecker(null, metrics)).isInstanceOf(NullPointerException.class);
+            assertThatThrownBy(() -> new TransactionChecker(props, null)).isInstanceOf(NullPointerException.class);
         }
     }
 
@@ -199,19 +195,73 @@ final class TransactionCheckerTest extends AppTestBase {
         @SuppressWarnings("ConstantConditions")
         @DisplayName("`parseAndCheck` requires Bytes")
         void parseAndCheck() {
-            assertThatThrownBy(() -> checker.parse(null)).isInstanceOf(NullPointerException.class);
+            assertThatThrownBy(() -> checker.parse(null, 0)).isInstanceOf(NullPointerException.class);
         }
 
         @Test
         @DisplayName("`parseAndCheck` bytes must have no more than the configured transactionMaxBytes bytes")
         void parseAndCheckWithTooManyBytes() {
-            assertThatThrownBy(() -> checker.parseAndCheck(randomBytes(MAX_TX_SIZE + 1), maxBytes))
+            // Disable governance transactions and jumbo transactions so that we have 6KB as the max transaction size
+            props = () -> new VersionedConfigImpl(
+                    HederaTestConfigBuilder.create()
+                            .withValue("governanceTransactions.isEnabled", false)
+                            .withValue("jumboTransactions.isEnabled", false)
+                            .getOrCreateConfig(),
+                    1);
+
+            checker = new TransactionChecker(props, metrics);
+
+            assertThatThrownBy(() -> checker.parseAndCheck(randomBytes(MAX_TX_SIZE + 1)))
                     .isInstanceOf(PreCheckException.class)
                     .has(responseCode(TRANSACTION_OVERSIZE));
 
             // NOTE: I'm going to also try a number of bytes that JUST FITS. But these are not real transaction
             //       bytes, so they will fail to parse. But that is OK, as long as it is not TRANSACTION_OVERSIZE.
-            assertThatThrownBy(() -> checker.parseAndCheck(randomBytes(MAX_TX_SIZE), maxBytes))
+            assertThatThrownBy(() -> checker.parseAndCheck(randomBytes(MAX_TX_SIZE)))
+                    .isInstanceOf(PreCheckException.class)
+                    .doesNotHave(responseCode(TRANSACTION_OVERSIZE));
+        }
+
+        @Test
+        @DisplayName("`parseAndCheck` bytes must have no more than the configured governance max transaction bytes")
+        void parseAndCheckWithTooManyBytesGovernanceEnabled() {
+            // Enable only governance transactions so that we have 130KB as the max transaction size
+            props = () -> new VersionedConfigImpl(
+                    HederaTestConfigBuilder.create()
+                            .withValue("governanceTransactions.isEnabled", true)
+                            .withValue("jumboTransactions.isEnabled", false)
+                            .getOrCreateConfig(),
+                    1);
+
+            checker = new TransactionChecker(props, metrics);
+
+            assertThatThrownBy(() -> checker.parseAndCheck(randomBytes(MAX_LARGE_TX_SIZE + 1)))
+                    .isInstanceOf(PreCheckException.class)
+                    .has(responseCode(TRANSACTION_OVERSIZE));
+
+            assertThatThrownBy(() -> checker.parseAndCheck(randomBytes(MAX_LARGE_TX_SIZE)))
+                    .isInstanceOf(PreCheckException.class)
+                    .doesNotHave(responseCode(TRANSACTION_OVERSIZE));
+        }
+
+        @Test
+        @DisplayName("`parseAndCheck` bytes must have no more than the configured jumbo max transaction bytes")
+        void parseAndCheckWithTooManyBytesJumboEnabled() {
+            // Enable only jumbo transactions so that we have 130KB as the max transaction size
+            props = () -> new VersionedConfigImpl(
+                    HederaTestConfigBuilder.create()
+                            .withValue("governanceTransactions.isEnabled", false)
+                            .withValue("jumboTransactions.isEnabled", true)
+                            .getOrCreateConfig(),
+                    1);
+
+            checker = new TransactionChecker(props, metrics);
+
+            assertThatThrownBy(() -> checker.parseAndCheck(randomBytes(MAX_LARGE_TX_SIZE + 1)))
+                    .isInstanceOf(PreCheckException.class)
+                    .has(responseCode(TRANSACTION_OVERSIZE));
+
+            assertThatThrownBy(() -> checker.parseAndCheck(randomBytes(MAX_LARGE_TX_SIZE)))
                     .isInstanceOf(PreCheckException.class)
                     .doesNotHave(responseCode(TRANSACTION_OVERSIZE));
         }
@@ -221,8 +271,8 @@ final class TransactionCheckerTest extends AppTestBase {
         void parseAndCheckWithNoBytes() throws PreCheckException {
             // Given a transaction with no bytes at all
             // Then the checker should throw a PreCheckException
-            final var transaction = checker.parse(Bytes.EMPTY);
-            assertThatThrownBy(() -> checker.check(transaction, null))
+            final var transaction = checker.parse(Bytes.EMPTY, Integer.MAX_VALUE);
+            assertThatThrownBy(() -> checker.check(transaction, Integer.MAX_VALUE))
                     .isInstanceOf(PreCheckException.class)
                     .has(responseCode(INVALID_TRANSACTION_BODY));
         }
@@ -237,11 +287,11 @@ final class TransactionCheckerTest extends AppTestBase {
         @DisplayName("A valid transaction passes parse and check")
         void happyPath() throws PreCheckException {
             // Given a valid serialized transaction, when we parseStrict and check
-            final var transaction = checker.parse(inputBuffer);
-            final var info = checker.check(transaction, null);
+            final var transaction = checker.parse(inputBuffer, Integer.MAX_VALUE);
+            final var info = checker.check(transaction, Integer.MAX_VALUE);
 
             // Then the parsed data is as we expected
-            assertThat(info.transaction()).isEqualTo(tx);
+            assertThat(info.signedTx()).isEqualTo(signedTx);
             assertThat(info.txBody()).isEqualTo(txBody);
             assertThat(info.signatureMap()).isEqualTo(signatureMap);
             assertThat(info.functionality()).isEqualTo(CONSENSUS_CREATE_TOPIC);
@@ -264,14 +314,19 @@ final class TransactionCheckerTest extends AppTestBase {
                     .bodyBytes(signedTx.bodyBytes())
                     .sigMap(signedTx.sigMap())
                     .build();
+            final var repackagedSignedTx = SignedTransaction.newBuilder()
+                    .bodyBytes(localTx.bodyBytes())
+                    .sigMap(localTx.sigMap())
+                    .useSerializedTxMessageHashAlgorithm(true)
+                    .build();
             inputBuffer = Bytes.wrap(asByteArray(localTx));
 
             // When we parseStrict and check
-            final var transaction = checker.parse(inputBuffer);
-            final var info = checker.check(transaction, null);
+            final var transaction = checker.parse(inputBuffer, Integer.MAX_VALUE);
+            final var info = checker.check(transaction, Integer.MAX_VALUE);
 
             // Then everything works because the deprecated fields are supported
-            assertThat(info.transaction()).isEqualTo(localTx);
+            assertThat(info.signedTx()).isEqualTo(repackagedSignedTx);
             assertThat(info.txBody()).isEqualTo(txBody);
             assertThat(info.signatureMap()).isEqualTo(signatureMap);
             assertThat(info.functionality()).isEqualTo(CONSENSUS_CREATE_TOPIC);
@@ -295,8 +350,8 @@ final class TransactionCheckerTest extends AppTestBase {
             inputBuffer = Bytes.wrap(asByteArray(localTx));
 
             // When we check, then we get a PreCheckException with INVALID_TRANSACTION_BODY
-            final var transaction = checker.parse(inputBuffer);
-            assertThatThrownBy(() -> checker.check(transaction, null))
+            final var transaction = checker.parse(inputBuffer, Integer.MAX_VALUE);
+            assertThatThrownBy(() -> checker.check(transaction, Integer.MAX_VALUE))
                     .isInstanceOf(PreCheckException.class)
                     .has(responseCode(INVALID_TRANSACTION_BODY));
 
@@ -313,7 +368,7 @@ final class TransactionCheckerTest extends AppTestBase {
             inputBuffer = Bytes.wrap(invalidProtobuf());
 
             // When we parse and check, then the parsing fails because this is an INVALID_TRANSACTION
-            assertThatThrownBy(() -> checker.parse(inputBuffer))
+            assertThatThrownBy(() -> checker.parse(inputBuffer, Integer.MAX_VALUE))
                     .isInstanceOf(PreCheckException.class)
                     .has(responseCode(INVALID_TRANSACTION));
         }
@@ -325,13 +380,13 @@ final class TransactionCheckerTest extends AppTestBase {
             inputBuffer = Bytes.wrap(appendUnknownField(asByteArray(tx)));
 
             // When we parse and check, then the parsing fails because has unknown fields
-            assertThatThrownBy(() -> checker.parse(inputBuffer))
+            assertThatThrownBy(() -> checker.parse(inputBuffer, Integer.MAX_VALUE))
                     .isInstanceOf(PreCheckException.class)
                     .has(responseCode(TRANSACTION_HAS_UNKNOWN_FIELDS));
         }
 
         @Test
-        void doesNotPassIfMoreThenMaxJumboSizeWithEnabledJumbo() {
+        void doesNotPassIfMoreThanMaxJumboSizeWithEnabledJumbo() {
             // Enabled jumbo transactions
             props = () -> new VersionedConfigImpl(
                     HederaTestConfigBuilder.create()
@@ -339,20 +394,20 @@ final class TransactionCheckerTest extends AppTestBase {
                             .getOrCreateConfig(),
                     1);
 
-            checker = new TransactionChecker(nodeSelfAccountId, props, metrics);
+            checker = new TransactionChecker(props, metrics);
 
-            int maxJumboTxnSize = props.getConfiguration()
+            final int maxJumboTxnSize = props.getConfiguration()
                     .getConfigData(JumboTransactionsConfig.class)
                     .maxTxnSize();
 
             // assert that passing more than maxJumboTxnSize will fail
-            assertThatThrownBy(() -> checker.parseAndCheck(randomBytes(maxJumboTxnSize + 1), maxBytes))
+            assertThatThrownBy(() -> checker.parseAndCheck(randomBytes(maxJumboTxnSize + 1)))
                     .isInstanceOf(PreCheckException.class)
                     .is(responseCode(TRANSACTION_OVERSIZE));
         }
 
         @Test
-        void passedWithMoreThen6KbWithJumboEnabled() {
+        void passedWithMoreThan6KbWithJumboEnabled() {
             // Enabled jumbo transactions
             props = () -> new VersionedConfigImpl(
                     HederaTestConfigBuilder.create()
@@ -360,11 +415,103 @@ final class TransactionCheckerTest extends AppTestBase {
                             .getOrCreateConfig(),
                     1);
 
-            checker = new TransactionChecker(nodeSelfAccountId, props, metrics);
+            checker = new TransactionChecker(props, metrics);
+
+            final int maxJumboTxnSize = props.getConfiguration()
+                    .getConfigData(JumboTransactionsConfig.class)
+                    .maxTxnSize();
 
             // assert that even if we are sending a transaction with more than 6KB,
             // it will not fail with TRANSACTION_OVERSIZE
-            assertThatThrownBy(() -> checker.parseAndCheck(randomBytes(MAX_TX_SIZE + 1), MAX_JUMBO_TX_SIZE))
+            assertThatThrownBy(() -> checker.parseAndCheck(randomBytes(MAX_TX_SIZE + 1)))
+                    .isInstanceOf(PreCheckException.class)
+                    .isNot(responseCode(TRANSACTION_OVERSIZE));
+            // assert that even if we are sending a transaction with up to the limit of 130KB,
+            // it will not fail with TRANSACTION_OVERSIZE
+            assertThatThrownBy(() -> checker.parseAndCheck(randomBytes(maxJumboTxnSize)))
+                    .isInstanceOf(PreCheckException.class)
+                    .isNot(responseCode(TRANSACTION_OVERSIZE));
+        }
+
+        @Test
+        void doesNotPassIfMoreThanMaxGovernanceSizeWithEnabledGovernance() {
+            // Enabled governance transactions
+            props = () -> new VersionedConfigImpl(
+                    HederaTestConfigBuilder.create()
+                            .withValue("governanceTransactions.isEnabled", true)
+                            .getOrCreateConfig(),
+                    1);
+
+            checker = new TransactionChecker(props, metrics);
+
+            final int maxGovernanceTxnSize = props.getConfiguration()
+                    .getConfigData(GovernanceTransactionsConfig.class)
+                    .maxTxnSize();
+
+            // assert that passing more than maxGovernanceTxnSize will fail
+            assertThatThrownBy(() -> checker.parseAndCheck(randomBytes(maxGovernanceTxnSize + 1)))
+                    .isInstanceOf(PreCheckException.class)
+                    .is(responseCode(TRANSACTION_OVERSIZE));
+        }
+
+        @Test
+        void passedWithCornerValuesGovernanceEnabled() {
+            // Enabled governance transactions
+            props = () -> new VersionedConfigImpl(
+                    HederaTestConfigBuilder.create()
+                            .withValue("governanceTransactions.isEnabled", true)
+                            .getOrCreateConfig(),
+                    1);
+
+            checker = new TransactionChecker(props, metrics);
+
+            final int maxGovernanceTxnSize = props.getConfiguration()
+                    .getConfigData(GovernanceTransactionsConfig.class)
+                    .maxTxnSize();
+
+            // less than 6KB, does not fail with TRANSACTION_OVERSIZE
+            assertThatThrownBy(() -> checker.parseAndCheck(randomBytes(MAX_TX_SIZE - 1)))
+                    .isInstanceOf(PreCheckException.class)
+                    .isNot(responseCode(TRANSACTION_OVERSIZE));
+            // assert that even if we are sending a transaction with more than 6KB,
+            // it will not fail with TRANSACTION_OVERSIZE
+            assertThatThrownBy(() -> checker.parseAndCheck(randomBytes(MAX_TX_SIZE + 1)))
+                    .isInstanceOf(PreCheckException.class)
+                    .isNot(responseCode(TRANSACTION_OVERSIZE));
+            // assert that even if we are sending a transaction with up to the limit of 130KB,
+            // it will not fail with TRANSACTION_OVERSIZE
+            assertThatThrownBy(() -> checker.parseAndCheck(randomBytes(maxGovernanceTxnSize)))
+                    .isInstanceOf(PreCheckException.class)
+                    .isNot(responseCode(TRANSACTION_OVERSIZE));
+        }
+
+        @Test
+        void passedWithCornerValuesGovernanceDisabled() {
+            // Disabled governance transactions
+            props = () -> new VersionedConfigImpl(
+                    HederaTestConfigBuilder.create()
+                            .withValue("governanceTransactions.isEnabled", false)
+                            .getOrCreateConfig(),
+                    1);
+
+            checker = new TransactionChecker(props, metrics);
+
+            final int maxGovernanceTxnSize = props.getConfiguration()
+                    .getConfigData(GovernanceTransactionsConfig.class)
+                    .maxTxnSize();
+
+            // less than 6KB, does not fail with TRANSACTION_OVERSIZE
+            assertThatThrownBy(() -> checker.parseAndCheck(randomBytes(MAX_TX_SIZE - 1)))
+                    .isInstanceOf(PreCheckException.class)
+                    .isNot(responseCode(TRANSACTION_OVERSIZE));
+            // assert that even if we are sending a transaction with more than 6KB,
+            // it will not fail with TRANSACTION_OVERSIZE
+            assertThatThrownBy(() -> checker.parseAndCheck(randomBytes(MAX_TX_SIZE + 1)))
+                    .isInstanceOf(PreCheckException.class)
+                    .isNot(responseCode(TRANSACTION_OVERSIZE));
+            // assert that even if we are sending a transaction with up to the limit of 130KB,
+            // it will not fail with TRANSACTION_OVERSIZE
+            assertThatThrownBy(() -> checker.parseAndCheck(randomBytes(maxGovernanceTxnSize)))
                     .isInstanceOf(PreCheckException.class)
                     .isNot(responseCode(TRANSACTION_OVERSIZE));
         }
@@ -380,20 +527,19 @@ final class TransactionCheckerTest extends AppTestBase {
                     HederaTestConfigBuilder.create()
                             .withValue("jumboTransactions.isEnabled", true)
                             .withValue("jumboTransactions.maxTxnSize", 1024 * 10) // 10 KB
-                            .withValue("hedera.transaction.maxBytes", 1024 * 6) // 6 KB
                             .getOrCreateConfig(),
                     1);
 
-            checker = new TransactionChecker(nodeSelfAccountId, props, metrics);
+            checker = new TransactionChecker(props, metrics);
 
             final var maxJumboEthereumCallDataSize = props.getConfiguration()
                     .getConfigData(JumboTransactionsConfig.class)
                     .ethereumMaxCallDataSize();
 
             TransactionInfo txInfo = mock(TransactionInfo.class);
-            when(txInfo.transaction())
-                    .thenReturn(Transaction.newBuilder()
-                            .signedTransactionBytes(Bytes.wrap(new byte[maxJumboEthereumCallDataSize]))
+            when(txInfo.signedTx())
+                    .thenReturn(SignedTransaction.newBuilder()
+                            .bodyBytes(Bytes.wrap(new byte[maxJumboEthereumCallDataSize]))
                             .build());
             when(txInfo.functionality()).thenReturn(HederaFunctionality.ETHEREUM_TRANSACTION);
 
@@ -405,29 +551,52 @@ final class TransactionCheckerTest extends AppTestBase {
             when(transactionBodyMock.ethereumTransaction()).thenReturn(mockEthTransactionBody);
             when(mockEthTransactionBody.ethereumData()).thenReturn(Bytes.wrap(new byte[maxJumboEthereumCallDataSize]));
 
-            assertDoesNotThrow(() -> checker.checkJumboTransactionBody(txInfo));
+            assertDoesNotThrow(() -> checker.checkTransactionSize(txInfo));
         }
 
         @Test
-        void withEnabledJumboSizeBiggerThenMaxTxnSizeWithNotSupportedFunctionality() {
+        void withEnabledJumboSizeBiggerThanMaxTxnSizeWithNotSupportedFunctionality() {
             props = () -> new VersionedConfigImpl(
                     HederaTestConfigBuilder.create()
+                            .withValue("governanceTransactions.isEnabled", false)
                             .withValue("jumboTransactions.isEnabled", true)
                             .withValue("jumboTransactions.maxTxnSize", 1024 * 10) // 10 KB
-                            .withValue("hedera.transaction.maxBytes", 1024 * 6) // 6 KB
                             .getOrCreateConfig(),
                     1);
 
-            checker = new TransactionChecker(nodeSelfAccountId, props, metrics);
+            checker = new TransactionChecker(props, metrics);
 
             TransactionInfo txInfo = mock(TransactionInfo.class);
-            when(txInfo.transaction())
-                    .thenReturn(Transaction.newBuilder()
-                            .signedTransactionBytes(Bytes.wrap(new byte[1024 * 7]))
+            when(txInfo.signedTx())
+                    .thenReturn(SignedTransaction.newBuilder()
+                            .bodyBytes(Bytes.wrap(new byte[1024 * 7]))
                             .build()); // 7 KB
             when(txInfo.functionality()).thenReturn(HederaFunctionality.TOKEN_MINT);
 
-            assertThrows(PreCheckException.class, () -> checker.checkJumboTransactionBody(txInfo));
+            assertThrows(PreCheckException.class, () -> checker.checkTransactionSize(txInfo));
+        }
+
+        @Test
+        void withEnabledJumboAndGovernanceSizeBiggerThanMaxTxnSizeWithNotSupportedFunctionalityPasses() {
+            props = () -> new VersionedConfigImpl(
+                    HederaTestConfigBuilder.create()
+                            .withValue("governanceTransactions.isEnabled", true)
+                            .withValue("jumboTransactions.isEnabled", true)
+                            .withValue("jumboTransactions.isEnabled", true)
+                            .withValue("jumboTransactions.maxTxnSize", 1024 * 10) // 10 KB
+                            .getOrCreateConfig(),
+                    1);
+
+            checker = new TransactionChecker(props, metrics);
+
+            TransactionInfo txInfo = mock(TransactionInfo.class);
+            when(txInfo.signedTx())
+                    .thenReturn(SignedTransaction.newBuilder()
+                            .bodyBytes(Bytes.wrap(new byte[1024 * 7]))
+                            .build()); // 7 KB
+            when(txInfo.functionality()).thenReturn(HederaFunctionality.TOKEN_MINT);
+
+            assertDoesNotThrow(() -> checker.checkTransactionSize(txInfo));
         }
     }
 
@@ -442,7 +611,7 @@ final class TransactionCheckerTest extends AppTestBase {
         @SuppressWarnings("ConstantConditions")
         @DisplayName("`check` requires a transaction")
         void checkWithNull() {
-            assertThatThrownBy(() -> checker.check(null, null)).isInstanceOf(NullPointerException.class);
+            assertThatThrownBy(() -> checker.check(null, Integer.MAX_VALUE)).isInstanceOf(NullPointerException.class);
         }
 
         @Nested
@@ -458,10 +627,10 @@ final class TransactionCheckerTest extends AppTestBase {
             @DisplayName("A valid transaction passes parseAndCheck with a BufferedData")
             void happyPath() throws PreCheckException {
                 // Given a valid serialized transaction, when we parse and check
-                final var info = checker.check(tx, null);
+                final var info = checker.check(tx, Integer.MAX_VALUE);
 
                 // Then the parsed data is as we expected
-                assertThat(info.transaction()).isEqualTo(tx);
+                assertThat(info.signedTx()).isEqualTo(signedTx);
                 assertThat(info.txBody()).isEqualTo(txBody);
                 assertThat(info.signatureMap()).isEqualTo(signatureMap);
                 assertThat(info.functionality()).isEqualTo(CONSENSUS_CREATE_TOPIC);
@@ -483,12 +652,17 @@ final class TransactionCheckerTest extends AppTestBase {
                         .bodyBytes(signedTx.bodyBytes())
                         .sigMap(signedTx.sigMap())
                         .build();
+                final var repackagedSignedTx = SignedTransaction.newBuilder()
+                        .bodyBytes(localTx.bodyBytes())
+                        .sigMap(localTx.sigMap())
+                        .useSerializedTxMessageHashAlgorithm(true)
+                        .build();
 
                 // When we parse and check
-                final var info = checker.check(localTx, null);
+                final var info = checker.check(localTx, Integer.MAX_VALUE);
 
                 // Then everything works because the deprecated fields are supported
-                assertThat(info.transaction()).isEqualTo(localTx);
+                assertThat(info.signedTx()).isEqualTo(repackagedSignedTx);
                 assertThat(info.txBody()).isEqualTo(txBody);
                 assertThat(info.signatureMap()).isEqualTo(signatureMap);
                 assertThat(info.functionality()).isEqualTo(CONSENSUS_CREATE_TOPIC);
@@ -511,7 +685,7 @@ final class TransactionCheckerTest extends AppTestBase {
                         .build();
 
                 // When we check, then we get a PreCheckException with INVALID_TRANSACTION_BODY
-                assertThatThrownBy(() -> checker.check(localTx, null))
+                assertThatThrownBy(() -> checker.check(localTx, Integer.MAX_VALUE))
                         .isInstanceOf(PreCheckException.class)
                         .has(responseCode(INVALID_TRANSACTION_BODY));
 
@@ -535,9 +709,9 @@ final class TransactionCheckerTest extends AppTestBase {
                         .build();
 
                 // When we check
-                final var info = checker.check(localTx, null);
+                final var info = checker.check(localTx, Integer.MAX_VALUE);
                 // Then the parsed data is as we expected
-                assertThat(info.transaction()).isEqualTo(localTx);
+                assertThat(info.signedTx()).isEqualTo(signedTx);
                 assertThat(info.txBody()).isEqualTo(txBody);
                 assertThat(info.signatureMap()).isEqualTo(signatureMap);
                 assertThat(info.functionality()).isEqualTo(CONSENSUS_CREATE_TOPIC);
@@ -559,11 +733,16 @@ final class TransactionCheckerTest extends AppTestBase {
                         .bodyBytes(asBytes(TransactionBody.PROTOBUF, txBody))
                         .sigMap(signatureMap)
                         .build();
+                final var repackagedSignedTx = SignedTransaction.newBuilder()
+                        .bodyBytes(localTx.bodyBytes())
+                        .sigMap(localTx.sigMap())
+                        .useSerializedTxMessageHashAlgorithm(true)
+                        .build();
 
                 // When we check
-                final var info = checker.check(localTx, null);
+                final var info = checker.check(localTx, Integer.MAX_VALUE);
                 // Then the parsed data is as we expected
-                assertThat(info.transaction()).isEqualTo(localTx);
+                assertThat(info.signedTx()).isEqualTo(repackagedSignedTx);
                 assertThat(info.txBody()).isEqualTo(txBody);
                 assertThat(info.signatureMap()).isEqualTo(signatureMap);
                 assertThat(info.functionality()).isEqualTo(CONSENSUS_CREATE_TOPIC);
@@ -586,7 +765,7 @@ final class TransactionCheckerTest extends AppTestBase {
                         .build();
 
                 // When we check the transaction, then we find it is invalid
-                assertThatThrownBy(() -> checker.check(tx, null))
+                assertThatThrownBy(() -> checker.check(tx, Integer.MAX_VALUE))
                         .isInstanceOf(PreCheckException.class)
                         .has(responseCode(INVALID_TRANSACTION));
 
@@ -606,7 +785,7 @@ final class TransactionCheckerTest extends AppTestBase {
                         .build();
 
                 // Then the checker should throw a PreCheckException
-                assertThatThrownBy(() -> checker.check(tx, null))
+                assertThatThrownBy(() -> checker.check(tx, Integer.MAX_VALUE))
                         .isInstanceOf(PreCheckException.class)
                         .has(responseCode(INVALID_TRANSACTION));
 
@@ -659,7 +838,7 @@ final class TransactionCheckerTest extends AppTestBase {
                         txBuilder(signedTxBuilder(txBody, localSignatureMap)).build();
 
                 // When we check the transaction, we find it is invalid due to duplicate prefixes
-                assertThatThrownBy(() -> checker.check(localTx, null))
+                assertThatThrownBy(() -> checker.check(localTx, Integer.MAX_VALUE))
                         .isInstanceOf(PreCheckException.class)
                         .has(responseCode(KEY_PREFIX_MISMATCH));
             }
@@ -677,7 +856,7 @@ final class TransactionCheckerTest extends AppTestBase {
                         .build();
 
                 // When we parse and check, then the parsing fails because this is an INVALID_TRANSACTION
-                assertThatThrownBy(() -> checker.check(localTx, null))
+                assertThatThrownBy(() -> checker.check(localTx, Integer.MAX_VALUE))
                         .isInstanceOf(PreCheckException.class)
                         .has(responseCode(INVALID_TRANSACTION));
             }
@@ -692,7 +871,7 @@ final class TransactionCheckerTest extends AppTestBase {
                         .build();
 
                 // When we parse and check, then the parsing fails because has unknown fields
-                assertThatThrownBy(() -> checker.check(tx, null))
+                assertThatThrownBy(() -> checker.check(tx, Integer.MAX_VALUE))
                         .isInstanceOf(PreCheckException.class)
                         .has(responseCode(TRANSACTION_HAS_UNKNOWN_FIELDS));
             }
@@ -716,7 +895,7 @@ final class TransactionCheckerTest extends AppTestBase {
                         .build();
 
                 // When we parse and check, then the parsing fails because has unknown fields
-                assertThatThrownBy(() -> checker.check(tx, null))
+                assertThatThrownBy(() -> checker.check(tx, Integer.MAX_VALUE))
                         .isInstanceOf(PreCheckException.class)
                         .has(responseCode(INVALID_TRANSACTION_BODY));
             }
@@ -737,7 +916,7 @@ final class TransactionCheckerTest extends AppTestBase {
                         .build();
 
                 // When we parse and check, then the parsing fails because this is an TRANSACTION_HAS_UNKNOWN_FIELDS
-                assertThatThrownBy(() -> checker.check(tx, null))
+                assertThatThrownBy(() -> checker.check(tx, Integer.MAX_VALUE))
                         .isInstanceOf(PreCheckException.class)
                         .has(responseCode(TRANSACTION_HAS_UNKNOWN_FIELDS));
             }
@@ -750,7 +929,7 @@ final class TransactionCheckerTest extends AppTestBase {
                 final var tx = txBuilder(signedTxBuilder(body, sigMapBuilder())).build();
 
                 // Then the checker should throw a PreCheckException
-                assertThatThrownBy(() -> checker.check(tx, null))
+                assertThatThrownBy(() -> checker.check(tx, Integer.MAX_VALUE))
                         .isInstanceOf(PreCheckException.class)
                         .has(responseCode(INVALID_TRANSACTION_ID));
             }
@@ -764,7 +943,7 @@ final class TransactionCheckerTest extends AppTestBase {
                 final var body = bodyBuilder(txIdBuilder().accountID(payerId));
                 final var tx = txBuilder(signedTxBuilder(body, sigMapBuilder())).build();
 
-                assertThatThrownBy(() -> checker.check(tx, null))
+                assertThatThrownBy(() -> checker.check(tx, Integer.MAX_VALUE))
                         .isInstanceOf(PreCheckException.class)
                         .has(responseCode(PAYER_ACCOUNT_NOT_FOUND));
             }
@@ -779,7 +958,7 @@ final class TransactionCheckerTest extends AppTestBase {
                 final var tx = txBuilder(signedTxBuilder(body, sigMapBuilder())).build();
 
                 // Then the checker should throw a PreCheckException
-                assertThatThrownBy(() -> checker.check(tx, null))
+                assertThatThrownBy(() -> checker.check(tx, Integer.MAX_VALUE))
                         .isInstanceOf(PreCheckException.class)
                         .has(responseCode(PAYER_ACCOUNT_NOT_FOUND));
             }
@@ -795,7 +974,7 @@ final class TransactionCheckerTest extends AppTestBase {
                 final var tx = txBuilder(signedTxBuilder(body, sigMapBuilder())).build();
 
                 // Then the checker should throw a PreCheckException
-                assertThatThrownBy(() -> checker.check(tx, null))
+                assertThatThrownBy(() -> checker.check(tx, Integer.MAX_VALUE))
                         .isInstanceOf(PreCheckException.class)
                         .has(responseCode(PAYER_ACCOUNT_NOT_FOUND));
             }
@@ -811,7 +990,7 @@ final class TransactionCheckerTest extends AppTestBase {
                 final var tx = txBuilder(signedTxBuilder(body, sigMapBuilder())).build();
 
                 // Then the checker should throw a PreCheckException
-                assertThatThrownBy(() -> checker.check(tx, null))
+                assertThatThrownBy(() -> checker.check(tx, Integer.MAX_VALUE))
                         .isInstanceOf(PreCheckException.class)
                         .has(responseCode(PAYER_ACCOUNT_NOT_FOUND));
             }
@@ -823,7 +1002,7 @@ final class TransactionCheckerTest extends AppTestBase {
                 final var tx = txBuilder(signedTxBuilder(body, sigMapBuilder())).build();
 
                 // Then the checker should throw a PreCheckException
-                assertThatThrownBy(() -> checker.check(tx, null))
+                assertThatThrownBy(() -> checker.check(tx, Integer.MAX_VALUE))
                         .isInstanceOf(PreCheckException.class)
                         .has(responseCode(TRANSACTION_ID_FIELD_NOT_ALLOWED));
             }
@@ -835,39 +1014,9 @@ final class TransactionCheckerTest extends AppTestBase {
                 final var tx = txBuilder(signedTxBuilder(body, sigMapBuilder())).build();
 
                 // Then the checker should throw a PreCheckException
-                assertThatThrownBy(() -> checker.check(tx, null))
+                assertThatThrownBy(() -> checker.check(tx, Integer.MAX_VALUE))
                         .isInstanceOf(PreCheckException.class)
                         .has(responseCode(TRANSACTION_ID_FIELD_NOT_ALLOWED));
-            }
-
-            @Test
-            @DisplayName("A transaction body with too large of a memo fails")
-            void testCheckTransactionBodyWithTooLargeMemoFails() {
-                // Given a transaction body with a memo that is too large
-                final var memo = randomString(MAX_MEMO_SIZE + 1);
-                final var body = bodyBuilder(txIdBuilder()).memo(memo);
-                final var tx = txBuilder(signedTxBuilder(body, sigMapBuilder())).build();
-
-                // Then the checker should throw a PreCheckException
-                assertThatThrownBy(() -> checker.check(tx, null))
-                        .isInstanceOf(PreCheckException.class)
-                        .hasFieldOrPropertyWithValue("responseCode", MEMO_TOO_LONG);
-            }
-
-            // NOTE! This test will not be the case forever! We have an issue to fix
-            // this, and allow zero bytes in the memo field.
-            @ParameterizedTest
-            @ValueSource(strings = {"\0", "\0Hello World", "Hello \0 World", "Hello World\0"})
-            @DisplayName("A transaction body with a zero byte in the memo fails")
-            void testCheckTransactionBodyWithZeroByteMemoFails(final String memo) {
-                // Given a transaction body with a memo that contains a zero byte
-                final var body = bodyBuilder(txIdBuilder()).memo(memo);
-                final var tx = txBuilder(signedTxBuilder(body, sigMapBuilder())).build();
-
-                // Then the checker should throw a PreCheckException
-                assertThatThrownBy(() -> checker.check(tx, null))
-                        .isInstanceOf(PreCheckException.class)
-                        .hasFieldOrPropertyWithValue("responseCode", INVALID_ZERO_BYTE_IN_STRING);
             }
 
             @ParameterizedTest
@@ -883,7 +1032,7 @@ final class TransactionCheckerTest extends AppTestBase {
                 final var tx = txBuilder(signedTxBuilder(body, sigMapBuilder())).build();
 
                 // When we check the transaction body
-                assertThatThrownBy(() -> checker.check(tx, null))
+                assertThatThrownBy(() -> checker.check(tx, Integer.MAX_VALUE))
                         .isInstanceOf(PreCheckException.class)
                         .hasFieldOrPropertyWithValue("responseCode", INSUFFICIENT_TX_FEE);
             }
@@ -975,11 +1124,158 @@ final class TransactionCheckerTest extends AppTestBase {
                     hapiUtils.when(() -> HapiUtils.functionOf(eq(txBody))).thenThrow(new UnknownHederaFunctionality());
 
                     // When we parse and check, then the parsing fails due to the exception
-                    assertThatThrownBy(() -> checker.check(tx, null))
+                    assertThatThrownBy(() -> checker.check(tx, Integer.MAX_VALUE))
                             .isInstanceOf(PreCheckException.class)
                             .hasFieldOrPropertyWithValue("responseCode", INVALID_TRANSACTION_BODY);
                 }
             }
+        }
+    }
+
+    @Nested
+    @DisplayName("Governance Transaction Size Limit Tests")
+    class GovernanceTransactionSizeLimitTests {
+        // Required test scenarios for governance transactions
+        @Test
+        void oversizedTransactionWithGovernancePayerFails() {
+            // Given governance transactions enabled, governance payer (account 2), transaction > 130KB
+            props = () -> new VersionedConfigImpl(
+                    HederaTestConfigBuilder.create()
+                            .withValue("governanceTransactions.isEnabled", true)
+                            .withValue("governanceTransactions.maxTxnSize", MAX_LARGE_TX_SIZE) // 130 KB
+                            .withValue("governanceTransactions.accountsRange", GOVERNANCE_ACCOUNTS_RANGE)
+                            .withValue("hedera.transaction.maxBytes", MAX_TX_SIZE) // 6 KB
+                            .getOrCreateConfig(),
+                    1);
+
+            checker = new TransactionChecker(props, metrics);
+            final var txInfo = mock(TransactionInfo.class);
+            when(txInfo.signedTx())
+                    .thenReturn(SignedTransaction.newBuilder()
+                            .bodyBytes(Bytes.wrap(new byte[1024 * 131])) // 131 KB transaction
+                            .build());
+            when(txInfo.functionality()).thenReturn(CRYPTO_TRANSFER);
+
+            // When checking transaction size even before the payer is known, it fails early validation
+            assertThatThrownBy(() -> checker.checkTransactionSize(txInfo))
+                    .isInstanceOf(PreCheckException.class)
+                    .has(responseCode(TRANSACTION_OVERSIZE));
+
+            assertThat(counterMetric("NonGovernanceOversizedTxnsRcv").get()).isZero();
+        }
+
+        @Test
+        void oversizedTransactionWithNonGovernancePayerFails() throws PreCheckException {
+            // Given governance transactions enabled, non-governance payer, transaction > 6KB (not exempt)
+            props = () -> new VersionedConfigImpl(
+                    HederaTestConfigBuilder.create()
+                            .withValue("governanceTransactions.isEnabled", true)
+                            .withValue("governanceTransactions.maxTxnSize", MAX_LARGE_TX_SIZE) // 130 KB
+                            .withValue("governanceTransactions.accountsRange", GOVERNANCE_ACCOUNTS_RANGE)
+                            .withValue("hedera.transaction.maxBytes", MAX_TX_SIZE) // 6 KB
+                            .getOrCreateConfig(),
+                    1);
+
+            checker = new TransactionChecker(props, metrics);
+            final var txInfo = mock(TransactionInfo.class);
+            when(txInfo.signedTx())
+                    .thenReturn(SignedTransaction.newBuilder()
+                            .bodyBytes(Bytes.wrap(new byte[1024 * 7])) // 7 KB transaction
+                            .build());
+            when(txInfo.functionality()).thenReturn(CRYPTO_TRANSFER); // Not exempt from size limits
+
+            final var nonGovernanceAccountId = AccountID.newBuilder()
+                    .accountNum(1000) // Non-governance account
+                    .build();
+
+            final var accountIdInExcludedRange = AccountID.newBuilder()
+                    .accountNum(24) // Non-governance account
+                    .build();
+
+            // When checking transaction size before the payer is known, it passes early validation
+            checker.checkTransactionSize(txInfo);
+
+            // When checking transaction size limit based on payer, it fails for non-governance payer
+            assertThatThrownBy(() -> checker.checkTransactionSizeLimitBasedOnPayer(txInfo, nonGovernanceAccountId))
+                    .isInstanceOf(PreCheckException.class)
+                    .has(responseCode(TRANSACTION_OVERSIZE));
+            // When checking transaction size limit based on payer,
+            // it also fails for an account within the excluded range account
+            assertThatThrownBy(() -> checker.checkTransactionSizeLimitBasedOnPayer(txInfo, accountIdInExcludedRange))
+                    .isInstanceOf(PreCheckException.class)
+                    .has(responseCode(TRANSACTION_OVERSIZE));
+
+            assertThat(counterMetric("NonGovernanceOversizedTxnsRcv").get()).isEqualTo(2L);
+        }
+
+        private static Stream<Arguments> governanceAccountNumbers() {
+            // Parse governance range from config to generate all account numbers
+            final List<Long> accountNumbers = new ArrayList<>();
+            if (StringUtils.isEmpty(GOVERNANCE_ACCOUNTS_RANGE)) {
+                return Stream.empty();
+            }
+
+            final String[] parts = GOVERNANCE_ACCOUNTS_RANGE.split(",");
+            for (String part : parts) {
+                part = part.trim();
+                if (part.contains("-")) {
+                    // It's a range like "42-799"
+                    String[] rangeParts = part.split("-");
+                    if (rangeParts.length == 2) {
+                        try {
+                            final long from = Long.parseLong(rangeParts[0].trim());
+                            final long to = Long.parseLong(rangeParts[1].trim());
+                            for (long i = from; i <= to; i++) {
+                                accountNumbers.add(i);
+                            }
+                        } catch (NumberFormatException e) {
+                            // Invalid number, skip
+                        }
+                    }
+                } else {
+                    // It's a single account like "2"
+                    try {
+                        accountNumbers.add(Long.parseLong(part.trim()));
+                    } catch (NumberFormatException e) {
+                        // Invalid number, skip
+                    }
+                }
+            }
+            return accountNumbers.stream()
+                    .map(accountNum -> Arguments.of(Named.of("Account " + accountNum, accountNum)));
+        }
+
+        @ParameterizedTest
+        @DisplayName("Large transaction with governance payers passes")
+        @MethodSource("governanceAccountNumbers")
+        void largeTransactionWithGovernancePayerPasses(final long governanceAccountNum) throws PreCheckException {
+            // Given governance transactions enabled, governance payer in governance range, transaction 6-130KB
+            props = () -> new VersionedConfigImpl(
+                    HederaTestConfigBuilder.create()
+                            .withValue("governanceTransactions.isEnabled", true)
+                            .withValue("governanceTransactions.maxTxnSize", MAX_LARGE_TX_SIZE) // 130 KB
+                            .withValue("governanceTransactions.accountsRange", GOVERNANCE_ACCOUNTS_RANGE)
+                            .withValue("hedera.transaction.maxBytes", MAX_TX_SIZE) // 6 KB
+                            .getOrCreateConfig(),
+                    1);
+
+            checker = new TransactionChecker(props, metrics);
+            final var txInfo = mock(TransactionInfo.class);
+            when(txInfo.signedTx())
+                    .thenReturn(SignedTransaction.newBuilder()
+                            .bodyBytes(Bytes.wrap(new byte[1024 * 100])) // 100 KB transaction
+                            .build());
+            when(txInfo.functionality()).thenReturn(CRYPTO_TRANSFER);
+
+            final var governanceAccountId =
+                    AccountID.newBuilder().accountNum(governanceAccountNum).build();
+
+            // When checking transaction size before the payer is known, it passes early validation
+            checker.checkTransactionSize(txInfo);
+
+            // When checking transaction size limit based on payer, it passes for governance payer
+            assertDoesNotThrow(() -> checker.checkTransactionSizeLimitBasedOnPayer(txInfo, governanceAccountId));
+            assertThat(counterMetric("NonGovernanceOversizedTxnsRcv").get()).isZero();
         }
     }
 

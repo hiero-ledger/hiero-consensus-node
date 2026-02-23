@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.token.batch;
 
-import static com.hedera.services.bdd.junit.TestTags.TOKEN;
+import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
@@ -37,6 +38,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_MINT_METADATA;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_NFT_SERIAL_NUMBER;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_WIPING_AMOUNT;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.METADATA_TOO_LONG;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_MAX_SUPPLY_REACHED;
@@ -53,12 +55,10 @@ import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hedera.services.bdd.spec.utilops.UtilVerbs;
 import com.hederahashgraph.api.proto.java.AccountID;
-import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import com.hederahashgraph.api.proto.java.TokenSupplyType;
 import com.hederahashgraph.api.proto.java.TokenType;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
@@ -72,8 +72,8 @@ import org.junit.jupiter.api.Tag;
 // This test cases are direct copies of UniqueTokenManagementSpecs. The difference here is that
 // we are wrapping the operations in an atomic batch to confirm that everything works as expected.
 @HapiTestLifecycle
-@Tag(TOKEN)
-public class AtomicUniqueTokenManagementSpecs {
+@Tag(ATOMIC_BATCH)
+class AtomicUniqueTokenManagementSpecs {
 
     private static final Logger log = LogManager.getLogger(AtomicUniqueTokenManagementSpecs.class);
     private static final String A_TOKEN = "TokenA";
@@ -97,8 +97,6 @@ public class AtomicUniqueTokenManagementSpecs {
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(
-                Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
         testLifecycle.doAdhoc(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
     }
 
@@ -166,6 +164,7 @@ public class AtomicUniqueTokenManagementSpecs {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> finiteNftReachesMaxSupplyProperly() {
         return defaultHapiSpec("FiniteNftReachesMaxSupplyProperly")
                 .given(
@@ -267,6 +266,7 @@ public class AtomicUniqueTokenManagementSpecs {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> burnWorksWhenAccountsAreFrozenByDefault() {
         return defaultHapiSpec("BurnWorksWhenAccountsAreFrozenByDefault")
                 .given(
@@ -291,6 +291,7 @@ public class AtomicUniqueTokenManagementSpecs {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> burnFailsOnInvalidSerialNumber() {
         return defaultHapiSpec("BurnFailsOnInvalidSerialNumber")
                 .given(
@@ -315,6 +316,7 @@ public class AtomicUniqueTokenManagementSpecs {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> burnRespectsBurnBatchConstraints() {
         return defaultHapiSpec("BurnRespectsBurnBatchConstraints")
                 .given(
@@ -332,13 +334,14 @@ public class AtomicUniqueTokenManagementSpecs {
                 .then(atomicBatch(
                                 burnToken(NFT, LongStream.range(1, 1001).boxed().collect(Collectors.toList()))
                                         .via(BURN_TXN)
-                                        .hasPrecheck(BATCH_SIZE_LIMIT_EXCEEDED)
+                                        .hasKnownStatus(BATCH_SIZE_LIMIT_EXCEEDED)
                                         .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED));
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> burnHappyPath() {
         return defaultHapiSpec("BurnHappyPath")
                 .given(
@@ -363,6 +366,7 @@ public class AtomicUniqueTokenManagementSpecs {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> canOnlyBurnFromTreasury() {
         final var nonTreasury = "anybodyElse";
 
@@ -397,6 +401,7 @@ public class AtomicUniqueTokenManagementSpecs {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> treasuryBalanceCorrectAfterBurn() {
         return defaultHapiSpec("TreasuryBalanceCorrectAfterBurn")
                 .given(
@@ -428,6 +433,7 @@ public class AtomicUniqueTokenManagementSpecs {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> mintDistinguishesFeeSubTypes() {
         return defaultHapiSpec("MintDistinguishesFeeSubTypes")
                 .given(
@@ -470,6 +476,7 @@ public class AtomicUniqueTokenManagementSpecs {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> mintFailsWithTooLongMetadata() {
         return defaultHapiSpec("MintFailsWithTooLongMetadata")
                 .given(
@@ -483,13 +490,14 @@ public class AtomicUniqueTokenManagementSpecs {
                                 .treasury(TOKEN_TREASURY))
                 .when()
                 .then(atomicBatch(mintToken(NFT, List.of(metadataOfLength(101)))
-                                .hasPrecheck(ResponseCodeEnum.METADATA_TOO_LONG)
+                                .hasKnownStatus(METADATA_TOO_LONG)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED));
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> mintFailsWithInvalidMetadataFromBatch() {
         return defaultHapiSpec("MintFailsWithInvalidMetadataFromBatch")
                 .given(
@@ -503,13 +511,14 @@ public class AtomicUniqueTokenManagementSpecs {
                                 .treasury(TOKEN_TREASURY))
                 .when()
                 .then(atomicBatch(mintToken(NFT, List.of(metadataOfLength(101), metadataOfLength(1)))
-                                .hasPrecheck(ResponseCodeEnum.METADATA_TOO_LONG)
+                                .hasKnownStatus(METADATA_TOO_LONG)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED));
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> mintFailsWithLargeBatchSize() {
         return defaultHapiSpec("MintFailsWithLargeBatchSize")
                 .given(
@@ -523,13 +532,14 @@ public class AtomicUniqueTokenManagementSpecs {
                                 .treasury(TOKEN_TREASURY))
                 .when()
                 .then(atomicBatch(mintToken(NFT, batchOfSize(BIGGER_THAN_LIMIT))
-                                .hasPrecheck(BATCH_SIZE_LIMIT_EXCEEDED)
+                                .hasKnownStatus(BATCH_SIZE_LIMIT_EXCEEDED)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED));
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> mintUniqueTokenHappyPath() {
         return defaultHapiSpec("MintUniqueTokenHappyPath")
                 .given(
@@ -569,6 +579,7 @@ public class AtomicUniqueTokenManagementSpecs {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> mintTokenWorksWhenAccountsAreFrozenByDefault() {
         return defaultHapiSpec("MintTokenWorksWhenAccountsAreFrozenByDefault")
                 .given(
@@ -596,6 +607,7 @@ public class AtomicUniqueTokenManagementSpecs {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> mintFailsWithDeletedToken() {
         return defaultHapiSpec("MintFailsWithDeletedToken")
                 .given(
@@ -619,6 +631,7 @@ public class AtomicUniqueTokenManagementSpecs {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> getTokenNftInfoFailsWithNoNft() {
         return defaultHapiSpec("GetTokenNftInfoFailsWithNoNft")
                 .given(newKeyNamed(SUPPLY_KEY), cryptoCreate(TOKEN_TREASURY))
@@ -640,6 +653,7 @@ public class AtomicUniqueTokenManagementSpecs {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> getTokenNftInfoWorks() {
         return defaultHapiSpec("GetTokenNftInfoWorks")
                 .given(newKeyNamed(SUPPLY_KEY), cryptoCreate(TOKEN_TREASURY))
@@ -665,6 +679,7 @@ public class AtomicUniqueTokenManagementSpecs {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> mintUniqueTokenWorksWithRepeatedMetadata() {
         return defaultHapiSpec("MintUniqueTokenWorksWithRepeatedMetadata")
                 .given(
@@ -697,6 +712,7 @@ public class AtomicUniqueTokenManagementSpecs {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> wipeHappyPath() {
         return defaultHapiSpec("WipeHappyPath")
                 .given(
@@ -736,6 +752,7 @@ public class AtomicUniqueTokenManagementSpecs {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> wipeRespectsConstraints() {
         return defaultHapiSpec("WipeRespectsConstraints")
                 .given(
@@ -760,13 +777,14 @@ public class AtomicUniqueTokenManagementSpecs {
                                         NFT,
                                         ACCOUNT,
                                         LongStream.range(1, 1001).boxed().collect(Collectors.toList()))
-                                .hasPrecheck(BATCH_SIZE_LIMIT_EXCEEDED)
+                                .hasKnownStatus(BATCH_SIZE_LIMIT_EXCEEDED)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED));
     }
 
     @HapiTest // here
+    @Tag(MATS)
     final Stream<DynamicTest> commonWipeFailsWhenInvokedOnUniqueToken() {
         return defaultHapiSpec("CommonWipeFailsWhenInvokedOnUniqueToken")
                 .given(
@@ -802,6 +820,7 @@ public class AtomicUniqueTokenManagementSpecs {
     }
 
     @HapiTest // here
+    @Tag(MATS)
     final Stream<DynamicTest> uniqueWipeFailsWhenInvokedOnFungibleToken() { // invokes unique wipe on fungible tokens
         return defaultHapiSpec("UniqueWipeFailsWhenInvokedOnFungibleToken")
                 .given(
@@ -831,6 +850,7 @@ public class AtomicUniqueTokenManagementSpecs {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> wipeFailsWithInvalidSerialNumber() {
         return defaultHapiSpec("WipeFailsWithInvalidSerialNumber")
                 .given(
@@ -900,6 +920,7 @@ public class AtomicUniqueTokenManagementSpecs {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> tokenDissociateFailsIfAccountOwnsUniqueTokens() {
         return defaultHapiSpec("tokenDissociateFailsIfAccountOwnsUniqueTokens")
                 .given(

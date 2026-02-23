@@ -7,21 +7,17 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
-import com.swirlds.merkledb.test.fixtures.ExampleByteArrayVirtualValue;
-import com.swirlds.merkledb.test.fixtures.ExampleFixedSizeVirtualValue;
-import com.swirlds.merkledb.test.fixtures.ExampleLongKeyFixedSize;
+import com.swirlds.merkledb.test.fixtures.ExampleFixedValue;
+import com.swirlds.merkledb.test.fixtures.ExampleLongKey;
 import com.swirlds.merkledb.test.fixtures.TestType;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.virtualmap.VirtualKey;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
-import com.swirlds.virtualmap.internal.merkle.VirtualRootNode;
-import com.swirlds.virtualmap.serialize.KeySerializer;
-import com.swirlds.virtualmap.serialize.ValueSerializer;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Random;
@@ -49,11 +45,8 @@ import org.junit.jupiter.api.Test;
  */
 public class CloseFlushTest {
 
-    private static Path tmpFileDir;
-
     @BeforeAll
     public static void setup() throws IOException {
-        tmpFileDir = LegacyTemporaryFileBuilder.buildTemporaryFile(CONFIGURATION);
         Configurator.setRootLevel(Level.WARN);
     }
 
@@ -67,25 +60,21 @@ public class CloseFlushTest {
         final int count = 10000;
         final ExecutorService exec = Executors.newSingleThreadExecutor();
         final AtomicReference<Exception> exception = new AtomicReference<>();
+        final Path tmpFileDir = LegacyTemporaryFileBuilder.buildTemporaryFile(CONFIGURATION);
         for (int j = 0; j < 100; j++) {
             final Path storeDir = tmpFileDir.resolve("closeFlushTest-" + j);
             final VirtualDataSource dataSource =
-                    TestType.fixed_fixed.dataType().createDataSource(storeDir, "closeFlushTest", count, 0, false, true);
+                    TestType.long_fixed.dataType().createDataSource(storeDir, "closeFlushTest", count, 0, false, true);
             // Create a custom data source builder, which creates a custom data source to capture
             // all exceptions happened in saveRecords()
             final VirtualDataSourceBuilder builder = new CustomDataSourceBuilder(dataSource, exception, CONFIGURATION);
-            VirtualMap<VirtualKey, ExampleByteArrayVirtualValue> map = new VirtualMap(
-                    "closeFlushTest",
-                    TestType.fixed_fixed.dataType().getKeySerializer(),
-                    TestType.fixed_fixed.dataType().getValueSerializer(),
-                    builder,
-                    CONFIGURATION);
+            VirtualMap map = new VirtualMap(builder, CONFIGURATION);
             for (int i = 0; i < count; i++) {
-                final ExampleLongKeyFixedSize key = new ExampleLongKeyFixedSize(i);
-                final ExampleFixedSizeVirtualValue value = new ExampleFixedSizeVirtualValue(i);
-                map.put(key, value);
+                final Bytes key = ExampleLongKey.longToKey(i);
+                final ExampleFixedValue value = new ExampleFixedValue(i);
+                map.put(key, value, ExampleFixedValue.CODEC);
             }
-            VirtualMap<VirtualKey, ExampleByteArrayVirtualValue> copy;
+            VirtualMap copy;
             final CountDownLatch shutdownLatch = new CountDownLatch(1);
             for (int i = 0; i < 100; i++) {
                 copy = map.copy();
@@ -93,9 +82,8 @@ public class CloseFlushTest {
                 map = copy;
             }
             copy = map.copy();
-            final VirtualRootNode<VirtualKey, ExampleByteArrayVirtualValue> root = map.getRight();
-            root.enableFlush();
-            final VirtualMap<VirtualKey, ExampleByteArrayVirtualValue> lastMap = map;
+            map.enableFlush();
+            final VirtualMap lastMap = map;
             final Future<?> job = exec.submit(() -> {
                 try {
                     Thread.sleep(new Random().nextInt(100));
@@ -136,14 +124,13 @@ public class CloseFlushTest {
             this.exceptionSink = sink;
         }
 
-        @Override
-        public long getClassId() {
-            return super.getClassId() + 1;
-        }
-
         @NonNull
         @Override
-        public VirtualDataSource build(final String label, final boolean withDbCompactionEnabled) {
+        public VirtualDataSource build(
+                final String label,
+                @Nullable final Path sourceDir,
+                final boolean compactionEnabled,
+                final boolean offlineUse) {
             return new VirtualDataSource() {
                 @Override
                 public void close(boolean keepData) throws IOException {
@@ -172,8 +159,8 @@ public class CloseFlushTest {
                 }
 
                 @Override
-                public VirtualLeafBytes loadLeafRecord(final Bytes key, final int keyHashCode) throws IOException {
-                    return delegate.loadLeafRecord(key, keyHashCode);
+                public VirtualLeafBytes loadLeafRecord(final Bytes key) throws IOException {
+                    return delegate.loadLeafRecord(key);
                 }
 
                 @Override
@@ -182,8 +169,8 @@ public class CloseFlushTest {
                 }
 
                 @Override
-                public long findKey(final Bytes key, int keyHashCode) throws IOException {
-                    return delegate.findKey(key, keyHashCode);
+                public long findKey(final Bytes key) throws IOException {
+                    return delegate.findKey(key);
                 }
 
                 @Override
@@ -222,18 +209,6 @@ public class CloseFlushTest {
                 @Override
                 public void stopAndDisableBackgroundCompaction() {
                     delegate.stopAndDisableBackgroundCompaction();
-                }
-
-                @Override
-                @SuppressWarnings("rawtypes")
-                public KeySerializer getKeySerializer() {
-                    throw new UnsupportedOperationException("This method should never be called");
-                }
-
-                @Override
-                @SuppressWarnings("rawtypes")
-                public ValueSerializer getValueSerializer() {
-                    throw new UnsupportedOperationException("This method should never be called");
                 }
             };
         }

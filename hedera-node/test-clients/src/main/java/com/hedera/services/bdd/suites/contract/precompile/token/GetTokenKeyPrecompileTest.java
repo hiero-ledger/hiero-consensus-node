@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.contract.precompile.token;
 
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.keyTupleFor;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.isLiteralResult;
@@ -52,6 +53,7 @@ public class GetTokenKeyPrecompileTest {
 
     @HapiTest
     @DisplayName("can get a token's supply key via static call")
+    @Tag(MATS)
     public Stream<DynamicTest> canGetSupplyKeyViaStaticCall() {
         return hapiTest(
                 nonFungibleToken.doWith(token -> getTokenKeyContract
@@ -70,6 +72,7 @@ public class GetTokenKeyPrecompileTest {
 
     @HapiTest
     @DisplayName("can't get a token's metadata key via static call for HTS 0x167 but can for 0x16c")
+    @Tag(MATS)
     public Stream<DynamicTest> canGetMetadataKeyViaStaticCall() {
         return hapiTest(
                 nonFungibleToken.doWith(token -> getTokenKeyContract

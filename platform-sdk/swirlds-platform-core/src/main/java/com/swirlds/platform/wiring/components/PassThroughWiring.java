@@ -22,9 +22,8 @@ import java.util.function.Function;
  * of parked threads.
  * <p>
  * One example usage is in collecting hashes from the concurrent execution of the
- * {@link org.hiero.consensus.crypto.EventHasher}. The "postHashCollectorWiring" in
- * {@link com.swirlds.platform.wiring.PlatformWiring} is a pass through wiring object with a sequential scheduler that
- * shares a combined object counter with the preceding concurrent scheduler. Since the pair of schedulers share a
+ * {@link org.hiero.consensus.crypto.EventHasher}. The "postHashCollectorWiring" is a pass through wiring object with a sequential
+ * scheduler that shares a combined object counter with the preceding concurrent scheduler. Since the pair of schedulers share a
  * counter, the sequential scheduler does *not* apply backpressure to the concurrent scheduler. Instead, "finished"
  * hashing tasks will wait in the queue of the sequential scheduler until the next component in the pipeline is ready to
  * receive them. The concurrent scheduler will refuse to accept additional work based on the number of tasks that are

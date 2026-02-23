@@ -214,7 +214,13 @@ public class ActionStack {
                     final var haltReason = maybeHaltReason.get();
                     builder.error(Bytes.wrap(haltReason.name().getBytes(UTF_8)));
                     if (CALL.equals(action.callType()) && haltReason == INVALID_SOLIDITY_ADDRESS) {
-                        allActions.add(new ActionWrapper(helper.createSynthActionForMissingAddressIn(frame)));
+                        final var invalidAddressContext = FrameUtils.invalidAddressContext(frame);
+                        // Only create the synth action if the invalid address was actually a call target
+                        if (InvalidAddressContext.InvalidAddressType.InvalidCallTarget.equals(
+                                invalidAddressContext.type())) {
+                            allActions.add(new ActionWrapper(helper.createSynthActionForMissingAddressIn(
+                                    frame, invalidAddressContext.culpritAddress())));
+                        }
                     }
                 } else {
                     builder.error(Bytes.EMPTY);
@@ -258,6 +264,10 @@ public class ActionStack {
                         frame.getCurrentOperation().getOpcode()))
                 .callingContract(contractIdWith(frame, hederaIdNumOfContractIn(frame)));
         completePush(builder, requireNonNull(frame.getMessageFrameStack().peek()));
+    }
+
+    public boolean isEmpty() {
+        return actionsStack.isEmpty();
     }
 
     private void completePush(@NonNull ContractAction.Builder builder, @NonNull final MessageFrame frame) {

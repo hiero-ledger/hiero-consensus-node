@@ -6,9 +6,10 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;
-import com.swirlds.virtualmap.datasource.VirtualLeafRecord;
+import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.test.fixtures.TestKey;
 import com.swirlds.virtualmap.test.fixtures.TestValue;
+import com.swirlds.virtualmap.test.fixtures.TestValueCodec;
 import java.util.function.LongFunction;
 import java.util.stream.LongStream;
 import org.hiero.base.crypto.Hash;
@@ -38,8 +39,8 @@ class VirtualHasherHugeTest extends VirtualHasherTestBase {
 
         // Every leaf has a null hash for this test, and we never ask for the same leaf twice, so we
         // can have a simple function for creating virtual leaf records.
-        final LongFunction<VirtualLeafRecord<TestKey, TestValue>> leafGetter =
-                (path) -> new VirtualLeafRecord<>(path, new TestKey(path), new TestValue("" + path));
+        final LongFunction<VirtualLeafBytes> leafGetter = (path) ->
+                new VirtualLeafBytes(path, TestKey.longToKey(path), new TestValue("" + path), TestValueCodec.INSTANCE);
 
         // Since we're hashing every internal node, we can generate new ones with null hashes. None are ever
         // asked for twice.
@@ -48,7 +49,7 @@ class VirtualHasherHugeTest extends VirtualHasherTestBase {
         // Go ahead and hash. I'm just going to check that the root hash produces *something*. I'm not worried
         // in this test as to the validity of this root hash since correctness is validated heavily in other
         // tests. In this test, I just want to be sure that we complete, and that we don't run out of memory.
-        final VirtualHasher<TestKey, TestValue> hasher = new VirtualHasher<>();
+        final VirtualHasher hasher = new VirtualHasher();
         final Hash rootHash = hasher.hash(
                 path -> null,
                 LongStream.range(firstLeafPath, lastLeafPath + 1)

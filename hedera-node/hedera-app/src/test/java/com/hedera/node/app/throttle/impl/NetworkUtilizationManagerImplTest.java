@@ -2,12 +2,14 @@
 package com.hedera.node.app.throttle.impl;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_TRANSFER;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.SignatureMap;
-import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
+import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.fees.congestion.CongestionMultipliers;
 import com.hedera.node.app.throttle.NetworkUtilizationManagerImpl;
@@ -51,7 +53,7 @@ class NetworkUtilizationManagerImplTest {
         subject.trackTxn(transactionInfo, consensusNow, state);
 
         // then
-        verify(throttleAccumulator).checkAndEnforceThrottle(transactionInfo, consensusNow, state, null);
+        verify(throttleAccumulator).checkAndEnforceThrottle(transactionInfo, consensusNow, state, null, false);
         verify(congestionMultipliers).updateMultiplier(consensusNow);
     }
 
@@ -59,7 +61,7 @@ class NetworkUtilizationManagerImplTest {
     void verifyTrackFeePayments() {
         // given
         final var expectedTxnToBeChargedFor = new TransactionInfo(
-                Transaction.DEFAULT,
+                SignedTransaction.DEFAULT,
                 TransactionBody.DEFAULT,
                 TransactionID.DEFAULT,
                 AccountID.DEFAULT,
@@ -72,16 +74,17 @@ class NetworkUtilizationManagerImplTest {
         subject.trackFeePayments(consensusNow, state);
 
         // then
-        verify(throttleAccumulator).checkAndEnforceThrottle(expectedTxnToBeChargedFor, consensusNow, state, null);
+        verify(throttleAccumulator)
+                .checkAndEnforceThrottle(expectedTxnToBeChargedFor, consensusNow, state, null, false);
         verify(congestionMultipliers).updateMultiplier(consensusNow);
     }
 
     @Test
-    void verifyShouldThrottleOpsDuration() {
-        // when
-        subject.shouldThrottleByOpsDuration(1_000_000, consensusNow);
+    void delegatesHighVolumeThrottleUtilization() {
+        given(throttleAccumulator.getHighVolumeThrottleInstantaneousUtilizationBps(CRYPTO_TRANSFER, consensusNow))
+                .willReturn(7_500);
 
-        // then
-        verify(throttleAccumulator).checkAndEnforceOpsDurationThrottle(1_000_000, consensusNow);
+        assertEquals(7_500, subject.highVolumeThrottleUtilization(CRYPTO_TRANSFER, consensusNow));
+        verify(throttleAccumulator).getHighVolumeThrottleInstantaneousUtilizationBps(CRYPTO_TRANSFER, consensusNow);
     }
 }

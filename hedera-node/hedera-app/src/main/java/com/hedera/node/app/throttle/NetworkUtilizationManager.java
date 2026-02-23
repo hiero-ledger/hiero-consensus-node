@@ -48,13 +48,18 @@ public interface NetworkUtilizationManager {
     void leakUnusedGasPreviouslyReserved(@NonNull final TransactionInfo txnInfo, final long value);
 
     /**
-     * Determines if the transaction should be throttled during transaction handling based on ops duration.
-     *
-     * @param currentOpsDuration - the ops duration consumed by the transaction so far
-     * @param consensusTime - the consensus time
-     * @return whether the transaction should be throttled
+     * Returns the available ops duration capacity for the execution at a given consensus time.
+     * Takes into account the amount leaked from the bucket up to the provided consensus time.
      */
-    boolean shouldThrottleByOpsDuration(final long currentOpsDuration, @NonNull final Instant consensusTime);
+    long availableOpsDurationCapacity(@NonNull Instant consensusTime);
+
+    /**
+     * Consumes a given amount of ops duration units from the throttle's capacity.
+     * Takes into account the amount leaked from the bucket up to the provided consensus time.
+     * If the amount to consume is greater than the available amount then consumes
+     * the available amount and returns (does not fail).
+     */
+    void consumeOpsDurationThrottleCapacity(long opsDurationUnitsToConsume, @NonNull Instant consensusTime);
 
     /**
      * Verifies if the throttle in this operation context has enough capacity to handle the given number of the
@@ -67,4 +72,14 @@ public interface NetworkUtilizationManager {
      * at the instant for which throttling should be calculated
      */
     boolean shouldThrottleNOfUnscaled(int n, @NonNull HederaFunctionality function, @NonNull Instant consensusTime);
+
+    /**
+     * Returns the current utilization percentage of the high-volume throttle for the given functionality.
+     * The utilization is expressed in hundredths of one percent (0 to 10,000), where 10,000 = 100%.
+     *
+     * @param function the functionality to get the utilization for
+     * @param consensusTime the consensus time used to calculate leaked capacity
+     * @return the utilization percentage in hundredths of one percent (0 to 10,000), or 0 if unavailable
+     */
+    int highVolumeThrottleUtilization(@NonNull HederaFunctionality function, @NonNull Instant consensusTime);
 }

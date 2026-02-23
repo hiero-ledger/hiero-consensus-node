@@ -16,16 +16,16 @@ import java.util.function.Predicate;
  * @param <E> The type of element in the queue.
  */
 public abstract class WritableQueueStateBase<E> implements WritableQueueState<E> {
-    /** The state key */
-    private final String stateKey;
+
     /** Each element that has been read. At the moment these are not exposed, but could be. */
     private final List<E> readElements = new ArrayList<>();
-    /** Each element that has been added to the queue, but not yet committed */
+
+    /** Each element that has been added to the queue, but not yet committed. */
     private final List<E> addedElements = new ArrayList<>();
-    /**
-     * Listeners to be notified when the queue changes.
-     */
+
+    /** Listeners to be notified when the queue changes. */
     private final List<QueueChangeListener<E>> listeners = new ArrayList<>();
+
     /**
      * The current index into {@link #addedElements} that we have read from.
      *
@@ -34,14 +34,23 @@ public abstract class WritableQueueStateBase<E> implements WritableQueueState<E>
      * {@link #addedElements} list. This index keeps track of where we have read from it.
      */
     private int currentAddedElementIndex = 0;
+
     /** An iterator from the backing datasource for reading data */
     private Iterator<E> dsIterator = null;
+
     /** The cached most recent peeked element */
     private E peekedElement = null;
 
+    /** State label used in logs, typically serviceName.stateKey */
+    protected final String label;
+
+    /** The state key. */
+    protected final int stateId;
+
     /** Create a new instance */
-    protected WritableQueueStateBase(@NonNull final String stateKey) {
-        this.stateKey = requireNonNull(stateKey);
+    protected WritableQueueStateBase(final int stateId, final String label) {
+        this.stateId = stateId;
+        this.label = label;
     }
 
     /**
@@ -102,10 +111,9 @@ public abstract class WritableQueueStateBase<E> implements WritableQueueState<E>
         currentAddedElementIndex = 0;
     }
 
-    @NonNull
     @Override
-    public String getStateKey() {
-        return stateKey;
+    public int getStateId() {
+        return stateId;
     }
 
     @Nullable

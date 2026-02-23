@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.util;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
@@ -14,6 +15,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
 import com.hedera.services.bdd.junit.HapiTest;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
 
 public class UtilPrngSuite {
     public static final String BOB = "bob";
@@ -42,6 +44,7 @@ public class UtilPrngSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> happyPathWorksForRangeAndBitString() {
         final var rangeTxn = "prngWithRange";
         final var rangeTxn1 = "prngWithRange1";

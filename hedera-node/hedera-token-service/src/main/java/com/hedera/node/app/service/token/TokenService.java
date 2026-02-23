@@ -2,7 +2,7 @@
 package com.hedera.node.app.service.token;
 
 import com.hedera.node.app.spi.RpcService;
-import com.hedera.node.app.spi.RpcServiceFactory;
+import com.hedera.node.app.spi.ServiceFactory;
 import com.hedera.pbj.runtime.RpcServiceDefinition;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ServiceLoader;
@@ -38,6 +38,6 @@ public interface TokenService extends RpcService {
      */
     @NonNull
     static TokenService getInstance() {
-        return RpcServiceFactory.loadService(TokenService.class, ServiceLoader.load(TokenService.class));
+        return ServiceFactory.loadService(TokenService.class, ServiceLoader.load(TokenService.class));
     }
 }

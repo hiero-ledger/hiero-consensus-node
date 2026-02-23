@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.result;
 
-import com.hedera.hapi.platform.state.NodeId;
 import com.swirlds.logging.legacy.LogMarker;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
+import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.Node;
 
 /**
@@ -53,6 +55,26 @@ public interface MultipleNodeLogResults extends OtterResult {
     }
 
     /**
+     * Excludes the log results of one or more nodes from the current results.
+     *
+     * @param nodes the nodes whose log results are to be excluded
+     * @return a new instance of {@link MultipleNodeLogResults} with the specified nodes' log results excluded
+     */
+    @NonNull
+    MultipleNodeLogResults suppressingNodes(@NonNull final Collection<Node> nodes);
+
+    /**
+     * Excludes the log results of one or more nodes from the current results.
+     *
+     * @param nodes the nodes whose log results are to be excluded
+     * @return a new instance of {@link MultipleNodeLogResults} with the specified nodes' log results excluded
+     */
+    @NonNull
+    default MultipleNodeLogResults suppressingNodes(@NonNull final Node... nodes) {
+        return suppressingNodes(Arrays.asList(nodes));
+    }
+
+    /**
      * Excludes the log results associated with the specified log marker from the current results.
      *
      * @param marker the {@link LogMarker} which associated log results are to be excluded
@@ -60,4 +82,22 @@ public interface MultipleNodeLogResults extends OtterResult {
      */
     @NonNull
     MultipleNodeLogResults suppressingLogMarker(@NonNull LogMarker marker);
+
+    /**
+     * Excludes the log results from the specified logger class from the current results.
+     *
+     * @param clazz the class whose log results are to be excluded
+     * @return a new {@code MultipleNodeLogResults} instance with the specified log marker's results removed
+     */
+    @NonNull
+    MultipleNodeLogResults suppressingLoggerName(@NonNull final Class<?> clazz);
+
+    /**
+     * Excludes the log results from the specified logger name from the current results.
+     *
+     * @param loggerName - the name of the logger to suppress
+     * @return a new {@code MultipleNodeLogResults} instance with the specified logger name's results removed
+     */
+    @NonNull
+    MultipleNodeLogResults suppressingLoggerName(@NonNull final String loggerName);
 }

@@ -7,14 +7,25 @@ import com.hedera.node.config.types.Profile;
 import com.swirlds.config.api.ConfigData;
 import com.swirlds.config.api.ConfigProperty;
 
+/**
+ * @param throttleTransactionQueueSize Stop accepting new non-system transactions into the transaction queue if it
+ *                                     exceeds this limit
+ * @param maxTransactionBytesPerEvent  the maximum number of bytes that a single event may contain, not including the
+ *                                     event headers. if a single transaction exceeds this limit, then the event will
+ *                                     contain the single transaction only
+ */
 @ConfigData("hedera")
 public record HederaConfig(
         @ConfigProperty(defaultValue = "1001") @NetworkProperty long firstUserEntity,
         @ConfigProperty(defaultValue = "0") @NodeProperty long realm,
         @ConfigProperty(defaultValue = "0") @NodeProperty long shard,
         @ConfigProperty(value = "config.version", defaultValue = "0") @NetworkProperty int configVersion,
-        @ConfigProperty(value = "nodeTransaction.maxBytes", defaultValue = "2621440") @NetworkProperty
+        // 32MB limit for node txs to permit voting on uncompressed Nova proofs for TSS WRAPS proofs
+        @ConfigProperty(value = "nodeTransaction.maxBytes", defaultValue = "33554432") @NetworkProperty
                 int nodeTransactionMaxBytes,
+        @ConfigProperty(value = "transaction.maxTransactionBytesPerEvent", defaultValue = "33554432") @NetworkProperty
+                int maxTransactionBytesPerEvent,
+        // 6KB limit for user txs
         @ConfigProperty(value = "transaction.maxBytes", defaultValue = "6144") @NetworkProperty int transactionMaxBytes,
         @ConfigProperty(value = "transaction.maxMemoUtf8Bytes", defaultValue = "100") @NetworkProperty
                 int transactionMaxMemoUtf8Bytes,
@@ -39,4 +50,6 @@ public record HederaConfig(
                 long workflowVerificationTimeoutMS,
         // FUTURE: Set<HederaFunctionality>.
         @ConfigProperty(value = "ingestThrottle.enabled", defaultValue = "true") @NetworkProperty
-                boolean ingestThrottleEnabled) {}
+                boolean ingestThrottleEnabled,
+        @ConfigProperty(value = "transaction.throttleTransactionQueueSize", defaultValue = "100000") @NodeProperty
+                int throttleTransactionQueueSize) {}

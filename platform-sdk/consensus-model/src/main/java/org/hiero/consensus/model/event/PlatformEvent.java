@@ -70,16 +70,6 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
      * @param unsignedEvent the unsigned event
      * @param signature     the signature for the event
      */
-    public PlatformEvent(@NonNull final UnsignedEvent unsignedEvent, @NonNull final byte[] signature) {
-        this(unsignedEvent, Bytes.wrap(signature));
-    }
-
-    /**
-     * Construct a new instance from an unsigned event and a signature.
-     *
-     * @param unsignedEvent the unsigned event
-     * @param signature     the signature for the event
-     */
     public PlatformEvent(@NonNull final UnsignedEvent unsignedEvent, @NonNull final Bytes signature) {
         this(
                 new GossipEvent(
@@ -88,7 +78,9 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
                         Objects.requireNonNull(signature, "The signature must not be null"),
                         unsignedEvent.getTransactionsBytes(),
                         unsignedEvent.getParents()),
-                unsignedEvent.getMetadata());
+                unsignedEvent.getMetadata(),
+                // for a newly created event, the time received is the same as the time created
+                unsignedEvent.getTimeCreated());
     }
 
     /**
@@ -98,13 +90,19 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
      * @throws NullPointerException if gossipEvent or any of its fields are null
      */
     public PlatformEvent(@NonNull final GossipEvent gossipEvent) {
-        this(Objects.requireNonNull(gossipEvent, "The gossipEvent must not be null"), new EventMetadata(gossipEvent));
+        this(
+                Objects.requireNonNull(gossipEvent, "The gossipEvent must not be null"),
+                new EventMetadata(gossipEvent),
+                Instant.now());
     }
 
-    private PlatformEvent(@NonNull final GossipEvent gossipEvent, @NonNull final EventMetadata metadata) {
+    private PlatformEvent(
+            @NonNull final GossipEvent gossipEvent,
+            @NonNull final EventMetadata metadata,
+            @NonNull final Instant timeReceived) {
         this.gossipEvent = gossipEvent;
         this.metadata = metadata;
-        this.timeReceived = Instant.now();
+        this.timeReceived = timeReceived;
         this.senderId = null;
         this.consensusData = NO_CONSENSUS;
         Objects.requireNonNull(gossipEvent.eventCore(), "The eventCore must not be null");

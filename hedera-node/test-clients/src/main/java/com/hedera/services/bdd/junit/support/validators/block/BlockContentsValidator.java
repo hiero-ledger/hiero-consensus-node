@@ -2,10 +2,11 @@
 package com.hedera.services.bdd.junit.support.validators.block;
 
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.workingDirFor;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
-import com.hedera.services.bdd.junit.support.BlockStreamAccess;
+import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
 import com.hedera.services.bdd.junit.support.BlockStreamValidator;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Paths;
@@ -98,14 +99,19 @@ public class BlockContentsValidator implements BlockStreamValidator {
             Assertions.fail("Round must start with a round header");
         }
         int currentIndex = startIndex + 1;
+        boolean insideEvent = false;
         boolean hasEventOrStateChange = false;
         // Process items in this round until we hit the next round header or end of items
         while (currentIndex < items.size() && !items.get(currentIndex).hasRoundHeader()) {
             final var item = items.get(currentIndex);
             final var kind = item.item().kind();
             switch (kind) {
-                case EVENT_HEADER, STATE_CHANGES -> hasEventOrStateChange = true;
-                case RECORD_FILE, FILTERED_ITEM_HASH ->
+                case EVENT_HEADER -> hasEventOrStateChange = insideEvent = true;
+                case BLOCK_FOOTER -> insideEvent = false;
+                case STATE_CHANGES -> hasEventOrStateChange = true;
+                case SIGNED_TRANSACTION ->
+                    assertTrue(insideEvent, "Signed transaction found outside of event at index " + currentIndex);
+                case RECORD_FILE, FILTERED_SINGLE_ITEM ->
                     Assertions.fail("Unexpected item type " + kind + " at index " + currentIndex);
                 default -> {
                     // No-op

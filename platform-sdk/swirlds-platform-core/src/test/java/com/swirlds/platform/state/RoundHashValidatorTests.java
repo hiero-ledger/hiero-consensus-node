@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state;
 
-import static com.swirlds.common.utility.Threshold.MAJORITY;
-import static com.swirlds.common.utility.Threshold.SUPER_MAJORITY;
 import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomHash;
+import static org.hiero.base.utility.Threshold.MAJORITY;
+import static org.hiero.base.utility.Threshold.SUPER_MAJORITY;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -11,12 +11,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
-import com.swirlds.common.test.fixtures.GaussianWeightGenerator;
-import com.swirlds.common.test.fixtures.WeightGenerator;
 import com.swirlds.platform.metrics.IssMetrics;
 import com.swirlds.platform.state.iss.internal.HashValidityStatus;
 import com.swirlds.platform.state.iss.internal.RoundHashValidator;
-import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedList;
@@ -27,6 +24,9 @@ import java.util.stream.Stream;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterUtils;
+import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
+import org.hiero.consensus.test.fixtures.GaussianWeightGenerator;
+import org.hiero.consensus.test.fixtures.WeightGenerator;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -36,7 +36,7 @@ import org.mockito.Mockito;
 
 @DisplayName("RoundHashValidator Tests")
 class RoundHashValidatorTests {
-    private static final WeightGenerator WEIGHT_GENERATOR = new GaussianWeightGenerator(100, 50);
+    private static final WeightGenerator WEIGHT_GENERATOR = GaussianWeightGenerator.withAverageNodeWeight(100, 50);
 
     static Stream<Arguments> args() {
         return Stream.of(

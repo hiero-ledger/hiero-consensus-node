@@ -2,9 +2,9 @@
 package com.hedera.node.app.blocks.impl;
 
 import com.hedera.hapi.block.stream.output.StateChange;
-import com.hedera.hapi.block.stream.trace.ContractInitcode;
 import com.hedera.hapi.block.stream.trace.ContractSlotUsage;
 import com.hedera.hapi.block.stream.trace.EvmTransactionLog;
+import com.hedera.hapi.block.stream.trace.ExecutedInitcode;
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
@@ -17,7 +17,6 @@ import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenTransferList;
 import com.hedera.hapi.node.base.TokenType;
 import com.hedera.hapi.node.base.TopicID;
-import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.contract.ContractFunctionResult;
@@ -26,6 +25,7 @@ import com.hedera.hapi.node.contract.EvmTransactionResult;
 import com.hedera.hapi.node.transaction.AssessedCustomFee;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.hapi.node.transaction.PendingAirdropRecord;
+import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.streams.ContractAction;
 import com.hedera.hapi.streams.ContractActions;
@@ -49,6 +49,7 @@ import com.hedera.node.app.service.token.records.CryptoDeleteStreamBuilder;
 import com.hedera.node.app.service.token.records.CryptoTransferStreamBuilder;
 import com.hedera.node.app.service.token.records.CryptoUpdateStreamBuilder;
 import com.hedera.node.app.service.token.records.GenesisAccountStreamBuilder;
+import com.hedera.node.app.service.token.records.HookDispatchStreamBuilder;
 import com.hedera.node.app.service.token.records.NodeStakeUpdateStreamBuilder;
 import com.hedera.node.app.service.token.records.TokenAccountWipeStreamBuilder;
 import com.hedera.node.app.service.token.records.TokenAirdropStreamBuilder;
@@ -68,6 +69,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Predicate;
 
 /**
  * A temporary implementation of {@link StreamBuilder} that forwards all mutating calls to an
@@ -101,22 +103,39 @@ public class PairedStreamBuilder
                 CryptoUpdateStreamBuilder,
                 NodeCreateStreamBuilder,
                 TokenAirdropStreamBuilder,
-                ReplayableFeeStreamBuilder {
+                ReplayableFeeStreamBuilder,
+                HookDispatchStreamBuilder {
     private final BlockStreamBuilder blockStreamBuilder;
     private final RecordStreamBuilder recordStreamBuilder;
 
     public PairedStreamBuilder(
             @NonNull final ReversingBehavior reversingBehavior,
-            @NonNull final TransactionCustomizer customizer,
+            @NonNull final SignedTxCustomizer customizer,
             @NonNull final HandleContext.TransactionCategory category) {
         recordStreamBuilder = new RecordStreamBuilder(reversingBehavior, customizer, category);
         blockStreamBuilder = new BlockStreamBuilder(reversingBehavior, customizer, category);
     }
 
     @Override
+    public List<StateChange> getStateChanges() {
+        return blockStreamBuilder.getStateChanges();
+    }
+
+    @Override
     public StreamBuilder stateChanges(@NonNull List<StateChange> stateChanges) {
         blockStreamBuilder.stateChanges(stateChanges);
         return this;
+    }
+
+    @Override
+    public ContractOperationStreamBuilder testForIdenticalKeys(@NonNull final Predicate<Object> test) {
+        blockStreamBuilder.testForIdenticalKeys(test);
+        return this;
+    }
+
+    @Override
+    public @Nullable Predicate<Object> logicallyIdenticalValueTest() {
+        return blockStreamBuilder.logicallyIdenticalValueTest();
     }
 
     public BlockStreamBuilder blockStreamBuilder() {
@@ -128,9 +147,9 @@ public class PairedStreamBuilder
     }
 
     @Override
-    public @NonNull PairedStreamBuilder transaction(@NonNull final Transaction transaction) {
-        recordStreamBuilder.transaction(transaction);
-        blockStreamBuilder.transaction(transaction);
+    public @NonNull PairedStreamBuilder signedTx(@NonNull final SignedTransaction signedTx) {
+        recordStreamBuilder.signedTx(signedTx);
+        blockStreamBuilder.signedTx(signedTx);
         return this;
     }
 
@@ -142,9 +161,9 @@ public class PairedStreamBuilder
     }
 
     @Override
-    public PairedStreamBuilder serializedTransaction(@Nullable final Bytes serializedTransaction) {
-        recordStreamBuilder.serializedTransaction(serializedTransaction);
-        blockStreamBuilder.serializedTransaction(serializedTransaction);
+    public PairedStreamBuilder serializedSignedTx(@Nullable final Bytes serializedSignedTx) {
+        recordStreamBuilder.serializedSignedTx(serializedSignedTx);
+        blockStreamBuilder.serializedSignedTx(serializedSignedTx);
         return this;
     }
 
@@ -156,11 +175,6 @@ public class PairedStreamBuilder
     @Override
     public ScheduleID scheduleID() {
         return blockStreamBuilder.scheduleID();
-    }
-
-    @Override
-    public Transaction transaction() {
-        return recordStreamBuilder.transaction();
     }
 
     @Override
@@ -188,11 +202,6 @@ public class PairedStreamBuilder
     @Override
     public long getGasUsedForContractTxn() {
         return recordStreamBuilder.getGasUsedForContractTxn();
-    }
-
-    @Override
-    public long getOpsDurationForContractTxn() {
-        return recordStreamBuilder.getOpsDurationForContractTxn();
     }
 
     @NonNull
@@ -262,9 +271,8 @@ public class PairedStreamBuilder
     }
 
     @Override
-    public StreamBuilder transactionBytes(@NonNull final Bytes transactionBytes) {
-        recordStreamBuilder.transactionBytes(transactionBytes);
-        blockStreamBuilder.transactionBytes(transactionBytes);
+    public StreamBuilder triggeringParentConsensus(@NonNull final Instant parentConsensus) {
+        blockStreamBuilder.triggeringParentConsensus(parentConsensus);
         return this;
     }
 
@@ -277,7 +285,16 @@ public class PairedStreamBuilder
 
     @Override
     public StreamBuilder congestionMultiplier(final long congestionMultiplier) {
-        return null;
+        recordStreamBuilder.congestionMultiplier(congestionMultiplier);
+        blockStreamBuilder.congestionMultiplier(congestionMultiplier);
+        return this;
+    }
+
+    @Override
+    public StreamBuilder highVolumePricingMultiplier(final long highVolumePricingMultiplier) {
+        recordStreamBuilder.highVolumePricingMultiplier(highVolumePricingMultiplier);
+        blockStreamBuilder.highVolumePricingMultiplier(highVolumePricingMultiplier);
+        return this;
     }
 
     @NonNull
@@ -406,9 +423,9 @@ public class PairedStreamBuilder
 
     @NonNull
     @Override
-    public EthereumTransactionStreamBuilder ethereumHash(@NonNull Bytes ethereumHash, boolean hydratedFromFile) {
-        recordStreamBuilder.ethereumHash(ethereumHash, hydratedFromFile);
-        blockStreamBuilder.ethereumHash(ethereumHash, hydratedFromFile);
+    public EthereumTransactionStreamBuilder ethereumHash(@NonNull Bytes ethereumHash) {
+        recordStreamBuilder.ethereumHash(ethereumHash);
+        blockStreamBuilder.ethereumHash(ethereumHash);
         return this;
     }
 
@@ -443,7 +460,7 @@ public class PairedStreamBuilder
 
     @NonNull
     @Override
-    public ContractOperationStreamBuilder addInitcode(@NonNull final ContractInitcode initcode) {
+    public ContractOperationStreamBuilder addInitcode(@NonNull final ExecutedInitcode initcode) {
         blockStreamBuilder.addInitcode(initcode);
         return this;
     }
@@ -679,5 +696,31 @@ public class PairedStreamBuilder
     @Override
     public HederaFunctionality functionality() {
         return blockStreamBuilder.functionality();
+    }
+
+    @Override
+    public void nextHookId(final Long nextHookId) {
+        recordStreamBuilder.nextHookId(nextHookId);
+        blockStreamBuilder.nextHookId(nextHookId);
+    }
+
+    @Override
+    public Long getNextHookId() {
+        return blockStreamBuilder.getNextHookId();
+    }
+
+    @Override
+    public Bytes getEvmCallResult() {
+        return blockStreamBuilder.getEvmCallResult();
+    }
+
+    @Override
+    public int getDeltaStorageSlotsUpdated() {
+        return blockStreamBuilder.getDeltaStorageSlotsUpdated();
+    }
+
+    @Override
+    public void setDeltaStorageSlotsUpdated(int deltaStorageSlotsUpdated) {
+        blockStreamBuilder.setDeltaStorageSlotsUpdated(deltaStorageSlotsUpdated);
     }
 }

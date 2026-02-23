@@ -186,7 +186,7 @@ public class HapiGetTxnRecord extends HapiQueryOp<HapiGetTxnRecord> {
      * @see <a href="https://github.com/hiero-ledger/hiero-consensus-node/issues/18783">GitHub Issue #18783</a>
      */
     private void setDefaultRetryValues() {
-        setRetryLimit(200); // 200 attempts * 10ms = 2s
+        setRetryLimit(300); // 300 attempts * 10ms = 3s
         hasRetryAnswerOnlyPrecheck(RECORD_NOT_FOUND);
     }
 
@@ -1085,7 +1085,7 @@ public class HapiGetTxnRecord extends HapiQueryOp<HapiGetTxnRecord> {
     }
 
     @Override
-    protected long costOnlyNodePayment(final HapiSpec spec) throws Throwable {
+    protected long costOnlyNodePayment(final HapiSpec spec) {
         return spec.fees()
                 .forOp(
                         HederaFunctionality.TransactionGetRecord,

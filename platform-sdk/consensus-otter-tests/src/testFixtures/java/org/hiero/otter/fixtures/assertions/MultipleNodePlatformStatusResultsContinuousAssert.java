@@ -1,21 +1,25 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.assertions;
 
-import static org.hiero.otter.fixtures.internal.helpers.Utils.collect;
+import static org.hiero.otter.fixtures.internal.helpers.Utils.toSet;
 import static org.hiero.otter.fixtures.result.SubscriberAction.CONTINUE;
 import static org.hiero.otter.fixtures.result.SubscriberAction.UNSUBSCRIBE;
 
-import com.hedera.hapi.platform.state.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Set;
 import java.util.function.BiConsumer;
+import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.result.MultipleNodePlatformStatusResults;
 import org.hiero.otter.fixtures.result.PlatformStatusSubscriber;
 
 /**
  * Continuous assertions for {@link MultipleNodePlatformStatusResults}.
+ *
+ * <p>Please note: If two continuous assertions fail roughly at the same time, it is non-deterministic which one
+ * will report the failure first. This is even true when running a test in the Turtle environment.
+ * If deterministic behavior is required, please use regular assertions instead of continuous assertions.
  */
 @SuppressWarnings({"UnusedReturnValue", "unused"})
 public class MultipleNodePlatformStatusResultsContinuousAssert
@@ -53,7 +57,7 @@ public class MultipleNodePlatformStatusResultsContinuousAssert
     @NonNull
     public MultipleNodePlatformStatusResultsContinuousAssert doNotEnterAnyStatusesOf(
             @NonNull final PlatformStatus first, @Nullable final PlatformStatus... rest) {
-        final Set<PlatformStatus> statuses = collect(first, rest);
+        final Set<PlatformStatus> statuses = toSet(first, rest);
         return checkContinuously((nodeId, status) -> {
             if (statuses.contains(status)) {
                 failWithMessage(
@@ -72,7 +76,7 @@ public class MultipleNodePlatformStatusResultsContinuousAssert
     @NonNull
     public MultipleNodePlatformStatusResultsContinuousAssert doOnlyEnterStatusesOf(
             @NonNull final PlatformStatus first, @Nullable final PlatformStatus... rest) {
-        final Set<PlatformStatus> statuses = collect(first, rest);
+        final Set<PlatformStatus> statuses = toSet(first, rest);
         return checkContinuously((nodeId, status) -> {
             if (!statuses.contains(status)) {
                 failWithMessage("Expected only to enter %s statuses, but node %s entered %s", statuses, nodeId, status);
@@ -81,12 +85,14 @@ public class MultipleNodePlatformStatusResultsContinuousAssert
     }
 
     private MultipleNodePlatformStatusResultsContinuousAssert checkContinuously(
-            final BiConsumer<NodeId, PlatformStatus> check) {
+            @NonNull final BiConsumer<NodeId, PlatformStatus> check) {
         isNotNull();
 
         final PlatformStatusSubscriber subscriber = (nodeId, status) -> switch (state) {
             case ACTIVE -> {
-                check.accept(nodeId, status);
+                if (!suppressedNodeIds.contains(nodeId)) {
+                    check.accept(nodeId, status);
+                }
                 yield CONTINUE;
             }
             case PAUSED -> CONTINUE;

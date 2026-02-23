@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asTokenString;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -49,11 +50,11 @@ public class SigningReqsSuite {
     private static final long DEFAULT_AMOUNT_TO_SEND = 20 * ONE_HBAR;
     private static final String MINIMAL_CREATIONS_CONTRACT = "MinimalTokenCreations";
 
-    private static final String LEGACY_ACTIVATIONS_PROP = "contracts.keys.legacyActivations";
     public static final String AUTO_RENEW = "autoRenew";
     public static final int GAS_TO_OFFER = 1_000_000;
 
     @LeakyHapiTest(overrides = {"contracts.keys.legacyActivations"})
+    @Tag(MATS)
     final Stream<DynamicTest> autoRenewAccountCanUseLegacySigActivationIfConfigured() {
         final var autoRenew = AUTO_RENEW;
         final AtomicReference<Address> autoRenewMirrorAddr = new AtomicReference<>();
@@ -66,7 +67,7 @@ public class SigningReqsSuite {
                 uploadInitCode(MINIMAL_CREATIONS_CONTRACT),
                 contractCreate(MINIMAL_CREATIONS_CONTRACT)
                         .exposingContractIdTo(contractId::set)
-                        .gas(5_000_000L)
+                        .gas(6_000_000L)
                         .refusingEthConversion(),
                 cryptoCreate(autoRenew)
                         .keyShape(origKey.signedWith(sigs(ON, MINIMAL_CREATIONS_CONTRACT)))

@@ -1,160 +1,160 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state.merkle;
 
+import static com.hedera.pbj.runtime.ProtoConstants.WIRE_TYPE_DELIMITED;
+import static com.hedera.pbj.runtime.ProtoParserTools.TAG_FIELD_OFFSET;
+import static com.hedera.pbj.runtime.ProtoWriterTools.sizeOfVarInt32;
+import static com.swirlds.state.merkle.StateKeyUtils.kvKey;
+
 import com.hedera.pbj.runtime.Codec;
-import com.hedera.pbj.runtime.ParseException;
-import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
-import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
-import com.swirlds.state.lifecycle.StateMetadata;
-import com.swirlds.state.merkle.disk.OnDiskKey;
-import com.swirlds.state.merkle.disk.OnDiskKeySerializer;
-import com.swirlds.state.merkle.disk.OnDiskValue;
-import com.swirlds.state.merkle.disk.OnDiskValueSerializer;
-import com.swirlds.state.merkle.memory.InMemoryValue;
-import com.swirlds.state.merkle.memory.InMemoryWritableKVState;
-import com.swirlds.state.merkle.queue.QueueNode;
-import com.swirlds.state.merkle.singleton.SingletonNode;
-import com.swirlds.state.merkle.singleton.StringLeaf;
-import com.swirlds.state.merkle.singleton.ValueLeaf;
+import com.hedera.pbj.runtime.io.ReadableSequentialData;
+import com.hedera.pbj.runtime.io.buffer.BufferedData;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.state.binary.QueueState;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
-import org.hiero.base.constructable.ClassConstructorPair;
-import org.hiero.base.constructable.ConstructableRegistry;
-import org.hiero.base.constructable.ConstructableRegistryException;
+import java.io.UncheckedIOException;
 
 /** Utility class for working with states. */
 public final class StateUtils {
+
+    // This has to match virtual_map_state.proto
+    public static final int STATE_VALUE_QUEUE_STATE = 8001;
+
+    /** Cache for pre-computed virtual map keys for singleton states. */
+    private static final Bytes[] VIRTUAL_MAP_KEY_CACHE = new Bytes[65536];
 
     /** Prevent instantiation */
     private StateUtils() {}
 
     /**
-     * Write the {@code object} to the {@link OutputStream} using the given {@link Codec}.
+     * Creates a state key for a singleton state and serializes into a {@link Bytes} object.
+     * The result is cached to avoid repeated allocations.
      *
-     * @param out The object to write out
-     * @param codec The codec to use. MUST be compatible with the {@code object} type
-     * @param object The object to write
-     * @return The number of bytes written to the stream.
-     * @param <T> The type of the object and associated codec.
-     * @throws IOException If the output stream throws it.
-     * @throws ClassCastException If the object or codec is not for type {@code T}.
+     * @param stateId the state ID
+     * @return a state key for the singleton serialized into {@link Bytes} object
      */
-    public static <T> int writeToStream(
-            @NonNull final OutputStream out, @NonNull final Codec<T> codec, @Nullable final T object)
-            throws IOException {
-        final var stream = new WritableStreamingData(out);
-
-        final var byteStream = new ByteArrayOutputStream();
-        codec.write(object, new WritableStreamingData(byteStream));
-
-        stream.writeInt(byteStream.size());
-        stream.writeBytes(byteStream.toByteArray());
-        return byteStream.size();
-    }
-
-    /**
-     * Read an object from the {@link InputStream} using the given {@link Codec}.
-     *
-     * @param in The input stream to read from
-     * @param codec The codec to use. MUST be compatible with the {@code object} type
-     * @return The object read from the stream
-     * @param <T> The type of the object and associated codec.
-     * @throws IOException If the input stream throws it or parsing fails
-     * @throws ClassCastException If the object or codec is not for type {@code T}.
-     */
-    @Nullable
-    public static <T> T readFromStream(@NonNull final InputStream in, @NonNull final Codec<T> codec)
-            throws IOException {
-        final var stream = new ReadableStreamingData(in);
-        final var size = stream.readInt();
-
-        stream.limit((long) size + Integer.BYTES); // +4 for the size
-        try {
-            return codec.parse(stream);
-        } catch (final ParseException ex) {
-            throw new IOException(ex);
+    public static Bytes getStateKeyForSingleton(final int stateId) {
+        Bytes key = VIRTUAL_MAP_KEY_CACHE[stateId];
+        if (key == null) {
+            key = StateKeyUtils.singletonKey(stateId);
+            VIRTUAL_MAP_KEY_CACHE[stateId] = key;
         }
+        return key;
     }
 
     /**
-     * Registers with the {@link ConstructableRegistry} system a class ID and a class. While this
-     * will only be used for in-memory states, it is safe to register for on-disk ones as well.
+     * Creates a state key for a queue element and serializes into a {@link Bytes} object.
      *
-     * <p>The implementation will take the service name and the state key and compute a hash for it.
-     * It will then convert the hash to a long, and use that as the class ID. It will then register
-     * an {@link InMemoryWritableKVState}'s value merkle type to be deserialized, answering with the
-     * generated class ID.
-     *
-     * @param md The state metadata
+     * @param stateId the state ID
+     * @param index the queue element index
+     * @return a state key for a queue element serialized into {@link Bytes} object
      */
-    @SuppressWarnings({"rawtypes", "unchecked"})
-    public static void registerWithSystem(
-            @NonNull final StateMetadata md, @NonNull ConstructableRegistry constructableRegistry) {
-        // Register with the system the uniqueId as the "classId" of an InMemoryValue. There can be
-        // multiple id's associated with InMemoryValue. The secret is that the supplier captures the
-        // various delegate writers and parsers, and so can parse/write different types of data
-        // based on the id.
-        try {
-            constructableRegistry.registerConstructable(new ClassConstructorPair(
-                    InMemoryValue.class,
-                    () -> new InMemoryValue(
-                            md.inMemoryValueClassId(),
-                            md.stateDefinition().keyCodec(),
-                            md.stateDefinition().valueCodec())));
-            constructableRegistry.registerConstructable(new ClassConstructorPair(
-                    OnDiskKey.class,
-                    () -> new OnDiskKey<>(
-                            md.onDiskKeyClassId(), md.stateDefinition().keyCodec())));
-            constructableRegistry.registerConstructable(new ClassConstructorPair(
-                    OnDiskKeySerializer.class,
-                    () -> new OnDiskKeySerializer<>(
-                            md.onDiskKeySerializerClassId(),
-                            md.onDiskKeyClassId(),
-                            md.stateDefinition().keyCodec())));
-            constructableRegistry.registerConstructable(new ClassConstructorPair(
-                    OnDiskValue.class,
-                    () -> new OnDiskValue<>(
-                            md.onDiskValueClassId(), md.stateDefinition().valueCodec())));
-            constructableRegistry.registerConstructable(new ClassConstructorPair(
-                    OnDiskValueSerializer.class,
-                    () -> new OnDiskValueSerializer<>(
-                            md.onDiskValueSerializerClassId(),
-                            md.onDiskValueClassId(),
-                            md.stateDefinition().valueCodec())));
-            constructableRegistry.registerConstructable(new ClassConstructorPair(
-                    SingletonNode.class,
-                    () -> new SingletonNode<>(
-                            md.serviceName(),
-                            md.stateDefinition().stateKey(),
-                            md.singletonClassId(),
-                            md.stateDefinition().valueCodec(),
-                            null)));
-            constructableRegistry.registerConstructable(new ClassConstructorPair(
-                    QueueNode.class,
-                    () -> new QueueNode<>(
-                            md.serviceName(),
-                            md.stateDefinition().stateKey(),
-                            md.queueNodeClassId(),
-                            md.singletonClassId(),
-                            md.stateDefinition().valueCodec())));
-            constructableRegistry.registerConstructable(new ClassConstructorPair(StringLeaf.class, StringLeaf::new));
-            constructableRegistry.registerConstructable(new ClassConstructorPair(
-                    ValueLeaf.class,
-                    () -> new ValueLeaf<>(
-                            md.singletonClassId(), md.stateDefinition().valueCodec())));
-        } catch (ConstructableRegistryException e) {
-            // This is a fatal error.
-            throw new IllegalStateException(
-                    "Failed to register with the system '"
-                            + md.serviceName()
-                            + ":"
-                            + md.stateDefinition().stateKey()
-                            + "'",
-                    e);
+    public static Bytes getStateKeyForQueue(final int stateId, final long index) {
+        return StateKeyUtils.queueKey(stateId, index);
+    }
+
+    /**
+     * Creates a state key for a k/v state and serializes into a {@link Bytes} object.
+     *
+     * @param <K> the type of the key
+     * @param stateId the state ID
+     * @param key the key object
+     * @return a state key for a k/v state, serialized into {@link Bytes} object
+     */
+    public static <K> Bytes getStateKeyForKv(final int stateId, final K key, final Codec<K> keyCodec) {
+        return kvKey(stateId, key, keyCodec);
+    }
+
+    /**
+     * For a singleton value object, creates an instance of {@link StateValue} that can be
+     * stored in a virtual map for the corresponding {@link #getStateKeyForSingleton(int)} key.
+     *
+     * @param <V> singleton value type
+     * @param stateId the singleton state ID
+     * @param value the value object
+     * @return the {@link StateValue} object
+     */
+    public static <V> StateValue<V> getStateValueForSingleton(final int stateId, final V value) {
+        return new StateValue<>(stateId, value);
+    }
+
+    /**
+     * For a queue value object, creates an instance of {@link StateValue} that can be
+     * stored in a virtual map for the corresponding {@link #getStateKeyForQueue(int, long)} key.
+     *
+     * @param <V> queue value type
+     * @param stateId the queue state ID
+     * @param value the value object
+     * @return the {@link StateValue} object
+     */
+    public static <V> StateValue<V> getStateValueForQueue(final int stateId, final V value) {
+        return new StateValue<>(stateId, value);
+    }
+
+    /**
+     * For a queue state object, creates an instance of {@link StateValue} that can be
+     * stored in a virtual map. Queue states are stored as singletons.
+     *
+     * @param queueState the queue state
+     * @return the {@link StateValue} object
+     */
+    public static StateValue<QueueState> getStateValueForQueueState(final QueueState queueState) {
+        return new StateValue<>(STATE_VALUE_QUEUE_STATE, queueState);
+    }
+
+    /**
+     * For a value object, creates an instance of {@link StateValue} that can be
+     * stored in a virtual map for the corresponding {@link #getStateKeyForKv(int, Object, Codec)} key.
+     *
+     * @param <V> value type
+     * @param stateId the key/value state ID
+     * @param value the value object
+     * @return the {@link StateValue} object
+     */
+    public static <V> StateValue<V> getStateValueForKv(final int stateId, final V value) {
+        return new StateValue<>(stateId, value);
+    }
+
+    /**
+     * Wrap raw value bytes into a StateValue oneof for the given stateId.
+     */
+    static Bytes wrapValue(final int stateId, @NonNull final Bytes rawValue) {
+        // Build a protobuf StateValue message with a single length-delimited field number = stateId
+        final int tag = (stateId << TAG_FIELD_OFFSET) | WIRE_TYPE_DELIMITED.ordinal();
+        final int valueLength = (int) rawValue.length();
+        final int tagSize = sizeOfVarInt32(tag);
+        final int valueSize = sizeOfVarInt32(valueLength);
+        final int total = tagSize + valueSize + valueLength;
+        final byte[] buffer = new byte[total];
+        final BufferedData out = BufferedData.wrap(buffer);
+        out.writeVarInt(tag, false);
+        out.writeVarInt(valueLength, false);
+        final int offset = (int) out.position();
+        rawValue.writeTo(buffer, offset);
+        return Bytes.wrap(buffer);
+    }
+
+    /**
+     * Unwrap raw value bytes from state value bytes.
+     *
+     * @param stateValueBytes state value bytes
+     * @return unwrapped raw value bytes
+     */
+    @NonNull
+    public static Bytes unwrap(@NonNull final Bytes stateValueBytes) {
+        ReadableSequentialData sequentialData = stateValueBytes.toReadableSequentialData();
+        // skipping tag
+        sequentialData.readVarInt(false);
+        int valueSize = sequentialData.readVarInt(false);
+
+        assert valueSize == sequentialData.remaining() : "Value size mismatch";
+
+        try (InputStream is = sequentialData.asInputStream()) {
+            return Bytes.wrap(is.readAllBytes());
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
     }
 }

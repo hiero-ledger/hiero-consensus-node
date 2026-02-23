@@ -11,11 +11,10 @@ import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.state.history.HistoryProof;
-import com.hedera.hapi.node.state.history.HistorySignature;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.spi.AppContext;
+import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.state.lifecycle.info.NodeInfo;
 import java.time.Instant;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
@@ -39,9 +38,6 @@ class HistorySubmissionsTest {
 
     @Mock
     private NodeInfo selfNodeInfo;
-
-    @Mock
-    private Consumer<TransactionBody.Builder> spec;
 
     private HistorySubmissions subject;
 
@@ -83,6 +79,44 @@ class HistorySubmissionsTest {
 
     @Test
     @SuppressWarnings("unchecked")
+    void usesExpectedBodyForWrapsSigningMessage() {
+        given(selfNodeInfo.accountId()).willReturn(AccountID.DEFAULT);
+        given(appContext.selfNodeInfoSupplier()).willReturn(() -> selfNodeInfo);
+        given(appContext.instantSource()).willReturn(() -> Instant.EPOCH);
+        given(appContext.configSupplier()).willReturn(() -> DEFAULT_CONFIG);
+        given(appContext.gossip()).willReturn(gossip);
+
+        final var phase = com.hedera.hapi.node.state.history.WrapsPhase.R1;
+        final var message = Bytes.wrap("MSG");
+        final long constructionId = 42L;
+
+        subject.submitWrapsSigningMessage(phase, message, constructionId);
+
+        final ArgumentCaptor<Consumer<TransactionBody.Builder>> wrapsCaptor = ArgumentCaptor.forClass(Consumer.class);
+        verify(gossip)
+                .submitFuture(
+                        eq(AccountID.DEFAULT),
+                        eq(Instant.EPOCH),
+                        any(),
+                        wrapsCaptor.capture(),
+                        any(),
+                        anyInt(),
+                        anyInt(),
+                        any(),
+                        any());
+        final var wrapsSpec = wrapsCaptor.getValue();
+        final var wrapsBuilder = TransactionBody.newBuilder();
+        wrapsSpec.accept(wrapsBuilder);
+        final var wrapsBody = wrapsBuilder.build();
+        assertTrue(wrapsBody.hasHistoryProofKeyPublication());
+        final var op = wrapsBody.historyProofKeyPublicationOrThrow();
+        assertEquals(phase, op.phase());
+        assertEquals(message, op.wrapsMessage());
+        assertEquals(constructionId, op.constructionId());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
     void usesExpectedBodyForVote() {
         given(selfNodeInfo.accountId()).willReturn(AccountID.DEFAULT);
         given(appContext.selfNodeInfoSupplier()).willReturn(() -> selfNodeInfo);
@@ -90,7 +124,7 @@ class HistorySubmissionsTest {
         given(appContext.configSupplier()).willReturn(() -> DEFAULT_CONFIG);
         given(appContext.gossip()).willReturn(gossip);
 
-        subject.submitProofVote(123L, HistoryProof.DEFAULT);
+        subject.submitExplicitProofVote(123L, HistoryProof.DEFAULT);
 
         final ArgumentCaptor<Consumer<TransactionBody.Builder>> captor = ArgumentCaptor.forClass(Consumer.class);
         verify(gossip)
@@ -109,37 +143,6 @@ class HistorySubmissionsTest {
         spec.accept(builder);
         final var body = builder.build();
         final var vote = body.historyProofVoteOrThrow();
-        assertEquals(123L, vote.constructionId());
-    }
-
-    @Test
-    @SuppressWarnings("unchecked")
-    void usesExpectedBodyForSignature() {
-        given(selfNodeInfo.accountId()).willReturn(AccountID.DEFAULT);
-        given(appContext.selfNodeInfoSupplier()).willReturn(() -> selfNodeInfo);
-        given(appContext.instantSource()).willReturn(() -> Instant.EPOCH);
-        given(appContext.configSupplier()).willReturn(() -> DEFAULT_CONFIG);
-        given(appContext.gossip()).willReturn(gossip);
-
-        subject.submitAssemblySignature(123L, HistorySignature.DEFAULT);
-
-        final ArgumentCaptor<Consumer<TransactionBody.Builder>> captor = ArgumentCaptor.forClass(Consumer.class);
-        verify(gossip)
-                .submitFuture(
-                        eq(AccountID.DEFAULT),
-                        eq(Instant.EPOCH),
-                        any(),
-                        captor.capture(),
-                        any(),
-                        anyInt(),
-                        anyInt(),
-                        any(),
-                        any());
-        final var spec = captor.getValue();
-        final var builder = TransactionBody.newBuilder();
-        spec.accept(builder);
-        final var body = builder.build();
-        final var vote = body.historyProofSignatureOrThrow();
         assertEquals(123L, vote.constructionId());
     }
 }

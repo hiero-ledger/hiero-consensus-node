@@ -8,14 +8,18 @@ plugins {
 
 description = "Base Crypto"
 
+mainModuleInfo { annotationProcessor("com.swirlds.config.processor") }
+
 testModuleInfo {
     requires("com.swirlds.common")
     requires("com.swirlds.common.test.fixtures")
     requires("com.swirlds.config.extensions.test.fixtures")
     requires("org.hiero.base.crypto")
     requires("org.hiero.base.crypto.test.fixtures")
+    requires("org.assertj.core")
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")
+    requires("org.apache.logging.log4j.core")
 }
 
 timingSensitiveModuleInfo {

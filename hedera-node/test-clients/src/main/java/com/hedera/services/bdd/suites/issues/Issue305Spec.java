@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.issues;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
@@ -32,10 +33,17 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
 
+@Tag(MATS)
 public class Issue305Spec {
     @LeakyHapiTest(
-            overrides = {"fees.percentCongestionMultipliers", "fees.minCongestionPeriod", "contracts.maxGasPerSec"})
+            overrides = {
+                "fees.percentCongestionMultipliers",
+                "fees.minCongestionPeriod",
+                "contracts.maxGasPerSec",
+                "contracts.maxGasPerSecBackend"
+            })
     final Stream<DynamicTest> congestionMultipliersRefreshOnPropertyUpdate() {
         final var civilian = "civilian";
         final var preCongestionTxn = "preCongestionTxn";
@@ -57,6 +65,7 @@ public class Issue305Spec {
                 getTxnRecord(preCongestionTxn).providingFeeTo(normalPrice::set),
                 overridingAllOf(Map.of(
                         "contracts.maxGasPerSec", "3_000_000",
+                        "contracts.maxGasPerSecBackend", "3_000_000",
                         "fees.percentCongestionMultipliers", "1,5x",
                         "fees.minCongestionPeriod", "1")),
                 withOpContext((spec, opLog) -> {

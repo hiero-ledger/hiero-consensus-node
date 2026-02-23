@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.token;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.TOKEN;
 import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -73,6 +74,7 @@ import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
 @Tag(TOKEN)
+@Tag(MATS)
 public class TokenAssociationSpecs {
     public static final String FREEZABLE_TOKEN_ON_BY_DEFAULT = "TokenA";
     public static final String FREEZABLE_TOKEN_OFF_BY_DEFAULT = "TokenB";

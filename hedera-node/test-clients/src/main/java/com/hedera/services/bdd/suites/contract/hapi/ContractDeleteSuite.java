@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.hapi;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
@@ -261,6 +262,7 @@ public class ContractDeleteSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> rejectsWithoutProperSig() {
         return hapiTest(
                 // Refusing ethereum create conversion, because we get INVALID_SIGNATURE upon tokenAssociate,
@@ -345,6 +347,7 @@ public class ContractDeleteSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> localCallToDeletedContract() {
         return hapiTest(
                 // refuse eth conversion because MODIFYING_IMMUTABLE_CONTRACT

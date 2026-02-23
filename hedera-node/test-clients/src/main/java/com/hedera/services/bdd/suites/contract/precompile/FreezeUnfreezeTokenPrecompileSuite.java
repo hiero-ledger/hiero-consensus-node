@@ -3,6 +3,7 @@ package com.hedera.services.bdd.suites.contract.precompile;
 
 import static com.google.protobuf.ByteString.copyFromUtf8;
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
@@ -144,6 +145,7 @@ public class FreezeUnfreezeTokenPrecompileSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> isFrozenHappyPathWithAliasLocalCall() {
         final AtomicReference<TokenID> vanillaTokenID = new AtomicReference<>();
         final AtomicReference<String> autoCreatedAccountId = new AtomicReference<>();
@@ -174,6 +176,7 @@ public class FreezeUnfreezeTokenPrecompileSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     public Stream<DynamicTest> createFungibleTokenFreezeKeyFromHollowAccountAlias() {
         return hapiTest(
                 // Create an ECDSA key
@@ -260,6 +263,7 @@ public class FreezeUnfreezeTokenPrecompileSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     public Stream<DynamicTest> createNFTTokenFreezeKeyFromHollowAccountAlias() {
         return hapiTest(
                 // Create an ECDSA key

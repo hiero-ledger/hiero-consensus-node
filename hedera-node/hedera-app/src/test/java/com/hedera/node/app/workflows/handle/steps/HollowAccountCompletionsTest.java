@@ -18,7 +18,6 @@ import com.hedera.hapi.node.base.SignatureMap;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenTransferList;
-import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.contract.EthereumTransactionBody;
 import com.hedera.hapi.node.state.token.Account;
@@ -32,8 +31,8 @@ import com.hedera.node.app.signature.AppKeyVerifier;
 import com.hedera.node.app.signature.impl.SignatureVerificationImpl;
 import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
 import com.hedera.node.app.spi.signatures.SignatureVerification;
+import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.handle.Dispatch;
 import com.hedera.node.app.workflows.handle.record.RecordStreamBuilder;
@@ -111,7 +110,7 @@ public class HollowAccountCompletionsTest {
         when(dispatch.keyVerifier()).thenReturn(keyVerifier);
         when(handleContext.payer()).thenReturn(payerId);
         when(parentTxn.readableStoreFactory()).thenReturn(readableStoreFactory);
-        when(parentTxn.readableStoreFactory().getStore(ReadableAccountStore.class))
+        when(parentTxn.readableStoreFactory().readableStore(ReadableAccountStore.class))
                 .thenReturn(accountStore);
         when(parentTxn.preHandleResult()).thenReturn(preHandleResult);
         when(handleContext.dispatch(any())).thenReturn(recordBuilder);
@@ -211,14 +210,16 @@ public class HollowAccountCompletionsTest {
                 .ethereumTransaction(EthereumTransactionBody.DEFAULT)
                 .build();
         final TransactionInfo txnInfo = new TransactionInfo(
-                Transaction.newBuilder().body(txnBody).build(),
+                SignedTransaction.newBuilder()
+                        .bodyBytes(TransactionBody.PROTOBUF.toBytes(txnBody))
+                        .build(),
                 txnBody,
                 SignatureMap.DEFAULT,
                 transactionBytes,
                 ETHEREUM_TRANSACTION,
                 null);
 
-        when(parentTxn.readableStoreFactory().getStore(ReadableAccountStore.class))
+        when(parentTxn.readableStoreFactory().readableStore(ReadableAccountStore.class))
                 .thenReturn(accountStore);
         when(parentTxn.config()).thenReturn(DEFAULT_CONFIG);
         when(parentTxn.txnInfo()).thenReturn(txnInfo);
@@ -243,7 +244,9 @@ public class HollowAccountCompletionsTest {
                 .ethereumTransaction(EthereumTransactionBody.DEFAULT)
                 .build();
         final TransactionInfo txnInfo = new TransactionInfo(
-                Transaction.newBuilder().body(txnBody).build(),
+                SignedTransaction.newBuilder()
+                        .bodyBytes(TransactionBody.PROTOBUF.toBytes(txnBody))
+                        .build(),
                 txnBody,
                 SignatureMap.DEFAULT,
                 transactionBytes,

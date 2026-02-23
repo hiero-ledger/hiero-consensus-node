@@ -1,36 +1,41 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.history.impl;
 
+import static com.hedera.node.app.history.HistoryService.isCompleted;
+import static com.hedera.node.app.history.schemas.V071HistorySchema.ACTIVE_PROOF_CONSTRUCTION_STATE_ID;
+import static com.hedera.node.app.history.schemas.V071HistorySchema.LEDGER_ID_STATE_ID;
+import static com.hedera.node.app.history.schemas.V071HistorySchema.NEXT_PROOF_CONSTRUCTION_STATE_ID;
 import static java.util.Objects.requireNonNull;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.hedera.hapi.node.state.hints.HintsConstruction;
+import com.hedera.hapi.node.state.history.ChainOfTrustProof;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
+import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.node.app.history.HistoryLibrary;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.WritableHistoryStore;
 import com.hedera.node.app.history.handlers.HistoryHandlers;
-import com.hedera.node.app.history.schemas.V059HistorySchema;
-import com.hedera.node.app.roster.ActiveRosters;
+import com.hedera.node.app.history.schemas.V071HistorySchema;
+import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.lifecycle.SchemaRegistry;
+import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
+import java.util.SortedMap;
 import java.util.concurrent.Executor;
-import java.util.function.Consumer;
 
 /**
  * Default implementation of the {@link HistoryService}.
  */
-public class HistoryServiceImpl implements HistoryService, Consumer<HistoryProof>, OnProofFinished {
-    @Deprecated
-    private final Configuration bootstrapConfig;
-
+public class HistoryServiceImpl implements HistoryService {
     private final HistoryServiceComponent component;
 
     /**
@@ -46,22 +51,23 @@ public class HistoryServiceImpl implements HistoryService, Consumer<HistoryProof
             @NonNull final Metrics metrics,
             @NonNull final Executor executor,
             @NonNull final AppContext appContext,
-            @NonNull final HistoryLibrary library,
-            @NonNull final Configuration bootstrapConfig) {
-        this.bootstrapConfig = requireNonNull(bootstrapConfig);
+            @NonNull final HistoryLibrary library) {
         this.component = DaggerHistoryServiceComponent.factory().create(library, appContext, executor, metrics, this);
     }
 
     @VisibleForTesting
-    public HistoryServiceImpl(
-            @NonNull final HistoryServiceComponent component, @NonNull final Configuration bootstrapConfig) {
+    public HistoryServiceImpl(@NonNull final HistoryServiceComponent component) {
         this.component = requireNonNull(component);
-        this.bootstrapConfig = requireNonNull(bootstrapConfig);
     }
 
     @Override
     public HistoryHandlers handlers() {
         return component.handlers();
+    }
+
+    @Override
+    public Bytes historyProofVerificationKey() {
+        return Bytes.wrap(component.library().wrapsVerificationKey());
     }
 
     @Override
@@ -71,7 +77,8 @@ public class HistoryServiceImpl implements HistoryService, Consumer<HistoryProof
             @NonNull final WritableHistoryStore historyStore,
             @NonNull final Instant now,
             @NonNull final TssConfig tssConfig,
-            final boolean isActive) {
+            final boolean isActive,
+            @Nullable final HintsConstruction activeHintsConstruction) {
         requireNonNull(activeRosters);
         requireNonNull(historyStore);
         requireNonNull(now);
@@ -79,10 +86,17 @@ public class HistoryServiceImpl implements HistoryService, Consumer<HistoryProof
         switch (activeRosters.phase()) {
             case BOOTSTRAP, TRANSITION -> {
                 final var construction = historyStore.getOrCreateConstruction(activeRosters, now, tssConfig);
-                if (!construction.hasTargetProof()) {
-                    final var controller =
-                            component.controllers().getOrCreateFor(activeRosters, construction, historyStore);
-                    controller.advanceConstruction(now, metadata, historyStore, isActive);
+                if (!isCompleted(construction, tssConfig)) {
+                    final var controller = component
+                            .controllers()
+                            .getOrCreateFor(
+                                    activeRosters,
+                                    construction,
+                                    historyStore,
+                                    activeHintsConstruction,
+                                    historyStore.getActiveConstruction(),
+                                    tssConfig);
+                    controller.advanceConstruction(now, metadata, historyStore, isActive, tssConfig);
                 }
             }
             case HANDOFF -> {
@@ -97,32 +111,31 @@ public class HistoryServiceImpl implements HistoryService, Consumer<HistoryProof
     }
 
     @Override
-    public void accept(
-            @NonNull final WritableHistoryStore historyStore, @NonNull final HistoryProofConstruction construction) {
+    public void onFinished(
+            @NonNull final WritableHistoryStore historyStore,
+            @NonNull final HistoryProofConstruction construction,
+            @NonNull final SortedMap<Long, Long> targetNodeWeights) {
         requireNonNull(historyStore);
         requireNonNull(construction);
+        requireNonNull(targetNodeWeights);
         if (cb != null) {
-            cb.accept(historyStore, construction);
+            cb.onFinished(historyStore, construction, targetNodeWeights);
         }
     }
 
     @Override
-    public void accept(@NonNull final HistoryProof historyProof) {
-        this.historyProof = historyProof;
+    public void setLatestHistoryProof(@NonNull final HistoryProof historyProof) {
+        this.historyProof = requireNonNull(historyProof);
     }
 
     @Override
     public boolean isReady() {
-        // We don't delay signing blocks until we have a proof for the genesis
-        // address book hash; and once we have adopted *any* subsequent roster
-        // with the HistoryService enabled, the proof will be available---c.f.
-        // Hedera#canAdoptRoster(), which requires a proof to be present for
-        // the candidate roster hash.
-        return true;
+        // Not ready until there is a chain-of-trust proof for the genesis hinTS verification key
+        return historyProof != null && historyProof.hasChainOfTrustProof();
     }
 
     @Override
-    public @NonNull Bytes getCurrentProof(@NonNull final Bytes metadata) {
+    public @NonNull ChainOfTrustProof getCurrentChainOfTrustProof(@NonNull final Bytes metadata) {
         requireNonNull(metadata);
         requireNonNull(historyProof);
         final var targetMetadata = historyProof.targetHistoryOrThrow().metadata();
@@ -130,15 +143,27 @@ public class HistoryServiceImpl implements HistoryService, Consumer<HistoryProof
             throw new IllegalArgumentException(
                     "Metadata '" + metadata + "' does not match proof (for '" + targetMetadata + "')");
         }
-        return historyProof.proof();
+        return historyProof.chainOfTrustProofOrThrow();
     }
 
     @Override
     public void registerSchemas(@NonNull final SchemaRegistry registry) {
         requireNonNull(registry);
-        final var tssConfig = bootstrapConfig.getConfigData(TssConfig.class);
-        if (tssConfig.historyEnabled()) {
-            registry.register(new V059HistorySchema(this));
-        }
+        registry.register(new V071HistorySchema(this));
+    }
+
+    @Override
+    public boolean doGenesisSetup(
+            @NonNull final WritableStates writableStates, @NonNull final Configuration configuration) {
+        requireNonNull(writableStates);
+        requireNonNull(configuration);
+        writableStates.<ProtoBytes>getSingleton(LEDGER_ID_STATE_ID).put(ProtoBytes.DEFAULT);
+        writableStates
+                .<HistoryProofConstruction>getSingleton(ACTIVE_PROOF_CONSTRUCTION_STATE_ID)
+                .put(HistoryProofConstruction.DEFAULT);
+        writableStates
+                .<HistoryProofConstruction>getSingleton(NEXT_PROOF_CONSTRUCTION_STATE_ID)
+                .put(HistoryProofConstruction.DEFAULT);
+        return true;
     }
 }

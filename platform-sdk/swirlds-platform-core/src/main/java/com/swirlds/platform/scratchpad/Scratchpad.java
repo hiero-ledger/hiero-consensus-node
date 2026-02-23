@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.scratchpad;
 
-import com.swirlds.common.context.PlatformContext;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.scratchpad.internal.StandardScratchpad;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -24,20 +24,19 @@ public interface Scratchpad<K extends Enum<K> & ScratchpadType> {
     /**
      * Create a new scratchpad.
      *
-     * @param platformContext the platform context
-     * @param selfId          the ID of this node
-     * @param clazz           the enum class that defines the scratchpad fields
-     * @param id              the unique ID of this scratchpad (creating multiple scratchpad instances on the same node
-     *                        with the same unique ID has undefined (and possibly undesirable) behavior. Must not
-     *                        contain any non-alphanumeric characters, with the exception of the following characters:
-     *                        "_", "-", and ".". Must not be empty.
+     * @param configuration the configuration to use
+     * @param selfId the ID of this node
+     * @param clazz the enum class that defines the scratchpad fields
+     * @param id the unique ID of this scratchpad (creating multiple scratchpad instances on the same node with the same
+     * unique ID has undefined (and possibly undesirable) behavior. Must not contain any non-alphanumeric characters,
+     * with the exception of the following characters: "_", "-", and ".". Must not be empty.
      */
     static <K extends Enum<K> & ScratchpadType> Scratchpad<K> create(
-            @NonNull final PlatformContext platformContext,
+            @NonNull final Configuration configuration,
             @NonNull final NodeId selfId,
             @NonNull final Class<K> clazz,
             @NonNull final String id) {
-        return new StandardScratchpad<>(platformContext, selfId, clazz, id);
+        return new StandardScratchpad<>(configuration, selfId, clazz, id);
     }
 
     /**
@@ -66,9 +65,9 @@ public interface Scratchpad<K extends Enum<K> & ScratchpadType> {
      * The object set via this method should be treated as if it is immutable after this function is called. Modifying
      * this object in any way may cause the scratchpad to become corrupted.
      *
-     * @param key   the field to set
+     * @param key the field to set
      * @param value the value to set, may be null
-     * @param <V>   the type of the value
+     * @param <V> the type of the value
      * @return the previous value
      */
     @Nullable
@@ -86,7 +85,7 @@ public interface Scratchpad<K extends Enum<K> & ScratchpadType> {
      * corrupted.
      *
      * @param operation the operation to perform, is provided a map of all scratchpad fields to their current values. If
-     *                  a field is not present in the map, then it should be considered to have the value null.
+     * a field is not present in the map, then it should be considered to have the value null.
      */
     void atomicOperation(@NonNull final Consumer<Map<K, SelfSerializable>> operation);
 
@@ -102,10 +101,10 @@ public interface Scratchpad<K extends Enum<K> & ScratchpadType> {
      * corrupted.
      *
      * @param operation the operation to perform, is provided a map of all scratchpad fields to their current values. If
-     *                  a field is not present in the map, then it should be considered to have the value null. The
-     *                  return value of this operation indicates if the scratchpad was modified. This method should
-     *                  return true if the scratchpad was modified, and false otherwise. If this method modifies data
-     *                  and returns false then data may be lost after a restart.
+     * a field is not present in the map, then it should be considered to have the value null. The return value of this
+     * operation indicates if the scratchpad was modified. This method should return true if the scratchpad was
+     * modified, and false otherwise. If this method modifies data and returns false then data may be lost after a
+     * restart.
      */
     void atomicOperation(@NonNull final Function<Map<K, SelfSerializable>, Boolean> operation);
 

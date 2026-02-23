@@ -2,36 +2,45 @@
 package com.hedera.node.app.service.schedule.impl.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_ID_DOES_NOT_EXIST;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOKS_EXECUTIONS_REQUIRE_TOP_LEVEL_CRYPTO_TRANSFER;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.IDENTICAL_SCHEDULE_ALREADY_CREATED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_ENTITIES_IN_PRICE_REGIME_HAVE_BEEN_CREATED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SCHEDULED_TRANSACTION_NOT_IN_WHITELIST;
+import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.BDDAssertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 
+import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.base.HookCall;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.ScheduleID;
 import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.scheduled.SchedulableTransactionBody;
 import com.hedera.hapi.node.scheduled.SchedulableTransactionBody.DataOneOfType;
+import com.hedera.hapi.node.scheduled.ScheduleCreateTransactionBody;
 import com.hedera.hapi.node.state.schedule.Schedule;
 import com.hedera.hapi.node.state.throttles.ThrottleUsageSnapshots;
+import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.keys.KeyComparator;
+import com.hedera.node.app.service.entityid.EntityNumGenerator;
 import com.hedera.node.app.service.schedule.WritableScheduleStore;
 import com.hedera.node.app.service.schedule.impl.ScheduledTransactionFactory;
 import com.hedera.node.app.signature.impl.SignatureVerificationImpl;
 import com.hedera.node.app.spi.fixtures.Assertions;
-import com.hedera.node.app.spi.ids.EntityNumGenerator;
 import com.hedera.node.app.spi.signatures.VerificationAssistant;
-import com.hedera.node.app.spi.throttle.Throttle;
+import com.hedera.node.app.spi.throttle.ScheduleThrottle;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
+import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.workflows.prehandle.PreHandleContextImpl;
 import java.security.InvalidKeyException;
 import java.time.InstantSource;
@@ -43,13 +52,16 @@ import org.mockito.Mock;
 
 class ScheduleCreateHandlerTest extends ScheduleHandlerTestBase {
     @Mock
-    private Throttle.Factory throttleFactory;
+    private ScheduleThrottle.Factory throttleFactory;
 
     @Mock
-    private Throttle throttle;
+    private ScheduleThrottle throttle;
 
     @Mock
     private ScheduleFeeCharging feeCharging;
+
+    @Mock
+    private PureChecksContext pureChecksContext;
 
     private ScheduleCreateHandler subject;
     private PreHandleContext realPreContext;
@@ -58,6 +70,33 @@ class ScheduleCreateHandlerTest extends ScheduleHandlerTestBase {
     void setUp() throws PreCheckException, InvalidKeyException {
         subject = new ScheduleCreateHandler(idFactory, InstantSource.system(), throttleFactory, feeCharging);
         setUpBase();
+    }
+
+    @Test
+    void schedulingHookExecutionFails() {
+        final TransactionBody createTransaction = TransactionBody.newBuilder()
+                .scheduleCreate(ScheduleCreateTransactionBody.newBuilder()
+                        .memo("test memo")
+                        .scheduledTransactionBody(SchedulableTransactionBody.newBuilder()
+                                .cryptoTransfer(CryptoTransferTransactionBody.newBuilder()
+                                        .transfers(TransferList.newBuilder()
+                                                .accountAmounts(
+                                                        AccountAmount.newBuilder()
+                                                                .accountID(payer)
+                                                                .preTxAllowanceHook(HookCall.DEFAULT)
+                                                                .amount(1L)
+                                                                .build(),
+                                                        AccountAmount.newBuilder()
+                                                                .accountID(scheduler)
+                                                                .amount(-1L)
+                                                                .build()))
+                                        .build()))
+                        .build())
+                .build();
+        given(pureChecksContext.body()).willReturn(createTransaction);
+        assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
+                .isInstanceOf(PreCheckException.class)
+                .has(responseCode(HOOKS_EXECUTIONS_REQUIRE_TOP_LEVEL_CRYPTO_TRANSFER));
     }
 
     @Test
@@ -166,7 +205,7 @@ class ScheduleCreateHandlerTest extends ScheduleHandlerTestBase {
         final Set<HederaFunctionality> configuredWhitelist =
                 scheduleConfig.whitelist().functionalitySet();
         given(keyVerifier.authorizingSimpleKeys()).willReturn(new ConcurrentSkipListSet<>(new KeyComparator()));
-        given(throttleFactory.newThrottle(anyInt(), any())).willReturn(throttle);
+        given(throttleFactory.newScheduleThrottle(anyInt(), any())).willReturn(throttle);
         given(throttle.allow(any(), any(), any(), any())).willReturn(true);
         given(throttle.usageSnapshots()).willReturn(ThrottleUsageSnapshots.DEFAULT);
         for (final Schedule next : listOfScheduledOptions) {
@@ -219,7 +258,7 @@ class ScheduleCreateHandlerTest extends ScheduleHandlerTestBase {
         int successCount = 0;
         // make sure we have at least four items in the whitelist to test.
         assertThat(configuredWhitelist).hasSizeGreaterThan(4);
-        given(throttleFactory.newThrottle(anyInt(), any())).willReturn(throttle);
+        given(throttleFactory.newScheduleThrottle(anyInt(), any())).willReturn(throttle);
         given(throttle.allow(any(), any(), any(), any())).willReturn(true);
         given(throttle.usageSnapshots()).willReturn(ThrottleUsageSnapshots.DEFAULT);
         for (final Schedule next : listOfScheduledOptions) {

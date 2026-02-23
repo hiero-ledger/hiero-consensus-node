@@ -2,14 +2,23 @@
 package com.hedera.node.app.workflows.ingest;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.ATOMIC_BATCH;
+import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_UPDATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_ADD_LIVE_HASH;
+import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_DELETE_LIVE_HASH;
+import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_TRANSFER;
+import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_UPDATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.FREEZE;
+import static com.hedera.hapi.node.base.HederaFunctionality.HOOK_STORE;
+import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.SYSTEM_DELETE;
 import static com.hedera.hapi.node.base.HederaFunctionality.SYSTEM_UNDELETE;
+import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_AIRDROP;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.BUSY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CREATING_SYSTEM_ENTITIES;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.DUPLICATE_TRANSACTION;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOKS_NOT_ENABLED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ACCOUNT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
@@ -17,20 +26,27 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.PLATFORM_NOT_ACTIVE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UNAUTHORIZED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.WAITING_FOR_LEDGER_ID;
 import static com.hedera.hapi.util.HapiUtils.isHollow;
+import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
+import static com.hedera.node.app.workflows.InnerTransaction.NO;
+import static com.hedera.node.app.workflows.InnerTransaction.YES;
 import static com.hedera.node.app.workflows.handle.dispatch.DispatchValidator.WorkflowCheck.INGEST;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
+import static org.hiero.consensus.model.status.PlatformStatus.FREEZE_COMPLETE;
+import static org.hiero.consensus.model.status.PlatformStatus.FREEZING;
 
-import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.SignaturePair;
+import com.hedera.hapi.node.base.TokenTransferList;
 import com.hedera.hapi.node.base.Transaction;
+import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.state.token.Account;
-import com.hedera.node.app.annotations.NodeSelfId;
-import com.hedera.node.app.blocks.BlockStreamManager;
-import com.hedera.node.app.fees.FeeContextImpl;
+import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
+import com.hedera.hapi.node.token.TokenAirdropTransactionBody;
+import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.fees.FeeManager;
+import com.hedera.node.app.fees.context.IngestFeeContext;
 import com.hedera.node.app.hapi.utils.EthSigsUtils;
 import com.hedera.node.app.info.CurrentPlatformStatus;
 import com.hedera.node.app.signature.DefaultKeyVerifier;
@@ -39,12 +55,14 @@ import com.hedera.node.app.signature.SignatureExpander;
 import com.hedera.node.app.signature.SignatureVerifier;
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.fees.FeeContext;
+import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.signatures.SignatureVerification;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.state.DeduplicationCache;
-import com.hedera.node.app.store.ReadableStoreFactory;
+import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.app.throttle.SynchronizedThrottleAccumulator;
 import com.hedera.node.app.throttle.ThrottleUsage;
+import com.hedera.node.app.workflows.InnerTransaction;
 import com.hedera.node.app.workflows.OpWorkflowMetrics;
 import com.hedera.node.app.workflows.SolvencyPreCheck;
 import com.hedera.node.app.workflows.TransactionChecker;
@@ -52,8 +70,10 @@ import com.hedera.node.app.workflows.TransactionChecker.RequireMinValidLifetimeB
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.app.workflows.purechecks.PureChecksContextImpl;
+import com.hedera.node.config.data.FeesConfig;
 import com.hedera.node.config.data.HederaConfig;
-import com.hedera.node.config.data.JumboTransactionsConfig;
+import com.hedera.node.config.data.HooksConfig;
+import com.hedera.node.config.data.NetworkAdminConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.State;
@@ -77,13 +97,22 @@ import org.apache.logging.log4j.Logger;
 @Singleton
 public final class IngestChecker {
     private static final Logger logger = LogManager.getLogger(IngestChecker.class);
+    private static final Set<HederaFunctionality> FEATURE_FLAGGED_TRANSACTIONS = EnumSet.of(
+            HOOK_STORE,
+            CRYPTO_CREATE,
+            CONTRACT_CREATE,
+            CRYPTO_UPDATE,
+            CONTRACT_UPDATE,
+            CRYPTO_TRANSFER,
+            SCHEDULE_CREATE,
+            TOKEN_AIRDROP);
     private static final Set<HederaFunctionality> UNSUPPORTED_TRANSACTIONS =
             EnumSet.of(CRYPTO_ADD_LIVE_HASH, CRYPTO_DELETE_LIVE_HASH);
     private static final Set<HederaFunctionality> PRIVILEGED_TRANSACTIONS =
             EnumSet.of(FREEZE, SYSTEM_DELETE, SYSTEM_UNDELETE);
 
     private final CurrentPlatformStatus currentPlatformStatus;
-    private final BlockStreamManager blockStreamManager;
+    private final BlockHashSigner blockHashSigner;
     private final TransactionChecker transactionChecker;
     private final SolvencyPreCheck solvencyPreCheck;
     private final SignatureVerifier signatureVerifier;
@@ -91,7 +120,7 @@ public final class IngestChecker {
     private final DeduplicationCache deduplicationCache;
     private final TransactionDispatcher dispatcher;
     private final FeeManager feeManager;
-    private final AccountID nodeAccount;
+    private final NetworkInfo networkInfo;
     private final Authorizer authorizer;
     private final SynchronizedThrottleAccumulator synchronizedThrottleAccumulator;
     private final InstantSource instantSource;
@@ -107,7 +136,7 @@ public final class IngestChecker {
         @Nullable
         private TransactionInfo txnInfo;
 
-        private List<ThrottleUsage> throttleUsages = List.of();
+        private List<ThrottleUsage> throttleUsages = new ArrayList<>();
 
         public @NonNull TransactionInfo txnInfoOrThrow() {
             return requireNonNull(txnInfo);
@@ -129,8 +158,9 @@ public final class IngestChecker {
     /**
      * Constructor of the {@code IngestChecker}
      *
-     * @param nodeAccount the {@link AccountID} of the node
+     * @param networkInfo the {@link NetworkInfo} that contains information about the network
      * @param currentPlatformStatus the {@link CurrentPlatformStatus} that contains the current status of the platform
+     * @param blockHashSigner the {@link BlockHashSigner} that signs block hashes
      * @param transactionChecker the {@link TransactionChecker} that pre-processes the bytes of a transaction
      * @param solvencyPreCheck the {@link SolvencyPreCheck} that checks payer balance
      * @param signatureExpander the {@link SignatureExpander} that expands signatures
@@ -144,9 +174,9 @@ public final class IngestChecker {
      */
     @Inject
     public IngestChecker(
-            @NodeSelfId @NonNull final AccountID nodeAccount,
+            @NonNull final NetworkInfo networkInfo,
             @NonNull final CurrentPlatformStatus currentPlatformStatus,
-            @NonNull final BlockStreamManager blockStreamManager,
+            @NonNull final BlockHashSigner blockHashSigner,
             @NonNull final TransactionChecker transactionChecker,
             @NonNull final SolvencyPreCheck solvencyPreCheck,
             @NonNull final SignatureExpander signatureExpander,
@@ -159,9 +189,9 @@ public final class IngestChecker {
             @NonNull final InstantSource instantSource,
             @NonNull final OpWorkflowMetrics workflowMetrics,
             @Nullable final AtomicBoolean systemEntitiesCreatedFlag) {
-        this.nodeAccount = requireNonNull(nodeAccount, "nodeAccount must not be null");
+        this.networkInfo = requireNonNull(networkInfo, "networkInfo must not be null");
         this.currentPlatformStatus = requireNonNull(currentPlatformStatus, "currentPlatformStatus must not be null");
-        this.blockStreamManager = requireNonNull(blockStreamManager, "blockStreamManager must not be null");
+        this.blockHashSigner = blockHashSigner;
         this.transactionChecker = requireNonNull(transactionChecker, "transactionChecker must not be null");
         this.solvencyPreCheck = requireNonNull(solvencyPreCheck, "solvencyPreCheck must not be null");
         this.signatureVerifier = requireNonNull(signatureVerifier, "signatureVerifier must not be null");
@@ -189,6 +219,17 @@ public final class IngestChecker {
     }
 
     /**
+     * Throws if the platform is not in a state where we can guarantee that free queries will be processed correctly.
+     * @throws PreCheckException if the response might be unreliable due to platform disruptions
+     */
+    public void verifyFreeQueryable() throws PreCheckException {
+        final var status = currentPlatformStatus.get();
+        if (status != ACTIVE && status != FREEZING && status != FREEZE_COMPLETE) {
+            throw new PreCheckException(PLATFORM_NOT_ACTIVE);
+        }
+    }
+
+    /**
      * Verifies the network is ready to handle transactions.
      *
      * @throws PreCheckException if the node is unable to process HAPI operations
@@ -198,7 +239,7 @@ public final class IngestChecker {
         if (systemEntitiesCreatedFlag != null && !systemEntitiesCreatedFlag.get()) {
             throw new PreCheckException(CREATING_SYSTEM_ENTITIES);
         }
-        if (!blockStreamManager.hasLedgerId()) {
+        if (!blockHashSigner.isReady()) {
             throw new PreCheckException(WAITING_FOR_LEDGER_ID);
         }
     }
@@ -218,22 +259,38 @@ public final class IngestChecker {
             @NonNull final Configuration configuration,
             @NonNull final Result result)
             throws PreCheckException {
+        runAllChecks(state, serializedTransaction, configuration, result, NO);
+    }
+
+    private void runAllChecks(
+            @NonNull final State state,
+            @NonNull final Bytes serializedTransaction,
+            @NonNull final Configuration configuration,
+            @NonNull final Result result,
+            @NonNull final InnerTransaction innerTransaction)
+            throws PreCheckException {
         requireNonNull(result);
 
         // During ingest we approximate consensus time with wall clock time
         final var consensusTime = instantSource.instant();
 
         // 1. Check the syntax
-        final var maxBytes = maxIngestParseSize(configuration);
-        final var txInfo = transactionChecker.parseAndCheck(serializedTransaction, maxBytes);
-        result.setTxnInfo(txInfo);
-        // check jumbo size after parsing
-        transactionChecker.checkJumboTransactionBody(txInfo);
+        TransactionInfo txInfo;
+        if (innerTransaction == YES) {
+            txInfo = transactionChecker.parseSignedAndCheck(serializedTransaction);
+        } else {
+            txInfo = transactionChecker.parseAndCheck(serializedTransaction);
+            result.setTxnInfo(txInfo);
+        }
+
+        // check jumbo size after parsing (preliminary validation before payer is known)
+        transactionChecker.checkTransactionSize(txInfo);
         final var txBody = txInfo.txBody();
         final var functionality = txInfo.functionality();
 
         // 1a. Verify the transaction has been sent to *this* node
-        if (!nodeAccount.equals(txBody.nodeAccountID())) {
+        final var nodeAccountId = networkInfo.selfNodeInfo().accountId();
+        if (!nodeAccountId.equals(txBody.nodeAccountID()) && innerTransaction == NO) {
             throw new PreCheckException(INVALID_NODE_ACCOUNT);
         }
 
@@ -251,18 +308,11 @@ public final class IngestChecker {
         }
 
         // 4. Check throttles
-        final List<ThrottleUsage> throttleUsages = new ArrayList<>();
-        final var hederaConfig = configuration.getConfigData(HederaConfig.class);
-
         try {
-            checkThrottles(txInfo, state, hederaConfig, throttleUsages);
-            if (functionality == ATOMIC_BATCH) {
-                checkThrottlesForInnerTxns(
-                        state, configuration, txBody.atomicBatch().transactions(), throttleUsages);
-            }
+            checkThrottles(txInfo, state, configuration, result.throttleUsages());
         } finally {
             // Always keep throttle usages up to date for refund logic
-            result.setThrottleUsages(throttleUsages);
+            result.setThrottleUsages(result.throttleUsages());
         }
 
         // 4a. Run pure checks
@@ -270,8 +320,14 @@ public final class IngestChecker {
         dispatcher.dispatchPureChecks(pureChecksContext);
 
         // 5. Get payer account
-        final var storeFactory = new ReadableStoreFactory(state);
+        final var storeFactory = new ReadableStoreFactoryImpl(state);
         final var payer = solvencyPreCheck.getPayerAccount(storeFactory, txInfo.payerID());
+        final var payerAccountId = payer.accountIdOrThrow();
+
+        // 5a. Check transaction size limits based on the payer account's privileges
+        // (governance accounts may submit larger transactions)
+        transactionChecker.checkTransactionSizeLimitBasedOnPayer(txInfo, payerAccountId);
+
         final var payerKey = payer.key();
         // There should, absolutely, be a key for this account. If there isn't, then something is wrong in
         // state. So we will log this with a warning. We will also have to do something about the fact that
@@ -283,11 +339,11 @@ public final class IngestChecker {
         }
 
         // 6. Verify payer's signatures
-        verifyPayerSignature(txInfo, payer, configuration);
+        verifyAccountSignature(txInfo, payer, configuration);
 
         // 7. Check payer solvency
         final var numSigs = txInfo.signatureMap().sigPair().size();
-        final FeeContext feeContext = new FeeContextImpl(
+        final FeeContext feeContext = new IngestFeeContext(
                 consensusTime,
                 txInfo,
                 payerKey,
@@ -297,18 +353,30 @@ public final class IngestChecker {
                 configuration,
                 authorizer,
                 numSigs,
-                dispatcher);
+                dispatcher,
+                synchronizedThrottleAccumulator);
         final var fees = dispatcher.dispatchComputeFees(feeContext);
         solvencyPreCheck.checkSolvency(txInfo, payer, fees, INGEST);
+
+        // 8. Re-run checks against inner transactions
+        if (functionality == ATOMIC_BATCH) {
+            for (final Bytes bytes : txBody.atomicBatch().transactions()) {
+                runAllChecks(state, bytes, configuration, result, YES);
+            }
+        }
     }
 
     private void checkThrottles(
             @NonNull final TransactionInfo txInfo,
             @NonNull final State state,
-            @NonNull final HederaConfig hederaConfig,
+            @NonNull final Configuration configuration,
             @NonNull final List<ThrottleUsage> throttleUsages)
             throws PreCheckException {
-        assertThrottlingPreconditions(txInfo, hederaConfig);
+        final var hederaConfig = configuration.getConfigData(HederaConfig.class);
+        final var hooksConfig = configuration.getConfigData(HooksConfig.class);
+        final var networkAdminConfig = configuration.getConfigData(NetworkAdminConfig.class);
+        final var feesConfig = configuration.getConfigData(FeesConfig.class);
+        assertThrottlingPreconditions(txInfo, hederaConfig, hooksConfig, networkAdminConfig, feesConfig);
         if (hederaConfig.ingestThrottleEnabled()
                 && synchronizedThrottleAccumulator.shouldThrottle(txInfo, state, throttleUsages)) {
             workflowMetrics.incrementThrottled(txInfo.functionality());
@@ -316,50 +384,24 @@ public final class IngestChecker {
         }
     }
 
-    /**
-     * Validates throttling constraints for inner transactions part of Atomic Batch.
-     *
-     * @param state Current network state for throttle evaluation
-     * @param configuration System configuration
-     * @param innerTxnsBytes Serialized inner transactions to validate
-     * @throws PreCheckException When exceeding throughput limits or failing to parse the transaction
-     */
-    private void checkThrottlesForInnerTxns(
-            @NonNull final State state,
-            @NonNull final Configuration configuration,
-            @NonNull final List<Bytes> innerTxnsBytes,
-            @NonNull final List<ThrottleUsage> throttleUsages)
-            throws PreCheckException {
-
-        if (innerTxnsBytes.isEmpty()) {
-            return;
-        }
-
-        final var maxParseSize = maxIngestParseSize(configuration);
-        final var hederaConfig = configuration.getConfigData(HederaConfig.class);
-
-        for (final var bytes : innerTxnsBytes) {
-            final var innerTxn = transactionChecker.parseSignedAndCheck(bytes, maxParseSize);
-            checkThrottles(innerTxn, state, hederaConfig, throttleUsages);
-        }
-    }
-
-    private static int maxIngestParseSize(Configuration configuration) {
-        final var jumboTxnEnabled =
-                configuration.getConfigData(JumboTransactionsConfig.class).isEnabled();
-        final var jumboMaxTxnSize =
-                configuration.getConfigData(JumboTransactionsConfig.class).maxTxnSize();
-        final var transactionMaxBytes =
-                configuration.getConfigData(HederaConfig.class).transactionMaxBytes();
-        return jumboTxnEnabled ? jumboMaxTxnSize : transactionMaxBytes;
-    }
-
     private void assertThrottlingPreconditions(
-            @NonNull final TransactionInfo txInfo, @NonNull final HederaConfig hederaConfig) throws PreCheckException {
-        if (UNSUPPORTED_TRANSACTIONS.contains(txInfo.functionality())) {
+            @NonNull final TransactionInfo txInfo,
+            @NonNull final HederaConfig hederaConfig,
+            @NonNull final HooksConfig hooksConfig,
+            @NonNull final NetworkAdminConfig networkAdminConfig,
+            @NonNull final FeesConfig feesConfig)
+            throws PreCheckException {
+        final var function = txInfo.functionality();
+        // Reject transactions with highVolume=true if the feature is not enabled.
+        // High volume entity creation HIP depends on simple fees to be enabled.
+        if (txInfo.txBody().highVolume()
+                && (!feesConfig.simpleFeesEnabled() || !networkAdminConfig.highVolumeThrottlesEnabled())) {
             throw new PreCheckException(NOT_SUPPORTED);
         }
-        if (PRIVILEGED_TRANSACTIONS.contains(txInfo.functionality())) {
+        if (UNSUPPORTED_TRANSACTIONS.contains(function)) {
+            throw new PreCheckException(NOT_SUPPORTED);
+        }
+        if (PRIVILEGED_TRANSACTIONS.contains(function)) {
             final var payerNum =
                     txInfo.payerID() == null ? Long.MAX_VALUE : txInfo.payerID().accountNumOrElse(Long.MAX_VALUE);
             // This adds a mild restriction that privileged transactions can only
@@ -371,29 +413,161 @@ public final class IngestChecker {
                 throw new PreCheckException(NOT_SUPPORTED);
             }
         }
+        if (FEATURE_FLAGGED_TRANSACTIONS.contains(function)) {
+            if (!hooksConfig.hooksEnabled()) {
+                switch (function) {
+                    case HOOK_STORE -> throw new PreCheckException(HOOKS_NOT_ENABLED);
+                    case CRYPTO_CREATE ->
+                        validateTruePreCheck(
+                                txInfo.txBody()
+                                        .cryptoCreateAccountOrThrow()
+                                        .hookCreationDetails()
+                                        .isEmpty(),
+                                HOOKS_NOT_ENABLED);
+                    case CONTRACT_CREATE ->
+                        validateTruePreCheck(
+                                txInfo.txBody()
+                                        .contractCreateInstanceOrThrow()
+                                        .hookCreationDetails()
+                                        .isEmpty(),
+                                HOOKS_NOT_ENABLED);
+                    case CRYPTO_UPDATE -> {
+                        final var op = txInfo.txBody().cryptoUpdateAccountOrThrow();
+                        validateTruePreCheck(
+                                op.hookIdsToDelete().isEmpty()
+                                        && op.hookCreationDetails().isEmpty(),
+                                HOOKS_NOT_ENABLED);
+                    }
+                    case CONTRACT_UPDATE -> {
+                        final var op = txInfo.txBody().contractUpdateInstanceOrThrow();
+                        validateTruePreCheck(
+                                op.hookIdsToDelete().isEmpty()
+                                        && op.hookCreationDetails().isEmpty(),
+                                HOOKS_NOT_ENABLED);
+                    }
+                    case CRYPTO_TRANSFER -> validateNoHooks(txInfo.txBody().cryptoTransferOrThrow());
+                    case TOKEN_AIRDROP -> validateNoHooks(txInfo.txBody().tokenAirdropOrThrow());
+                    case SCHEDULE_CREATE -> {
+                        final var op = txInfo.txBody().scheduleCreateOrThrow();
+                        final var scheduledBody = op.scheduledTransactionBody();
+                        if (scheduledBody != null) {
+                            if (scheduledBody.hasCryptoCreateAccount()) {
+                                validateTruePreCheck(
+                                        scheduledBody
+                                                .cryptoCreateAccountOrThrow()
+                                                .hookCreationDetails()
+                                                .isEmpty(),
+                                        HOOKS_NOT_ENABLED);
+                            } else if (scheduledBody.hasContractCreateInstance()) {
+                                validateTruePreCheck(
+                                        scheduledBody
+                                                .contractCreateInstanceOrThrow()
+                                                .hookCreationDetails()
+                                                .isEmpty(),
+                                        HOOKS_NOT_ENABLED);
+                            } else if (scheduledBody.hasCryptoUpdateAccount()) {
+                                validateTruePreCheck(
+                                        scheduledBody
+                                                        .cryptoUpdateAccountOrThrow()
+                                                        .hookIdsToDelete()
+                                                        .isEmpty()
+                                                && scheduledBody
+                                                        .cryptoUpdateAccountOrThrow()
+                                                        .hookCreationDetails()
+                                                        .isEmpty(),
+                                        HOOKS_NOT_ENABLED);
+                            } else if (scheduledBody.hasContractUpdateInstance()) {
+                                validateTruePreCheck(
+                                        scheduledBody
+                                                        .contractUpdateInstanceOrThrow()
+                                                        .hookIdsToDelete()
+                                                        .isEmpty()
+                                                && scheduledBody
+                                                        .contractUpdateInstanceOrThrow()
+                                                        .hookCreationDetails()
+                                                        .isEmpty(),
+                                        HOOKS_NOT_ENABLED);
+                            } else if (scheduledBody.hasCryptoTransfer()) {
+                                validateNoHooks(scheduledBody.cryptoTransferOrThrow());
+                            } else if (scheduledBody.hasTokenAirdrop()) {
+                                validateNoHooks(scheduledBody.tokenAirdropOrThrow());
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
-    private void verifyPayerSignature(
+    /**
+     * Validates that no allowance hooks are used in airdrops, as they are not supported.
+     *
+     * @param op the {@link TokenAirdropTransactionBody} to validate
+     * @throws PreCheckException if any allowance hooks are used
+     */
+    private static void validateNoHooks(final @NonNull TokenAirdropTransactionBody op) throws PreCheckException {
+        validateNoHooks(op.tokenTransfers());
+    }
+
+    /**
+     * Validates that no allowance hooks are used in crypto transfers, as they are not supported.
+     *
+     * @param op the {@link CryptoTransferTransactionBody} to validate
+     * @throws PreCheckException if any allowance hooks are used
+     */
+    private static void validateNoHooks(final @NonNull CryptoTransferTransactionBody op) throws PreCheckException {
+        for (final var adjust : op.transfersOrElse(TransferList.DEFAULT).accountAmounts()) {
+            validateFalsePreCheck(
+                    adjust.hasPreTxAllowanceHook() || adjust.hasPrePostTxAllowanceHook(), HOOKS_NOT_ENABLED);
+        }
+        validateNoHooks(op.tokenTransfers());
+    }
+
+    /**
+     * Validates that no allowance hooks are used in the given token transfers, as they are not supported.
+     *
+     * @param tokenTransferLists the token transfers to validate
+     * @throws PreCheckException if any allowance hooks are used
+     */
+    private static void validateNoHooks(@NonNull final List<TokenTransferList> tokenTransferLists)
+            throws PreCheckException {
+        for (final var tokenTransfers : tokenTransferLists) {
+            for (final var adjust : tokenTransfers.transfers()) {
+                validateFalsePreCheck(
+                        adjust.hasPreTxAllowanceHook() || adjust.hasPrePostTxAllowanceHook(), HOOKS_NOT_ENABLED);
+            }
+            for (final var nftTransfer : tokenTransfers.nftTransfers()) {
+                validateFalsePreCheck(
+                        nftTransfer.hasPreTxSenderAllowanceHook()
+                                || nftTransfer.hasPrePostTxSenderAllowanceHook()
+                                || nftTransfer.hasPreTxReceiverAllowanceHook()
+                                || nftTransfer.hasPrePostTxReceiverAllowanceHook(),
+                        HOOKS_NOT_ENABLED);
+            }
+        }
+    }
+
+    public void verifyAccountSignature(
             @NonNull final TransactionInfo txInfo,
-            @NonNull final Account payer,
+            @NonNull final Account account,
             @NonNull final Configuration configuration)
             throws PreCheckException {
-        final var payerKey = payer.key();
+        final var payerKey = account.key();
         final var hederaConfig = configuration.getConfigData(HederaConfig.class);
         final var sigPairs = txInfo.signatureMap().sigPair();
 
         // Expand the signatures
         final var expandedSigs = new HashSet<ExpandedSignaturePair>();
         signatureExpander.expand(sigPairs, expandedSigs);
-        if (!isHollow(payer)) {
+        if (!isHollow(account)) {
             signatureExpander.expand(payerKey, sigPairs, expandedSigs);
         } else {
-            // If the payer is hollow, then we need to expand the signature for the payer
+            // If the account is hollow, then we need to expand the signature for the account
             final var originals = txInfo.signatureMap().sigPair().stream()
                     .filter(SignaturePair::hasEcdsaSecp256k1)
                     .filter(pair -> Bytes.wrap(EthSigsUtils.recoverAddressFromPubKey(
                                     pair.pubKeyPrefix().toByteArray()))
-                            .equals(payer.alias()))
+                            .equals(account.alias()))
                     .findFirst();
             validateTruePreCheck(originals.isPresent(), INVALID_SIGNATURE);
             signatureExpander.expand(List.of(originals.get()), expandedSigs);
@@ -402,14 +576,14 @@ public final class IngestChecker {
         // Verify the signatures
         final var results = signatureVerifier.verify(txInfo.signedBytes(), expandedSigs);
         final var verifier = new DefaultKeyVerifier(hederaConfig, results);
-        final SignatureVerification payerKeyVerification;
-        if (!isHollow(payer)) {
-            payerKeyVerification = verifier.verificationFor(payerKey);
+        final SignatureVerification keyVerification;
+        if (!isHollow(account)) {
+            keyVerification = verifier.verificationFor(payerKey);
         } else {
-            payerKeyVerification = verifier.verificationFor(payer.alias());
+            keyVerification = verifier.verificationFor(account.alias());
         }
-        // This can happen if the signature map was missing a signature for the payer account.
-        if (payerKeyVerification.failed()) {
+        // This can happen if the signature map was missing a signature for the account account.
+        if (keyVerification.failed()) {
             throw new PreCheckException(INVALID_SIGNATURE);
         }
     }

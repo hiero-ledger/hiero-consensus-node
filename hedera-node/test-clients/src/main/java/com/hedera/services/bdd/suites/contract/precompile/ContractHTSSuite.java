@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.contract.precompile;
 
 import static com.google.protobuf.ByteString.copyFromUtf8;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
@@ -35,7 +36,6 @@ import static com.hedera.services.bdd.suites.contract.Utils.asToken;
 import static com.hedera.services.bdd.suites.contract.Utils.getNestedContractAddress;
 import static com.hedera.services.bdd.suites.contract.hapi.ContractCallSuite.RECEIVER_2;
 import static com.hedera.services.bdd.suites.contract.leaky.LeakyContractTestsSuite.TOKEN_TRANSFER_CONTRACT;
-import static com.hedera.services.bdd.suites.contract.leaky.LeakyContractTestsSuite.TRANSFER_TOKEN_PUBLIC;
 import static com.hedera.services.bdd.suites.token.TokenAssociationSpecs.KNOWABLE_TOKEN;
 import static com.hedera.services.bdd.suites.token.TokenAssociationSpecs.VANILLA_TOKEN;
 import static com.hedera.services.bdd.suites.token.TokenTransactSpecs.SUPPLY_KEY;
@@ -89,6 +89,7 @@ public class ContractHTSSuite {
     private static final String UNIVERSAL_KEY = "multipurpose";
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> transferDontWorkWithoutTopLevelSignatures() {
         final var transferTokenTxn = "transferTokenTxn";
         final var transferTokensTxn = "transferTokensTxn";
@@ -150,7 +151,7 @@ public class ContractHTSSuite {
                             spec,
                             contractCall(
                                             contract,
-                                            TRANSFER_TOKEN_PUBLIC,
+                                            TRANSFER_TOKEN,
                                             HapiParserUtil.asHeadlongAddress(
                                                     asAddress(spec.registry().getTokenID(VANILLA_TOKEN))),
                                             sender,
@@ -162,7 +163,7 @@ public class ContractHTSSuite {
                                     .via(transferTokenTxn),
                             contractCall(
                                             contract,
-                                            "transferTokensPublic",
+                                            TRANSFER_TOKENS,
                                             HapiParserUtil.asHeadlongAddress(
                                                     asAddress(spec.registry().getTokenID(VANILLA_TOKEN))),
                                             accounts,
@@ -173,7 +174,7 @@ public class ContractHTSSuite {
                                     .via(transferTokensTxn),
                             contractCall(
                                             contract,
-                                            "transferNFTPublic",
+                                            TRANSFER_NFT,
                                             HapiParserUtil.asHeadlongAddress(
                                                     asAddress(spec.registry().getTokenID(KNOWABLE_TOKEN))),
                                             sender,
@@ -185,7 +186,7 @@ public class ContractHTSSuite {
                                     .via(transferNFTTxn),
                             contractCall(
                                             contract,
-                                            "transferNFTsPublic",
+                                            TRANSFER_NFTS,
                                             HapiParserUtil.asHeadlongAddress(
                                                     asAddress(spec.registry().getTokenID(KNOWABLE_TOKEN))),
                                             new Address[] {sender, sender},
@@ -254,7 +255,7 @@ public class ContractHTSSuite {
                             // Call tokenTransfer with a negative amount
                             contractCall(
                                             contract,
-                                            TRANSFER_TOKEN_PUBLIC,
+                                            TRANSFER_TOKEN,
                                             HapiParserUtil.asHeadlongAddress(
                                                     asAddress(spec.registry().getTokenID(VANILLA_TOKEN))),
                                             sender,
@@ -269,6 +270,7 @@ public class ContractHTSSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> nonZeroTransfersFail() {
         final var theSecondReceiver = "somebody2";
         return hapiTest(
@@ -426,7 +428,6 @@ public class ContractHTSSuite {
                                     .gas(GAS_TO_OFFER)
                                     .via(TXN_WITH_NEGATIVE_AMOUNTS)
                                     .hasKnownStatus(CONTRACT_REVERT_EXECUTED),
-                            // try transferTokens with invalid token address
                             contractCall(
                                             TOKEN_TRANSFERS_CONTRACT,
                                             TRANSFER_TOKENS,

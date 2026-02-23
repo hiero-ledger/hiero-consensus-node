@@ -1,12 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb;
 
-import com.swirlds.virtualmap.VirtualKey;
-import com.swirlds.virtualmap.VirtualValue;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
-import com.swirlds.virtualmap.datasource.VirtualLeafRecord;
-import com.swirlds.virtualmap.serialize.KeySerializer;
-import com.swirlds.virtualmap.serialize.ValueSerializer;
 import java.util.ArrayList;
 import java.util.List;
 import org.hiero.base.crypto.Hash;
@@ -16,15 +12,9 @@ import org.hiero.base.crypto.Hash;
 /**
  * Validator to read a data source and all its data and check the complete data set is valid.
  */
-public class DataSourceValidator<K extends VirtualKey, V extends VirtualValue> {
+public class DataSourceValidator {
 
     private static final String WHITESPACE = " ".repeat(20);
-
-    /** Virtual key serializer */
-    private final KeySerializer<K> keySerializer;
-
-    /** Virtual value serializer */
-    private final ValueSerializer<V> valueSerializer;
 
     /** The data source we are validating */
     private final MerkleDbDataSource dataSource;
@@ -38,12 +28,7 @@ public class DataSourceValidator<K extends VirtualKey, V extends VirtualValue> {
      * @param dataSource
      * 		The data source to validate
      */
-    public DataSourceValidator(
-            final KeySerializer<K> keySerializer,
-            final ValueSerializer<V> valueSerializer,
-            final MerkleDbDataSource dataSource) {
-        this.keySerializer = keySerializer;
-        this.valueSerializer = valueSerializer;
+    public DataSourceValidator(final MerkleDbDataSource dataSource) {
         this.dataSource = dataSource;
     }
 
@@ -76,31 +61,28 @@ public class DataSourceValidator<K extends VirtualKey, V extends VirtualValue> {
             }
             System.out.println("All leaf hashes are null :-)" + WHITESPACE);
             System.out.printf("Validating %,d leaf record by path...%n", firstLeafPath);
-            List<K> keys = new ArrayList<>(leafCount);
+            List<Bytes> keys = new ArrayList<>(leafCount);
             progressPercentage = 0;
             for (long path = firstLeafPath; path <= lastLeafPath; path++) {
-                VirtualLeafBytes leafBytes = dataSource.loadLeafRecord(path);
-                assertTrue(leafBytes != null, "leaf record for path [" + path + "] was null");
+                VirtualLeafBytes leaf = dataSource.loadLeafRecord(path);
+                assertTrue(leaf != null, "leaf record for path [" + path + "] was null");
                 assertTrue(
-                        leafBytes.path() == path,
-                        "leaf record for path [" + path + "] had a bad path [" + leafBytes.path() + "]");
-                VirtualLeafRecord<K, V> leaf = leafBytes.toRecord(keySerializer, valueSerializer);
-                assertTrue(leaf.getKey() != null, "leaf record's key for path [" + path + "] was null");
-                keys.add(leaf.getKey());
+                        leaf.path() == path,
+                        "leaf record for path [" + path + "] had a bad path [" + leaf.path() + "]");
+                assertTrue(leaf.keyBytes().length() > 0, "leaf record's key for path [" + path + "] was empty");
+                keys.add(leaf.keyBytes());
                 printProgress(path - firstLeafPath, leafCount);
             }
             System.out.println("All leaf record by path are valid :-)" + WHITESPACE);
             System.out.printf("Validating %,d leaf record by key...%n", leafCount);
             progressPercentage = 0;
             for (int i = 0; i < keys.size(); i++) {
-                VirtualLeafBytes leafBytes = dataSource.loadLeafRecord(
-                        keySerializer.toBytes(keys.get(i)), keys.get(i).hashCode());
-                assertTrue(leafBytes != null, "leaf record for key [" + keys.get(i) + "] was null");
-                VirtualLeafRecord<K, V> leaf = leafBytes.toRecord(keySerializer, valueSerializer);
-                assertTrue(leaf.getKey() != null, "leaf record's key for key [" + keys.get(i) + "] was null");
+                VirtualLeafBytes leaf = dataSource.loadLeafRecord(keys.get(i));
+                assertTrue(leaf != null, "leaf record for key [" + keys.get(i) + "] was null");
+                assertTrue(leaf.keyBytes().length() > 0, "leaf record's key for key [" + keys.get(i) + "] was empty");
                 assertTrue(
-                        leaf.getKey().equals(keys.get(i)),
-                        "leaf record's key for key [" + keys.get(i) + "] did not match, it was [" + leaf.getKey()
+                        leaf.keyBytes().equals(keys.get(i)),
+                        "leaf record's key for key [" + keys.get(i) + "] did not match, it was [" + leaf.keyBytes()
                                 + "]");
                 printProgress(i, keys.size());
             }

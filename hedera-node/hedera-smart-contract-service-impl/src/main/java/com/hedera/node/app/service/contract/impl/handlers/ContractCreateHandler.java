@@ -4,17 +4,25 @@ package com.hedera.node.app.service.contract.impl.handlers;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_GAS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_AUTORENEW_ACCOUNT;
+import static com.hedera.node.app.hapi.utils.contracts.HookUtils.asAccountId;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.throwIfUnsuccessfulCreate;
+import static com.hedera.node.app.service.token.HookDispatchUtils.dispatchHookCreations;
+import static com.hedera.node.app.service.token.HookDispatchUtils.validateHookDuplicates;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.base.HookEntityId;
 import com.hedera.node.app.hapi.utils.fee.SigValueObj;
 import com.hedera.node.app.hapi.utils.fee.SmartContractFeeBuilder;
 import com.hedera.node.app.service.contract.impl.ContractServiceComponent;
 import com.hedera.node.app.service.contract.impl.exec.TransactionComponent;
 import com.hedera.node.app.service.contract.impl.records.ContractCreateStreamBuilder;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
+import com.hedera.node.app.service.token.ReadableAccountStore;
+import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -46,23 +54,25 @@ public class ContractCreateHandler extends AbstractContractTransactionHandler {
     public ContractCreateHandler(
             @NonNull final Provider<TransactionComponent.Factory> provider,
             @NonNull final GasCalculator gasCalculator,
+            @NonNull final EntityIdFactory entityIdFactory,
             @NonNull final ContractServiceComponent component) {
-        super(provider, gasCalculator, component);
+        super(provider, gasCalculator, entityIdFactory, component);
     }
 
     @Override
     public void handle(@NonNull final HandleContext context) throws HandleException {
         // Create the transaction-scoped component
         final var component = getTransactionComponent(context, CONTRACT_CREATE);
-
         // Run its in-scope transaction and get the outcome
         final var outcome = component.contextTransactionProcessor().call();
 
         // Assemble the appropriate top-level record for the result
         final var streamBuilder = context.savepointStack().getBaseBuilder(ContractCreateStreamBuilder.class);
-        outcome.addCreateDetailsTo(streamBuilder);
+        outcome.addCreateDetailsTo(streamBuilder, context, entityIdFactory);
 
         throwIfUnsuccessfulCreate(outcome, component.hederaOperations());
+
+        createHooksIfAny(context, requireNonNull(outcome.recipientIdIfCreated()));
     }
 
     @Override
@@ -72,8 +82,10 @@ public class ContractCreateHandler extends AbstractContractTransactionHandler {
             final var txn = context.body();
             final var op = txn.contractCreateInstanceOrThrow();
 
-            final var intrinsicGas = gasCalculator.transactionIntrinsicGasCost(Bytes.wrap(new byte[0]), true);
+            // TODO: Revisit baselineGas with Pectra support epic
+            final var intrinsicGas = gasCalculator.transactionIntrinsicGasCost(Bytes.wrap(new byte[0]), true, 0L);
             validateTruePreCheck(op.gas() >= intrinsicGas, INSUFFICIENT_GAS);
+            validateHookDuplicates(op.hookCreationDetails());
         } catch (@NonNull final Exception e) {
             bumpExceptionMetrics(CONTRACT_CREATE, e);
             throw e;
@@ -111,5 +123,29 @@ public class ContractCreateHandler extends AbstractContractTransactionHandler {
             @NonNull final com.hederahashgraph.api.proto.java.TransactionBody txBody,
             @NonNull final SigValueObj sigValObj) {
         return usageEstimator.getContractCreateTxFeeMatrices(txBody, sigValObj);
+    }
+
+    /**
+     * If there are any hooks to create, creates them and updates the created contract to point to the first hook.
+     * @param context the handle context
+     * @param ownerId the created contract ID
+     */
+    private void createHooksIfAny(@NonNull final HandleContext context, @NonNull final ContractID ownerId) {
+        final var op = context.body().contractCreateInstanceOrThrow();
+        if (!op.hookCreationDetails().isEmpty()) {
+            // Use account id for hook entity id for internal simplicity
+            final var hookEntityId =
+                    HookEntityId.newBuilder().accountId(asAccountId(ownerId)).build();
+            final var accountStore = context.storeFactory().readableStore(ReadableAccountStore.class);
+            final int slotsDelta = dispatchHookCreations(context, op.hookCreationDetails(), null, hookEntityId);
+            final var justCreated = requireNonNull(accountStore.getContractById(ownerId));
+            final var account = justCreated
+                    .copyBuilder()
+                    .firstHookId(op.hookCreationDetails().getFirst().hookId())
+                    .numberHooksInUse(op.hookCreationDetails().size())
+                    .numberEvmHookStorageSlots(justCreated.numberEvmHookStorageSlots() + slotsDelta)
+                    .build();
+            context.storeFactory().serviceApi(TokenServiceApi.class).updateContract(account);
+        }
     }
 }

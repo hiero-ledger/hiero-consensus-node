@@ -112,8 +112,8 @@ public final class TokenAccountWipeHandler implements TransactionHandler {
         // Assign relevant variables
         final var txn = context.body();
         final var op = txn.tokenWipeOrThrow();
-        final var accountId = op.account();
-        final var tokenId = op.token();
+        final var accountId = op.accountOrThrow();
+        final var tokenId = op.tokenOrThrow();
         final var fungibleWipeCount = op.amount();
         // Wrapping the serial nums this way de-duplicates the serial nums:
         final var nftSerialNums = new ArrayList<>(new LinkedHashSet<>(op.serialNumbers()));
@@ -190,7 +190,7 @@ public final class TokenAccountWipeHandler implements TransactionHandler {
         // Update the NFT count for the account
         updatedAcctBuilder.numberOwnedNfts(acct.numberOwnedNfts() - nftSerialNums.size());
         // Finally, record all the changes
-        if (newAccountBalance == 0) {
+        if (newAccountBalance == 0 && validated.accountTokenRel().balance() > 0) {
             updatedAcctBuilder.numberPositiveBalances(Math.max(acct.numberPositiveBalances() - 1, 0));
         }
         accountStore.put(updatedAcctBuilder.build());

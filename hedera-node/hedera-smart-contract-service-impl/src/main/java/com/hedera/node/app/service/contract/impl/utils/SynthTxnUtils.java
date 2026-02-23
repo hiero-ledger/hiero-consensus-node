@@ -134,11 +134,13 @@ public class SynthTxnUtils {
      * @param evmAddress the EVM address
      * @return the corresponding {@link CryptoCreateTransactionBody}
      */
-    public static CryptoCreateTransactionBody synthHollowAccountCreation(@NonNull final Bytes evmAddress) {
+    public static CryptoCreateTransactionBody synthHollowAccountCreation(
+            @NonNull final Bytes evmAddress, final boolean unlimitedAutoAssociations) {
         requireNonNull(evmAddress);
         return CryptoCreateTransactionBody.newBuilder()
                 .initialBalance(0L)
                 .alias(evmAddress)
+                .maxAutomaticTokenAssociations(unlimitedAutoAssociations ? -1 : 0)
                 .key(IMMUTABILITY_SENTINEL_KEY)
                 .autoRenewPeriod(DEFAULT_AUTO_RENEW_PERIOD)
                 .build();
