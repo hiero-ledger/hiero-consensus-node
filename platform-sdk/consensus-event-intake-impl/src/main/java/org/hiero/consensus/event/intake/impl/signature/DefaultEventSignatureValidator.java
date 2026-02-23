@@ -20,6 +20,7 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.concurrent.utility.throttle.RateLimitedLogger;
 import org.hiero.consensus.crypto.SignatureVerifier;
 import org.hiero.consensus.event.IntakeEventCounter;
+import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
@@ -158,6 +159,11 @@ public class DefaultEventSignatureValidator implements EventSignatureValidator {
             // ancient events can be safely ignored
             intakeEventCounter.eventExitedIntakePipeline(event.getSenderId());
             return null;
+        }
+
+        if (event.getOrigin() == EventOrigin.RUNTIME_CREATED) {
+            // This is an event we just created and signed, there is no need to validate the signature
+            return event;
         }
 
         if (isSignatureValid(event)) {

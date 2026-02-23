@@ -145,6 +145,9 @@ public class TestingEventBuilder {
     /** The hash to use for the event */
     private Hash hash = null;
 
+    /** The origin of this events */
+    private EventOrigin origin = EventOrigin.GOSSIP;
+
     /**
      * Constructor
      *
@@ -391,6 +394,16 @@ public class TestingEventBuilder {
     }
 
     /**
+     * Set a custom origin for the event.
+     * @param origin the origin of the event
+     * @return this instance
+     */
+    public @NonNull TestingEventBuilder setOrigin(@NonNull final EventOrigin origin) {
+        this.origin = origin;
+        return this;
+    }
+
+    /**
      * Generate transactions based on the settings provided.
      * <p>
      * Only utilized if the transactions are not set with {@link #setTransactionBytes(List)}.
@@ -516,7 +529,7 @@ public class TestingEventBuilder {
         final byte[] signature = new byte[SignatureType.RSA.signatureLength()];
         random.nextBytes(signature);
 
-        final PlatformEvent platformEvent = new PlatformEvent(unsignedEvent, Bytes.wrap(signature), EventOrigin.GOSSIP);
+        final PlatformEvent platformEvent = new PlatformEvent(unsignedEvent, Bytes.wrap(signature), origin);
 
         platformEvent.setHash(hash != null ? hash : CryptoRandomUtils.randomHash(random));
 

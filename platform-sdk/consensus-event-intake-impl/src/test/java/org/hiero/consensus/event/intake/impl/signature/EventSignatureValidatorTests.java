@@ -26,6 +26,7 @@ import java.util.function.Function;
 import org.hiero.consensus.crypto.SignatureVerifier;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
@@ -271,6 +272,28 @@ class EventSignatureValidatorTests {
                 EventWindowBuilder.builder().setAncientThreshold(100).build());
 
         assertNull(validatorWithTrueVerifier.validateSignature(event));
+        assertEquals(1, exitedIntakePipelineCount.get());
+    }
+
+    @Test
+    @DisplayName("Events created by this runtime should not be validated")
+    void runtimeCreatedEvent(){
+        final PlatformEvent gossip = new TestingEventBuilder(random)
+                .setCreatorId(CURRENT_ROSTER_NODE_ID)
+                .setBirthRound(CURRENT_ROSTER_ROUND)
+                .setOrigin(EventOrigin.GOSSIP)
+                .build();
+        assertNull(validatorWithFalseVerifier.validateSignature(gossip),
+                "Gossip events should be validated, and in this case discarded");
+        assertEquals(1, exitedIntakePipelineCount.get());
+
+        final PlatformEvent runtime = new TestingEventBuilder(random)
+                .setCreatorId(CURRENT_ROSTER_NODE_ID)
+                .setBirthRound(CURRENT_ROSTER_ROUND)
+                .setOrigin(EventOrigin.RUNTIME_CREATED)
+                .build();
+        assertNotNull(validatorWithFalseVerifier.validateSignature(runtime),
+                "Runtime events should be trusted");
         assertEquals(1, exitedIntakePipelineCount.get());
     }
 }
