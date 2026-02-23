@@ -63,7 +63,9 @@ public class PcesFileIterator implements IOIterator<PlatformEvent> {
             try {
                 final PlatformEvent candidate =
                         switch (fileVersion) {
-                            case PROTOBUF_EVENTS -> new PlatformEvent(stream.readPbjRecord(GossipEvent.PROTOBUF), EventOrigin.TRUSTED_STORAGE);
+                            case PROTOBUF_EVENTS ->
+                                new PlatformEvent(
+                                        stream.readPbjRecord(GossipEvent.PROTOBUF), EventOrigin.TRUSTED_STORAGE);
                         };
                 if (candidate.getBirthRound() >= lowerBound) {
                     next = candidate;

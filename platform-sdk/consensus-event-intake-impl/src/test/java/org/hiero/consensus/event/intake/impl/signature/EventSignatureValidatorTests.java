@@ -277,13 +277,14 @@ class EventSignatureValidatorTests {
 
     @Test
     @DisplayName("Events created by this runtime should not be validated")
-    void runtimeCreatedEvent(){
+    void runtimeCreatedEvent() {
         final PlatformEvent gossip = new TestingEventBuilder(random)
                 .setCreatorId(CURRENT_ROSTER_NODE_ID)
                 .setBirthRound(CURRENT_ROSTER_ROUND)
                 .setOrigin(EventOrigin.GOSSIP)
                 .build();
-        assertNull(validatorWithFalseVerifier.validateSignature(gossip),
+        assertNull(
+                validatorWithFalseVerifier.validateSignature(gossip),
                 "Gossip events should be validated, and in this case discarded");
         assertEquals(1, exitedIntakePipelineCount.get());
 
@@ -292,8 +293,7 @@ class EventSignatureValidatorTests {
                 .setBirthRound(CURRENT_ROSTER_ROUND)
                 .setOrigin(EventOrigin.RUNTIME_CREATED)
                 .build();
-        assertNotNull(validatorWithFalseVerifier.validateSignature(runtime),
-                "Runtime events should be trusted");
+        assertNotNull(validatorWithFalseVerifier.validateSignature(runtime), "Runtime events should be trusted");
         assertEquals(1, exitedIntakePipelineCount.get());
     }
 }

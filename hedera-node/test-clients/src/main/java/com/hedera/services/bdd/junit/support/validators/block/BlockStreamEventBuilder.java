@@ -357,7 +357,8 @@ public class BlockStreamEventBuilder {
      * @param transaction the full transaction bytes, or null if only the hash is available
      * @param transactionHash the transaction hash, or null if the full transaction is available
      */
-    private record TransactionWrapper(@Nullable Bytes transaction, @Nullable Bytes transactionHash) {
+    private record TransactionWrapper(
+            @Nullable Bytes transaction, @Nullable Bytes transactionHash) {
         public boolean isTransaction() {
             return transaction != null;
         }

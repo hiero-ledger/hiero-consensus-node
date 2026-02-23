@@ -72,7 +72,10 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
      * @param unsignedEvent the unsigned event
      * @param signature     the signature for the event
      */
-    public PlatformEvent(@NonNull final UnsignedEvent unsignedEvent, @NonNull final Bytes signature, @NonNull final EventOrigin origin) {
+    public PlatformEvent(
+            @NonNull final UnsignedEvent unsignedEvent,
+            @NonNull final Bytes signature,
+            @NonNull final EventOrigin origin) {
         this(
                 new GossipEvent(
                         Objects.requireNonNull(unsignedEvent, "The unsignedEvent must not be null")

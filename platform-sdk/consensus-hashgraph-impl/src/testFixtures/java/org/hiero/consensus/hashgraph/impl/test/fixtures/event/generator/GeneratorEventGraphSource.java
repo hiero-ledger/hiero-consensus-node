@@ -144,8 +144,8 @@ public class GeneratorEventGraphSource implements EventGraphSource {
                 coin);
         hasher.hashUnsignedEvent(unsignedEvent);
 
-        final PlatformEvent platformEvent = new PlatformEvent(unsignedEvent, eventSigner.signEvent(unsignedEvent),
-                EventOrigin.GOSSIP);
+        final PlatformEvent platformEvent =
+                new PlatformEvent(unsignedEvent, eventSigner.signEvent(unsignedEvent), EventOrigin.GOSSIP);
         consensus.updateConsensus(platformEvent);
 
         // The event given to consensus will be modified by it with consensus information as some point. We do not want

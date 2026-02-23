@@ -141,11 +141,12 @@ class EventDeduplicatorTests {
             } else {
                 // submit a duplicate event with a different signature 25% of the time
                 final PlatformEvent platformEvent = submittedEvents.get(random.nextInt(submittedEvents.size()));
-                final PlatformEvent duplicateEvent = new PlatformEvent(new GossipEvent.Builder()
-                        .eventCore(platformEvent.getGossipEvent().eventCore())
-                        .signature(randomSignatureBytes(random)) // randomize the signature
-                        .transactions(platformEvent.getGossipEvent().transactions())
-                        .build(),
+                final PlatformEvent duplicateEvent = new PlatformEvent(
+                        new GossipEvent.Builder()
+                                .eventCore(platformEvent.getGossipEvent().eventCore())
+                                .signature(randomSignatureBytes(random)) // randomize the signature
+                                .transactions(platformEvent.getGossipEvent().transactions())
+                                .build(),
                         platformEvent.getOrigin());
                 duplicateEvent.setHash(platformEvent.getHash());
 
