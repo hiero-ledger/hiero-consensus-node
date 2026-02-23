@@ -96,7 +96,7 @@ public class LearnerPullVirtualTreeReceiveTask {
                 if (path == Path.INVALID_PATH) {
                     logger.info(
                             RECONNECT.getMarker(),
-                            "The last response is received," + " {} responses are in progress",
+                            "The last response is received, {} responses are in progress",
                             expectedResponses.get());
                     // There may be other messages for this view being handled by other threads
                     final long waitStart = System.currentTimeMillis();

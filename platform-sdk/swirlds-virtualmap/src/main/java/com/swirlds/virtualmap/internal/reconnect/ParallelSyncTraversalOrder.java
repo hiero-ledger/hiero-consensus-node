@@ -220,7 +220,7 @@ public class ParallelSyncTraversalOrder implements NodeTraversalOrder {
             nextLeafPath.set(path + 1);
             return path;
         }
-        return Path.INVALID_PATH;
+        return PATH_NOT_AVAILABLE_YET;
     }
 
     private int getPathChunk(long path) {

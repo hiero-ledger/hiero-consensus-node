@@ -112,6 +112,7 @@ public class LearnerPullVirtualTreeSendTask {
                     break;
                 }
                 if (path < 0) {
+                    assert path == NodeTraversalOrder.PATH_NOT_AVAILABLE_YET;
                     // No path available to send yet. Slow down
                     Thread.sleep(0, 1);
                     continue;

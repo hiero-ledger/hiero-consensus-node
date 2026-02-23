@@ -6,6 +6,14 @@ import com.swirlds.virtualmap.internal.Path;
 public interface NodeTraversalOrder {
 
     /**
+     * This path may be returned by {@link #getNextInternalPathToSend()} or {@link
+     * #getNextLeafPathToSend()} to indicate that no path to send is available at the
+     * moment. The learning will not be terminated, and the traversal order will be
+     * asked for a path to send again shortly.
+     */
+    long PATH_NOT_AVAILABLE_YET = -2L;
+
+    /**
      * This method is called when the first node, which is always the root node, is received from
      * the teacher along with information about virtual tree leaf path range.
      *
