@@ -2,6 +2,8 @@
 package com.swirlds.component.framework.component;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -14,6 +16,10 @@ import com.swirlds.component.framework.wires.output.OutputWire;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
@@ -503,5 +509,43 @@ public class ComponentWiringTests {
         }
 
         assertEquals(expectedOutputData, outputData);
+    }
+
+    @Test
+    void inputWireThreadSafetyTest() {
+        final AtomicReference<Throwable> uncaughtException = new AtomicReference<>();
+        final WiringModel wiringModel =
+                WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent())
+                        .withUncaughtExceptionHandler((t, e) -> uncaughtException.set(e))
+                        .build();
+
+        final TaskSchedulerConfiguration schedulerConfiguration = TaskSchedulerConfiguration.parse("DIRECT");
+
+        final ComponentWiring<FooBarBaz, Long> fooBarBazWiring =
+                new ComponentWiring<>(wiringModel, FooBarBaz.class, schedulerConfiguration);
+        assertEquals("FooBarBaz", fooBarBazWiring.getSchedulerName());
+
+        final FooBarBazImpl fooBarBazImpl = new FooBarBazImpl();
+        fooBarBazWiring.bind(fooBarBazImpl);
+
+        final AtomicReference<RuntimeException> getInputException = new AtomicReference<>();
+        try (final ExecutorService executor = Executors.newFixedThreadPool(16)) {
+            final Runnable task = () -> {
+                try {
+                    final InputWire<Integer> fooInput = fooBarBazWiring.getInputWire(FooBarBaz::handleFoo);
+                    fooInput.put(1);
+                } catch (final RuntimeException e) {
+                    getInputException.set(e);
+                }
+            };
+            for (int i = 0; i < 10000; i++) {
+                executor.submit(task);
+            }
+        }
+
+        assertNull(getInputException.get(),
+                "Concurrent access to input wires should not throw exceptions, but got:\n" + getInputException.get());
+        assertNull(uncaughtException.get(),
+                "There should be no uncaught exceptions, but got:\n" + uncaughtException.get());
     }
 }
