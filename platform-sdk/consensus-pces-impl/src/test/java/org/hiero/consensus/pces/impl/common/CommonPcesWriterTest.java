@@ -89,9 +89,9 @@ class CommonPcesWriterTest {
     }
 
     @Test
-    void testSetMinimumAncientIdentifierToStore() throws IOException {
+    void testSetMinimumBirthRoundToStore() throws IOException {
         commonPcesWriter.beginStreamingNewEvents();
-        commonPcesWriter.setMinimumAncientIdentifierToStore(50L);
+        commonPcesWriter.setMinimumBirthRoundToStore(50L);
 
         verify(fileManager, times(1)).pruneOldFiles(50L);
     }

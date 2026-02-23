@@ -3037,7 +3037,7 @@ public class UtilVerbs {
         return rcd.getTransactionFee();
     }
 
-    private static double getChargedUsedForInnerTxn(
+    public static double getChargedUsedForInnerTxn(
             @NonNull final HapiSpec spec, @NonNull final String parent, @NonNull final String txn) {
         requireNonNull(spec);
         requireNonNull(txn);

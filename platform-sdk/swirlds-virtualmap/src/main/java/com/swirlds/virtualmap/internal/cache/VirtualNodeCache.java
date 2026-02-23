@@ -1387,8 +1387,7 @@ public final class VirtualNodeCache implements FastCopyable {
         builder.append(toDebugStringIndex("keyToDirtyLeafIndex", (Map<Object, Mutation>) (Object) keyToDirtyLeafIndex))
                 .append("\n");
         //noinspection unchecked
-        builder.append(toDebugStringIndex(
-                        "pathToDirtyLeafIndex", (Map<Object, Mutation>) (Object) pathToDirtyKeyIndex))
+        builder.append(toDebugStringIndex("pathToDirtyLeafIndex", (Map<Object, Mutation>) (Object) pathToDirtyKeyIndex))
                 .append("\n");
         //noinspection unchecked
         builder.append(toDebugStringIndex(

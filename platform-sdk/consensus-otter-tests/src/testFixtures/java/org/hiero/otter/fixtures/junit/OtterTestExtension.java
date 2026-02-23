@@ -5,6 +5,7 @@ import static java.util.Objects.requireNonNull;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 import java.nio.file.Path;
@@ -231,8 +232,8 @@ public class OtterTestExtension
      * @return a list of required capabilities
      */
     private List<Capability> getRequiredCapabilitiesFromTest(@NonNull final ExtensionContext extensionContext) {
-        final OtterTest otterTest = AnnotationSupport.findAnnotation(extensionContext.getElement(), OtterTest.class)
-                .orElseThrow();
+        final OtterTest otterTest =
+                findAnnotation(extensionContext, OtterTest.class).orElseThrow();
         return List.of(otterTest.requires());
     }
 
@@ -267,12 +268,10 @@ public class OtterTestExtension
      */
     @NonNull
     private TestEnvironment createTurtleTestEnvironment(@NonNull final ExtensionContext extensionContext) {
-        final Optional<OtterSpecs> otterSpecs =
-                AnnotationSupport.findAnnotation(extensionContext.getElement(), OtterSpecs.class);
+        final Optional<OtterSpecs> otterSpecs = findAnnotation(extensionContext, OtterSpecs.class);
         final boolean randomNodeIds = otterSpecs.map(OtterSpecs::randomNodeIds).orElse(true);
 
-        final Optional<TurtleSpecs> turtleSpecs =
-                AnnotationSupport.findAnnotation(extensionContext.getElement(), TurtleSpecs.class);
+        final Optional<TurtleSpecs> turtleSpecs = findAnnotation(extensionContext, TurtleSpecs.class);
         final long randomSeed = turtleSpecs.map(TurtleSpecs::randomSeed).orElse(0L);
 
         final Path outputDirectory = EnvironmentUtils.getDefaultOutputDirectory("turtle", extensionContext);
@@ -288,18 +287,32 @@ public class OtterTestExtension
      */
     @NonNull
     private TestEnvironment createContainerTestEnvironment(@NonNull final ExtensionContext extensionContext) {
-        final Optional<OtterSpecs> otterSpecs =
-                AnnotationSupport.findAnnotation(extensionContext.getElement(), OtterSpecs.class);
+
+        final Optional<OtterSpecs> otterSpecs = findAnnotation(extensionContext, OtterSpecs.class);
         final boolean randomNodeIds = otterSpecs.map(OtterSpecs::randomNodeIds).orElse(true);
 
-        final Optional<ContainerSpecs> containerSpecs =
-                AnnotationSupport.findAnnotation(extensionContext.getElement(), ContainerSpecs.class);
+        final Optional<ContainerSpecs> containerSpecs = findAnnotation(extensionContext, ContainerSpecs.class);
 
         final Path outputDirectory = EnvironmentUtils.getDefaultOutputDirectory("container", extensionContext);
         return new ContainerTestEnvironment(
                 randomNodeIds,
                 outputDirectory,
                 containerSpecs.map(ContainerSpecs::proxyEnabled).orElse(true));
+    }
+
+    /**
+     * Finds an annotation on the test method first, falling back to the test class if not found on the method.
+     *
+     * @param extensionContext the extension context of the test
+     * @param annotationType the annotation type to search for
+     * @param <A> the annotation type
+     * @return an optional containing the annotation if found
+     */
+    @NonNull
+    private <A extends Annotation> Optional<A> findAnnotation(
+            @NonNull final ExtensionContext extensionContext, @NonNull final Class<A> annotationType) {
+        return AnnotationSupport.findAnnotation(extensionContext.getElement(), annotationType)
+                .or(() -> AnnotationSupport.findAnnotation(extensionContext.getTestClass(), annotationType));
     }
 
     /**
