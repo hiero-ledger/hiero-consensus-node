@@ -3,6 +3,8 @@ package com.hedera.node.app.hapi.utils.throttles;
 
 import static com.hedera.node.app.hapi.utils.CommonUtils.productWouldOverflow;
 
+import java.math.BigInteger;
+
 /**
  * This is TPS/MTPS leaky-bucket logic for HAPI op buckets.
  * A throttle that enforces a transaction rate with resolution of 1/1000th of a transaction.
@@ -165,6 +167,17 @@ public class BucketThrottle {
      */
     public double instantaneousPercentUsed() {
         return 100.0 * bucket.capacityUsed() / bucket.brimfulCapacity();
+    }
+    /**
+     * Returns the percent of the throttle bucket's capacity that is used at this instant, in hundredths of a percent.
+     *
+     * @return the percent of the bucket that is used, in hundredths of a percent
+     */
+    public int instantaneousBps() {
+        return BigInteger.valueOf(bucket.capacityUsed())
+                .multiply(BigInteger.valueOf(10000))
+                .divide(BigInteger.valueOf(bucket.brimfulCapacity()))
+                .intValueExact();
     }
 
     private long effectiveLeak(final long elapsedNanos) {
