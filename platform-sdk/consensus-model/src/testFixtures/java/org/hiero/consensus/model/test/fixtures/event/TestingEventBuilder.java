@@ -24,6 +24,7 @@ import org.hiero.base.crypto.test.fixtures.CryptoRandomUtils;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
 import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
+import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.event.NonDeterministicGeneration;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.event.UnsignedEvent;
@@ -515,7 +516,7 @@ public class TestingEventBuilder {
         final byte[] signature = new byte[SignatureType.RSA.signatureLength()];
         random.nextBytes(signature);
 
-        final PlatformEvent platformEvent = new PlatformEvent(unsignedEvent, Bytes.wrap(signature));
+        final PlatformEvent platformEvent = new PlatformEvent(unsignedEvent, Bytes.wrap(signature), EventOrigin.GOSSIP);
 
         platformEvent.setHash(hash != null ? hash : CryptoRandomUtils.randomHash(random));
 

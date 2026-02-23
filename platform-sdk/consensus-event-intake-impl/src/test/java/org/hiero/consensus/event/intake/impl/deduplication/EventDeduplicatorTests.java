@@ -145,7 +145,8 @@ class EventDeduplicatorTests {
                         .eventCore(platformEvent.getGossipEvent().eventCore())
                         .signature(randomSignatureBytes(random)) // randomize the signature
                         .transactions(platformEvent.getGossipEvent().transactions())
-                        .build());
+                        .build(),
+                        platformEvent.getOrigin());
                 duplicateEvent.setHash(platformEvent.getHash());
 
                 if (duplicateEvent.getDescriptor().eventDescriptor().birthRound() < minimumRoundNonAncient) {

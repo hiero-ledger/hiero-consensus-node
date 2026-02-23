@@ -35,6 +35,8 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
     private final GossipEvent gossipEvent;
     /** Metadata for an event that can be derived from a GossipEvent */
     private final EventMetadata metadata;
+    /** The origin of this event */
+    private final EventOrigin origin;
     /** The time this event was received via gossip */
     private Instant timeReceived;
 
@@ -70,7 +72,7 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
      * @param unsignedEvent the unsigned event
      * @param signature     the signature for the event
      */
-    public PlatformEvent(@NonNull final UnsignedEvent unsignedEvent, @NonNull final Bytes signature) {
+    public PlatformEvent(@NonNull final UnsignedEvent unsignedEvent, @NonNull final Bytes signature, @NonNull final EventOrigin origin) {
         this(
                 new GossipEvent(
                         Objects.requireNonNull(unsignedEvent, "The unsignedEvent must not be null")
@@ -80,7 +82,8 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
                         unsignedEvent.getParents()),
                 unsignedEvent.getMetadata(),
                 // for a newly created event, the time received is the same as the time created
-                unsignedEvent.getTimeCreated());
+                unsignedEvent.getTimeCreated(),
+                Objects.requireNonNull(origin, "The origin must not be null"));
     }
 
     /**
@@ -89,19 +92,22 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
      * @param gossipEvent the gossip event
      * @throws NullPointerException if gossipEvent or any of its fields are null
      */
-    public PlatformEvent(@NonNull final GossipEvent gossipEvent) {
+    public PlatformEvent(@NonNull final GossipEvent gossipEvent, @NonNull final EventOrigin origin) {
         this(
                 Objects.requireNonNull(gossipEvent, "The gossipEvent must not be null"),
                 new EventMetadata(gossipEvent),
-                Instant.now());
+                Instant.now(),
+                Objects.requireNonNull(origin, "The origin must not be null"));
     }
 
     private PlatformEvent(
             @NonNull final GossipEvent gossipEvent,
             @NonNull final EventMetadata metadata,
-            @NonNull final Instant timeReceived) {
+            @NonNull final Instant timeReceived,
+            @NonNull final EventOrigin origin) {
         this.gossipEvent = gossipEvent;
         this.metadata = metadata;
+        this.origin = origin;
         this.timeReceived = timeReceived;
         this.senderId = null;
         this.consensusData = NO_CONSENSUS;
@@ -115,7 +121,7 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
      * @return a copy of this event
      */
     public @NonNull PlatformEvent copyGossipedData() {
-        final PlatformEvent platformEvent = new PlatformEvent(gossipEvent);
+        final PlatformEvent platformEvent = new PlatformEvent(gossipEvent, origin);
         platformEvent.setHash(getHash());
         return platformEvent;
     }
@@ -125,6 +131,14 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
      */
     public @NonNull GossipEvent getGossipEvent() {
         return gossipEvent;
+    }
+
+    /**
+     * The origin of this event, which indicates where this event came from.
+     * @return the origin of this event
+     */
+    public @NonNull EventOrigin getOrigin() {
+        return origin;
     }
 
     /**

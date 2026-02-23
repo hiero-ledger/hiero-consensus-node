@@ -12,6 +12,7 @@ import java.util.List;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.MarkerManager;
 import org.hiero.consensus.crypto.PbjStreamHasher;
+import org.hiero.consensus.model.event.EventOrigin;
 
 public class ProtobufConverter {
     private ProtobufConverter() {}
@@ -233,7 +234,8 @@ public class ProtobufConverter {
     public static org.hiero.consensus.model.event.PlatformEvent toPlatform(
             @NonNull final org.hiero.otter.fixtures.container.proto.ProtoPlatformEvent sourcePlatformEvent) {
         final org.hiero.consensus.model.event.PlatformEvent platformEvent =
-                new org.hiero.consensus.model.event.PlatformEvent(toPbj(sourcePlatformEvent.getGossipEvent()));
+                new org.hiero.consensus.model.event.PlatformEvent(toPbj(sourcePlatformEvent.getGossipEvent()),
+                        EventOrigin.GOSSIP);
         new PbjStreamHasher().hashEvent(platformEvent);
         platformEvent.setConsensusData(toPbj(sourcePlatformEvent.getConsensusData()));
         return platformEvent;

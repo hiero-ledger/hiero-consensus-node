@@ -89,7 +89,7 @@ public class CesEvent extends AbstractSerializableHashable
     @Override
     public void deserialize(@NonNull final SerializableDataInputStream in, final int version) throws IOException {
         this.platformEvent = switch (version) {
-            case CES_EVENT_VERSION_PBJ_EVENT -> new PlatformEvent(in.readPbjRecord(GossipEvent.PROTOBUF));
+            case CES_EVENT_VERSION_PBJ_EVENT -> new PlatformEvent(in.readPbjRecord(GossipEvent.PROTOBUF), EventOrigin.GOSSIP);
             default -> throw new IOException("Unsupported version " + version);
         };
 

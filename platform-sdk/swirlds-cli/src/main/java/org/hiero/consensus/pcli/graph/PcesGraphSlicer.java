@@ -26,6 +26,7 @@ import org.hiero.consensus.crypto.PbjStreamHasher;
 import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.hashgraph.config.ConsensusConfig;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
+import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.event.UnsignedEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -264,7 +265,7 @@ public class PcesGraphSlicer {
         // Store for parent lookup by subsequent events
         migratedParents.put(event.getHash().getBytes(), eventDescriptor);
 
-        return new PlatformEvent(unsignedEvent, signature.getBytes());
+        return new PlatformEvent(unsignedEvent, signature.getBytes(), EventOrigin.RUNTIME_CREATED);
     }
 
     /**
