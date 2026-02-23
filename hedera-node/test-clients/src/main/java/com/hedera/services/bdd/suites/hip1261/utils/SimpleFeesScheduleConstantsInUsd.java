@@ -191,7 +191,7 @@ public class SimpleFeesScheduleConstantsInUsd {
     public static final double BATCH_BASE_FEE = 0.001;
 
     /* ---------- Address Book service ---------- */
-    public static final double NODE_CREATE_BASE_FEE_USD = 0.0177;
+    public static final double NODE_CREATE_BASE_FEE_USD = 0.001;
     public static final double NODE_UPDATE_BASE_FEE_USD = 0.001;
     public static final double NODE_DELETE_BASE_FEE_USD = 0.001;
 
@@ -202,4 +202,7 @@ public class SimpleFeesScheduleConstantsInUsd {
     public static final double CONTRACT_UPDATE_BASE_FEE = 0.026;
     public static final double ETHEREUM_CALL_BASE_FEE = 0.0001;
     public static final double HOOK_SLOT_UPDATE_BASE_FEE = 0.005;
+    public static final long CONTRACT_CREATE_INCLUDED_HOOK_UPDATES = 0L;
+    public static final long CONTRACT_CREATE_INCLUDED_KEYS = 0L;
+    public static final double CONTRACT_CREATE_BASE_FEE_USD = 0.9999;
 }

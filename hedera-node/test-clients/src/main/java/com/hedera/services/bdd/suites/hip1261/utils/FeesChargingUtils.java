@@ -29,6 +29,9 @@ import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleCon
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONS_UPDATE_TOPIC_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONS_UPDATE_TOPIC_INCLUDED_KEYS;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONTRACT_CREATE_BASE_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONTRACT_CREATE_INCLUDED_HOOK_UPDATES;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONTRACT_CREATE_INCLUDED_KEYS;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_APPROVE_ALLOWANCE_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_APPROVE_ALLOWANCE_EXTRA_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_APPROVE_ALLOWANCE_INCLUDED_COUNT;
@@ -94,6 +97,7 @@ import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleCon
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_UPDATE_NFT_FEE;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_WIPE_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.UTIL_PRNG_BASE_FEE_USD;
+import static java.util.Objects.requireNonNull;
 import static org.hiero.hapi.support.fees.Extra.PROCESSING_BYTES;
 import static org.hiero.hapi.support.fees.Extra.SIGNATURES;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -104,6 +108,7 @@ import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.utilops.CustomSpecAssert;
 import com.hederahashgraph.api.proto.java.Transaction;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
@@ -332,16 +337,16 @@ public class FeesChargingUtils {
      * @return the bytes-dependent portion of the node fee in USD
      *         (0.0 if transaction fits within included bytes)
      */
-    public static double expectedFeeFromBytesFor(HapiSpec spec, Logger opLog, String txnName) {
-        final var txnBytes = spec.registry().getBytes(txnName);
-        final var txnSize = txnBytes.length;
+    public static double expectedFeeFromBytesFor(HapiSpec spec, Logger opLog, String txnName)
+            throws InvalidProtocolBufferException {
+        final var signedTxnSize = signedTxnSizeFor(spec, txnName);
 
-        final var nodeBytesOverage = Math.max(0, txnSize - NODE_INCLUDED_BYTES);
+        final var nodeBytesOverage = Math.max(0, signedTxnSize - NODE_INCLUDED_BYTES);
         double expectedFee = nodeBytesOverage * PROCESSING_BYTES_FEE_USD * (1 + NETWORK_MULTIPLIER);
 
         opLog.info(
                 "Transaction size: {} bytes, node bytes overage: {}, expected fee: {}",
-                txnSize,
+                signedTxnSize,
                 nodeBytesOverage,
                 expectedFee);
         return expectedFee;
@@ -2364,6 +2369,69 @@ public class FeesChargingUtils {
                 Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
     }
 
+    // -------- ContractCreate simple fees utils ---------//
+
+    /**
+     * SimpleFees formula for ContractCreate:
+     * node    = NODE_BASE + SIGNATURE_FEE * max(0, sigs - includedSigsNode + nodeFeeFromBytesUsd(txnSize))
+     * network = node * NETWORK_MULTIPLIER
+     * service = CONTRACT_CREATE_BASE + HOOK_UPDATES_FEE * max(0, hooks - includedHooks) + KEYS_FEE * max(0, keys - includedKeys)
+     * total   = node + network + service
+     */
+    public static double expectedContractCreateSimpleFeesUsd(long sigs, long hooks, long keys, int txnSize) {
+        // ----- node fees -----
+        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
+        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
+        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytesUsd(txnSize);
+
+        // ----- network fees -----
+        final double networkFee = nodeFee * NETWORK_MULTIPLIER;
+
+        // ----- service fees -----
+        final long hookExtrasService = Math.max(0L, hooks - CONTRACT_CREATE_INCLUDED_HOOK_UPDATES);
+        final double serviceHooksExtrasFee = hookExtrasService * HOOK_UPDATES_FEE_USD;
+
+        final long keysExtrasService = Math.max(0L, keys - CONTRACT_CREATE_INCLUDED_KEYS);
+        final double serviceKeysExtrasFee = keysExtrasService * KEYS_FEE_USD;
+
+        final double serviceFee = CONTRACT_CREATE_BASE_FEE_USD + serviceHooksExtrasFee + serviceKeysExtrasFee;
+
+        return nodeFee + networkFee + serviceFee;
+    }
+
+    /**
+     * Overload when extras are provided in a map.
+     */
+    public static double expectedContractCreateSimpleFeesUsd(final Map<Extra, Long> extras) {
+        return expectedContractCreateSimpleFeesUsd(
+                extras.getOrDefault(Extra.SIGNATURES, 0L),
+                extras.getOrDefault(Extra.HOOK_UPDATES, 0L),
+                extras.getOrDefault(Extra.KEYS, 0L),
+                Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
+    }
+
+    /**
+     * Gets the charged gas for a ContractCreate inner transaction, using the parent transaction's exchange rate to convert to USD.
+     */
+    public static double getChargedGasForContractCreateInnerTxn(
+            @NonNull final HapiSpec spec, @NonNull final String txn, @NonNull final String parent) {
+        requireNonNull(spec);
+        requireNonNull(txn);
+        var subOp = getTxnRecord(txn).logged();
+        var parentOp = getTxnRecord(parent);
+        allRunFor(spec, subOp, parentOp);
+        final var rcd = subOp.getResponseRecord();
+        final var parentRcd = parentOp.getResponseRecord();
+        final var gasUsed = rcd.getContractCreateResult().getGasUsed();
+        return (gasUsed * 71.0)
+                / ONE_HBAR
+                / parentRcd.getReceipt().getExchangeRate().getCurrentRate().getHbarEquiv()
+                * parentRcd.getReceipt().getExchangeRate().getCurrentRate().getCentEquiv()
+                / 100;
+    }
+
+    // -------- Dual-mode validation utils ---------//
+
     /*
      * Dual-mode fee validation that branches on {@code fees.simpleFeesEnabled} at runtime.
      * When simple fees are enabled, validates against {@code simpleFee};
@@ -2396,6 +2464,28 @@ public class FeesChargingUtils {
                 return validateInnerTxnChargedUsd(txn, parent, simpleFee, allowedDiff);
             } else {
                 return validateInnerTxnChargedUsd(txn, parent, legacyFee, allowedDiff);
+            }
+        });
+    }
+
+    /**
+     * Dual-mode fee validation for inner atomic batch transactions that branches on {@code fees.simpleFeesEnabled} at runtime.
+     * When simple fees are enabled, validates against {@code expectedSimpleFeesUsd} using the provided function;
+     * otherwise validates against {@code legacyExpectedUsd}.
+     */
+    public static SpecOperation validateInnerTxnFeesWithTxnSize(
+            final String innerTxnId,
+            final String parentTxnId,
+            final double legacyExpectedUsd,
+            final double legacyAllowedPercentDiff,
+            final IntToDoubleFunction expectedSimpleFeesUsd,
+            final double simpleFeesAllowedPercentDiff) {
+        return doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+            if ("true".equals(flag)) {
+                return validateInnerChargedUsdWithinWithTxnSize(
+                        innerTxnId, parentTxnId, expectedSimpleFeesUsd, simpleFeesAllowedPercentDiff);
+            } else {
+                return validateInnerTxnChargedUsd(innerTxnId, parentTxnId, legacyExpectedUsd, legacyAllowedPercentDiff);
             }
         });
     }
