@@ -10,45 +10,37 @@
 [![Development Branch](https://img.shields.io/badge/docs-quickstart-green.svg)](docs/gradle-quickstart.md)
 [![License](https://img.shields.io/badge/license-apache2-blue.svg)](LICENSE)
 
-# Hedera Services
+# Hiero Consensus Node
 
 Implementation of the Platform and the
-[services offered](https://github.com/hashgraph/hedera-protobufs) by nodes in the
-[Hedera public network](https://hedera.com).
+[services offered](https://github.com/hashgraph/hedera-protobufs) by nodes in a Hiero based network.
 
 ## Overview of child modules
 
 - _platform-sdk/_ - the basic Platform – [documentation](platform-sdk/docs/platformWiki.md)
-- _hedera-node/_ - implementation of Hedera services on the Platform –
+- _hedera-node/_ - implementation of services on the Platform –
   [documentation](hedera-node/docs/)
 
 ## Getting Started
 
-Refer to the [Hedera Architecture and Design](hedera-node/docs/design/design.md) for an architectural overview of the
-Hedera Services project.
+Refer to the [Hiero Architecture and Design](hedera-node/docs/design/design.md) for an architectural overview of the
+Hiero Services project.
 
 Refer to the [Quickstart Guide](docs/README.md) for how to work with this project.
 
 ## Solidity
 
-Hedera Contracts support `pragma solidity <=0.8.9`.
-
-## Support
-
-If you have a question on how to use the product, please see our
-[support guide](https://github.com/hashgraph/.github/blob/main/SUPPORT.md).
+Our Contract service support `pragma solidity <=0.8.9`.
 
 ## Contributing
 
-Contributions are welcome. Please see the
-[contributing guide](https://github.com/hashgraph/.github/blob/main/CONTRIBUTING.md) to see how you
-can get involved.
+Whether you’re fixing bugs, enhancing features, or improving documentation, your contributions are important — let’s build something great together!
+
+Please read our [contributing guide](https://github.com/hiero-ledger/.github/blob/main/CONTRIBUTING.md) to see how you can get involved.
 
 ## Code of Conduct
 
-This project is governed by the
-[Contributor Covenant Code of Conduct](https://github.com/hashgraph/.github/blob/main/CODE_OF_CONDUCT.md).
-By participating, you are expected to uphold this code of conduct.
+Hiero uses the Linux Foundation Decentralised Trust [Code of Conduct](https://www.lfdecentralizedtrust.org/code-of-conduct).
 
 ## License
 
