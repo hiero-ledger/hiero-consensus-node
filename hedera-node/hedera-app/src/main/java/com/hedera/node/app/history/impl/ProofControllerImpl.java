@@ -149,9 +149,7 @@ public class ProofControllerImpl implements ProofController {
         historyProofMetrics.observeStage(constructionId(), currentStage(metadata), now);
         try {
             if (construction.hasFailureReason()) {
-                construction = historyStore.getConstructionOrThrow(constructionId());
-                if (construction.hasFailureReason()
-                        && !retryIfRecoverableFailure(construction.failureReasonOrThrow(), historyStore, tssConfig)) {
+                if (!retryIfRecoverableFailure(construction.failureReasonOrThrow(), historyStore, tssConfig)) {
                     return;
                 }
             }

@@ -472,7 +472,6 @@ class ProofControllerImplTest {
                 .wrapsSigningState(WrapsSigningState.newBuilder().build())
                 .wrapsRetryCount(1)
                 .build();
-        given(writableHistoryStore.getConstructionOrThrow(CONSTRUCTION_ID)).willReturn(construction);
         given(weights.sourceNodeIds()).willReturn(Set.of(SELF_ID, OTHER_NODE_ID));
         given(writableHistoryStore.restartWrapsSigning(CONSTRUCTION_ID, Set.of(SELF_ID, OTHER_NODE_ID)))
                 .willReturn(restarted);
@@ -480,7 +479,6 @@ class ProofControllerImplTest {
         subject.advanceConstruction(
                 Instant.EPOCH.plusSeconds(1), null, writableHistoryStore, false, DEFAULT_TSS_CONFIG);
 
-        verify(writableHistoryStore).getConstructionOrThrow(CONSTRUCTION_ID);
         verify(writableHistoryStore).restartWrapsSigning(CONSTRUCTION_ID, Set.of(SELF_ID, OTHER_NODE_ID));
         verify(writableHistoryStore, never()).failForReason(anyLong(), any());
     }

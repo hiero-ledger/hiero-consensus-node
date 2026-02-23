@@ -8,6 +8,7 @@ import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import javax.inject.Inject;
@@ -63,6 +64,7 @@ public class HistoryProofMetrics {
                         .withDescription("Average WRAPS retries consumed per completed history proof")
                         .withUnit("retries")
                         .withFormat("%,13.3f"));
+        registerEagerTransitionMetrics();
     }
 
     /**
@@ -124,6 +126,31 @@ public class HistoryProofMetrics {
     private TransitionMetrics transitionMetricsFor(@NonNull final Stage from, @NonNull final Stage to) {
         final var transition = new StageTransition(requireNonNull(from), requireNonNull(to));
         return transitionMetrics.computeIfAbsent(transition, this::newTransitionMetrics);
+    }
+
+    private void registerEagerTransitionMetrics() {
+        // Happy path transitions
+        registerTransition(Stage.WAITING_FOR_METADATA, Stage.WAITING_FOR_ASSEMBLY);
+        registerTransition(Stage.WAITING_FOR_ASSEMBLY, Stage.WRAPS_R1);
+        registerTransition(Stage.WRAPS_R1, Stage.WRAPS_R2);
+        registerTransition(Stage.WRAPS_R2, Stage.WRAPS_R3);
+        registerTransition(Stage.WRAPS_R3, Stage.WRAPS_AGGREGATE);
+        registerTransition(Stage.WRAPS_AGGREGATE, Stage.COMPLETED);
+
+        // Failure transitions from each in-progress stage
+        for (final var stage : List.of(
+                Stage.WAITING_FOR_METADATA,
+                Stage.WAITING_FOR_ASSEMBLY,
+                Stage.WRAPS_R1,
+                Stage.WRAPS_R2,
+                Stage.WRAPS_R3,
+                Stage.WRAPS_AGGREGATE)) {
+            registerTransition(stage, Stage.FAILED);
+        }
+    }
+
+    private void registerTransition(@NonNull final Stage from, @NonNull final Stage to) {
+        transitionMetricsFor(requireNonNull(from), requireNonNull(to));
     }
 
     private TransitionMetrics newTransitionMetrics(@NonNull final StageTransition transition) {
