@@ -78,6 +78,7 @@ class HintsContextTest {
                 false,
                 false,
                 2,
+                10,
                 Duration.ofSeconds(5));
     }
 

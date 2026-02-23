@@ -2,6 +2,7 @@
 package com.hedera.node.app.history.impl;
 
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
+import static com.hedera.hapi.node.state.history.WrapsPhase.R1;
 import static com.hedera.node.app.history.impl.ProofControllers.isWrapsExtensible;
 import static com.hedera.node.app.history.schemas.V071HistorySchema.ACTIVE_PROOF_CONSTRUCTION_STATE_ID;
 import static com.hedera.node.app.history.schemas.V071HistorySchema.LEDGER_ID_STATE_ID;
@@ -37,6 +38,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -165,6 +167,15 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
     public HistoryProofConstruction failForReason(final long constructionId, @NonNull final String reason) {
         requireNonNull(reason);
         return updateOrThrow(constructionId, (c, b) -> b.failureReason(reason));
+    }
+
+    @Override
+    public HistoryProofConstruction restartWrapsSigning(final long constructionId, @NonNull final Set<Long> sourceNodeIds) {
+        requireNonNull(sourceNodeIds);
+        sourceNodeIds.forEach(nodeId -> wrapsMessageHistories.remove(new ConstructionNodeId(constructionId, nodeId)));
+        return updateOrThrow(constructionId, (c, b) -> b.wrapsSigningState(
+                        WrapsSigningState.newBuilder().phase(R1).build())
+                .wrapsRetryCount(c.wrapsRetryCount() + 1));
     }
 
     @Override
