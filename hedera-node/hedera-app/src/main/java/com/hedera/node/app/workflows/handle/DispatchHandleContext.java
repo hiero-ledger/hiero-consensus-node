@@ -26,6 +26,7 @@ import com.hedera.node.app.fees.FeeAccumulator;
 import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.fees.context.ChildFeeContext;
 import com.hedera.node.app.service.entityid.EntityNumGenerator;
+import com.hedera.node.app.service.entityid.NodeIdGenerator;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.signature.AppKeyVerifier;
 import com.hedera.node.app.spi.authorization.Authorizer;
@@ -99,6 +100,7 @@ public class DispatchHandleContext implements HandleContext, FeeContext, FeeChar
     private final ExchangeRateManager exchangeRateManager;
     private final SavepointStackImpl stack;
     private final EntityNumGenerator entityNumGenerator;
+    private final NodeIdGenerator nodeIdGenerator;
     private final AttributeValidator attributeValidator;
     private final ExpiryValidator expiryValidator;
     private final TransactionDispatcher dispatcher;
@@ -140,6 +142,7 @@ public class DispatchHandleContext implements HandleContext, FeeContext, FeeChar
             @NonNull final ExchangeRateManager exchangeRateManager,
             @NonNull final SavepointStackImpl stack,
             @NonNull final EntityNumGenerator entityNumGenerator,
+            @NonNull final NodeIdGenerator nodeIdGenerator,
             @NonNull final TransactionDispatcher dispatcher,
             @NonNull final NetworkInfo networkInfo,
             @NonNull final ChildDispatchFactory childDispatchLogic,
@@ -168,6 +171,7 @@ public class DispatchHandleContext implements HandleContext, FeeContext, FeeChar
         this.exchangeRateManager = requireNonNull(exchangeRateManager);
         this.stack = requireNonNull(stack);
         this.entityNumGenerator = requireNonNull(entityNumGenerator);
+        this.nodeIdGenerator = requireNonNull(nodeIdGenerator);
         this.childDispatchFactory = requireNonNull(childDispatchLogic);
         this.dispatchProcessor = requireNonNull(dispatchProcessor);
         this.throttleAdviser = requireNonNull(throttleAdviser);
@@ -338,6 +342,11 @@ public class DispatchHandleContext implements HandleContext, FeeContext, FeeChar
     @Override
     public EntityNumGenerator entityNumGenerator() {
         return entityNumGenerator;
+    }
+
+    @Override
+    public NodeIdGenerator nodeIdGenerator() {
+        return nodeIdGenerator;
     }
 
     @NonNull

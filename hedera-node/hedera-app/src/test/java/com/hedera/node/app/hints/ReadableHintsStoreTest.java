@@ -18,6 +18,8 @@ import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSch
 import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_LABEL;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_LABEL;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0720EntityIdSchema.NODE_ID_STATE_ID;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0720EntityIdSchema.NODE_ID_STATE_LABEL;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.doCallRealMethod;
@@ -35,7 +37,7 @@ import com.hedera.hapi.node.state.hints.PreprocessingVoteId;
 import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.hapi.services.auxiliary.hints.CrsPublicationTransactionBody;
 import com.hedera.node.app.hints.impl.ReadableHintsStoreImpl;
-import com.hedera.node.app.service.entityid.ReadableEntityCounters;
+import com.hedera.node.app.service.entityid.ReadableEntityIdStore;
 import com.hedera.node.app.service.entityid.impl.WritableEntityIdStoreImpl;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.spi.ReadableStates;
@@ -60,11 +62,11 @@ class ReadableHintsStoreTest {
     @Mock
     private ReadableStates readableStates;
 
-    private ReadableEntityCounters entityCounters;
+    private ReadableEntityIdStore readableEntityIdStore;
 
     @BeforeEach
     void setUp() {
-        entityCounters = new WritableEntityIdStoreImpl(new MapWritableStates(Map.of(
+        readableEntityIdStore = new WritableEntityIdStoreImpl(new MapWritableStates(Map.of(
                 ENTITY_ID_STATE_ID,
                 new FunctionWritableSingletonState<>(
                         ENTITY_ID_STATE_ID,
@@ -76,7 +78,10 @@ class ReadableHintsStoreTest {
                         ENTITY_COUNTS_STATE_ID,
                         ENTITY_COUNTS_STATE_LABEL,
                         () -> EntityCounts.newBuilder().numNodes(2).build(),
-                        c -> {}))));
+                        c -> {}),
+                NODE_ID_STATE_ID,
+                new FunctionWritableSingletonState<>(
+                        NODE_ID_STATE_ID, NODE_ID_STATE_LABEL, () -> NodeId.DEFAULT, c -> {}))));
     }
 
     @Test
@@ -122,7 +127,7 @@ class ReadableHintsStoreTest {
                         ACTIVE_HINTS_CONSTRUCTION_STATE_ID,
                         ACTIVE_HINTS_CONSTRUCTION_STATE_LABEL,
                         () -> HintsConstruction.DEFAULT));
-        subject = new ReadableHintsStoreImpl(readableStates, entityCounters);
+        subject = new ReadableHintsStoreImpl(readableStates, readableEntityIdStore);
 
         assertEquals(crsState, subject.getCrsState());
     }
@@ -149,7 +154,7 @@ class ReadableHintsStoreTest {
                                 PREPROCESSING_VOTES_STATE_ID, PREPROCESSING_VOTES_STATE_LABEL)
                         .build());
 
-        subject = new ReadableHintsStoreImpl(readableStates, entityCounters);
+        subject = new ReadableHintsStoreImpl(readableStates, readableEntityIdStore);
 
         assertEquals(List.of(publication), subject.getCrsPublications());
     }

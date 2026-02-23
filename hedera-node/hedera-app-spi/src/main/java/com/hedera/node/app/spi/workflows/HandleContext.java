@@ -7,6 +7,7 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.entityid.EntityNumGenerator;
+import com.hedera.node.app.service.entityid.NodeIdGenerator;
 import com.hedera.node.app.spi.authorization.SystemPrivilege;
 import com.hedera.node.app.spi.fees.ExchangeRateInfo;
 import com.hedera.node.app.spi.fees.Fees;
@@ -186,7 +187,11 @@ public interface HandleContext {
              * A callback to be invoked to increment the nonce of the payer account.
              * This is used to ensure that the nonce is incremented when ethereum transaction fails inside a batch.
              */
-            ETHEREUM_NONCE_INCREMENT_CALLBACK
+            ETHEREUM_NONCE_INCREMENT_CALLBACK,
+            /**
+             * An entity num to be created by transplant system transactions.
+             */
+            SYSTEM_TXN_CREATION_ENTITY_NUM
         }
     }
 
@@ -289,6 +294,11 @@ public interface HandleContext {
      * @return the entity number generator
      */
     EntityNumGenerator entityNumGenerator();
+
+    /**
+     * Returns a {@link NodeIdGenerator} that can be used to generate node IDs.
+     */
+    NodeIdGenerator nodeIdGenerator();
 
     /**
      * Returns the validator for attributes of entities created or updated by handlers.

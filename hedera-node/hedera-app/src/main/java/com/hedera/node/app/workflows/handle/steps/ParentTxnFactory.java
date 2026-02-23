@@ -33,6 +33,7 @@ import com.hedera.node.app.fees.ResourcePriceCalculatorImpl;
 import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.service.entityid.impl.EntityNumGeneratorImpl;
+import com.hedera.node.app.service.entityid.impl.NodeIdGeneratorImpl;
 import com.hedera.node.app.service.entityid.impl.WritableEntityIdStoreImpl;
 import com.hedera.node.app.service.token.api.FeeStreamBuilder;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
@@ -292,7 +293,7 @@ public class ParentTxnFactory {
                 parentTxn.config().getConfigData(HederaConfig.class), preHandleResult.getVerificationResults());
         final var category = getTxnCategory(preHandleResult);
         final var baseBuilder = parentTxn.initBaseBuilder(exchangeRates);
-        return createDispatch(parentTxn, baseBuilder, keyVerifier, category);
+        return createDispatch(parentTxn, baseBuilder, keyVerifier, category, DispatchMetadata.EMPTY_METADATA);
     }
 
     /**
@@ -311,7 +312,28 @@ public class ParentTxnFactory {
             @NonNull final HandleContext.TransactionCategory category) {
         final var config = parentTxn.config();
         final var keyVerifier = getKeyVerifier(keyVerifierCallback, config, emptySet());
-        return createDispatch(parentTxn, baseBuilder, keyVerifier, category);
+        return createDispatch(parentTxn, baseBuilder, keyVerifier, category, DispatchMetadata.EMPTY_METADATA);
+    }
+
+    /**
+     * Creates a new {@link Dispatch} instance for a transaction in the given context with provided dispatch metadata.
+     *
+     * @param parentTxn
+     * @param baseBuilder
+     * @param keyVerifierCallback
+     * @param category
+     * @param dispatchMetadata
+     * @return the new dispatch instance
+     */
+    public Dispatch createDispatch(
+            @NonNull final ParentTxn parentTxn,
+            @NonNull final StreamBuilder baseBuilder,
+            @NonNull final Predicate<Key> keyVerifierCallback,
+            @NonNull final HandleContext.TransactionCategory category,
+            @NonNull final DispatchMetadata dispatchMetadata) {
+        final var config = parentTxn.config();
+        final var keyVerifier = getKeyVerifier(keyVerifierCallback, config, emptySet());
+        return createDispatch(parentTxn, baseBuilder, keyVerifier, category, dispatchMetadata);
     }
 
     /**
@@ -327,7 +349,8 @@ public class ParentTxnFactory {
             @NonNull final ParentTxn parentTxn,
             @NonNull final StreamBuilder baseBuilder,
             @NonNull final AppKeyVerifier keyVerifier,
-            @NonNull final HandleContext.TransactionCategory transactionCategory) {
+            @NonNull final HandleContext.TransactionCategory transactionCategory,
+            @NonNull final DispatchMetadata dispatchMetadata) {
         final var config = parentTxn.config();
         final var txnInfo = parentTxn.txnInfo();
         final var preHandleResult = parentTxn.preHandleResult();
@@ -339,6 +362,7 @@ public class ParentTxnFactory {
 
         final var readableStoreFactory = new ReadableStoreFactoryImpl(stack);
         final var entityNumGenerator = new EntityNumGeneratorImpl(entityIdStore);
+        final var nodeIdGenerator = new NodeIdGeneratorImpl(entityIdStore);
         final var writableStoreFactory =
                 new WritableStoreFactory(stack, serviceScopeLookup.getServiceName(txnInfo.txBody()), entityIdStore);
         final var serviceApiFactory = new ServiceApiFactory(stack, config, apiProviders, nodeFeeAccumulator);
@@ -366,13 +390,14 @@ public class ParentTxnFactory {
                 exchangeRateManager,
                 stack,
                 entityNumGenerator,
+                nodeIdGenerator,
                 dispatcher,
                 networkInfo,
                 childDispatchFactory,
                 dispatchProcessor,
                 throttleAdvisor,
                 feeAccumulator,
-                DispatchMetadata.EMPTY_METADATA,
+                dispatchMetadata,
                 transactionChecker,
                 preHandleResult.innerResults(),
                 preHandleWorkflow,

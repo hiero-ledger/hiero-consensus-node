@@ -37,7 +37,7 @@ class AddressBookServiceImplTest {
         verify(schemaRegistry, times(2)).register(schemaCaptor.capture());
         final var schemas = schemaCaptor.getAllValues();
         assertThat(schemas).hasSize(2);
-        assertThat(schemas.getFirst()).isInstanceOf(V053AddressBookSchema.class);
-        assertThat(schemas.getLast()).isInstanceOf(V068AddressBookSchema.class);
+        assertThat(schemas.get(0)).isInstanceOf(V053AddressBookSchema.class);
+        assertThat(schemas.get(1)).isInstanceOf(V068AddressBookSchema.class);
     }
 }
