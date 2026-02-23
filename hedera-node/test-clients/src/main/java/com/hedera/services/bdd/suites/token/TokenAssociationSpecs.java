@@ -183,6 +183,43 @@ public class TokenAssociationSpecs {
     }
 
     @HapiTest
+    final Stream<DynamicTest> canDeleteIntermediateNftTreasuryAfterTwoUpdates() {
+        final var originalTreasury = "originalTreasury";
+        final var intermediateTreasury = "intermediateTreasury";
+        final var finalTreasury = "finalTreasury";
+        final var token = "token";
+
+        return defaultHapiSpec("canDeleteIntermediateNftTreasuryAfterTwoUpdates")
+                .given(
+                        newKeyNamed(MULTI_KEY),
+                        cryptoCreate(originalTreasury),
+                        cryptoCreate(intermediateTreasury),
+                        cryptoCreate(finalTreasury),
+                        tokenCreate(token)
+                                .adminKey(MULTI_KEY)
+                                .tokenType(NON_FUNGIBLE_UNIQUE)
+                                .initialSupply(0L)
+                                .treasury(originalTreasury)
+                                .supplyKey(MULTI_KEY),
+                        mintToken(token, List.of(ByteString.copyFromUtf8("1"))))
+                .when(
+                        tokenAssociate(intermediateTreasury, token),
+                        tokenAssociate(finalTreasury, token),
+                        tokenUpdate(token)
+                                .treasury(intermediateTreasury)
+                                .signedByPayerAnd(MULTI_KEY, intermediateTreasury),
+                        tokenUpdate(token).treasury(finalTreasury).signedByPayerAnd(MULTI_KEY, finalTreasury))
+                .then(
+                        getAccountBalance(originalTreasury).hasTokenBalance(token, 0),
+                        getAccountBalance(intermediateTreasury).hasTokenBalance(token, 0),
+                        getAccountBalance(finalTreasury).hasTokenBalance(token, 1),
+                        // If numPositiveBalances isn't correctly incremented/decremented for the intermediate treasury,
+                        // this delete can fail with TRANSACTION_REQUIRES_ZERO_TOKEN_BALANCES even though its HTS
+                        // balance is zero.
+                        cryptoDelete(intermediateTreasury));
+    }
+
+    @HapiTest
     final Stream<DynamicTest> canDeleteNonFungibleTokenTreasuryBurnsAndTokenDeletion() {
         final var firstTbdToken = "firstTbdToken";
         final var secondTbdToken = "secondTbdToken";
