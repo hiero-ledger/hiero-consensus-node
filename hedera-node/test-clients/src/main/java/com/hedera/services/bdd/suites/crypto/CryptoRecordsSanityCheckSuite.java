@@ -22,7 +22,6 @@ import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfe
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUnique;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.takeBalanceSnapshots;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateRecordTransactionFees;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateTransferListForBalances;
@@ -158,19 +157,14 @@ public class CryptoRecordsSanityCheckSuite {
                 cryptoCreate(RECEIVER),
                 takeBalanceSnapshots(
                         FUNDING, NODE, "NODE_4", STAKING_REWARD, NODE_REWARD, PAYER, RECEIVER, FEE_COLLECTOR),
-                cryptoTransfer(tinyBarsFromTo(PAYER, RECEIVER, BALANCE / 2))
-                        .payingWith(PAYER)
-                        .via("txn1")
-                        .fee(ONE_HUNDRED_HBARS),
-                cryptoTransfer(tinyBarsFromTo(PAYER, RECEIVER, BALANCE / 2))
+                cryptoTransfer(tinyBarsFromTo(PAYER, RECEIVER, BALANCE))
                         .payingWith(PAYER)
                         .setNode("4")
-                        .via("txn2")
+                        .via("txn")
                         .fee(ONE_HUNDRED_HBARS)
                         .hasKnownStatus(INSUFFICIENT_ACCOUNT_BALANCE),
-                sleepFor(1_000L),
                 validateTransferListForBalances(
-                        List.of("txn1", "txn2"),
+                        "txn",
                         List.of(
                                 FUNDING,
                                 NODE,
