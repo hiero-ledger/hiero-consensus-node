@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.history.impl;
 
-import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.hapi.node.state.history.WrapsPhase.R1;
+import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
 import static com.hedera.node.app.history.schemas.V071HistorySchema.ACTIVE_PROOF_CONSTRUCTION_STATE_ID;
 import static com.hedera.node.app.history.schemas.V071HistorySchema.NEXT_PROOF_CONSTRUCTION_STATE_ID;
@@ -40,8 +40,8 @@ import com.hedera.node.app.fixtures.state.FakeServiceMigrator;
 import com.hedera.node.app.fixtures.state.FakeServicesRegistry;
 import com.hedera.node.app.fixtures.state.FakeState;
 import com.hedera.node.app.history.HistoryLibrary;
-import com.hedera.node.app.history.ReadableHistoryStore.WrapsMessagePublication;
 import com.hedera.node.app.history.HistoryService;
+import com.hedera.node.app.history.ReadableHistoryStore.WrapsMessagePublication;
 import com.hedera.node.app.history.schemas.V071HistorySchema;
 import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
 import com.hedera.node.app.service.entityid.impl.EntityIdServiceImpl;
@@ -316,7 +316,8 @@ class WritableHistoryStoreImplTest {
         assertEquals(2, updated.wrapsRetryCount());
         assertFalse(updated.hasFailureReason());
         assertTrue(updated.hasWrapsSigningState());
-        assertEquals(R1, updated.wrapsSigningStateOrElse(WrapsSigningState.DEFAULT).phase());
+        assertEquals(
+                R1, updated.wrapsSigningStateOrElse(WrapsSigningState.DEFAULT).phase());
         assertEquals(
                 0L,
                 state.getWritableStates(HistoryService.NAME)

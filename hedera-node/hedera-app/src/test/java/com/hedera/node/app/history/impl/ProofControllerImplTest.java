@@ -72,6 +72,9 @@ class ProofControllerImplTest {
     private HistoryProver prover;
 
     @Mock
+    private HistoryProofMetrics historyProofMetrics;
+
+    @Mock
     private WritableHistoryStore writableHistoryStore;
 
     @Mock
@@ -126,6 +129,7 @@ class ProofControllerImplTest {
                 historyLibrary,
                 proverFactory,
                 null,
+                historyProofMetrics,
                 DEFAULT_TSS_CONFIG);
     }
 
@@ -161,6 +165,7 @@ class ProofControllerImplTest {
                 historyLibrary,
                 proverFactory,
                 null,
+                historyProofMetrics,
                 DEFAULT_TSS_CONFIG);
 
         assertFalse(subject.isStillInProgress(DEFAULT_TSS_CONFIG));
@@ -188,6 +193,7 @@ class ProofControllerImplTest {
                 historyLibrary,
                 proverFactory,
                 null,
+                historyProofMetrics,
                 DEFAULT_TSS_CONFIG);
 
         assertFalse(subject.isStillInProgress(DEFAULT_TSS_CONFIG));
@@ -215,6 +221,7 @@ class ProofControllerImplTest {
                 historyLibrary,
                 proverFactory,
                 null,
+                historyProofMetrics,
                 DEFAULT_TSS_CONFIG);
 
         subject.advanceConstruction(Instant.EPOCH, METADATA, writableHistoryStore, true, tssConfig);
@@ -263,6 +270,7 @@ class ProofControllerImplTest {
                 historyLibrary,
                 proverFactory,
                 null,
+                historyProofMetrics,
                 DEFAULT_TSS_CONFIG);
 
         subject.advanceConstruction(Instant.EPOCH.plusSeconds(1), METADATA, writableHistoryStore, false, tssConfig);
@@ -292,6 +300,7 @@ class ProofControllerImplTest {
                 historyLibrary,
                 proverFactory,
                 null,
+                historyProofMetrics,
                 DEFAULT_TSS_CONFIG);
 
         given(writableHistoryStore.getLedgerId()).willReturn(Bytes.EMPTY);
@@ -329,6 +338,7 @@ class ProofControllerImplTest {
                 historyLibrary,
                 proverFactory,
                 null,
+                historyProofMetrics,
                 DEFAULT_TSS_CONFIG);
 
         final var proof = HistoryProof.newBuilder().build();
@@ -369,6 +379,7 @@ class ProofControllerImplTest {
                 historyLibrary,
                 proverFactory,
                 null,
+                historyProofMetrics,
                 DEFAULT_TSS_CONFIG);
 
         final var reason = "test-failure";
@@ -408,6 +419,7 @@ class ProofControllerImplTest {
                 historyLibrary,
                 proverFactory,
                 null,
+                historyProofMetrics,
                 DEFAULT_TSS_CONFIG);
 
         final var restarted = HistoryProofConstruction.newBuilder()
@@ -452,6 +464,7 @@ class ProofControllerImplTest {
                 historyLibrary,
                 proverFactory,
                 null,
+                historyProofMetrics,
                 DEFAULT_TSS_CONFIG);
 
         final var restarted = HistoryProofConstruction.newBuilder()
@@ -464,7 +477,8 @@ class ProofControllerImplTest {
         given(writableHistoryStore.restartWrapsSigning(CONSTRUCTION_ID, Set.of(SELF_ID, OTHER_NODE_ID)))
                 .willReturn(restarted);
 
-        subject.advanceConstruction(Instant.EPOCH.plusSeconds(1), null, writableHistoryStore, false, DEFAULT_TSS_CONFIG);
+        subject.advanceConstruction(
+                Instant.EPOCH.plusSeconds(1), null, writableHistoryStore, false, DEFAULT_TSS_CONFIG);
 
         verify(writableHistoryStore).getConstructionOrThrow(CONSTRUCTION_ID);
         verify(writableHistoryStore).restartWrapsSigning(CONSTRUCTION_ID, Set.of(SELF_ID, OTHER_NODE_ID));
@@ -493,6 +507,7 @@ class ProofControllerImplTest {
                 historyLibrary,
                 proverFactory,
                 null,
+                historyProofMetrics,
                 DEFAULT_TSS_CONFIG);
 
         final var publication = new ProofKeyPublication(SELF_ID, PROOF_KEY_1, Instant.EPOCH);
@@ -543,6 +558,7 @@ class ProofControllerImplTest {
                 historyLibrary,
                 proverFactory,
                 null,
+                historyProofMetrics,
                 DEFAULT_TSS_CONFIG);
 
         final var publication = new WrapsMessagePublication(SELF_ID, Bytes.EMPTY, R1, Instant.EPOCH);
@@ -588,13 +604,14 @@ class ProofControllerImplTest {
                 historyLibrary,
                 proverFactory,
                 null,
+                historyProofMetrics,
                 DEFAULT_TSS_CONFIG);
 
         final var vote = HistoryProofVote.newBuilder()
                 .proof(HistoryProof.newBuilder().build())
                 .build();
 
-        subject.addProofVote(SELF_ID, vote, writableHistoryStore);
+        subject.addProofVote(SELF_ID, vote, Instant.EPOCH, writableHistoryStore);
 
         verify(writableHistoryStore, never()).addProofVote(anyLong(), anyLong(), any());
     }
@@ -609,7 +626,7 @@ class ProofControllerImplTest {
         given(writableHistoryStore.completeProof(eq(CONSTRUCTION_ID), eq(proof)))
                 .willReturn(construction);
 
-        subject.addProofVote(SELF_ID, vote, writableHistoryStore);
+        subject.addProofVote(SELF_ID, vote, Instant.EPOCH, writableHistoryStore);
 
         verify(writableHistoryStore).addProofVote(eq(SELF_ID), eq(CONSTRUCTION_ID), eq(vote));
         verify(writableHistoryStore).completeProof(eq(CONSTRUCTION_ID), eq(proof));
@@ -637,6 +654,7 @@ class ProofControllerImplTest {
                 historyLibrary,
                 proverFactory,
                 null,
+                historyProofMetrics,
                 DEFAULT_TSS_CONFIG);
 
         final var congruentVote =
@@ -647,7 +665,7 @@ class ProofControllerImplTest {
         given(weights.sourceWeightThreshold()).willReturn(15L);
         given(writableHistoryStore.completeProof(eq(CONSTRUCTION_ID), any())).willReturn(construction);
 
-        subject.addProofVote(SELF_ID, congruentVote, writableHistoryStore);
+        subject.addProofVote(SELF_ID, congruentVote, Instant.EPOCH, writableHistoryStore);
 
         verify(writableHistoryStore).addProofVote(eq(SELF_ID), eq(CONSTRUCTION_ID), eq(congruentVote));
     }

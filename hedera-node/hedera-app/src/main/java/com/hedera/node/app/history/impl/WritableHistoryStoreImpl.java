@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.history.impl;
 
-import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.hapi.node.state.history.WrapsPhase.R1;
+import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.history.impl.ProofControllers.isWrapsExtensible;
 import static com.hedera.node.app.history.schemas.V071HistorySchema.ACTIVE_PROOF_CONSTRUCTION_STATE_ID;
 import static com.hedera.node.app.history.schemas.V071HistorySchema.LEDGER_ID_STATE_ID;
@@ -170,7 +170,8 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
     }
 
     @Override
-    public HistoryProofConstruction restartWrapsSigning(final long constructionId, @NonNull final Set<Long> sourceNodeIds) {
+    public HistoryProofConstruction restartWrapsSigning(
+            final long constructionId, @NonNull final Set<Long> sourceNodeIds) {
         requireNonNull(sourceNodeIds);
         sourceNodeIds.forEach(nodeId -> wrapsMessageHistories.remove(new ConstructionNodeId(constructionId, nodeId)));
         return updateOrThrow(constructionId, (c, b) -> b.wrapsSigningState(
