@@ -92,16 +92,16 @@ Examples:
 
 ```bash
 # Run all experiments once
-src/testPerformance/run-benchmark.sh
+src/testPerformance/scripts/run-benchmark.sh
 
 # Run all experiments 5 times each
-src/testPerformance/run-benchmark.sh all 5
+src/testPerformance/scripts/run-benchmark.sh all 5
 
 # Run only the combined experiment 3 times
-src/testPerformance/run-benchmark.sh combined 3
+src/testPerformance/scripts/run-benchmark.sh combined 3
 
 # Run only the baseline benchmark once
-src/testPerformance/run-benchmark.sh benchmark
+src/testPerformance/scripts/run-benchmark.sh benchmark
 ```
 
 ## Starting Grafana Independently
@@ -124,7 +124,7 @@ This imports metrics from the default path (`build/container/ConsensusLayerBench
 
 ```bash
 cd platform-sdk/consensus-otter-tests
-src/testPerformance/start-grafana.sh [--keep-data] [paths...]
+src/testPerformance/scripts/start-grafana.sh [--keep-data] [paths...]
 ```
 
 The script accepts files, directories, or glob patterns as arguments. When given a directory, it
@@ -135,21 +135,42 @@ Examples:
 
 ```bash
 # Import from a specific file
-src/testPerformance/start-grafana.sh /tmp/my-run/node-0/metrics.txt
+src/testPerformance/scripts/start-grafana.sh /tmp/my-run/node-0/metrics.txt
 
 # Point to a results directory (finds all metrics*.txt files inside)
-src/testPerformance/start-grafana.sh ~/benchmark-results/20260216-143022_avg-42/stats/
+src/testPerformance/scripts/start-grafana.sh ~/benchmark-results/20260216-143022_avg-42/stats/
 
 # Load multiple runs at once by passing several directories
-src/testPerformance/start-grafana.sh \
+src/testPerformance/scripts/start-grafana.sh \
   ~/benchmark-results/20260216-143022_avg-42/stats/ \
   ~/benchmark-results/20260216-150512_avg-38/stats/
 
 # Use a glob to load all saved runs
-src/testPerformance/start-grafana.sh ~/benchmark-results/*/stats/
+src/testPerformance/scripts/start-grafana.sh ~/benchmark-results/*/stats/
 
 # Append metrics from a new run without losing previously imported data
-src/testPerformance/start-grafana.sh --keep-data ~/benchmark-results/20260216-160000_avg-40/stats/
+src/testPerformance/scripts/start-grafana.sh --keep-data ~/benchmark-results/20260216-160000_avg-40/stats/
+```
+
+## Helper scripts
+
+To look for metrics from previous runs and choose which ones to import, use:
+
+```bash
+src/testPerformance/scripts/find-metrics.sh
+```
+
+To import metrics to an already running Grafana stack without restarting:
+
+```bash
+src/testPerformance/scripts/import-metrics.sh
+```
+
+To upload the dashboard JSON to Grafana (only needed if you want to modify the dashboard or start from a clean Grafana
+without preloaded dashboards):
+
+```bash
+src/testPerformance/scripts/upload-dashboards.sh
 ```
 
 ## Accessing the Visualization
@@ -166,7 +187,7 @@ The dashboard provides:
 ## Stopping the Stack
 
 ```bash
-src/testPerformance/start-grafana.sh --shutdown
+src/testPerformance/scripts/stop-grafana.sh
 ```
 
 This removes both containers, the data volume, and the Docker network.

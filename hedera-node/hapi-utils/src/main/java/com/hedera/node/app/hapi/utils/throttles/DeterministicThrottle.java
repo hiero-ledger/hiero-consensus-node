@@ -218,6 +218,18 @@ public class DeterministicThrottle implements CongestibleThrottle {
         }
         return delegate.instantaneousPercentUsed();
     }
+    /**
+     * Returns the percent usage of this throttle in hundredths of a percent, at the time of the last throttling decision, or
+     * zero if no throttling decision has been made.
+     *
+     * @return the percent usage in hundredths of a percent at the time of the last throttling decision
+     */
+    public int instantaneousBps() {
+        if (lastDecisionTime == null) {
+            return 0;
+        }
+        return delegate.instantaneousBps();
+    }
 
     /**
      * Resets the usage of this throttle to the state of a prior snapshot.
@@ -308,5 +320,19 @@ public class DeterministicThrottle implements CongestibleThrottle {
         final var elapsedSeconds = Math.subtractExact(end.getEpochSecond(), start.getEpochSecond());
         final var elapsedNanos = Math.multiplyExact(elapsedSeconds, NANOS_PER_SECOND);
         return Math.addExact(elapsedNanos, end.getNano() - start.getNano());
+    }
+    /**
+     * Leaks the capacity from the bucket up to the provided instant.
+     * @param now - the instant up to which the capacity should be leaked.
+     */
+    public void leakUntil(final Instant now) {
+        requireNonNull(now);
+        final var elapsedNanos = nanosBetween(lastDecisionTime, now);
+        if (elapsedNanos < 0L) {
+            throw new IllegalArgumentException(
+                    "Throttle timeline must advance, but " + now + " is not after " + lastDecisionTime);
+        }
+        lastDecisionTime = now;
+        delegate.leakFor(elapsedNanos);
     }
 }

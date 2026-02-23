@@ -160,6 +160,11 @@ public class ProtectedFilesUpdateSuite {
     }
 
     @LeakyEmbeddedHapiTest(reason = NEEDS_STATE_ACCESS)
+    final Stream<DynamicTest> account50CanUpdateSimpleFeeSchedule() {
+        return specialAccountCanUpdateSpecialFile(SYSTEM_ADMIN, SIMPLE_FEE_SCHEDULE, IGNORE, IGNORE);
+    }
+
+    @LeakyEmbeddedHapiTest(reason = NEEDS_STATE_ACCESS)
     final Stream<DynamicTest> account56CanUpdateFeeSchedule() {
         return specialAccountCanUpdateSpecialFile(FEE_SCHEDULE_CONTROL, FEE_SCHEDULE, IGNORE, IGNORE);
     }

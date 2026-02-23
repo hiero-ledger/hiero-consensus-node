@@ -123,7 +123,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 
 @ExtendWith({MockitoExtension.class, LogCaptureExtension.class})
-class ThrottleAccumulatorTest {
+public class ThrottleAccumulatorTest {
 
     private static final int CAPACITY_SPLIT = 2;
     private static final Instant TIME_INSTANT = Instant.ofEpochSecond(1_234_567L, 123);
@@ -2109,10 +2109,10 @@ class ThrottleAccumulatorTest {
 
         // then - should eventually be throttled
         assertTrue(throttled, "High-volume transactions should eventually be throttled");
-        assertEquals(
-                10_000,
-                subject.getHighVolumeThrottleInstantaneousUtilization(CRYPTO_CREATE),
-                "High-volume utilization should be reported in basis points");
+        assertTrue(
+                subject.getHighVolumeThrottleInstantaneousUtilizationBps(CRYPTO_CREATE, TIME_INSTANT.plusNanos(2_100))
+                        >= 9_999,
+                "High-volume utilization should be near saturation in basis points");
     }
 
     @ParameterizedTest
