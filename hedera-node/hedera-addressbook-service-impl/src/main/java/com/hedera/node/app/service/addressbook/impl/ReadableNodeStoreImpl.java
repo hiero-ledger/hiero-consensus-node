@@ -10,7 +10,7 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
-import com.hedera.node.app.spi.ids.ReadableEntityCounters;
+import com.hedera.node.app.service.entityid.ReadableEntityCounters;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;

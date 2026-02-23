@@ -4,11 +4,11 @@ package org.hiero.otter.fixtures.assertions;
 import static org.hiero.otter.fixtures.result.SubscriberAction.CONTINUE;
 import static org.hiero.otter.fixtures.result.SubscriberAction.UNSUBSCRIBE;
 
-import com.swirlds.platform.test.fixtures.consensus.framework.validation.ConsensusRoundValidator;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
 import java.util.stream.Stream;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.framework.validation.ConsensusRoundValidator;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.result.ConsensusRoundSubscriber;
@@ -19,8 +19,8 @@ import org.hiero.otter.fixtures.result.SubscriberAction;
  * Continuous assertions for {@link SingleNodeConsensusResult}.
  *
  * <p>Please note: If two continuous assertions fail roughly at the same time, it is non-deterministic which one
- * will report the failure first. This is even true when running a test in the Turtle environment.
- * If deterministic behavior is required, please use regular assertions instead of continuous assertions.
+ * will report the failure first. This is even true when running a test in the Turtle environment. If deterministic
+ * behavior is required, please use regular assertions instead of continuous assertions.
  */
 @SuppressWarnings({"UnusedReturnValue", "unused"})
 public class SingleNodeConsensusResultContinuousAssert
@@ -65,15 +65,15 @@ public class SingleNodeConsensusResultContinuousAssert
             private ConsensusRound lastRound = null;
 
             @Override
-            public SubscriberAction onConsensusRounds(
-                    @NonNull final NodeId nodeId, final @NonNull List<ConsensusRound> rounds) {
+            public SubscriberAction onConsensusRound(
+                    @NonNull final NodeId nodeId, final @NonNull ConsensusRound round) {
                 return switch (state) {
                     case ACTIVE -> {
                         final List<ConsensusRound> includingLast = Stream.concat(
-                                        Stream.ofNullable(lastRound), rounds.stream())
+                                        Stream.ofNullable(lastRound), Stream.of(round))
                                 .toList();
                         ConsensusRoundValidator.validate(includingLast);
-                        lastRound = rounds.getLast();
+                        lastRound = round;
                         yield CONTINUE;
                     }
                     case PAUSED -> CONTINUE;

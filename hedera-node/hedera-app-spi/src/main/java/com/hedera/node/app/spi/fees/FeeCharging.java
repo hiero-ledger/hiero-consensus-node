@@ -131,19 +131,47 @@ public interface FeeCharging {
     }
 
     /**
+     * Charges the fees for the given validation to the primary payer in the given context.
+     * @param ctx the context in which fees may be charged
+     * @param validation the validation of the charging scenario
+     * @param fees the fees to be charged to the primary payer
+     * @return the total fees charged
+     */
+    default Fees charge(@NonNull Context ctx, @NonNull Validation validation, @NonNull Fees fees) {
+        return charge(ctx.payerId(), ctx, validation, fees);
+    }
+
+    /**
      * Charges the fees for the given validation in the given context.
-     *
+     * @param payerId the account to be charged
      * @param ctx the context in which fees may be charged
      * @param validation the validation of the charging scenario
      * @param fees the fees to be charged
      * @return the total fees charged
      */
-    Fees charge(@NonNull Context ctx, @NonNull Validation validation, @NonNull Fees fees);
+    Fees charge(@NonNull AccountID payerId, @NonNull Context ctx, @NonNull Validation validation, @NonNull Fees fees);
 
     /**
      * Refunds the fees for the given validation in the given context.
      * @param ctx the context in which fees may be refunded
      * @param fees the fees to be refunded
      */
-    void refund(@NonNull Context ctx, @NonNull Fees fees);
+    default void refund(@NonNull Context ctx, @NonNull Fees fees) {
+        refund(ctx.payerId(), ctx, fees);
+    }
+
+    /**
+     * Refunds the fees for the given payer in the given context.
+     * @param payerId the account to be refunded
+     * @param ctx the context in which fees may be refunded
+     * @param fees the fees to be refunded
+     */
+    void refund(@NonNull AccountID payerId, @NonNull Context ctx, @NonNull Fees fees);
+
+    /**
+     * Whether the dispatch context should bypass this strategy when charging handler-assessed fees.
+     */
+    default boolean bypassForExtraHandlerCharges() {
+        return false;
+    }
 }

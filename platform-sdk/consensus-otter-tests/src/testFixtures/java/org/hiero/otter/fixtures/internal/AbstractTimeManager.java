@@ -12,7 +12,7 @@ import java.util.function.BooleanSupplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.otter.fixtures.TimeManager;
-import org.hiero.otter.fixtures.util.TimeoutException;
+import org.hiero.otter.fixtures.exceptions.TimeoutException;
 
 /**
  * An abstract implementation of {@link TimeManager} that contains all functionality shared between the different
@@ -25,8 +25,8 @@ public abstract class AbstractTimeManager implements TimeManager {
 
     private static final Logger log = LogManager.getLogger();
 
-    private final Duration granularity;
-    private final List<TimeTickReceiver> timeTickReceivers = new CopyOnWriteArrayList<>();
+    protected final Duration granularity;
+    protected final List<TimeTickReceiver> timeTickReceivers = new CopyOnWriteArrayList<>();
 
     /**
      * Constructor for the {@link AbstractTimeManager} class.

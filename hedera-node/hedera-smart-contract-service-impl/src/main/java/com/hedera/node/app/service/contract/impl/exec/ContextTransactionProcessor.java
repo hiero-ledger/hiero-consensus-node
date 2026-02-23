@@ -6,6 +6,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
+import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.streams.ContractBytecode;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.node.app.service.contract.impl.annotations.TransactionScope;
@@ -35,7 +36,6 @@ import java.util.OptionalLong;
 import java.util.concurrent.Callable;
 import java.util.function.Supplier;
 import javax.inject.Inject;
-import org.hyperledger.besu.evm.tracing.OperationTracer;
 
 /**
  * A small utility that runs the * {@code #processTransaction()} call implied by the
@@ -52,7 +52,7 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
     private final HydratedEthTxData hydratedEthTxData;
 
     @Nullable
-    private final Supplier<List<OperationTracer>> addOnTracers;
+    private final Supplier<List<ActionSidecarContentTracer>> addOnTracers;
 
     private final TransactionProcessor processor;
     private final EvmActionTracer evmActionTracer;
@@ -67,7 +67,7 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
      * @param contractsConfig the contracts configuration to use
      * @param configuration the configuration to use
      * @param hederaEvmContext the hedera EVM context
-     * @param addOnTracers all operation tracer callbacks
+     * @param addOnTracers all action sidecar content tracer callbacks
      * @param evmActionTracer the EVM action tracer
      * @param worldUpdater the world updater for the transaction
      * @param hevmTransactionFactory the factory for EVM transaction
@@ -81,7 +81,7 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
             @NonNull final ContractsConfig contractsConfig,
             @NonNull final Configuration configuration,
             @NonNull final HederaEvmContext hederaEvmContext,
-            @Nullable Supplier<List<OperationTracer>> addOnTracers,
+            @Nullable Supplier<List<ActionSidecarContentTracer>> addOnTracers,
             @NonNull final EvmActionTracer evmActionTracer,
             @NonNull final RootProxyWorldUpdater worldUpdater,
             @NonNull final HevmTransactionFactory hevmTransactionFactory,
@@ -115,11 +115,29 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
         // the error.
         final var hevmTransaction = safeCreateHevmTransaction();
         if (hevmTransaction.isException()) {
-            final var outcome = maybeChargeFeesAndReturnOutcome(
-                    hevmTransaction,
-                    context.body().transactionIDOrThrow().accountIDOrThrow(),
-                    rootProxyWorldUpdater.getHederaAccount(hevmTransaction.senderId()),
-                    contractsConfig.chargeGasOnEvmHandleException());
+            CallOutcome outcome;
+            if (hevmTransaction.hookDispatch() != null) {
+                final var result = HederaEvmTransactionResult.fromAborted(
+                        hevmTransaction.senderId(),
+                        hevmTransaction.contractId(),
+                        requireNonNull(hevmTransaction.exception()).getStatus());
+                final var hookId = hevmTransaction.maybeHookId();
+                outcome = CallOutcome.fromResultsWithoutSidecars(
+                        result.asProtoResultOf(null, rootProxyWorldUpdater, null),
+                        result.asEvmTxResultOf(null, rootProxyWorldUpdater, null, hookId),
+                        null,
+                        null,
+                        null,
+                        result);
+            } else {
+                outcome = maybeChargeFeesAndReturnOutcome(
+                        hevmTransaction,
+                        context.body()
+                                .transactionIDOrElse(TransactionID.DEFAULT)
+                                .accountIDOrElse(AccountID.DEFAULT),
+                        rootProxyWorldUpdater.getHederaAccount(hevmTransaction.senderId()),
+                        contractsConfig.chargeGasOnEvmHandleException());
+            }
 
             final var elapsedNanos = System.nanoTime() - startTimeNanos;
             recordProcessedTransactionToMetrics(hevmTransaction, outcome, elapsedNanos, 0L);
@@ -131,8 +149,11 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
                 rootProxyWorldUpdater.enhancement().operations().getThrottleAdviser();
         final var opsDurationThrottleEnabled =
                 contractsConfig.throttleThrottleByOpsDuration() && throttleAdviser != null;
+        final var shouldApplyOpsDurationThrottle = opsDurationThrottleEnabled
+                && !context.body().transactionIDOrElse(TransactionID.DEFAULT).scheduled();
+
         final OpsDurationCounter opsDurationCounter;
-        if (opsDurationThrottleEnabled) {
+        if (shouldApplyOpsDurationThrottle) {
             final boolean hasAnyCapacityLeft = throttleAdviser.availableOpsDurationCapacity() > 0;
             if (!hasAnyCapacityLeft) {
                 contractMetrics.opsDurationMetrics().recordTransactionThrottledByOpsDuration();
@@ -183,19 +204,20 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
                 requireNonNull(hederaEvmContext.streamBuilder()).addContractBytecode(contractBytecode, false);
             }
 
+            final var hookId = hevmTransaction.maybeHookId();
             final var callData = (hydratedEthTxData != null && hydratedEthTxData.ethTxData() != null)
                     ? Bytes.wrap(hydratedEthTxData.ethTxData().callData())
                     : null;
             final var outcome = CallOutcome.fromResultsWithMaybeSidecars(
                     result.asProtoResultOf(ethTxDataIfApplicable(), rootProxyWorldUpdater, callData),
-                    result.asEvmTxResultOf(ethTxDataIfApplicable(), callData),
+                    result.asEvmTxResultOf(ethTxDataIfApplicable(), rootProxyWorldUpdater, callData, hookId),
                     result.isSuccess() ? rootProxyWorldUpdater.getUpdatedContractNonces() : null,
                     result.isSuccess() ? rootProxyWorldUpdater.getCreatedContractIds() : null,
                     result.isSuccess() ? result.evmAddressIfCreatedIn(rootProxyWorldUpdater) : null,
                     result);
 
             // Update the ops duration throttle
-            if (opsDurationThrottleEnabled) {
+            if (shouldApplyOpsDurationThrottle) {
                 throttleAdviser.consumeOpsDurationThrottleCapacity(opsDurationCounter.opsDurationUnitsConsumed());
             }
 
@@ -215,7 +237,7 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
                     hevmTransaction.isContractCall() && contractsConfig.chargeGasOnEvmHandleException());
 
             // Update the ops duration throttle
-            if (opsDurationThrottleEnabled) {
+            if (shouldApplyOpsDurationThrottle) {
                 throttleAdviser.consumeOpsDurationThrottleCapacity(opsDurationCounter.opsDurationUnitsConsumed());
             }
 
@@ -243,7 +265,6 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
             validatePayloadLength(hevmTransaction);
             return hevmTransaction;
         } catch (HandleException e) {
-            // Return a HederaEvmTransaction that represents the error in order to charge fees to the sender
             return hevmTransactionFactory.fromContractTxException(context.body(), e);
         }
     }
@@ -279,13 +300,13 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
         if (context.body().hasEthereumTransaction() && sender != null) {
             result = result.withSignerNonce(sender.getNonce());
         }
-
+        final var hookId = hevmTransaction.maybeHookId();
         final var ethCallData = (hydratedEthTxData != null && hydratedEthTxData.ethTxData() != null)
                 ? Bytes.wrap(hydratedEthTxData.ethTxData().callData())
                 : null;
         return CallOutcome.fromResultsWithoutSidecars(
                 result.asProtoResultOf(ethTxDataIfApplicable(), rootProxyWorldUpdater, ethCallData),
-                result.asEvmTxResultOf(ethTxDataIfApplicable(), ethCallData),
+                result.asEvmTxResultOf(ethTxDataIfApplicable(), rootProxyWorldUpdater, ethCallData, hookId),
                 null,
                 null,
                 null,

@@ -1,36 +1,36 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Configuration status="WARN">
     <Appenders>
-        <Console name="SummaryConsoleAppender" target="SYSTEM_OUT">
-            <PatternLayout pattern="%msg%n%throwable"/>
-        </Console>
-      <Console name="StateAnalysisConsoleAppender" target="SYSTEM_OUT">
-        <PatternLayout pattern="%msg%n%throwable"/>
+      <Console name="SummaryConsoleAppender" target="SYSTEM_OUT">
+          <PatternLayout pattern="%msg%n%throwable"/>
       </Console>
-        <RollingFile name="FileAppender" fileName="validator.log"
-                     filePattern="validator-%d{yyyy-MM-dd}-%i.log.gz">
-            <PatternLayout pattern="%d [%t] %-5level %logger{36} - %msg%n%throwable"/>
-            <Policies>
-                <SizeBasedTriggeringPolicy size="10 MB"/>
-            </Policies>
-            <DefaultRolloverStrategy max="1000"/>
-        </RollingFile>
+      <Console name="StateAnalysisConsoleAppender" target="SYSTEM_OUT">
+          <PatternLayout pattern="%msg%n%throwable"/>
+      </Console>
       <File name="StateAnalysisFileAppender" fileName="state-analysis.log">
-        <PatternLayout pattern="%d [%t] %-5level %logger{36} - %msg%n%throwable"/>
+          <PatternLayout pattern="%d [%t] %-5level %logger{36} - %msg%n%throwable"/>
       </File>
+      <RollingFile name="FileAppender" fileName="validator.log"
+                   filePattern="validator-%d{yyyy-MM-dd}-%i.log.gz">
+          <PatternLayout pattern="%d [%t] %-5level %logger{36} - %msg%n%throwable"/>
+          <Policies>
+              <SizeBasedTriggeringPolicy size="10 MB"/>
+          </Policies>
+          <DefaultRolloverStrategy max="1000"/>
+      </RollingFile>
     </Appenders>
     <Loggers>
-      <Logger name="com.hedera.statevalidation.listener.SummaryGeneratingListener" level="INFO">
-        <AppenderRef ref="SummaryConsoleAppender"/>
+      <Logger name="com.hedera.statevalidation.validator.listener.SummaryGeneratingListener" level="INFO">
+          <AppenderRef ref="SummaryConsoleAppender"/>
       </Logger>
       <Logger name="com.hedera.statevalidation.AnalyzeCommand" level="INFO">
-        <AppenderRef ref="StateAnalysisConsoleAppender"/>
+          <AppenderRef ref="StateAnalysisConsoleAppender"/>
       </Logger>
-        <Root level="DEBUG">
-            <AppenderRef ref="FileAppender"/>
-        </Root>
       <Logger name="com.hedera.statevalidation.AnalyzeCommand" level="INFO">
-        <AppenderRef ref="StateAnalysisFileAppender"/>
+          <AppenderRef ref="StateAnalysisFileAppender"/>
       </Logger>
+      <Root level="DEBUG">
+          <AppenderRef ref="FileAppender"/>
+      </Root>
     </Loggers>
 </Configuration>

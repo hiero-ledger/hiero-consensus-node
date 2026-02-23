@@ -1,61 +1,73 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.statevalidation;
 
-import static picocli.CommandLine.*;
-
-import com.hedera.statevalidation.exporters.JsonExporter;
-import com.hedera.statevalidation.parameterresolver.StateResolver;
-import com.swirlds.platform.state.snapshot.DeserializedSignedState;
-import com.swirlds.state.MerkleNodeState;
-import com.swirlds.virtualmap.VirtualMap;
+import com.hedera.statevalidation.exporter.JsonExporter;
+import com.hedera.statevalidation.util.StateUtils;
+import com.swirlds.state.merkle.VirtualMapState;
 import java.io.File;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
+import picocli.CommandLine.ParentCommand;
 
 @Command(name = "export", description = "Exports the state.")
 public class ExportCommand implements Runnable {
 
-    public static final int MAX_OBJ_PER_FILE = Integer.parseInt(System.getProperty("maxObjPerFile", "1000000"));
-    public static final boolean PRETTY_PRINT_ENABLED = Boolean.parseBoolean(System.getProperty("prettyPrint", "false"));
+    private static final Logger log = LogManager.getLogger(ExportCommand.class);
 
     @ParentCommand
     private StateOperatorCommand parent;
 
-    @Parameters(index = "0", arity = "1", description = "Result directory")
-    private String resultDirStr;
-
-    @Parameters(index = "1", arity = "0..1", description = "Service name")
+    @Option(
+            names = {"-s", "--service-name"},
+            description = "Service name.")
     private String serviceName;
 
-    @Parameters(index = "2", arity = "0..1", description = "State name")
-    private String stateName;
+    @Option(
+            names = {"-k", "--state-key"},
+            description = "State key.")
+    private String stateKey;
+
+    @Option(
+            names = {"-f", "--first-leaf-path"},
+            defaultValue = "-1",
+            description =
+                    "First leaf path in the export range (inclusive). If not specified, defaults to the actual first leaf path in the supplied state. Must be within the range of actual leaf paths in the supplied state.")
+    private long firstLeafPath;
+
+    @Option(
+            names = {"-l", "--last-leaf-path"},
+            defaultValue = "-1",
+            description =
+                    "Last leaf path in the export range (inclusive). If not specified, defaults to the actual last leaf path in the supplied state. Must be within the range of actual leaf paths in the supplied state.")
+    private long lastLeafPath;
+
+    @Option(
+            names = {"-o", "--out"},
+            required = true,
+            description = "Directory where the exported JSON files are written. Must exist before invocation.")
+    private String outputDirStr;
 
     @Override
     public void run() {
-        System.setProperty("state.dir", parent.getStateDir().getAbsolutePath());
-        File resultDir = new File(resultDirStr);
-        if (!resultDir.exists()) {
-            throw new RuntimeException(resultDir.getAbsolutePath() + " does not exist");
+        parent.initializeStateDir();
+        final File outputDir = new File(outputDirStr);
+        if (!outputDir.exists()) {
+            throw new RuntimeException(outputDir.getAbsolutePath() + " does not exist");
         }
-        if (!resultDir.isDirectory()) {
-            throw new RuntimeException(resultDir.getAbsolutePath() + " is not a directory");
+        if (!outputDir.isDirectory()) {
+            throw new RuntimeException(outputDir.getAbsolutePath() + " is not a directory");
         }
 
-        MerkleNodeState state;
-        System.out.println("Initializing the state");
+        log.debug("Initializing the state...");
         long start = System.currentTimeMillis();
-        try {
-            DeserializedSignedState deserializedSignedState = StateResolver.initState();
-            state = deserializedSignedState.reservedSignedState().get().getState();
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+        final VirtualMapState state = StateUtils.getDefaultState();
+        log.debug("State has been initialized in {} seconds.", (System.currentTimeMillis() - start) / 1000);
 
-        System.out.printf("State has been initialized in %d seconds. \n", (System.currentTimeMillis() - start) / 1000);
-
-        ((VirtualMap) state.getRoot()).getDataSource().stopAndDisableBackgroundCompaction();
-
-        final JsonExporter exporter = new JsonExporter(resultDir, state, serviceName, stateName);
+        final JsonExporter exporter =
+                new JsonExporter(outputDir, state, serviceName, stateKey, firstLeafPath, lastLeafPath);
         exporter.export();
-
-        System.out.printf("Total time is  %d seconds. \n", (System.currentTimeMillis() - start) / 1000);
+        log.debug("Total time is {} seconds.", (System.currentTimeMillis() - start) / 1000);
     }
 }

@@ -25,7 +25,7 @@ permissions:
 jobs:
   canonical-test:
     name: Canonical
-    runs-on: hiero-citr-linux-medium
+    runs-on: hl-cn-sdct-lin-sm
 
     timeout-minutes: 90 # max one hour timeout
 
@@ -288,7 +288,7 @@ jobs:
     name: Report Failures to Rootly
     needs: canonical-test
     if: ${{ needs.canonical-test.result != 'success' }}
-    runs-on: hiero-citr-linux-medium
+    runs-on: hl-cn-sdct-lin-sm
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
@@ -352,7 +352,7 @@ jobs:
           details: ${{ steps.rootly-summary.outputs.summary }}
           notification_target_type: "Service"
           notification_target: ${{ steps.set-service.outputs.service }}
-          set_as_noise: "true"
+          set_as_noise: "false"
           alert_urgency: "High"
           environments: "CITR"
           external_id: ${{ github.run_id }}

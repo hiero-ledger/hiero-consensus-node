@@ -3,13 +3,17 @@ package org.hiero.consensus.event.creator;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
+import com.swirlds.component.framework.component.InputWireLabel;
+import com.swirlds.component.framework.model.WiringModel;
+import com.swirlds.component.framework.wires.input.InputWire;
+import com.swirlds.component.framework.wires.output.OutputWire;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.security.SecureRandom;
 import java.time.Duration;
 import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.gossip.SyncProgress;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
@@ -26,17 +30,19 @@ public interface EventCreatorModule {
     /**
      * Initialize the event creator
      *
+     * @param model                     the wiring model for this component
      * @param configuration             provides the configuration for the event creator
      * @param metrics                   provides the metrics for the event creator
      * @param time                      provides the time source for the event creator
      * @param random                    provides the secure random source for the event creator
-     * @param keysAndCerts              provides the key for signing events
+     * @param keysAndCerts              provides the keys and certificates for this node
      * @param roster                    provides the current roster
      * @param selfId                    the ID of this node
      * @param transactionSupplier       provides transactions to include in events
      * @param signatureTransactionCheck checks for pending signature transactions
      */
     void initialize(
+            @NonNull WiringModel model,
             @NonNull Configuration configuration,
             @NonNull Metrics metrics,
             @NonNull Time time,
@@ -48,59 +54,111 @@ public interface EventCreatorModule {
             @NonNull SignatureTransactionCheck signatureTransactionCheck);
 
     /**
-     * Attempt to create an event.
+     * {@link OutputWire} for new self events created by this component.
      *
-     * @return the created event, or null if no event was created
+     * @return the {@link OutputWire} for the new self events
      */
-    @Nullable
-    PlatformEvent maybeCreateEvent();
+    @NonNull
+    OutputWire<PlatformEvent> createdEventOutputWire();
 
     /**
-     * Register a new event from event intake.
+     * {@link InputWire} for valid, ordered, and recorded events received from the
+     * {@code EventIntake} module.
      *
-     * @param event the event to add
+     * @return the {@link InputWire} for the received events
      */
-    void registerEvent(@NonNull PlatformEvent event);
+    @InputWireLabel("PlatformEvent")
+    @NonNull
+    InputWire<PlatformEvent> orderedEventInputWire();
 
     /**
-     * Update the event window, defining the minimum threshold for an event to be non-ancient.
+     * {@link InputWire} for the event window received from the {@code Hashgraph} component.
      *
-     * @param eventWindow the event window
+     * @return the {@link InputWire} for the event window
      */
-    void setEventWindow(@NonNull EventWindow eventWindow);
+    @InputWireLabel("event window")
+    @NonNull
+    InputWire<EventWindow> eventWindowInputWire();
 
     /**
-     * Update the platform status.
+     * {@link InputWire} for the platform status received from the {@code StatusStateMachine}.
      *
-     * @param platformStatus the new platform status
+     * @return the {@link InputWire} for the platform status
      */
-    void updatePlatformStatus(@NonNull PlatformStatus platformStatus);
+    @InputWireLabel("PlatformStatus")
+    @NonNull
+    InputWire<PlatformStatus> platformStatusInputWire();
 
     /**
-     * Report the amount of time that the system has been in an unhealthy state. Will receive a report of
-     * {@link Duration#ZERO} when the system enters a healthy state.
+     * {@link InputWire} for the health status of the consensus module received from the
+     * {@code HealthMonitor}. The health status is represented as a {@link Duration} indicating the
+     * time since the system became unhealthy.
      *
-     * @param duration the amount of time that the system has been in an unhealthy state
+     * @return the {@link InputWire} for the health status
      */
-    void reportUnhealthyDuration(@NonNull final Duration duration);
+    @InputWireLabel("health info")
+    @NonNull
+    InputWire<Duration> healthStatusInputWire();
 
     /**
-     * Report the lag in rounds behind the other nodes. A negative value means we are ahead of the other nodes.
+     * {@link InputWire} for the sync progress. The sync information is provided for specific peers. The
+     * {@link EventCreatorModule} can use this information to compute the round lag or any other information it needs
+     * to control event creation.
      *
-     * @param lag the lag in rounds behind the other nodes
+     * @return the {@link InputWire} for the sync round lag
      */
-    void reportSyncRoundLag(@NonNull Double lag);
+    @InputWireLabel("sync progress")
+    @NonNull
+    InputWire<SyncProgress> syncProgressInputWire();
 
     /**
-     * Set the quiescence state of this event creator. The event creator will always behave according to the most
-     * recent quiescence command that it has been given.
+     * {@link InputWire} for the quiescence command. The event creator will always behave according to the most recent
+     * quiescence command that it has been given.
      *
-     * @param quiescenceCommand the quiescence command
+     * @return the {@link InputWire} for the sync round lag
      */
-    void quiescenceCommand(@NonNull QuiescenceCommand quiescenceCommand);
+    @InputWireLabel("quiescence")
+    @NonNull
+    InputWire<QuiescenceCommand> quiescenceCommandInputWire();
 
     /**
-     * Clear the internal state of the event creation manager.
+     * Destroys the module.
      */
-    void clear();
+    void destroy();
+
+    // **************************************************************
+    // Temporary workaround to allow reuse of the EventCreator module
+    // **************************************************************
+
+    /**
+     * Starts squelching the internal event creation manager.
+     *
+     * <p>Please note that this method is a temporary workaround and will be removed in the future.
+     */
+    void startSquelching();
+
+    /**
+     * Flushes all events of the internal event creation manager.
+     *
+     * <p>Please note that this method is a temporary workaround and will be removed in the future.
+     */
+    void flush();
+
+    /**
+     * Stops squelching the internal event creation manager.
+     *
+     * <p>Please note that this method is a temporary workaround and will be removed in the future.
+     */
+    void stopSquelching();
+
+    /**
+     * Get an {@link InputWire} to clear the internal state of the internal event creation manager.
+     *
+     * <p>Please note that this method is a temporary workaround and will be removed in the future.
+     *
+     * @return the {@link InputWire} to clear the event creation manager
+     */
+    @InputWireLabel("clear")
+    @NonNull
+    InputWire<Object> clearCreationMangerInputWire();
 }

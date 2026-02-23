@@ -70,7 +70,8 @@ public class CustomCreate2Operation extends AbstractCustomCreateOperation {
         if (updater.isHollowAccount(alias) && !featureFlags.isImplicitCreationEnabled()) {
             return null;
         }
-        updater.setupInternalAliasedCreate(frame.getRecipientAddress(), alias);
+        final var sender = getSenderAddress(frame);
+        updater.setupInternalAliasedCreate(sender, alias);
         frame.warmUpAddress(alias);
         return alias;
     }

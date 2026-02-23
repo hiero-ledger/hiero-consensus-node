@@ -134,14 +134,6 @@ public class ValidationResultTest {
     }
 
     @Test
-    public void testPayerOrThrow() {
-        ValidationResult report =
-                new ValidationResult(CREATOR_ACCOUNT_ID, null, PAYER_ACCOUNT, null, CAN_PAY_SERVICE_FEE, NO_DUPLICATE);
-
-        assertEquals(PAYER_ACCOUNT, report.payerOrThrow());
-    }
-
-    @Test
     public void testWithoutServiceFee() {
         ValidationResult report =
                 new ValidationResult(CREATOR_ACCOUNT_ID, null, PAYER_ACCOUNT, null, CAN_PAY_SERVICE_FEE, NO_DUPLICATE);

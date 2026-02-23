@@ -210,13 +210,13 @@ public class SteadyStateThrottlingTest {
                         blockingOrder(
                                 uploadInitCode(PAYABLE_CONTRACT),
                                 contractCreate(PAYABLE_CONTRACT),
-                                cryptoCreate(CIVILIAN).balance(ONE_MILLION_HBARS),
+                                cryptoCreate("competitor").balance(ONE_MILLION_HBARS),
                                 runWithProvider(spec -> () -> Optional.of(
                                                 contractCall(PAYABLE_CONTRACT, "deposit", BigInteger.valueOf(1_000L))
                                                         .fee(10 * ONE_HBAR)
                                                         .deferStatusResolution()
                                                         .hasPrecheckFrom(INVALID_SIGNATURE, BUSY, OK)
-                                                        .payingWith(CIVILIAN)
+                                                        .payingWith("competitor")
                                                         .signedBy(GENESIS)
                                                         .hasKnownStatusFrom(PERMITTED_STATUSES)
                                                         .noLogging()))
@@ -227,13 +227,13 @@ public class SteadyStateThrottlingTest {
                         2,
                         blockingOrder(
                                 createTopic("ntb"),
-                                cryptoCreate(CIVILIAN).balance(ONE_MILLION_HBARS),
+                                cryptoCreate("competitor").balance(ONE_MILLION_HBARS),
                                 runWithProvider(spec -> () -> Optional.of(submitMessageTo("ntb")
                                                 .omittingTopicId()
                                                 .fee(ONE_HBAR)
                                                 .deferStatusResolution()
                                                 .hasPrecheckFrom(INVALID_TOPIC_ID, BUSY)
-                                                .payingWith(CIVILIAN)
+                                                .payingWith("competitor")
                                                 .hasKnownStatusFrom(PERMITTED_STATUSES)
                                                 .noLogging()))
                                         .lasting(duration::get, unit::get)

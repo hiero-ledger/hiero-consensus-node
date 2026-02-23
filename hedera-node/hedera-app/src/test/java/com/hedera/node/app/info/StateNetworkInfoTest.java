@@ -17,19 +17,18 @@ import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
-import com.hedera.node.app.ids.EntityIdService;
-import com.hedera.node.app.ids.schemas.V0590EntityIdSchema;
 import com.hedera.node.app.service.addressbook.AddressBookService;
+import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.node.internal.network.Network;
-import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.state.spi.ReadableStates;
 import java.util.List;
+import org.hiero.consensus.platformstate.PlatformStateService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -66,10 +65,6 @@ public class StateNetworkInfoTest {
         when(configProvider.getConfiguration())
                 .thenReturn(new VersionedConfigImpl(HederaTestConfigBuilder.createConfig(), 1));
         when(state.getReadableStates(EntityIdService.NAME)).thenReturn(readableStates);
-        when(readableStates.<EntityCounts>getSingleton(V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID))
-                .thenReturn(entityCountsState);
-        when(entityCountsState.get())
-                .thenReturn(EntityCounts.newBuilder().numNodes(1L).build());
         when(state.getReadableStates(AddressBookService.NAME)).thenReturn(readableStates);
         when(readableStates.<EntityNumber, Node>get(NODES_STATE_ID)).thenReturn(nodeState);
         when(state.getReadableStates(PlatformStateService.NAME)).thenReturn(readableStates);

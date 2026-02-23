@@ -77,17 +77,16 @@ import com.hedera.hapi.node.token.TokenWipeAccountTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.node.util.UtilPrngTransactionBody;
 import com.hedera.node.app.hapi.utils.EntityType;
-import com.hedera.node.app.ids.ReadableEntityIdStoreImpl;
-import com.hedera.node.app.ids.WritableEntityIdStore;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
+import com.hedera.node.app.service.entityid.ReadableEntityIdStore;
+import com.hedera.node.app.service.entityid.WritableEntityIdStore;
 import com.hedera.node.app.service.schedule.ReadableScheduleStore;
 import com.hedera.node.app.service.schedule.WritableScheduleStore;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.impl.ReadableAccountStoreImpl;
 import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
-import com.hedera.node.app.spi.ids.EntityIdFactory;
-import com.hedera.node.app.spi.ids.ReadableEntityIdStore;
 import com.hedera.node.app.spi.workflows.PreCheckException;
-import com.hedera.node.app.store.ReadableStoreFactory;
+import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.config.data.SchedulingConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -177,10 +176,10 @@ public class ScheduleTestBase {
     // spotless:on
 
     @Mock(strictness = Mock.Strictness.LENIENT)
-    protected ReadableStoreFactory mockStoreFactory;
+    protected ReadableStoreFactoryImpl mockStoreFactory;
 
     @Mock
-    protected ReadableEntityIdStoreImpl readableEntityCounters;
+    protected ReadableEntityIdStore readableEntityCounters;
 
     @Mock
     protected WritableEntityIdStore writableEntityCounters;
@@ -247,10 +246,10 @@ public class ScheduleTestBase {
                 alternateCreateTransaction, testConsensusTime, scheduleConfig.maxExpirationFutureSeconds());
 
         setUpStates();
-        given(mockStoreFactory.getStore(ReadableScheduleStore.class)).willReturn(scheduleStore);
-        given(mockStoreFactory.getStore(ReadableAccountStore.class)).willReturn(accountStore);
-        given(mockStoreFactory.getStore(ReadableEntityIdStore.class)).willReturn(readableEntityCounters);
-        given(mockStoreFactory.getStore(WritableEntityIdStore.class)).willReturn(writableEntityCounters);
+        given(mockStoreFactory.readableStore(ReadableScheduleStore.class)).willReturn(scheduleStore);
+        given(mockStoreFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
+        given(mockStoreFactory.readableStore(ReadableEntityIdStore.class)).willReturn(readableEntityCounters);
+        given(mockStoreFactory.readableStore(WritableEntityIdStore.class)).willReturn(writableEntityCounters);
     }
 
     protected void commitScheduleStores() {

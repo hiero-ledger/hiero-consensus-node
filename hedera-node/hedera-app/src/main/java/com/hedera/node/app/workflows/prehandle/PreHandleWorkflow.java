@@ -1,19 +1,20 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.prehandle;
 
+import static com.hedera.node.app.workflows.prehandle.PreHandleResult.Status.SO_FAR_SO_GOOD;
 import static com.hedera.node.app.workflows.prehandle.PreHandleWorkflowImpl.isAtomicBatch;
+import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.info.NodeInfo;
-import com.hedera.node.app.store.ReadableStoreFactory;
+import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.hedera.node.app.workflows.InnerTransaction;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.util.function.Consumer;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -28,19 +29,32 @@ public interface PreHandleWorkflow {
     Logger log = LogManager.getLogger(PreHandleWorkflow.class);
 
     /**
+     * Invoked if the pre-handle workflow "short circuits" when finding an event transaction that either,
+     * <ol>
+     *     <Li>Is a platform-managed {@link StateSignatureTransaction}; or,</Li>
+     *     <Li>Was created by a node no longer in the roster (so encountered on PCES replay).</li>
+     * </ol>
+     * Receives the {@link StateSignatureTransaction} as first argument when applicable, null first argument otherwise.
+     */
+    interface ShortCircuitCallback {
+        void onShortCircuit(@Nullable StateSignatureTransaction stateSignatureTx, @NonNull Bytes serializedSignedTx);
+    }
+
+    /**
      * Starts the pre-handle transaction workflow of the {@link Event}
      *
      * @param readableStoreFactory the {@link ReadableStoreFactory} that is used for looking up stores
-     * @param creatorInfo The {@link AccountID} of the node that created these transactions
-     * @param transactions An {@link Stream} over all transactions to pre-handle
-     * @param stateSignatureTxnCallback A callback to be called when encountering a {@link StateSignatureTransaction}
+     * @param creatorInfo if still known, the {@link AccountID} of the node that created these transactions
+     * @param transactions an {@link Stream} over all transactions to pre-handle
+     * @param shortCircuitCallback A callback to be called when encountering any short-circuiting
+     * transaction type
      * @throws NullPointerException if one of the arguments is {@code null}
      */
     void preHandle(
-            @NonNull final ReadableStoreFactory readableStoreFactory,
-            @NonNull final NodeInfo creatorInfo,
-            @NonNull final Stream<Transaction> transactions,
-            @NonNull final Consumer<StateSignatureTransaction> stateSignatureTxnCallback);
+            @NonNull ReadableStoreFactory readableStoreFactory,
+            @Nullable NodeInfo creatorInfo,
+            @NonNull Stream<Transaction> transactions,
+            @NonNull ShortCircuitCallback shortCircuitCallback);
 
     /**
      * Starts the pre-handle transaction workflow for a single transaction.
@@ -52,19 +66,19 @@ public interface PreHandleWorkflow {
      * @param accountStore The {@link ReadableAccountStore} based on the current state
      * @param serializedSignedTx The {@link Transaction} to pre-handle
      * @param maybeReusableResult The result of a previous call to the same method that may,
-     * @param stateSignatureTxnCallback A callback to be called when encountering a {@link StateSignatureTransaction}
-     * depending on changes in state, be reusable for this call
+     * @param shortCircuitCallback A callback to be called when encountering any short-circuiting
+     * transaction type
      * @param innerTransaction Whether the transaction is an inner transaction
      * @return The {@link PreHandleResult} of running pre-handle
      */
     @NonNull
     PreHandleResult preHandleTransaction(
-            @NonNull NodeInfo creatorInfo,
+            @Nullable NodeInfo creatorInfo,
             @NonNull ReadableStoreFactory storeFactory,
             @NonNull ReadableAccountStore accountStore,
             @NonNull Bytes serializedSignedTx,
             @Nullable PreHandleResult maybeReusableResult,
-            @NonNull Consumer<StateSignatureTransaction> stateSignatureTxnCallback,
+            @NonNull ShortCircuitCallback shortCircuitCallback,
             @NonNull InnerTransaction innerTransaction);
 
     /**
@@ -75,29 +89,28 @@ public interface PreHandleWorkflow {
      * @param accountStore the account store
      * @param serializedSignedTx the serialized {@link SignedTransaction} to be verified
      * @param maybeReusableResult the previous result of pre-handle
-     * @param stateSignatureTxnCallback the callback to be called when encountering a {@link StateSignatureTransaction}
+     * @param shortCircuitCallback A callback to be called when encountering any short-circuiting
+     * transaction type
      * @return the verification data for the transaction
      */
     default PreHandleResult preHandleAllTransactions(
-            @NonNull NodeInfo creatorInfo,
+            @Nullable NodeInfo creatorInfo,
             @NonNull ReadableStoreFactory storeFactory,
             @NonNull ReadableAccountStore accountStore,
             @NonNull Bytes serializedSignedTx,
             @Nullable PreHandleResult maybeReusableResult,
-            @NonNull Consumer<StateSignatureTransaction> stateSignatureTxnCallback) {
+            @NonNull ShortCircuitCallback shortCircuitCallback) {
         final var result = preHandleTransaction(
                 creatorInfo,
                 storeFactory,
                 accountStore,
                 serializedSignedTx,
                 maybeReusableResult,
-                stateSignatureTxnCallback,
+                shortCircuitCallback,
                 InnerTransaction.NO);
         // If the transaction is an atomic batch, we need to pre-handle all inner transactions as well
         // and add their results to the outer transaction's pre-handle result
-        if (result.txInfo() != null
-                && isAtomicBatch(result.txInfo())
-                && result.status() == PreHandleResult.Status.SO_FAR_SO_GOOD) {
+        if (result.txInfo() != null && isAtomicBatch(result.txInfo()) && result.status() == SO_FAR_SO_GOOD) {
             final var innerTxns = result.txInfo().txBody().atomicBatchOrThrow().transactions();
             var useInnerResults = maybeReusableResult != null
                     && maybeReusableResult.innerResults() != null
@@ -115,7 +128,7 @@ public interface PreHandleWorkflow {
                         accountStore,
                         innerTxns.get(i),
                         useInnerResults ? maybeReusableResult.innerResults().get(i) : null,
-                        ignore -> {},
+                        (ignore, ignored) -> {},
                         InnerTransaction.YES);
                 if (result.innerResults() != null) {
                     result.innerResults().add(innerResult);
@@ -131,42 +144,45 @@ public interface PreHandleWorkflow {
      * If there is a due diligence error, this method will return a CryptoTransfer to charge the node along with
      * its verification data.
      *
-     * @param creator      the node that created the transaction
-     * @param platformTxn  the transaction to be verified
+     * @param creator the node that created the transaction
+     * @param platformTxn the transaction to be verified
      * @param storeFactory the store factory
-     * @param stateSignatureTxnCallback a callback to be called when encountering a {@link StateSignatureTransaction}
+     * @param shortCircuitCallback A callback to be called when encountering any short-circuiting
+     * transaction type
      * @return the verification data for the transaction
      */
     @NonNull
     default PreHandleResult getCurrentPreHandleResult(
-            @NonNull final NodeInfo creator,
+            @Nullable final NodeInfo creator,
             @NonNull final ConsensusTransaction platformTxn,
             @NonNull final ReadableStoreFactory storeFactory,
-            @NonNull final Consumer<StateSignatureTransaction> stateSignatureTxnCallback) {
+            @NonNull final ShortCircuitCallback shortCircuitCallback) {
+        requireNonNull(platformTxn);
+        requireNonNull(storeFactory);
+        requireNonNull(shortCircuitCallback);
         final var metadata = platformTxn.getMetadata();
         final PreHandleResult previousResult;
-        if (metadata instanceof PreHandleResult result) {
+        if (metadata == null) {
+            previousResult = PreHandleResult.shortCircuitingTransaction(null);
+        } else if (metadata instanceof PreHandleResult result) {
             previousResult = result;
         } else {
             // This should be impossible since the Platform contract guarantees that
-            // ConsensusStateEventHandler.onPreHandle()
-            // is always called before ConsensusStateEventHandler.onHandleTransaction(); and our preHandle()
-            // implementation
-            // always sets the metadata to a PreHandleResult
+            // ConsensusStateEventHandler.onPreHandle() is always called before
+            // ConsensusStateEventHandler.onHandleTransaction(); and our preHandle()
+            // implementation always uses a PreHandleResult
             log.error(
                     "Received transaction without PreHandleResult metadata from node {} (was {})",
-                    creator.nodeId(),
+                    (creator != null) ? creator.nodeId() : null,
                     metadata);
             previousResult = null;
         }
-        // We do not know how long transactions are kept in memory. Clearing metadata to avoid keeping it for too long.
-        platformTxn.setMetadata(null);
         return preHandleAllTransactions(
                 creator,
                 storeFactory,
-                storeFactory.getStore(ReadableAccountStore.class),
+                storeFactory.readableStore(ReadableAccountStore.class),
                 platformTxn.getApplicationTransaction(),
                 previousResult,
-                stateSignatureTxnCallback);
+                shortCircuitCallback);
     }
 }

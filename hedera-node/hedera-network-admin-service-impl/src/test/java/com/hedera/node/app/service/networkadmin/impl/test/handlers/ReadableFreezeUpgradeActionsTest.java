@@ -34,6 +34,8 @@ import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
 import com.hedera.node.app.service.addressbook.impl.ReadableNodeStoreImpl;
 import com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
+import com.hedera.node.app.service.entityid.ReadableEntityCounters;
 import com.hedera.node.app.service.file.impl.WritableUpgradeFileStore;
 import com.hedera.node.app.service.networkadmin.impl.WritableFreezeStore;
 import com.hedera.node.app.service.networkadmin.impl.handlers.FreezeUpgradeActions;
@@ -43,13 +45,10 @@ import com.hedera.node.app.spi.fixtures.util.LogCaptor;
 import com.hedera.node.app.spi.fixtures.util.LogCaptureExtension;
 import com.hedera.node.app.spi.fixtures.util.LoggingSubject;
 import com.hedera.node.app.spi.fixtures.util.LoggingTarget;
-import com.hedera.node.app.spi.ids.EntityIdFactory;
-import com.hedera.node.app.spi.ids.ReadableEntityCounters;
 import com.hedera.node.config.data.NetworkAdminConfig;
 import com.hedera.node.config.data.NodesConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.platform.state.service.ReadablePlatformStateStore;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.test.fixtures.MapReadableKVState;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -71,6 +70,7 @@ import java.util.concurrent.ForkJoinPool;
 import java.util.function.Function;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
+import org.hiero.consensus.platformstate.ReadablePlatformStateStore;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -442,7 +442,8 @@ class ReadableFreezeUpgradeActionsTest {
                 false,
                 A_COMPLEX_KEY,
                 false,
-                null);
+                null,
+                List.of());
         final var node2 = new Node(
                 2,
                 asAccount(0L, 0L, 4),
@@ -457,7 +458,8 @@ class ReadableFreezeUpgradeActionsTest {
                 false,
                 A_COMPLEX_KEY,
                 false,
-                null);
+                null,
+                List.of());
         final var node3 = new Node(
                 3,
                 asAccount(0L, 0L, 6),
@@ -472,7 +474,8 @@ class ReadableFreezeUpgradeActionsTest {
                 true,
                 A_COMPLEX_KEY,
                 false,
-                null);
+                null,
+                List.of());
         final var node4 = new Node(
                 4,
                 asAccount(0L, 0L, 8),
@@ -488,7 +491,8 @@ class ReadableFreezeUpgradeActionsTest {
                 false,
                 A_COMPLEX_KEY,
                 false,
-                null);
+                null,
+                List.of());
         final var readableNodeState = MapReadableKVState.<EntityNumber, Node>builder(NODES_STATE_ID, NODES_STATE_LABEL)
                 .value(new EntityNumber(4), node4)
                 .value(new EntityNumber(2), node2)
@@ -581,7 +585,8 @@ class ReadableFreezeUpgradeActionsTest {
                 false,
                 A_COMPLEX_KEY,
                 false,
-                null);
+                null,
+                List.of());
         final var node2 = new Node(
                 1,
                 asAccount(0L, 0L, 4),
@@ -596,7 +601,8 @@ class ReadableFreezeUpgradeActionsTest {
                 false,
                 A_COMPLEX_KEY,
                 false,
-                null);
+                null,
+                List.of());
         final var node3 = new Node(
                 2,
                 asAccount(0L, 0L, 6),
@@ -611,7 +617,8 @@ class ReadableFreezeUpgradeActionsTest {
                 false,
                 A_COMPLEX_KEY,
                 false,
-                null);
+                null,
+                List.of());
         final var node4 = new Node(
                 3,
                 asAccount(0L, 0L, 8),
@@ -627,7 +634,8 @@ class ReadableFreezeUpgradeActionsTest {
                 true,
                 A_COMPLEX_KEY,
                 false,
-                null);
+                null,
+                List.of());
         final var readableNodeState = MapReadableKVState.<EntityNumber, Node>builder(NODES_STATE_ID, NODES_STATE_LABEL)
                 .value(new EntityNumber(3), node4)
                 .value(new EntityNumber(1), node2)

@@ -28,6 +28,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -45,12 +46,12 @@ import com.hedera.node.app.signature.impl.SignatureVerificationImpl;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.signatures.SignatureVerification;
+import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.InsufficientNonFeeDebitsException;
 import com.hedera.node.app.spi.workflows.InsufficientServiceFeeException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.state.HederaRecordCache;
-import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.workflows.SolvencyPreCheck;
 import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.TransactionInfo;
@@ -111,6 +112,7 @@ class DispatchValidatorTest {
     @Test
     void dueDiligencePreHandleIsCreatorError() {
         givenCreatorInfo();
+        lenient().when(dispatch.txnInfo()).thenReturn(TXN_INFO);
         given(dispatch.preHandleResult()).willReturn(INVALID_PAYER_SIG_PREHANDLE);
 
         final var report = subject.validateFeeChargingScenario(dispatch);
@@ -377,6 +379,7 @@ class DispatchValidatorTest {
     @Test
     void missingPayerIsFailInvalidForChildDispatch() {
         givenChildDispatch();
+        lenient().when(dispatch.txnInfo()).thenReturn(TXN_INFO);
         given(dispatch.preHandleResult()).willReturn(SUCCESSFUL_PREHANDLE);
         givenMissingPayer();
         assertThrows(IllegalStateException.class, () -> subject.validateFeeChargingScenario(dispatch));
@@ -403,6 +406,7 @@ class DispatchValidatorTest {
     @Test
     void missingScheduledPayerIsFailInvalid() {
         givenScheduledDispatch();
+        lenient().when(dispatch.txnInfo()).thenReturn(TXN_INFO);
         given(dispatch.preHandleResult()).willReturn(SUCCESSFUL_PREHANDLE);
         givenMissingPayer();
         assertThrows(IllegalStateException.class, () -> subject.validateFeeChargingScenario(dispatch));
@@ -411,7 +415,7 @@ class DispatchValidatorTest {
     private void givenMissingPayer() {
         given(dispatch.payerId()).willReturn(PAYER_ACCOUNT_ID);
         given(dispatch.readableStoreFactory()).willReturn(storeFactory);
-        given(storeFactory.getStore(ReadableAccountStore.class)).willReturn(readableAccountStore);
+        given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(readableAccountStore);
     }
 
     private void givenSolvencyCheckSetup() {
@@ -471,7 +475,7 @@ class DispatchValidatorTest {
     private Account givenPayer(@NonNull final Consumer<Account.Builder> spec) {
         given(dispatch.payerId()).willReturn(PAYER_ACCOUNT_ID);
         given(dispatch.readableStoreFactory()).willReturn(storeFactory);
-        given(storeFactory.getStore(ReadableAccountStore.class)).willReturn(readableAccountStore);
+        given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(readableAccountStore);
         final var payer = Account.newBuilder().accountId(PAYER_ACCOUNT_ID).key(Key.DEFAULT);
         spec.accept(payer);
         final var payerAccount = payer.build();

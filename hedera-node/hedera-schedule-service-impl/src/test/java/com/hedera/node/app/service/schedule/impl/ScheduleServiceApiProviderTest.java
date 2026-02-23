@@ -12,10 +12,11 @@ import static org.mockito.BDDMockito.given;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.contract.ContractCallTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.service.entityid.WritableEntityCounters;
 import com.hedera.node.app.service.schedule.ScheduleService;
 import com.hedera.node.app.service.schedule.impl.handlers.ScheduleCreateHandler;
-import com.hedera.node.app.spi.ids.WritableEntityCounters;
-import com.hedera.node.app.spi.throttle.Throttle;
+import com.hedera.node.app.spi.fees.NodeFeeAccumulator;
+import com.hedera.node.app.spi.throttle.ScheduleThrottle;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.SchedulingConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
@@ -51,7 +52,7 @@ class ScheduleServiceApiProviderTest {
     private WritableEntityCounters writableEntityCounters;
 
     @Mock
-    private Throttle throttle;
+    private ScheduleThrottle throttle;
 
     private ScheduleServiceApiProvider subject;
 
@@ -65,12 +66,13 @@ class ScheduleServiceApiProviderTest {
         assertEquals(ScheduleService.NAME, subject.serviceName());
         assertInstanceOf(
                 ScheduleServiceApiProvider.ScheduleServiceApiImpl.class,
-                subject.newInstance(DEFAULT_CONFIG, writableStates, writableEntityCounters));
+                subject.newInstance(DEFAULT_CONFIG, writableStates, writableEntityCounters, NodeFeeAccumulator.NOOP));
     }
 
     @Test
     void invalidExpirySecondNeverHasCapacity() {
-        final var impl = subject.newInstance(DEFAULT_CONFIG, writableStates, writableEntityCounters);
+        final var impl =
+                subject.newInstance(DEFAULT_CONFIG, writableStates, writableEntityCounters, NodeFeeAccumulator.NOOP);
 
         given(scheduleCreateHandler.checkExpiry(CONSENSUS_NOW, EXPIRY, LEDGER_CONFIG, SCHEDULING_CONFIG))
                 .willReturn(SCHEDULE_EXPIRATION_TIME_TOO_FAR_IN_FUTURE);
@@ -80,14 +82,16 @@ class ScheduleServiceApiProviderTest {
 
     @Test
     void emptyThrottleImpliesNoCapacity() {
-        final var impl = subject.newInstance(DEFAULT_CONFIG, writableStates, writableEntityCounters);
+        final var impl =
+                subject.newInstance(DEFAULT_CONFIG, writableStates, writableEntityCounters, NodeFeeAccumulator.NOOP);
 
         assertFalse(impl.hasContractCallCapacity(EXPIRY, CONSENSUS_NOW, GAS_LIMIT, AccountID.DEFAULT));
     }
 
     @Test
     void hasCapacityIfThrottleAllows() {
-        final var impl = subject.newInstance(DEFAULT_CONFIG, writableStates, writableEntityCounters);
+        final var impl =
+                subject.newInstance(DEFAULT_CONFIG, writableStates, writableEntityCounters, NodeFeeAccumulator.NOOP);
 
         given(scheduleCreateHandler.checkExpiry(CONSENSUS_NOW, EXPIRY, LEDGER_CONFIG, SCHEDULING_CONFIG))
                 .willReturn(OK);
@@ -102,7 +106,8 @@ class ScheduleServiceApiProviderTest {
 
     @Test
     void doesNotHaveCapacityIfThrottleAllows() {
-        final var impl = subject.newInstance(DEFAULT_CONFIG, writableStates, writableEntityCounters);
+        final var impl =
+                subject.newInstance(DEFAULT_CONFIG, writableStates, writableEntityCounters, NodeFeeAccumulator.NOOP);
 
         given(scheduleCreateHandler.checkExpiry(CONSENSUS_NOW, EXPIRY, LEDGER_CONFIG, SCHEDULING_CONFIG))
                 .willReturn(OK);

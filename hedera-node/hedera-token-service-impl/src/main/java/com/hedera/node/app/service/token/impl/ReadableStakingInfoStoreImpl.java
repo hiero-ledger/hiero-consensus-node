@@ -7,8 +7,8 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.token.StakingNodeInfo;
 import com.hedera.node.app.hapi.utils.EntityType;
+import com.hedera.node.app.service.entityid.ReadableEntityCounters;
 import com.hedera.node.app.service.token.ReadableStakingInfoStore;
-import com.hedera.node.app.spi.ids.ReadableEntityCounters;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -54,16 +54,15 @@ public class ReadableStakingInfoStoreImpl implements ReadableStakingInfoStore {
     @Override
     public Set<Long> getAll() {
         final var numStakingInfo = entityCounters.getCounterFor(EntityType.STAKING_INFO);
+        final var numNodes = entityCounters.getCounterFor(EntityType.NODE);
         if (numStakingInfo == 0) {
             return Collections.emptySet();
         }
         final var nodeIds = new HashSet<Long>();
-        for (var i = 0; i < numStakingInfo; i++) {
+        for (var i = 0; i < numNodes; i++) {
             final var nodeId = new EntityNumber(i);
             if (stakingInfoState.contains(nodeId)) {
                 nodeIds.add(nodeId.number());
-            } else {
-                log.warn("Staking info for node {} not found in state", nodeId.number());
             }
         }
         return nodeIds;

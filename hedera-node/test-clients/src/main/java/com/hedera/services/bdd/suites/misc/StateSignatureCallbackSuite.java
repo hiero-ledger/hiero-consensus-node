@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.misc;
 
-import static com.hedera.services.bdd.junit.RepeatableReason.USES_STATE_SIGNATURE_TRANSACTION_CALLBACK;
+import static com.hedera.services.bdd.junit.RepeatableReason.USES_SHORT_CIRCUITING_TRANSACTION_CALLBACK;
 import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
@@ -20,7 +20,7 @@ import org.junit.jupiter.api.Tag;
 
 public class StateSignatureCallbackSuite {
 
-    @RepeatableHapiTest(USES_STATE_SIGNATURE_TRANSACTION_CALLBACK)
+    @RepeatableHapiTest(USES_SHORT_CIRCUITING_TRANSACTION_CALLBACK)
     @DisplayName("regular transaction does not call StateSignatureTransaction callbacks")
     final Stream<DynamicTest> doesNotCallStateSignatureCallback() {
         final var preHandleCallback = new Callback();
@@ -36,7 +36,7 @@ public class StateSignatureCallbackSuite {
                         "Handle StateSignatureTxnCallback was called but should not"));
     }
 
-    @RepeatableHapiTest(USES_STATE_SIGNATURE_TRANSACTION_CALLBACK)
+    @RepeatableHapiTest(USES_SHORT_CIRCUITING_TRANSACTION_CALLBACK)
     @DisplayName("StateSignatureTransaction calls StateSignatureTransaction callbacks")
     @Tag(MATS)
     final Stream<DynamicTest> callsStateSignatureCallback() {

@@ -2,15 +2,16 @@
 package com.swirlds.platform.system;
 
 import com.swirlds.component.framework.component.InputWireLabel;
-import com.swirlds.platform.system.status.actions.PlatformStatusAction;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.List;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.notification.IssNotification;
+import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.state.StateSavingResult;
 import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.consensus.model.status.PlatformStatusAction;
 
 /**
  * Monitors the platform and updates the platform's status state machine.
@@ -63,4 +64,10 @@ public interface PlatformMonitor {
     @Nullable
     @InputWireLabel("monitor consensus round")
     PlatformStatus consensusRound(@NonNull final ConsensusRound round);
+
+    /**
+     * Inform the monitor the last requested quiescence command
+     */
+    @InputWireLabel("sets the quiescence command")
+    void quiescenceCommand(@NonNull final QuiescenceCommand command);
 }

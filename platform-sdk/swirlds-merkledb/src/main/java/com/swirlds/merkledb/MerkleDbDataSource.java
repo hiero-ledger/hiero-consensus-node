@@ -2,11 +2,11 @@
 package com.swirlds.merkledb;
 
 import static com.hedera.pbj.runtime.ProtoParserTools.TAG_FIELD_OFFSET;
-import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.MERKLE_DB;
 import static com.swirlds.merkledb.KeyRange.INVALID_KEY_RANGE;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
 import com.hedera.pbj.runtime.FieldDefinition;
 import com.hedera.pbj.runtime.FieldType;
@@ -18,7 +18,6 @@ import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.swirlds.base.units.UnitConstants;
 import com.swirlds.base.utility.ToStringBuilder;
-import com.swirlds.common.threading.framework.config.ThreadConfiguration;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.merkledb.collections.HashList;
 import com.swirlds.merkledb.collections.HashListByteBuffer;
@@ -46,7 +45,6 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 import java.util.Comparator;
-import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
@@ -60,6 +58,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
+import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 
 public final class MerkleDbDataSource implements VirtualDataSource {
 
@@ -266,7 +265,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
 
         // check if we are loading an existing database or creating a new one
         if (Files.exists(storageDir)) {
-            // Read metadata
+            // Read metadata, inits initialCapacity, hashesRamToDiskThreshold, and validLeafPathRange
             if (!loadMetadata(dbPaths)) {
                 logger.error(
                         MERKLE_DB.getMarker(),
@@ -277,42 +276,21 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                         + storageDir.toAbsolutePath()
                         + "] because metadata file is missing");
             }
-            // When the data source is loaded from a legacy MerkleDb snapshot, initial capacity and
-            // hashes RAM/disk threshold values are zeroes in table metadata. Use the values from
-            // constructor args. When loading from a new MerkleDb snapshot, table metadata values
-            // are used, and constructor args are ignored
-            if (this.initialCapacity <= 0) {
-                if (initialCapacity > 0) {
-                    this.initialCapacity = initialCapacity;
-                } else {
-                    logger.error(
-                            MERKLE_DB.getMarker(),
-                            "[{}] Initial capacity is not set when loading from legacy MerkleDb snapshot",
-                            tableName);
-                    throw new IOException("Can not load an existing MerkleDbDataSource from ["
-                            + storageDir.toAbsolutePath()
-                            + "] because initial capacity is not set");
-                }
-            }
-            if (this.hashesRamToDiskThreshold <= 0) {
-                if (hashesRamToDiskThreshold >= 0) {
-                    this.hashesRamToDiskThreshold = hashesRamToDiskThreshold;
-                } else {
-                    logger.error(
-                            MERKLE_DB.getMarker(),
-                            "[{}] Wrong value for hashes RAM/disk threshold when loading from legacy MerkleDb snapshot: {}",
-                            tableName,
-                            hashesRamToDiskThreshold);
-                    throw new IOException("Can not load an existing MerkleDbDataSource from ["
-                            + storageDir.toAbsolutePath()
-                            + "] because hashes RAM/disk threshold is set incorrectly");
-                }
-            }
         } else {
             this.initialCapacity = initialCapacity;
             this.hashesRamToDiskThreshold = hashesRamToDiskThreshold;
             Files.createDirectories(storageDir);
         }
+
+        if (this.initialCapacity <= 0) {
+            throw new IllegalStateException("Initial capacity must be greater than 0, but was " + this.initialCapacity);
+        }
+
+        if (this.hashesRamToDiskThreshold < 0) {
+            throw new IllegalStateException("Hashes RAM/disk threshold must be greater than or equal to 0, but was "
+                    + this.hashesRamToDiskThreshold);
+        }
+
         saveMetadata(dbPaths);
 
         // Get the max number of keys is set in the MerkleDb config, then multiply it by
@@ -562,20 +540,14 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                 });
             }
 
-            // Functionally, leaves don't have to be sorted. However, performance wise, sorting
-            // is beneficial, as adjacent leaves are written together, which reduces the number
-            // of random reads later
-            final List<VirtualLeafBytes> sortedDirtyLeaves = leafRecordsToAddOrUpdate
-                    .parallel()
-                    .sorted(Comparator.comparingLong(VirtualLeafBytes::path))
-                    .toList();
-            final List<VirtualLeafBytes> deletedLeaves = leafRecordsToDelete.toList();
+            final VirtualLeafBytes<?>[] dirtyLeaves = leafRecordsToAddOrUpdate.toArray(VirtualLeafBytes[]::new);
+            final VirtualLeafBytes<?>[] deletedLeaves = leafRecordsToDelete.toArray(VirtualLeafBytes[]::new);
 
             // Use an executor to make sure the data source is not closed in parallel. See
             // the comment in close() for details
             storeLeavesExecutor.execute(() -> {
                 try {
-                    writeLeavesToPathToKeyValue(firstLeafPath, lastLeafPath, sortedDirtyLeaves);
+                    writeLeavesToPathToKeyValue(firstLeafPath, lastLeafPath, dirtyLeaves);
                 } catch (final IOException e) {
                     logger.error(EXCEPTION.getMarker(), "[{}] Failed to store leaves", tableName, e);
                     throw new UncheckedIOException(e);
@@ -588,8 +560,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
             // the comment in close() for details
             storeLeafKeysExecutor.execute(() -> {
                 try {
-                    writeLeavesToKeyToPath(
-                            firstLeafPath, lastLeafPath, sortedDirtyLeaves, deletedLeaves, isReconnectContext);
+                    writeLeavesToKeyToPath(firstLeafPath, lastLeafPath, dirtyLeaves, deletedLeaves, isReconnectContext);
                 } catch (final IOException e) {
                     logger.error(EXCEPTION.getMarker(), "[{}] Failed to store leaf keys", tableName, e);
                     throw new UncheckedIOException(e);
@@ -667,7 +638,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         if (path == INVALID_PATH) {
             // Cache the result if not already cached
             if (leafRecordCache != null && cached == null) {
-                leafRecordCache[cacheIndex] = new VirtualLeafBytes(path, keyBytes, null);
+                leafRecordCache[cacheIndex] = new VirtualLeafBytes(INVALID_PATH, keyBytes, null);
             }
             return null;
         }
@@ -1031,7 +1002,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                     } else if (fieldNum == FIELD_DSMETADATA_HASHESRAMTODISKTHRESHOLD.number()) {
                         hashesRamToDiskThreshold = in.readVarLong(false);
                     } else {
-                        throw new IllegalArgumentException("Unknown data source metadata field: " + fieldNum);
+                        throw new IOException("Unknown data source metadata field: " + fieldNum);
                     }
                 }
                 validLeafPathRange = new KeyRange(minValidKey, maxValidKey);
@@ -1172,7 +1143,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
 
     /** Write all the given leaf records to pathToKeyValue */
     private void writeLeavesToPathToKeyValue(
-            final long firstLeafPath, final long lastLeafPath, @NonNull final List<VirtualLeafBytes> sortedDirtyLeaves)
+            final long firstLeafPath, final long lastLeafPath, @NonNull final VirtualLeafBytes<?>[] dirtyLeaves)
             throws IOException {
         if (lastLeafPath < 0) {
             // Empty store
@@ -1181,10 +1152,16 @@ public final class MerkleDbDataSource implements VirtualDataSource {
             pathToKeyValue.updateValidKeyRange(firstLeafPath, lastLeafPath);
         }
 
-        if (sortedDirtyLeaves.isEmpty()) {
+        if (dirtyLeaves.length == 0) {
             // Nothing to do
             return;
         }
+
+        // Functionally, leaves don't have to be sorted. However, performance wise, sorting
+        // is beneficial, as adjacent leaves are written together, which reduces the number
+        // of random reads later. Treat dirtyLeaves as immutable.
+        VirtualLeafBytes<?>[] sortedDirtyLeaves = dirtyLeaves.clone();
+        Arrays.parallelSort(sortedDirtyLeaves, Comparator.comparingLong(VirtualLeafBytes::path));
 
         pathToKeyValue.startWriting();
 
@@ -1211,11 +1188,11 @@ public final class MerkleDbDataSource implements VirtualDataSource {
     private void writeLeavesToKeyToPath(
             final long firstLeafPath,
             final long lastLeafPath,
-            @NonNull final List<VirtualLeafBytes> sortedDirtyLeaves,
-            @NonNull final List<VirtualLeafBytes> deletedLeaves,
+            @NonNull final VirtualLeafBytes<?>[] dirtyLeaves,
+            @NonNull final VirtualLeafBytes<?>[] deletedLeaves,
             boolean isReconnect)
             throws IOException {
-        if (sortedDirtyLeaves.isEmpty() && deletedLeaves.isEmpty()) {
+        if (dirtyLeaves.length == 0 && deletedLeaves.length == 0) {
             // Nothing to do
             return;
         }
@@ -1223,11 +1200,14 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         keyToPath.startWriting();
 
         // Iterate over leaf records
-        for (final VirtualLeafBytes<?> leafBytes : sortedDirtyLeaves) {
-            final long path = leafBytes.path();
-            // Update key to path index
-            keyToPath.put(leafBytes.keyBytes(), path);
-            statisticsUpdater.countFlushLeafKeysWritten();
+        for (final VirtualLeafBytes<?> leafBytes : dirtyLeaves) {
+            // Check if the record is new or moved. If not, skip the path update
+            if (leafBytes.isNewOrMoved()) {
+                final long path = leafBytes.path();
+                // Update key to path index
+                keyToPath.put(leafBytes.keyBytes(), path);
+                statisticsUpdater.countFlushLeafKeysWritten();
+            }
 
             // cache the record
             invalidateReadCache(leafBytes.keyBytes());
@@ -1235,14 +1215,13 @@ public final class MerkleDbDataSource implements VirtualDataSource {
 
         // Iterate over leaf records to delete
         for (VirtualLeafBytes<?> leafBytes : deletedLeaves) {
-            final long path = leafBytes.path();
             // Update key to path index. In some cases (e.g. during reconnect), some leaves in the
             // deletedLeaves stream have been moved to different paths in the tree. This is good
             // indication that these leaves should not be deleted. This is why putIfEqual() and
             // deleteIfEqual() are used below rather than unconditional put() and delete() as for
             // dirtyLeaves stream above
             if (isReconnect) {
-                keyToPath.deleteIfEqual(leafBytes.keyBytes(), path);
+                keyToPath.deleteIfEqual(leafBytes.keyBytes(), leafBytes.path());
             } else {
                 keyToPath.delete(leafBytes.keyBytes());
             }

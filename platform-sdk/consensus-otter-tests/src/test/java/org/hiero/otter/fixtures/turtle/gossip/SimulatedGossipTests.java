@@ -2,16 +2,13 @@
 package org.hiero.otter.fixtures.turtle.gossip;
 
 import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerConfiguration.DIRECT_THREADSAFE_CONFIGURATION;
+import static org.hiero.otter.fixtures.network.BandwidthLimit.UNLIMITED_BANDWIDTH;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.base.time.Time;
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.metrics.noop.NoOpMetrics;
-import com.swirlds.common.test.fixtures.Randotron;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.component.framework.model.TraceableWiringModel;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;
@@ -19,7 +16,6 @@ import com.swirlds.component.framework.schedulers.ExceptionHandlers;
 import com.swirlds.component.framework.schedulers.TaskScheduler;
 import com.swirlds.component.framework.wires.input.BindableInputWire;
 import com.swirlds.component.framework.wires.output.StandardOutputWire;
-import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -31,14 +27,16 @@ import java.util.Set;
 import java.util.function.Consumer;
 import org.assertj.core.data.Percentage;
 import org.hiero.consensus.crypto.DefaultEventHasher;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
 import org.hiero.consensus.roster.RosterUtils;
+import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
+import org.hiero.consensus.test.fixtures.Randotron;
 import org.hiero.otter.fixtures.internal.network.ConnectionKey;
-import org.hiero.otter.fixtures.network.Topology.ConnectionData;
-import org.hiero.otter.fixtures.network.utils.BandwidthLimit;
+import org.hiero.otter.fixtures.network.Topology.ConnectionState;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
@@ -65,8 +63,6 @@ class SimulatedGossipTests {
         final Randotron randotron = Randotron.create();
 
         final FakeTime time = new FakeTime();
-        final PlatformContext context =
-                TestPlatformContextBuilder.create().withTime(time).build();
 
         final Roster roster =
                 RandomRosterBuilder.create(randotron).withSize(networkSize).build();
@@ -80,15 +76,15 @@ class SimulatedGossipTests {
 
         // We can safely choose large numbers because time is simulated
         final Duration averageDelay = Duration.ofMillis(randotron.nextInt(1, 1_000_000));
-        final ConnectionData connectionData =
-                new ConnectionData(true, averageDelay, Percentage.withPercentage(10.0), BandwidthLimit.UNLIMITED);
-        final Map<ConnectionKey, ConnectionData> connections = new HashMap<>();
+        final ConnectionState connectionState =
+                new ConnectionState(true, averageDelay, Percentage.withPercentage(10.0), UNLIMITED_BANDWIDTH);
+        final Map<ConnectionKey, ConnectionState> connections = new HashMap<>();
         for (final NodeId sender : nodeIds) {
             for (final NodeId receiver : nodeIds) {
                 if (!sender.equals(receiver)) {
                     final NodeId fromNode = NodeId.of(sender.id());
                     final NodeId toNode = NodeId.of(receiver.id());
-                    connections.put(new ConnectionKey(fromNode, toNode), connectionData);
+                    connections.put(new ConnectionKey(fromNode, toNode), connectionState);
                 }
             }
         }
@@ -103,7 +99,7 @@ class SimulatedGossipTests {
         // Wire things up
         for (final NodeId nodeId : nodeIds) {
             final WiringModel model = WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent())
-                    .withDeterministicModeEnabled(true)
+                    .deterministic()
                     .build();
 
             final TaskScheduler<Void> eventInputShim = model.<Void>schedulerBuilder("eventInputShim")
@@ -131,7 +127,10 @@ class SimulatedGossipTests {
                             mock(BindableInputWire.class),
                             mock(BindableInputWire.class),
                             mock(BindableInputWire.class),
+                            mock(BindableInputWire.class),
+                            mock(BindableInputWire.class),
                             mock(StandardOutputWire.class));
+            model.start();
         }
 
         // For each event, choose a random subset of nodes that will submit the event. Our end goal is to see

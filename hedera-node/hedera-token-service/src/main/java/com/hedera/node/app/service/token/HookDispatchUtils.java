@@ -5,13 +5,15 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_ID_REPEATED_IN_CRE
 import static com.hedera.hapi.node.base.ResponseCodeEnum.REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.hookDispatch;
+import static com.hedera.node.app.spi.workflows.DispatchOptions.hookDispatchForExecution;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.EMPTY_METADATA;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.EXPLICIT_WRITE_TRACING;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.signedTxWith;
+import static java.util.Objects.requireNonNull;
 
 import com.esaulpaugh.headlong.abi.Function;
-import com.hedera.hapi.node.base.AccountID;
-import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.HookEntityId;
 import com.hedera.hapi.node.base.HookId;
 import com.hedera.hapi.node.contract.ContractCallTransactionBody;
@@ -20,91 +22,84 @@ import com.hedera.hapi.node.hooks.HookCreationDetails;
 import com.hedera.hapi.node.hooks.HookDispatchTransactionBody;
 import com.hedera.hapi.node.hooks.HookExecution;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.token.records.HookDispatchStreamBuilder;
 import com.hedera.node.app.spi.workflows.HandleContext;
+import com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.UncheckedParseException;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 public class HookDispatchUtils {
-    public static final ContractID HTS_HOOKS_CONTRACT_ID =
-            ContractID.newBuilder().contractNum(365L).build();
-    public static final String HTS_HOOKS_EVM_ADDRESS =
-            "0x" + Long.toHexString(HTS_HOOKS_CONTRACT_ID.contractNumOrThrow());
+    private static final DispatchMetadata GROUP_METADATA = new DispatchMetadata(Map.of(EXPLICIT_WRITE_TRACING, true));
+    public static final long HTS_HOOKS_CONTRACT_NUM = 365L;
+    public static final String HTS_HOOKS_EVM_ADDRESS = "0x" + Long.toHexString(HTS_HOOKS_CONTRACT_NUM);
 
-    private static final StreamBuilder.SignedTxCustomizer EXECUTION_CUSTOMIZER = signedTx -> {
-        try {
-            final var dispatchedBody =
-                    TransactionBody.PROTOBUF.parseStrict(signedTx.bodyBytes().toReadableSequentialData());
-            final var hookCall = dispatchedBody
-                    .hookDispatchOrThrow()
-                    .executionOrThrow()
-                    .callOrThrow()
-                    .evmHookCallOrThrow();
-            return signedTxWith(dispatchedBody
-                    .copyBuilder()
-                    .contractCall(new ContractCallTransactionBody(
-                            HTS_HOOKS_CONTRACT_ID, hookCall.gasLimit(), 0L, hookCall.data()))
-                    .build());
-        } catch (ParseException e) {
-            // Should be impossible
-            throw new UncheckedParseException(e);
-        }
-    };
-
-    public static long dispatchHookDeletions(
-            final @NonNull HandleContext context,
-            final List<Long> hooksToDelete,
-            final long headBefore,
-            final AccountID ownerId) {
+    public static @Nullable Long dispatchHookDeletions(
+            @NonNull final HandleContext context,
+            @NonNull final List<Long> hooksToDelete,
+            @Nullable final Long headBefore,
+            @NonNull final HookEntityId hookEntityId) {
+        requireNonNull(context);
+        requireNonNull(hooksToDelete);
+        requireNonNull(hookEntityId);
         var currentHead = headBefore;
         for (final var hookId : hooksToDelete) {
             final var hookDispatch = HookDispatchTransactionBody.newBuilder()
-                    .hookIdToDelete(new HookId(
-                            HookEntityId.newBuilder().accountId(ownerId).build(), hookId))
+                    .hookIdToDelete(new HookId(hookEntityId, hookId))
                     .build();
             final var streamBuilder = context.dispatch(hookDispatch(
                     context.payer(),
                     TransactionBody.newBuilder().hookDispatch(hookDispatch).build(),
                     HookDispatchStreamBuilder.class));
             validateTrue(streamBuilder.status() == SUCCESS, streamBuilder.status());
-            if (hookId == currentHead) {
-                currentHead = streamBuilder.getNextHookId() == null ? 0L : streamBuilder.getNextHookId();
+            if (Objects.equals(hookId, currentHead)) {
+                currentHead = streamBuilder.getNextHookId();
             }
         }
         return currentHead;
     }
 
     /**
-     * Dispatches the hook creations in reverse order, so that the "next" pointers can be set correctly.
-     *
+     * Dispatches the hook creations in reverse order, so it is not necessary to return the updated head; it is
+     * necessarily the first hook ID in the list. Instead, it returns the total number of storage slots updated.
+     * *
      * @param context the handle context
      * @param creations the hook creation details
      * @param currentHead the head of the hook list
-     * @param owner the owner of the hooks (the created contract)
+     * @param hookEntityId the owner of the hooks (the created contract)
+     * @return the total number of storage slots updated
      */
-    public static void dispatchHookCreations(
-            final HandleContext context,
-            final List<HookCreationDetails> creations,
-            final Long currentHead,
-            final AccountID owner) {
-        final var ownerId = HookEntityId.newBuilder().accountId(owner).build();
+    public static int dispatchHookCreations(
+            @NonNull final HandleContext context,
+            @NonNull final List<HookCreationDetails> creations,
+            @Nullable final Long currentHead,
+            @NonNull final HookEntityId hookEntityId) {
+        requireNonNull(context);
+        requireNonNull(creations);
+        requireNonNull(hookEntityId);
+        var totalStorageSlotsUpdated = 0;
         // Build new block A → B → C → currentHead
-        Long nextId = currentHead == 0 ? null : currentHead;
+        var nextId = currentHead;
         for (int i = creations.size() - 1; i >= 0; i--) {
             final var d = creations.get(i);
-            final var creation = HookCreation.newBuilder().entityId(ownerId).details(d);
+            final var creation =
+                    HookCreation.newBuilder().entityId(hookEntityId).details(d);
             if (nextId != null) {
                 creation.nextHookId(nextId);
             }
-            dispatchCreation(context, creation.build());
+            totalStorageSlotsUpdated += dispatchCreation(context, creation.build());
             nextId = d.hookId();
         }
+        return totalStorageSlotsUpdated;
     }
 
     /**
@@ -113,7 +108,7 @@ public class HookDispatchUtils {
      * @param context the handle context
      * @param creation the hook creation to dispatch
      */
-    static void dispatchCreation(final @NonNull HandleContext context, final HookCreation creation) {
+    static int dispatchCreation(@NonNull final HandleContext context, @NonNull final HookCreation creation) {
         final var hookDispatch =
                 HookDispatchTransactionBody.newBuilder().creation(creation).build();
         final var streamBuilder = context.dispatch(hookDispatch(
@@ -121,6 +116,7 @@ public class HookDispatchUtils {
                 TransactionBody.newBuilder().hookDispatch(hookDispatch).build(),
                 HookDispatchStreamBuilder.class));
         validateTrue(streamBuilder.status() == SUCCESS, streamBuilder.status());
+        return streamBuilder.getDeltaStorageSlotsUpdated();
     }
 
     /**
@@ -129,7 +125,8 @@ public class HookDispatchUtils {
      * @param details the list of hook creation details
      * @throws PreCheckException if there are duplicate hook IDs
      */
-    public static void validateHookDuplicates(final List<HookCreationDetails> details) throws PreCheckException {
+    public static void validateHookDuplicates(@NonNull final List<HookCreationDetails> details)
+            throws PreCheckException {
         if (!details.isEmpty()) {
             final var hookIds =
                     details.stream().map(HookCreationDetails::hookId).collect(Collectors.toSet());
@@ -146,7 +143,8 @@ public class HookDispatchUtils {
      * @param hookIdsToDelete the list of hook IDs to delete
      * @throws PreCheckException if there are duplicate hook IDs
      */
-    public static void validateHookDuplicates(final List<HookCreationDetails> details, List<Long> hookIdsToDelete)
+    public static void validateHookDuplicates(
+            @NonNull final List<HookCreationDetails> details, @NonNull final List<Long> hookIdsToDelete)
             throws PreCheckException {
         validateHookDuplicates(details);
         if (!hookIdsToDelete.isEmpty()) {
@@ -162,17 +160,48 @@ public class HookDispatchUtils {
      * @param context the handle context
      * @param execution the hook execution to dispatch
      * @param function the function to decode the result
+     * @param entityIdFactory the entity id factory
+     * @param isolated whether this is an isolated hook execution
      */
     public static void dispatchExecution(
-            final @NonNull HandleContext context, final HookExecution execution, final Function function) {
+            @NonNull final HandleContext context,
+            @NonNull final HookExecution execution,
+            @NonNull final Function function,
+            @NonNull final EntityIdFactory entityIdFactory,
+            final boolean isolated) {
+        requireNonNull(context);
+        requireNonNull(execution);
+        requireNonNull(function);
+        requireNonNull(entityIdFactory);
         final var hookDispatch =
                 HookDispatchTransactionBody.newBuilder().execution(execution).build();
-        final var streamBuilder = context.dispatch(hookDispatch(
+        final var hookContractId = entityIdFactory.newContractId(HTS_HOOKS_CONTRACT_NUM);
+        final StreamBuilder.SignedTxCustomizer executionCustomizer = signedTx -> {
+            try {
+                final var dispatchedBody = TransactionBody.PROTOBUF.parseStrict(
+                        signedTx.bodyBytes().toReadableSequentialData());
+                final var hookCall = dispatchedBody
+                        .hookDispatchOrThrow()
+                        .executionOrThrow()
+                        .callOrThrow()
+                        .evmHookCallOrThrow();
+                return signedTxWith(dispatchedBody
+                        .copyBuilder()
+                        .contractCall(new ContractCallTransactionBody(
+                                hookContractId, hookCall.gasLimit(), 0L, hookCall.data()))
+                        .build());
+            } catch (ParseException e) {
+                // Should be impossible
+                throw new UncheckedParseException(e);
+            }
+        };
+        final var streamBuilder = context.dispatch(hookDispatchForExecution(
                 context.payer(),
                 TransactionBody.newBuilder().hookDispatch(hookDispatch).build(),
                 HookDispatchStreamBuilder.class,
-                EXECUTION_CUSTOMIZER));
-        validateTrue(streamBuilder.status() == SUCCESS, streamBuilder.status());
+                executionCustomizer,
+                isolated ? EMPTY_METADATA : GROUP_METADATA));
+        validateTrue(streamBuilder.status() == SUCCESS, REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK);
         final var result = streamBuilder.getEvmCallResult();
         try {
             final var decoded = function.getOutputs().decode(result.toByteArray());

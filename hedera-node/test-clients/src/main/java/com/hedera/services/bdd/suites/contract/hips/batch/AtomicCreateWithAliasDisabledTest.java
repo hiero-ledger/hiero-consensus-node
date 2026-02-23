@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.hips.batch;
 
+import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
 import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.keys.KeyShape.SECP256K1;
@@ -63,6 +64,7 @@ import org.junit.jupiter.api.Tag;
  * Tests expected behavior when the {@code cryptoCreateWithAlias.enabled} feature flag is off for
  * <a href="https://hips.hedera.com/hip/hip-583">HIP-583, "Expand alias support in CryptoCreate &amp; CryptoTransfer Transactions"</a>.
  */
+@Tag(ATOMIC_BATCH)
 @HapiTestLifecycle
 class AtomicCreateWithAliasDisabledTest {
 

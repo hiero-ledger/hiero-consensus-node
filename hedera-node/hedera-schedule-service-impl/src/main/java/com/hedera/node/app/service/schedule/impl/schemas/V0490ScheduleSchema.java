@@ -12,7 +12,6 @@ import com.hedera.hapi.node.state.schedule.Schedule;
 import com.hedera.hapi.node.state.schedule.ScheduleList;
 import com.hedera.hapi.platform.state.StateKey;
 import com.hedera.node.app.service.schedule.ScheduleService;
-import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StateDefinition;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -63,35 +62,21 @@ public final class V0490ScheduleSchema extends Schema<SemanticVersion> {
         return Set.of(schedulesByIdDef(), schedulesByExpirySec(), schedulesByEquality());
     }
 
-    @Override
-    public void migrate(@NonNull final MigrationContext ctx) {
-        // There are no scheduled transactions at genesis
-    }
-
     private static StateDefinition<ScheduleID, Schedule> schedulesByIdDef() {
-        return StateDefinition.onDisk(
-                SCHEDULES_BY_ID_STATE_ID,
-                SCHEDULES_BY_ID_KEY,
-                ScheduleID.PROTOBUF,
-                Schedule.PROTOBUF,
-                MAX_SCHEDULES_BY_ID_KEY);
+        return StateDefinition.keyValue(
+                SCHEDULES_BY_ID_STATE_ID, SCHEDULES_BY_ID_KEY, ScheduleID.PROTOBUF, Schedule.PROTOBUF);
     }
 
     private static StateDefinition<ProtoLong, ScheduleList> schedulesByExpirySec() {
-        return StateDefinition.onDisk(
+        return StateDefinition.keyValue(
                 SCHEDULES_BY_EXPIRY_SEC_STATE_ID,
                 SCHEDULES_BY_EXPIRY_SEC_KEY,
                 ProtoLong.PROTOBUF,
-                ScheduleList.PROTOBUF,
-                MAX_SCHEDULES_BY_EXPIRY_SEC_KEY);
+                ScheduleList.PROTOBUF);
     }
 
     private static StateDefinition<ProtoBytes, ScheduleList> schedulesByEquality() {
-        return StateDefinition.onDisk(
-                SCHEDULES_BY_EQUALITY_STATE_ID,
-                SCHEDULES_BY_EQUALITY_KEY,
-                ProtoBytes.PROTOBUF,
-                ScheduleList.PROTOBUF,
-                MAX_SCHEDULES_BY_EQUALITY);
+        return StateDefinition.keyValue(
+                SCHEDULES_BY_EQUALITY_STATE_ID, SCHEDULES_BY_EQUALITY_KEY, ProtoBytes.PROTOBUF, ScheduleList.PROTOBUF);
     }
 }

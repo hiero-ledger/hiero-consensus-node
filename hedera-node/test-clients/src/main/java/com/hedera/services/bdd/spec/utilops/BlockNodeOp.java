@@ -97,6 +97,15 @@ public class BlockNodeOp extends UtilOp {
                         nodeIndex,
                         verifiedBlock);
                 break;
+            case SEND_NODE_BEHIND_PUBLISHER_IMMEDIATELY:
+                controller.sendNodeBehindPublisherImmediately(nodeIndex, blockNumber);
+                verifiedBlock = controller.getLastVerifiedBlockNumber(nodeIndex);
+                log.info(
+                        "Sent immediate NodeBehindPublisher response for block {} on simulator {}, last verified block: {}",
+                        blockNumber,
+                        nodeIndex,
+                        verifiedBlock);
+                break;
             case SET_END_OF_STREAM_RESPONSE:
                 controller.setEndOfStreamResponse(nodeIndex, responseCode, blockNumber);
                 verifiedBlock = controller.getLastVerifiedBlockNumber(nodeIndex);
@@ -227,6 +236,8 @@ public class BlockNodeOp extends UtilOp {
         SEND_SKIP_BLOCK_IMMEDIATELY,
         /** Send {@link PublishStreamResponse.ResendBlock} response */
         SEND_RESEND_BLOCK_IMMEDIATELY,
+        /** Send {@link PublishStreamResponse.BehindPublisher} response */
+        SEND_NODE_BEHIND_PUBLISHER_IMMEDIATELY,
         /** Set {@link PublishStreamResponse.EndOfStream} response */
         SET_END_OF_STREAM_RESPONSE,
         /** Reset all responses to default behavior */
@@ -271,6 +282,18 @@ public class BlockNodeOp extends UtilOp {
      */
     public static SendResendBlockBuilder sendResendBlockImmediately(final long nodeIndex, final long blockNumber) {
         return new SendResendBlockBuilder(nodeIndex, blockNumber);
+    }
+
+    /**
+     * Creates a builder for sending an immediate {@link PublishStreamResponse.BehindPublisher} response to a block node simulator.
+     *
+     * @param nodeIndex the index of the block node simulator (0-based)
+     * @param blockNumber the last verified block number
+     * @return a builder for the operation
+     */
+    public static SendNodeBehindPublisherBuilder sendNodeBehindPublisherImmediately(
+            final long nodeIndex, final long blockNumber) {
+        return new SendNodeBehindPublisherBuilder(nodeIndex, blockNumber);
     }
 
     /**
@@ -467,6 +490,42 @@ public class BlockNodeOp extends UtilOp {
             return new BlockNodeOp(
                     nodeIndex,
                     BlockNodeAction.SEND_RESEND_BLOCK_IMMEDIATELY,
+                    null,
+                    blockNumber,
+                    null,
+                    null,
+                    true,
+                    true);
+        }
+
+        @Override
+        protected boolean submitOp(final HapiSpec spec) throws Throwable {
+            return build().submitOp(spec);
+        }
+    }
+
+    /**
+     * Builder for sending an immediate NodeBehindPublisher response to a block node simulator.
+     * This builder also implements UtilOp so it can be used directly in HapiSpec without calling build().
+     */
+    public static class SendNodeBehindPublisherBuilder extends UtilOp {
+        private final long nodeIndex;
+        private final long blockNumber;
+
+        private SendNodeBehindPublisherBuilder(final long nodeIndex, final long blockNumber) {
+            this.nodeIndex = nodeIndex;
+            this.blockNumber = blockNumber;
+        }
+
+        /**
+         * Builds the operation.
+         *
+         * @return the operation
+         */
+        public BlockNodeOp build() {
+            return new BlockNodeOp(
+                    nodeIndex,
+                    BlockNodeAction.SEND_NODE_BEHIND_PUBLISHER_IMMEDIATELY,
                     null,
                     blockNumber,
                     null,

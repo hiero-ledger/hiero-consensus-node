@@ -69,11 +69,17 @@ public record StateValue<V>(int stateId, @NonNull V value) {
             this.valueCodec = Objects.requireNonNull(valueCodec);
         }
 
+        /**
+         * {@inheritDoc}
+         */
         @Override
         public StateValue<V> getDefaultInstance() {
             return new StateValue<>(stateId, valueCodec.getDefaultInstance());
         }
 
+        /**
+         * {@inheritDoc}
+         */
         @Override
         public int measureRecord(@NonNull final StateValue<V> value) {
             int size = 0;
@@ -90,6 +96,9 @@ public record StateValue<V>(int stateId, @NonNull V value) {
             return size;
         }
 
+        /**
+         * {@inheritDoc}
+         */
         @Override
         public void write(@NonNull final StateValue<V> value, @NonNull final WritableSequentialData out)
                 throws IOException {
@@ -107,13 +116,17 @@ public record StateValue<V>(int stateId, @NonNull V value) {
             }
         }
 
+        /**
+         * {@inheritDoc}
+         */
         @NonNull
         @Override
         public StateValue<V> parse(
                 @NonNull final ReadableSequentialData in,
                 final boolean strictMode,
                 final boolean parseUnknownFields,
-                final int maxDepth)
+                final int maxDepth,
+                final int maxSize)
                 throws ParseException {
             final int tag = in.readVarInt(false);
             final int fieldNum = tag >> ProtoParserTools.TAG_FIELD_OFFSET;
@@ -132,12 +145,15 @@ public record StateValue<V>(int stateId, @NonNull V value) {
             } else {
                 final long limit = in.limit();
                 in.limit(in.position() + size);
-                value = valueCodec.parse(in, strictMode, parseUnknownFields, maxDepth);
+                value = valueCodec.parse(in, strictMode, parseUnknownFields, maxDepth, maxSize);
                 in.limit(limit);
             }
             return new StateValue<>(stateId, value);
         }
 
+        /**
+         * {@inheritDoc}
+         */
         @Override
         public boolean fastEquals(@NonNull StateValue<V> value, @NonNull ReadableSequentialData in)
                 throws ParseException {
@@ -163,6 +179,9 @@ public record StateValue<V>(int stateId, @NonNull V value) {
             return equals;
         }
 
+        /**
+         * {@inheritDoc}
+         */
         @Override
         public int measure(@NonNull final ReadableSequentialData in) throws ParseException {
             // This implementation can be optimized a bit to avoid V parsing

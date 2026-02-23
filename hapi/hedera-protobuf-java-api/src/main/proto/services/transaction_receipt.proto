@@ -194,4 +194,14 @@ message TransactionReceipt {
      * This value SHALL NOT be set following any other transaction.
      */
     uint64 node_id = 15;
+
+    /**
+     * The identifier of a newly created RegisteredNode.
+     * <p>
+     * This value SHALL be set following a `createRegisteredNode`
+     * transaction.<br/>
+     * This value SHALL NOT be set following any other transaction.<br/>
+     * This value SHALL be unique within a given network.
+    */
+    uint64 registered_node_id = 16;
 }

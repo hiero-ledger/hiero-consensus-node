@@ -111,7 +111,6 @@ class ActionsHelperTest {
         given(frame.getRemainingGas()).willReturn(REMAINING_GAS);
         given(frame.getDepth()).willReturn(STACK_DEPTH);
         givenResolvableEvmAddress();
-        given(frame.getStackItem(1)).willReturn(NON_SYSTEM_LONG_ZERO_ADDRESS);
         given(operation.getOpcode()).willReturn(0xF1);
         given(frame.getContractAddress()).willReturn(EIP_1014_ADDRESS);
         given(frame.getCurrentOperation()).willReturn(operation);
@@ -127,7 +126,7 @@ class ActionsHelperTest {
                 .error(Bytes.wrap("INVALID_SOLIDITY_ADDRESS".getBytes()))
                 .callOperationType(CallOperationType.OP_CALL)
                 .build();
-        final var actualAction = subject.createSynthActionForMissingAddressIn(frame);
+        final var actualAction = subject.createSynthActionForMissingAddressIn(frame, NON_SYSTEM_LONG_ZERO_ADDRESS);
 
         assertEquals(expectedAction, actualAction);
     }

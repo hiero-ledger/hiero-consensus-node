@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl;
 
+import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_EVM_HOOK_STORAGE;
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_STORAGE;
 import static com.hedera.hapi.block.stream.trace.SlotRead.IdentifierOneOfType.INDEX;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
-import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_UPDATE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.IDENTICAL_SCHEDULE_ALREADY_CREATED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.REVERTED_SUCCESS;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
+import static com.hedera.node.app.service.token.HookDispatchUtils.HTS_HOOKS_CONTRACT_NUM;
 import static com.hedera.node.app.service.token.impl.comparator.TokenComparators.PENDING_AIRDROP_ID_COMPARATOR;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.BATCH_INNER;
 import static java.util.Collections.emptyList;
@@ -26,7 +28,6 @@ import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.block.stream.output.TransactionOutput;
 import com.hedera.hapi.block.stream.output.TransactionResult;
 import com.hedera.hapi.block.stream.output.UtilPrngOutput;
-import com.hedera.hapi.block.stream.trace.AutoAssociateTraceData;
 import com.hedera.hapi.block.stream.trace.ContractSlotUsage;
 import com.hedera.hapi.block.stream.trace.EvmTraceData;
 import com.hedera.hapi.block.stream.trace.EvmTransactionLog;
@@ -34,6 +35,7 @@ import com.hedera.hapi.block.stream.trace.ExecutedInitcode;
 import com.hedera.hapi.block.stream.trace.SlotRead;
 import com.hedera.hapi.block.stream.trace.SubmitMessageTraceData;
 import com.hedera.hapi.block.stream.trace.TraceData;
+import com.hedera.hapi.block.stream.trace.WrittenSlotKeys;
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
@@ -88,6 +90,7 @@ import com.hedera.node.app.service.contract.impl.records.ContractDeleteStreamBui
 import com.hedera.node.app.service.contract.impl.records.ContractOperationStreamBuilder;
 import com.hedera.node.app.service.contract.impl.records.ContractUpdateStreamBuilder;
 import com.hedera.node.app.service.contract.impl.records.EthereumTransactionStreamBuilder;
+import com.hedera.node.app.service.contract.impl.state.WritableEvmHookStore;
 import com.hedera.node.app.service.file.impl.records.CreateFileStreamBuilder;
 import com.hedera.node.app.service.schedule.ScheduleStreamBuilder;
 import com.hedera.node.app.service.token.api.FeeStreamBuilder;
@@ -439,12 +442,13 @@ public class BlockStreamBuilder
      */
     private final SignedTxCustomizer customizer;
 
-    /**
-     * the total duration of contract operations as calculated using the Hedera ops duration schedule
-     */
-    private long opsDuration;
-
     private boolean isContractCreate;
+
+    /**
+     * The number of storage slots updated during hook creation or update. Slots updated during hook execution are
+     * tracked and updated through RootProxyWorldUpdater.
+     */
+    private int deltaStorageSlotsUpdated;
 
     /**
      * Constructs a builder for a user transaction with the given characteristics.
@@ -468,7 +472,8 @@ public class BlockStreamBuilder
      * @param blockItems the list of block items
      * @param translationContext the translation context
      */
-    public record Output(@NonNull List<BlockItem> blockItems, @NonNull TranslationContext translationContext) {
+    public record Output(
+            @NonNull List<BlockItem> blockItems, @NonNull TranslationContext translationContext) {
         public Output {
             requireNonNull(blockItems);
             requireNonNull(translationContext);
@@ -578,15 +583,14 @@ public class BlockStreamBuilder
      * Builds the list of block items with their translation contexts.
      *
      * @param topLevel if true, indicates the output should always include a following {@link StateChanges} item
-     * @param batchStateChanges if not null, the state changes for the batch tx containing this builder
+     * @param groupStateChanges if not null, the state changes for the group-containing tx owning this builder
      * @return the list of block items
      */
-    public Output build(final boolean topLevel, @Nullable final List<StateChange> batchStateChanges) {
+    public Output build(final boolean topLevel, @Nullable final List<StateChange> groupStateChanges) {
         final var blockItems = new ArrayList<BlockItem>();
         // Construct the context here to capture any additional Ethereum transaction details needed
         // for the legacy record before they are removed from the block stream output item
         final var translationContext = translationContext();
-        final boolean includeAdditionalTraceData = batchStateChanges != null;
         // Don't duplicate the transaction bytes for the batch inner transactions, since the transactions
         // can be inferred from the parent transaction.
         if (category != BATCH_INNER) {
@@ -611,31 +615,89 @@ public class BlockStreamBuilder
             if (slotUsages != null) {
                 final boolean traceExplicitWrites = logicallyIdentical == null;
                 if (traceExplicitWrites) {
+                    // When writes are traced explicitly in ContractSlotUsage#writtenSlotKeys, we index the reads
+                    // to their corresponding writes; so in the case of a reverted transaction, we need to swap
+                    // the indexes back to the original keys before output
+                    if (status == REVERTED_SUCCESS) {
+                        slotUsages = slotUsages.stream()
+                                .map(usage -> {
+                                    final var writtenKeys = usage.writtenSlotKeysOrElse(WrittenSlotKeys.DEFAULT)
+                                            .keys();
+                                    var reads = usage.slotReads();
+                                    if (!writtenKeys.isEmpty()) {
+                                        final List<SlotRead> explicitReads = new ArrayList<>(reads.size());
+                                        for (final var read : reads) {
+                                            if (read.hasIndex()) {
+                                                explicitReads.add(read.copyBuilder()
+                                                        .key(writtenKeys.get(read.indexOrThrow()))
+                                                        .build());
+                                            } else {
+                                                explicitReads.add(read);
+                                            }
+                                        }
+                                        reads = explicitReads;
+                                    }
+                                    return usage.copyBuilder()
+                                            .slotReads(reads)
+                                            .writtenSlotKeys((WrittenSlotKeys) null)
+                                            .build();
+                                })
+                                .toList();
+                    }
                     // Nothing else to do if these slot usages already traced their written keys explicitly
                     builder.contractSlotUsages(slotUsages);
                 } else {
                     // If writes are implicit as the non-identical slot updates in the state changes list,
                     // we need to index the corresponding reads to minimize the size of the output stream
                     final Map<ContractID, Map<Bytes, Integer>> implicitWriteIndexes = new HashMap<>();
-                    final var relevantStateChanges = batchStateChanges != null ? batchStateChanges : stateChanges;
+                    final var relevantStateChanges = groupStateChanges != null ? groupStateChanges : stateChanges;
                     for (final var stateChange : relevantStateChanges) {
-                        if (stateChange.stateId() != STATE_ID_STORAGE.protoOrdinal()) {
-                            continue;
-                        }
-                        SlotKey slotKey = null;
-                        if (stateChange.hasMapUpdate()
-                                && !stateChange.mapUpdateOrThrow().identical()) {
-                            slotKey =
-                                    stateChange.mapUpdateOrThrow().keyOrThrow().slotKeyKeyOrThrow();
-                        } else if (stateChange.hasMapDelete()) {
-                            slotKey =
-                                    stateChange.mapDeleteOrThrow().keyOrThrow().slotKeyKeyOrThrow();
-                        }
-                        if (slotKey != null) {
-                            // Each contract id gets its own implicit list of writes
-                            final var indexes =
-                                    implicitWriteIndexes.computeIfAbsent(slotKey.contractID(), k -> new HashMap<>());
-                            indexes.put(slotKey.key(), indexes.size());
+                        if (stateChange.stateId() == STATE_ID_STORAGE.protoOrdinal()) {
+                            SlotKey slotKey = null;
+                            if (stateChange.hasMapUpdate()
+                                    && !stateChange.mapUpdateOrThrow().identical()) {
+                                slotKey = stateChange
+                                        .mapUpdateOrThrow()
+                                        .keyOrThrow()
+                                        .slotKeyKeyOrThrow();
+                            } else if (stateChange.hasMapDelete()) {
+                                slotKey = stateChange
+                                        .mapDeleteOrThrow()
+                                        .keyOrThrow()
+                                        .slotKeyKeyOrThrow();
+                            }
+                            if (slotKey != null) {
+                                // Each contract id gets its own implicit list of writes
+                                final var indexes = implicitWriteIndexes.computeIfAbsent(
+                                        slotKey.contractID(), k -> new HashMap<>());
+                                indexes.put(slotKey.key(), indexes.size());
+                            }
+                        } else if (stateChange.stateId() == STATE_ID_EVM_HOOK_STORAGE.protoOrdinal()) {
+                            SlotKey slotKey = null;
+                            if (stateChange.hasMapUpdate()
+                                    && !stateChange.mapUpdateOrThrow().identical()) {
+                                slotKey = new SlotKey(
+                                        ContractID.DEFAULT,
+                                        stateChange
+                                                .mapUpdateOrThrow()
+                                                .keyOrThrow()
+                                                .evmHookSlotKeyOrThrow()
+                                                .key());
+                            } else if (stateChange.hasMapDelete()) {
+                                slotKey = new SlotKey(
+                                        ContractID.DEFAULT,
+                                        stateChange
+                                                .mapDeleteOrThrow()
+                                                .keyOrThrow()
+                                                .evmHookSlotKeyOrThrow()
+                                                .key());
+                            }
+                            if (slotKey != null) {
+                                // Hook contract has default placeholder id
+                                final var indexes = implicitWriteIndexes.computeIfAbsent(
+                                        slotKey.contractID(), k -> new HashMap<>());
+                                indexes.put(slotKey.key(), indexes.size());
+                            }
                         }
                     }
                     final List<ContractSlotUsage> indexedSlotUsages = new ArrayList<>(slotUsages.size());
@@ -644,12 +706,18 @@ public class BlockStreamBuilder
                         if (reads.isEmpty()) {
                             indexedSlotUsages.add(slotUsage);
                         } else {
-                            final var contractId = slotUsage.contractIdOrThrow();
+                            var contractId = slotUsage.contractIdOrThrow();
+                            if (contractId.contractNumOrThrow() == HTS_HOOKS_CONTRACT_NUM) {
+                                contractId = ContractID.DEFAULT;
+                            }
                             final var writeIndexes = implicitWriteIndexes.get(contractId);
                             if (writeIndexes != null) {
                                 final List<SlotRead> indexedReads = new ArrayList<>(reads.size());
                                 for (final var read : reads) {
-                                    final var key = read.keyOrThrow();
+                                    var key = read.keyOrThrow();
+                                    if (contractId == ContractID.DEFAULT) {
+                                        key = WritableEvmHookStore.minimalKey(key);
+                                    }
                                     final var index = writeIndexes.get(key);
                                     if (index != null) {
                                         indexedReads.add(new SlotRead(new OneOf<>(INDEX, index), read.readValue()));
@@ -657,7 +725,8 @@ public class BlockStreamBuilder
                                         indexedReads.add(read);
                                     }
                                 }
-                                indexedSlotUsages.add(new ContractSlotUsage(contractId, null, indexedReads));
+                                indexedSlotUsages.add(
+                                        new ContractSlotUsage(slotUsage.contractIdOrThrow(), null, indexedReads));
                             } else {
                                 indexedSlotUsages.add(slotUsage);
                             }
@@ -682,16 +751,7 @@ public class BlockStreamBuilder
         }
 
         // Add trace data for batch inner transaction fields, that are normally computed by state changes
-        if (includeAdditionalTraceData) {
-            // automatic token association trace data
-            if (!automaticTokenAssociations.isEmpty() && TOKEN_UPDATE.equals(functionality)) {
-                final var builder = AutoAssociateTraceData.newBuilder()
-                        .automaticTokenAssociations(
-                                automaticTokenAssociations.getLast().accountId());
-                blockItems.add(BlockItem.newBuilder()
-                        .traceData(TraceData.newBuilder().autoAssociateTraceData(builder))
-                        .build());
-            }
+        if (groupStateChanges != null) {
             // message submit trace data
             if (sequenceNumber > 0 || runningHash != Bytes.EMPTY) {
                 final var builder = SubmitMessageTraceData.newBuilder()
@@ -771,6 +831,11 @@ public class BlockStreamBuilder
                 .nanos(parentConsensus.getNano())
                 .build());
         return this;
+    }
+
+    @Override
+    public StreamBuilder triggeringParentConsensus(@NonNull final Instant at) {
+        return parentConsensus(at);
     }
 
     @Override
@@ -1127,6 +1192,13 @@ public class BlockStreamBuilder
         return this;
     }
 
+    @NonNull
+    @Override
+    public BlockStreamBuilder highVolumePricingMultiplier(final long highVolumePricingMultiplier) {
+        transactionResultBuilder.highVolumePricingMultiplier(highVolumePricingMultiplier);
+        return this;
+    }
+
     @Override
     @NonNull
     public BlockStreamBuilder topicID(@NonNull final TopicID topicID) {
@@ -1314,6 +1386,16 @@ public class BlockStreamBuilder
     }
 
     @Override
+    public int getDeltaStorageSlotsUpdated() {
+        return deltaStorageSlotsUpdated;
+    }
+
+    @Override
+    public void setDeltaStorageSlotsUpdated(int deltaStorageSlotsUpdated) {
+        this.deltaStorageSlotsUpdated = deltaStorageSlotsUpdated;
+    }
+
+    @Override
     public void nullOutSideEffectFields() {
         serialNumbers.clear();
         if (!tokenTransferLists.isEmpty()) {
@@ -1342,7 +1424,6 @@ public class BlockStreamBuilder
             scheduleId = null;
             scheduledTransactionId = null;
         }
-
         evmAddress = Bytes.EMPTY;
         runningHash = Bytes.EMPTY;
         sequenceNumber = 0L;
@@ -1452,7 +1533,12 @@ public class BlockStreamBuilder
      */
     private TranslationContext translationContext() {
         return switch (requireNonNull(functionality)) {
-            case CONTRACT_CALL, CONTRACT_CREATE, CONTRACT_DELETE, CONTRACT_UPDATE, ETHEREUM_TRANSACTION ->
+            case HOOK_DISPATCH,
+                    CONTRACT_CALL,
+                    CONTRACT_CREATE,
+                    CONTRACT_DELETE,
+                    CONTRACT_UPDATE,
+                    ETHEREUM_TRANSACTION ->
                 new ContractOpContext(
                         memo,
                         translationContextExchangeRates,

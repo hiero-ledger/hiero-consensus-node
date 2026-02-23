@@ -481,13 +481,9 @@ message HookEntityId {
 message HookCall {
     oneof id {
         /**
-         * The full id of the hook to call, when the owning entity is not forced by the call site.
-         */
-        HookId full_hook_id  = 1;
-        /**
          * The numeric id of the hook to call, when the owning entity is forced by the call site.
          */
-        int64 hook_id = 2;
+        int64 hook_id = 1;
     }
 
     /**
@@ -1844,7 +1840,7 @@ enum HederaFunctionality {
     AtomicBatch = 108;
 
     /**
-     * Update one or more storage slots in an lambda EVM hook.
+     * (DEPRECATED) Remove once no production throttle assets reference it.
      */
     LambdaSStore = 109;
 
@@ -1852,6 +1848,31 @@ enum HederaFunctionality {
      * (Internal-only) Dispatch a hook action.
      */
     HookDispatch = 110;
+
+    /**
+     * Update one or more storage slots in an EVM hook.
+     */
+    HookStore = 111;
+
+    /**
+     * (Internal-only) Publish a new ledger id and chain-of-trust key.
+     */
+    LedgerIdPublication = 112;
+
+    /**
+     * Create a registered node
+     */
+    RegisteredNodeCreate = 113;
+
+    /**
+     * Update a registered node
+     */
+    RegisteredNodeUpdate = 114;
+
+    /**
+     * Delete a registered node
+     */
+    RegisteredNodeDelete = 115;
 }
 
 /**

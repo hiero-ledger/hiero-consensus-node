@@ -3,7 +3,7 @@ package com.hedera.node.app.service.contract.impl.exec.scope;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
-import static com.hedera.node.app.spi.fees.NoopFeeCharging.NOOP_FEE_CHARGING;
+import static com.hedera.node.app.spi.fees.NoopFeeCharging.DISPATCH_ONLY_NOOP_FEE_CHARGING;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.subDispatch;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.signedTxWith;
 import static java.util.Objects.requireNonNull;
@@ -93,7 +93,7 @@ public class HandleSystemContractOperations implements SystemContractOperations 
                 // transaction's remaining gas, so there is no more charging to do in the DispatchProcessor;
                 // FUTURE - make the custom implementation here _directly_ deduct from remaining gas without
                 // the manual precomputation upstream from here
-                NOOP_FEE_CHARGING,
+                DISPATCH_ONLY_NOOP_FEE_CHARGING,
                 PropagateFeeChargingStrategy.YES));
     }
 

@@ -13,8 +13,7 @@
 	"TOKEN_FUNGIBLE_COMMON": 0.001,
 	"TOKEN_NON_FUNGIBLE_UNIQUE": 0.001,
 	"TOKEN_FUNGIBLE_COMMON_WITH_CUSTOM_FEES": 0.002,
-	"TOKEN_NON_FUNGIBLE_UNIQUE_WITH_CUSTOM_FEES": 0.002,
-    "CRYPTO_TRANSFER_WITH_HOOKS": 0.005
+	"TOKEN_NON_FUNGIBLE_UNIQUE_WITH_CUSTOM_FEES": 0.002
   },
   "TokenAirdrop": {
     "DEFAULT": 0.1
@@ -60,7 +59,7 @@
 	"DEFAULT": 0.005
   },
   "ConsensusSubmitMessage": {
-	"DEFAULT": 0.0001,
+	"DEFAULT": 0.0008,
     "SUBMIT_MESSAGE_WITH_CUSTOM_FEES": 0.05
   },
   "ConsensusGetTopicInfo": {
@@ -230,7 +229,7 @@
   "AtomicBatch": {
     "DEFAULT": 0.001
   },
-  "LambdaSStore": {
+  "HookStore": {
     "DEFAULT": 0.0001
   }
 }

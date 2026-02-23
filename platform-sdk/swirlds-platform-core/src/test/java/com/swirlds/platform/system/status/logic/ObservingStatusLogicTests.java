@@ -11,16 +11,16 @@ import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.system.status.PlatformStatusConfig;
 import com.swirlds.platform.system.status.PlatformStatusConfig_;
 import com.swirlds.platform.system.status.actions.CatastrophicFailureAction;
-import com.swirlds.platform.system.status.actions.DoneReplayingEventsAction;
 import com.swirlds.platform.system.status.actions.FallenBehindAction;
 import com.swirlds.platform.system.status.actions.FreezePeriodEnteredAction;
 import com.swirlds.platform.system.status.actions.ReconnectCompleteAction;
 import com.swirlds.platform.system.status.actions.SelfEventReachedConsensusAction;
-import com.swirlds.platform.system.status.actions.StartedReplayingEventsAction;
 import com.swirlds.platform.system.status.actions.StateWrittenToDiskAction;
 import com.swirlds.platform.system.status.actions.TimeElapsedAction;
 import java.time.Duration;
 import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.consensus.pces.actions.DoneReplayingEventsAction;
+import org.hiero.consensus.pces.actions.StartedReplayingEventsAction;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -49,26 +49,36 @@ class ObservingStatusLogicTests {
 
         time.tick(Duration.ofSeconds(2));
         triggerActionAndAssertNoTransition(
-                logic::processTimeElapsedAction, new TimeElapsedAction(time.now()), logic.getStatus());
+                logic::processTimeElapsedAction,
+                new TimeElapsedAction(time.now(), new TimeElapsedAction.QuiescingStatus(false, time.now())),
+                logic.getStatus());
 
         time.tick(Duration.ofSeconds(4));
         triggerActionAndAssertTransition(
-                logic::processTimeElapsedAction, new TimeElapsedAction(time.now()), PlatformStatus.FREEZING);
+                logic::processTimeElapsedAction,
+                new TimeElapsedAction(time.now(), new TimeElapsedAction.QuiescingStatus(false, time.now())),
+                PlatformStatus.FREEZING);
     }
 
     @Test
     @DisplayName("Go to CHECKING")
     void toChecking() {
         triggerActionAndAssertNoTransition(
-                logic::processTimeElapsedAction, new TimeElapsedAction(time.now()), logic.getStatus());
+                logic::processTimeElapsedAction,
+                new TimeElapsedAction(time.now(), new TimeElapsedAction.QuiescingStatus(false, time.now())),
+                logic.getStatus());
 
         time.tick(Duration.ofSeconds(3));
         triggerActionAndAssertNoTransition(
-                logic::processTimeElapsedAction, new TimeElapsedAction(time.now()), logic.getStatus());
+                logic::processTimeElapsedAction,
+                new TimeElapsedAction(time.now(), new TimeElapsedAction.QuiescingStatus(false, time.now())),
+                logic.getStatus());
 
         time.tick(Duration.ofSeconds(3));
         triggerActionAndAssertTransition(
-                logic::processTimeElapsedAction, new TimeElapsedAction(time.now()), PlatformStatus.CHECKING);
+                logic::processTimeElapsedAction,
+                new TimeElapsedAction(time.now(), new TimeElapsedAction.QuiescingStatus(false, time.now())),
+                PlatformStatus.CHECKING);
     }
 
     @Test

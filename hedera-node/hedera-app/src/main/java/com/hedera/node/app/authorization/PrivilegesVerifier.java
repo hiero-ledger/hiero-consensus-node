@@ -168,6 +168,8 @@ public class PrivilegesVerifier {
                     : UNAUTHORIZED;
         } else if (entityNum == filesConfig.feeSchedules()) {
             return hasFeeSchedulePrivilege(accountID) ? AUTHORIZED : UNAUTHORIZED;
+        } else if (entityNum == filesConfig.simpleFeesSchedules()) {
+            return hasFeeSchedulePrivilege(accountID) ? AUTHORIZED : UNAUTHORIZED;
         } else if (entityNum == filesConfig.exchangeRates()) {
             return hasExchangeRatePrivilege(accountID) ? AUTHORIZED : UNAUTHORIZED;
         } else if (filesConfig.softwareUpdateRange().left() <= entityNum

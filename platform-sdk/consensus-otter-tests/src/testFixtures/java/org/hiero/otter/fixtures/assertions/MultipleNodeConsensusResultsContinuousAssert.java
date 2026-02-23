@@ -4,16 +4,15 @@ package org.hiero.otter.fixtures.assertions;
 import static org.hiero.otter.fixtures.result.SubscriberAction.CONTINUE;
 import static org.hiero.otter.fixtures.result.SubscriberAction.UNSUBSCRIBE;
 
-import com.swirlds.platform.test.fixtures.consensus.framework.validation.ConsensusRoundValidator;
-import com.swirlds.platform.test.fixtures.consensus.framework.validation.RoundInternalEqualityValidation;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.stream.Stream;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.framework.validation.ConsensusRoundValidator;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.framework.validation.RoundInternalEqualityValidation;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.result.ConsensusRoundSubscriber;
@@ -23,8 +22,8 @@ import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
  * Continuous assertions for {@link MultipleNodeConsensusResults}.
  *
  * <p>Please note: If two continuous assertions fail roughly at the same time, it is non-deterministic which one
- * will report the failure first. This is even true when running a test in the Turtle environment.
- * If deterministic behavior is required, please use regular assertions instead of continuous assertions.
+ * will report the failure first. This is even true when running a test in the Turtle environment. If deterministic
+ * behavior is required, please use regular assertions instead of continuous assertions.
  */
 @SuppressWarnings({"UnusedReturnValue", "unused"})
 public class MultipleNodeConsensusResultsContinuousAssert
@@ -62,14 +61,14 @@ public class MultipleNodeConsensusResultsContinuousAssert
      */
     @NonNull
     public MultipleNodeConsensusResultsContinuousAssert haveConsistentRounds() {
-        // For some validations to function properly, we have to prepend the last round
-        final AtomicReference<ConsensusRound> lastRound = new AtomicReference<>(null);
-        return checkContinuously((nodeId, rounds) -> {
+        final Map<NodeId, ConsensusRound> lastRoundByNodeId = new ConcurrentHashMap<>();
+        return checkContinuously((nodeId, round) -> {
+            // For some validations to function properly, we have to prepend the last round
             final List<ConsensusRound> includingLast = Stream.concat(
-                            Stream.ofNullable(lastRound.get()), rounds.stream())
+                            Stream.ofNullable(lastRoundByNodeId.get(nodeId)), Stream.of(round))
                     .toList();
             ConsensusRoundValidator.validate(includingLast);
-            lastRound.set(rounds.getLast());
+            lastRoundByNodeId.put(nodeId, round);
         });
     }
 
@@ -81,29 +80,28 @@ public class MultipleNodeConsensusResultsContinuousAssert
      * @return this assertion object for method chaining
      */
     @NonNull
-    public MultipleNodeConsensusResultsContinuousAssert haveEqualRounds() {
+    public MultipleNodeConsensusResultsContinuousAssert haveEqualCommonRounds() {
         final Map<Long, RoundFromNode> referenceRounds = new ConcurrentHashMap<>();
-        return checkContinuously((nodeId, rounds) -> {
-            for (final ConsensusRound round : rounds) {
-                final RoundFromNode reference =
-                        referenceRounds.computeIfAbsent(round.getRoundNum(), key -> new RoundFromNode(nodeId, round));
-                if (!nodeId.equals(reference.nodeId)) {
-                    RoundInternalEqualityValidation.INSTANCE.validate(reference.round(), round);
-                }
+        return checkContinuously((nodeId, round) -> {
+            final RoundFromNode reference =
+                    referenceRounds.computeIfAbsent(round.getRoundNum(), key -> new RoundFromNode(nodeId, round));
+            if (!nodeId.equals(reference.nodeId)) {
+                RoundInternalEqualityValidation.INSTANCE.validate(reference.round(), round);
             }
         });
     }
 
-    private record RoundFromNode(@NonNull NodeId nodeId, @NonNull ConsensusRound round) {}
+    private record RoundFromNode(
+            @NonNull NodeId nodeId, @NonNull ConsensusRound round) {}
 
     private MultipleNodeConsensusResultsContinuousAssert checkContinuously(
-            @NonNull final BiConsumer<NodeId, List<ConsensusRound>> check) {
+            @NonNull final BiConsumer<NodeId, ConsensusRound> check) {
         isNotNull();
 
-        final ConsensusRoundSubscriber subscriber = (nodeId, rounds) -> switch (state) {
+        final ConsensusRoundSubscriber subscriber = (nodeId, round) -> switch (state) {
             case ACTIVE -> {
                 if (!suppressedNodeIds.contains(nodeId)) {
-                    check.accept(nodeId, rounds);
+                    check.accept(nodeId, round);
                 }
                 yield CONTINUE;
             }

@@ -2,18 +2,20 @@
 package org.hiero.otter.fixtures.internal;
 
 import static java.util.Objects.requireNonNull;
-import static org.hiero.consensus.model.status.PlatformStatus.CATASTROPHIC_FAILURE;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.RUNNING;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
+import com.swirlds.logging.legacy.payload.IssPayload;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.nio.file.Path;
 import java.security.cert.X509Certificate;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Random;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.node.KeysAndCerts;
@@ -24,14 +26,15 @@ import org.hiero.otter.fixtures.AsyncNodeActions;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.TransactionFactory;
-import org.hiero.otter.fixtures.app.OtterTransaction;
+import org.hiero.otter.fixtures.network.transactions.OtterTransaction;
+import org.hiero.otter.fixtures.util.OtterSavedStateUtils;
 
 /**
  * Base implementation of the {@link Node} interface that provides common functionality.
  */
 public abstract class AbstractNode implements Node {
 
-    static final long UNSET_WEIGHT = -1;
+    protected static final long UNSET_WEIGHT = -1;
 
     /**
      * Represents the lifecycle states of a node.
@@ -55,7 +58,7 @@ public abstract class AbstractNode implements Node {
     private static final Duration DEFAULT_TIMEOUT = Duration.ofMinutes(1);
 
     protected final NodeId selfId;
-    protected final KeysAndCerts keysAndCerts;
+    protected KeysAndCerts keysAndCerts;
 
     private Roster roster;
     private long weight = UNSET_WEIGHT;
@@ -68,6 +71,9 @@ public abstract class AbstractNode implements Node {
 
     /** Current software version of the platform */
     protected SemanticVersion version = Node.DEFAULT_VERSION;
+
+    /** Saved state directory */
+    protected Path savedStateDirectory;
 
     /**
      * The current state of the platform. Volatile because it is set by the container callback thread and read by the
@@ -82,9 +88,20 @@ public abstract class AbstractNode implements Node {
      * @param selfId the unique identifier for this node
      * @param keysAndCerts the cryptographic keys and certificates for this node
      */
-    protected AbstractNode(@NonNull final NodeId selfId, @NonNull final KeysAndCerts keysAndCerts) {
+    protected AbstractNode(
+            @NonNull final NodeId selfId,
+            @NonNull final KeysAndCerts keysAndCerts,
+            @NonNull final NetworkConfiguration networkConfiguration) {
         this.selfId = requireNonNull(selfId);
         this.keysAndCerts = requireNonNull(keysAndCerts);
+        if (networkConfiguration.weight() != UNSET_WEIGHT) {
+            weight(networkConfiguration.weight());
+        }
+        version(networkConfiguration.version());
+        final Path savedStateDirectory = networkConfiguration.savedStateDirectory();
+        if (savedStateDirectory != null) {
+            startFromSavedState(savedStateDirectory);
+        }
     }
 
     /**
@@ -179,6 +196,12 @@ public abstract class AbstractNode implements Node {
         this.weight = weight;
     }
 
+    @Override
+    public void keysAndCerts(@NonNull final KeysAndCerts keysAndCerts) {
+        throwIsNotInLifecycle(LifeCycle.INIT, "KeysAndCerts can only be set during initialization");
+        this.keysAndCerts = requireNonNull(keysAndCerts);
+    }
+
     /**
      * {@inheritDoc}
      */
@@ -197,6 +220,30 @@ public abstract class AbstractNode implements Node {
         throwIfInLifecycle(LifeCycle.DESTROYED, "Cannot set version after the node has been destroyed");
 
         this.version = requireNonNull(version);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void startFromSavedState(@NonNull final Path savedStateDirectory) {
+        throwIfInLifecycle(LifeCycle.RUNNING, "Cannot set saved state directory while the node is running");
+        throwIfInLifecycle(LifeCycle.DESTROYED, "Cannot set saved state directory after the node has been destroyed");
+
+        this.savedStateDirectory = OtterSavedStateUtils.findSaveState(requireNonNull(savedStateDirectory));
+    }
+
+    /**
+     * Gets the saved state directory for this node.
+     *
+     * <p>The saved state directory is set when the node is configured to start from a previously saved state.
+     * If the node is starting from genesis, this will be {@code null}.
+     *
+     * @return the path to the saved state directory, or {@code null} if starting from genesis
+     */
+    @Nullable
+    public Path savedStateDirectory() {
+        return savedStateDirectory;
     }
 
     /**
@@ -247,13 +294,6 @@ public abstract class AbstractNode implements Node {
     protected abstract void doKillImmediately(@NonNull Duration timeout);
 
     /**
-     * Submit a transaction to the node.
-     *
-     * @param transaction the transaction to submit
-     */
-    protected abstract void submitTransaction(@NonNull OtterTransaction transaction);
-
-    /**
      * {@inheritDoc}
      */
     @Override
@@ -298,11 +338,13 @@ public abstract class AbstractNode implements Node {
 
         log.debug("Waiting for Self ISS to trigger...");
 
+        final AtomicBoolean found =
+                newLogResult().onNextMatch(logEntry -> logEntry.message().contains(IssPayload.class.getName()));
+
         timeManager()
-                .waitForCondition(
-                        () -> platformStatus == CATASTROPHIC_FAILURE,
-                        timeout.minus(elapsed),
-                        "Did not receive IssPayload log before timeout");
+                .waitForCondition(found::get, timeout.minus(elapsed), "Did not find the IssPayload log before timeout");
+
+        log.info("Self ISS triggered");
     }
 
     /**

@@ -1,32 +1,56 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.app.services.platform;
 
+import static com.swirlds.logging.legacy.LogMarker.STARTUP;
+import static org.hiero.consensus.model.PbjConverters.fromPbjTimestamp;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.isInFreezePeriod;
+
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.platform.state.service.WritablePlatformStateStore;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.platform.system.InitTrigger;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.function.Consumer;
-import org.hiero.base.utility.CommonUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.event.Event;
+import org.hiero.consensus.model.hashgraph.Round;
+import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
-import org.hiero.otter.fixtures.app.OtterFreezeTransaction;
+import org.hiero.consensus.platformstate.WritablePlatformStateStore;
 import org.hiero.otter.fixtures.app.OtterService;
-import org.hiero.otter.fixtures.app.OtterTransaction;
 import org.hiero.otter.fixtures.app.state.OtterServiceStateSpecification;
+import org.hiero.otter.fixtures.network.transactions.OtterFreezeTransaction;
+import org.hiero.otter.fixtures.network.transactions.OtterTransaction;
 
 /**
  * The main entry point for the PlatformState service in the Otter application.
  */
 public class PlatformStateService implements OtterService {
 
+    private static final Logger log = LogManager.getLogger();
+
     private static final String NAME = "PlatformStateService";
 
     private static final PlatformStateSpecification STATE_SPECIFICATION = new PlatformStateSpecification();
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void initialize(
+            @NonNull final InitTrigger trigger,
+            @NonNull final NodeId selfId,
+            @NonNull final Configuration configuration,
+            @NonNull final VirtualMapState state) {
+        log.info(STARTUP.getMarker(), "PlatformStateService initialized");
+    }
 
     /**
      * {@inheritDoc}
@@ -76,7 +100,7 @@ public class PlatformStateService implements OtterService {
             @NonNull final WritableStates writableStates, @NonNull final OtterFreezeTransaction freezeTransaction) {
         final Timestamp freezeTime = CommonPbjConverters.toPbj(freezeTransaction.getFreezeTime());
         final WritablePlatformStateStore store = new WritablePlatformStateStore(writableStates);
-        store.setFreezeTime(CommonUtils.fromPbjTimestamp(freezeTime));
+        store.setFreezeTime(fromPbjTimestamp(freezeTime));
     }
 
     /**
@@ -95,5 +119,20 @@ public class PlatformStateService implements OtterService {
                 Bytes.wrap(transaction.getSignature().toByteArray()),
                 Bytes.wrap(transaction.getHash().toByteArray()));
         callback.accept(new ScopedSystemTransaction<>(event.getCreatorId(), event.getBirthRound(), newTransaction));
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void onRoundComplete(@NonNull final WritableStates writableStates, @NonNull final Round round) {
+        final WritablePlatformStateStore store = new WritablePlatformStateStore(writableStates);
+
+        // Update the latest freeze round after everything is handled.
+        // The platform sets the latestFreezeTime, but not the freeze round :(
+        if (isInFreezePeriod(round.getConsensusTimestamp(), store.getFreezeTime(), store.getLastFrozenTime())) {
+            // If this is a freeze round, we need to update the freeze info state
+            store.setLatestFreezeRound(round.getRoundNum());
+        }
     }
 }

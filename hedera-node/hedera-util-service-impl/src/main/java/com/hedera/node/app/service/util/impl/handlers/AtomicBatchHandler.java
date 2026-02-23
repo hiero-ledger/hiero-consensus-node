@@ -323,14 +323,18 @@ public class AtomicBatchHandler implements TransactionHandler {
         }
 
         @Override
-        public Fees charge(@NonNull final Context ctx, @NonNull final Validation validation, @NonNull final Fees fees) {
+        public Fees charge(
+                @NonNull final AccountID payerId,
+                @NonNull final Context ctx,
+                @NonNull final Validation validation,
+                @NonNull final Fees fees) {
             final var recordingContext = new RecordingContext(ctx, charge -> this.finalCharge = charge);
-            return delegate.charge(recordingContext, validation, fees);
+            return delegate.charge(payerId, recordingContext, validation, fees);
         }
 
         @Override
-        public void refund(@NonNull final Context ctx, @NonNull final Fees fees) {
-            delegate.refund(ctx, fees);
+        public void refund(@NonNull final AccountID payerId, @NonNull final Context ctx, @NonNull final Fees fees) {
+            delegate.refund(payerId, ctx, fees);
         }
 
         /**

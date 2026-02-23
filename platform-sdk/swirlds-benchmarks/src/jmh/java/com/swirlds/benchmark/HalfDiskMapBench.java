@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.benchmark;
 
+import static com.swirlds.benchmark.BenchmarkKeyUtils.longToKey;
+
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.files.DataFileCompactor;
@@ -56,7 +58,7 @@ public class HalfDiskMapBench extends BaseBench {
             for (int j = 0; j < numRecords; ++j) {
                 long id = nextAscKey();
                 long value = nextValue();
-                final Bytes key = BenchmarkKey.longToKey(id);
+                final Bytes key = longToKey(id);
                 store.put(key, value);
                 if (verify) map[(int) id] = value;
             }
@@ -73,7 +75,7 @@ public class HalfDiskMapBench extends BaseBench {
         if (verify) {
             start = System.currentTimeMillis();
             for (int id = 0; id < map.length; ++id) {
-                final Bytes key = BenchmarkKey.longToKey(id);
+                final Bytes key = longToKey(id);
                 long value = store.get(key, INVALID_PATH);
                 if (value != map[id]) {
                     throw new RuntimeException("Bad value");

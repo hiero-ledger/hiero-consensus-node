@@ -15,15 +15,16 @@ import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
 import com.hedera.node.app.blocks.impl.ImmediateStateChangeListener;
+import com.hedera.node.app.fees.AppFeeCharging;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.fees.FeeAccumulator;
 import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.fees.ResourcePriceCalculatorImpl;
-import com.hedera.node.app.ids.EntityIdService;
-import com.hedera.node.app.ids.EntityNumGeneratorImpl;
-import com.hedera.node.app.ids.WritableEntityIdStore;
 import com.hedera.node.app.info.NodeInfoImpl;
 import com.hedera.node.app.records.impl.BlockRecordInfoImpl;
+import com.hedera.node.app.service.entityid.EntityIdService;
+import com.hedera.node.app.service.entityid.impl.EntityNumGeneratorImpl;
+import com.hedera.node.app.service.entityid.impl.WritableEntityIdStoreImpl;
 import com.hedera.node.app.service.schedule.ScheduleServiceApi;
 import com.hedera.node.app.service.schedule.impl.ScheduleServiceImpl;
 import com.hedera.node.app.service.token.api.FeeStreamBuilder;
@@ -31,12 +32,13 @@ import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.services.ServiceScopeLookup;
 import com.hedera.node.app.spi.api.ServiceApiProvider;
 import com.hedera.node.app.spi.authorization.Authorizer;
+import com.hedera.node.app.spi.fees.NodeFeeAccumulator;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.metrics.StoreMetricsService;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
-import com.hedera.node.app.store.ReadableStoreFactory;
+import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.app.store.ServiceApiFactory;
 import com.hedera.node.app.store.StoreFactoryImpl;
 import com.hedera.node.app.store.WritableStoreFactory;
@@ -75,6 +77,7 @@ import org.hiero.consensus.model.transaction.TransactionWrapper;
 @Singleton
 public class StandaloneDispatchFactory {
     private final FeeManager feeManager;
+    private final AppFeeCharging appFeeCharging;
     private final Authorizer authorizer;
     private final NetworkInfo networkInfo;
     private final ConfigProvider configProvider;
@@ -92,6 +95,7 @@ public class StandaloneDispatchFactory {
     @Inject
     public StandaloneDispatchFactory(
             @NonNull final FeeManager feeManager,
+            @NonNull final AppFeeCharging appFeeCharging,
             @NonNull final Authorizer authorizer,
             @NonNull final NetworkInfo networkInfo,
             @NonNull final ConfigProvider configProvider,
@@ -106,6 +110,7 @@ public class StandaloneDispatchFactory {
             @NonNull final TransactionChecker transactionChecker,
             @NonNull final ScheduleServiceImpl scheduleService) {
         this.feeManager = requireNonNull(feeManager);
+        this.appFeeCharging = requireNonNull(appFeeCharging);
         this.authorizer = requireNonNull(authorizer);
         this.networkInfo = requireNonNull(networkInfo);
         this.configProvider = requireNonNull(configProvider);
@@ -150,17 +155,18 @@ public class StandaloneDispatchFactory {
                 new BoundaryStateChangeListener(storeMetricsService, () -> config),
                 new ImmediateStateChangeListener(),
                 blockStreamConfig.streamMode());
-        final var readableStoreFactory = new ReadableStoreFactory(stack);
-        final var entityIdStore = new WritableEntityIdStore(stack.getWritableStates(EntityIdService.NAME));
+        final var readableStoreFactory = new ReadableStoreFactoryImpl(stack);
+        final var entityIdStore = new WritableEntityIdStoreImpl(stack.getWritableStates(EntityIdService.NAME));
         final var consensusTransaction = consensusTransactionFor(transactionBody);
         final var creatorInfo = creatorInfoFor(transactionBody);
         final var preHandleResult = preHandleWorkflow.getCurrentPreHandleResult(
-                creatorInfo, consensusTransaction, readableStoreFactory, ignore -> {});
+                creatorInfo, consensusTransaction, readableStoreFactory, (ignore, ignored) -> {});
         final var tokenContext = new TokenContextImpl(config, stack, consensusNow, entityIdStore);
         final var txnInfo = requireNonNull(preHandleResult.txInfo());
         final var writableStoreFactory =
                 new WritableStoreFactory(stack, serviceScopeLookup.getServiceName(txnInfo.txBody()), entityIdStore);
-        final var serviceApiFactory = new ServiceApiFactory(stack, config, apiProviders);
+        // Standalone executor doesn't need to accumulate node fees
+        final var serviceApiFactory = new ServiceApiFactory(stack, config, apiProviders, NodeFeeAccumulator.NOOP);
         final var priceCalculator =
                 new ResourcePriceCalculatorImpl(consensusNow, txnInfo, feeManager, readableStoreFactory);
         final var storeFactory = new StoreFactoryImpl(readableStoreFactory, writableStoreFactory, serviceApiFactory);
@@ -181,6 +187,7 @@ public class StandaloneDispatchFactory {
                 blockRecordInfo,
                 priceCalculator,
                 feeManager,
+                appFeeCharging,
                 storeFactory,
                 requireNonNull(txnInfo.payerID()),
                 NO_OP_KEY_VERIFIER,

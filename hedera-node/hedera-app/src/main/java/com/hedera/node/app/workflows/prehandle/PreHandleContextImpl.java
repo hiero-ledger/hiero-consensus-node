@@ -2,6 +2,7 @@
 package com.hedera.node.app.workflows.prehandle;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_DELETED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_PAYER_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UNRESOLVABLE_REQUIRED_SIGNERS;
 import static com.hedera.hapi.util.HapiUtils.EMPTY_KEY_LIST;
@@ -21,10 +22,10 @@ import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.info.NodeInfo;
+import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.TransactionKeys;
-import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.app.workflows.purechecks.PureChecksContextImpl;
@@ -144,7 +145,7 @@ public class PreHandleContextImpl implements PreHandleContext {
         this.configuration = requireNonNull(configuration, "configuration must not be null!");
         this.dispatcher = requireNonNull(dispatcher, "dispatcher must not be null!");
         this.isUserTx = isUserTx;
-        this.accountStore = storeFactory.getStore(ReadableAccountStore.class);
+        this.accountStore = storeFactory.readableStore(ReadableAccountStore.class);
         // Find the account, which must exist or throw on construction
         final var payer = mustExist(accountStore.getAccountById(payerId), INVALID_PAYER_ACCOUNT_ID);
         // It would be a catastrophic invariant failure if an account in state didn't have a key
@@ -155,7 +156,7 @@ public class PreHandleContextImpl implements PreHandleContext {
     @Override
     @NonNull
     public <C> C createStore(@NonNull Class<C> storeInterface) {
-        return storeFactory.getStore(storeInterface);
+        return storeFactory.readableStore(storeInterface);
     }
 
     @Override
@@ -517,6 +518,21 @@ public class PreHandleContextImpl implements PreHandleContext {
             throw new PreCheckException(UNRESOLVABLE_REQUIRED_SIGNERS);
         }
         return context;
+    }
+
+    @Override
+    public Key getAccountKey(@NonNull final AccountID accountID) throws PreCheckException {
+        requireNonNull(accountID);
+        final var account = accountStore.getAccountById(accountID);
+        if (account == null) {
+            throw new PreCheckException(INVALID_ACCOUNT_ID);
+        }
+        if (account.deleted()) {
+            throw new PreCheckException(ACCOUNT_DELETED);
+        }
+        // Verify this key isn't for an immutable account
+        verifyNotStakingAccounts(account.accountIdOrThrow(), INVALID_ACCOUNT_ID);
+        return account.keyOrThrow();
     }
 
     @Override

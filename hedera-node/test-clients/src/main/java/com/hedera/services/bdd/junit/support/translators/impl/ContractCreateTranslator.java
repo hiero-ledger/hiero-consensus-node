@@ -18,12 +18,15 @@ import com.hedera.hapi.block.stream.trace.ExecutedInitcode;
 import com.hedera.hapi.block.stream.trace.TraceData;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.FileID;
+import com.hedera.hapi.node.base.HookId;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.node.app.state.SingleTransactionRecord;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.support.translators.BaseTranslator;
 import com.hedera.services.bdd.junit.support.translators.BlockTransactionPartsTranslator;
+import com.hedera.services.bdd.junit.support.translators.ScopedTraceData;
 import com.hedera.services.bdd.junit.support.translators.inputs.BlockTransactionParts;
+import com.hedera.services.bdd.junit.support.translators.inputs.HookMetadata;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
@@ -48,7 +51,9 @@ public class ContractCreateTranslator implements BlockTransactionPartsTranslator
             @NonNull final BaseTranslator baseTranslator,
             @NonNull final List<StateChange> remainingStateChanges,
             @Nullable final List<TraceData> tracesSoFar,
-            @NonNull final List<TraceData> followingUnitTraces) {
+            @NonNull final List<ScopedTraceData> followingUnitTraces,
+            @Nullable final HookId executingHookId,
+            @Nullable final HookMetadata hookMetadata) {
         requireNonNull(parts);
         requireNonNull(baseTranslator);
         requireNonNull(remainingStateChanges);
@@ -58,8 +63,8 @@ public class ContractCreateTranslator implements BlockTransactionPartsTranslator
                     parts.outputIfPresent(TransactionOutput.TransactionOneOfType.CONTRACT_CREATE)
                             .map(TransactionOutput::contractCreateOrThrow)
                             .ifPresent(createContractOutput -> {
-                                final var derivedBuilder =
-                                        resultBuilderFrom(createContractOutput.evmTransactionResultOrThrow());
+                                final var evmResult = createContractOutput.evmTransactionResultOrThrow();
+                                final var derivedBuilder = resultBuilderFrom(evmResult);
                                 ContractID createdId = null;
                                 if (parts.status() == SUCCESS) {
                                     if (parts.isTopLevel() || parts.isInnerBatchTxn()) {
@@ -76,7 +81,8 @@ public class ContractCreateTranslator implements BlockTransactionPartsTranslator
                                             mapTracesToVerboseLogs(derivedBuilder, parts.traces());
                                         }
                                         baseTranslator.addCreatedIdsTo(derivedBuilder, remainingStateChanges);
-                                        baseTranslator.addChangedContractNonces(derivedBuilder, remainingStateChanges);
+                                        baseTranslator.addChangedContractNonces(
+                                                derivedBuilder, evmResult.contractNonces());
                                     }
                                     createdId = createContractOutput
                                             .evmTransactionResultOrThrow()
@@ -166,6 +172,7 @@ public class ContractCreateTranslator implements BlockTransactionPartsTranslator
                     }
                 },
                 remainingStateChanges,
-                followingUnitTraces);
+                followingUnitTraces,
+                executingHookId);
     }
 }

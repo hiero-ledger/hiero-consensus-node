@@ -21,9 +21,11 @@ import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static java.util.Objects.requireNonNull;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.base.HookEntityId;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.contract.ContractUpdateTransactionBody;
@@ -32,12 +34,12 @@ import com.hedera.node.app.hapi.utils.fee.SigValueObj;
 import com.hedera.node.app.hapi.utils.fee.SmartContractFeeBuilder;
 import com.hedera.node.app.hapi.utils.keys.KeyUtils;
 import com.hedera.node.app.service.contract.impl.records.ContractUpdateStreamBuilder;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.token.HookDispatchUtils;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
-import com.hedera.node.app.spi.ids.EntityIdFactory;
 import com.hedera.node.app.spi.validation.ExpiryMeta;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
@@ -150,28 +152,37 @@ public class ContractUpdateHandler implements TransactionHandler {
      * @param context the handle context
      * @param op the contract update transaction body
      * @param builder the account builder to update
-     * @param originalAccount the original account before updates
+     * @param account the original account before updates
      */
+    @VisibleForTesting
     public void updateHooks(
-            final HandleContext context,
-            final ContractUpdateTransactionBody op,
-            final Account.Builder builder,
-            final Account originalAccount) {
-        long headAfterDeletes = originalAccount.firstHookId();
+            @NonNull final HandleContext context,
+            @NonNull final ContractUpdateTransactionBody op,
+            @NonNull final Account.Builder builder,
+            @NonNull final Account account) {
+        // We persist both account and storage hooks with AccountID entity type internally
+        final var hookEntityId =
+                HookEntityId.newBuilder().accountId(account.accountIdOrThrow()).build();
+        var headAfterDeletes = account.numberHooksInUse() == 0 ? null : account.firstHookId();
         // Dispatch all the hooks to delete
         if (!op.hookIdsToDelete().isEmpty()) {
-            HookDispatchUtils.dispatchHookDeletions(
-                    context, op.hookIdsToDelete(), headAfterDeletes, originalAccount.accountId());
+            headAfterDeletes = HookDispatchUtils.dispatchHookDeletions(
+                    context, op.hookIdsToDelete(), headAfterDeletes, hookEntityId);
         }
         if (!op.hookCreationDetails().isEmpty()) {
-            HookDispatchUtils.dispatchHookCreations(
-                    context, op.hookCreationDetails(), headAfterDeletes, originalAccount.accountId());
+            final int slotsDelta = HookDispatchUtils.dispatchHookCreations(
+                    context, op.hookCreationDetails(), headAfterDeletes, hookEntityId);
+            // If there are creations, the updated account's first hook id is the first creation no matter what
+            // deletions
             builder.firstHookId(op.hookCreationDetails().getFirst().hookId());
+            builder.numberEvmHookStorageSlots(account.numberEvmHookStorageSlots() + slotsDelta);
         } else if (!op.hookIdsToDelete().isEmpty()) {
-            builder.firstHookId(headAfterDeletes);
+            // Otherwise the first hook id is the head after deletions; or zero if none are left
+            builder.firstHookId(headAfterDeletes == null ? 0 : headAfterDeletes);
         }
+        // And update the number of hooks in use for the account
         if (!op.hookCreationDetails().isEmpty() || !op.hookIdsToDelete().isEmpty()) {
-            final var current = originalAccount.numberHooksInUse();
+            final var current = account.numberHooksInUse();
             builder.numberHooksInUse(current
                     - op.hookIdsToDelete().size()
                     + op.hookCreationDetails().size());

@@ -81,7 +81,7 @@ class ReadableNodeStoreImplTest extends AddressBookTestBase {
 
     @Test
     void keysWorks() {
-        final var stateBuilder = emptyReadableNodeStateBuilder();
+        final var stateBuilder = readableNodeStateBuilder(0);
         stateBuilder
                 .value(new EntityNumber(1), mock(Node.class))
                 .value(new EntityNumber(2), mock(Node.class))
@@ -99,7 +99,7 @@ class ReadableNodeStoreImplTest extends AddressBookTestBase {
     @Test
     @DisplayName("Constructing a new roster includes all of the latest nodes defined in state")
     void snapshotOfFutureRosterIncludesAllUndeletedDefinitions() {
-        final ReadableKVState<EntityNumber, Node> nodesState = emptyReadableNodeStateBuilder()
+        final ReadableKVState<EntityNumber, Node> nodesState = readableNodeStateBuilder(0)
                 .value(EntityNumber.newBuilder().number(1).build(), NODE_1)
                 .value(EntityNumber.newBuilder().number(2).build(), NODE_2)
                 .value(EntityNumber.newBuilder().number(3).build(), NODE_3)

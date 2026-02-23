@@ -1,17 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.integration;
 
-import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_TRANSFER;
-import static com.hedera.hapi.node.base.HederaFunctionality.NODE_STAKE_UPDATE;
 import static com.hedera.hapi.util.HapiUtils.asInstant;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
+import static com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess.blockFrom;
 import static com.hedera.node.app.service.token.impl.schemas.V0610TokenSchema.NODE_REWARDS_STATE_ID;
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION;
 import static com.hedera.services.bdd.junit.TestTags.INTEGRATION;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.BLOCK_STREAMS_DIR;
 import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.REPEATABLE;
-import static com.hedera.services.bdd.junit.support.BlockStreamAccess.blockFrom;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
@@ -32,7 +30,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepForBlockPeriod
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilStartOfNextStakingPeriod;
 import static com.hedera.services.bdd.spec.utilops.streams.assertions.SelectedItemsAssertion.SELECTED_ITEMS_KEY;
 import static com.hedera.services.bdd.suites.HapiSuite.CIVILIAN_PAYER;
-import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.NODE_REWARD;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
@@ -47,19 +44,17 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.block.stream.Block;
-import com.hedera.hapi.block.stream.BlockItem;
-import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.block.stream.output.TransactionResult;
 import com.hedera.hapi.node.state.token.NodeActivity;
 import com.hedera.hapi.node.state.token.NodeRewards;
+import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
 import com.hedera.node.app.hapi.utils.forensics.RecordStreamEntry;
 import com.hedera.node.app.service.token.TokenService;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyRepeatableHapiTest;
 import com.hedera.services.bdd.junit.RepeatableHapiTest;
 import com.hedera.services.bdd.junit.TargetEmbeddedMode;
-import com.hedera.services.bdd.junit.support.BlockStreamAccess;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
-import com.hedera.services.bdd.junit.support.translators.inputs.TransactionParts;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
@@ -74,15 +69,16 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.stream.Stream;
 import org.hiero.base.concurrent.interrupt.Uninterruptable;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.MethodOrderer;
@@ -101,7 +97,8 @@ public class RepeatableHip1064Tests {
         testLifecycle.overrideInClass(Map.of(
                 "nodes.nodeRewardsEnabled", "true",
                 "nodes.preserveMinNodeRewardBalance", "true",
-                "ledger.transfers.maxLen", "2"));
+                "ledger.transfers.maxLen", "2",
+                "nodes.feeCollectionAccountEnabled", "false"));
         testLifecycle.doAdhoc(
                 nodeUpdate("0").declineReward(false),
                 nodeUpdate("1").declineReward(false),
@@ -139,6 +136,7 @@ public class RepeatableHip1064Tests {
                 waitUntilStartOfNextStakingPeriod(1),
                 // First get any node fees already collected at the end of this block
                 sleepForBlockPeriod(),
+                cryptoTransfer(TokenMovement.movingHbar(10 * ONE_HBAR).between(GENESIS, NODE_REWARD)),
                 cryptoCreate(CIVILIAN_PAYER),
                 EmbeddedVerbs.<NodeRewards>viewSingleton(
                         TokenService.NAME,
@@ -240,6 +238,7 @@ public class RepeatableHip1064Tests {
                 nodeUpdate("0").declineReward(true),
                 // Start a new period
                 waitUntilStartOfNextStakingPeriod(1),
+                cryptoTransfer(TokenMovement.movingHbar(10 * ONE_HBAR).between(GENESIS, NODE_REWARD)),
                 // Collect some node fees with a non-system payer
                 cryptoCreate(CIVILIAN_PAYER),
                 fileCreate("something")
@@ -437,6 +436,7 @@ public class RepeatableHip1064Tests {
                 nodeUpdate("0").declineReward(true),
                 // Start a new period
                 waitUntilStartOfNextStakingPeriod(1),
+                cryptoTransfer(TokenMovement.movingHbar(10 * ONE_HBAR).between(GENESIS, NODE_REWARD)),
                 // Collect some node fees with a non-system payer
                 cryptoCreate(CIVILIAN_PAYER),
                 fileCreate("something")
@@ -520,6 +520,7 @@ public class RepeatableHip1064Tests {
                 nodeUpdate("0").declineReward(true),
                 // Start a new period
                 waitUntilStartOfNextStakingPeriod(1),
+                cryptoTransfer(TokenMovement.movingHbar(10 * ONE_HBAR).between(GENESIS, NODE_REWARD)),
                 // Collect some node fees with a non-system payer
                 cryptoCreate(CIVILIAN_PAYER),
                 fileCreate("something")
@@ -602,6 +603,7 @@ public class RepeatableHip1064Tests {
                 nodeUpdate("0").declineReward(true),
                 // Start a new period
                 waitUntilStartOfNextStakingPeriod(1),
+                cryptoTransfer(TokenMovement.movingHbar(10 * ONE_HBAR).between(GENESIS, NODE_REWARD)),
                 // Collect some node fees with a non-system payer
                 cryptoCreate(CIVILIAN_PAYER),
                 fileCreate("something")
@@ -661,10 +663,54 @@ public class RepeatableHip1064Tests {
     Stream<DynamicTest> nodeRewardPaymentsAlsoTriggersStakePeriodBoundarySideEffects() {
         return hapiTest(
                 waitUntilStartOfNextStakingPeriod(1),
+                cryptoTransfer(TokenMovement.movingHbar(10 * ONE_HBAR).between(GENESIS, NODE_REWARD)),
                 nodeUpdate("0").declineReward(false),
                 sleepForBlockPeriod(),
+                setAllNodesActive(),
+                cryptoTransfer(tinyBarsFromTo(GENESIS, NODE_REWARD, ONE_MILLION_HBARS)),
+                // Move into a new staking period
+                waitUntilStartOfNextStakingPeriod(1),
+                setAllNodesActive(),
+                // Simulate a few transactions to close a block, whose only chance of exporting a NodeStakeUpdate is the
+                // node reward payment
+                doingContextual(spec -> spec.repeatableEmbeddedHederaOrThrow().handleRoundWithNoUserTransactions()),
+                sleepForBlockPeriod(),
+                doingContextual(spec -> spec.repeatableEmbeddedHederaOrThrow().handleRoundWithNoUserTransactions()),
+                sleepForBlockPeriod(),
+                doingContextual(spec -> spec.repeatableEmbeddedHederaOrThrow().handleRoundWithNoUserTransactions()),
+                doingContextual(spec -> allRunFor(
+                        spec,
+                        exposeLatestNBlockTxnResults(
+                                5,
+                                list -> {
+                                    if (list.isEmpty()) {
+                                        Assertions.fail("No transaction results found!");
+                                    }
+                                    final var rewardPayment = list.getLast();
+                                    final var hasNodeRewardDebit =
+                                            requireNonNull(rewardPayment.transferListOrThrow())
+                                                    .accountAmounts()
+                                                    .stream()
+                                                    .anyMatch(aa -> aa.amount() < 0
+                                                            && aa.accountIDOrThrow()
+                                                                            .accountNumOrThrow()
+                                                                    == 801L);
+                                    assertTrue(
+                                            hasNodeRewardDebit, "Node rewards payment should be present in the block");
+                                },
+                                Duration.ofSeconds(1)))));
+    }
+
+    @Order(8)
+    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+    Stream<DynamicTest> nodeMissingSingleRoundStillActive() {
+        final int minActivePercent = 90;
+        return hapiTest(
+                overriding("nodes.activeRoundsPercent", Integer.toString(minActivePercent)),
+                waitUntilStartOfNextStakingPeriod(1),
                 mutateSingleton(TokenService.NAME, NODE_REWARDS_STATE_ID, (NodeRewards nodeRewards) -> nodeRewards
                         .copyBuilder()
+                        .numRoundsInStakingPeriod(10)
                         .nodeActivities(List.of(
                                 NodeActivity.newBuilder()
                                         .nodeId(0)
@@ -672,7 +718,7 @@ public class RepeatableHip1064Tests {
                                         .build(),
                                 NodeActivity.newBuilder()
                                         .nodeId(1)
-                                        .numMissedJudgeRounds(0)
+                                        .numMissedJudgeRounds(1)
                                         .build(),
                                 NodeActivity.newBuilder()
                                         .nodeId(2)
@@ -683,55 +729,66 @@ public class RepeatableHip1064Tests {
                                         .numMissedJudgeRounds(0)
                                         .build()))
                         .build()),
-                cryptoTransfer(tinyBarsFromTo(GENESIS, NODE_REWARD, ONE_MILLION_HBARS)),
-                // Move into a new staking period
-                waitUntilStartOfNextStakingPeriod(1),
-                // Close a block whose only chance of exporting a NodeStakeUpdate is the node reward payment
-                doingContextual(spec -> spec.repeatableEmbeddedHederaOrThrow().handleRoundWithNoUserTransactions()),
-                sleepForBlockPeriod(),
-                doingContextual(spec -> spec.repeatableEmbeddedHederaOrThrow().handleRoundWithNoUserTransactions()),
-                sleepForBlockPeriod(),
-                cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1)),
-                exposeLatestBlock(
-                        b -> {
-                            final var rewardPayment = findFirst(b, CRYPTO_TRANSFER);
-                            assertTrue(
-                                    rewardPayment.isPresent(), "Node rewards payment should be present in the block");
-                            final var rewardPaymentTx =
-                                    rewardPayment.orElseThrow().body().cryptoTransferOrThrow();
-                            final var hasNodeRewardDebit =
-                                    requireNonNull(rewardPaymentTx.transfers()).accountAmounts().stream()
-                                            .anyMatch(aa -> aa.amount() < 0
-                                                    && aa.accountIDOrThrow().accountNumOrThrow() == 801L);
-                            assertTrue(hasNodeRewardDebit, "Node rewards payment should be present in the block");
-                            final var nodeStakeUpdate = findFirst(b, NODE_STAKE_UPDATE);
-                            assertTrue(nodeStakeUpdate.isPresent(), "Node stake update should be present in the block");
-                        },
-                        Duration.ofSeconds(1)));
+                EmbeddedVerbs.<NodeRewards>viewSingleton(TokenService.NAME, NODE_REWARDS_STATE_ID, nodeRewards -> {
+                    final long rounds = nodeRewards.numRoundsInStakingPeriod();
+                    final long maxMissed = (rounds * (100 - minActivePercent)) / 100;
+                    assertEquals(1L, maxMissed, "Test setup should allow one missed round");
+                    final var missedCounts = nodeRewards.nodeActivities().stream()
+                            .collect(toMap(NodeActivity::nodeId, NodeActivity::numMissedJudgeRounds));
+                    assertEquals(1L, missedCounts.get(1L));
+                    assertTrue(missedCounts.get(1L) <= maxMissed, "Node1 should remain active after missing one round");
+                }));
     }
 
-    private static Optional<TransactionParts> findFirst(
-            @NonNull final Block b, @NonNull final HederaFunctionality function) {
-        return b.items().stream()
-                .filter(BlockItem::hasSignedTransaction)
-                .map(BlockItem::signedTransactionOrThrow)
-                .map(TransactionParts::from)
-                .filter(parts -> parts.function() == function)
-                .findFirst();
+    private static SpecOperation setAllNodesActive() {
+        return mutateSingleton(TokenService.NAME, NODE_REWARDS_STATE_ID, (NodeRewards nodeRewards) -> nodeRewards
+                .copyBuilder()
+                .nodeActivities(List.of(
+                        NodeActivity.newBuilder()
+                                .nodeId(0)
+                                .numMissedJudgeRounds(0)
+                                .build(),
+                        NodeActivity.newBuilder()
+                                .nodeId(1)
+                                .numMissedJudgeRounds(0)
+                                .build(),
+                        NodeActivity.newBuilder()
+                                .nodeId(2)
+                                .numMissedJudgeRounds(0)
+                                .build(),
+                        NodeActivity.newBuilder()
+                                .nodeId(3)
+                                .numMissedJudgeRounds(0)
+                                .build()))
+                .build());
     }
 
-    static SpecOperation exposeLatestBlock(Consumer<Block> cb, Duration after) {
-        return UtilVerbs.doingContextual((spec) -> {
+    static SpecOperation exposeLatestNBlockTxnResults(
+            int numBlocks, Consumer<List<TransactionResult>> crs, Duration after) {
+        return doingContextual((spec) -> {
             Uninterruptable.tryToSleep(after);
+            final List<Block> latestNBlocksUF = new ArrayList<>();
             try (final var stream = Files.walk(spec.getNetworkNodes().getFirst().getExternalPath(BLOCK_STREAMS_DIR))) {
-                final var lastPath = stream.filter(BlockStreamAccess::isBlockFile)
-                        .peek(System.out::println)
-                        .max(comparing(BlockStreamAccess::extractBlockNumber))
-                        .orElseThrow();
-                cb.accept(blockFrom(lastPath));
+                // take files snapshot (so we don't include other block files that may be coming through)
+                final var blockPathsSnapshot = stream.filter(p -> BlockStreamAccess.isBlockFile(p, true))
+                        .sorted(comparing(BlockStreamAccess::extractBlockNumber))
+                        .toList();
+                final var numFiles = Math.min(blockPathsSnapshot.size(), numBlocks);
+                for (int i = blockPathsSnapshot.size() - numFiles; i < blockPathsSnapshot.size(); i++) {
+                    latestNBlocksUF.add(blockFrom(blockPathsSnapshot.get(i)));
+                }
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
+
+            final List<TransactionResult> latestNTxnResults = latestNBlocksUF.stream()
+                    .flatMap(b -> b.items().stream())
+                    .filter(item -> item.hasTransactionResult())
+                    .map(item -> item.transactionResultOrThrow())
+                    .toList();
+
+            // Finally, call accept on the list
+            crs.accept(latestNTxnResults);
         });
     }
 

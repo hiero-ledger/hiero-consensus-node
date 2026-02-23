@@ -7,6 +7,7 @@ package com.hedera.services.bdd.junit.hedera;
 public enum ExternalPath {
     APPLICATION_LOG,
     SWIRLDS_LOG,
+    BLOCK_NODE_COMMS_LOG,
     ADDRESS_BOOK,
     GENESIS_PROPERTIES,
     APPLICATION_PROPERTIES,
@@ -14,6 +15,7 @@ public enum ExternalPath {
     LOG4J2_XML,
     RECORD_STREAMS_DIR,
     BLOCK_STREAMS_DIR,
+    WRAPPED_RECORD_HASHES_FILE,
     DATA_CONFIG_DIR,
     UPGRADE_ARTIFACTS_DIR,
     SAVED_STATES_DIR,

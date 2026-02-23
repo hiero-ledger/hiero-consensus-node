@@ -190,6 +190,11 @@ public class QueryHederaOperations implements HederaOperations {
         throw new UnsupportedOperationException("Queries cannot update storage metadata");
     }
 
+    @Override
+    public void updateHookStorageSlots(@NonNull final AccountID accountId, final int netChangeInSlotsUsed) {
+        throw new UnsupportedOperationException("Queries cannot update storage slots");
+    }
+
     /**
      * Refuses to create a contract.
      *

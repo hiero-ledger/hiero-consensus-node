@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.hip551;
 
+import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
@@ -37,7 +38,9 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 
+@Tag(ATOMIC_BATCH)
 class AtomicBatchMiscSignatureTest {
 
     @Nested
@@ -122,10 +125,12 @@ class AtomicBatchMiscSignatureTest {
         @DisplayName("Node delete inside of a batch can be executed only with privileged account")
         final Stream<DynamicTest> nodeDeleteCanBeExecutedOnlyWithPrivilegedAccount()
                 throws CertificateEncodingException {
+            final var nodeAccount = "nodeAccount";
             return hapiTest(
                     cryptoCreate("payer"),
                     cryptoCreate("batchOperator"),
-                    nodeCreate("node100")
+                    cryptoCreate(nodeAccount),
+                    nodeCreate("node100", nodeAccount)
                             .description("desc")
                             .gossipCaCertificate(gossipCertificates.getFirst().getEncoded()),
                     // The inner txn is not signed by system account, so the transaction will fail
@@ -144,11 +149,13 @@ class AtomicBatchMiscSignatureTest {
         @DisplayName("Node update inside of a batch can be executed only with privileged account")
         final Stream<DynamicTest> nodeUpdateCanBeExecutedOnlyWithPrivilegedAccount()
                 throws CertificateEncodingException {
+            final var nodeAccount = "nodeAccount";
             return hapiTest(
                     newKeyNamed("adminKey"),
                     cryptoCreate("payer"),
                     cryptoCreate("batchOperator"),
-                    nodeCreate("node100")
+                    cryptoCreate(nodeAccount),
+                    nodeCreate("node100", nodeAccount)
                             .adminKey("adminKey")
                             .description("desc")
                             .gossipCaCertificate(gossipCertificates.getFirst().getEncoded()),

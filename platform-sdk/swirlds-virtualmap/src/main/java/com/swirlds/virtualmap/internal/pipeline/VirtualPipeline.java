@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.internal.pipeline;
 
-import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.VIRTUAL_MERKLE_STATS;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
 import com.swirlds.base.function.CheckedSupplier;
-import com.swirlds.common.threading.framework.config.ThreadConfiguration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
+import com.swirlds.virtualmap.internal.VirtualRoot;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapStatistics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
@@ -23,6 +23,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 
 /**
  * <p>
@@ -214,7 +215,7 @@ public class VirtualPipeline {
             } while (timeSleptSoFar < sleepTimeMillis);
 
             // Record actual sleep time
-            logger.info(VIRTUAL_MERKLE_STATS.getMarker(), "Total size backpressure: {} ms", timeSleptSoFar);
+            logger.warn(VIRTUAL_MERKLE_STATS.getMarker(), "Total size backpressure: {} ms", timeSleptSoFar);
             statistics.recordFamilySizeBackpressureMs((int) timeSleptSoFar);
         } catch (final InterruptedException ex) {
             Thread.currentThread().interrupt();
@@ -251,7 +252,7 @@ public class VirtualPipeline {
         }
 
         // During reconnect, an existing virtual root node may be inserted to a new virtual map node.
-        // When it happens, the root node is initialized with {@link VirtualRootNode#postInit()} and
+        // When it happens, the root node is initialized with {@link VirtualMap#postInit()} and
         // requested to register in the same pipeline multiple times
         if (isAlreadyRegistered(copy)) {
             logger.info(VIRTUAL_MERKLE_STATS.getMarker(), "Virtual root copy is already registered in the pipeline");
@@ -631,7 +632,7 @@ public class VirtualPipeline {
     /**
      * Checks if the copy is already registered in this pipeline.
      *
-     * There is a similar method in VirtualRootNode, but it only checks the VirtualPipeline
+     * There is a similar method in VirtualMap, but it only checks the VirtualPipeline
      * but not if it actually contains the copy.
      *
      * @param copy

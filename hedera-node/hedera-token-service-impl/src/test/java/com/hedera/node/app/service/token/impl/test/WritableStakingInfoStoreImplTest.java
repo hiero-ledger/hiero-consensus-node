@@ -1,17 +1,18 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.test;
 
-import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
-import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_LABEL;
-import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
-import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_LABEL;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_LABEL;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_LABEL;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_INFOS_STATE_ID;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_INFOS_STATE_LABEL;
 import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.token.StakingNodeInfo;
-import com.hedera.node.app.ids.WritableEntityIdStore;
+import com.hedera.node.app.service.entityid.WritableEntityIdStore;
+import com.hedera.node.app.service.entityid.impl.WritableEntityIdStoreImpl;
 import com.hedera.node.app.service.token.impl.WritableStakingInfoStore;
 import com.swirlds.state.spi.WritableStates;
 import com.swirlds.state.test.fixtures.FunctionWritableSingletonState;
@@ -49,7 +50,7 @@ public class WritableStakingInfoStoreImplTest {
                                 .unclaimedStakeRewardStart(5)
                                 .build())
                 .build();
-        entityIdStore = new WritableEntityIdStore(new MapWritableStates(Map.of(
+        entityIdStore = new WritableEntityIdStoreImpl(new MapWritableStates(Map.of(
                 ENTITY_ID_STATE_ID,
                 new FunctionWritableSingletonState<>(ENTITY_ID_STATE_ID, ENTITY_ID_STATE_LABEL, () -> null, c -> {}),
                 ENTITY_COUNTS_STATE_ID,

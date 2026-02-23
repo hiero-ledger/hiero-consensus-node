@@ -1,24 +1,20 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.internal.cache;
 
-import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.VIRTUAL_MERKLE_STATS;
-import static com.swirlds.virtualmap.internal.cache.VirtualNodeCache.CLASS_ID;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.state.MutabilityException;
 import com.swirlds.common.FastCopyable;
-import com.swirlds.common.threading.framework.config.ThreadConfiguration;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
-import com.swirlds.virtualmap.constructable.constructors.VirtualNodeCacheConstructor;
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.io.IOException;
 import java.util.Comparator;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -36,13 +32,10 @@ import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.futures.StandardFuture;
-import org.hiero.base.constructable.ConstructableClass;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.exceptions.PlatformException;
 import org.hiero.base.exceptions.ReferenceCountException;
-import org.hiero.base.io.SelfSerializable;
-import org.hiero.base.io.streams.SerializableDataInputStream;
-import org.hiero.base.io.streams.SerializableDataOutputStream;
+import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 
 /**
  * A cache for virtual merkel trees.
@@ -99,18 +92,10 @@ import org.hiero.base.io.streams.SerializableDataOutputStream;
  * {@code cache0} with a leaf modified outside of the lifecycle for that cache. Instead, I must make a
  * fast copy of the leaf record and put *that* copy into {@code cache1}.
  */
-@ConstructableClass(value = CLASS_ID, constructorType = VirtualNodeCacheConstructor.class)
 @SuppressWarnings("rawtypes")
-public final class VirtualNodeCache implements FastCopyable, SelfSerializable {
+public final class VirtualNodeCache implements FastCopyable {
 
     private static final Logger logger = LogManager.getLogger(VirtualNodeCache.class);
-
-    public static final long CLASS_ID = 0x493743f0ace96d2cL;
-
-    private static final class ClassVersion {
-        public static final int ORIGINAL = 1;
-        public static final int NO_LEAF_HASHES = 2;
-    }
 
     /**
      * A special {@link VirtualLeafBytes} that represents a deleted leaf. At times, the {@link VirtualMap}
@@ -507,6 +492,7 @@ public final class VirtualNodeCache implements FastCopyable, SelfSerializable {
             p.dirtyLeaves.merge(dirtyLeaves);
             p.dirtyLeafPaths.merge(dirtyLeafPaths);
             p.dirtyHashes.merge(dirtyHashes);
+            // Estimated sizes include both mutations and concurrent array overheads
             p.estimatedLeavesSizeInBytes.addAndGet(estimatedLeavesSizeInBytes.get());
             p.estimatedLeafPathsSizeInBytes.addAndGet(estimatedLeafPathsSizeInBytes.get());
             p.estimatedHashesSizeInBytes.addAndGet(estimatedHashesSizeInBytes.get());
@@ -539,6 +525,11 @@ public final class VirtualNodeCache implements FastCopyable, SelfSerializable {
         dirtyLeaves.seal();
         dirtyHashes.seal();
         dirtyLeafPaths.seal();
+
+        // Update estimated size to include concurrent arrays storage overhead
+        estimatedHashesSizeInBytes.addAndGet(dirtyHashes.estimatedStorageMemoryOverhead());
+        estimatedLeavesSizeInBytes.addAndGet(dirtyLeaves.estimatedStorageMemoryOverhead());
+        estimatedLeafPathsSizeInBytes.addAndGet(dirtyLeafPaths.estimatedStorageMemoryOverhead());
     }
 
     // --------------------------------------------------------------------------------------------
@@ -874,7 +865,7 @@ public final class VirtualNodeCache implements FastCopyable, SelfSerializable {
      * 		Node path
      * @param hash
      * 		Node hash. Null values are accepted, although observed in tests only. In real scenarios
-     * 	    this method is only called by VirtualHasher (via VirtualRootNode), and it never puts
+     * 	    this method is only called by VirtualHasher (via VirtualMap), and it never puts
      * 	    null hashes to the cache
      * @throws MutabilityException
      * 		if the instance has been sealed
@@ -946,54 +937,6 @@ public final class VirtualNodeCache implements FastCopyable, SelfSerializable {
                 .filter(Mutation::notFiltered)
                 .map(mutation ->
                         new VirtualHashRecord(mutation.key, mutation.value != NULL_HASH ? mutation.value : null));
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public long getClassId() {
-        return CLASS_ID;
-    }
-
-    /**
-     * {@inheritDoc}
-     *
-     * This method should be called on a snapshot version of {@link VirtualNodeCache},
-     * i.e., the instance return by {@link #snapshot()}
-     *
-     * @throws IllegalStateException
-     * 		If it is called on a non-snapshot instance
-     */
-    @Override
-    public void serialize(final SerializableDataOutputStream out) throws IOException {
-        if (!snapshot.get()) {
-            throw new IllegalStateException("Trying to serialize a non-snapshot instance");
-        }
-
-        out.writeLong(fastCopyVersion.get());
-        serializeKeyToDirtyLeafIndex(keyToDirtyLeafIndex, out);
-        serializePathToDirtyLeafIndex(pathToDirtyLeafIndex, out);
-        serializePathToDirtyHashIndex(pathToDirtyHashIndex, out);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void deserialize(final SerializableDataInputStream in, final int version) throws IOException {
-        this.fastCopyVersion.set(in.readLong());
-        deserializeKeyToDirtyLeafIndex(keyToDirtyLeafIndex, in, version);
-        deserializePathToDirtyLeafIndex(pathToDirtyLeafIndex, in);
-        deserializePathToDirtyHashIndex(pathToDirtyHashIndex, in, version);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public int getVersion() {
-        return ClassVersion.NO_LEAF_HASHES;
     }
 
     /**
@@ -1250,10 +1193,15 @@ public final class VirtualNodeCache implements FastCopyable, SelfSerializable {
             final ConcurrentArray<Mutation<K, V>> array,
             final Map<K, Mutation<K, V>> index,
             @NonNull final VirtualMapConfig virtualMapConfig) {
-        array.parallelTraverse(
-                getCleaningPool(virtualMapConfig),
-                element -> index.compute(element.key, (key, mutation) -> {
-                    if (mutation == null || element.equals(mutation)) {
+        array.parallelTraverse(getCleaningPool(virtualMapConfig), element -> {
+            // If a cache copy is released after flush, some mutations may be already marked as
+            // filtered in dirtyLeavesForFlush() and dirtyHashesForFlush(). When a mutation is
+            // filtered, it means there is a newer mutation for the same key in the same cache
+            // copy. When this newer mutation is purged, it also takes care of the filtered
+            // mutation, so there is no need to handle filtered mutations explicitly
+            if (element.notFiltered()) {
+                index.compute(element.key, (key, mutation) -> {
+                    if ((mutation == null) || element.equals(mutation)) {
                         // Already removed for a more recent mutation
                         return null;
                     }
@@ -1264,7 +1212,9 @@ public final class VirtualNodeCache implements FastCopyable, SelfSerializable {
                         }
                     }
                     return mutation;
-                }));
+                });
+            }
+        });
     }
 
     /**
@@ -1338,206 +1288,6 @@ public final class VirtualNodeCache implements FastCopyable, SelfSerializable {
             dst.put(entry.getKey(), mutation);
             array.add(mutation);
             // Estimated size is not updated, which is hopefully fine
-        }
-    }
-
-    /**
-     * Serialize the {@link #pathToDirtyHashIndex}.
-     *
-     * @param map
-     * 		The index map to serialize. Cannot be null.
-     * @param out
-     * 		The output stream. Cannot be null.
-     * @throws IOException
-     * 		If something fails.
-     */
-    private void serializePathToDirtyHashIndex(
-            final Map<Long, Mutation<Long, Hash>> map, final SerializableDataOutputStream out) throws IOException {
-        assert snapshot.get() : "Only snapshots can be serialized";
-        out.writeInt(map.size());
-        for (final Map.Entry<Long, Mutation<Long, Hash>> entry : map.entrySet()) {
-            out.writeLong(entry.getKey());
-            final Mutation<Long, Hash> mutation = entry.getValue();
-            assert mutation != null : "Mutations cannot be null in a snapshot";
-            assert mutation.version <= this.fastCopyVersion.get()
-                    : "Trying to serialize pathToDirtyInternalIndex with a version ahead";
-            out.writeLong(mutation.version);
-            out.writeBoolean(mutation.isDeleted());
-            if (!mutation.isDeleted()) {
-                out.writeSerializable(mutation.value, true);
-            }
-        }
-    }
-
-    /**
-     * Deserialize the {@link #pathToDirtyHashIndex}.
-     *
-     * @param map
-     * 		The index. Cannot be null.
-     * @param in
-     * 		The input stream. Cannot be null.
-     * @throws IOException
-     * 		In case of trouble.
-     */
-    private void deserializePathToDirtyHashIndex(
-            final Map<Long, Mutation<Long, Hash>> map, final SerializableDataInputStream in, final int version)
-            throws IOException {
-        final int sizeOfMap = in.readInt();
-        for (int index = 0; index < sizeOfMap; index++) {
-            final long key = in.readLong();
-            final long mutationVersion = in.readLong();
-            final boolean isDeleted = in.readBoolean();
-            Hash hash = null;
-            if (!isDeleted) {
-                if (version == ClassVersion.ORIGINAL) {
-                    // skip path
-                    in.readLong();
-                }
-                hash = in.readSerializable();
-            }
-            final Mutation<Long, Hash> mutation = new Mutation<>(null, key, hash, mutationVersion);
-            mutation.setDeleted(isDeleted);
-            map.put(key, mutation);
-            dirtyHashes.add(mutation);
-        }
-    }
-
-    /**
-     * Serialize the {@link #pathToDirtyLeafIndex}.
-     *
-     * @param map
-     * 		The index map to serialize. Cannot be null.
-     * @param out
-     * 		The output stream. Cannot be null.
-     * @throws IOException
-     * 		If something fails.
-     */
-    private void serializePathToDirtyLeafIndex(
-            final Map<Long, Mutation<Long, Bytes>> map, final SerializableDataOutputStream out) throws IOException {
-        assert snapshot.get() : "Only snapshots can be serialized";
-        out.writeInt(map.size());
-        for (final Map.Entry<Long, Mutation<Long, Bytes>> entry : map.entrySet()) {
-            // Write path
-            out.writeLong(entry.getKey());
-            final Mutation<Long, Bytes> mutation = entry.getValue();
-            assert mutation != null : "Mutations cannot be null in a snapshot";
-            assert mutation.version <= this.fastCopyVersion.get()
-                    : "Trying to serialize pathToDirtyLeafIndex with a version ahead";
-
-            // Write key
-            if (mutation.value == null) {
-                // Use -1 as a null value marker. 0 is a valid value, some values
-                // (which are actually keys in this case) may have length == 0
-                out.writeInt(-1);
-            } else {
-                out.writeInt(Math.toIntExact(mutation.value.length()));
-                mutation.value.writeTo(out);
-            }
-            out.writeLong(mutation.version);
-            out.writeBoolean(mutation.isDeleted());
-        }
-    }
-
-    /**
-     * Deserialize the {@link #pathToDirtyLeafIndex}.
-     *
-     * @param map
-     * 		The index. Cannot be null.
-     * @param in
-     * 		The input stream. Cannot be null.
-     * @throws IOException
-     * 		In case of trouble.
-     */
-    private void deserializePathToDirtyLeafIndex(
-            final Map<Long, Mutation<Long, Bytes>> map, final SerializableDataInputStream in) throws IOException {
-        final int sizeOfMap = in.readInt();
-        for (int index = 0; index < sizeOfMap; index++) {
-            // Read path
-            final Long path = in.readLong();
-            // Read key
-            final int keyLen = in.readInt();
-            final Bytes key;
-            if (keyLen < 0) {
-                key = null;
-            } else {
-                key = keyLen == 0 ? Bytes.EMPTY : Bytes.wrap(in.readNBytes(keyLen));
-            }
-            final long mutationVersion = in.readLong();
-            final boolean deleted = in.readBoolean();
-
-            final Mutation<Long, Bytes> mutation = new Mutation<>(null, path, key, mutationVersion);
-            mutation.setDeleted(deleted);
-            map.put(path, mutation);
-            dirtyLeafPaths.add(mutation);
-        }
-    }
-
-    /**
-     * Serialize the {@link #keyToDirtyLeafIndex}.
-     *
-     * @param map
-     * 		The index map to serialize. Cannot be null.
-     * @param out
-     * 		The output stream. Cannot be null.
-     * @throws IOException
-     * 		If something fails.
-     */
-    private void serializeKeyToDirtyLeafIndex(
-            final Map<Bytes, Mutation<Bytes, VirtualLeafBytes>> map, final SerializableDataOutputStream out)
-            throws IOException {
-        assert snapshot.get() : "Only snapshots can be serialized";
-        out.writeInt(map.size());
-        for (final Map.Entry<Bytes, Mutation<Bytes, VirtualLeafBytes>> entry : map.entrySet()) {
-            final Mutation<Bytes, VirtualLeafBytes> mutation = entry.getValue();
-            assert mutation != null : "Mutations cannot be null in a snapshot";
-            assert mutation.version <= this.fastCopyVersion.get()
-                    : "Trying to serialize keyToDirtyLeafIndex with a version ahead";
-
-            final VirtualLeafBytes leaf = mutation.value;
-            out.writeLong(leaf.path());
-            out.writeInt(Math.toIntExact(leaf.keyBytes().length()));
-            leaf.keyBytes().writeTo(out);
-            final Bytes value = leaf.valueBytes();
-            if (value == null) {
-                out.writeInt(0);
-            } else {
-                out.writeInt(Math.toIntExact(value.length()));
-                value.writeTo(out);
-            }
-            out.writeLong(mutation.version);
-            out.writeBoolean(mutation.isDeleted());
-        }
-    }
-
-    /**
-     * Deserialize the {@link #keyToDirtyLeafIndex}.
-     *
-     * @param map
-     * 		The index. Cannot be null.
-     * @param in
-     * 		The input stream. Cannot be null.
-     * @throws IOException
-     * 		In case of trouble.
-     */
-    private void deserializeKeyToDirtyLeafIndex(
-            final Map<Bytes, Mutation<Bytes, VirtualLeafBytes>> map,
-            final SerializableDataInputStream in,
-            final int version)
-            throws IOException {
-        final int sizeOfMap = in.readInt();
-        for (int index = 0; index < sizeOfMap; index++) {
-            final long path = in.readLong();
-            final int keyLen = in.readInt();
-            final Bytes key = Bytes.wrap(in.readNBytes(keyLen));
-            final int valueLen = in.readInt();
-            final Bytes value = valueLen == 0 ? null : Bytes.wrap(in.readNBytes(valueLen));
-            final VirtualLeafBytes leafRecord = new VirtualLeafBytes(path, key, value);
-            final long mutationVersion = in.readLong();
-            final boolean deleted = in.readBoolean();
-            final Mutation<Bytes, VirtualLeafBytes> mutation = new Mutation<>(null, key, leafRecord, mutationVersion);
-            mutation.setDeleted(deleted);
-            map.put(key, mutation);
-            dirtyLeaves.add(mutation);
         }
     }
 

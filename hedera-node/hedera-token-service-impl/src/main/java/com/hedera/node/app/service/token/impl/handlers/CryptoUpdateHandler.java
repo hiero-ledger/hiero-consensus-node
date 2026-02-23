@@ -35,6 +35,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.base.HookEntityId;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.Timestamp;
@@ -186,24 +187,24 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
             final Account targetAccount,
             final CryptoUpdateTransactionBody op,
             final Account.Builder builder) {
-        // compute head after deletes
-        long currentHead = targetAccount.firstHookId();
-        long headAfterDeletes = currentHead;
-        // Dispatch all the hooks to delete
+        final var hookEntityId = HookEntityId.newBuilder()
+                .accountId(op.accountIDToUpdateOrThrow())
+                .build();
+        var headAfterDeletes = targetAccount.numberHooksInUse() > 0 ? targetAccount.firstHookId() : null;
         if (!op.hookIdsToDelete().isEmpty()) {
-            headAfterDeletes =
-                    dispatchHookDeletions(context, op.hookIdsToDelete(), currentHead, op.accountIDToUpdate());
+            headAfterDeletes = dispatchHookDeletions(context, op.hookIdsToDelete(), headAfterDeletes, hookEntityId);
         }
         if (!op.hookCreationDetails().isEmpty()) {
-            dispatchHookCreations(context, op.hookCreationDetails(), headAfterDeletes, op.accountIDToUpdate());
+            final var updatedSlots =
+                    dispatchHookCreations(context, op.hookCreationDetails(), headAfterDeletes, hookEntityId);
+            builder.numberEvmHookStorageSlots(targetAccount.numberEvmHookStorageSlots() + updatedSlots);
         }
-        // Update firstHookId in the account if needed.
-        // If there are creations, always the first hookId created will be the firstHookId.
-        // If there are only deletions, then set as the head after deletions
+        // If there are creations, the updated account's first hook id is the first creation no matter what deletions
         if (!op.hookCreationDetails().isEmpty()) {
             builder.firstHookId(op.hookCreationDetails().getFirst().hookId());
         } else if (!op.hookIdsToDelete().isEmpty()) {
-            builder.firstHookId(headAfterDeletes);
+            // Otherwise the first hook id is the head after deletions; or zero if none are left
+            builder.firstHookId(headAfterDeletes == null ? 0 : headAfterDeletes);
         }
     }
 

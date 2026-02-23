@@ -3,6 +3,7 @@ package com.hedera.node.app.service.contract.impl.utils;
 
 import static com.esaulpaugh.headlong.abi.Address.toChecksumAddress;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
+import static com.hedera.node.app.hapi.utils.contracts.HookUtils.leftPad32;
 import static com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations.MISSING_ENTITY_NUMBER;
 import static com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations.NON_CANONICAL_REFERENCE_NUMBER;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.proxyUpdaterFor;
@@ -41,8 +42,8 @@ import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.state.RootProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.state.StorageAccesses;
 import com.hedera.node.app.service.contract.impl.state.TxStorageUsage;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.token.ReadableAccountStore;
-import com.hedera.node.app.spi.ids.EntityIdFactory;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.config.data.HederaConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -776,7 +777,13 @@ public class ConversionUtils {
      * @throws IllegalArgumentException if the bytes are more than 32 bytes long
      */
     public static @NonNull UInt256 pbjToTuweniUInt256(@NonNull final com.hedera.pbj.runtime.io.buffer.Bytes bytes) {
-        return (bytes.length() == 0) ? UInt256.ZERO : UInt256.fromBytes(Bytes32.wrap(clampedBytes(bytes, 0, 32)));
+        if (bytes.length() == 0) {
+            return UInt256.ZERO;
+        } else if (bytes.length() == 32) {
+            return UInt256.fromBytes(Bytes32.wrap(bytes.toByteArray()));
+        } else {
+            return UInt256.fromBytes(Bytes32.wrap(leftPad32(bytes).toByteArray()));
+        }
     }
 
     /**

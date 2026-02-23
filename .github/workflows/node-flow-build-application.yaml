@@ -1,62 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0
 name: "Node: Build Application"
 on:
-  workflow_dispatch:
-    inputs:
-      enable-unit-tests:
-        description: "Unit Testing Enabled"
-        type: boolean
-        required: false
-        default: true
-      enable-hapi-tests:
-        description: "HAPI Testing Enabled"
-        type: boolean
-        required: false
-        default: true
-      enable-spotless-check:
-        description: "Spotless Check Enabled"
-        type: boolean
-        required: false
-        default: true
-      enable-otter-tests:
-        description: "Otter Tests Enabled"
-        type: boolean
-        required: false
-        default: true
-      enable-snyk-scan:
-        description: "Snyk Scan Enabled"
-        type: boolean
-        required: false
-        default: true
-      enable-gradle-determinism:
-        description: "Gradle Build Determinism Check Enabled"
-        type: boolean
-        required: false
-        default: true
-      enable-docker-determinism:
-        description: "Docker Build Determinism Check Enabled"
-        type: boolean
-        required: false
-        default: true
-      java-version:
-        description: "Java JDK Version:"
-        type: string
-        required: false
-        default: "21.0.6"
-      java-distribution:
-        description: "Java JDK Distribution:"
-        type: string
-        required: false
-        default: "temurin"
-      dry-run-enabled:
-        description: "Dry Run Enabled"
-        type: boolean
-        required: false
-        default: true
   push:
     branches:
       - main
-      - "release/*"
+      - "release/**"
 
 defaults:
   run:
@@ -71,327 +19,37 @@ permissions:
   contents: read
 
 jobs:
-  code:
-    name: Compile Code
-    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
+  mats-tests:
+    name: MATS Tests
+    uses: ./.github/workflows/zxc-mats-tests.yaml
     with:
-      java-version: ${{ github.event.inputs.java-version || '21.0.6' }}
-      java-distribution: ${{ github.event.inputs.java-distribution || 'temurin' }}
-      enable-spotless-check: false
+      ref: ${{ github.ref }}
+      enable-spotless-check: "true"
+      enable-dependency-check: "true"
+      enable-unit-tests: "true"
+      enable-integration-tests: "true"
+      enable-hapi-tests: "true"
+      enable-otter-tests: "true"
+      enable-snyk-scan: "true"
+      enable-gradle-determinism: "true"
+      enable-docker-determinism: "true"
+      java-version: "21.0.6"
+      java-distribution: "temurin"
+      custom-job-label: "MATS (main):"
     secrets:
       access-token: ${{ secrets.GITHUB_TOKEN }}
-      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
-      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
-
-  dependency-check:
-    name: Dependency (Module Info)
-    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
-    needs:
-      - code
-    with:
-      custom-job-label: "Check"
-      enable-dependency-check: true
-    secrets:
-      access-token: ${{ secrets.GITHUB_TOKEN }}
-      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
-      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
-
-  spotless:
-    name: Spotless
-    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
-    needs:
-      - code
-    with:
-      custom-job-label: "Check"
-      enable-unit-tests: false
-      enable-spotless-check: true
-    secrets:
-      access-token: ${{ secrets.GITHUB_TOKEN }}
-      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
-      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
-
-  mats-unit-tests:
-    name: MATS - Unit Tests
-    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
-    needs:
-      - dependency-check
-      - spotless
-    with:
-      custom-job-label: "MATS Unit Tests"
-      java-version: ${{ github.event.inputs.java-version || '21.0.6' }}
-      java-distribution: ${{ github.event.inputs.java-distribution || 'temurin' }}
-      enable-unit-tests: ${{ github.event_name == 'push' || github.event.inputs.enable-unit-tests == 'true' }}
-    secrets:
-      access-token: ${{ secrets.GITHUB_TOKEN }}
-      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
-      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
       codacy-project-token: ${{ secrets.CODACY_PROJECT_TOKEN }}
       codecov-token: ${{ secrets.CODECOV_TOKEN }}
-
-  mats-hapi-tests-misc:
-    name: MATS - HAPI Tests (Misc)
-    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
-    needs:
-      - dependency-check
-      - spotless
-    with:
-      custom-job-label: "MATS HAPI Tests (Misc)"
-      enable-unit-tests: false
-      enable-hapi-tests-misc: ${{ github.event_name == 'push' || github.event.inputs.enable-hapi-tests == 'true' }}
-      enable-network-log-capture: true
-      mats-suffix: MATS
-    secrets:
-      access-token: ${{ secrets.GITHUB_TOKEN }}
-      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
-      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
-
-  mats-hapi-tests-misc-records:
-    name: MATS - HAPI Tests (Misc Records)
-    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
-    needs:
-      - dependency-check
-      - spotless
-    with:
-      custom-job-label: "MATS HAPI Tests (Misc Records)"
-      java-version: ${{ github.event.inputs.java-version || '21.0.6' }}
-      java-distribution: ${{ github.event.inputs.java-distribution || 'temurin' }}
-      enable-unit-tests: false
-      enable-hapi-tests-misc-records: ${{ github.event_name == 'push' || github.event.inputs.enable-hapi-tests == 'true' }}
-      enable-network-log-capture: true
-      mats-suffix: MATS
-    secrets:
-      access-token: ${{ secrets.GITHUB_TOKEN }}
-      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
-      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
-
-  mats-hapi-tests-crypto:
-    name: MATS - HAPI Tests (Crypto)
-    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
-    needs:
-      - dependency-check
-      - spotless
-    with:
-      custom-job-label: "MATS HAPI Tests (Crypto)"
-      java-version: ${{ github.event.inputs.java-version || '21.0.6' }}
-      java-distribution: ${{ github.event.inputs.java-distribution || 'temurin' }}
-      enable-unit-tests: false
-      enable-hapi-tests-crypto: ${{ github.event_name == 'push' || github.event.inputs.enable-hapi-tests == 'true' }}
-      enable-network-log-capture: true
-      mats-suffix: MATS
-    secrets:
-      access-token: ${{ secrets.GITHUB_TOKEN }}
-      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
-      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
-
-  mats-hapi-tests-iss:
-    name: MATS - HAPI Tests (ISS)
-    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
-    needs:
-      - dependency-check
-      - spotless
-    with:
-      custom-job-label: "MATS HAPI Tests (ISS)"
-      java-version: ${{ github.event.inputs.java-version || '21.0.6' }}
-      java-distribution: ${{ github.event.inputs.java-distribution || 'temurin' }}
-      enable-unit-tests: false
-      enable-hapi-tests-iss: ${{ github.event_name == 'push' || github.event.inputs.enable-hapi-tests == 'true' }}
-      enable-network-log-capture: true
-    secrets:
-      access-token: ${{ secrets.GITHUB_TOKEN }}
-      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
-      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
-
-  mats-hapi-tests-token:
-    name: MATS - HAPI Tests (Token)
-    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
-    needs:
-      - dependency-check
-      - spotless
-    with:
-      custom-job-label: "MATS HAPI Tests (Token)"
-      java-version: ${{ github.event.inputs.java-version || '21.0.6' }}
-      java-distribution: ${{ github.event.inputs.java-distribution || 'temurin' }}
-      enable-unit-tests: false
-      enable-hapi-tests-token: ${{ github.event_name == 'push' || github.event.inputs.enable-hapi-tests == 'true' }}
-      enable-network-log-capture: true
-      mats-suffix: MATS
-    secrets:
-      access-token: ${{ secrets.GITHUB_TOKEN }}
-      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
-      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
-
-  mats-hapi-tests-smart-contract:
-    name: MATS - HAPI Tests (Smart Contract)
-    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
-    needs:
-      - dependency-check
-      - spotless
-    with:
-      custom-job-label: "MATS HAPI Tests (Smart Contract)"
-      java-version: ${{ github.event.inputs.java-version || '21.0.6' }}
-      java-distribution: ${{ github.event.inputs.java-distribution || 'temurin' }}
-      enable-unit-tests: false
-      enable-hapi-tests-smart-contract: ${{ github.event_name == 'push' || github.event.inputs.enable-hapi-tests == 'true' }}
-      enable-network-log-capture: true
-      mats-suffix: MATS
-    secrets:
-      access-token: ${{ secrets.GITHUB_TOKEN }}
-      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
-      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
-
-  mats-hapi-tests-restart:
-    name: MATS - HAPI Tests (Restart)
-    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
-    needs:
-      - dependency-check
-      - spotless
-    with:
-      custom-job-label: "MATS HAPI Tests (Restart)"
-      java-version: ${{ github.event.inputs.java-version || '21.0.6' }}
-      java-distribution: ${{ github.event.inputs.java-distribution || 'temurin' }}
-      enable-unit-tests: false
-      enable-hapi-tests-restart: ${{ github.event_name == 'push' || github.event.inputs.enable-hapi-tests == 'true' }}
-      enable-network-log-capture: true
-    secrets:
-      access-token: ${{ secrets.GITHUB_TOKEN }}
-      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
-      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
-
-  mats-hapi-tests-nd-reconnect:
-    name: MATS - HAPI Tests (Node Death Reconnect)
-    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
-    needs:
-      - dependency-check
-      - spotless
-    with:
-      custom-job-label: "MATS HAPI Tests (Node Death Reconnect)"
-      java-version: ${{ github.event.inputs.java-version || '21.0.6' }}
-      java-distribution: ${{ github.event.inputs.java-distribution || 'temurin' }}
-      enable-unit-tests: false
-      enable-hapi-tests-nd-reconnect: ${{ github.event_name == 'push' || github.event.inputs.enable-hapi-tests == 'true' }}
-      enable-network-log-capture: true
-    secrets:
-      access-token: ${{ secrets.GITHUB_TOKEN }}
-      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
-      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
-
-  mats-otter-tests:
-    name: MATS - Otter Tests
-    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
-    needs:
-      - dependency-check
-      - spotless
-    with:
-      custom-job-label: "MATS Otter Tests"
-      java-version: ${{ github.event.inputs.java-version || '21.0.6' }}
-      java-distribution: ${{ github.event.inputs.java-distribution || 'temurin' }}
-      enable-unit-tests: false
-      enable-otter-tests: ${{ github.event_name == 'push' || github.event.inputs.enable-otter-tests == 'true' }}
-      enable-network-log-capture: true
-    secrets:
-      access-token: ${{ secrets.GITHUB_TOKEN }}
-      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
-      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
-
-  mats-spotless-check:
-    name: MATS - Spotless Check
-    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
-    needs:
-      - dependency-check
-      - spotless
-    with:
-      custom-job-label: "MATS Spotless Check"
-      java-version: ${{ github.event.inputs.java-version || '21.0.6' }}
-      java-distribution: ${{ github.event.inputs.java-distribution || 'temurin' }}
-      enable-unit-tests: false
-      enable-spotless-check: ${{ github.event_name == 'push' || github.event.inputs.enable-spotless-check == 'true' }}
-    secrets:
-      access-token: ${{ secrets.GITHUB_TOKEN }}
       gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
       snyk-token: ${{ secrets.SNYK_TOKEN }}
-
-  mats-snyk-scan:
-    name: MATS - Snyk Scan
-    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
-    needs:
-      - dependency-check
-      - spotless
-    with:
-      custom-job-label: "MATS Snyk Scan"
-      java-version: ${{ github.event.inputs.java-version || '21.0.6' }}
-      java-distribution: ${{ github.event.inputs.java-distribution || 'temurin' }}
-      enable-unit-tests: false
-      enable-snyk-scan: ${{ github.event_name == 'push' || github.event.inputs.enable-snyk-scan == 'true' }}
-    secrets:
-      access-token: ${{ secrets.GITHUB_TOKEN }}
-      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
-      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
-      snyk-token: ${{ secrets.SNYK_TOKEN }}
-
-  mats-gradle-determinism:
-    name: MATS - Gradle Determinism
-    uses: ./.github/workflows/zxc-verify-gradle-build-determinism.yaml
-    needs:
-      - dependency-check
-      - spotless
-    if: ${{ github.event_name == 'push' || github.event.inputs.enable-gradle-determinism == 'true' }}
-    with:
-      ref: ${{ github.event.inputs.ref || '' }}
-      java-version: ${{ github.event.inputs.java-version || '21.0.6' }}
-      java-distribution: ${{ github.event.inputs.java-distribution || 'temurin' }}
-    secrets:
-      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
-      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
-
-  mats-docker-determinism:
-    name: MATS - Docker Determinism
-    uses: ./.github/workflows/zxc-verify-docker-build-determinism.yaml
-    needs:
-      - dependency-check
-      - spotless
-    if: ${{ github.event_name == 'push' || github.event.inputs.enable-docker-determinism == 'true' }}
-    with:
-      ref: ${{ github.event.inputs.ref || '' }}
-      java-version: ${{ github.event.inputs.java-version || '21.0.6' }}
-      java-distribution: ${{ github.event.inputs.java-distribution || 'temurin' }}
-    secrets:
-      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
-      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
 
   deploy-ci-trigger:
     name: Trigger CI Flows
-    runs-on: hiero-citr-linux-medium
+    runs-on: hl-cn-default-lin-sm
     needs:
-      - mats-unit-tests
-      - mats-hapi-tests-misc
-      - mats-hapi-tests-misc-records
-      - mats-hapi-tests-crypto
-      - mats-hapi-tests-iss
-      - mats-hapi-tests-token
-      - mats-hapi-tests-smart-contract
-      - mats-hapi-tests-restart
-      - mats-hapi-tests-nd-reconnect
-      - mats-otter-tests
-      - mats-spotless-check
-      - mats-snyk-scan
-      - mats-gradle-determinism
-      - mats-docker-determinism
-    if: ${{ (github.event_name == 'push') &&
-      needs.mats-unit-tests.result == 'success' &&
-      needs.mats-hapi-tests-misc.result == 'success' &&
-      needs.mats-hapi-tests-misc-records.result == 'success' &&
-      needs.mats-hapi-tests-crypto.result == 'success' &&
-      needs.mats-hapi-tests-iss.result == 'success' &&
-      needs.mats-hapi-tests-token.result == 'success' &&
-      needs.mats-hapi-tests-smart-contract.result == 'success' &&
-      needs.mats-hapi-tests-restart.result == 'success' &&
-      needs.mats-hapi-tests-nd-reconnect.result == 'success' &&
-      needs.mats-otter-tests.result == 'success' &&
-      needs.mats-spotless-check.result == 'success' &&
-      needs.mats-snyk-scan.result == 'success' &&
-      needs.mats-gradle-determinism.result == 'success' &&
-      needs.mats-docker-determinism.result == 'success' }}
+      - mats-tests
+    if: ${{ needs.mats-tests.result == 'success' }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
@@ -408,50 +66,17 @@ jobs:
           inputs: '{
             "ref": "${{ github.sha }}",
             "ref-name": "${{ github.ref_name }}",
-            "dry-run-enabled": ${{ inputs.dry-run-enabled || false }}
+            "dry-run-enabled": false
             }'
 
   report-failure:
     name: Report MATS execution failure
-    runs-on: hiero-citr-linux-medium
+    runs-on: hl-cn-default-lin-sm
     needs:
-      - code
-      - dependency-check
-      - spotless
-      - mats-unit-tests
-      - mats-hapi-tests-misc
-      - mats-hapi-tests-misc-records
-      - mats-hapi-tests-crypto
-      - mats-hapi-tests-iss
-      - mats-hapi-tests-token
-      - mats-hapi-tests-smart-contract
-      - mats-hapi-tests-restart
-      - mats-hapi-tests-nd-reconnect
-      - mats-otter-tests
-      - mats-spotless-check
-      - mats-snyk-scan
-      - mats-gradle-determinism
-      - mats-docker-determinism
+      - mats-tests
       - deploy-ci-trigger
-    if: ${{ (needs.code.result != 'success' ||
-      needs.dependency-check.result != 'success' ||
-      needs.spotless.result != 'success' ||
-      needs.mats-unit-tests.result != 'success' ||
-      needs.mats-hapi-tests-misc.result != 'success' ||
-      needs.mats-hapi-tests-misc-records.result != 'success' ||
-      needs.mats-hapi-tests-crypto.result != 'success' ||
-      needs.mats-hapi-tests-iss.result != 'success' ||
-      needs.mats-hapi-tests-token.result != 'success' ||
-      needs.mats-hapi-tests-smart-contract.result != 'success' ||
-      needs.mats-hapi-tests-restart.result != 'success' ||
-      needs.mats-hapi-tests-nd-reconnect.result != 'success' ||
-      needs.mats-otter-tests.result != 'success' ||
-      needs.mats-spotless-check.result != 'success' ||
-      needs.mats-snyk-scan.result != 'success' ||
-      needs.mats-gradle-determinism.result != 'success' ||
-      needs.mats-docker-determinism.result != 'success' ||
+    if: ${{ (needs.mats-tests.result != 'success' ||
       needs.deploy-ci-trigger.result != 'success') &&
-      !inputs.dry-run-enabled &&
       !cancelled() && always() }}
 
     steps:
@@ -487,9 +112,12 @@ jobs:
 
       - name: Upload log as artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ !cancelled() && always() }}
         continue-on-error: true
         with:
-          path: run.log
+          retention-days: 7
+          path: |
+            run.log
 
       - name: Get Commit Information
         id: fetch-commit-info
@@ -519,53 +147,40 @@ jobs:
           fi
           echo "slack-user-id=${SLACK_USER_ID}" >> "${GITHUB_OUTPUT}"
 
-      - name: Calculate MATS Unit Test Result
-        id: mats-unit-test-result
-        if: ${{ needs.mats-unit-tests.result != 'success' ||
-          needs.mats-hapi-tests-misc.result != 'success' ||
-          needs.mats-hapi-tests-misc-records.result != 'success' ||
-          needs.mats-hapi-tests-crypto.result != 'success' ||
-          needs.mats-hapi-tests-iss.result != 'success' ||
-          needs.mats-hapi-tests-token.result != 'success' ||
-          needs.mats-hapi-tests-smart-contract.result != 'success' ||
-          needs.mats-hapi-tests-restart.result != 'success' ||
-          needs.mats-hapi-tests-nd-reconnect.result != 'success' ||
-          needs.mats-otter-tests.result != 'success' ||
-          needs.mats-spotless-check.result != 'success' ||
-          needs.mats-snyk-scan.result != 'success' }}
-        run: |
-          echo "status=failure" >> "${GITHUB_OUTPUT}"
-
       - name: Set Rootly Parameters
         id: set-rootly-parameters
         run: |
           ROOTLY_SERVICE_NAME="CITR General"
           if [[ "${{ needs.deploy-ci-trigger.result }}" =~ ^(cancelled|failure)$ ]] \
-            || [[ "${{ needs.mats-unit-tests.outputs.failure-mode }}" == "workflow" ]]; then
+            || [[ "${{ needs.mats-tests.outputs.failure-mode }}" == "workflow" ]]; then
             ROOTLY_SERVICE_NAME="CI/CD Workflows"
           fi
           echo "service=${ROOTLY_SERVICE_NAME}" >> "${GITHUB_OUTPUT}"
 
       - name: Build Rootly Summary
         id: rootly-summary
+        env:
+          PRINT_FAILED_TESTS_SCRIPT: ".github/workflows/support/scripts/print-failed-tests.sh"
         run: |
-          title="MATS Error Report ${{ github.event.inputs.ref || '' }}"
+          title="MATS Error Report"
+
           echo "title=${title}" >> "${GITHUB_OUTPUT}"
           {
             echo 'summary<<EOF'
             echo "------------------------------------"
             echo "Status of each jobs:"
-            echo "- Code Compiles: ${{ needs.code.result }}"
-            echo "- Dependency (Module Info): ${{ needs.dependency-check.result }}"
-            echo "- Spotless: ${{ needs.spotless.result }}"
-            echo "- MATS - Unit Tests: ${{ steps.mats-unit-test-result.outputs.status || 'success' }}"
-            echo "- MATS - Gradle Determinism: ${{ needs.mats-gradle-determinism.result }}"
-            echo "- MATS - Docker Determinism: ${{ needs.mats-docker-determinism.result }}"
+            echo "- MATS Tests: ${{ needs.mats-tests.result }}"
             echo "- Deploy CI Triggers: ${{ needs.deploy-ci-trigger.result }}"
             echo "------------------------------------"
+            if [[ "${{ needs.mats-tests.result }}" != "success" ]]; then
+              echo "MATS tests failed due to a ${{ needs.mats-tests.outputs.failure-mode }} error."
+              echo "- Failing Test(s):"
+              bash "${{ github.workspace }}/${{ env.PRINT_FAILED_TESTS_SCRIPT }}" "${{ needs.mats-tests.outputs.failed-tests }}"
+              echo "------------------------------------"
+            fi
             echo "Commit information:"
             echo "- Author: ${{ steps.find-commit-author-slack.outputs.slack-user-id }}"
-            echo "- Commit: <${{ github.server_url }}/${{ github.repository }}/commit/${{ github.event.inputs.ref || github.sha }}>"
+            echo "- Commit: <${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}>"
             echo "- Workflow: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
             echo EOF
           } >> "${GITHUB_OUTPUT}"
@@ -588,7 +203,7 @@ jobs:
           details: "${{ steps.rootly-summary.outputs.summary }}"
           notification_target_type: "Service"
           notification_target: ${{ steps.set-rootly-parameters.outputs.service }}
-          set_as_noise: "true"
+          set_as_noise: "false"
           alert_urgency: "High"
           external_id: ${{ github.run_id }}
           external_url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
@@ -623,27 +238,7 @@ jobs:
                     "fields": [
                       {
                         "type": "mrkdwn",
-                        "text": "*Code Compiles*: ${{ needs.code.result }}"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "*Dependency (Module Info)*: ${{ needs.dependency-check.result }}"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "*Spotless*: ${{ needs.spotless.result }}"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "*MATS - Unit Tests*: ${{ steps.mats-unit-test-result.outputs.status || 'success' }}"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "*MATS - Gradle Determinism*: ${{ needs.mats-gradle-determinism.result }}"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "*MATS - Docker Determinism*: ${{ needs.mats-docker-determinism.result }}"
+                        "text": "*MATS Tests*: ${{ needs.mats-tests.result }}"
                       },
                       {
                         "type": "mrkdwn",
@@ -710,9 +305,19 @@ jobs:
           EOF
 
       - name: Report failure (slack citr-operations)
+        if: ${{ steps.set-rootly-parameters.outputs.service != 'CI/CD Workflows' }}
         uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
         with:
           webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
+          webhook-type: incoming-webhook
+          payload-templated: true
+          payload-file-path: slack_payload.json
+
+      - name: Report failure (slack citr-failures)
+        if: ${{ steps.set-rootly-parameters.outputs.service == 'CI/CD Workflows' }}
+        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+        with:
+          webhook: ${{ secrets.SLACK_CITR_FAILURES_WEBHOOK }}
           webhook-type: incoming-webhook
           payload-templated: true
           payload-file-path: slack_payload.json

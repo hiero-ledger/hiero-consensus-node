@@ -19,8 +19,8 @@ public record ContractsConfig(
                 boolean noncesExternalizationEnabled,
         @ConfigProperty(defaultValue = "false") @NetworkProperty boolean enforceCreationThrottle,
         @ConfigProperty(defaultValue = "15000000") @NetworkProperty long maxGasPerTransaction,
-        @ConfigProperty(defaultValue = "1500000000") @NetworkProperty long maxGasPerSec,
-        @ConfigProperty(defaultValue = "1500000000") @NetworkProperty long maxGasPerSecBackend,
+        @ConfigProperty(defaultValue = "15000000") @NetworkProperty long maxGasPerSec,
+        @ConfigProperty(defaultValue = "15000000") @NetworkProperty long maxGasPerSecBackend,
         @ConfigProperty(defaultValue = "500000000") @NetworkProperty long opsDurationThrottleCapacity,
         @ConfigProperty(defaultValue = "500000000") @NetworkProperty long opsDurationThrottleUnitsFreedPerSecond,
         @ConfigProperty(value = "maxKvPairs.aggregate", defaultValue = "500000000") @NetworkProperty
@@ -65,7 +65,7 @@ public record ContractsConfig(
         @ConfigProperty(value = "systemContract.scheduleService.scheduleNative.enabled", defaultValue = "true")
                 @NetworkProperty
                 boolean systemContractScheduleNativeEnabled,
-        @ConfigProperty(value = "systemContract.scheduleService.scheduleCall.enabled", defaultValue = "false")
+        @ConfigProperty(value = "systemContract.scheduleService.scheduleCall.enabled", defaultValue = "true")
                 @NetworkProperty
                 boolean systemContractScheduleCallEnabled,
         @ConfigProperty(value = "systemContract.accountService.isAuthorizedRawEnabled", defaultValue = "true")
@@ -97,7 +97,7 @@ public record ContractsConfig(
                 boolean chargeGasOnEvmHandleException,
         @ConfigProperty(value = "evm.nonExtantContractsFail", defaultValue = "0") @NetworkProperty
                 Set<Long> evmNonExtantContractsFail,
-        @ConfigProperty(value = "evm.version", defaultValue = "v0.51") @NetworkProperty String evmVersion,
+        @ConfigProperty(value = "evm.version", defaultValue = "v0.67") @NetworkProperty String evmVersion,
         @ConfigProperty(value = "evm.nativeLibVerification.halt.enabled", defaultValue = "false") @NetworkProperty
                 boolean nativeLibVerificationHaltEnabled,
         @ConfigProperty(value = "metrics.smartContract.primary.enabled", defaultValue = "true") @NetworkProperty

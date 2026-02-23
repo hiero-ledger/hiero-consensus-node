@@ -6,11 +6,11 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.service.entityid.EntityNumGenerator;
 import com.hedera.node.app.spi.authorization.SystemPrivilege;
 import com.hedera.node.app.spi.fees.ExchangeRateInfo;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.fees.ResourcePriceCalculator;
-import com.hedera.node.app.spi.ids.EntityNumGenerator;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.key.KeyVerifier;
@@ -50,19 +50,19 @@ public interface HandleContext {
     enum TransactionCategory {
         /**
          * A transaction submitted by a user via HAPI or by a node via {@link com.hedera.node.app.spi.AppContext.Gossip}.
-         * */
+         */
         USER,
         /**
          * An independent, top-level transaction that is executed before the user transaction.
-         * */
+         */
         PRECEDING,
         /**
          * A child transaction that is executed as part of a user transaction.
-         * */
+         */
         CHILD,
         /**
          * A transaction executed via the schedule service.
-         * */
+         */
         SCHEDULED,
         /**
          * A transaction submitted by Node for TSS service
@@ -179,7 +179,7 @@ public interface HandleContext {
              */
             EXPLICIT_WRITE_TRACING,
             /**
-             * Batch inner transaction bytes. Used to prehandle inner transaction while dispatching them.
+             * Batch inner transaction bytes. Used to pre-handle inner transaction while dispatching them.
              */
             INNER_TRANSACTION_BYTES,
             /**
@@ -216,6 +216,7 @@ public interface HandleContext {
 
     /**
      * Attempts to charge the payer in this context the given amount of tinybar.
+     *
      * @param amount the amount to charge
      * @return true if the entire amount was successfully charged, false otherwise
      */
@@ -226,6 +227,7 @@ public interface HandleContext {
     /**
      * Tries to charge the requested account in this context the given amount of tinybar,
      * distributing the fees proportionally to the active collection accounts.
+     *
      * @param amount the amount to charge
      * @return true if the entire amount was successfully charged, false otherwise
      */
@@ -237,9 +239,17 @@ public interface HandleContext {
      * a best effort operation, and in some extremely unusual edge cases (like the fee
      * collection accounts themselves being debited in the transaction), may not refund
      * the full amount.
+     *
      * @param amount the amount to refund.
      */
     void refundBestEffort(AccountID accountId, long amount);
+
+    /**
+     * Refunds the requested account in this context the given amount of service fee.
+     * @param accountId the account to refund
+     * @param amount the amount to refund.
+     */
+    void refundServiceFee(@NonNull final AccountID accountId, final long amount);
 
     /**
      * Returns the current {@link Configuration} for the node.
@@ -359,9 +369,10 @@ public interface HandleContext {
 
     /**
      * Dispatches a child transaction with the given options.
+     *
      * @param options the options to use
-     * @return the stream builder of the child transaction
      * @param <T> the type of the stream builder
+     * @return the stream builder of the child transaction
      */
     <T extends StreamBuilder> T dispatch(@NonNull DispatchOptions<T> options);
 
@@ -466,6 +477,7 @@ public interface HandleContext {
      * Gets the pre-paid rewards for the current transaction. This can be non-empty for scheduled transactions.
      * Since we use the parent record finalizer to finalize schedule transactions, we need to deduct any paid staking rewards
      * already happened in the parent transaction.
+     *
      * @return the paid rewards
      */
     @NonNull
@@ -473,6 +485,7 @@ public interface HandleContext {
 
     /**
      * Returns the {@link NodeInfo} for the node this transaction is created from.
+     *
      * @return the node info
      */
     NodeInfo creatorInfo();
@@ -492,4 +505,10 @@ public interface HandleContext {
      * be used to pass additional information to the targeted handlers.
      */
     DispatchMetadata dispatchMetadata();
+
+    /**
+     * Returns the gas price in tiny cents.
+     * @return the gas price in tiny cents
+     */
+    long getGasPriceInTinycents();
 }

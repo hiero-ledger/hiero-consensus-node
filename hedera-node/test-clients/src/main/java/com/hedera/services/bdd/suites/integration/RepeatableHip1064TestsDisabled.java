@@ -44,7 +44,8 @@ public class RepeatableHip1064TestsDisabled {
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
         testLifecycle.overrideInClass(Map.of(
                 "nodes.nodeRewardsEnabled", "false",
-                "nodes.preserveMinNodeRewardBalance", "false"));
+                "nodes.preserveMinNodeRewardBalance", "false",
+                "nodes.feeCollectionAccountEnabled", "false"));
     }
 
     @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
@@ -60,6 +61,7 @@ public class RepeatableHip1064TestsDisabled {
                 cryptoTransfer(TokenMovement.movingHbar(100000 * ONE_HBAR).between(GENESIS, NODE_REWARD)),
                 // Start a new period
                 waitUntilStartOfNextStakingPeriod(1),
+                cryptoTransfer(TokenMovement.movingHbar(100000 * ONE_HBAR).between(GENESIS, NODE_REWARD)),
                 // Collect some node fees with a non-system payer
                 cryptoCreate(CIVILIAN_PAYER),
                 fileCreate("something")
@@ -75,6 +77,7 @@ public class RepeatableHip1064TestsDisabled {
                 // validate all network fees go to 0.0.801
                 validateRecordFees("notFree", List.of(3L, 98L, 800L, 801L)),
                 waitUntilStartOfNextStakingPeriod(1),
+                cryptoTransfer(TokenMovement.movingHbar(100000 * ONE_HBAR).between(GENESIS, NODE_REWARD)),
                 // Trigger another round with a transaction with no fees (superuser payer)
                 // so the network should pay rewards
                 cryptoCreate("nobody").payingWith(GENESIS));
@@ -91,9 +94,9 @@ public class RepeatableHip1064TestsDisabled {
                         1,
                         (spec, item) -> item.getRecord().getTransferList().getAccountAmountsList().stream()
                                 .anyMatch(aa -> aa.getAccountID().getAccountNum() == 801L && aa.getAmount() < 0L))),
-                cryptoTransfer(TokenMovement.movingHbar(100000 * ONE_HBAR).between(GENESIS, NODE_REWARD)),
                 // Start a new period
                 waitUntilStartOfNextStakingPeriod(1),
+                cryptoTransfer(TokenMovement.movingHbar(100000 * ONE_HBAR).between(GENESIS, NODE_REWARD)),
                 // Collect some node fees with a non-system payer
                 cryptoCreate(CIVILIAN_PAYER),
                 fileCreate("something")
@@ -109,6 +112,7 @@ public class RepeatableHip1064TestsDisabled {
                 // validate all network fees go to 0.0.801
                 validateRecordFees("notFree", List.of(3L, 98L, 800L, 801L)),
                 waitUntilStartOfNextStakingPeriod(1),
+                cryptoTransfer(TokenMovement.movingHbar(100000 * ONE_HBAR).between(GENESIS, NODE_REWARD)),
                 // Trigger another round with a transaction with no fees (superuser payer)
                 // so the network should pay rewards
                 cryptoCreate("nobody").payingWith(GENESIS));

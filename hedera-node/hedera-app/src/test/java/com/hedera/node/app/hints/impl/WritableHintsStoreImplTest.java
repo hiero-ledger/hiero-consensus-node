@@ -10,14 +10,13 @@ import static com.hedera.node.app.hints.schemas.V059HintsSchema.NEXT_HINTS_CONST
 import static com.hedera.node.app.hints.schemas.V059HintsSchema.NEXT_HINTS_CONSTRUCTION_STATE_LABEL;
 import static com.hedera.node.app.hints.schemas.V060HintsSchema.CRS_STATE_STATE_ID;
 import static com.hedera.node.app.hints.schemas.V060HintsSchema.CRS_STATE_STATE_LABEL;
-import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
-import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_LABEL;
-import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
-import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_LABEL;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_LABEL;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_LABEL;
 import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.BOOTSTRAP;
 import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.HANDOFF;
 import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.TRANSITION;
-import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE;
 import static java.util.Objects.requireNonNull;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.BDDMockito.given;
@@ -45,19 +44,19 @@ import com.hedera.node.app.fixtures.state.FakeState;
 import com.hedera.node.app.hints.HintsLibrary;
 import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.hints.schemas.V059HintsSchema;
-import com.hedera.node.app.ids.EntityIdService;
-import com.hedera.node.app.ids.WritableEntityIdStore;
 import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
+import com.hedera.node.app.service.entityid.WritableEntityCounters;
+import com.hedera.node.app.service.entityid.impl.EntityIdServiceImpl;
+import com.hedera.node.app.service.entityid.impl.WritableEntityIdStoreImpl;
 import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.node.app.spi.AppContext;
-import com.hedera.node.app.spi.ids.WritableEntityCounters;
 import com.hedera.node.app.spi.migrate.StartupNetworks;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.node.config.data.VersionConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.metrics.api.Metrics;
+import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.ReadableKVState;
@@ -71,6 +70,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicReference;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -123,8 +123,9 @@ class WritableHintsStoreImplTest {
 
     @BeforeEach
     void setUp() {
+        given(appContext.configSupplier()).willReturn(() -> DEFAULT_CONFIG);
         state = emptyState();
-        entityCounters = new WritableEntityIdStore(new MapWritableStates(Map.of(
+        entityCounters = new WritableEntityIdStoreImpl(new MapWritableStates(Map.of(
                 ENTITY_ID_STATE_ID,
                 new FunctionWritableSingletonState<>(
                         ENTITY_ID_STATE_ID,
@@ -462,17 +463,13 @@ class WritableHintsStoreImplTest {
     private State emptyState() {
         final var state = new FakeState();
         final var servicesRegistry = new FakeServicesRegistry();
-        Set.of(
-                        new EntityIdService(),
-                        new HintsServiceImpl(
-                                NO_OP_METRICS,
-                                ForkJoinPool.commonPool(),
-                                appContext,
-                                library,
-                                DEFAULT_CONFIG
-                                        .getConfigData(BlockStreamConfig.class)
-                                        .blockPeriod()))
-                .forEach(servicesRegistry::register);
+        final var hintsServiceImpl = new HintsServiceImpl(
+                NO_OP_METRICS,
+                ForkJoinPool.commonPool(),
+                appContext,
+                library,
+                DEFAULT_CONFIG.getConfigData(BlockStreamConfig.class).blockPeriod());
+        Set.of(new EntityIdServiceImpl(), hintsServiceImpl).forEach(servicesRegistry::register);
         final var migrator = new FakeServiceMigrator();
         final var bootstrapConfig = new BootstrapConfigProviderImpl().getConfiguration();
         migrator.doMigrations(
@@ -485,7 +482,10 @@ class WritableHintsStoreImplTest {
                 startupNetworks,
                 storeMetricsService,
                 configProvider,
-                TEST_PLATFORM_STATE_FACADE);
+                InitTrigger.GENESIS);
+        final var writableStates = state.getWritableStates(HintsService.NAME);
+        hintsServiceImpl.doGenesisSetup(writableStates, DEFAULT_CONFIG);
+        ((CommittableWritableStates) writableStates).commit();
         return state;
     }
 }

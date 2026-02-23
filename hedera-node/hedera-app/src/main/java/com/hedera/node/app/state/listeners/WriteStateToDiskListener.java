@@ -5,13 +5,13 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.node.app.blocks.impl.streaming.BlockBufferService;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.file.ReadableUpgradeFileStore;
 import com.hedera.node.app.service.networkadmin.ReadableFreezeStore;
 import com.hedera.node.app.service.networkadmin.impl.handlers.ReadableFreezeUpgradeActions;
 import com.hedera.node.app.service.token.ReadableStakingInfoStore;
-import com.hedera.node.app.spi.ids.EntityIdFactory;
 import com.hedera.node.app.spi.migrate.StartupNetworks;
-import com.hedera.node.app.store.ReadableStoreFactory;
+import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.config.ConfigProvider;
 import com.swirlds.common.utility.AutoCloseableWrapper;
 import com.swirlds.platform.listeners.StateWriteToDiskCompleteListener;
@@ -73,11 +73,11 @@ public class WriteStateToDiskListener implements StateWriteToDiskCompleteListene
                     notification.getRoundNumber(),
                     notification.getSequence());
             try (final var wrappedState = stateAccessor.get()) {
-                final var readableStoreFactory = new ReadableStoreFactory(wrappedState.get());
-                final var readableFreezeStore = readableStoreFactory.getStore(ReadableFreezeStore.class);
-                final var readableUpgradeFileStore = readableStoreFactory.getStore(ReadableUpgradeFileStore.class);
-                final var readableNodeStore = readableStoreFactory.getStore(ReadableNodeStore.class);
-                final var readableStakingInfoStore = readableStoreFactory.getStore(ReadableStakingInfoStore.class);
+                final var readableStoreFactory = new ReadableStoreFactoryImpl(wrappedState.get());
+                final var readableFreezeStore = readableStoreFactory.readableStore(ReadableFreezeStore.class);
+                final var readableUpgradeFileStore = readableStoreFactory.readableStore(ReadableUpgradeFileStore.class);
+                final var readableNodeStore = readableStoreFactory.readableStore(ReadableNodeStore.class);
+                final var readableStakingInfoStore = readableStoreFactory.readableStore(ReadableStakingInfoStore.class);
 
                 final var upgradeActions = new ReadableFreezeUpgradeActions(
                         configProvider.getConfiguration(),

@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.test.handlers.util;
 
-import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
-import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_LABEL;
-import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
-import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_LABEL;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_LABEL;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_LABEL;
 import static com.hedera.node.app.service.token.impl.TokenServiceImpl.HBARS_TO_TINYBARS;
 import static com.hedera.node.app.service.token.impl.TokenServiceImpl.ZONE_UTC;
 import static com.hedera.node.app.service.token.impl.handlers.BaseCryptoHandler.asAccount;
@@ -66,8 +66,11 @@ import com.hedera.hapi.node.transaction.CustomFee;
 import com.hedera.hapi.node.transaction.FixedFee;
 import com.hedera.hapi.node.transaction.FractionalFee;
 import com.hedera.hapi.node.transaction.RoyaltyFee;
-import com.hedera.node.app.ids.ReadableEntityIdStoreImpl;
-import com.hedera.node.app.ids.WritableEntityIdStore;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
+import com.hedera.node.app.service.entityid.ReadableEntityIdStore;
+import com.hedera.node.app.service.entityid.WritableEntityIdStore;
+import com.hedera.node.app.service.entityid.impl.ReadableEntityIdStoreImpl;
+import com.hedera.node.app.service.entityid.impl.WritableEntityIdStoreImpl;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableAirdropStore;
 import com.hedera.node.app.service.token.ReadableNetworkStakingRewardsStore;
@@ -92,8 +95,6 @@ import com.hedera.node.app.service.token.impl.WritableTokenStore;
 import com.hedera.node.app.service.token.records.FinalizeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
-import com.hedera.node.app.spi.ids.EntityIdFactory;
-import com.hedera.node.app.spi.ids.ReadableEntityIdStore;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
@@ -614,7 +615,7 @@ public class CryptoTokenHandlerTestBase extends StateBuilderUtil {
                 .willReturn(new FunctionReadableSingletonState<>(
                         ENTITY_COUNTS_STATE_ID, ENTITY_COUNTS_STATE_LABEL, () -> entityCounts));
         readableEntityCounters = new ReadableEntityIdStoreImpl(readableStates);
-        writableEntityCounters = new WritableEntityIdStore(writableStates);
+        writableEntityCounters = new WritableEntityIdStoreImpl(writableStates);
     }
 
     private void givenAccountsInReadableStore() {
@@ -681,7 +682,7 @@ public class CryptoTokenHandlerTestBase extends StateBuilderUtil {
                 .build();
         given(writableStates.<EntityNumber, StakingNodeInfo>get(STAKING_INFOS_STATE_ID))
                 .willReturn(writableStakingInfoState);
-        final var entityIdStore = new WritableEntityIdStore(new MapWritableStates(Map.of(
+        final var entityIdStore = new WritableEntityIdStoreImpl(new MapWritableStates(Map.of(
                 ENTITY_ID_STATE_ID,
                 new FunctionWritableSingletonState<>(ENTITY_ID_STATE_ID, ENTITY_ID_STATE_LABEL, () -> null, c -> {}),
                 ENTITY_COUNTS_STATE_ID,

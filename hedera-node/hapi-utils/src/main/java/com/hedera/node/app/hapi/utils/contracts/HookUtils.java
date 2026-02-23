@@ -4,7 +4,14 @@ package com.hedera.node.app.hapi.utils.contracts;
 import static com.hedera.node.app.hapi.utils.MiscCryptoUtils.keccak256DigestOf;
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.node.hooks.LambdaMappingEntry;
+import com.hedera.hapi.node.base.AccountAmount;
+import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.ContractID;
+import com.hedera.hapi.node.base.NftTransfer;
+import com.hedera.hapi.node.base.TokenTransferList;
+import com.hedera.hapi.node.base.TransferList;
+import com.hedera.hapi.node.hooks.EvmHookMappingEntry;
+import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
@@ -39,7 +46,7 @@ public class HookUtils {
      */
     public static Bytes slotKeyOfMappingEntry(
             @NonNull final com.hedera.pbj.runtime.io.buffer.Bytes leftPaddedMappingSlot,
-            @NonNull final LambdaMappingEntry entry) {
+            @NonNull final EvmHookMappingEntry entry) {
         final com.hedera.pbj.runtime.io.buffer.Bytes hK;
         if (entry.hasKey()) {
             hK = leftPad32(entry.keyOrThrow());
@@ -63,5 +70,50 @@ public class HookUtils {
         final var padded = new byte[32];
         bytes.getBytes(0, padded, 32 - n, n);
         return com.hedera.pbj.runtime.io.buffer.Bytes.wrap(padded);
+    }
+
+    /**
+     * Checks if the crypto transfer operation has any hooks set in any of the account amounts or nft transfers.
+     *
+     * @param op the crypto transfer operation
+     * @return true if the crypto transfer operation has any hooks set in any of the account amounts or nft transfers
+     */
+    public static boolean hasHookExecutions(final @NonNull CryptoTransferTransactionBody op) {
+        for (final AccountAmount aa : op.transfersOrElse(TransferList.DEFAULT).accountAmounts()) {
+            if (aa.hasPreTxAllowanceHook() || aa.hasPrePostTxAllowanceHook()) {
+                return true;
+            }
+        }
+        for (final TokenTransferList ttl : op.tokenTransfers()) {
+            for (final AccountAmount aa : ttl.transfers()) {
+                if (aa.hasPreTxAllowanceHook() || aa.hasPrePostTxAllowanceHook()) {
+                    return true;
+                }
+            }
+            for (final NftTransfer nft : ttl.nftTransfers()) {
+                if (nft.hasPreTxSenderAllowanceHook()
+                        || nft.hasPrePostTxSenderAllowanceHook()
+                        || nft.hasPreTxReceiverAllowanceHook()
+                        || nft.hasPrePostTxReceiverAllowanceHook()) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Converts a ContractID to an AccountID.
+     *
+     * @param contractID the ContractID to convert
+     * @return the corresponding AccountID
+     */
+    public static AccountID asAccountId(@NonNull final ContractID contractID) {
+        requireNonNull(contractID);
+        return AccountID.newBuilder()
+                .shardNum(contractID.shardNum())
+                .realmNum(contractID.realmNum())
+                .accountNum(contractID.contractNumOrThrow())
+                .build();
     }
 }

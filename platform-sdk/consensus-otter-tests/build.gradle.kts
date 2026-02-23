@@ -1,20 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
+import org.gradle.testing.jacoco.plugins.JacocoTaskExtension
+import org.gradlex.javamodule.dependencies.dsl.GradleOnlyDirectives
+
 plugins {
-    id("java-library")
-    id("jacoco")
-    id("org.hiero.gradle.base.jpms-modules")
-    id("org.hiero.gradle.base.lifecycle")
-    id("org.hiero.gradle.base.version")
-    id("org.hiero.gradle.check.dependencies")
-    id("org.hiero.gradle.check.javac-lint")
-    id("org.hiero.gradle.check.spotless")
-    id("org.hiero.gradle.check.spotless-java")
-    id("org.hiero.gradle.check.spotless-kotlin")
-    id("org.hiero.gradle.feature.git-properties-file")
-    id("org.hiero.gradle.feature.java-compile")
-    id("org.hiero.gradle.feature.java-execute")
-    id("org.hiero.gradle.feature.test")
-    id("org.hiero.gradle.report.test-logger")
+    id("org.hiero.gradle.module.library")
     id("org.hiero.gradle.feature.test-fixtures")
     id("org.hiero.gradle.feature.test-integration")
     id("org.hiero.gradle.feature.protobuf")
@@ -22,29 +11,87 @@ plugins {
 
 description = "Consensus Otter Test Framework"
 
+@Suppress("UnstableApiUsage")
+testing {
+    suites.named<JvmTestSuite>("test") {
+        javaModuleTesting.whitebox(this) { sourcesUnderTest = sourceSets.testFixtures }
+    }
+
+    suites.named<JvmTestSuite>("testIntegration") {
+        targets.configureEach { testTask { dependsOn(":consensus-otter-docker-app:assemble") } }
+    }
+
+    suites.register<JvmTestSuite>("testOtter") {
+        // Runs tests against the Container environment
+        targets.register("testContainer") { testTask { systemProperty("otter.env", "container") } }
+
+        // Runs tests against the Turtle environment
+        targets.register("testTurtle") { testTask { systemProperty("otter.env", "turtle") } }
+
+        targets.configureEach { testTask { dependsOn(":consensus-otter-docker-app:assemble") } }
+    }
+
+    suites.register<JvmTestSuite>("testChaos") {
+        targets.configureEach { testTask { dependsOn(":consensus-otter-docker-app:assemble") } }
+    }
+
+    suites.register<JvmTestSuite>("testPerformance") {
+        // Runs performance benchmarks against the container environment
+        targets.configureEach {
+            testTask {
+                systemProperty("otter.env", "container")
+                dependsOn(":consensus-otter-docker-app:assemble")
+            }
+        }
+    }
+}
+
 testModuleInfo {
+    requires("com.swirlds.base")
     requires("com.swirlds.base.test.fixtures")
-    requires("com.swirlds.common.test.fixtures")
-    requires("com.swirlds.platform.core.test.fixtures")
-    requires("org.hiero.otter.fixtures")
-    requires("org.assertj.core")
-    requires("org.junit.jupiter.params")
-    requires("org.mockito")
-    requires("com.github.spotbugs.annotations")
     requires("com.swirlds.component.framework")
     requires("com.swirlds.metrics.api")
+    requires("org.apache.logging.log4j")
+    requires("org.assertj.core")
     requires("org.hiero.consensus.utility")
+    requires("org.hiero.consensus.metrics")
+    requires("org.hiero.consensus.roster")
+    requires("org.hiero.consensus.roster.test.fixtures")
+    requires("org.junit.jupiter.params")
+    requires("org.mockito")
+    requiresStatic("com.github.spotbugs.annotations")
+}
+
+testIntegrationModuleInfo { //
     runtimeOnly("io.grpc.netty.shaded")
 }
 
-testIntegrationModuleInfo {
-    requires("com.swirlds.common.test.fixtures")
-    requires("com.swirlds.logging")
-    requires("org.apache.logging.log4j")
-    requires("org.hiero.otter.fixtures")
-    requires("org.assertj.core")
-    requires("com.github.spotbugs.annotations")
+extensions.getByName<GradleOnlyDirectives>("testOtterModuleInfo").apply {
     runtimeOnly("io.grpc.netty.shaded")
+}
+
+extensions.getByName<GradleOnlyDirectives>("testChaosModuleInfo").apply {
+    runtimeOnly("io.grpc.netty.shaded")
+}
+
+extensions.getByName<GradleOnlyDirectives>("testPerformanceModuleInfo").apply {
+    runtimeOnly("io.grpc.netty.shaded")
+}
+
+// Fix testcontainers module system access to commons libraries
+// testcontainers 2.0.2 is a named module but doesn't declare its module-info dependencies
+// We need to grant it access to the commons modules via JVM arguments
+// Note: automatic modules are named from their package names (org.apache.commons.io for commons-io
+// JAR)
+// This is applied to all Test tasks to work across all execution methods (local, CI, etc.)
+tasks.withType<Test>().configureEach {
+    maxHeapSize = "8g"
+    jvmArgs(
+        "--add-reads=org.testcontainers=org.apache.commons.lang3",
+        "--add-reads=org.testcontainers=org.apache.commons.compress",
+        "--add-reads=org.testcontainers=org.apache.commons.io",
+        "--add-reads=org.testcontainers=org.apache.commons.codec",
+    )
 }
 
 // This should probably not be necessary (Log4j issue?)
@@ -54,63 +101,48 @@ tasks.compileTestFixturesJava {
     options.compilerArgs.add("-Alog4j.graalvm.artifactId=${project.name}")
 }
 
-// Runs tests against the Turtle environment
-tasks.register<Test>("testTurtle") {
-    useJUnitPlatform()
-    testClassesDirs = sourceSets.testIntegration.get().output.classesDirs
-    classpath = sourceSets.testIntegration.get().runtimeClasspath
+// Disable Jacoco (code coverage) for performance tests to avoid overhead
+// Also ensure performance tests always run (never cached/skipped)
+tasks.named<Test>("testPerformance") {
+    extensions.configure<JacocoTaskExtension> { isEnabled = false }
+    outputs.upToDateWhen { false } // Always run, never consider up-to-date
 
-    // Disable all parallelism
-    systemProperty("junit.jupiter.execution.parallel.enabled", false)
-    systemProperty(
-        "junit.jupiter.testclass.order.default",
-        "org.junit.jupiter.api.ClassOrderer\$OrderAnnotation",
-    )
-    // Tell our launcher to target a Turtle network
-    systemProperty("otter.env", "turtle")
-
-    // Limit heap and number of processors
-    maxHeapSize = "8g"
-    jvmArgs("-XX:ActiveProcessorCount=6")
+    // Allow filtering experiments via -PtestFilter="*.SomeExperiment"
+    providers.gradleProperty("testFilter").orNull?.let { filter ->
+        this.filter.includeTestsMatching(filter)
+    }
 }
 
-// Runs tests against the Container environment
-tasks.register<Test>("testContainer") {
-    dependsOn(":consensus-otter-docker-app:copyDockerizedApp")
+// Task to start Grafana and import metrics after performance tests
+tasks.register<Exec>("startGrafana") {
+    group = "visualization"
+    description = "Start Grafana with VictoriaMetrics and import benchmark metrics"
 
-    useJUnitPlatform()
-    testClassesDirs = sourceSets.testIntegration.get().output.classesDirs
-    classpath = sourceSets.testIntegration.get().runtimeClasspath
+    val metricsPath =
+        providers
+            .gradleProperty("metricsPath")
+            .orElse("build/container/*/*/node-*/data/stats/metrics.txt")
 
-    // Disable all parallelism
-    systemProperty("junit.jupiter.execution.parallel.enabled", false)
-    systemProperty(
-        "junit.jupiter.testclass.order.default",
-        "org.junit.jupiter.api.ClassOrderer\$OrderAnnotation",
-    )
+    workingDir = projectDir
+    commandLine("bash", "-c", "src/testPerformance/start-grafana.sh ${metricsPath.get()}")
 
-    // Tell our launcher to target a testcontainer-based network
-    systemProperty("otter.env", "container")
-
-    // Limit heap and number of processors
-    maxHeapSize = "8g"
-    jvmArgs("-XX:ActiveProcessorCount=6")
+    // Mark as not compatible with configuration cache to avoid serialization issues
+    notCompatibleWithConfigurationCache("Uses external shell script with dynamic file paths")
 }
 
-// Configure the default testIntegration task with proper memory settings
-tasks.testIntegration {
-    useJUnitPlatform()
-    testClassesDirs = sourceSets.testIntegration.get().output.classesDirs
-    classpath = sourceSets.testIntegration.get().runtimeClasspath
+// Task to stop Grafana and VictoriaMetrics containers
+tasks.register<Exec>("stopGrafana") {
+    group = "visualization"
+    description = "Stop Grafana and VictoriaMetrics containers and remove data"
 
-    // Disable all parallelism
-    systemProperty("junit.jupiter.execution.parallel.enabled", false)
-    systemProperty(
-        "junit.jupiter.testclass.order.default",
-        "org.junit.jupiter.api.ClassOrderer\$OrderAnnotation",
-    )
+    workingDir = projectDir
+    commandLine("bash", "-c", "src/testPerformance/start-grafana.sh --shutdown")
+}
 
-    // Limit heap and number of processors
-    maxHeapSize = "8g"
-    jvmArgs("-XX:ActiveProcessorCount=6")
+// Task to run performance tests and immediately visualize results
+tasks.register("benchmarkAndVisualize") {
+    group = "visualization"
+    description = "Run performance benchmark and start Grafana visualization"
+    dependsOn("testPerformance")
+    finalizedBy("startGrafana")
 }

@@ -29,6 +29,7 @@ import com.hedera.node.app.service.contract.impl.infra.EthereumCallDataHydration
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
 import com.hedera.node.app.service.contract.impl.records.ContractCreateStreamBuilder;
 import com.hedera.node.app.service.contract.impl.records.EthereumTransactionStreamBuilder;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.file.ReadableFileStore;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
@@ -71,8 +72,9 @@ public class EthereumTransactionHandler extends AbstractContractTransactionHandl
             @NonNull final EthereumCallDataHydration callDataHydration,
             @NonNull final Provider<TransactionComponent.Factory> provider,
             @NonNull final GasCalculator gasCalculator,
+            @NonNull final EntityIdFactory entityIdFactory,
             @NonNull final ContractServiceComponent component) {
-        super(provider, gasCalculator, component);
+        super(provider, gasCalculator, entityIdFactory, component);
         this.ethereumSignatures = requireNonNull(ethereumSignatures);
         this.callDataHydration = requireNonNull(callDataHydration);
     }
@@ -96,11 +98,6 @@ public class EthereumTransactionHandler extends AbstractContractTransactionHandl
                     requireNonNull(txn.ethereumTransactionOrThrow().ethereumData())
                             .toByteArray());
             validateTruePreCheck(nonNull(ethTxData), INVALID_ETHEREUM_TRANSACTION);
-            final byte[] callData = ethTxData.hasCallData() ? ethTxData.callData() : new byte[0];
-            // TODO: Revisit baselineGas with Pectra support epic
-            final var intrinsicGas =
-                    gasCalculator.transactionIntrinsicGasCost(org.apache.tuweni.bytes.Bytes.wrap(callData), false, 0L);
-            validateTruePreCheck(ethTxData.gasLimit() >= intrinsicGas, INSUFFICIENT_GAS);
             // Do not allow sending HBars to Burn Address
             if (ethTxData.value().compareTo(BigInteger.ZERO) > 0) {
                 validateFalsePreCheck(Arrays.equals(ethTxData.to(), EMPTY_ADDRESS), INVALID_SOLIDITY_ADDRESS);
@@ -109,6 +106,13 @@ public class EthereumTransactionHandler extends AbstractContractTransactionHandl
             if (ethTxData.hasToAddress()) {
                 validateTruePreCheck(ethTxData.to().length == EVM_ADDRESS_LENGTH_AS_INT, INVALID_CONTRACT_ID);
             }
+            // gas requirements check
+            final byte[] callData = ethTxData.hasCallData() ? ethTxData.callData() : new byte[0];
+            final var isContractCreate = !ethTxData.hasToAddress();
+            // TODO: Revisit baselineGas with Pectra support epic
+            final var intrinsicGas = gasCalculator.transactionIntrinsicGasCost(
+                    org.apache.tuweni.bytes.Bytes.wrap(callData), isContractCreate, 0L);
+            validateTruePreCheck(ethTxData.gasLimit() >= intrinsicGas, INSUFFICIENT_GAS);
         } catch (@NonNull final Exception e) {
             bumpExceptionMetrics(ETHEREUM_TRANSACTION, e);
             if (e instanceof NullPointerException) {
@@ -164,11 +168,11 @@ public class EthereumTransactionHandler extends AbstractContractTransactionHandl
         }
         if (ethTxData.hasToAddress()) {
             final var streamBuilder = context.savepointStack().getBaseBuilder(ContractCallStreamBuilder.class);
-            outcome.addCallDetailsTo(streamBuilder, context);
+            outcome.addCallDetailsTo(streamBuilder, context, entityIdFactory);
             throwIfUnsuccessfulCall(outcome, component.hederaOperations(), streamBuilder);
         } else {
             final var streamBuilder = context.savepointStack().getBaseBuilder(ContractCreateStreamBuilder.class);
-            outcome.addCreateDetailsTo(streamBuilder, context);
+            outcome.addCreateDetailsTo(streamBuilder, context, entityIdFactory);
             throwIfUnsuccessfulCreate(outcome, component.hederaOperations());
         }
     }

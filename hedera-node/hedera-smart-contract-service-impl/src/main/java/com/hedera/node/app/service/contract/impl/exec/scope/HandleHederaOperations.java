@@ -36,12 +36,12 @@ import com.hedera.node.app.service.contract.impl.records.ContractCreateStreamBui
 import com.hedera.node.app.service.contract.impl.records.ContractOperationStreamBuilder;
 import com.hedera.node.app.service.contract.impl.state.ContractStateStore;
 import com.hedera.node.app.service.contract.impl.state.WritableContractStateStore;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.api.ContractChangeSummary;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.fees.Fees;
-import com.hedera.node.app.spi.ids.EntityIdFactory;
 import com.hedera.node.app.spi.throttle.ThrottleAdviser;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
@@ -298,6 +298,17 @@ public class HandleHederaOperations implements HederaOperations {
         requireNonNull(firstKey);
         final var tokenServiceApi = context.storeFactory().serviceApi(TokenServiceApi.class);
         tokenServiceApi.updateStorageMetadata(contractID, firstKey, netChangeInSlotsUsed);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void updateHookStorageSlots(@NonNull final AccountID accountId, int netChangeInSlotsUsed) {
+        requireNonNull(accountId);
+        final var tokenServiceApi = context.storeFactory().serviceApi(TokenServiceApi.class);
+        // Inside a hook's EVM transaction we never care whether the hook owner is a contract
+        tokenServiceApi.updateHookStorageSlots(accountId, netChangeInSlotsUsed, false);
     }
 
     /**

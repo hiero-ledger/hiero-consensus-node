@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl;
 
-import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
 import static com.swirlds.state.StateChangeListener.StateType.SINGLETON;
 import static java.util.Objects.requireNonNull;
 
@@ -22,6 +22,7 @@ import com.hedera.hapi.node.state.primitives.ProtoString;
 import com.hedera.hapi.node.state.roster.RosterState;
 import com.hedera.hapi.node.state.throttles.ThrottleUsageSnapshots;
 import com.hedera.hapi.node.state.token.NetworkStakingRewards;
+import com.hedera.hapi.node.state.token.NodePayments;
 import com.hedera.hapi.node.state.token.NodeRewards;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.hapi.platform.state.PlatformState;
@@ -38,11 +39,11 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.state.StateChangeListener;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.EnumSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
-import java.util.SortedMap;
-import java.util.TreeMap;
 import java.util.function.Supplier;
 
 /**
@@ -54,7 +55,10 @@ public class BoundaryStateChangeListener implements StateChangeListener {
 
     private static final Set<StateType> TARGET_DATA_TYPES = EnumSet.of(SINGLETON);
 
-    private final SortedMap<Integer, StateChange> singletonUpdates = new TreeMap<>();
+    /**
+     * Maintains insertion order so we externalize changes in the same order they were applied during genesis.
+     */
+    private final Map<Integer, StateChange> singletonUpdates = new LinkedHashMap<>();
 
     @NonNull
     private final StoreMetricsService storeMetricsService;
@@ -106,7 +110,7 @@ public class BoundaryStateChangeListener implements StateChangeListener {
     }
 
     /**
-     * Returns all the state changes that have been accumulated.
+     * Returns all the state changes that have been accumulated, preserving insertion order.
      * @return the state changes
      */
     public List<StateChange> allStateChanges() {
@@ -125,7 +129,6 @@ public class BoundaryStateChangeListener implements StateChangeListener {
     @Override
     public <V> void singletonUpdateChange(final int stateId, @NonNull final V value) {
         requireNonNull(value, "value must not be null");
-
         final var stateChange = StateChange.newBuilder()
                 .stateId(stateId)
                 .singletonUpdate(new SingletonUpdateChange(singletonUpdateChangeValueFor(value)))
@@ -218,6 +221,9 @@ public class BoundaryStateChangeListener implements StateChangeListener {
             }
             case NodeRewards nodeRewards -> {
                 return new OneOf<>(SingletonUpdateChange.NewValueOneOfType.NODE_REWARDS_VALUE, nodeRewards);
+            }
+            case NodePayments nodePayments -> {
+                return new OneOf<>(SingletonUpdateChange.NewValueOneOfType.NODE_PAYMENTS_VALUE, nodePayments);
             }
             case ProtoBytes protoBytes -> {
                 return new OneOf<>(SingletonUpdateChange.NewValueOneOfType.BYTES_VALUE, protoBytes.value());

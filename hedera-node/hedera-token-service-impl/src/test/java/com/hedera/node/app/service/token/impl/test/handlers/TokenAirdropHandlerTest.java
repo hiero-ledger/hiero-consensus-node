@@ -22,6 +22,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mock.Strictness.LENIENT;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -36,11 +37,13 @@ import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenTransferList;
 import com.hedera.hapi.node.state.token.AccountPendingAirdrop;
 import com.hedera.hapi.node.token.TokenAirdropTransactionBody;
+import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.hapi.node.transaction.FixedFee;
 import com.hedera.hapi.node.transaction.FractionalFee;
 import com.hedera.hapi.node.transaction.PendingAirdropRecord;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.fees.FeeContextImpl;
+import com.hedera.node.app.fees.context.IngestFeeContext;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.service.token.impl.WritableAirdropStore;
@@ -50,6 +53,8 @@ import com.hedera.node.app.service.token.records.TokenAirdropStreamBuilder;
 import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
 import com.hedera.node.app.spi.fees.Fees;
+import com.hedera.node.app.spi.fees.SimpleFeeCalculator;
+import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
 import com.hedera.node.app.spi.signatures.SignatureVerification;
 import com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata;
 import com.hedera.node.app.spi.workflows.HandleException;
@@ -77,7 +82,7 @@ class TokenAirdropHandlerTest extends CryptoTransferHandlerTestBase {
     private TokensConfig tokensConfig;
 
     @Mock
-    private FeeContextImpl feeContext;
+    private IngestFeeContext feeContext;
 
     @Mock
     private TransactionBody transactionBody;
@@ -90,6 +95,8 @@ class TokenAirdropHandlerTest extends CryptoTransferHandlerTestBase {
 
     @Mock
     private PureChecksContext pureChecksContext;
+
+    private final EntityIdFactory entityIdFactory = new FakeEntityIdFactoryImpl(0, 0);
 
     @SuppressWarnings("DataFlowIssue")
     @Test
@@ -275,8 +282,6 @@ class TokenAirdropHandlerTest extends CryptoTransferHandlerTestBase {
         final var txn = newTokenAirdrop(TokenTransferList.newBuilder()
                 .token(TOKEN_2468)
                 // transfers and nftTransfers are intentionally empty (will result in a count of zero transfers)
-                .transfers()
-                .nftTransfers()
                 .build());
         given(pureChecksContext.body()).willReturn(txn);
 
@@ -342,7 +347,8 @@ class TokenAirdropHandlerTest extends CryptoTransferHandlerTestBase {
     @Test
     void handleAirdropMultipleTokensToPendingState() {
         givenStoresAndConfig(handleContext);
-        tokenAirdropHandler = new TokenAirdropHandler(tokenAirdropValidator, validator, hookCallFactory);
+        tokenAirdropHandler =
+                new TokenAirdropHandler(tokenAirdropValidator, validator, hookCallsFactory, entityIdFactory);
         given(handleContext.savepointStack()).willReturn(stack);
         given(handleContext.dispatchMetadata()).willReturn(DispatchMetadata.EMPTY_METADATA);
         given(stack.getBaseBuilder(TokenAirdropStreamBuilder.class)).willReturn(tokenAirdropRecordBuilder);
@@ -378,8 +384,8 @@ class TokenAirdropHandlerTest extends CryptoTransferHandlerTestBase {
         given(keyVerifier.verificationFor(any())).willReturn(sigVerificationMock);
         given(handleContext.keyVerifier()).willReturn(keyVerifier);
         given(handleContext.feeCalculatorFactory()).willReturn(feeCalculatorFactory);
-        given(feeCalculatorFactory.feeCalculator(SubType.DEFAULT)).willReturn(feeCalculator);
-        given(feeCalculator.calculate()).willReturn(new Fees(10, 10, 10));
+        mockSimpleFeeCalculator();
+        mockLegacyFeeCalculator();
         given(handleContext.tryToChargePayer(anyLong())).willReturn(true);
 
         tokenAirdropHandler.handle(handleContext);
@@ -401,7 +407,8 @@ class TokenAirdropHandlerTest extends CryptoTransferHandlerTestBase {
     @Test
     void tokenTransfersAboveMax() {
         givenStoresAndConfig(handleContext);
-        tokenAirdropHandler = new TokenAirdropHandler(tokenAirdropValidator, validator, hookCallFactory);
+        tokenAirdropHandler =
+                new TokenAirdropHandler(tokenAirdropValidator, validator, hookCallsFactory, entityIdFactory);
         given(handleContext.savepointStack()).willReturn(stack);
         given(stack.getBaseBuilder(TokenAirdropStreamBuilder.class)).willReturn(tokenAirdropRecordBuilder);
         var nftWithNoCustomFees = nonFungibleToken
@@ -440,7 +447,8 @@ class TokenAirdropHandlerTest extends CryptoTransferHandlerTestBase {
         givenStoresAndConfig(handleContext);
         given(handleContext.dispatchMetadata()).willReturn(DispatchMetadata.EMPTY_METADATA);
         // mock record builder
-        tokenAirdropHandler = new TokenAirdropHandler(tokenAirdropValidator, validator, hookCallFactory);
+        tokenAirdropHandler =
+                new TokenAirdropHandler(tokenAirdropValidator, validator, hookCallsFactory, entityIdFactory);
         var tokenWithNoCustomFees =
                 fungibleToken.copyBuilder().customFees(Collections.emptyList()).build();
         var nftWithNoCustomFees = nonFungibleToken
@@ -457,8 +465,8 @@ class TokenAirdropHandlerTest extends CryptoTransferHandlerTestBase {
         given(handleContext.expiryValidator()).willReturn(expiryValidator);
         given(expiryValidator.expirationStatus(any(), anyBoolean(), anyLong())).willReturn(OK);
         given(handleContext.feeCalculatorFactory()).willReturn(feeCalculatorFactory);
-        given(feeCalculatorFactory.feeCalculator(SubType.DEFAULT)).willReturn(feeCalculator);
-        given(feeCalculator.calculate()).willReturn(new Fees(10, 10, 10));
+        mockSimpleFeeCalculator();
+        mockLegacyFeeCalculator();
         given(handleContext.tryToChargePayer(anyLong())).willReturn(true);
         tokenAirdropHandler.handle(handleContext);
 
@@ -482,7 +490,8 @@ class TokenAirdropHandlerTest extends CryptoTransferHandlerTestBase {
         givenStoresAndConfig(handleContext);
         given(handleContext.dispatchMetadata()).willReturn(DispatchMetadata.EMPTY_METADATA);
         // mock record builder
-        tokenAirdropHandler = new TokenAirdropHandler(tokenAirdropValidator, validator, hookCallFactory);
+        tokenAirdropHandler =
+                new TokenAirdropHandler(tokenAirdropValidator, validator, hookCallsFactory, entityIdFactory);
 
         final var fees = List.of(
                 withFractionalFee(FractionalFee.newBuilder()
@@ -516,8 +525,8 @@ class TokenAirdropHandlerTest extends CryptoTransferHandlerTestBase {
         given(handleContext.keyVerifier()).willReturn(keyVerifier);
 
         given(handleContext.feeCalculatorFactory()).willReturn(feeCalculatorFactory);
-        given(feeCalculatorFactory.feeCalculator(SubType.DEFAULT)).willReturn(feeCalculator);
-        given(feeCalculator.calculate()).willReturn(new Fees(10, 10, 10));
+        mockSimpleFeeCalculator();
+        mockLegacyFeeCalculator();
         given(handleContext.tryToChargePayer(anyLong())).willReturn(true);
 
         tokenAirdropHandler.handle(handleContext);
@@ -539,7 +548,8 @@ class TokenAirdropHandlerTest extends CryptoTransferHandlerTestBase {
         givenStoresAndConfig(handleContext);
 
         // mock record builder
-        tokenAirdropHandler = new TokenAirdropHandler(tokenAirdropValidator, validator, hookCallFactory);
+        tokenAirdropHandler =
+                new TokenAirdropHandler(tokenAirdropValidator, validator, hookCallsFactory, entityIdFactory);
         var tokenWithNoCustomFees =
                 fungibleToken.copyBuilder().customFees(Collections.emptyList()).build();
         var nftWithNoCustomFees = nonFungibleToken
@@ -614,7 +624,8 @@ class TokenAirdropHandlerTest extends CryptoTransferHandlerTestBase {
         given(writableStates.<PendingAirdropId, AccountPendingAirdrop>get(AIRDROPS_STATE_ID))
                 .willReturn(writableAirdropState);
         writableAirdropStore = new WritableAirdropStore(writableStates, writableEntityCounters);
-        tokenAirdropHandler = new TokenAirdropHandler(tokenAirdropValidator, validator, hookCallFactory);
+        tokenAirdropHandler =
+                new TokenAirdropHandler(tokenAirdropValidator, validator, hookCallsFactory, entityIdFactory);
 
         final var newAirdropValue = airdropWithValue(20);
         final var newAccountAirdrop = accountAirdrop
@@ -647,7 +658,8 @@ class TokenAirdropHandlerTest extends CryptoTransferHandlerTestBase {
         given(writableStates.<PendingAirdropId, AccountPendingAirdrop>get(AIRDROPS_STATE_ID))
                 .willReturn(writableAirdropState);
         writableAirdropStore = new WritableAirdropStore(writableStates, writableEntityCounters);
-        tokenAirdropHandler = new TokenAirdropHandler(tokenAirdropValidator, validator, hookCallFactory);
+        tokenAirdropHandler =
+                new TokenAirdropHandler(tokenAirdropValidator, validator, hookCallsFactory, entityIdFactory);
 
         var tokenWithNoCustomFees =
                 fungibleToken.copyBuilder().customFees(Collections.emptyList()).build();
@@ -713,5 +725,18 @@ class TokenAirdropHandlerTest extends CryptoTransferHandlerTestBase {
         return AccountPendingAirdrop.newBuilder()
                 .pendingAirdropValue(pendingAirdropValue)
                 .build();
+    }
+
+    private void mockSimpleFeeCalculator() {
+        final var exchangeRate =
+                ExchangeRate.newBuilder().hbarEquiv(1).centEquiv(12).build();
+        final var simpleFeeCalculatorMock = mock(SimpleFeeCalculator.class);
+        given(handleContext.getSimpleFeeCalculator()).willReturn(simpleFeeCalculatorMock);
+        given(handleContext.activeRate()).willReturn(exchangeRate);
+    }
+
+    private void mockLegacyFeeCalculator() {
+        lenient().when(feeCalculatorFactory.feeCalculator(SubType.DEFAULT)).thenReturn(feeCalculator);
+        lenient().when(feeCalculator.calculate()).thenReturn(new Fees(10, 10, 10));
     }
 }

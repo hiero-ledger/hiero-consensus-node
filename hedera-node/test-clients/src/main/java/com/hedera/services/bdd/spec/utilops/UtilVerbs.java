@@ -8,9 +8,11 @@ import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubK
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.explicitFromHeadlong;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.numberOfLongZero;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.APPLICATION_LOG;
+import static com.hedera.services.bdd.junit.hedera.ExternalPath.BLOCK_NODE_COMMS_LOG;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.ensureDir;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccountString;
+import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.TargetNetworkType.EMBEDDED_NETWORK;
 import static com.hedera.services.bdd.spec.assertions.ContractInfoAsserts.contractWith;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
@@ -131,6 +133,7 @@ import com.hedera.services.bdd.spec.utilops.checks.VerifyGetLiveHashNotSupported
 import com.hedera.services.bdd.spec.utilops.checks.VerifyUserFreezeNotAuthorized;
 import com.hedera.services.bdd.spec.utilops.embedded.MutateAccountOp;
 import com.hedera.services.bdd.spec.utilops.embedded.MutateNodeOp;
+import com.hedera.services.bdd.spec.utilops.embedded.ViewAccountOp;
 import com.hedera.services.bdd.spec.utilops.grouping.GroupedOps;
 import com.hedera.services.bdd.spec.utilops.grouping.InBlockingOrder;
 import com.hedera.services.bdd.spec.utilops.grouping.ParallelSpecOps;
@@ -226,6 +229,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
@@ -249,6 +253,7 @@ import org.hiero.base.utility.CommonUtils;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.DynamicTest;
 
 public class UtilVerbs {
     public static final int DEFAULT_COLLISION_AVOIDANCE_FACTOR = 2;
@@ -473,30 +478,69 @@ public class UtilVerbs {
 
     /**
      * Returns an operation that delays for the given time and then validates that the selected nodes'
-     * application logs contain the given pattern.
-     *
+     * application logs contain the given text.
      * @param selector the selector for the node whose log to validate
-     * @param pattern the pattern that must be present
+     * @param text the text that must be present
      * @param delay the delay before validation
      * @return the operation that validates the logs of the target network
      */
-    public static LogContainmentOp assertHgcaaLogContains(
-            @NonNull final NodeSelector selector, @NonNull final String pattern, @NonNull final Duration delay) {
-        return new LogContainmentOp(selector, APPLICATION_LOG, CONTAINS, pattern, delay);
+    public static LogContainmentOp assertHgcaaLogContainsText(
+            @NonNull final NodeSelector selector, @NonNull final String text, @NonNull final Duration delay) {
+        return new LogContainmentOp(selector, APPLICATION_LOG, CONTAINS, text, null, delay);
     }
 
     /**
      * Returns an operation that delays for the given time and then validates that the selected nodes'
-     * application logs do not contain the given pattern.
+     * application logs contain the given regex.
      *
      * @param selector the selector for the node whose log to validate
-     * @param pattern the pattern that must be present
+     * @param regex the regex that must be found
      * @param delay the delay before validation
      * @return the operation that validates the logs of the target network
      */
-    public static LogContainmentOp assertHgcaaLogDoesNotContain(
-            @NonNull final NodeSelector selector, @NonNull final String pattern, @NonNull final Duration delay) {
-        return new LogContainmentOp(selector, APPLICATION_LOG, DOES_NOT_CONTAIN, pattern, delay);
+    public static LogContainmentOp assertHgcaaLogContainsPattern(
+            @NonNull final NodeSelector selector, @NonNull final String regex, @NonNull final Duration delay) {
+        return new LogContainmentOp(selector, APPLICATION_LOG, CONTAINS, null, Pattern.compile(regex), delay);
+    }
+
+    /**
+     * Returns an operation that delays for the given time and then validates that the selected nodes'
+     * application logs do not contain the given text.
+     * @param selector the selector for the node whose log to validate
+     * @param text the text that must be present
+     * @param delay the delay before validation
+     * @return the operation that validates the logs of the target network
+     */
+    public static LogContainmentOp assertHgcaaLogDoesNotContainText(
+            @NonNull final NodeSelector selector, @NonNull final String text, @NonNull final Duration delay) {
+        return new LogContainmentOp(selector, APPLICATION_LOG, DOES_NOT_CONTAIN, text, null, delay);
+    }
+
+    /**
+     * Returns an operation that delays for the given time and then validates that the selected nodes'
+     * block node comms logs contain the given text.
+     * @param selector the selector for the node whose log to validate
+     * @param text the text that must be present
+     * @param delay the delay before validation
+     * @return the operation that validates the logs of the target network
+     */
+    public static LogContainmentOp assertBlockNodeCommsLogContainsText(
+            @NonNull final NodeSelector selector, @NonNull final String text, @NonNull final Duration delay) {
+        return new LogContainmentOp(selector, BLOCK_NODE_COMMS_LOG, CONTAINS, text, null, delay);
+    }
+
+    /**
+     * Returns an operation that delays for the given time and then validates that the selected nodes'
+     * block node comms logs do not contain the given text.
+     *
+     * @param selector the selector for the node whose log to validate
+     * @param text the text that must be present
+     * @param delay the delay before validation
+     * @return the operation that validates the logs of the target network
+     */
+    public static LogContainmentOp assertBlockNodeCommsLogDoesNotContainText(
+            @NonNull final NodeSelector selector, @NonNull final String text, @NonNull final Duration delay) {
+        return new LogContainmentOp(selector, BLOCK_NODE_COMMS_LOG, DOES_NOT_CONTAIN, text, null, delay);
     }
 
     /**
@@ -578,7 +622,7 @@ public class UtilVerbs {
         return new QueryModificationsOp(false, queryOpSupplier, modificationsFn);
     }
 
-    public static SourcedOp sourcing(Supplier<HapiSpecOperation> source) {
+    public static SourcedOp sourcing(Supplier<? extends SpecOperation> source) {
         return new SourcedOp(source);
     }
 
@@ -2044,6 +2088,116 @@ public class UtilVerbs {
         return validateChargedUsdWithin(txn, expectedUsd, allowedPercentDiff);
     }
 
+    public static CustomSpecAssert validateChargedAccount(String txn, String expectedAccount) {
+        return assertionsHold((spec, log) -> {
+            requireNonNull(spec);
+            requireNonNull(txn);
+            var subOp = getTxnRecord(txn);
+            allRunFor(spec, subOp);
+            final var rcd = subOp.getResponseRecord();
+            final var expectedAccountId = asId(expectedAccount, spec);
+            final var negativeAccountAmount = rcd.getTransferList().getAccountAmountsList().stream()
+                    .filter(aa -> aa.getAmount() < 0)
+                    .findFirst();
+            assertTrue(negativeAccountAmount.isPresent());
+            final var actualChargedAccountId = negativeAccountAmount.get().getAccountID();
+            assertEquals(
+                    actualChargedAccountId,
+                    expectedAccountId,
+                    String.format(
+                            "Charged account %s is different than expected: %s",
+                            actualChargedAccountId, expectedAccountId));
+        });
+    }
+
+    public static CustomSpecAssert validateChargedFee(String txn, long expectedFee) {
+        return assertionsHold((spec, assertLog) -> {
+            final var actualFeeCharged = getChargedFee(spec, txn);
+            assertEquals(
+                    expectedFee,
+                    actualFeeCharged,
+                    String.format("%s fee (%s) is different than expected!", actualFeeCharged, txn));
+        });
+    }
+
+    public static CustomSpecAssert validateChargedSimpleFees(
+            String name, String txn, double expectedUsd, double allowedPercentDiff) {
+        return assertionsHold((spec, assertLog) -> {
+            final var actualUsdCharged = getChargedUsed(spec, txn);
+            assertEquals(
+                    expectedUsd,
+                    actualUsdCharged,
+                    (allowedPercentDiff / 100.0) * expectedUsd,
+                    String.format(
+                            "%s: %s fee (%s) more than %.2f percent different than expected!",
+                            name, sdec(actualUsdCharged, 4), txn, allowedPercentDiff));
+        });
+    }
+
+    public static SpecOperation safeValidateChargedUsd(String txnName, double oldPrice, double newPrice) {
+        return doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+            if ("true".equalsIgnoreCase(flag)) {
+                return validateChargedUsd(txnName, newPrice);
+            } else {
+                return validateChargedUsd(txnName, oldPrice);
+            }
+        });
+    }
+
+    public static SpecOperation safeValidateChargedUsdWithin(
+            String txnName,
+            double oldPrice,
+            double oldAllowedPercentDiff,
+            double newPrice,
+            double newAllowedPercentDiff) {
+        return doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+            if ("true".equalsIgnoreCase(flag)) {
+                return validateChargedUsdWithin(txnName, newPrice, newAllowedPercentDiff);
+            } else {
+                return validateChargedUsdWithin(txnName, oldPrice, oldAllowedPercentDiff);
+            }
+        });
+    }
+
+    public static SpecOperation recordCurrentOwnerEvmHookSlotUsage(
+            @NonNull final String accountName, @NonNull final LongConsumer cb) {
+        requireNonNull(accountName);
+        requireNonNull(cb);
+        return new ViewAccountOp(accountName, account -> cb.accept(account.numberEvmHookStorageSlots()));
+    }
+
+    public static SpecOperation assertOwnerHasEvmHookSlotUsageChange(
+            @NonNull final String accountName, @NonNull final AtomicLong origCount, final int delta) {
+        requireNonNull(accountName);
+        requireNonNull(origCount);
+        return sourcing(() -> new ViewAccountOp(
+                accountName,
+                account -> assertEquals(
+                        origCount.get() + delta,
+                        account.numberEvmHookStorageSlots(),
+                        "Wrong # of EVM hook storage slots for '" + accountName + "'")));
+    }
+
+    @FunctionalInterface
+    public interface OpsProvider {
+        List<SpecOperation> provide();
+    }
+
+    public static Stream<DynamicTest> compareSimpleToOld(
+            OpsProvider provider, String txName, double simpleFee, double simpleDiff, double oldFee, double oldDiff) {
+        List<SpecOperation> opsList = new ArrayList<>();
+
+        opsList.add(overriding("fees.simpleFeesEnabled", "true"));
+        opsList.addAll(provider.provide());
+        opsList.add(validateChargedSimpleFees("Simple Fees", txName, simpleFee, simpleDiff));
+
+        opsList.add(overriding("fees.simpleFeesEnabled", "false"));
+        opsList.addAll(provider.provide());
+        opsList.add(validateChargedSimpleFees("Old Fees", txName, oldFee, oldDiff));
+
+        return hapiTest(opsList.toArray(new SpecOperation[opsList.size()]));
+    }
+
     public static CustomSpecAssert validateChargedUsdWithChild(
             String txn, double expectedUsd, double allowedPercentDiff) {
         return assertionsHold((spec, assertLog) -> {
@@ -2071,6 +2225,20 @@ public class UtilVerbs {
         });
     }
 
+    public static CustomSpecAssert validateChargedUsdForQueries(
+            String txn, double expectedUsd, double allowedPercentDiff) {
+        return assertionsHold((spec, assertLog) -> {
+            final var actualUsdCharged = getChargedUsedQuery(spec, txn);
+            assertEquals(
+                    expectedUsd,
+                    actualUsdCharged,
+                    (allowedPercentDiff / 100.0) * expectedUsd,
+                    String.format(
+                            "%s fee (%s) more than %.2f percent different than expected!",
+                            sdec(actualUsdCharged, 4), txn, allowedPercentDiff));
+        });
+    }
+
     public static CustomSpecAssert validateInnerTxnChargedUsd(String txn, String parent, double expectedUsd) {
         return validateInnerTxnChargedUsd(txn, parent, expectedUsd, 1.00);
     }
@@ -2086,6 +2254,39 @@ public class UtilVerbs {
                     String.format(
                             "%s fee (%s) more than %.2f percent different than expected!",
                             sdec(actualUsdCharged, 4), txn, allowedPercentDiff));
+        });
+    }
+
+    public static CustomSpecAssert safeValidateInnerTxnChargedUsd(
+            String txn,
+            String parent,
+            double oldPrice,
+            double oldAllowedPercentDiff,
+            double newPrice,
+            double newAllowedPercentDiff) {
+        return assertionsHold((spec, assertLog) -> {
+            final var flag = spec.targetNetworkOrThrow().startupProperties().get("fees.simpleFeesEnabled");
+            if ("true".equalsIgnoreCase(flag)) {
+                final var effectivePercentDiff = Math.max(newAllowedPercentDiff, 1.0);
+                final var actualUsdCharged = getChargedUsedForInnerTxn(spec, parent, txn);
+                assertEquals(
+                        newPrice,
+                        actualUsdCharged,
+                        (effectivePercentDiff / 100.0) * newPrice,
+                        String.format(
+                                "%s fee (%s) more than %.2f percent different than expected!",
+                                sdec(actualUsdCharged, 4), txn, effectivePercentDiff));
+            } else {
+                final var effectivePercentDiff = Math.max(oldAllowedPercentDiff, 1.0);
+                final var actualUsdCharged = getChargedUsedForInnerTxn(spec, parent, txn);
+                assertEquals(
+                        oldPrice,
+                        actualUsdCharged,
+                        (effectivePercentDiff / 100.0) * oldPrice,
+                        String.format(
+                                "%s fee (%s) more than %.2f percent different than expected!",
+                                sdec(actualUsdCharged, 4), txn, effectivePercentDiff));
+            }
         });
     }
 
@@ -2468,6 +2669,94 @@ public class UtilVerbs {
     }
 
     /**
+     * Returns a {@link BlockStreamAssertion} factory that asserts the stream items sharing the same base
+     * transaction id as the given top-level transaction have the expected nonce sequence.
+     * @param scheduleCreateTx the name of the top-level transaction
+     * @param nonces the expected nonce sequence
+     * @return a factory for a {@link BlockStreamAssertion} that asserts the nonce sequence
+     */
+    public static Function<HapiSpec, BlockStreamAssertion> scheduledNonceSequence(
+            @NonNull final String scheduleCreateTx, @NonNull final List<Integer> nonces) {
+        requireNonNull(scheduleCreateTx);
+        requireNonNull(nonces);
+        final var nextIndex = new AtomicInteger(0);
+        return spec -> block -> {
+            final com.hederahashgraph.api.proto.java.TransactionID creationTxnId;
+            try {
+                creationTxnId = spec.registry().getTxnId(scheduleCreateTx);
+            } catch (RegistryNotFound ignore) {
+                return false;
+            }
+            final var executionTxnId =
+                    protoToPbj(creationTxnId.toBuilder().setScheduled(true).build(), TransactionID.class);
+            final var items = block.items();
+            for (final var item : items) {
+                if (item.hasSignedTransaction()) {
+                    final var parts = TransactionParts.from(item.signedTransactionOrThrow());
+                    final var txId = parts.transactionIdOrThrow();
+                    final var baseTxId = txId.copyBuilder().nonce(0).build();
+                    if (baseTxId.equals(executionTxnId)) {
+                        final int expectedNonce = nonces.get(nextIndex.getAndIncrement());
+                        assertEquals(expectedNonce, txId.nonce());
+                    }
+                }
+            }
+            return nextIndex.get() == nonces.size();
+        };
+    }
+
+    /**
+     * Returns a {@link BlockStreamAssertion} factory that asserts the {@link TransactionResult} block items of an
+     * execute immediate scheduling transaction and all its triggered child transaction(s) are as expected.
+     * @param scheduleCreateTx the name of the top-level transaction
+     * @param cb the callback to apply to the two results
+     * @return a factory for a {@link BlockStreamAssertion} that asserts the relationship
+     */
+    public static Function<HapiSpec, BlockStreamAssertion> executeImmediateResults(
+            @NonNull final String scheduleCreateTx,
+            @NonNull final BiConsumer<TransactionResult, List<TransactionResult>> cb) {
+        requireNonNull(scheduleCreateTx);
+        requireNonNull(cb);
+        return spec -> block -> {
+            final com.hederahashgraph.api.proto.java.TransactionID creationTxnId;
+            try {
+                creationTxnId = spec.registry().getTxnId(scheduleCreateTx);
+            } catch (RegistryNotFound ignore) {
+                return false;
+            }
+            final var executionTxnId = protoToPbj(creationTxnId, TransactionID.class);
+            final var items = block.items();
+            TransactionResult schedulingTxResult = null;
+            List<TransactionResult> triggeredTxResults = null;
+            for (int i = 0, n = items.size(); i < n; i++) {
+                final var item = items.get(i);
+                if (item.hasSignedTransaction()) {
+                    final var parts = TransactionParts.from(item.signedTransactionOrThrow());
+                    final var txId = parts.transactionIdOrThrow();
+                    final var baseTxId =
+                            txId.copyBuilder().scheduled(false).nonce(0).build();
+                    if (baseTxId.equals(executionTxnId)) {
+                        final var result = items.get(i + 1).transactionResultOrThrow();
+                        if (txId.nonce() == 0 && !txId.scheduled()) {
+                            schedulingTxResult = result;
+                        } else {
+                            if (triggeredTxResults == null) {
+                                triggeredTxResults = new ArrayList<>();
+                            }
+                            triggeredTxResults.add(result);
+                        }
+                    }
+                }
+            }
+            if (schedulingTxResult != null && triggeredTxResults != null) {
+                cb.accept(schedulingTxResult, triggeredTxResults);
+                return true;
+            }
+            return false;
+        };
+    }
+
+    /**
      * Returns a {@link BlockStreamAssertion} factory that asserts the result of a scheduled execution
      * of the given named transaction passes the given assertion.
      * @param creationTxn the name of the transaction that created the scheduled execution
@@ -2578,7 +2867,16 @@ public class UtilVerbs {
     }
 
     public static Tuple accountAmountAlias(final byte[] alias, final Long amount) {
-        return Tuple.of(HapiParserUtil.asHeadlongAddress(alias), amount);
+        return Tuple.of(HapiParserUtil.asHeadlongAddress(alias), amount, false);
+    }
+
+    public static Tuple nftTransferToAlias(
+            @NonNull final AccountID sender, @NonNull final byte[] alias, final long serialNumber) {
+        return Tuple.of(
+                HapiParserUtil.asHeadlongAddress(asAddress(sender)),
+                HapiParserUtil.asHeadlongAddress(alias),
+                serialNumber,
+                false);
     }
 
     public static Tuple accountAmountAlias(final byte[] alias, final Long amount, final boolean isApproval) {
@@ -2713,7 +3011,33 @@ public class UtilVerbs {
                 / 100;
     }
 
-    private static double getChargedUsedForInnerTxn(
+    private static double getChargedUsedQuery(@NonNull final HapiSpec spec, @NonNull final String txn) {
+        requireNonNull(spec);
+        requireNonNull(txn);
+        var subOp = getTxnRecord(txn).logged();
+        allRunFor(spec, subOp);
+        final var rcd = subOp.getResponseRecord();
+        return (-1.0
+                        * rcd.getTransferList().getAccountAmountsList().stream()
+                                .filter(aa -> aa.getAmount() < 0)
+                                .mapToLong(AccountAmount::getAmount)
+                                .sum())
+                / ONE_HBAR
+                / rcd.getReceipt().getExchangeRate().getCurrentRate().getHbarEquiv()
+                * rcd.getReceipt().getExchangeRate().getCurrentRate().getCentEquiv()
+                / 100;
+    }
+
+    private static long getChargedFee(@NonNull final HapiSpec spec, @NonNull final String txn) {
+        requireNonNull(spec);
+        requireNonNull(txn);
+        var subOp = getTxnRecord(txn).logged();
+        allRunFor(spec, subOp);
+        final var rcd = subOp.getResponseRecord();
+        return rcd.getTransactionFee();
+    }
+
+    public static double getChargedUsedForInnerTxn(
             @NonNull final HapiSpec spec, @NonNull final String parent, @NonNull final String txn) {
         requireNonNull(spec);
         requireNonNull(txn);
@@ -2795,7 +3119,32 @@ public class UtilVerbs {
     }
 
     /**
-     * Asserts that a sequence of log messages appears in the specified node's log within a timeframe.
+     * Asserts that a sequence of log messages appears in the specified node's block node comms log within a timeframe.
+     *
+     * @param selector the node selector
+     * @param startTimeSupplier supplier for the start time of the timeframe
+     * @param timeframe the duration of the timeframe window to search for messages
+     * @param waitTimeout the duration to wait for messages to appear
+     * @param patterns the sequence of patterns to look for
+     * @return a new LogContainmentTimeframeOp
+     */
+    public static LogContainmentTimeframeOp assertBlockNodeCommsLogContainsTimeframe(
+            @NonNull final NodeSelector selector,
+            @NonNull final Supplier<Instant> startTimeSupplier,
+            @NonNull final Duration timeframe,
+            @NonNull final Duration waitTimeout,
+            @NonNull final String... patterns) {
+        return new LogContainmentTimeframeOp(
+                selector,
+                ExternalPath.BLOCK_NODE_COMMS_LOG,
+                Arrays.asList(patterns),
+                startTimeSupplier,
+                timeframe,
+                waitTimeout);
+    }
+
+    /**
+     * Asserts that a sequence of log messages appears in the specified node's block node comms log within a timeframe.
      *
      * @param selector the node selector
      * @param startTimeSupplier supplier for the start time of the timeframe
@@ -2811,12 +3160,7 @@ public class UtilVerbs {
             @NonNull final Duration waitTimeout,
             @NonNull final String... patterns) {
         return new LogContainmentTimeframeOp(
-                selector,
-                ExternalPath.APPLICATION_LOG,
-                Arrays.asList(patterns),
-                startTimeSupplier,
-                timeframe,
-                waitTimeout);
+                selector, APPLICATION_LOG, Arrays.asList(patterns), startTimeSupplier, timeframe, waitTimeout);
     }
 
     public static CustomSpecAssert valueIsInRange(

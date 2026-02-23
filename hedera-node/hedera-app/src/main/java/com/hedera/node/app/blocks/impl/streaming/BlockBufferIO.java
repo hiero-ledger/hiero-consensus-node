@@ -28,8 +28,6 @@ import java.util.List;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.block.api.BlockItemSet;
-import org.hiero.block.api.PublishStreamRequest;
 
 /**
  * This class supports reading and writing a series of blocks to disk.
@@ -46,13 +44,17 @@ public class BlockBufferIO {
      */
     private final File rootDirectory;
 
+    private final int maxReadDepth;
+
     /**
      * Constructor for the block buffer IO operations.
      *
      * @param rootDirectory the root directory that will contain subdirectories containing the block files.
+     * @param maxDepth the max allowed depth of nested protobuf messages
      */
-    public BlockBufferIO(final String rootDirectory) {
+    public BlockBufferIO(final String rootDirectory, final int maxDepth) {
         this.rootDirectory = new File(requireNonNull(rootDirectory));
+        this.maxReadDepth = maxDepth;
     }
 
     /**
@@ -80,7 +82,6 @@ public class BlockBufferIO {
      * Utility class that contains logic related to reading blocks from disk.
      */
     private class Reader {
-
         private List<BufferedBlock> read() throws IOException {
             final File[] files = rootDirectory.listFiles();
 
@@ -151,7 +152,7 @@ public class BlockBufferIO {
                             file.getAbsolutePath());
                     blocks.add(bufferedBlock);
                 } catch (final Exception e) {
-                    logger.warn("Failed to read block file; ignoring block (file={})", file.getAbsolutePath(), e);
+                    logger.error("Failed to read block file; ignoring block (file={})", file.getAbsolutePath(), e);
                 }
             }
 
@@ -176,7 +177,8 @@ public class BlockBufferIO {
                 byteBuffer.get(payload);
                 final Bytes bytes = Bytes.wrap(payload);
 
-                return BufferedBlock.PROTOBUF.parse(bytes);
+                return BufferedBlock.PROTOBUF.parse(
+                        bytes.toReadableSequentialData(), false, false, maxReadDepth, length);
             }
         }
     }
@@ -227,27 +229,31 @@ public class BlockBufferIO {
          */
         private void writeBlock(final Path path, final BlockState block) throws IOException {
             // collect the block items to write
-            final List<BlockItem> items = new ArrayList<>();
+            final List<BlockItem> items = new ArrayList<>(block.itemCount());
 
-            for (int i = 0; i < block.numRequestsCreated(); ++i) {
-                final PublishStreamRequest req = block.getRequest(i);
-                if (req != null) {
-                    final BlockItemSet bis = req.blockItemsOrElse(BlockItemSet.DEFAULT);
-                    items.addAll(bis.blockItems());
+            for (int i = 0; i < block.itemCount(); ++i) {
+                final BlockItem item = block.blockItem(i);
+                if (item != null) {
+                    items.add(item);
                 }
             }
 
             final Block blk = new Block(items);
             final Instant closedInstant = block.closedTimestamp();
+            final Instant openedInstant = block.openedTimestamp();
 
+            final Timestamp openedTimestamp = Timestamp.newBuilder()
+                    .seconds(openedInstant.getEpochSecond())
+                    .nanos(openedInstant.getNano())
+                    .build();
             final Timestamp closedTimestamp = Timestamp.newBuilder()
                     .seconds(closedInstant.getEpochSecond())
                     .nanos(closedInstant.getNano())
                     .build();
             final BufferedBlock bufferedBlock = BufferedBlock.newBuilder()
                     .blockNumber(block.blockNumber())
+                    .openedTimestamp(openedTimestamp)
                     .closedTimestamp(closedTimestamp)
-                    .isProofSent(block.isBlockProofSent())
                     .isAcknowledged(block.blockNumber() <= latestAcknowledgedBlockNumber)
                     .block(blk)
                     .build();

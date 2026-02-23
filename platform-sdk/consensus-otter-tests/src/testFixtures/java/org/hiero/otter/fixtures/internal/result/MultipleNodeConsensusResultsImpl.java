@@ -43,7 +43,7 @@ public class MultipleNodeConsensusResultsImpl implements MultipleNodeConsensusRe
         final ConsensusRoundSubscriber metaSubscriber = (nodeId, rounds) -> {
             // iterate over all child-subscribers and eventually remove the ones that wish to be unsubscribed
             consensusRoundSubscribers.removeIf(
-                    current -> current.onConsensusRounds(nodeId, rounds) == SubscriberAction.UNSUBSCRIBE);
+                    current -> current.onConsensusRound(nodeId, rounds) == SubscriberAction.UNSUBSCRIBE);
 
             // the meta-subscriber never unsubscribes
             return SubscriberAction.CONTINUE;
@@ -86,7 +86,8 @@ public class MultipleNodeConsensusResultsImpl implements MultipleNodeConsensusRe
      * {@inheritDoc}
      */
     @Override
-    public @NonNull MultipleNodeConsensusResults suppressingNodes(@NonNull final Collection<Node> nodes) {
+    @NonNull
+    public MultipleNodeConsensusResults suppressingNodes(@NonNull final Collection<Node> nodes) {
         final Set<NodeId> nodeIdsToSuppress = nodes.stream().map(Node::selfId).collect(Collectors.toSet());
         final List<SingleNodeConsensusResult> filtered = results.stream()
                 .filter(result -> !nodeIdsToSuppress.contains(result.nodeId()))

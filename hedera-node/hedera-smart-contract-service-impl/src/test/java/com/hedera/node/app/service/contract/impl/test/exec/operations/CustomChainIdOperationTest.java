@@ -10,7 +10,7 @@ import com.hedera.node.app.service.contract.impl.test.TestHelpers;
 import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import java.util.Deque;
-import org.apache.tuweni.bytes.Bytes32;
+import org.apache.tuweni.units.bigints.UInt256;
 import org.hyperledger.besu.evm.EVM;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
 import org.hyperledger.besu.evm.frame.MessageFrame;
@@ -54,7 +54,7 @@ class CustomChainIdOperationTest {
         given(messageFrame.getContextVariable(CONFIG_CONTEXT_VARIABLE)).willReturn(config);
         given(messageFrame.getRemainingGas()).willReturn(Long.MAX_VALUE);
         final var contractsConfig = config.getConfigData(ContractsConfig.class);
-        final var expectedStackItem = Bytes32.fromHexStringLenient(Integer.toString(contractsConfig.chainId(), 16));
+        final var expectedStackItem = UInt256.valueOf(contractsConfig.chainId());
         final var expectedResult = new Operation.OperationResult(123L, null);
         final var actualResult = subject.execute(messageFrame, evm);
         TestHelpers.assertSameResult(actualResult, expectedResult);

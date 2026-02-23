@@ -32,7 +32,7 @@ public enum RepeatableReason {
      */
     THROTTLE_OVERRIDES,
     /**
-     * The test uses the state signature transaction callback.
+     * The test uses a short-circuiting transaction callback.
      */
-    USES_STATE_SIGNATURE_TRANSACTION_CALLBACK,
+    USES_SHORT_CIRCUITING_TRANSACTION_CALLBACK,
 }

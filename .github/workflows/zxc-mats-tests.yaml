@@ -1,0 +1,425 @@
+# SPDX-License-Identifier: Apache-2.0
+name: "ZXC: Executable MATS Tests"
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: "Git Reference to Test"
+        type: string
+        required: false
+        default: ""
+      enable-dependency-check:
+        description: "Dependency Check Enabled"
+        type: string
+        required: false
+        default: "false"
+      enable-spotless-check:
+        description: "Spotless Check Enabled"
+        type: string
+        required: false
+        default: "false"
+      enable-unit-tests:
+        description: "Unit Testing Enabled"
+        type: string
+        required: false
+        default: "false"
+      enable-integration-tests:
+        description: "Integration Testing Enabled"
+        type: string
+        required: false
+        default: "false"
+      enable-hapi-tests:
+        description: "HAPI Testing Enabled"
+        type: string
+        required: false
+        default: "false"
+      enable-hapi-tests-crypto:
+        description: "HAPI Testing (Crypto) Enabled"
+        type: string
+        required: false
+        default: "false"
+      enable-otter-tests:
+        description: "Otter Tests Enabled"
+        type: string
+        required: false
+        default: "false"
+      enable-snyk-scan:
+        description: "Snyk Scan Enabled"
+        type: string
+        required: false
+        default: "false"
+      enable-gradle-determinism:
+        description: "Gradle Build Determinism Check Enabled"
+        type: string
+        required: false
+        default: "false"
+      enable-docker-determinism:
+        description: "Docker Build Determinism Check Enabled"
+        type: string
+        required: false
+        default: "false"
+      java-version:
+        description: "Java JDK Version"
+        type: string
+        required: false
+        default: "21.0.6"
+      java-distribution:
+        description: "Java JDK Distribution"
+        type: string
+        required: false
+        default: "temurin"
+      custom-job-label:
+        description: "Custom Job Label"
+        type: string
+        required: false
+        default: "MATS Tests"
+    secrets:
+      access-token:
+        description: "Github Access Token"
+        required: false
+      codacy-project-token:
+        description: "Codacy Project Token"
+        required: false
+      codecov-token:
+        description: "Codecov Token"
+        required: false
+      gradle-cache-username:
+        description: "Gradle Cache Username"
+        required: true
+      gradle-cache-password:
+        description: "Gradle Cache Password"
+        required: true
+      snyk-token:
+        required: false
+    outputs:
+      failure-mode:
+        description: "Failure Mode"
+        value: ${{ jobs.set-failure-mode.outputs.failure-mode }}
+      failed-tests:
+        description: "List of failed Tests"
+        value: ${{ jobs.set-failure-mode.outputs.failed-tests }}
+
+permissions:
+  id-token: write
+  actions: read
+  pull-requests: write
+  statuses: write
+  checks: write
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  commit-info:
+    name: Get Commit Info
+    runs-on: hl-cn-default-lin-sm
+    outputs:
+      sha: ${{ steps.commit-info.outputs.sha }}
+    steps:
+      - name: Prepare Runner
+        id: prepare-runner
+        uses: pandaswhocode/initialize-github-job@ffb7446339e8e6007b942312ac95457d1a20b6cf # v1.0.4
+        with:
+          checkout: "true"
+          checkout-ref: "${{ inputs.ref }}"
+          checkout-fetch-depth: "1"
+          checkout-token: "${{ secrets.access-token }}"
+
+      - name: Get Commit Info
+        id: commit-info
+        run: |
+          COMMIT_SHA=$(git rev-parse HEAD)
+          echo "sha=${COMMIT_SHA}" | tee "${GITHUB_OUTPUT}"
+
+  build:
+    name: "${{ inputs.custom-job-label }} Compile Code"
+    uses: ./.github/workflows/zxc-compile-application-code.yaml
+    needs:
+      - commit-info
+    with:
+      java-version: "21.0.6"
+      java-distribution: "temurin"
+      ref: ${{ needs.commit-info.outputs.sha }}
+    secrets:
+      access-token: ${{ secrets.access-token }}
+      gradle-cache-username: ${{ secrets.gradle-cache-username }}
+      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+
+  dependency-check:
+    name: "${{ inputs.custom-job-label }} Dependency (Module Info)"
+    if: ${{ inputs.enable-dependency-check == 'true' }}
+    uses: ./.github/workflows/zxc-dependency-module-check.yaml
+    needs:
+      - commit-info
+      - build
+    with:
+      ref: ${{ needs.commit-info.outputs.sha }}
+    secrets:
+      access-token: ${{ secrets.access-token }}
+      gradle-cache-username: ${{ secrets.gradle-cache-username }}
+      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+
+  spotless:
+    name: "${{ inputs.custom-job-label }} Spotless"
+    if: ${{ inputs.enable-spotless-check == 'true' }}
+    uses: ./.github/workflows/zxc-spotless-check.yaml
+    needs:
+      - commit-info
+      - build
+    with:
+      ref: ${{ needs.commit-info.outputs.sha }}
+    secrets:
+      access-token: ${{ secrets.access-token }}
+      gradle-cache-username: ${{ secrets.gradle-cache-username }}
+      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+
+  mats-unit-tests:
+    name: Unit Tests
+    if: ${{ inputs.enable-unit-tests == 'true' }}
+    uses: ./.github/workflows/zxc-execute-unit-tests.yaml
+    needs:
+      - commit-info
+      - build
+    with:
+      ref: ${{ needs.commit-info.outputs.sha || '' }}
+      java-version: ${{ inputs.java-version || '21.0.6' }}
+      java-distribution: ${{ inputs.java-distribution || 'temurin' }}
+    secrets:
+      access-token: ${{ secrets.access-token }}
+      gradle-cache-username: ${{ secrets.gradle-cache-username }}
+      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+      codacy-project-token: ${{ secrets.codacy-project-token }}
+      codecov-token: ${{ secrets.codecov-token }}
+
+  mats-integration-tests:
+    name: Integration Tests
+    if: ${{ inputs.enable-integration-tests == 'true' }}
+    uses: ./.github/workflows/zxc-execute-integration-tests.yaml
+    needs:
+      - commit-info
+      - build
+    with:
+      ref: ${{ needs.commit-info.outputs.sha || '' }}
+      java-version: ${{ inputs.java-version || '21.0.6' }}
+      java-distribution: ${{ inputs.java-distribution || 'temurin' }}
+      enable-network-log-capture: "true"
+    secrets:
+      access-token: ${{ secrets.access-token }}
+      gradle-cache-username: ${{ secrets.gradle-cache-username }}
+      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+
+  mats-hapi-tests:
+    name: HAPI Tests
+    if: ${{ inputs.enable-hapi-tests == 'true' }}
+    uses: ./.github/workflows/zxc-execute-hapi-tests.yaml
+    needs:
+      - commit-info
+      - build
+    with:
+      ref: ${{ needs.commit-info.outputs.sha || '' }}
+      java-version: ${{ inputs.java-version || '21.0.6' }}
+      java-distribution: ${{ inputs.java-distribution || 'temurin' }}
+      enable-hapi-tests-misc: "${{ inputs.enable-hapi-tests == 'true' }}"
+      enable-hapi-tests-misc-records: "${{ inputs.enable-hapi-tests == 'true' }}"
+      enable-hapi-tests-crypto: "${{ inputs.enable-hapi-tests-crypto == 'true' }}"
+      enable-hapi-tests-simplefees: "${{ inputs.enable-hapi-tests == 'true' }}"
+      enable-hapi-tests-iss: "${{ inputs.enable-hapi-tests == 'true' }}"
+      enable-hapi-tests-token: "${{ inputs.enable-hapi-tests == 'true' }}"
+      enable-hapi-tests-smart-contract: "${{ inputs.enable-hapi-tests == 'true' }}"
+      enable-hapi-tests-restart: "${{ inputs.enable-hapi-tests == 'true' }}"
+      enable-hapi-tests-nd-reconnect: "${{ inputs.enable-hapi-tests == 'true' }}"
+      enable-hapi-tests-atomic-batch: "${{ inputs.enable-hapi-tests == 'true' }}"
+      enable-network-log-capture: "true"
+      mats-suffix: "MATS"
+    secrets:
+      access-token: ${{ secrets.access-token }}
+      gradle-cache-username: ${{ secrets.gradle-cache-username }}
+      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+
+  mats-otter-tests:
+    name: Otter Tests
+    if: ${{ inputs.enable-otter-tests == 'true' }}
+    needs:
+      - commit-info
+      - build
+    uses: ./.github/workflows/zxc-execute-otter-tests.yaml
+    with:
+      ref: ${{ needs.commit-info.outputs.sha || '' }}
+      java-version: ${{ inputs.java-version || '21.0.6' }}
+      java-distribution: ${{ inputs.java-distribution || 'temurin' }}
+      enable-fast-otter-tests: ${{ inputs.enable-otter-tests == 'true' }}
+      enable-network-log-capture: true
+    secrets:
+      access-token: ${{ secrets.access-token }}
+      gradle-cache-username: ${{ secrets.gradle-cache-username }}
+      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+
+  mats-snyk-scan:
+    name: Snyk Scan
+    if: ${{ inputs.enable-snyk-scan == 'true' && !github.event.workflow_call.repository.fork }}
+    needs:
+      - commit-info
+      - build
+    uses: ./.github/workflows/zxc-snyk-scan.yaml
+    with:
+      ref: ${{ needs.commit-info.outputs.sha || '' }}
+      java-version: ${{ inputs.java-version || '21.0.6' }}
+      java-distribution: ${{ inputs.java-distribution || 'temurin' }}
+    secrets:
+      access-token: ${{ secrets.access-token }}
+      gradle-cache-username: ${{ secrets.gradle-cache-username }}
+      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+      snyk-token: ${{ secrets.snyk-token }}
+
+  mats-gradle-determinism:
+    name: Gradle Determinism
+    if: ${{ inputs.enable-gradle-determinism == 'true' && !github.event.workflow_call.repository.fork }}
+    needs:
+      - commit-info
+      - build
+    uses: ./.github/workflows/zxc-verify-gradle-build-determinism.yaml
+    with:
+      ref: ${{ needs.commit-info.outputs.sha || '' }}
+      java-version: ${{ inputs.java-version || '21.0.6' }}
+      java-distribution: ${{ inputs.java-distribution || 'temurin' }}
+    secrets:
+      github-token: ${{ secrets.access-token }}
+      gradle-cache-username: ${{ secrets.gradle-cache-username }}
+      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+
+  mats-docker-determinism:
+    name: Docker Determinism
+    if: ${{ inputs.enable-docker-determinism == 'true' && !github.event.workflow_call.repository.fork }}
+    needs:
+      - commit-info
+      - build
+    uses: ./.github/workflows/zxc-verify-docker-build-determinism.yaml
+    with:
+      ref: ${{ needs.commit-info.outputs.sha || '' }}
+      java-version: ${{ inputs.java-version || '21.0.6' }}
+      java-distribution: ${{ inputs.java-distribution || 'temurin' }}
+    secrets:
+      github-token: ${{ secrets.access-token }}
+      gradle-cache-username: ${{ secrets.gradle-cache-username }}
+      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+
+  set-failure-mode:
+    name: Set Failure Mode
+    runs-on: hl-cn-default-lin-sm
+    outputs:
+      failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
+      failed-tests: ${{ steps.set-failure-mode.outputs.failed-tests }}
+    needs:
+      - commit-info
+      - build
+      - dependency-check
+      - spotless
+      - mats-unit-tests
+      - mats-integration-tests
+      - mats-hapi-tests
+      - mats-otter-tests
+      - mats-snyk-scan
+      - mats-gradle-determinism
+      - mats-docker-determinism
+    if: ${{ !cancelled() && always() }} # always run unless cancelled
+    steps:
+      - name: Initialize GitHub Job
+        uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
+
+      - name: Set Failure Mode
+        id: set-failure-mode
+        run: |
+          job_statuses=(
+            ${{ needs.commit-info.result || 'skipped' }}
+            ${{ needs.build.result || 'skipped' }}
+            ${{ needs.dependency-check.result || 'skipped' }}
+            ${{ needs.spotless.result || 'skipped' }}
+            ${{ needs.mats-unit-tests.result || 'skipped' }}
+            ${{ needs.mats-integration-tests.result || 'skipped' }}
+            ${{ needs.mats-hapi-tests.result || 'skipped' }}
+            ${{ needs.mats-otter-tests.result || 'skipped' }}
+            ${{ needs.mats-snyk-scan.result || 'skipped' }}
+          )
+          job_failure_modes=(
+            ${{ needs.commit-info.outputs.failure-mode || 'none' }}
+            ${{ needs.build.outputs.failure-mode || 'none' }}
+            ${{ needs.dependency-check.outputs.failure-mode || 'none' }}
+            ${{ needs.spotless.outputs.failure-mode || 'none' }}
+            ${{ needs.mats-unit-tests.outputs.failure-mode || 'none' }}
+            ${{ needs.mats-integration-tests.outputs.failure-mode || 'none' }}
+            ${{ needs.mats-hapi-tests.outputs.failure-mode || 'none' }}
+            ${{ needs.mats-otter-tests.outputs.failure-mode || 'none' }}
+            ${{ needs.mats-snyk-scan.outputs.failure-mode || 'none' }}
+          )
+          job_names=(
+            "commit-info"
+            "build"
+            "dependency-check"
+            "spotless"
+            "mats-unit-tests"
+            "mats-integration-tests"
+            "mats-hapi-tests"
+            "mats-otter-tests"
+            "mats-snyk-scan"
+          )
+
+          # Final outputs
+          failure_mode="none"
+          failed_tests=""
+
+          # go through all of the job statuses and check failure mode (none | workflow | general)
+          # if any job failed (failure-mode != none) then set the failure mode for the workflow
+          # to that jobs failure mode.
+          # only set failure mode once
+          # append the failing job to the failed-tests list.
+
+          for job in "${!job_statuses[@]}"; do
+            status=${job_statuses[$job]}
+            mode=${job_failure_modes[$job]}
+            name=${job_names[$job]}
+
+            if [[ "$status" == "failure" ]]; then
+              if [[ "$mode" != "none" && "$failure_mode" == "none" ]]; then
+                failure_mode="$mode"
+              fi
+              if [[ -z "$failed_tests" ]]; then
+                failed_tests="$name"
+              else
+                failed_tests="$failed_tests, $name"
+              fi
+            fi
+          done
+
+          # if any determinism jobs failed, set failure mode to 'general' if not already set to something
+          # other than "none"
+          # Add the failed determinism job to the failed-tests list
+
+          determinism_statuses=(
+            ${{ needs.mats-gradle-determinism.result || 'skipped' }}
+            ${{ needs.mats-docker-determinism.result || 'skipped' }}
+          )
+          determinism_names=(
+            "mats-gradle-determinism"
+            "mats-docker-determinism"
+          )
+
+          for job in "${!determinism_statuses[@]}"; do
+            status=${determinism_statuses[$job]}
+            name=${determinism_names[$job]}
+
+            if [[ "${status}" == "failure" ]]; then
+              if [[ "${failure_mode}" == "none" ]]; then
+                failure_mode="general"
+              fi
+              if [[ -z "${failed_tests}" ]]; then
+                failed_tests="${name}"
+              else
+                failed_tests="${failed_tests}, ${name}"
+              fi
+            fi
+          done
+
+          echo "failure-mode=${failure_mode}" >> "${GITHUB_OUTPUT}"
+          echo "failed-tests=${failed_tests}" >> "${GITHUB_OUTPUT}"

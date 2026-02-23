@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.report;
 
-import static com.swirlds.common.formatting.StringFormattingUtils.commaSeparatedNumber;
-import static com.swirlds.common.formatting.TextEffect.BRIGHT_CYAN;
-import static com.swirlds.common.formatting.TextEffect.BRIGHT_RED;
-import static com.swirlds.common.formatting.TextEffect.BRIGHT_YELLOW;
-import static com.swirlds.common.units.DataUnit.UNIT_BYTES;
+import static com.swirlds.base.formatting.StringFormattingUtils.commaSeparatedNumber;
+import static com.swirlds.base.formatting.TextEffect.BRIGHT_CYAN;
+import static com.swirlds.base.formatting.TextEffect.BRIGHT_RED;
+import static com.swirlds.base.formatting.TextEffect.BRIGHT_YELLOW;
+import static com.swirlds.base.units.DataUnit.UNIT_BYTES;
 
-import com.swirlds.common.formatting.HorizontalAlignment;
-import com.swirlds.common.formatting.TextHistogram;
-import com.swirlds.common.formatting.TextTable;
-import com.swirlds.common.formatting.UnitFormatter;
+import com.swirlds.base.formatting.HorizontalAlignment;
+import com.swirlds.base.formatting.TextHistogram;
+import com.swirlds.base.formatting.TextTable;
+import com.swirlds.base.formatting.UnitFormatter;
 import java.time.Duration;
 import java.util.List;
 import org.hiero.consensus.model.event.CesEvent;

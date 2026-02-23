@@ -10,15 +10,16 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.system.status.PlatformStatusConfig;
 import com.swirlds.platform.system.status.actions.CatastrophicFailureAction;
-import com.swirlds.platform.system.status.actions.DoneReplayingEventsAction;
 import com.swirlds.platform.system.status.actions.FallenBehindAction;
 import com.swirlds.platform.system.status.actions.FreezePeriodEnteredAction;
 import com.swirlds.platform.system.status.actions.ReconnectCompleteAction;
 import com.swirlds.platform.system.status.actions.SelfEventReachedConsensusAction;
-import com.swirlds.platform.system.status.actions.StartedReplayingEventsAction;
 import com.swirlds.platform.system.status.actions.StateWrittenToDiskAction;
 import com.swirlds.platform.system.status.actions.TimeElapsedAction;
+import java.time.Duration;
 import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.consensus.pces.actions.DoneReplayingEventsAction;
+import org.hiero.consensus.pces.actions.StartedReplayingEventsAction;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -83,8 +84,6 @@ class CheckingStatusLogicTests {
     void irrelevantActions() {
         triggerActionAndAssertNoTransition(
                 logic::processStateWrittenToDiskAction, new StateWrittenToDiskAction(0, false), logic.getStatus());
-        triggerActionAndAssertNoTransition(
-                logic::processTimeElapsedAction, new TimeElapsedAction(time.now()), logic.getStatus());
     }
 
     @Test
@@ -96,5 +95,30 @@ class CheckingStatusLogicTests {
                 logic::processDoneReplayingEventsAction, new DoneReplayingEventsAction(time.now()), logic.getStatus());
         triggerActionAndAssertException(
                 logic::processReconnectCompleteAction, new ReconnectCompleteAction(0), logic.getStatus());
+    }
+
+    @Test
+    @DisplayName("Go to ACTIVE when quiescing")
+    void toActiveWhenQuiescing() {
+        // Should transition to ACTIVE when quiescing
+        triggerActionAndAssertTransition(
+                logic::processTimeElapsedAction,
+                new TimeElapsedAction(time.now(), new TimeElapsedAction.QuiescingStatus(true, time.now())),
+                PlatformStatus.ACTIVE);
+    }
+
+    @Test
+    @DisplayName("remain in CHECKING when not quiescing")
+    void remainInCheckingNotQuiescing() {
+        triggerActionAndAssertTransition(
+                logic::processTimeElapsedAction,
+                new TimeElapsedAction(time.now(), new TimeElapsedAction.QuiescingStatus(false, time.now())),
+                PlatformStatus.CHECKING);
+        time.tick(Duration.ofSeconds(6));
+        // Should transition to ACTIVE when quiescing
+        triggerActionAndAssertTransition(
+                logic::processTimeElapsedAction,
+                new TimeElapsedAction(time.now(), new TimeElapsedAction.QuiescingStatus(false, time.now())),
+                PlatformStatus.CHECKING);
     }
 }

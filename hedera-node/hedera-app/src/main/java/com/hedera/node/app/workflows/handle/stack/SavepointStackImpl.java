@@ -2,8 +2,10 @@
 package com.hedera.node.app.workflows.handle.stack;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.ATOMIC_BATCH;
+import static com.hedera.hapi.node.base.HederaFunctionality.HOOK_DISPATCH;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NO_SCHEDULING_ALLOWED_AFTER_SCHEDULED_RECURSION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.RECURSIVE_SCHEDULING_LIMIT_REACHED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.REVERTED_SUCCESS;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.BATCH_INNER;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.CHILD;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.NODE;
@@ -14,6 +16,7 @@ import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBe
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBehavior.REMOVABLE;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBehavior.REVERSIBLE;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
+import static com.hedera.node.app.workflows.handle.stack.savepoints.AbstractSavepoint.SUCCESSES;
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static java.util.Objects.requireNonNull;
@@ -42,9 +45,6 @@ import com.hedera.node.app.workflows.handle.stack.savepoints.FirstChildSavepoint
 import com.hedera.node.app.workflows.handle.stack.savepoints.FirstRootSavepoint;
 import com.hedera.node.app.workflows.handle.stack.savepoints.FollowingSavepoint;
 import com.hedera.node.config.types.StreamMode;
-import com.swirlds.base.time.Time;
-import com.swirlds.common.merkle.crypto.MerkleCryptography;
-import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.spi.WritableStates;
@@ -59,7 +59,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
-import java.util.function.LongSupplier;
 import org.hiero.base.crypto.Hash;
 
 /**
@@ -197,11 +196,6 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
     }
 
     @Override
-    public void init(Time time, Metrics metrics, MerkleCryptography merkleCryptography, LongSupplier roundSupplier) {
-        state.init(time, metrics, merkleCryptography, roundSupplier);
-    }
-
-    @Override
     public void createSavepoint() {
         stack.push(new FollowingSavepoint(new WrappedState(peek().state()), peek()));
     }
@@ -268,6 +262,12 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
     public void rollbackFullStack() {
         while (!stack.isEmpty()) {
             stack.pop().rollback();
+        }
+        // Rolling back is idempotent for stream builders; so make certain here that we do it for our base builder
+        // (if we were used to persist stake-period changes, it will have already been "flushed" into our sink)
+        baseBuilder.nullOutSideEffectFields();
+        if (SUCCESSES.contains(baseBuilder.status())) {
+            baseBuilder.status(REVERTED_SUCCESS);
         }
         setupFirstSavepoint(baseBuilder.category());
     }
@@ -513,6 +513,7 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
         TransactionID.Builder idBuilder = null;
         int indexOfParentBuilder = 0;
         int topLevelNonce = 0;
+        boolean grouped = false;
         boolean isBatch = false;
         final int n = builders.size();
         for (int i = 0; i < n; i++) {
@@ -523,6 +524,7 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
                 topLevelNonce = builder.transactionID().nonce();
                 idBuilder = builder.transactionID().copyBuilder();
                 isBatch = builder.functionality() == ATOMIC_BATCH;
+                grouped = isBatch;
                 break;
             }
         }
@@ -531,6 +533,7 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
         var parentConsensusTime = consensusTime;
         for (int i = 0; i < n; i++) {
             final var builder = builders.get(i);
+            grouped |= builder.functionality() == HOOK_DISPATCH;
             final var nonceOffset =
                     switch (builder.category()) {
                         case USER, SCHEDULED, NODE, BATCH_INNER -> 0;
@@ -567,7 +570,9 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
 
             if (i > indexOfParentBuilder) {
                 switch (builder.category()) {
-                    case SCHEDULED -> builder.exchangeRate(exchangeRates);
+                    // In the block stream, we _do_ set a triggered tx's parent consensus time to the scheduling
+                    // transaction that triggered it; noop for streamMode=RECORDS, c.f. RecordStreamBuilder
+                    case SCHEDULED -> builder.exchangeRate(exchangeRates).triggeringParentConsensus(consensusTime);
                     case BATCH_INNER -> {
                         builder.parentConsensus(consensusTime).exchangeRate(null);
                         parentConsensusTime = consensusNow;
@@ -577,8 +582,6 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
                 }
             }
 
-            // Add trace data for batch inner (or inner child) transaction fields, that are normally computed by state
-            // changes
             switch (streamMode) {
                 case RECORDS -> {
                     final var nextRecord = ((RecordStreamBuilder) builder).build();
@@ -588,16 +591,16 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
                             nextRecord.transactionRecord().receiptOrThrow()));
                 }
                 case BLOCKS -> {
-                    final var batchStateChanges = isBatch ? baseBuilder.getStateChanges() : null;
+                    final var groupStateChanges = grouped ? baseBuilder.getStateChanges() : null;
                     requireNonNull(outputs)
-                            .add(((BlockStreamBuilder) builder).build(builder == baseBuilder, batchStateChanges));
+                            .add(((BlockStreamBuilder) builder).build(builder == baseBuilder, groupStateChanges));
                 }
                 case BOTH -> {
                     final var pairedBuilder = (PairedStreamBuilder) builder;
                     records.add(pairedBuilder.recordStreamBuilder().build());
-                    final var batchStateChanges = isBatch ? baseBuilder.getStateChanges() : null;
+                    final var groupStateChanges = grouped ? baseBuilder.getStateChanges() : null;
                     requireNonNull(outputs)
-                            .add(pairedBuilder.blockStreamBuilder().build(builder == baseBuilder, batchStateChanges));
+                            .add(pairedBuilder.blockStreamBuilder().build(builder == baseBuilder, groupStateChanges));
                 }
             }
         }
@@ -620,13 +623,5 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
     @Override
     public void setHash(Hash hash) {
         state.setHash(hash);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public boolean isStartUpMode() {
-        return state.isStartUpMode();
     }
 }

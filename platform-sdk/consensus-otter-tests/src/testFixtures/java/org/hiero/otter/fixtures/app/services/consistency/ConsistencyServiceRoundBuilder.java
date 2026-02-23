@@ -4,7 +4,7 @@ package org.hiero.otter.fixtures.app.services.consistency;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.List;
-import org.hiero.otter.fixtures.app.OtterTransaction;
+import org.hiero.otter.fixtures.network.transactions.OtterTransaction;
 
 /**
  * Builder of a {@link ConsistencyServiceRound}

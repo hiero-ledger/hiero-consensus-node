@@ -6,13 +6,13 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.node.app.config.ConfigProviderImpl;
-import com.hedera.node.app.ids.EntityIdService;
 import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
+import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.spi.migrate.StartupNetworks;
 import com.hedera.node.app.state.merkle.MerkleSchemaRegistry;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.platform.state.service.PlatformStateFacade;
-import com.swirlds.state.MerkleNodeState;
+import com.swirlds.platform.system.InitTrigger;
+import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.SchemaRegistry;
 import com.swirlds.state.lifecycle.Service;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -50,12 +50,12 @@ public class OrderedServiceMigrator implements ServiceMigrator {
      * @param startupNetworks The startup networks to use for the migrations
      * @param storeMetricsService The store metrics service to use for the migrations
      * @param configProvider The config provider to use for the migrations
-     * @param platformStateFacade The facade class to access platform state
+     * @param trigger the init trigger
      * @return The list of state changes that occurred during the migrations
      */
     @Override
     public List<StateChanges.Builder> doMigrations(
-            @NonNull final MerkleNodeState state,
+            @NonNull final State state,
             @NonNull final ServicesRegistry servicesRegistry,
             @Nullable final SemanticVersion previousVersion,
             @NonNull final SemanticVersion currentVersion,
@@ -64,11 +64,14 @@ public class OrderedServiceMigrator implements ServiceMigrator {
             @NonNull final StartupNetworks startupNetworks,
             @NonNull final StoreMetricsServiceImpl storeMetricsService,
             @NonNull final ConfigProviderImpl configProvider,
-            @NonNull final PlatformStateFacade platformStateFacade) {
+            @NonNull final InitTrigger trigger) {
         requireNonNull(state);
         requireNonNull(currentVersion);
         requireNonNull(appConfig);
         requireNonNull(platformConfig);
+        requireNonNull(startupNetworks);
+        requireNonNull(configProvider);
+        requireNonNull(trigger);
 
         final Map<String, Object> sharedValues = new HashMap<>();
         final var migrationStateChanges = new MigrationStateChanges(state, appConfig, storeMetricsService);
@@ -88,7 +91,7 @@ public class OrderedServiceMigrator implements ServiceMigrator {
                     sharedValues,
                     migrationStateChanges,
                     startupNetworks,
-                    platformStateFacade);
+                    trigger);
         });
         return migrationStateChanges.getStateChanges();
     }

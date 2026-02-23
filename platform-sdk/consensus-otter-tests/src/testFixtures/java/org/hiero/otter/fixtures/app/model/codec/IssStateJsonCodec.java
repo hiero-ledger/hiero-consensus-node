@@ -8,6 +8,7 @@ import static com.hedera.pbj.runtime.JsonTools.parseLong;
 import com.hedera.pbj.runtime.JsonCodec;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.UnknownFieldException;
+import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.jsonparser.JSONParser;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -68,6 +69,13 @@ public final class IssStateJsonCodec implements JsonCodec<IssState> {
         }
     }
 
+    @Override
+    public @NonNull IssState parse(
+            @Nullable final JSONParser.ObjContext root, final boolean strictMode, final int maxDepth, int maxSize)
+            throws ParseException {
+        return parse(root, strictMode, maxDepth);
+    }
+
     /**
      * Returns JSON string representing an item.
      *
@@ -96,5 +104,12 @@ public final class IssStateJsonCodec implements JsonCodec<IssState> {
         // end
         sb.append(indent + "}");
         return sb.toString();
+    }
+
+    @Override
+    public @NonNull IssState parse(
+            @NonNull final ReadableSequentialData input, boolean strictMode, boolean parseUnknownFields, int maxDepth)
+            throws ParseException {
+        return parse(input, strictMode, maxDepth);
     }
 }

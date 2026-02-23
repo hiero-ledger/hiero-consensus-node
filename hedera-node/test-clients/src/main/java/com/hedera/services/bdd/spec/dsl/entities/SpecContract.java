@@ -31,12 +31,15 @@ import com.hedera.services.bdd.spec.dsl.operations.transactions.AuthorizeContrac
 import com.hedera.services.bdd.spec.dsl.operations.transactions.CallContractOperation;
 import com.hedera.services.bdd.spec.dsl.operations.transactions.DissociateTokensOperation;
 import com.hedera.services.bdd.spec.dsl.operations.transactions.TransferTokenOperation;
+import com.hedera.services.bdd.spec.dsl.utils.InitcodeTransform;
 import com.hedera.services.bdd.spec.dsl.utils.KeyMetadata;
 import com.hedera.services.bdd.spec.transactions.contract.HapiContractCreate;
 import com.hedera.services.bdd.spec.utilops.grouping.InBlockingOrder;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.lang.reflect.InvocationTargetException;
 import java.util.List;
 import org.bouncycastle.util.encoders.Hex;
+import org.hiero.base.utility.CommonUtils;
 
 /**
  * Represents a Hedera account that may exist on one or more target networks and be
@@ -55,6 +58,7 @@ public class SpecContract extends AbstractSpecEntity<SpecOperation, Account>
     private final int maxAutoAssociations;
     private final Account.Builder builder = Account.newBuilder();
     private final String variant;
+    private final Class<? extends InitcodeTransform> initcodeTransformType;
 
     /**
      * The constructor arguments for the contract's creation call; if the arguments are
@@ -76,7 +80,8 @@ public class SpecContract extends AbstractSpecEntity<SpecOperation, Account>
                 annotation.creationGas(),
                 annotation.isImmutable(),
                 annotation.maxAutoAssociations(),
-                annotation.variant());
+                annotation.variant(),
+                annotation.initcodeTransform());
     }
 
     private SpecContract(
@@ -85,13 +90,15 @@ public class SpecContract extends AbstractSpecEntity<SpecOperation, Account>
             final long creationGas,
             final boolean immutable,
             final int maxAutoAssociations,
-            @NonNull final String variant) {
+            @NonNull final String variant,
+            @NonNull final Class<? extends InitcodeTransform> initcodeTransformType) {
         super(name);
         this.immutable = immutable;
         this.creationGas = creationGas;
         this.contractName = requireNonNull(contractName);
         this.maxAutoAssociations = maxAutoAssociations;
         this.variant = requireNonNull(variant);
+        this.initcodeTransformType = requireNonNull(initcodeTransformType);
     }
 
     /**
@@ -235,7 +242,20 @@ public class SpecContract extends AbstractSpecEntity<SpecOperation, Account>
     @Override
     protected Creation<SpecOperation, Account> newCreation(@NonNull final HapiSpec spec) {
         final var model = builder.build();
-        final var initcode = getInitcodeOf(contractName, variant);
+        var initcode = getInitcodeOf(contractName, variant);
+        if (initcodeTransformType != InitcodeTransform.NoOp.class) {
+            try {
+                final var transform = initcodeTransformType.getConstructor().newInstance();
+                final var transformed =
+                        transform.transformHexed(spec, CommonUtils.hex(Hex.decode(initcode.toByteArray())));
+                initcode = ByteString.copyFrom(Hex.encode(requireNonNull(CommonUtils.unhex(transformed))));
+            } catch (InstantiationException
+                    | IllegalAccessException
+                    | InvocationTargetException
+                    | NoSuchMethodException e) {
+                throw new RuntimeException(e);
+            }
+        }
         final SpecOperation op;
         constructorArgs = withSubstitutedTypes(spec.targetNetworkOrThrow(), constructorArgs);
         if (initcode.size() < MAX_INLINE_INITCODE_SIZE) {

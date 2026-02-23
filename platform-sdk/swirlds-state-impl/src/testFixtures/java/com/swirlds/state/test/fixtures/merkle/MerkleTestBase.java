@@ -6,8 +6,6 @@ import static com.swirlds.state.merkle.StateUtils.getStateKeyForKv;
 import static com.swirlds.state.merkle.StateUtils.getStateKeyForSingleton;
 import static com.swirlds.state.merkle.StateUtils.getStateValueForKv;
 import static com.swirlds.state.merkle.StateUtils.getStateValueForSingleton;
-import static com.swirlds.state.test.fixtures.merkle.StateClassIdUtils.computeClassId;
-import static com.swirlds.virtualmap.constructable.ConstructableUtils.registerVirtualMapConstructables;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
@@ -16,36 +14,26 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.io.config.FileSystemManagerConfig;
 import com.swirlds.common.io.config.TemporaryFileConfig;
-import com.swirlds.common.io.streams.MerkleDataInputStream;
-import com.swirlds.common.io.streams.MerkleDataOutputStream;
-import com.swirlds.common.merkle.MerkleNode;
-import com.swirlds.common.merkle.crypto.MerkleCryptography;
-import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
+import com.swirlds.state.lifecycle.StateDefinition;
+import com.swirlds.state.lifecycle.StateMetadata;
 import com.swirlds.state.merkle.StateUtils;
 import com.swirlds.state.merkle.StateValue;
 import com.swirlds.state.merkle.StateValue.StateValueCodec;
 import com.swirlds.state.test.fixtures.StateTestBase;
 import com.swirlds.state.test.fixtures.TestArgumentUtils;
-import com.swirlds.state.test.fixtures.merkle.queue.QueueNode;
-import com.swirlds.state.test.fixtures.merkle.singleton.SingletonNode;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
-import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.nio.file.Path;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Stream;
-import org.hiero.base.constructable.ClassConstructorPair;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.base.crypto.config.CryptoConfig;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.params.provider.Arguments;
 
@@ -79,13 +67,11 @@ public class MerkleTestBase extends StateTestBase {
             .withConfigDataType(TemporaryFileConfig.class)
             .withConfigDataType(StateCommonConfig.class)
             .withConfigDataType(FileSystemManagerConfig.class)
+            .withConfigDataType(CryptoConfig.class)
             .build();
 
     private static final String SINGLETON_CLASS_ID_SUFFIX = "SingletonLeaf";
     private static final String QUEUE_NODE_CLASS_ID_SUFFIX = "QueueNode";
-
-    /** Used by some tests that need to hash */
-    protected static final MerkleCryptography CRYPTO = TestMerkleCryptoFactory.getInstance();
 
     /**
      * This {@link ConstructableRegistry} is required for serialization tests. It is expensive to
@@ -100,79 +86,60 @@ public class MerkleTestBase extends StateTestBase {
 
     // The "STEAM" queue is part of FIRST_SERVICE
     protected String steamLabel;
-    protected QueueNode<ProtoBytes> steamQueue;
 
     // The "COUNTRY" singleton is part of FIRST_SERVICE
     protected String countryLabel;
-    protected SingletonNode<ProtoBytes> countrySingleton;
 
     private static final Map<Integer, StateValueCodec<ProtoBytes>> stateValueCodecs = new ConcurrentHashMap<>();
 
+    protected StateMetadata<ProtoBytes, ProtoBytes> fruitMetadata;
+    protected StateMetadata<ProtoBytes, ProtoBytes> steamMetadata;
+    protected StateMetadata<ProtoBytes, ProtoBytes> countryMetadata;
+
     /** Sets up the "Fruit" virtual map, label, and metadata. */
     protected void setupFruitVirtualMap() {
-        fruitVirtualLabel = computeLabel(FIRST_SERVICE, FRUIT_STATE_KEY);
-        fruitVirtualMap = createVirtualMap(fruitVirtualLabel);
-    }
-
-    protected static long queueNodeClassId(String stateKey) {
-        return computeClassId(FIRST_SERVICE, stateKey, TEST_VERSION, QUEUE_NODE_CLASS_ID_SUFFIX);
-    }
-
-    protected static long singletonClassId(String stateKey) {
-        return computeClassId(FIRST_SERVICE, stateKey, TEST_VERSION, SINGLETON_CLASS_ID_SUFFIX);
+        fruitVirtualMap = createVirtualMap();
+        fruitMetadata = new StateMetadata<>(
+                FIRST_SERVICE,
+                StateDefinition.keyValue(FRUIT_STATE_ID, FRUIT_STATE_KEY, ProtoBytes.PROTOBUF, ProtoBytes.PROTOBUF));
     }
 
     protected void setupSingletonCountry() {
         countryLabel = computeLabel(FIRST_SERVICE, COUNTRY_STATE_KEY);
-        countrySingleton = new SingletonNode<>(
-                computeLabel(FIRST_SERVICE, COUNTRY_STATE_KEY),
-                computeClassId(FIRST_SERVICE, COUNTRY_STATE_KEY, TEST_VERSION, SINGLETON_CLASS_ID_SUFFIX),
-                ProtoBytes.PROTOBUF,
-                AUSTRALIA);
+        countryMetadata = new StateMetadata<>(
+                FIRST_SERVICE, StateDefinition.singleton(COUNTRY_STATE_ID, COUNTRY_STATE_KEY, ProtoBytes.PROTOBUF));
     }
 
     protected void setupSteamQueue() {
         steamLabel = computeLabel(FIRST_SERVICE, STEAM_STATE_KEY);
-        steamQueue = new QueueNode<>(
-                computeLabel(FIRST_SERVICE, STEAM_STATE_KEY),
-                computeClassId(FIRST_SERVICE, STEAM_STATE_KEY, TEST_VERSION, QUEUE_NODE_CLASS_ID_SUFFIX),
-                computeClassId(FIRST_SERVICE, STEAM_STATE_KEY, TEST_VERSION, SINGLETON_CLASS_ID_SUFFIX),
-                ProtoBytes.PROTOBUF);
+        steamMetadata = new StateMetadata<>(
+                FIRST_SERVICE, StateDefinition.queue(STEAM_STATE_ID, STEAM_STATE_KEY, ProtoBytes.PROTOBUF));
     }
 
     /** Sets up the {@link #registry}, ready to be used for serialization tests */
     protected void setupConstructableRegistry() {
-        // Unfortunately, we need to configure the ConstructableRegistry for serialization tests and
-        // even for basic usage of the MerkleMap (it uses it internally to make copies of internal
-        // nodes).
+        // Unfortunately, we need to configure the ConstructableRegistry for serialization tests
         try {
             registry = ConstructableRegistry.getInstance();
 
             // It may have been configured during some other test, so we reset it
             registry.reset();
-            registry.registerConstructables("com.swirlds.merklemap");
             registry.registerConstructables("com.swirlds.merkledb");
-            registry.registerConstructables("com.swirlds.fcqueue");
             registry.registerConstructables("com.swirlds.virtualmap");
             registry.registerConstructables("com.swirlds.common.merkle");
             registry.registerConstructables("com.swirlds.common");
             registry.registerConstructables("org.hiero");
             registry.registerConstructables("com.swirlds.merkle");
             registry.registerConstructables("com.swirlds.merkle.tree");
-
-            ConstructableRegistry.getInstance()
-                    .registerConstructable(new ClassConstructorPair(
-                            MerkleDbDataSourceBuilder.class, () -> new MerkleDbDataSourceBuilder(CONFIGURATION)));
-            registerVirtualMapConstructables(CONFIGURATION);
         } catch (ConstructableRegistryException ex) {
             throw new AssertionError(ex);
         }
     }
 
-    /** Creates a new arbitrary virtual map with the given label, storageDir, and metadata */
-    protected VirtualMap createVirtualMap(String label) {
+    /** Creates a new arbitrary virtual map */
+    protected VirtualMap createVirtualMap() {
         final var builder = new MerkleDbDataSourceBuilder(CONFIGURATION, 100, 0);
-        return new VirtualMap(label, builder, CONFIGURATION);
+        return new VirtualMap(builder, CONFIGURATION);
     }
 
     private StateValueCodec<ProtoBytes> getStateValueCodec(final int stateId) {
@@ -180,43 +147,36 @@ public class MerkleTestBase extends StateTestBase {
     }
 
     /** A convenience method for adding a singleton state to a virtual map */
-    protected void addSingletonState(VirtualMap map, String serviceName, int stateId, ProtoBytes value) {
+    protected void addSingletonState(VirtualMap map, int stateId, ProtoBytes value) {
         map.put(
                 getStateKeyForSingleton(stateId),
                 getStateValueForSingleton(stateId, value),
                 getStateValueCodec(stateId));
     }
 
+    /** A convenience method for adding a singleton state to a virtual map */
+    protected void addSingletonState(VirtualMap map, StateMetadata<ProtoBytes, ProtoBytes> md, ProtoBytes value) {
+        addSingletonState(map, md.stateDefinition().stateId(), value);
+    }
+
     /** A convenience method for adding a k/v state to a virtual map */
-    protected void addKvState(VirtualMap map, String serviceName, int stateId, ProtoBytes key, ProtoBytes value) {
+    protected void addKvState(VirtualMap map, int stateId, ProtoBytes key, ProtoBytes value) {
         map.put(
                 getStateKeyForKv(stateId, key, ProtoBytes.PROTOBUF),
                 getStateValueForKv(stateId, value),
                 getStateValueCodec(stateId));
     }
 
+    /** A convenience method for adding a k/v state to a virtual map */
+    protected void addKvState(
+            VirtualMap map, StateMetadata<ProtoBytes, ProtoBytes> md, ProtoBytes key, ProtoBytes value) {
+        addKvState(map, md.stateDefinition().stateId(), key, value);
+    }
+
     protected ProtoBytes readValueFromFruitVirtualMap(ProtoBytes key) {
         final Bytes keyBytes = StateUtils.getStateKeyForKv(FRUIT_STATE_ID, key, ProtoBytes.PROTOBUF);
         final StateValue<ProtoBytes> stateValue = fruitVirtualMap.get(keyBytes, getStateValueCodec(FRUIT_STATE_ID));
         return stateValue != null ? stateValue.value() : null;
-    }
-
-    /** A convenience method used to serialize a merkle tree */
-    protected byte[] writeTree(@NonNull final MerkleNode tree, @NonNull final Path tempDir) throws IOException {
-        final var byteOutputStream = new ByteArrayOutputStream();
-        try (final var out = new MerkleDataOutputStream(byteOutputStream)) {
-            out.writeMerkleTree(tempDir, tree);
-        }
-        return byteOutputStream.toByteArray();
-    }
-
-    /** A convenience method used to deserialize a merkle tree */
-    protected <T extends MerkleNode> T parseTree(@NonNull final byte[] state, @NonNull final Path tempDir)
-            throws IOException {
-        final var byteInputStream = new ByteArrayInputStream(state);
-        try (final var in = new MerkleDataInputStream(byteInputStream)) {
-            return in.readMerkleTree(tempDir, 100);
-        }
     }
 
     /** A convenience method for creating {@link SemanticVersion}. */

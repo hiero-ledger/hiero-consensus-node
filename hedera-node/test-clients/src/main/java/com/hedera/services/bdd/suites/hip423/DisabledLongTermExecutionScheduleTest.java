@@ -28,6 +28,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SCHEDULE_EXPIR
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
+import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.RepeatableHapiTest;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.keys.KeyShape;
@@ -196,20 +197,24 @@ public class DisabledLongTermExecutionScheduleTest {
     @HapiTest
     @Tag(MATS)
     final Stream<DynamicTest> scheduleNodeCreateNotSupportedWhenNotInWhitelist() {
+        final var nodeAccount = "nodeAccount";
         return hapiTest(
-                scheduleCreate("schedule", nodeCreate("test")).hasKnownStatus(SCHEDULED_TRANSACTION_NOT_IN_WHITELIST));
+                cryptoCreate(nodeAccount),
+                scheduleCreate("schedule", nodeCreate("test", nodeAccount))
+                        .hasKnownStatus(SCHEDULED_TRANSACTION_NOT_IN_WHITELIST));
     }
 
     @HapiTest
     final Stream<DynamicTest> scheduleNodeUpdateNotSupportedWhenNotInWhitelist() throws Exception {
+        final var nodeAccount = "nodeAccount";
         return hapiTest(
                 newKeyNamed(ED_25519_KEY).shape(KeyShape.ED25519),
-                nodeCreate("test")
+                cryptoCreate(nodeAccount),
+                nodeCreate("test", nodeAccount)
                         .description("hello")
                         .gossipCaCertificate(
                                 generateX509Certificates(2).getFirst().getEncoded())
                         .grpcCertificateHash("hash".getBytes())
-                        .accountNum(100)
                         .gossipEndpoint(GOSSIP_ENDPOINTS_IPS)
                         .serviceEndpoint(SERVICES_ENDPOINTS_IPS)
                         .adminKey(ED_25519_KEY),
@@ -217,16 +222,18 @@ public class DisabledLongTermExecutionScheduleTest {
                         .hasKnownStatus(SCHEDULED_TRANSACTION_NOT_IN_WHITELIST));
     }
 
-    @HapiTest
+    @LeakyHapiTest(overrides = {"scheduling.whitelist"})
     final Stream<DynamicTest> scheduleNodeDeleteNotSupportedWhenNotInWhitelist() throws Exception {
+        final var nodeAccount = "nodeAccount";
         return hapiTest(
+                overriding("scheduling.whitelist", "NodeCreate"),
                 newKeyNamed(ED_25519_KEY).shape(KeyShape.ED25519),
-                nodeCreate("test")
+                cryptoCreate(nodeAccount),
+                nodeCreate("test", nodeAccount)
                         .description("hello")
                         .gossipCaCertificate(
                                 generateX509Certificates(2).getFirst().getEncoded())
                         .grpcCertificateHash("hash".getBytes())
-                        .accountNum(100)
                         .gossipEndpoint(GOSSIP_ENDPOINTS_IPS)
                         .serviceEndpoint(SERVICES_ENDPOINTS_IPS)
                         .adminKey(ED_25519_KEY),

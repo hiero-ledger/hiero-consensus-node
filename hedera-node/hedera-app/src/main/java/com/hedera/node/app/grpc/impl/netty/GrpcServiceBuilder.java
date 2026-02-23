@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.grpc.impl.netty;
 
+import static com.hedera.node.app.grpc.impl.netty.NettyGrpcServerManager.MAX_TRANSACTION_SIZE;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.Transaction;
@@ -184,7 +185,7 @@ final class GrpcServiceBuilder {
                 addMethod(builder, serviceName, methodName, method, jumboMarshaller);
             } else {
                 // add regular transaction methods
-                method = new TransactionMethod(serviceName, methodName, ingestWorkflow, metrics, messageMaxSize);
+                method = new TransactionMethod(serviceName, methodName, ingestWorkflow, metrics, MAX_TRANSACTION_SIZE);
                 addMethod(builder, serviceName, methodName, method, marshaller);
             }
         });

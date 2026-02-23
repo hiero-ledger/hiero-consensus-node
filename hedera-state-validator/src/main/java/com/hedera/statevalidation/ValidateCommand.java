@@ -3,8 +3,8 @@ package com.hedera.statevalidation;
 
 import static org.junit.platform.engine.discovery.DiscoverySelectors.selectPackage;
 
-import com.hedera.statevalidation.listener.LoggingTestExecutionListener;
-import com.hedera.statevalidation.listener.SummaryGeneratingListener;
+import com.hedera.statevalidation.validator.listener.LoggingTestExecutionListener;
+import com.hedera.statevalidation.validator.listener.SummaryGeneratingListener;
 import java.util.concurrent.Callable;
 import org.junit.platform.launcher.Launcher;
 import org.junit.platform.launcher.LauncherDiscoveryRequest;
@@ -13,8 +13,8 @@ import org.junit.platform.launcher.TagFilter;
 import org.junit.platform.launcher.TestPlan;
 import org.junit.platform.launcher.core.LauncherDiscoveryRequestBuilder;
 import org.junit.platform.launcher.core.LauncherFactory;
-import picocli.CommandLine;
 import picocli.CommandLine.Command;
+import picocli.CommandLine.Parameters;
 import picocli.CommandLine.ParentCommand;
 
 /**
@@ -33,17 +33,17 @@ public class ValidateCommand implements Callable<Integer> {
     @ParentCommand
     private StateOperatorCommand parent;
 
-    @CommandLine.Parameters(
+    @Parameters(
             arity = "1..*",
-            description = "Tag to run: [internal, leaf, hdhm, account, tokenRelations, rehash, files, entityIds]")
-    private String[] tags = {"internal", "leaf", "hdhm", "account", "tokenRelations", "rehash", "files", "entityIds"};
+            description = "Tag to run: [internal, leaf, hdhm, account, tokenRelations, rehash, entityIds]")
+    private final String[] tags = {"internal", "leaf", "hdhm", "account", "tokenRelations", "rehash", "entityIds"};
 
     @Override
     public Integer call() {
-        System.setProperty("state.dir", parent.getStateDir().getAbsolutePath());
+        parent.initializeStateDir();
 
         LauncherDiscoveryRequest request = LauncherDiscoveryRequestBuilder.request()
-                .selectors(selectPackage("com.hedera.statevalidation.validators"))
+                .selectors(selectPackage("com.hedera.statevalidation.validator"))
                 .filters(TagFilter.includeTags(tags))
                 .build();
 

@@ -8,6 +8,8 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Predicate;
 import org.apache.logging.log4j.Marker;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.logging.StructuredLog;
@@ -110,6 +112,22 @@ public class SingleNodeLogResultImpl implements SingleNodeLogResult {
             return SubscriberAction.CONTINUE;
         };
         collector.subscribeLogSubscriber(wrapper);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public AtomicBoolean onNextMatch(@NonNull final Predicate<StructuredLog> matcher) {
+        final AtomicBoolean found = new AtomicBoolean();
+        subscribe(logEntry -> {
+            if (matcher.test(logEntry)) {
+                found.set(true);
+                return SubscriberAction.UNSUBSCRIBE;
+            }
+            return SubscriberAction.CONTINUE;
+        });
+        return found;
     }
 
     private boolean isMarkerSuppressed(@NonNull final StructuredLog logEntry) {

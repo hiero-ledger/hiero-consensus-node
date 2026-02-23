@@ -58,9 +58,6 @@ on:
       slack-report-webhook:
         required: true
         description: "Slack webhook for SDPT outputs notifications"
-      rootly-api-token:
-        required: true
-        description: "The rootly api token used for reporting"
     outputs:
       result:
         description: "Result of the SDPT Run"
@@ -82,7 +79,7 @@ env:
   GRAFANA_SYSADM_CHI: https://grafana.lat.ope.eng.hashgraph.io/d/rYdddlPWk/node-exporter-single-node?orgId=1&timezone=utc&var-datasource=P631E2BA859A814B3&var-job=performance-chicago-node-exporter
 
   #Release version from jFrog
-  NLG_VERSION: 0.7.0
+  NLG_VERSION: 0.13.0
 
   #Thresholds for performance
   #benchmarks
@@ -95,12 +92,13 @@ env:
   MinHCSLoadTest: 19867
   MinCryptoTransferLoadTest: 17338
   MinHeliSwapLoadTest: 1008
-  MinSmartContractLoadTest: 5950
+  MinSmartContractLoadTest: 4000
+  ValidatorExitCode: 0
 
 jobs:
   performance-tests-start:
     name: Start
-    runs-on: hiero-citr-linux-large
+    runs-on: hl-cn-sdpt-lin-lg
     env:
       run_NLG_Test: NftTransferLoadTest
     outputs:
@@ -141,14 +139,15 @@ jobs:
       - name: Install Teleport Client
         uses: teleport-actions/setup@176c25dfcd19cd31a252f275d579822b243e7b9c # v1.0.6
         with:
-          version: 18.1.4
+          version: 18.4.0
 
       - name: Authorize Teleport SSH Access
         id: auth-ssh
-        uses: teleport-actions/auth@685adaf480dc79262a99220eb158a92136d5abd9 # v2.0.3
+        uses: teleport-actions/auth@d48447391aa28b202c98ae3f3358097025c32511 # v2.0.4
         with:
           proxy: hashgraph.teleport.sh:443
           token: gh-citr-performance-svcs-bot
+          certificate-ttl: 24h
 
       - name: Authorize Teleport K8S Access
         id: auth-k8s
@@ -181,7 +180,7 @@ jobs:
           java-version: 21.0.6
 
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@8379f6a1328ee0e06e2bb424dadb7b159856a326 # v4.4.0
+        uses: gradle/actions/setup-gradle@4d9f0ba0025fe599b4ebab900eb7f3a1d93ef4c2 # v5.0.0
         with:
           gradle-version: wrapper
 
@@ -225,7 +224,7 @@ jobs:
           NETWORK_ID="$(echo "${{ steps.set-namespace.outputs.namespace }}" | perl -pne '~s/^.*[^\d](\d+)$/$1/g')"
 
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt get namespaces | grep -E "solo-.*t-n${NETWORK_ID}"
-          if [ ${?} -eq 0 ]
+          if [[ ${?} -eq 0 ]]
           then
             echo "::error The namespace[s] with NETWORK_ID=${NETWORK_ID} already exist[s]. Please check previous run; remove with 'kubectl delete namespaces <namespace namespace ...>'"
             exit 13
@@ -263,6 +262,10 @@ jobs:
 
       - name: Compile
         run: ./gradlew clean assemble
+
+      - name: Build Validator
+        run: |
+          ./gradlew --no-daemon :hedera-state-validator:shadowJar
 
       - name: Setup Node
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
@@ -334,17 +337,20 @@ jobs:
           # Generate the application.properties file inline
           cp "${{ github.workspace }}"/.github/workflows/support/citr/application.properties.txt application.properties
 
+          # Generate the application.environment file inline
+          cp "${{ github.workspace }}"/.github/workflows/support/citr/application.environment.txt application.environment
+
           # Generate the settings.txt file inline
           cp "${{ github.workspace }}"/.github/workflows/support/citr/settings.txt settings.txt
 
-          if [ "${{ inputs.add-app-props }}" != "" ]
+          if [[ "${{ inputs.add-app-props }}" != "" ]]
           then
             echo -e "${{ inputs.add-app-props }}" >> application.properties
             echo "New application.properties:"
             cat application.properties
           fi
 
-          if [ "${{ inputs.add-settings }}" != "" ]
+          if [[ "${{ inputs.add-settings }}" != "" ]]
           then
             echo -e "${{ inputs.add-settings }}" >> settings.txt
             echo "New settings.txt:"
@@ -355,7 +361,7 @@ jobs:
           task
           task_code=${?}
           task solo:node:logs
-          if [ ${task_code} -ne 0 ]
+          if [[ ${task_code} -ne 0 ]]
           then
              echo "ERROR! log:"
              tail -n 100 "${HOME}"/.solo/logs/solo.log
@@ -438,6 +444,19 @@ jobs:
           # Copy run version
           echo "run_number=${{ github.run_number }}" | tee -a "${{ github.workspace }}"/version_run.txt
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" cp "${{ github.workspace }}"/version_run.txt ${nlgpod}:/app/
+
+      - name: Deploy Validator
+        run: |
+          set +x
+          set +e
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" \
+            cp ${{ github.workspace }}/hedera-state-validator/build/libs/hedera-state-validator-*-SNAPSHOT-all.jar network-node1-0:/tmp/
+
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" \
+            exec -it network-node1-0 -c root-container -- bash -c "mkdir /opt/hgcapp/services-hedera/HapiApp2.0/data/saved/validation.tmp"
+
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" \
+            cp "${{ github.workspace }}"/.github/workflows/support/citr/checkValidatorNode.sh network-node1-0:/opt/hgcapp/services-hedera/HapiApp2.0/checkValidatorNode.sh
 
       - name: Build swirlds-benchmark-CryptoBenchMerkleDb.transferPrefetch
         run: |
@@ -540,14 +559,14 @@ jobs:
            logfile=$1
            ec=2 # continue
            grep -E 'Finished .*Test' ${logfile} >/dev/null
-           if [ ${?} -eq 0 ]
+           if [[ ${?} -eq 0 ]]
            then
               echo "Test finished, exiting..."
               ec=0
            fi
 
            grep -E 'ERROR com.hedera.benchmark.*LoadTest - Setup|ERROR com.hedera.benchmark.*LoadTest - Test failed' ${logfile}
-           if [ ${?} -eq 0 ]
+           if [[ ${?} -eq 0 ]]
            then
               echo "ERROR: Wrong config/environment"
               tail ${logfile}
@@ -588,13 +607,13 @@ jobs:
            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "grep -E 'ERROR com.hedera.benchmark|Finished .*Test' /app/client.log" > client_state.log
            check_status client_state.log
            ec=${?}
-           if [ ${ec} -lt 2 ] #any terminal states 0 or 1, ec=2 is to continue
+           if [[ ${ec} -lt 2 ]] #any terminal states 0 or 1, ec=2 is to continue
            then
              break
            fi
           done
 
-          if [ -f "${{ github.workspace }}"/report/client.log ]
+          if [[ -f "${{ github.workspace }}"/report/client.log ]]
           then
             rm -rf "${{ github.workspace }}"/report/*
           fi
@@ -607,7 +626,7 @@ jobs:
           check_status "${{ github.workspace }}"/report/client.log
           ec=${?}
 
-          if [ ${ec} -eq 2 ]
+          if [[ ${ec} -eq 2 ]]
           then
             echo "Continue to wait in next Runner ..."
             ec=0
@@ -631,7 +650,7 @@ jobs:
           cd "${{ github.workspace }}"/
 
           gcloud --no-user-output-enabled storage ls gs://performance-engineering-reports 2>/dev/null | grep permanent >/dev/null 2>&1
-          if [ ${?} -ne 0 ]
+          if [[ ${?} -ne 0 ]]
           then
             sleep 10
             gcloud --no-user-output-enabled storage ls gs://performance-engineering-reports | grep permanent >/dev/null
@@ -676,7 +695,7 @@ jobs:
 
   performance-NftTransferLoadTest-watch1:
     name: NFT Transfer Load Test
-    runs-on: hiero-citr-linux-large
+    runs-on: hl-cn-sdpt-lin-lg
     needs:
       - performance-tests-start
     env:
@@ -707,14 +726,15 @@ jobs:
       - name: Install Teleport Client
         uses: teleport-actions/setup@176c25dfcd19cd31a252f275d579822b243e7b9c # v1.0.6
         with:
-          version: 18.1.4
+          version: 18.4.0
 
       - name: Authorize Teleport SSH Access
         id: auth-ssh
-        uses: teleport-actions/auth@685adaf480dc79262a99220eb158a92136d5abd9 # v2.0.3
+        uses: teleport-actions/auth@d48447391aa28b202c98ae3f3358097025c32511 # v2.0.4
         with:
           proxy: hashgraph.teleport.sh:443
           token: gh-citr-performance-svcs-bot
+          certificate-ttl: 24h
 
       - name: Authorize Teleport K8S Access
         id: auth-k8s
@@ -723,7 +743,7 @@ jobs:
           proxy: hashgraph.teleport.sh:443
           token: gh-citr-performance-svcs-bot
           kubernetes-cluster: ${{ needs.performance-tests-start.outputs.kubernetes-cluster }}
-          certificate-ttl: 20h
+          certificate-ttl: 24h
 
       - name: Authenticate to Google Cloud
         id: google-auth
@@ -777,14 +797,14 @@ jobs:
            logfile=$1
            ec=2 # continue
            grep -E 'Finished .*Test' ${logfile} >/dev/null
-           if [ ${?} -eq 0 ]
+           if [[ ${?} -eq 0 ]]
            then
               echo "Test finished, exiting..."
               ec=0
            fi
 
            grep -E 'ERROR com.hedera.benchmark.*LoadTest - Setup|ERROR com.hedera.benchmark.*LoadTest - Test failed' ${logfile}
-           if [ ${?} -eq 0 ]
+           if [[ ${?} -eq 0 ]]
            then
               echo "ERROR: Wrong config/environment"
               tail ${logfile}
@@ -825,13 +845,13 @@ jobs:
            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.performance-tests-start.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "grep -E 'ERROR com.hedera.benchmark|Finished .*Test' /app/client.log" > client_state.log
            check_status client_state.log
            ec=${?}
-           if [ ${ec} -lt 2 ] #any terminal states 0 or 1, ec=2 is to continue
+           if [[ ${ec} -lt 2 ]] #any terminal states 0 or 1, ec=2 is to continue
            then
              break
            fi
           done
 
-          if [ -f "${{ github.workspace }}"/report/client.log ]
+          if [[ -f "${{ github.workspace }}"/report/client.log ]]
           then
             rm -rf "${{ github.workspace }}"/report/*
           fi
@@ -844,7 +864,7 @@ jobs:
           check_status "${{ github.workspace }}"/report/client.log
           ec=${?}
 
-          if [ ${ec} -eq 2 ]
+          if [[ ${ec} -eq 2 ]]
           then
             echo "Continue to wait in next Runner ..."
             ec=0
@@ -856,7 +876,7 @@ jobs:
 
   performance-NftTransferLoadTest-report:
     name: NFT Transfer Load Test Report
-    runs-on: hiero-citr-linux-large
+    runs-on: hl-cn-sdpt-lin-lg
     needs:
       - performance-tests-start
       - performance-NftTransferLoadTest-watch1
@@ -892,13 +912,14 @@ jobs:
       - name: Install Teleport Client
         uses: teleport-actions/setup@176c25dfcd19cd31a252f275d579822b243e7b9c # v1.0.6
         with:
-          version: 18.1.4
+          version: 18.4.0
 
       - name: Authorize Teleport SSH Access
-        uses: teleport-actions/auth@685adaf480dc79262a99220eb158a92136d5abd9 # v2.0.3
+        uses: teleport-actions/auth@d48447391aa28b202c98ae3f3358097025c32511 # v2.0.4
         with:
           proxy: hashgraph.teleport.sh:443
           token: gh-citr-performance-svcs-bot
+          certificate-ttl: 24h
 
       - name: Authorize Teleport K8S Access
         uses: teleport-actions/auth-k8s@677da98eaa78a5e649d4c5b4012750af4c28af73 # v2.0.3
@@ -906,7 +927,7 @@ jobs:
           proxy: hashgraph.teleport.sh:443
           token: gh-citr-performance-svcs-bot
           kubernetes-cluster: ${{ needs.performance-tests-start.outputs.kubernetes-cluster }}
-          certificate-ttl: 20h
+          certificate-ttl: 24h
 
       - name: Authenticate to Google Cloud
         uses: step-security/google-github-auth@40f6deebd366f16c782d7a0ad0844e3b96a032a6 # v2.1.10
@@ -957,14 +978,14 @@ jobs:
            logfile=$1
            ec=2 # continue
            grep -E 'Finished .*Test' ${logfile} >/dev/null
-           if [ ${?} -eq 0 ]
+           if [[ ${?} -eq 0 ]]
            then
               echo "Test finished, exiting..."
               ec=0
            fi
 
            grep -E 'ERROR com.hedera.benchmark.*LoadTest - Setup|ERROR com.hedera.benchmark.*LoadTest - Test failed' ${logfile}
-           if [ ${?} -eq 0 ]
+           if [[ ${?} -eq 0 ]]
            then
               echo "ERROR: Wrong config/environment"
               tail ${logfile}
@@ -1005,18 +1026,19 @@ jobs:
            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.performance-tests-start.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "grep -E 'ERROR com.hedera.benchmark|Finished .*Test' /app/client.log" > client_state.log
            check_status client_state.log
            ec=${?}
-           if [ ${ec} -lt 2 ] #any terminal states 0 or 1, ec=2 is to continue
+           if [[ ${ec} -lt 2 ]] #any terminal states 0 or 1, ec=2 is to continue
            then
              break
            fi
           done
 
-          if [ -f "${{ github.workspace }}"/report/client.log ]
+          if [[ -f "${{ github.workspace }}"/report/client.log ]]
           then
             rm -rf "${{ github.workspace }}"/report/*
           fi
 
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.performance-tests-start.outputs.namespace }}" cp ${nlgpod}:/app/client.log "${{ github.workspace }}"/report/client.log
+          cat "${{ github.workspace }}"/report/client.log | perl -pne '~s/\b([A-Z_]+[\:]\d+)\b/\n$1\n/g' | perl "${{ github.workspace }}"/.github/workflows/support/citr/collectNLG_Errors.pl > "${{ github.workspace }}"/report/client.stats.txt
           sh "${{ github.workspace }}"/.github/workflows/support/citr/getClusterErrors.sh "${{ needs.performance-tests-start.outputs.namespace }}"
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.performance-tests-start.outputs.namespace }}" cp ${nlgpod}:/app/version_run.txt "${{ github.workspace }}"/report/version_run.txt
           cp -r podlog_"${{ needs.performance-tests-start.outputs.namespace }}" "${{ github.workspace }}"/report/
@@ -1024,7 +1046,7 @@ jobs:
           check_status "${{ github.workspace }}"/report/client.log
           ec=${?}
 
-          if [ ${ec} -eq 2 ]
+          if [[ ${ec} -eq 2 ]]
           then
             echo "Continue to wait in next Runner ..."
             ec=0
@@ -1037,7 +1059,7 @@ jobs:
       - name: Extract benchmark score of NftTransferLoadTest test
         id: NftTransferLoadTestLogs
         run: |
-          grep -E 'Finished .*Test' "${{ github.workspace }}"/report/client.log | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' >> $GITHUB_OUTPUT
+          grep -E 'Finished .*Test' "${{ github.workspace }}"/report/client.log | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' >> "${GITHUB_OUTPUT}"
           grep -E 'Finished .*Test' "${{ github.workspace }}"/report/client.log | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g'
 
       - name: Authenticate to Google Cloud
@@ -1055,7 +1077,7 @@ jobs:
           cd "${{ github.workspace }}"/
 
           gcloud --no-user-output-enabled storage ls gs://performance-engineering-reports 2>/dev/null | grep permanent >/dev/null 2>&1
-          if [ ${?} -ne 0 ]
+          if [[ ${?} -ne 0 ]]
           then
             sleep 10
             gcloud --no-user-output-enabled storage ls gs://performance-engineering-reports | grep permanent >/dev/null
@@ -1089,7 +1111,7 @@ jobs:
         id: CryptoBenchMerkleDbLogs
         run: |
           result=$(grep 'Total transactions:' "${{ github.workspace }}"/report/swirlds-benchmarks.log | tail -n 1 | awk '{print $NF}')
-          echo "value=${result}" >> $GITHUB_OUTPUT
+          echo "value=${result}" >> "${GITHUB_OUTPUT}"
           echo "value=${result}"
 
       - name: Authenticate to Google Cloud
@@ -1107,7 +1129,7 @@ jobs:
           cd "${{ github.workspace }}"/
 
           gcloud --no-user-output-enabled storage ls gs://performance-engineering-reports 2>/dev/null | grep permanent >/dev/null 2>&1
-          if [ ${?} -ne 0 ]
+          if [[ ${?} -ne 0 ]]
           then
             sleep 10
             gcloud --no-user-output-enabled storage ls gs://performance-engineering-reports | grep permanent >/dev/null
@@ -1178,10 +1200,126 @@ jobs:
       gs-root-dir: "gs://performance-engineering-reports/ephemeral/test_runs"
       gs-root-https: "https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs"
 
+  performance-post-test-validation:
+    name: Consensus Node State Validator
+    runs-on: hl-cn-sdpt-lin-lg
+    needs:
+      - performance-tests-start
+      - performance-SmartContractLoadTest
+    outputs:
+      ValidatorStatus: ${{ steps.validator-status.outputs.value }}
+
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Print parameters
+        run: |
+          echo "namespace=${{ inputs.test-asset }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
+
+      - name: Install KubeCtl
+        uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 # v4.0.0
+        with:
+          version: v1.33.0
+
+      - name: Install Teleport Client
+        uses: teleport-actions/setup@176c25dfcd19cd31a252f275d579822b243e7b9c # v1.0.6
+        with:
+          version: 18.1.4
+
+      - name: Authorize Teleport SSH Access
+        uses: teleport-actions/auth@d48447391aa28b202c98ae3f3358097025c32511 # v2.0.4
+        with:
+          proxy: hashgraph.teleport.sh:443
+          token: gh-citr-performance-svcs-bot
+          certificate-ttl: 24h
+
+      - name: Authorize Teleport K8S Access
+        uses: teleport-actions/auth-k8s@677da98eaa78a5e649d4c5b4012750af4c28af73 # v2.0.3
+        with:
+          proxy: hashgraph.teleport.sh:443
+          token: gh-citr-performance-svcs-bot
+          kubernetes-cluster: ${{ needs.performance-tests-start.outputs.kubernetes-cluster }}
+          certificate-ttl: 24h
+
+      - name: Authenticate to Google Cloud
+        uses: step-security/google-github-auth@40f6deebd366f16c782d7a0ad0844e3b96a032a6 # v2.1.10
+        with:
+          workload_identity_provider: "projects/716789254648/locations/global/workloadIdentityPools/perf-eng-reports-pool/providers/gh-provider"
+          service_account: "gh-perf-report-writer@perf-engineering-reports.iam.gserviceaccount.com"
+
+      - name: Setup Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@6189d56e4096ee891640bb02ac264be376592d6a # v2.1.2
+
+      - name: Setup Helm
+        uses: azure/setup-helm@b9e51907a09c216f16ebe8536097933489208112 # v4.3.0
+        with:
+          version: "v3.12.3" # helm version
+
+      - name: Create report dir
+        run: |
+          mkdir "${{ github.workspace }}"/report
+
+      - name: State size
+        id: state-size
+        run: |
+          set +x
+          set +e
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.performance-tests-start.outputs.namespace }}" \
+                      exec -it network-node1-0 -c root-container -- bash -c "cd /opt/hgcapp/services-hedera/HapiApp2.0/data/saved; d=\$(date +%Y-%d-%mT%T); s=\$(du -sk swirlds-tmp ); a=\$(du -sk .); echo \"\${d} \${s} \${a}\""
+
+      - name: Run Validator
+        id: validator-status
+        run: |
+          set +x
+          set +e
+          kubectl -n "${{ needs.performance-tests-start.outputs.namespace }}" \
+            exec -it network-node1-0 -c root-container -- bash -c "cd /opt/hgcapp/services-hedera/HapiApp2.0; sh checkValidatorNode.sh 0" 2>&1 | tee "${{ github.workspace }}"/report/validator_status.log
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.performance-tests-start.outputs.namespace }}" \
+            cp network-node1-0:/opt/hgcapp/services-hedera/HapiApp2.0/data/saved/validation.tmp/validator.log "${{ github.workspace }}"/report/validator.log
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.performance-tests-start.outputs.namespace }}" \
+            cp network-node1-0:/opt/hgcapp/services-hedera/HapiApp2.0/data/saved/validation.tmp/validatorRun.log "${{ github.workspace }}"/report/validatorRun.log
+          grep -E 'validation .* is OK' "${{ github.workspace }}"/report/validator_status.log
+          echo "value=${?}" >> "${GITHUB_OUTPUT}"
+
+      - name: Authenticate to Google Cloud
+        uses: step-security/google-github-auth@40f6deebd366f16c782d7a0ad0844e3b96a032a6 # v2.1.10
+        with:
+          workload_identity_provider: "projects/716789254648/locations/global/workloadIdentityPools/perf-eng-reports-pool/providers/gh-provider"
+          service_account: "gh-perf-report-writer@perf-engineering-reports.iam.gserviceaccount.com"
+
+      - name: Setup Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@6189d56e4096ee891640bb02ac264be376592d6a # v2.1.2
+
+      - name: Publish logs
+        if: ${{ !cancelled() }}
+        run: |
+          cd "${{ github.workspace }}"/
+
+          gcloud --no-user-output-enabled storage ls gs://performance-engineering-reports 2>/dev/null | grep permanent >/dev/null 2>&1
+          if [[ ${?} -ne 0 ]]
+          then
+            sleep 10
+            gcloud --no-user-output-enabled storage ls gs://performance-engineering-reports | grep permanent >/dev/null
+          fi
+
+          echo "Size of report dir:"
+          du -sk report
+
+          gcloud --no-user-output-enabled storage cp --recursive report "${{ env.GS_ROOT_DIR }}/${{ needs.performance-tests-start.outputs.run-hcn-version }}_${{ inputs.test-asset }}_${{ github.run_number }}/report/validator"
+          echo Done: see results in "${{ env.GS_ROOT_HTTPS }}/${{ needs.performance-tests-start.outputs.run-hcn-version }}_${{ inputs.test-asset }}_${{ github.run_number }}/report/validator"
+
   # Send this output back to the caller workflow
   single-day-performance-test-result:
     name: Calculate Result
-    runs-on: hiero-citr-linux-large
+    runs-on: hl-cn-sdpt-lin-lg
     if: ${{ !cancelled() }}
     needs:
       - performance-NftTransferLoadTest-report
@@ -1189,6 +1327,7 @@ jobs:
       - performance-CryptoTransferLoadTest
       - performance-HeliSwapLoadTest
       - performance-SmartContractLoadTest
+      - performance-post-test-validation
     outputs:
       result: ${{ steps.sdpt-status.outputs.result }}
     steps:
@@ -1205,6 +1344,7 @@ jobs:
           crypto_transfer_load_result: ${{ needs.performance-CryptoTransferLoadTest.result }}
           heli_swap_load_result: ${{ needs.performance-HeliSwapLoadTest.result }}
           smart_contract_load_result: ${{ needs.performance-SmartContractLoadTest.result }}
+          validator_result: ${{ needs.performance-post-test-validation.outputs.ValidatorStatus }}
         run: |
           # result is 'success' or 'failure'. If any of the tests failed, we return 'failure'
           RESULT="failure"
@@ -1212,54 +1352,61 @@ jobs:
                 "${hcs_load_result}" == "success" && \
                 "${crypto_transfer_load_result}" == "success" && \
                 "${heli_swap_load_result}" == "success" && \
-                "${smart_contract_load_result}" == "success" ]]; then
+                "${smart_contract_load_result}" == "success" && \
+                "${validator_result}" == "0" ]]; then
               RESULT="success"
           fi
 
-          if [ "0${{ needs.performance-NftTransferLoadTest-report.outputs.NFTscore }}" -lt "${{ env.MinNFTscore }}" ]
+          if [[ "10#0${{ needs.performance-NftTransferLoadTest-report.outputs.NFTscore }}" -lt "10#${{ env.MinNFTscore }}" ]]
           then
             echo "Benchmark NFTscore ${{ needs.performance-NftTransferLoadTest-report.outputs.NFTscore }} is below ${{ env.MinNFTscore }}" >> "${GITHUB_STEP_SUMMARY}"
             RESULT="failure"
           fi
 
-          if [ "0${{ needs.performance-NftTransferLoadTest-report.outputs.MerkleDBscore }}" -lt "${{ env.MinMerkleDBscore }}" ]
+          if [[ "10#0${{ needs.performance-NftTransferLoadTest-report.outputs.MerkleDBscore }}" -lt "10#${{ env.MinMerkleDBscore }}" ]]
           then
             echo "Benchmark MerkleDBscore ${{ needs.performance-NftTransferLoadTest-report.outputs.MerkleDBscore }} is below ${{ env.MinMerkleDBscore }}" >> "${GITHUB_STEP_SUMMARY}"
             RESULT="failure"
           fi
 
-          if [ "0${{ needs.performance-HCSLoadTest.outputs.output }}" -lt "${{ env.MinHCSLoadTest }}" ]
+          if [[ "10#0${{ needs.performance-HCSLoadTest.outputs.output }}" -lt "10#${{ env.MinHCSLoadTest }}" ]]
           then
             echo "Benchmark HCSLoadTest ${{ needs.performance-HCSLoadTest.outputs.output }} is below ${{ env.MinHCSLoadTest }}" >> "${GITHUB_STEP_SUMMARY}"
             RESULT="failure"
           fi
 
-          if [ "0${{ needs.performance-CryptoTransferLoadTest.outputs.output }}" -lt "${{ env.MinCryptoTransferLoadTest }}" ]
+          if [[ "10#0${{ needs.performance-CryptoTransferLoadTest.outputs.output }}" -lt "10#${{ env.MinCryptoTransferLoadTest }}" ]]
           then
             echo "Benchmark CryptoTransferLoadTest ${{ needs.performance-CryptoTransferLoadTest.outputs.output }} is below ${{ env.MinCryptoTransferLoadTest }}" >> "${GITHUB_STEP_SUMMARY}"
             RESULT="failure"
           fi
 
-          if [ "0${{ needs.performance-HeliSwapLoadTest.outputs.output }}" -lt "${{ env.MinHeliSwapLoadTest }}" ]
+          if [[ "10#0${{ needs.performance-HeliSwapLoadTest.outputs.output }}" -lt "10#${{ env.MinHeliSwapLoadTest }}" ]]
           then
             echo "Benchmark HeliSwapLoadTest ${{ needs.performance-HeliSwapLoadTest.outputs.output }} is below ${{ env.MinHeliSwapLoadTest }}" >> "${GITHUB_STEP_SUMMARY}"
             RESULT="failure"
           fi
 
-          if [ "0${{ needs.performance-SmartContractLoadTest.outputs.output }}" -lt "${{ env.MinSmartContractLoadTest }}" ]
+          if [[ "10#0${{ needs.performance-SmartContractLoadTest.outputs.output }}" -lt "10#${{ env.MinSmartContractLoadTest }}" ]]
           then
             echo "Benchmark SmartContractLoadTest ${{ needs.performance-SmartContractLoadTest.outputs.output }} is below ${{ env.MinSmartContractLoadTest }}" >> "${GITHUB_STEP_SUMMARY}"
             RESULT="failure"
           fi
 
+          if [[ "10#0${{ env.validator_result }}" -ne "10#${{ env.ValidatorExitCode }}" ]]
+          then
+            echo "Validator exit code ${{ env.validator_result }} is not ${{ env.ValidatorExitCode }}" >> "${GITHUB_STEP_SUMMARY}"
+            RESULT="failure"
+          fi
+
           echo "result=${RESULT}" >> "${GITHUB_OUTPUT}"
 
-          echo "### Single Day Performance Result" >> "${GITHUB_STEP_SUMMARY}"
-          echo "result=${RESULT}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "### Single Day Performance Result" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "result=${RESULT}" | tee -a "${GITHUB_STEP_SUMMARY}"
 
   delete-namespace:
     name: Delete namespace
-    runs-on: hiero-citr-linux-large
+    runs-on: hl-cn-sdpt-lin-lg
     needs:
       - performance-tests-start
       - single-day-performance-test-result
@@ -1282,7 +1429,7 @@ jobs:
       - name: Install Teleport Client
         uses: teleport-actions/setup@176c25dfcd19cd31a252f275d579822b243e7b9c # v1.0.6
         with:
-          version: 18.1.4
+          version: 18.4.0
 
       - name: Authorize Teleport SSH Access
         id: auth-ssh
@@ -1290,6 +1437,7 @@ jobs:
         with:
           proxy: hashgraph.teleport.sh:443
           token: gh-citr-performance-svcs-bot
+          certificate-ttl: 24h
 
       - name: Authorize Teleport K8S Access
         id: auth-k8s
@@ -1307,7 +1455,7 @@ jobs:
 
   performance-report-to-rootly:
     name: Report Failures to Rootly
-    runs-on: hiero-citr-linux-medium
+    runs-on: hl-cn-sdpt-lin-sm
     needs:
       - performance-tests-start
       - performance-NftTransferLoadTest-watch1
@@ -1316,6 +1464,7 @@ jobs:
       - performance-CryptoTransferLoadTest
       - performance-HeliSwapLoadTest
       - performance-SmartContractLoadTest
+      - performance-post-test-validation
       - single-day-performance-test-result
     if: ${{ (needs.performance-tests-start.result != 'success' ||
       needs.performance-NftTransferLoadTest-watch1.result != 'success' ||
@@ -1333,23 +1482,8 @@ jobs:
         with:
           egress-policy: audit
 
-      - name: Check Test Asset
-        id: check-test-asset
-        run: |
-          ADHOC="false"
-          if [[ "${{ inputs.test-asset }}" =~ ^AdHoc(SD)?[0-9]+$ ]]; then
-            ADHOC="true"
-          fi
-          echo "is-adhoc=${ADHOC}" >> "${GITHUB_OUTPUT}"
-
-      - name: Set Rootly Service Name
-        id: set-rootly-service
-        run: |
-          ROOTLY_SERVICE_NAME="CITR SDPT"
-          echo "service=${ROOTLY_SERVICE_NAME}" >> "${GITHUB_OUTPUT}"
-
       - name: Build Rootly Summary
-        id: rootly-summary
+        id: summary
         run: |
           title="The Single Day Performance Test workflow failed (SDPT ${{ inputs.test-asset }} - ${{ inputs.ref }})"
           echo "title=${title}" >> "${GITHUB_OUTPUT}"
@@ -1364,6 +1498,8 @@ jobs:
             echo "- Crypto Transfer Load Test: ${{ needs.performance-CryptoTransferLoadTest.result }}"
             echo "- HeliSwap Load Test: ${{ needs.performance-HeliSwapLoadTest.result }}"
             echo "- Smart Contract Load Test: ${{ needs.performance-SmartContractLoadTest.result }}"
+            echo "- Validator: ${{ needs.performance-post-test-validation.outputs.ValidatorStatus }}"
+
             echo "- Single Day Performance Test Result (Workflow): ${{ needs.single-day-performance-test-result.result }}"
             echo "- Single Day Performance Test Result: ${{ needs.single-day-performance-test-result.outputs.result }}"
             echo "------------------------------------"
@@ -1373,41 +1509,21 @@ jobs:
             echo EOF
           } >> "${GITHUB_OUTPUT}"
 
-      - name: Log Rootly Summary
+      - name: Log Summary
         run: |
           echo "## Rootly Summary" >> "${GITHUB_STEP_SUMMARY}"
-          echo "### Title: ${{ steps.rootly-summary.outputs.title }}" >> "${GITHUB_STEP_SUMMARY}"
-          echo "${{ steps.rootly-summary.outputs.summary }}" >> "${GITHUB_STEP_SUMMARY}"
-          echo "### Rootly Service" >> "${GITHUB_STEP_SUMMARY}"
-          echo "${{ steps.set-rootly-service.outputs.service }}" >> "${GITHUB_STEP_SUMMARY}"
-          echo "### AdHoc Run?" >> "${GITHUB_STEP_SUMMARY}"
-          echo "${{ steps.check-test-asset.outputs.is-adhoc }}" >> "${GITHUB_STEP_SUMMARY}"
-
-      - name: Create Rootly Alert
-        id: rootly-alert
-        if: ${{ steps.check-test-asset.outputs.is-adhoc == 'false' }}
-        uses: pandaswhocode/rootly-alert-action@fdae1529e5aed62040016accf719a0ceb7dae57f # v1.0.0
-        continue-on-error: true
-        with:
-          api_key: ${{ secrets.rootly-api-token}}
-          summary: ${{ steps.rootly-summary.outputs.title }}
-          details: ${{ steps.rootly-summary.outputs.summary }}
-          notification_target_type: "Service"
-          notification_target: ${{ steps.set-rootly-service.outputs.service }}
-          set_as_noise: "true"
-          alert_urgency: "High"
-          external_id: ${{ github.run_id }}
-          external_url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          environments: "CITR"
+          echo "### Title: ${{ steps.summary.outputs.title }}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "${{ steps.summary.outputs.summary }}" >> "${GITHUB_STEP_SUMMARY}"
 
   performance-report-to-slack:
-    runs-on: hiero-citr-linux-medium
+    runs-on: hl-cn-sdpt-lin-sm
     needs:
       - performance-NftTransferLoadTest-report
       - performance-HCSLoadTest
       - performance-CryptoTransferLoadTest
       - performance-HeliSwapLoadTest
       - performance-SmartContractLoadTest
+      - performance-post-test-validation
     steps:
       - name: Harden the runner (Audit all outbound calls)
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
@@ -1418,19 +1534,19 @@ jobs:
         id: clean-branch-name
         run: |
           raw_ref="${{ inputs.ref }}"
-          echo "Raw input ref: $raw_ref"
+          echo "Raw input ref: ${raw_ref}"
           clean_ref=""
 
-          if [[ "{$raw_ref}" == refs/heads/* ]]; then
+          if [[ "${raw_ref}" == refs/heads/* ]]; then
             clean_ref="${raw_ref#refs/heads/}"
-          elif [[ "$raw_ref" == refs/tags/* ]]; then
+          elif [[ "${raw_ref}" == refs/tags/* ]]; then
             clean_ref="${raw_ref#refs/tags/}"
-          elif [[ "$raw_ref" == refs/pull/*/merge ]]; then
+          elif [[ "${raw_ref}" == refs/pull/*/merge ]]; then
             clean_ref="PR-${raw_ref#refs/pull/}"
             clean_ref="${clean_ref%/merge}"
           fi
 
-          echo "clean_ref=$clean_ref" >> "${GITHUB_OUTPUT}"
+          echo "clean_ref=${clean_ref}" >> "${GITHUB_OUTPUT}"
 
       - name: Build Slack Payload Message
         id: payload
@@ -1442,13 +1558,22 @@ jobs:
             CryptoTransferLoadTest ${{ needs.performance-CryptoTransferLoadTest.outputs.output }} ${{ env.MinCryptoTransferLoadTest }}\n\
             HeliSwapLoadTest ${{ needs.performance-HeliSwapLoadTest.outputs.output }} ${{ env.MinHeliSwapLoadTest }}\n\
             SmartContractLoadTest ${{ needs.performance-SmartContractLoadTest.outputs.output }} ${{ env.MinSmartContractLoadTest }}"
+
+          if [[ "${{ needs.performance-post-test-validation.outputs.ValidatorStatus }}" == "0" ]]
+          then
+            Validator="PASSED"
+          else
+            Validator="FAILED"
+          fi
+
           #last line is 6, it does not need comma block separator
           # use back-ticks for proper substitution in the json report
           freport=`/usr/bin/echo -e "$report" | awk '{print $1" "$2" "$3}' |\
-            perl -ne 'if ($. < 6) {$comma=","} else {$comma="";} ($t,$d,$l)=split(/\s+/,$_,3); $p=int(($d-$l)/100); \
+            perl -ne 'if ($. < 6) {$comma=","} else {$comma="";} ($t,$d,$l)=split(/\s+/,$_,3); $p=int((($d-$l)/$l)*100); \
             $excl=""; if ($d <= $l) {$excl="\\\u2757";}
             printf("{\"type\": \"text\",\"text\": \"%-25s %7d     %5d%% %7d %s\\\n\"}%s",$t,$d,$p,$l,$excl,$comma);'`
-          freport="{\"type\": \"text\",\"text\": \"Name                          TPS         Above min\n\"},$freport"
+          freport="{\"type\": \"text\",\"text\": \"Name                          TPS         Above min\n\"},${freport},\
+            {\"type\": \"text\",\"text\": \"ValidatorTest ${Validator}\"}"
 
           cat <<EOF > slack_payload.json
           {

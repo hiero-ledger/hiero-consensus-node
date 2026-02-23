@@ -8,10 +8,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.hapi.node.state.common.EntityNumber;
-import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.node.app.ids.EntityIdService;
-import com.hedera.node.app.ids.schemas.V0590EntityIdSchema;
 import com.hedera.node.app.service.addressbook.AddressBookService;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
@@ -71,18 +68,17 @@ public class StateNetworkInfo implements NetworkInfo {
      * Constructs a new network information provider from the given state, roster, selfID, and configuration provider.
      *
      * @param selfId the ID of the node
-     * @param state the state to retrieve the network information from
+     * @param state if not at genesis, the state to retrieve the network information from
      * @param roster the roster to retrieve the network information from
      * @param configProvider the configuration provider to retrieve the ledger ID from
      * @param genesisNetworkSupplier the supplier for the genesis network
      */
     public StateNetworkInfo(
             final long selfId,
-            @NonNull final State state,
+            @Nullable final State state,
             @NonNull final Roster roster,
             @NonNull final ConfigProvider configProvider,
             @NonNull final Supplier<Network> genesisNetworkSupplier) {
-        requireNonNull(state);
         requireNonNull(configProvider);
         this.activeRoster = requireNonNull(roster);
         this.genesisNetworkSupplier = requireNonNull(genesisNetworkSupplier);
@@ -137,14 +133,9 @@ public class StateNetworkInfo implements NetworkInfo {
      * @param state the state to retrieve the node information from
      * @return a map of node information
      */
-    private Map<Long, NodeInfo> nodeInfosFrom(@NonNull final State state) {
-        final var entityCounts = state.getReadableStates(EntityIdService.NAME)
-                .<EntityCounts>getSingleton(V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID);
+    private Map<Long, NodeInfo> nodeInfosFrom(@Nullable final State state) {
         final var nodeInfos = new LinkedHashMap<Long, NodeInfo>();
-        if (requireNonNull(entityCounts.get()).numNodes() == 0) {
-            // If there are no nodes in state, we can only fall back to the genesis network assets
-            // until the first round is handled and the system entities created; c.f. doGenesisSetup()
-            // in SystemTransactions which will give us another chance to populate from state then
+        if (state == null) {
             final var network = genesisNetworkSupplier.get();
             for (final var metadata : network.nodeMetadata()) {
                 final var node = metadata.nodeOrThrow();

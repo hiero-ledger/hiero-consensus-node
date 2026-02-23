@@ -4,23 +4,31 @@ on:
   workflow_call:
     inputs:
       ref:
-        description: "The branch, tag, or SHA to checkout:"
+        description: "The branch, tag, or SHA to checkout"
         required: false
         type: string
       custom-job-name:
-        description: "The custom job name to use for the job:"
+        description: "The custom job name to use for the job"
         required: false
         type: string
       solo-version:
-        description: "The version of solo to install (if not specified, latest will be used):"
+        description: "The version of solo to install (if not specified, latest will be used)"
+        required: false
+        type: string
+      helm-release-name:
+        description: "The Helm release name to use for the mirror node deployment"
+        required: false
+        type: string
+      mirror-node-version:
+        description: "The version of the mirror node to deploy (if not specified, '0.145.2' will be used)"
         required: false
         type: string
     secrets:
       access-token:
-        description: "GitHub Access Token with write permissions to the repository."
+        description: "GitHub Access Token with write permissions to the repository"
         required: true
       slack-detailed-report-webhook:
-        description: "Slack Webhook URL for TCK Monitoring."
+        description: "Slack Webhook URL for TCK Monitoring"
         required: true
 
 defaults:
@@ -41,7 +49,7 @@ jobs:
   # Execute Mirror Node Regression Tests using specified version of hiero-consensus-node
   mirror-node-regression:
     name: ${{ inputs.custom-job-name || 'Standard' }}
-    runs-on: hiero-citr-linux-large
+    runs-on: hl-cn-mn-regression-lin-lg
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
@@ -69,7 +77,7 @@ jobs:
           node-version: 20.19.3
 
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@ac638b010cf58a27ee6c972d7336334ccaf61c96 # v4.4.1
+        uses: gradle/actions/setup-gradle@4d9f0ba0025fe599b4ebab900eb7f3a1d93ef4c2 # v5.0.0
         with:
           cache-read-only: false
 
@@ -90,6 +98,9 @@ jobs:
           wait: 120s
 
       - name: Configure and run solo
+        id: run-solo
+        env:
+          MIRROR_NODE_VERSION: ${{ inputs.mirror-node-version || '0.145.2' }}
         run: |
           set -ex
           cat <<EOF > mirror.yml
@@ -102,19 +113,50 @@ jobs:
             enabled: true
           EOF
           kind create cluster -n "${SOLO_CLUSTER_NAME}"
+
+          # initialize solo
           solo init
-          solo cluster-ref connect --cluster-ref "kind-${SOLO_CLUSTER_NAME}" --context "kind-${SOLO_CLUSTER_NAME}"
-          solo deployment create -n "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
-          solo deployment add-cluster --deployment "${SOLO_DEPLOYMENT}" --cluster-ref "kind-${SOLO_CLUSTER_NAME}" --num-consensus-nodes 1
-          solo node keys --gossip-keys --tls-keys -i node1 --deployment "${SOLO_DEPLOYMENT}"
-          solo cluster-ref setup --cluster-ref "kind-${SOLO_CLUSTER_NAME}" -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
-          solo network deploy -i node1 --deployment "${SOLO_DEPLOYMENT}"
-          solo node setup -i node1 --deployment "${SOLO_DEPLOYMENT}" --local-build-path ./hedera-node/data
-          solo node start -i node1 --deployment "${SOLO_DEPLOYMENT}"
-          solo mirror-node deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref "kind-${SOLO_CLUSTER_NAME}" --pinger --values-file mirror.yml
+
+          # check solo version
+          version=$(solo --version | grep Version | awk '{print $3}')
+          solo_ge_0440=$([[ "$(printf '%s\n' "${version}" "0.44.0" | sort -V | head -n1)" == "0.44.0" ]] && echo "true" || echo "false")
+          echo "::debug::solo_ge_0440=${solo_ge_0440}"
+          echo "::debug::MIRROR_NODE_VERSION=${MIRROR_NODE_VERSION}"
+          if [[ "${solo_ge_0440}" == "true" ]]; then
+            echo "::debug::Solo version ($version) is >= 0.44.0"
+            solo cluster-ref config connect --cluster-ref "kind-${SOLO_CLUSTER_NAME}" --context "kind-${SOLO_CLUSTER_NAME}"
+            solo deployment config create -n "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
+            solo deployment cluster attach --deployment "${SOLO_DEPLOYMENT}" --cluster-ref "kind-${SOLO_CLUSTER_NAME}" --num-consensus-nodes 1
+            solo keys consensus generate --gossip-keys --tls-keys -i node1 --deployment "${SOLO_DEPLOYMENT}"
+            solo cluster-ref config setup --cluster-ref "kind-${SOLO_CLUSTER_NAME}" -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
+            solo consensus network deploy -i node1 --deployment "${SOLO_DEPLOYMENT}"
+            solo consensus node setup -i node1 --deployment "${SOLO_DEPLOYMENT}" --local-build-path ./hedera-node/data
+            solo consensus node start -i node1 --deployment "${SOLO_DEPLOYMENT}"
+            solo mirror node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref "kind-${SOLO_CLUSTER_NAME}" --pinger --values-file mirror.yml
+          else
+            echo "::debug::Solo version ($version) is < 0.44.0"
+            solo cluster-ref connect --cluster-ref "kind-${SOLO_CLUSTER_NAME}" --context "kind-${SOLO_CLUSTER_NAME}"
+            solo deployment create -n "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
+            solo deployment add-cluster --deployment "${SOLO_DEPLOYMENT}" --cluster-ref "kind-${SOLO_CLUSTER_NAME}" --num-consensus-nodes 1
+            solo node keys --gossip-keys --tls-keys -i node1 --deployment "${SOLO_DEPLOYMENT}"
+            solo cluster-ref setup --cluster-ref "kind-${SOLO_CLUSTER_NAME}" -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
+            solo network deploy -i node1 --deployment "${SOLO_DEPLOYMENT}"
+            solo node setup -i node1 --deployment "${SOLO_DEPLOYMENT}" --local-build-path ./hedera-node/data
+            solo node start -i node1 --deployment "${SOLO_DEPLOYMENT}"
+            solo mirror-node deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref "kind-${SOLO_CLUSTER_NAME}" --pinger --values-file mirror.yml
+          fi
+
+          echo "solo-ge-0440=${solo_ge_0440}" >> "${GITHUB_OUTPUT}"
 
       - name: Execute mirror node acceptance tests
-        run: helm test mirror --filter name=mirror-acceptance --logs -n "${SOLO_NAMESPACE}" --timeout 30m
+        env:
+          HELM_RELEASE_NAME: ${{ inputs.helm-release-name || 'mirror-1' }}
+        run: |
+          if [[ "${{ steps.run-solo.outputs.solo-ge-0440 }}" == "true" ]]; then
+            helm test ${HELM_RELEASE_NAME} -n "${SOLO_NAMESPACE}" --filter name="${HELM_RELEASE_NAME}-mirror-acceptance" --logs  --timeout 20m
+          else
+            helm test ${HELM_RELEASE_NAME} -n "${SOLO_NAMESPACE}" --filter name="${HELM_RELEASE_NAME}-acceptance" --logs  --timeout 20m
+          fi
 
       - name: Stop Solo
         continue-on-error: true
@@ -124,7 +166,7 @@ jobs:
 
   report-mirror-node-regression-status:
     name: ${{ inputs.custom-job-name || 'Standard' }} Slack Report
-    runs-on: hiero-citr-linux-medium
+    runs-on: hl-cn-mn-regression-lin-sm
     needs: mirror-node-regression
     permissions:
       id-token: write

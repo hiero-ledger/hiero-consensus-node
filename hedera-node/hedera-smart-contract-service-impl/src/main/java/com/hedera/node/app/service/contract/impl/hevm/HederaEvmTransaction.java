@@ -2,16 +2,18 @@
 package com.hedera.node.app.service.contract.impl.hevm;
 
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjToTuweniBytes;
+import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
+import com.hedera.hapi.node.base.HookId;
 import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
 import com.hedera.hapi.node.hooks.HookDispatchTransactionBody;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.util.Objects;
+import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.datatypes.Wei;
 
 public record HederaEvmTransaction(
@@ -54,6 +56,10 @@ public record HederaEvmTransaction(
         return relayerId != null;
     }
 
+    public boolean isHookExecution() {
+        return hookDispatch != null;
+    }
+
     public boolean isContractCall() {
         return !isEthereumTransaction() && !isCreate();
     }
@@ -67,7 +73,7 @@ public record HederaEvmTransaction(
     }
 
     public @NonNull ContractID contractIdOrThrow() {
-        return Objects.requireNonNull(contractId);
+        return requireNonNull(contractId);
     }
 
     public boolean hasValue() {
@@ -116,6 +122,7 @@ public record HederaEvmTransaction(
     }
 
     /**
+     * @param exception the exception to set
      * @return a copy of this transaction with the given {@code exception}
      */
     public HederaEvmTransaction withException(@NonNull final HandleException exception) {
@@ -134,13 +141,31 @@ public record HederaEvmTransaction(
                 exception,
                 this.hookDispatch);
     }
+    /**
+     * @return the hook id, or null if this is not a hook dispatch
+     */
+    @Nullable
+    public HookId maybeHookId() {
+        return hookDispatch != null
+                ? new HookId(
+                        hookDispatch.executionOrThrow().hookEntityIdOrThrow(),
+                        hookDispatch.executionOrThrow().callOrThrow().hookIdOrThrow())
+                : null;
+    }
 
     /**
-     * Check if this transaction is a hook dispatch transaction
-     *
-     * @return true if this transaction is a hook dispatch transaction, false otherwise
+     * @return the address of the hook owner, or null if this is not a hook dispatch
      */
-    public boolean isHookDispatch() {
-        return hookDispatch != null;
+    public Address hookOwnerAddress(@NonNull final HederaWorldUpdater worldUpdater) {
+        requireNonNull(worldUpdater);
+        if (hookDispatch == null) {
+            return null;
+        }
+        final var entityId = hookDispatch.executionOrThrow().hookEntityIdOrThrow();
+        return entityId.hasContractId()
+                ? requireNonNull(worldUpdater.getHederaAccount(entityId.contractIdOrThrow()))
+                        .getAddress()
+                : requireNonNull(worldUpdater.getHederaAccount(entityId.accountIdOrThrow()))
+                        .getAddress();
     }
 }

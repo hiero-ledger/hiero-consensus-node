@@ -55,11 +55,11 @@ import com.hedera.node.app.service.contract.impl.exec.scope.HederaOperations;
 import com.hedera.node.app.service.contract.impl.exec.utils.PendingCreationMetadataRef;
 import com.hedera.node.app.service.contract.impl.records.ContractCreateStreamBuilder;
 import com.hedera.node.app.service.contract.impl.state.WritableContractStateStore;
+import com.hedera.node.app.service.entityid.EntityNumGenerator;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.fees.Fees;
-import com.hedera.node.app.spi.ids.EntityNumGenerator;
 import com.hedera.node.app.spi.records.BlockRecordInfo;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.workflows.DispatchOptions;
@@ -303,6 +303,15 @@ class HandleHederaOperationsTest {
         subject.updateStorageMetadata(NON_SYSTEM_CONTRACT_ID, Bytes.EMPTY, 2);
 
         verify(tokenServiceApi).updateStorageMetadata(NON_SYSTEM_CONTRACT_ID, Bytes.EMPTY, 2);
+    }
+
+    @Test
+    void updateHookStorageSlotsUsesApi() {
+        given(context.storeFactory()).willReturn(storeFactory);
+        given(storeFactory.serviceApi(TokenServiceApi.class)).willReturn(tokenServiceApi);
+
+        subject.updateHookStorageSlots(NON_SYSTEM_ACCOUNT_ID, 5);
+        verify(tokenServiceApi).updateHookStorageSlots(NON_SYSTEM_ACCOUNT_ID, 5, false);
     }
 
     @Test

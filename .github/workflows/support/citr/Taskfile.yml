@@ -15,6 +15,7 @@ env:
   SOLO_HOME: "{{.solo_home_override_dir}}"
   LOG4J2_FLAG: "--log4j2-xml {{.USER_WORKING_DIR}}/log4j2.xml"
   APPLICATION_PROPERTIES_FLAG: "--application-properties {{.USER_WORKING_DIR}}/application.properties"
+  APPLICATION_ENVIRONMENT_FLAG: "--application-env {{.USER_WORKING_DIR}}/application.environment"
   HEDERA_SERVICES_ROOT: "%HEDERA_SERVICES_ROOT%"
   LOCAL_BUILD_FLAG: "--local-build-path {{.HEDERA_SERVICES_ROOT}}/hedera-node/data"
 
@@ -26,7 +27,7 @@ env:
   #EXPLORER_CLUSTER_CONTEXT: "kind-solo-cluster"
   SOLO_DEPLOYMENT: %SOLO_NAMESPACE%-test
   CLUSTER_REF: %SOLO_NAMESPACE%-ref
-  SOLO_CLUSTER_RELEASE_NAME: cluster_name
+  SOLO_CLUSTER_RELEASE_NAME: solo-cluster-setup
   CONTEXT: hashgraph.teleport.sh-k8s.pft.chi.lat.ope.eng.hashgraph.io
   SOLO_CLUSTER_SETUP_NAMESPACE: solo-setup
   SOLO_CLUSTER_NAME: solo-cluster-name

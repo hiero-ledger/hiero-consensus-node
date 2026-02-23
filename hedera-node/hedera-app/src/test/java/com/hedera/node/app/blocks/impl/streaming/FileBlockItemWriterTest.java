@@ -17,6 +17,7 @@ import com.hedera.hapi.block.stream.input.RoundHeader;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.node.app.info.NodeInfoImpl;
 import com.hedera.node.app.spi.info.NodeInfo;
+import com.hedera.node.app.spi.records.SelfNodeAccountIdManager;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfiguration;
 import com.hedera.node.config.data.BlockStreamConfig;
@@ -32,6 +33,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.zip.GZIPInputStream;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
@@ -52,6 +54,9 @@ class FileBlockItemWriterTest {
     @Mock
     private ConfigProvider configProvider;
 
+    @Mock
+    private SelfNodeAccountIdManager selfNodeAccountIdManager;
+
     private final NodeInfo selfNodeInfo = new NodeInfoImpl(
             0, AccountID.newBuilder().accountNum(3).build(), 10, List.of(), Bytes.EMPTY, List.of(), false, null);
 
@@ -64,6 +69,11 @@ class FileBlockItemWriterTest {
     @Mock
     private FileSystem fileSystem;
 
+    @BeforeEach
+    void setUp() {
+        when(selfNodeAccountIdManager.getSelfNodeAccountId()).thenReturn(selfNodeInfo.accountId());
+    }
+
     @Test
     protected void testOpenBlock() {
         when(configProvider.getConfiguration()).thenReturn(versionedConfiguration);
@@ -71,7 +81,8 @@ class FileBlockItemWriterTest {
         when(blockStreamConfig.blockFileDir()).thenReturn("N/A");
         when(fileSystem.getPath(anyString())).thenReturn(tempDir);
 
-        FileBlockItemWriter fileBlockItemWriter = new FileBlockItemWriter(configProvider, selfNodeInfo, fileSystem);
+        FileBlockItemWriter fileBlockItemWriter =
+                new FileBlockItemWriter(configProvider, selfNodeAccountIdManager, fileSystem);
         fileBlockItemWriter.openBlock(1);
 
         // Assertion to check if the directory is created
@@ -94,7 +105,8 @@ class FileBlockItemWriterTest {
         when(blockStreamConfig.blockFileDir()).thenReturn("N/A");
         when(fileSystem.getPath(anyString())).thenReturn(tempDir);
 
-        FileBlockItemWriter fileBlockItemWriter = new FileBlockItemWriter(configProvider, selfNodeInfo, fileSystem);
+        FileBlockItemWriter fileBlockItemWriter =
+                new FileBlockItemWriter(configProvider, selfNodeAccountIdManager, fileSystem);
         fileBlockItemWriter.openBlock(1);
 
         // Assertion to check if the directory is created
@@ -112,7 +124,8 @@ class FileBlockItemWriterTest {
         when(blockStreamConfig.blockFileDir()).thenReturn("N/A");
         when(fileSystem.getPath(anyString())).thenReturn(tempDir);
 
-        FileBlockItemWriter fileBlockItemWriter = new FileBlockItemWriter(configProvider, selfNodeInfo, fileSystem);
+        FileBlockItemWriter fileBlockItemWriter =
+                new FileBlockItemWriter(configProvider, selfNodeAccountIdManager, fileSystem);
 
         assertThatThrownBy(() -> fileBlockItemWriter.openBlock(-1), "Block number must be non-negative")
                 .isInstanceOf(IllegalArgumentException.class);
@@ -125,7 +138,8 @@ class FileBlockItemWriterTest {
         when(blockStreamConfig.blockFileDir()).thenReturn("N/A");
         when(fileSystem.getPath(anyString())).thenReturn(tempDir);
 
-        FileBlockItemWriter fileBlockItemWriter = new FileBlockItemWriter(configProvider, selfNodeInfo, fileSystem);
+        FileBlockItemWriter fileBlockItemWriter =
+                new FileBlockItemWriter(configProvider, selfNodeAccountIdManager, fileSystem);
 
         // Open a block
         fileBlockItemWriter.openBlock(1);
@@ -166,7 +180,8 @@ class FileBlockItemWriterTest {
         when(blockStreamConfig.blockFileDir()).thenReturn("N/A");
         when(fileSystem.getPath(anyString())).thenReturn(tempDir);
 
-        FileBlockItemWriter fileBlockItemWriter = new FileBlockItemWriter(configProvider, selfNodeInfo, fileSystem);
+        FileBlockItemWriter fileBlockItemWriter =
+                new FileBlockItemWriter(configProvider, selfNodeAccountIdManager, fileSystem);
 
         // Open a block
         fileBlockItemWriter.openBlock(1);
@@ -214,7 +229,8 @@ class FileBlockItemWriterTest {
         when(blockStreamConfig.blockFileDir()).thenReturn("N/A");
         when(fileSystem.getPath(anyString())).thenReturn(tempDir);
 
-        FileBlockItemWriter fileBlockItemWriter = new FileBlockItemWriter(configProvider, selfNodeInfo, fileSystem);
+        FileBlockItemWriter fileBlockItemWriter =
+                new FileBlockItemWriter(configProvider, selfNodeAccountIdManager, fileSystem);
 
         // Create a Bytes object and write it
         final var bytes = new byte[] {1, 2, 3, 4, 5};
@@ -230,7 +246,8 @@ class FileBlockItemWriterTest {
         when(blockStreamConfig.blockFileDir()).thenReturn("N/A");
         when(fileSystem.getPath(anyString())).thenReturn(tempDir);
 
-        FileBlockItemWriter fileBlockItemWriter = new FileBlockItemWriter(configProvider, selfNodeInfo, fileSystem);
+        FileBlockItemWriter fileBlockItemWriter =
+                new FileBlockItemWriter(configProvider, selfNodeAccountIdManager, fileSystem);
 
         // Open a block
         fileBlockItemWriter.openBlock(1);
@@ -257,7 +274,8 @@ class FileBlockItemWriterTest {
         when(blockStreamConfig.blockFileDir()).thenReturn("N/A");
         when(fileSystem.getPath(anyString())).thenReturn(tempDir);
 
-        FileBlockItemWriter fileBlockItemWriter = new FileBlockItemWriter(configProvider, selfNodeInfo, fileSystem);
+        FileBlockItemWriter fileBlockItemWriter =
+                new FileBlockItemWriter(configProvider, selfNodeAccountIdManager, fileSystem);
 
         assertThatThrownBy(
                         fileBlockItemWriter::closeCompleteBlock, "Cannot close a FileBlockItemWriter that is not open")
@@ -271,7 +289,8 @@ class FileBlockItemWriterTest {
         when(blockStreamConfig.blockFileDir()).thenReturn("N/A");
         when(fileSystem.getPath(anyString())).thenReturn(tempDir);
 
-        FileBlockItemWriter fileBlockItemWriter = new FileBlockItemWriter(configProvider, selfNodeInfo, fileSystem);
+        FileBlockItemWriter fileBlockItemWriter =
+                new FileBlockItemWriter(configProvider, selfNodeAccountIdManager, fileSystem);
 
         // Open a block
         fileBlockItemWriter.openBlock(1);
@@ -296,7 +315,7 @@ class FileBlockItemWriterTest {
         when(versionedConfiguration.getConfigData(BlockStreamConfig.class)).thenReturn(blockStreamConfig);
         when(blockStreamConfig.blockFileDir()).thenReturn(tempDir.toString());
 
-        final var subject = new FileBlockItemWriter(configProvider, selfNodeInfo, FileSystems.getDefault());
+        final var subject = new FileBlockItemWriter(configProvider, selfNodeAccountIdManager, FileSystems.getDefault());
 
         subject.openBlock(1);
 

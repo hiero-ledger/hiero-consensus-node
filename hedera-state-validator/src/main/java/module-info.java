@@ -6,6 +6,8 @@ module com.hedera.state.validator {
     requires com.hedera.node.app.service.consensus;
     requires com.hedera.node.app.service.contract.impl;
     requires com.hedera.node.app.service.contract;
+    requires com.hedera.node.app.service.entityid.impl;
+    requires com.hedera.node.app.service.entityid;
     requires com.hedera.node.app.service.file.impl;
     requires com.hedera.node.app.service.file;
     requires com.hedera.node.app.service.network.admin.impl;
@@ -20,14 +22,11 @@ module com.hedera.state.validator {
     requires com.hedera.node.app;
     requires com.hedera.node.config;
     requires com.hedera.node.hapi;
-    requires com.hedera.node.test.clients;
     requires com.hedera.pbj.runtime;
     requires com.swirlds.base;
-    requires com.swirlds.cli;
     requires com.swirlds.common;
     requires com.swirlds.config.api;
     requires com.swirlds.config.extensions;
-    requires com.swirlds.logging;
     requires com.swirlds.merkledb;
     requires com.swirlds.metrics.api;
     requires com.swirlds.platform.core;
@@ -37,7 +36,14 @@ module com.hedera.state.validator {
     requires org.hiero.base.concurrent;
     requires org.hiero.base.crypto;
     requires org.hiero.base.utility;
+    requires org.hiero.consensus.concurrent;
+    requires org.hiero.consensus.metrics;
     requires org.hiero.consensus.model;
+    requires org.hiero.consensus.pces;
+    requires org.hiero.consensus.pcli;
+    requires org.hiero.consensus.platformstate;
+    requires org.hiero.consensus.state;
+    requires org.hiero.consensus.utility;
     requires com.fasterxml.jackson.databind;
     requires com.github.spotbugs.annotations;
     requires info.picocli;

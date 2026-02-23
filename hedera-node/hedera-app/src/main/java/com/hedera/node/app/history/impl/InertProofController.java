@@ -4,9 +4,10 @@ package com.hedera.node.app.history.impl;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.history.HistoryProofVote;
-import com.hedera.node.app.history.ReadableHistoryStore.HistorySignaturePublication;
 import com.hedera.node.app.history.ReadableHistoryStore.ProofKeyPublication;
+import com.hedera.node.app.history.ReadableHistoryStore.WrapsMessagePublication;
 import com.hedera.node.app.history.WritableHistoryStore;
+import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -25,7 +26,8 @@ public class InertProofController implements ProofController {
     }
 
     @Override
-    public boolean isStillInProgress() {
+    public boolean isStillInProgress(@NonNull final TssConfig tssConfig) {
+        requireNonNull(tssConfig);
         return false;
     }
 
@@ -34,9 +36,11 @@ public class InertProofController implements ProofController {
             @NonNull final Instant now,
             @Nullable final Bytes metadata,
             @NonNull final WritableHistoryStore historyStore,
-            final boolean isActive) {
+            final boolean isActive,
+            @NonNull final TssConfig tssConfig) {
         requireNonNull(now);
         requireNonNull(historyStore);
+        requireNonNull(tssConfig);
         // No-op
     }
 
@@ -55,8 +59,11 @@ public class InertProofController implements ProofController {
     }
 
     @Override
-    public boolean addSignaturePublication(@NonNull final HistorySignaturePublication publication) {
+    public boolean addWrapsMessagePublication(
+            @NonNull final WrapsMessagePublication publication,
+            @NonNull final WritableHistoryStore writableHistoryStore) {
         requireNonNull(publication);
+        requireNonNull(writableHistoryStore);
         return false;
     }
 

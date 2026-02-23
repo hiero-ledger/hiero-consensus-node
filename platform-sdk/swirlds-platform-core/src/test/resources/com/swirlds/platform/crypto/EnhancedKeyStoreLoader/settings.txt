@@ -45,4 +45,3 @@ prometheus.endpointEnabled,               false
 loadKeysFromPfxFiles,                     false
 crypto.enableNewKeyStoreModel,            false
 crypto.cpuVerifierThreadRatio,            0.1
-crypto.cpuDigestThreadRatio,              0.1

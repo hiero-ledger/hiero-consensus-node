@@ -40,7 +40,7 @@ public class NetworkUtilizationManagerImpl implements NetworkUtilizationManager 
     @Override
     public boolean trackTxn(
             @NonNull final TransactionInfo txnInfo, @NonNull final Instant consensusTime, @NonNull final State state) {
-        final var shouldThrottle = backendThrottle.checkAndEnforceThrottle(txnInfo, consensusTime, state, null);
+        final var shouldThrottle = backendThrottle.checkAndEnforceThrottle(txnInfo, consensusTime, state, null, false);
         congestionMultipliers.updateMultiplier(consensusTime);
         return shouldThrottle;
     }
@@ -85,5 +85,11 @@ public class NetworkUtilizationManagerImpl implements NetworkUtilizationManager 
     public boolean shouldThrottleNOfUnscaled(
             final int n, @NonNull final HederaFunctionality function, @NonNull final Instant consensusTime) {
         return backendThrottle.shouldThrottleNOfUnscaled(n, function, consensusTime);
+    }
+
+    @Override
+    public int highVolumeThrottleUtilization(
+            @NonNull final HederaFunctionality function, @NonNull final Instant consensusTime) {
+        return backendThrottle.getHighVolumeThrottleInstantaneousUtilizationBps(function, consensusTime);
     }
 }

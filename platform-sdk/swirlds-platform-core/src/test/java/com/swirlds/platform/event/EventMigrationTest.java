@@ -1,12 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event;
 
-import com.swirlds.common.io.IOIterator;
 import com.swirlds.common.io.utility.NoOpRecycleBin;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import com.swirlds.platform.event.preconsensus.PcesConfig_;
-import com.swirlds.platform.event.preconsensus.PcesFileReader;
-import com.swirlds.platform.event.preconsensus.PcesFileTracker;
 import com.swirlds.platform.recovery.internal.EventStreamSingleFileIterator;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.File;
@@ -24,8 +20,12 @@ import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.crypto.DefaultEventHasher;
+import org.hiero.consensus.io.IOIterator;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.pces.config.PcesConfig_;
+import org.hiero.consensus.pces.impl.common.PcesFileReader;
+import org.hiero.consensus.pces.impl.common.PcesFileTracker;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;

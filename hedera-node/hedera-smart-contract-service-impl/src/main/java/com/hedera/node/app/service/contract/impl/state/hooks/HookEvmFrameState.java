@@ -8,7 +8,7 @@ import static com.hedera.node.app.service.contract.impl.state.WritableEvmHookSto
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjToTuweniBytes;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjToTuweniUInt256;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
-import static com.hedera.node.app.service.token.HookDispatchUtils.HTS_HOOKS_CONTRACT_ID;
+import static com.hedera.node.app.service.token.HookDispatchUtils.HTS_HOOKS_CONTRACT_NUM;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.ContractID;
@@ -22,6 +22,7 @@ import com.hedera.node.app.service.contract.impl.state.StorageAccess;
 import com.hedera.node.app.service.contract.impl.state.StorageAccesses;
 import com.hedera.node.app.service.contract.impl.state.TxStorageUsage;
 import com.hedera.node.app.service.contract.impl.state.WritableEvmHookStore;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -44,6 +45,8 @@ public class HookEvmFrameState extends DispatchingEvmFrameState {
     private final EvmHookState hook;
     private final CodeFactory codeFactory;
     private final WritableEvmHookStore writableEvmHookStore;
+    private final EntityIdFactory entityIdFactory;
+    private final ContractID hooksContractId;
 
     /**
      * @param nativeOperations the Hedera native operation
@@ -56,9 +59,11 @@ public class HookEvmFrameState extends DispatchingEvmFrameState {
             @NonNull final CodeFactory codeFactory,
             @NonNull final EvmHookState hook) {
         super(nativeOperations, contractStateStore, codeFactory);
+        this.entityIdFactory = requireNonNull(nativeOperations).entityIdFactory();
         this.hook = requireNonNull(hook);
         this.codeFactory = requireNonNull(codeFactory);
         this.writableEvmHookStore = requireNonNull(writableEvmHookStore);
+        this.hooksContractId = entityIdFactory.newContractId(HTS_HOOKS_CONTRACT_NUM);
     }
 
     /**
@@ -69,14 +74,14 @@ public class HookEvmFrameState extends DispatchingEvmFrameState {
     @Override
     public @Nullable MutableAccount getMutableAccount(@NonNull final Address address) {
         if (address.equals(HTS_HOOKS_CONTRACT_ADDRESS)) {
-            return new ProxyEvmHook(this, hook, codeFactory);
+            return new ProxyEvmHook(this, hook, codeFactory, entityIdFactory);
         }
         return super.getMutableAccount(address);
     }
 
     @Override
     public @Nullable Address getAddress(final long number) {
-        if (number == HTS_HOOKS_CONTRACT_ID.contractNumOrThrow()) {
+        if (number == hooksContractId.contractNumOrThrow()) {
             return HTS_HOOKS_CONTRACT_ADDRESS;
         }
         return super.getAddress(number);
@@ -84,7 +89,7 @@ public class HookEvmFrameState extends DispatchingEvmFrameState {
 
     @Override
     public @NonNull UInt256 getStorageValue(final ContractID contractID, @NonNull final UInt256 key) {
-        if (HTS_HOOKS_CONTRACT_ID.equals(contractID)) {
+        if (hooksContractId.equals(contractID)) {
             final var slotKey = minimalKey(hook.hookIdOrThrow(), Bytes.wrap(key.toArrayUnsafe()));
             final var value = writableEvmHookStore.getSlotValue(slotKey);
             if (value == null) {
@@ -97,7 +102,7 @@ public class HookEvmFrameState extends DispatchingEvmFrameState {
 
     @Override
     public @NonNull UInt256 getOriginalStorageValue(final ContractID contractID, @NonNull final UInt256 key) {
-        if (HTS_HOOKS_CONTRACT_ID.equals(contractID)) {
+        if (hooksContractId.equals(contractID)) {
             final var slotKey = minimalKey(hook.hookIdOrThrow(), Bytes.wrap(key.toArrayUnsafe()));
             final var value = writableEvmHookStore.getOriginalSlotValue(slotKey);
             if (value == null) {
@@ -111,9 +116,12 @@ public class HookEvmFrameState extends DispatchingEvmFrameState {
     @Override
     public void setStorageValue(
             @NonNull final ContractID contractID, @NonNull final UInt256 key, @NonNull final UInt256 value) {
-        if (HTS_HOOKS_CONTRACT_ID.equals(contractID)) {
+        if (hooksContractId.equals(contractID)) {
             final var slotKey = minimalKey(hook.hookIdOrThrow(), Bytes.wrap(key.toArrayUnsafe()));
             final var oldSlotValue = writableEvmHookStore.getSlotValue(slotKey);
+            if (oldSlotValue == null && value.isZero()) {
+                return;
+            }
             final var slotValue = new SlotValue(
                     tuweniToPbjBytes(requireNonNull(value)),
                     oldSlotValue == null ? com.hedera.pbj.runtime.io.buffer.Bytes.EMPTY : oldSlotValue.previousKey(),
@@ -131,16 +139,16 @@ public class HookEvmFrameState extends DispatchingEvmFrameState {
     public @NonNull TxStorageUsage getTxStorageUsage(final boolean includeChangedKeys) {
         final Map<ContractID, List<StorageAccess>> modifications = new TreeMap<>(CONTRACT_ID_COMPARATOR);
         final Set<SlotKey> changedKeys = includeChangedKeys ? new HashSet<>() : null;
-        writableEvmHookStore.getModifiedSlotKeys().forEach(slotKey -> {
+        writableEvmHookStore.getModifiedEvmHookSlotKeys().forEach(slotKey -> {
             final var access = StorageAccess.newWrite(
                     slotKey.key().equals(ZERO_KEY) ? UInt256.ZERO : pbjToTuweniUInt256(slotKey.key()),
                     valueOrZero(writableEvmHookStore.getOriginalSlotValue(slotKey)),
                     valueOrZero(writableEvmHookStore.getSlotValue(slotKey)));
             modifications
-                    .computeIfAbsent(HTS_HOOKS_CONTRACT_ID, k -> new ArrayList<>())
+                    .computeIfAbsent(hooksContractId, k -> new ArrayList<>())
                     .add(access);
             if (includeChangedKeys && access.isLogicalChange()) {
-                changedKeys.add(new SlotKey(HTS_HOOKS_CONTRACT_ID, slotKey.key()));
+                changedKeys.add(new SlotKey(hooksContractId, slotKey.key()));
             }
         });
         final List<StorageAccesses> allChanges = new ArrayList<>();

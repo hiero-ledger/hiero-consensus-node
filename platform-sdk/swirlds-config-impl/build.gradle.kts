@@ -5,11 +5,10 @@ plugins {
     id("org.hiero.gradle.feature.benchmark")
 }
 
-mainModuleInfo { annotationProcessor("com.google.auto.service.processor") }
-
 testModuleInfo {
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")
+    requires("org.hiero.consensus.concurrent")
     requires("com.swirlds.common")
     runtimeOnly("com.swirlds.platform.core")
 

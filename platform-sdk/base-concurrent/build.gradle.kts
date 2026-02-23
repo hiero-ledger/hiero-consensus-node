@@ -9,7 +9,7 @@ plugins {
 description = "Base Concurrent"
 
 testModuleInfo {
-    requires("com.swirlds.common")
+    requires("org.hiero.consensus.concurrent")
     requires("com.swirlds.common.test.fixtures")
     requires("org.hiero.base.concurrent")
     requires("org.assertj.core")
@@ -18,7 +18,7 @@ testModuleInfo {
 
 timingSensitiveModuleInfo {
     requires("com.swirlds.base")
-    requires("com.swirlds.common")
+    requires("org.hiero.consensus.concurrent")
     requires("com.swirlds.common.test.fixtures")
     requires("com.swirlds.logging")
     requires("com.swirlds.logging.test.fixtures")

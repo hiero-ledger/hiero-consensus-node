@@ -51,13 +51,16 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Duration;
 import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.base.HookEntityId;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.SubType;
+import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
 import com.hedera.hapi.node.token.CryptoUpdateTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
 import com.hedera.node.app.service.token.impl.validators.CryptoCreateValidator;
@@ -65,7 +68,6 @@ import com.hedera.node.app.service.token.impl.validators.StakingValidator;
 import com.hedera.node.app.service.token.records.CryptoCreateStreamBuilder;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
-import com.hedera.node.app.spi.ids.EntityIdFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -156,7 +158,8 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
         // FUTURE: Clean up the error codes to be consistent.
         final var key = op.key();
         final var isInternal =
-                !txn.hasTransactionID() || (systemEntitiesCreatedFlag != null && !systemEntitiesCreatedFlag.get());
+                (!txn.hasTransactionID() || txn.transactionIDOrThrow().nonce() != 0)
+                        || (systemEntitiesCreatedFlag != null && !systemEntitiesCreatedFlag.get());
         final var keyIsEmpty = isEmpty(key);
         if (!isInternal && keyIsEmpty) {
             if (key == null) {
@@ -168,7 +171,6 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
             }
         }
         validateTruePreCheck(key != null, KEY_NOT_PROVIDED);
-        // since pure evm hooks are being removed, just added validations for lambda evm hooks for now
         validateHookDuplicates(op.hookCreationDetails());
     }
 
@@ -270,15 +272,18 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
         }
 
         // Dispatch hook creation to contract service if there are any hooks to be created
+        int updatedSlots = 0;
         if (!op.hookCreationDetails().isEmpty()) {
-            final var owner =
+            final var ownerId =
                     entityIdFactory.newAccountId(context.entityNumGenerator().peekAtNewEntityNum());
-            dispatchHookCreations(context, op.hookCreationDetails(), 0L, owner);
+            final var hookEntityId =
+                    HookEntityId.newBuilder().accountId(ownerId).build();
+            updatedSlots = dispatchHookCreations(context, op.hookCreationDetails(), null, hookEntityId);
         }
 
         // Build the new account to be persisted based on the transaction body and save the newly created account
         // number in the record builder
-        final var accountCreated = buildAccount(op, context);
+        final var accountCreated = buildAccount(op, context, updatedSlots);
         // As an extra guardrail, ensure it's impossible to programmatically create a system file account
         validateFalse(isSystemFile(accountCreated.accountIdOrThrow().accountNumOrThrow()), FAIL_INVALID);
         accountStore.putAndIncrementCount(accountCreated);
@@ -331,9 +336,16 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
         final var ledgerConfig = context.configuration().getConfigData(LedgerConfig.class);
         final var entitiesConfig = context.configuration().getConfigData(EntitiesConfig.class);
         final var tokensConfig = context.configuration().getConfigData(TokensConfig.class);
-        final var accountConfig = context.configuration().getConfigData(AccountsConfig.class);
+        final var accountsConfig = context.configuration().getConfigData(AccountsConfig.class);
         final var hederaConfig = context.configuration().getConfigData(HederaConfig.class);
         final var alias = op.alias();
+
+        final var txn = context.body();
+        final var isAdminPayer = entityIdFactory
+                .newAccountId(accountsConfig.systemAdmin())
+                .equals(txn.transactionIDOrElse(TransactionID.DEFAULT).accountIDOrElse(AccountID.DEFAULT));
+        final var isPostUpgradeSyntheticCreation =
+                txn.hasTransactionID() && txn.transactionIDOrThrow().nonce() != 0 && isAdminPayer;
 
         // Don't allow creation of accounts that don't match the configured shard and realm
         if (op.hasShardID()) {
@@ -348,7 +360,7 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
 
         // We have a limit on the total maximum number of entities that can be created on the network, for different
         // types of entities. We need to verify that creating a new account won't exceed that number.
-        if (accountStore.getNumberOfAccounts() + 1 > accountConfig.maxNumber()) {
+        if (accountStore.getNumberOfAccounts() + 1 > accountsConfig.maxNumber()) {
             throw new HandleException(MAX_ENTITIES_IN_PRICE_REGIME_HAVE_BEEN_CREATED);
         }
 
@@ -390,7 +402,8 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
                 op.keyOrThrow(), // cannot be null by this point
                 context.attributeValidator(),
                 context.savepointStack().getBaseBuilder(StreamBuilder.class).isInternalDispatch()
-                        || stillCreatingSystemEntities);
+                        || stillCreatingSystemEntities
+                        || isPostUpgradeSyntheticCreation);
 
         // Validate the staking information included in this account creation.
         if (op.hasStakedAccountId() || op.hasStakedNodeId()) {
@@ -427,10 +440,11 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
      *
      * @param op the transaction body
      * @param handleContext the handle context
+     * @param updatedSlots
      * @return the account created
      */
     @NonNull
-    private Account buildAccount(CryptoCreateTransactionBody op, HandleContext handleContext) {
+    private Account buildAccount(CryptoCreateTransactionBody op, HandleContext handleContext, final int updatedSlots) {
         requireNonNull(op);
         requireNonNull(handleContext);
         final var autoRenewPeriod = op.autoRenewPeriodOrThrow().seconds();
@@ -451,6 +465,7 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
         if (!op.hookCreationDetails().isEmpty()) {
             builder.firstHookId(op.hookCreationDetails().getFirst().hookId());
             builder.numberHooksInUse(op.hookCreationDetails().size());
+            builder.numberEvmHookStorageSlots(updatedSlots);
         }
 
         // We do this separately because we want to let the protobuf object remain UNSET for the staked ID if neither

@@ -48,11 +48,9 @@ class OpsTransferUsageTest {
         final var accum = new UsageAccumulator();
         subject.cryptoTransferUsage(
                 sigUsage,
-                new CryptoTransferMeta(tokenMultiplier, 3, 7, 0, false),
+                new CryptoTransferMeta(tokenMultiplier, 3, 7, 0),
                 new BaseTransactionMeta(memo.getBytes().length, 3),
-                accum,
-                0,
-                false);
+                accum);
 
         // then:
         assertEquals(expected, feeDataFrom(accum));

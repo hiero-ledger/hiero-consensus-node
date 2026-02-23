@@ -7,10 +7,10 @@ import static com.hedera.hapi.node.freeze.FreezeType.PREPARE_UPGRADE;
 import static com.hedera.hapi.node.freeze.FreezeType.TELEMETRY_UPGRADE;
 import static com.hedera.hapi.node.freeze.FreezeType.UNKNOWN_FREEZE_TYPE;
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
-import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
-import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
-import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_LABEL;
 import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_STATE_ID;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_LABEL;
 import static com.hedera.node.app.service.networkadmin.impl.schemas.V0490FreezeSchema.FREEZE_TIME_STATE_ID;
 import static com.hedera.node.app.service.networkadmin.impl.schemas.V0490FreezeSchema.FREEZE_TIME_STATE_LABEL;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_INFOS_STATE_ID;
@@ -41,8 +41,8 @@ import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.node.app.fixtures.state.FakeState;
-import com.hedera.node.app.ids.EntityIdService;
 import com.hedera.node.app.service.addressbook.AddressBookService;
+import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.service.networkadmin.FreezeService;
 import com.hedera.node.app.service.roster.RosterService;
 import com.hedera.node.app.service.token.TokenService;
@@ -50,8 +50,6 @@ import com.hedera.node.app.spi.fixtures.TransactionFactory;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.platform.state.service.PlatformStateService;
-import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
 import com.swirlds.state.spi.WritableStates;
 import com.swirlds.state.test.fixtures.FunctionWritableSingletonState;
 import java.nio.file.Path;
@@ -61,6 +59,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import org.assertj.core.api.Assertions;
+import org.hiero.consensus.platformstate.PlatformStateService;
+import org.hiero.consensus.platformstate.V0540PlatformStateSchema;
 import org.hiero.consensus.roster.WritableRosterStore;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -365,7 +365,7 @@ public class PlatformStateUpdatesTest implements TransactionFactory {
 
     private Configuration configWith(final boolean createCandidateRoster, final boolean exportCandidateRoster) {
         return HederaTestConfigBuilder.create()
-                .withValue("addressBook.createCandidateRosterOnPrepareUpgrade", "" + createCandidateRoster)
+                .withValue("networkAdmin.createCandidateRosterOnPrepareUpgrade", "" + createCandidateRoster)
                 .withValue("networkAdmin.exportCandidateRoster", "" + exportCandidateRoster)
                 .withValue("networkAdmin.candidateRosterExportFile", "candidate-network.json")
                 .getOrCreateConfig();

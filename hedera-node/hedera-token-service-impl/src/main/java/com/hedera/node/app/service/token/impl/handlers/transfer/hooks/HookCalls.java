@@ -13,5 +13,5 @@ import java.util.List;
  */
 public record HookCalls(
         @NonNull HookContext context,
-        @NonNull List<HookCallFactory.HookInvocation> preOnlyHooks,
-        @NonNull List<HookCallFactory.HookInvocation> prePostHooks) {}
+        @NonNull List<HookInvocation> preOnlyHooks,
+        @NonNull List<HookInvocation> prePostHooks) {}

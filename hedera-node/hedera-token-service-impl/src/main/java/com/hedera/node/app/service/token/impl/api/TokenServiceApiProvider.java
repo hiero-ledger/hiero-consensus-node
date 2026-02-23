@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.token.impl.api;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.node.app.service.entityid.WritableEntityCounters;
 import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.service.token.impl.ReadableAccountStoreImpl;
@@ -9,7 +10,7 @@ import com.hedera.node.app.service.token.impl.ReadableTokenRelationStoreImpl;
 import com.hedera.node.app.service.token.impl.ReadableTokenStoreImpl;
 import com.hedera.node.app.service.token.impl.handlers.transfer.CustomFeeAssessmentStep;
 import com.hedera.node.app.spi.api.ServiceApiProvider;
-import com.hedera.node.app.spi.ids.WritableEntityCounters;
+import com.hedera.node.app.spi.fees.NodeFeeAccumulator;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -30,7 +31,8 @@ public enum TokenServiceApiProvider implements ServiceApiProvider<TokenServiceAp
     public TokenServiceApi newInstance(
             @NonNull final Configuration configuration,
             @NonNull final WritableStates writableStates,
-            @NonNull final WritableEntityCounters entityCounters) {
+            @NonNull final WritableEntityCounters entityCounters,
+            @NonNull final NodeFeeAccumulator nodeFeeAccumulator) {
         return new TokenServiceApiImpl(
                 configuration,
                 writableStates,
@@ -48,6 +50,7 @@ public enum TokenServiceApiProvider implements ServiceApiProvider<TokenServiceAp
                         return false;
                     }
                 },
-                entityCounters);
+                entityCounters,
+                nodeFeeAccumulator);
     }
 }

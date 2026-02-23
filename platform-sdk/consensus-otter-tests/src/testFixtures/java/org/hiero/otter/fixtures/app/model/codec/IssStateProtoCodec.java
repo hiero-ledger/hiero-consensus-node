@@ -44,6 +44,17 @@ public final class IssStateProtoCodec implements Codec<IssState> {
         // no-op
     }
 
+    @Override
+    public @NonNull IssState parse(
+            @NonNull final ReadableSequentialData input,
+            boolean strictMode,
+            boolean parseUnknownFields,
+            int maxDepth,
+            int maxSize)
+            throws ParseException {
+        return parse(input, strictMode, parseUnknownFields, maxDepth);
+    }
+
     /**
      * Parses a IssState object from ProtoBuf bytes in a {@link ReadableSequentialData}. Throws if in strict mode ONLY.
      *

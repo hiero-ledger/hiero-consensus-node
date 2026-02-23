@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration status="WARN">
+    <Appenders>
+        <Console name="Console" target="SYSTEM_OUT">
+            <PatternLayout pattern="%d{HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n"/>
+        </Console>
+    </Appenders>
+    <Loggers>
+        <!-- Set TRACE level for BlockNodeConnection to cover trace log guard branches (lines 666-676) -->
+        <Logger name="com.hedera.node.app.blocks.impl.streaming.BlockNodeStreamingConnection" level="trace" additivity="false">
+            <AppenderRef ref="Console"/>
+        </Logger>
+        <Logger name="com.hedera.node.app.blocks.impl.streaming.BlockNodeConnectionManager" level="trace" additivity="false">
+            <AppenderRef ref="Console"/>
+        </Logger>
+        <Root level="info">
+            <AppenderRef ref="Console"/>
+        </Root>
+    </Loggers>
+</Configuration>
+

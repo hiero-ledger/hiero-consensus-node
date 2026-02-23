@@ -117,7 +117,7 @@ class FileGetContentsHandlerTest extends FileTestBase {
     @Test
     void returnsGenesisExchangeRatesIfMissing() {
         given(context.configuration()).willReturn(DEFAULT_CONFIG);
-        given(genesisSchema.genesisExchangeRates(DEFAULT_CONFIG)).willReturn(contentsBytes);
+        given(genesisSchema.genesisExchangeRatesBytes(DEFAULT_CONFIG)).willReturn(contentsBytes);
 
         final var query = createGetFileContentQuery(
                 DEFAULT_CONFIG.getConfigData(FilesConfig.class).exchangeRates());
@@ -137,6 +137,22 @@ class FileGetContentsHandlerTest extends FileTestBase {
 
         final var query = createGetFileContentQuery(
                 DEFAULT_CONFIG.getConfigData(FilesConfig.class).feeSchedules());
+        given(context.query()).willReturn(query);
+        when(context.createStore(ReadableFileStore.class)).thenReturn(readableStore);
+
+        final var response = subject.findResponse(context, ResponseHeader.DEFAULT);
+        assertSame(
+                contentsBytes,
+                response.fileGetContentsOrThrow().fileContentsOrThrow().contents());
+    }
+
+    @Test
+    void returnsGenesisSimpleFeeSchedulesIfMissing() {
+        given(context.configuration()).willReturn(DEFAULT_CONFIG);
+        given(genesisSchema.genesisSimpleFeesSchedules(DEFAULT_CONFIG)).willReturn(contentsBytes);
+
+        final var query = createGetFileContentQuery(
+                DEFAULT_CONFIG.getConfigData(FilesConfig.class).simpleFeesSchedules());
         given(context.query()).willReturn(query);
         when(context.createStore(ReadableFileStore.class)).thenReturn(readableStore);
 

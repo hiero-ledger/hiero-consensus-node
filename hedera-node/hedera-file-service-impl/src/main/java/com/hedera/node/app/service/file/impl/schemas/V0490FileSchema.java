@@ -48,7 +48,6 @@ import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.types.LongPair;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StateDefinition;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -128,8 +127,7 @@ public class V0490FileSchema extends Schema<SemanticVersion> {
     @SuppressWarnings("rawtypes")
     public Set<StateDefinition> statesToCreate(@NonNull final Configuration config) {
         final Set<StateDefinition> definitions = new LinkedHashSet<>();
-        definitions.add(
-                StateDefinition.onDisk(FILES_STATE_ID, FILES_KEY, FileID.PROTOBUF, File.PROTOBUF, MAX_FILES_HINT));
+        definitions.add(StateDefinition.keyValue(FILES_STATE_ID, FILES_KEY, FileID.PROTOBUF, File.PROTOBUF));
 
         final FilesConfig filesConfig = config.getConfigData(FilesConfig.class);
         final LongPair fileNums = filesConfig.softwareUpdateRange();
@@ -145,11 +143,6 @@ public class V0490FileSchema extends Schema<SemanticVersion> {
         }
 
         return definitions;
-    }
-
-    @Override
-    public void migrate(@NonNull final MigrationContext ctx) {
-        // No-op, genesis system files are created via dispatch during the genesis transaction
     }
 
     // ================================================================================================================
@@ -281,6 +274,22 @@ public class V0490FileSchema extends Schema<SemanticVersion> {
                 config.getConfigData(FilesConfig.class).feeSchedules());
     }
 
+    public void createGenesisSimpleFeesSchedule(@NonNull final SystemContext systemContext) {
+        requireNonNull(systemContext);
+        final var config = systemContext.configuration();
+        final var bootstrapConfig = config.getConfigData(BootstrapConfig.class);
+        final var masterKey =
+                Key.newBuilder().ed25519(bootstrapConfig.genesisPublicKey()).build();
+        systemContext.dispatchCreation(
+                b -> b.fileCreate(FileCreateTransactionBody.newBuilder()
+                                .contents(genesisSimpleFeesSchedules(config))
+                                .keys(KeyList.newBuilder().keys(masterKey))
+                                .expirationTime(maxLifetimeExpiry(systemContext))
+                                .build())
+                        .build(),
+                config.getConfigData(FilesConfig.class).simpleFeesSchedules());
+    }
+
     /**
      * Returns the genesis fee schedules for the given configuration.
      *
@@ -293,6 +302,18 @@ public class V0490FileSchema extends Schema<SemanticVersion> {
             final var feeScheduleJsonBytes = requireNonNull(in).readAllBytes();
             final var feeSchedule = parseFeeSchedules(feeScheduleJsonBytes);
             return CurrentAndNextFeeSchedule.PROTOBUF.toBytes(feeSchedule);
+        } catch (IOException | NullPointerException e) {
+            throw new IllegalArgumentException(
+                    "Fee schedule (" + resourceName + ") " + "could not be found in the class path", e);
+        }
+    }
+
+    public Bytes genesisSimpleFeesSchedules(@NonNull final Configuration config) {
+        final var resourceName = config.getConfigData(BootstrapConfig.class).simpleFeesSchedulesJsonResource();
+        try (final var in = loadResourceInPackage(resourceName)) {
+            final var feeScheduleJsonBytes = requireNonNull(in).readAllBytes();
+            final var feeSchedule = parseSimpleFeesSchedules(feeScheduleJsonBytes);
+            return org.hiero.hapi.support.fees.FeeSchedule.PROTOBUF.toBytes(feeSchedule);
         } catch (IOException | NullPointerException e) {
             throw new IllegalArgumentException(
                     "Fee schedule (" + resourceName + ") " + "could not be found in the class path", e);
@@ -390,6 +411,17 @@ public class V0490FileSchema extends Schema<SemanticVersion> {
         return feeComponents.build();
     }
 
+    public static org.hiero.hapi.support.fees.FeeSchedule parseSimpleFeesSchedules(
+            @NonNull final byte[] feeScheduleJsonBytes) {
+        try {
+            final org.hiero.hapi.support.fees.FeeSchedule feeSchedule =
+                    org.hiero.hapi.support.fees.FeeSchedule.JSON.parse(Bytes.wrap(feeScheduleJsonBytes));
+            return feeSchedule;
+        } catch (final Exception e) {
+            throw new IllegalArgumentException("Unable to parse simple fee schedule file", e);
+        }
+    }
+
     // ================================================================================================================
     // Creates and loads the initial Exchange Rate into state
 
@@ -400,7 +432,7 @@ public class V0490FileSchema extends Schema<SemanticVersion> {
                 .build();
         systemContext.dispatchCreation(
                 b -> b.fileCreate(FileCreateTransactionBody.newBuilder()
-                                .contents(genesisExchangeRates(config))
+                                .contents(genesisExchangeRatesBytes(config))
                                 .keys(KeyList.newBuilder().keys(masterKey))
                                 .expirationTime(maxLifetimeExpiry(systemContext))
                                 .build())
@@ -414,10 +446,18 @@ public class V0490FileSchema extends Schema<SemanticVersion> {
      * @param config the configuration
      * @return the genesis exchange rates
      */
-    public Bytes genesisExchangeRates(@NonNull final Configuration config) {
+    public Bytes genesisExchangeRatesBytes(@NonNull final Configuration config) {
+        return ExchangeRateSet.PROTOBUF.toBytes(genesisMidnightRates(config));
+    }
+
+    /**
+     * Returns the genesis midnight rates for the given configuration.
+     * @param config the configuration
+     * @return the genesis midnight rates
+     */
+    public ExchangeRateSet genesisMidnightRates(@NonNull final Configuration config) {
         final var bootstrapConfig = config.getConfigData(BootstrapConfig.class);
-        // See HfsSystemFilesManager#defaultRates. This does the same thing.
-        final var exchangeRateSet = ExchangeRateSet.newBuilder()
+        return ExchangeRateSet.newBuilder()
                 .currentRate(ExchangeRate.newBuilder()
                         .centEquiv(bootstrapConfig.ratesCurrentCentEquiv())
                         .hbarEquiv(bootstrapConfig.ratesCurrentHbarEquiv())
@@ -429,7 +469,6 @@ public class V0490FileSchema extends Schema<SemanticVersion> {
                         .expirationTime(TimestampSeconds.newBuilder().seconds(bootstrapConfig.ratesNextExpiry()))
                         .build())
                 .build();
-        return ExchangeRateSet.PROTOBUF.toBytes(exchangeRateSet);
     }
 
     // ================================================================================================================

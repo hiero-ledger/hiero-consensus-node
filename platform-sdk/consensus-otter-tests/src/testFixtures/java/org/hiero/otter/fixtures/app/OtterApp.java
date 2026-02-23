@@ -1,47 +1,56 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.app;
 
+import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
+import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
+import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.otter.fixtures.app.OtterStateUtils.commitState;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
+import com.swirlds.state.State;
+import com.swirlds.state.merkle.VirtualMapStateImpl;
+import com.swirlds.state.spi.ReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
+import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.event.Event;
 import org.hiero.consensus.model.hashgraph.Round;
-import org.hiero.consensus.model.roster.AddressBook;
 import org.hiero.consensus.model.transaction.ConsensusTransaction;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.consensus.model.transaction.Transaction;
-import org.hiero.otter.fixtures.app.services.consistency.ConsistencyService;
-import org.hiero.otter.fixtures.app.services.iss.IssService;
 import org.hiero.otter.fixtures.app.services.platform.PlatformStateService;
 import org.hiero.otter.fixtures.app.services.roster.RosterService;
 import org.hiero.otter.fixtures.app.state.OtterStateInitializer;
+import org.hiero.otter.fixtures.network.transactions.OtterTransaction;
 
 /**
  * The main entry point for the Otter application. This class is instantiated by the platform when the application is
  * started. It creates the services that make up the application and routes events and rounds to those services.
  */
-@SuppressWarnings("removal")
-public class OtterApp implements ConsensusStateEventHandler<OtterAppState> {
+public class OtterApp implements ConsensusStateEventHandler {
 
-    private static final Logger log = LogManager.getLogger();
+    public static final String UPGRADE_DETECTED_LOG_PAYLOAD = "OtterAppUpgradeDetectedPayload";
 
-    public static final String APP_NAME = "org.hiero.otter.fixtures.app.OtterApp";
+    private static final Logger log = LogManager.getLogger("OtterApp");
+
+    private static final long BOTTLENECK_STEP_MILLIS = 500L;
+
+    public static final String APP_NAME = "OtterApp";
     public static final String SWIRLD_NAME = "123";
 
     private final SemanticVersion version;
@@ -60,16 +69,32 @@ public class OtterApp implements ConsensusStateEventHandler<OtterAppState> {
     /**
      * Create the app and its services.
      *
+     * @param configuration the configuration to use to create the app and its services
      * @param version the software version to set in the state
      */
-    public OtterApp(@NonNull final SemanticVersion version) {
+    public OtterApp(@NonNull final Configuration configuration, @NonNull final SemanticVersion version) {
         this.version = requireNonNull(version);
 
-        final IssService issService = new IssService();
-        final ConsistencyService consistencyService = new ConsistencyService();
+        final OtterAppConfig appConfig = configuration.getConfigData(OtterAppConfig.class);
+        this.appServices =
+                appConfig.services().stream().map(OtterApp::instantiateService).toList();
+        this.allServices = Stream.concat(
+                        appServices.stream(), Stream.of(new PlatformStateService(), new RosterService()))
+                .toList();
+    }
 
-        this.appServices = List.of(consistencyService, issService);
-        this.allServices = List.of(consistencyService, issService, new PlatformStateService(), new RosterService());
+    @NonNull
+    private static OtterService instantiateService(@NonNull final String className) {
+        try {
+            return (OtterService)
+                    Class.forName(className).getDeclaredConstructor().newInstance();
+        } catch (final ClassNotFoundException
+                | NoSuchMethodException
+                | InstantiationException
+                | IllegalAccessException
+                | InvocationTargetException e) {
+            throw new IllegalStateException("Failed to instantiate service: " + className, e);
+        }
     }
 
     /**
@@ -98,7 +123,7 @@ public class OtterApp implements ConsensusStateEventHandler<OtterAppState> {
     @Override
     public void onPreHandle(
             @NonNull final Event event,
-            @NonNull final OtterAppState state,
+            @NonNull final State state,
             @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> callback) {
         for (final OtterService service : allServices) {
             service.preHandleEvent(event);
@@ -126,7 +151,7 @@ public class OtterApp implements ConsensusStateEventHandler<OtterAppState> {
     @Override
     public void onHandleConsensusRound(
             @NonNull final Round round,
-            @NonNull final OtterAppState state,
+            @NonNull final State state,
             @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> callback) {
         for (final OtterService service : allServices) {
             service.onRoundStart(state.getWritableStates(service.name()), round);
@@ -164,10 +189,10 @@ public class OtterApp implements ConsensusStateEventHandler<OtterAppState> {
         }
 
         for (final OtterService service : allServices) {
-            service.onRoundComplete(round);
+            service.onRoundComplete(state.getWritableStates(service.name()), round);
         }
 
-        state.commitState();
+        commitState((VirtualMapStateImpl) state);
 
         maybeDoBottleneck();
     }
@@ -177,10 +202,13 @@ public class OtterApp implements ConsensusStateEventHandler<OtterAppState> {
      * milliseconds to sleep is zero or negative.
      */
     private void maybeDoBottleneck() {
-        final long millisToSleep = syntheticBottleneckMillis.get();
-        if (millisToSleep > 0) {
+        long millisSleptSoFar = 0L;
+        while (millisSleptSoFar < syntheticBottleneckMillis.get()) {
+            final long millisToSleep = Math.min(BOTTLENECK_STEP_MILLIS, syntheticBottleneckMillis.get());
             try {
+                // We actually want to sleep here to simulate a busy thread.
                 Thread.sleep(millisToSleep);
+                millisSleptSoFar += millisToSleep;
             } catch (final InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
@@ -191,7 +219,7 @@ public class OtterApp implements ConsensusStateEventHandler<OtterAppState> {
      * {@inheritDoc}
      */
     @Override
-    public boolean onSealConsensusRound(@NonNull final Round round, @NonNull final OtterAppState state) {
+    public boolean onSealConsensusRound(@NonNull final Round round, @NonNull final State state) {
         return true;
     }
 
@@ -200,17 +228,35 @@ public class OtterApp implements ConsensusStateEventHandler<OtterAppState> {
      */
     @Override
     public void onStateInitialized(
-            @NonNull final OtterAppState state,
+            @NonNull final State state,
             @NonNull final Platform platform,
             @NonNull final InitTrigger trigger,
             @Nullable final SemanticVersion previousVersion) {
+        if (previousVersion != null) {
+            final int compare = SEMANTIC_VERSION_COMPARATOR.compare(previousVersion, version);
+            if (compare > 0) {
+                log.error(EXCEPTION.getMarker(), "Previous version is greater than current version");
+            } else if (compare < 0) {
+                log.info(
+                        STARTUP.getMarker(),
+                        "[{}] Previous version is older than current version. Executing upgrade.",
+                        UPGRADE_DETECTED_LOG_PAYLOAD);
+            }
+        }
+
         final Configuration configuration = platform.getContext().getConfiguration();
-        if (state.getReadableStates(ConsistencyService.NAME).isEmpty()) {
-            OtterStateInitializer.initOtterAppState(state, version, appServices);
+        if (!appServices.isEmpty()) {
+            final boolean stateNotInitialized = appServices.stream()
+                    .map(OtterService::name)
+                    .map(state::getReadableStates)
+                    .allMatch(ReadableStates::isEmpty);
+            if (stateNotInitialized) {
+                OtterStateInitializer.initOtterAppState((VirtualMapStateImpl) state, appServices);
+            }
         }
 
         for (final OtterService service : allServices) {
-            service.initialize(trigger, platform.getSelfId(), configuration, state);
+            service.initialize(trigger, platform.getSelfId(), configuration, (VirtualMapStateImpl) state);
         }
     }
 
@@ -218,18 +264,7 @@ public class OtterApp implements ConsensusStateEventHandler<OtterAppState> {
      * {@inheritDoc}
      */
     @Override
-    public void onUpdateWeight(
-            @NonNull final OtterAppState state,
-            @NonNull final AddressBook configAddressBook,
-            @NonNull final PlatformContext context) {
-        // No weight update required yet
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void onNewRecoveredState(@NonNull final OtterAppState recoveredState) {
+    public void onNewRecoveredState(@NonNull final State recoveredState) {
         // No new recovered state required yet
     }
 

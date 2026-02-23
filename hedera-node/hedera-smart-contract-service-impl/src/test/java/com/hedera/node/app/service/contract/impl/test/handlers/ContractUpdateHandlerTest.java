@@ -42,15 +42,16 @@ import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.contract.ContractUpdateTransactionBody;
+import com.hedera.hapi.node.hooks.EvmHook;
 import com.hedera.hapi.node.hooks.EvmHookSpec;
 import com.hedera.hapi.node.hooks.HookCreationDetails;
 import com.hedera.hapi.node.hooks.HookExtensionPoint;
-import com.hedera.hapi.node.hooks.LambdaEvmHook;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.Account.Builder;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.contract.impl.handlers.ContractUpdateHandler;
 import com.hedera.node.app.service.contract.impl.records.ContractUpdateStreamBuilder;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.service.token.records.HookDispatchStreamBuilder;
@@ -58,7 +59,6 @@ import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fixtures.workflows.FakePreHandleContext;
-import com.hedera.node.app.spi.ids.EntityIdFactory;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.validation.AttributeValidator;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
@@ -741,7 +741,8 @@ class ContractUpdateHandlerTest extends ContractHandlerTestBase {
         given(context.dispatch(any(DispatchOptions.class))).willReturn(streamBuilder);
         given(streamBuilder.status()).willReturn(SUCCESS);
 
-        final var contractAccount = Account.newBuilder().build();
+        final var contractAccount =
+                Account.newBuilder().accountId(AccountID.DEFAULT).build();
         final var op = ContractUpdateTransactionBody.newBuilder()
                 .adminKey(A_COMPLEX_KEY)
                 .expirationTime(Timestamp.newBuilder().seconds(10))
@@ -823,11 +824,11 @@ class ContractUpdateHandlerTest extends ContractHandlerTestBase {
         final var spec = EvmHookSpec.newBuilder()
                 .contractId(ContractID.newBuilder().contractNum(321).build())
                 .build();
-        final var lambda = LambdaEvmHook.newBuilder().spec(spec).build();
+        final var evmHook = EvmHook.newBuilder().spec(spec).build();
         return HookCreationDetails.newBuilder()
                 .hookId(id)
                 .extensionPoint(HookExtensionPoint.ACCOUNT_ALLOWANCE_HOOK)
-                .lambdaEvmHook(lambda)
+                .evmHook(evmHook)
                 .build();
     }
 }

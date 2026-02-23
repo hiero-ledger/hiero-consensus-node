@@ -3,30 +3,21 @@ package com.swirlds.virtualmap.test.fixtures;
 
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.CONFIGURATION;
 
-import com.hedera.pbj.runtime.io.buffer.BufferedData;
+import com.hedera.pbj.runtime.hashing.WritableMessageDigest;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.merkle.MerkleInternal;
-import com.swirlds.common.merkle.MerkleLeaf;
-import com.swirlds.common.merkle.impl.PartialBinaryMerkleInternal;
-import com.swirlds.common.merkle.impl.PartialMerkleLeaf;
-import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.cache.VirtualNodeCache;
-import java.io.IOException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.List;
-import org.hiero.base.constructable.ClassConstructorPair;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.CryptographyException;
 import org.hiero.base.crypto.CryptographyProvider;
 import org.hiero.base.crypto.Hash;
-import org.hiero.base.io.streams.SerializableDataInputStream;
-import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 
@@ -124,12 +115,6 @@ public class VirtualTestBase {
         registry.registerConstructables("org.hiero");
         registry.registerConstructables("com.swirlds.virtualmap");
         registry.registerConstructables("com.swirlds.virtualmap.test.fixtures");
-        registry.registerConstructable(new ClassConstructorPair(TestInternal.class, TestInternal::new));
-        registry.registerConstructable(new ClassConstructorPair(TestLeaf.class, TestLeaf::new));
-        registry.registerConstructable(new ClassConstructorPair(VirtualMap.class, () -> new VirtualMap(CONFIGURATION)));
-        registry.registerConstructable(new ClassConstructorPair(
-                VirtualNodeCache.class,
-                () -> new VirtualNodeCache(CONFIGURATION.getConfigData(VirtualMapConfig.class))));
     }
 
     @BeforeEach
@@ -282,19 +267,14 @@ public class VirtualTestBase {
     }
 
     protected static Hash hash(VirtualLeafBytes<TestValue> rec) {
-        final byte[] arr = new byte[rec.getSizeInBytesForHashing()];
-        rec.writeToForHashing(BufferedData.wrap(arr));
         try {
             final MessageDigest md = MessageDigest.getInstance(Cryptography.DEFAULT_DIGEST_TYPE.algorithmName());
-            md.update(arr);
-            return new Hash(md.digest(), Cryptography.DEFAULT_DIGEST_TYPE);
+            final WritableMessageDigest wmd = new WritableMessageDigest(md);
+            rec.writeToForHashing(wmd);
+            return new Hash(wmd.digest(), Cryptography.DEFAULT_DIGEST_TYPE);
         } catch (final NoSuchAlgorithmException e) {
             throw new CryptographyException(e);
         }
-    }
-
-    protected VirtualHashRecord hashRecord(VirtualLeafBytes<TestValue> rec) {
-        return new VirtualHashRecord(rec.path(), hash(rec));
     }
 
     private VirtualLeafBytes<TestValue> copyWithPath(VirtualLeafBytes<TestValue> leaf, TestValue value, long path) {
@@ -303,88 +283,5 @@ public class VirtualTestBase {
 
     private VirtualHashRecord copy(VirtualHashRecord rec) {
         return new VirtualHashRecord(rec.path(), rec.hash());
-    }
-
-    public static final class TestInternal extends PartialBinaryMerkleInternal implements MerkleInternal {
-        private String label;
-
-        public TestInternal() {
-            // For serialization
-        }
-
-        public TestInternal(String label) {
-            this.label = label;
-        }
-
-        private TestInternal(TestInternal other) {
-            super(other);
-            this.label = other.label;
-        }
-
-        @Override
-        public long getClassId() {
-            return 1234;
-        }
-
-        @Override
-        public int getVersion() {
-            return 1;
-        }
-
-        @Override
-        public TestInternal copy() {
-            return new TestInternal(this);
-        }
-
-        @Override
-        public String toString() {
-            return "TestInternal{" + "label='" + label + '\'' + '}';
-        }
-    }
-
-    public static final class TestLeaf extends PartialMerkleLeaf implements MerkleLeaf {
-        private String value;
-
-        // For serialization engine
-        public TestLeaf() {}
-
-        public TestLeaf(String value) {
-            this.value = value;
-        }
-
-        private TestLeaf(TestLeaf other) {
-            super(other);
-            this.value = other.value;
-        }
-
-        @Override
-        public long getClassId() {
-            return 2345;
-        }
-
-        @Override
-        public int getVersion() {
-            return 1;
-        }
-
-        @Override
-        public void serialize(SerializableDataOutputStream out) throws IOException {
-            out.writeUTF(value);
-        }
-
-        @Override
-        public void deserialize(SerializableDataInputStream in, int version) throws IOException {
-            this.value = in.readUTF();
-        }
-
-        @Override
-        public TestLeaf copy() {
-            return new TestLeaf(this);
-        }
-
-        @Override
-        public String toString() {
-            return "TestLeaf{" + "value='" + value + '\'' + '}';
-        }
     }
 }

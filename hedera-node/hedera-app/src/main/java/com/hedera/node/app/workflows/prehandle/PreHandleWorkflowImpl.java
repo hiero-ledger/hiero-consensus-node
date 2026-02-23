@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.prehandle;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.STATE_SIGNATURE_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.BATCH_KEY_SET_ON_NON_INNER_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ACCOUNT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
@@ -19,18 +20,17 @@ import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.SignaturePair;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.signature.ExpandedSignaturePair;
 import com.hedera.node.app.signature.SignatureExpander;
 import com.hedera.node.app.signature.SignatureVerificationFuture;
 import com.hedera.node.app.signature.SignatureVerifier;
 import com.hedera.node.app.spi.info.NodeInfo;
+import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.app.state.DeduplicationCache;
-import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.workflows.InnerTransaction;
 import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.TransactionInfo;
@@ -46,7 +46,6 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Consumer;
 import java.util.stream.Stream;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -122,18 +121,15 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
     @Override
     public void preHandle(
             @NonNull final ReadableStoreFactory readableStoreFactory,
-            @NonNull final NodeInfo creatorInfo,
+            @Nullable final NodeInfo creatorInfo,
             @NonNull final Stream<Transaction> transactions,
-            @NonNull final Consumer<StateSignatureTransaction> stateSignatureTxnCallback) {
-
+            @NonNull final ShortCircuitCallback shortCircuitCallback) {
         requireNonNull(readableStoreFactory);
-        requireNonNull(creatorInfo);
         requireNonNull(transactions);
-        requireNonNull(stateSignatureTxnCallback);
+        requireNonNull(shortCircuitCallback);
 
-        // Used for looking up payer account information.
-        final var accountStore = readableStoreFactory.getStore(ReadableAccountStore.class);
-
+        // We always need at least an account store to look for a payer account
+        final var accountStore = readableStoreFactory.readableStore(ReadableAccountStore.class);
         // In parallel, we will pre-handle each transaction.
         transactions.parallel().forEach(tx -> {
             try {
@@ -143,13 +139,13 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
                         accountStore,
                         tx.getApplicationTransaction(),
                         null,
-                        stateSignatureTxnCallback);
+                        shortCircuitCallback);
                 tx.setMetadata(result);
-            } catch (final Exception unexpectedException) {
+            } catch (final Exception e) {
                 // If some random exception happened, then we should not charge the node for it. Instead,
                 // we will just record the exception and try again during handle. Then if we fail again
                 // at handle, then we will throw away the transaction (hopefully, deterministically!)
-                logger.error("Unexpected Exception while running the pre-handle workflow", unexpectedException);
+                logger.error("Unexpected exception while running the pre-handle workflow", e);
                 tx.setMetadata(unknownFailure());
             }
         });
@@ -161,12 +157,12 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
     @Override
     @NonNull
     public PreHandleResult preHandleTransaction(
-            @NonNull final NodeInfo creatorInfo,
+            @Nullable final NodeInfo creatorInfo,
             @NonNull final ReadableStoreFactory storeFactory,
             @NonNull final ReadableAccountStore accountStore,
             @NonNull final Bytes serializedSignedTx,
             @Nullable PreHandleResult previousResult,
-            @NonNull final Consumer<StateSignatureTransaction> stateSignatureTransactionCallback,
+            @NonNull final ShortCircuitCallback shortCircuitCallback,
             @NonNull final InnerTransaction innerTransaction) {
         // 0. Ignore the previous result if it was computed using different node configuration
         if (!wasComputedWithCurrentNodeConfiguration(previousResult)) {
@@ -191,14 +187,18 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
                 // In particular, a null transaction info means we already know the transaction's final failure status
                 return previousResult;
             }
-
-            if (txInfo.functionality() == HederaFunctionality.STATE_SIGNATURE_TRANSACTION) {
-                stateSignatureTransactionCallback.accept(txInfo.txBody().stateSignatureTransaction());
-                return PreHandleResult.stateSignatureTransactionEncountered(txInfo);
+            final var isStateSig = txInfo.functionality() == STATE_SIGNATURE_TRANSACTION;
+            if (creatorInfo == null || isStateSig) {
+                // Although some internal workflows reuse the TransactionInfo with null serialized bytes,
+                // that cannot happen when it originates from a transaction gossiped in an event
+                final var bytes = txInfo.serializedSignedTxOrThrow();
+                if (isStateSig) {
+                    shortCircuitCallback.onShortCircuit(txInfo.txBody().stateSignatureTransaction(), bytes);
+                } else {
+                    shortCircuitCallback.onShortCircuit(null, bytes);
+                }
+                return PreHandleResult.shortCircuitingTransaction(txInfo);
             }
-
-            // But we still re-check for node diligence failures
-            transactionChecker.checkParsed(txInfo);
 
             // The transaction account ID MUST have matched the creator!
             if (innerTransaction == InnerTransaction.NO
@@ -219,6 +219,20 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
                     creatorInfo.accountId(),
                     e.responseCode(),
                     null,
+                    configProvider.getConfiguration().getVersion());
+        }
+
+        try {
+            // But we still re-check for node diligence failures
+            transactionChecker.checkParsed(txInfo);
+
+            // Check the transaction size based on enabled features and functionalities
+            transactionChecker.checkTransactionSize(txInfo);
+        } catch (PreCheckException e) {
+            return nodeDueDiligenceFailure(
+                    creatorInfo.accountId(),
+                    e.responseCode(),
+                    txInfo,
                     configProvider.getConfiguration().getVersion());
         }
 
@@ -250,6 +264,16 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
             return nodeDueDiligenceFailure(
                     creatorInfo.accountId(),
                     PAYER_ACCOUNT_DELETED,
+                    txInfo,
+                    configProvider.getConfiguration().getVersion());
+        }
+
+        try {
+            transactionChecker.checkTransactionSizeLimitBasedOnPayer(txInfo, payer);
+        } catch (PreCheckException e) {
+            return nodeDueDiligenceFailure(
+                    creatorInfo.accountId(),
+                    e.responseCode(),
                     txInfo,
                     configProvider.getConfiguration().getVersion());
         }

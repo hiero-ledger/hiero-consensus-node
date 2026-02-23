@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.fees;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
@@ -44,6 +45,7 @@ class AppFeeChargingTest {
 
     @Test
     void refusesToChargeWithoutValidationResult() {
+        given(ctx.payerId()).willReturn(PAYER_ID);
         final var wrongValidation = mock(FeeCharging.Validation.class);
 
         assertThrows(IllegalArgumentException.class, () -> subject.charge(ctx, wrongValidation, FEES));
@@ -115,5 +117,10 @@ class AppFeeChargingTest {
         subject.refund(ctx, FEES);
 
         verify(ctx).refund(PAYER_ID, FEES, CREATOR_ID);
+    }
+
+    @Test
+    void doesNotBypassForHandlerCharges() {
+        assertFalse(subject.bypassForExtraHandlerCharges());
     }
 }

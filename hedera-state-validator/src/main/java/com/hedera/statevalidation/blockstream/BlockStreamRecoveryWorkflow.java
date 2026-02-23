@@ -1,33 +1,34 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.statevalidation.blockstream;
 
-import static com.hedera.services.bdd.junit.support.validators.block.BlockStreamUtils.*;
 import static com.hedera.statevalidation.ApplyBlocksCommand.DEFAULT_TARGET_ROUND;
-import static com.hedera.statevalidation.blockstream.BlockStreamUtils.mapKeyFor;
-import static com.hedera.statevalidation.blockstream.BlockStreamUtils.mapValueFor;
-import static com.hedera.statevalidation.blockstream.BlockStreamUtils.queuePushFor;
-import static com.hedera.statevalidation.blockstream.BlockStreamUtils.singletonPutFor;
-import static com.hedera.statevalidation.parameterresolver.StateResolver.PLATFORM_CONTEXT;
-import static com.swirlds.platform.state.service.PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.roundOf;
 
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.output.StateChanges;
-import com.hedera.statevalidation.parameterresolver.StateResolver;
+import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
+import com.hedera.node.app.hapi.utils.blocks.BlockStreamUtils;
+import com.hedera.statevalidation.util.PlatformContextHelper;
+import com.hedera.statevalidation.util.StateUtils;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.platform.crypto.CryptoStatic;
-import com.swirlds.platform.state.signed.SignedState;
-import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.platform.state.snapshot.SignedStateFileWriter;
-import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.StateLifecycleManager;
+import com.swirlds.state.merkle.StateLifecycleManagerImpl;
+import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.state.merkle.VirtualMapStateImpl;
 import com.swirlds.state.spi.CommittableWritableStates;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.List;
-import org.hiero.base.constructable.ConstructableRegistryException;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Stream;
+import org.hiero.consensus.crypto.ConsensusCryptoUtils;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.state.signed.SignedState;
 
 /**
  * This workflow applies a set of blocks to a given state and creates a new snapshot once the state
@@ -35,15 +36,16 @@ import org.hiero.consensus.model.node.NodeId;
  */
 public class BlockStreamRecoveryWorkflow {
 
-    private final MerkleNodeState state;
+    private final VirtualMapState state;
     private final long targetRound;
     private final Path outputPath;
     private final String expectedRootHash;
-    private static final long SHARD = 0;
-    private static final long REALM = 0;
 
     public BlockStreamRecoveryWorkflow(
-            MerkleNodeState state, long targetRound, Path outputPath, String expectedRootHash) {
+            @NonNull final VirtualMapState state,
+            long targetRound,
+            @NonNull final Path outputPath,
+            @NonNull final String expectedRootHash) {
         this.state = state;
         this.targetRound = targetRound;
         this.outputPath = outputPath;
@@ -51,33 +53,33 @@ public class BlockStreamRecoveryWorkflow {
     }
 
     public static void applyBlocks(
-            Path blockStreamDirectory, NodeId selfId, long targetRound, Path outputPath, String expectedHash)
+            @NonNull final Path blockStreamDirectory,
+            @NonNull final NodeId selfId,
+            long targetRound,
+            @NonNull final Path outputPath,
+            @NonNull final String expectedHash)
             throws IOException {
-        DeserializedSignedState deserializedSignedState = null;
-        try {
-            deserializedSignedState = StateResolver.initState();
-        } catch (ConstructableRegistryException e) {
-            throw new RuntimeException(e);
-        }
-        MerkleNodeState state =
-                deserializedSignedState.reservedSignedState().get().getState();
-        final var blocks = BlockStreamUtils.readBlocks(blockStreamDirectory, false);
+        final VirtualMapState state = StateUtils.getDefaultState();
+        final var blocks = BlockStreamAccess.readBlocks(blockStreamDirectory, false);
         final BlockStreamRecoveryWorkflow workflow =
                 new BlockStreamRecoveryWorkflow(state, targetRound, outputPath, expectedHash);
-        workflow.applyBlocks(blocks, selfId, PLATFORM_CONTEXT);
+        workflow.applyBlocks(blocks, selfId, PlatformContextHelper.getPlatformContext());
     }
 
-    public void applyBlocks(@NonNull final List<Block> blocks, NodeId selfId, PlatformContext platformContext) {
-        boolean foundStartingRound = false;
-        final long initRound = DEFAULT_PLATFORM_STATE_FACADE.roundOf(state);
+    public void applyBlocks(
+            @NonNull final Stream<Block> blocks,
+            @NonNull final NodeId selfId,
+            @NonNull final PlatformContext platformContext) {
+        AtomicBoolean foundStartingRound = new AtomicBoolean();
+        final long initRound = roundOf(state);
         final long firstRoundToApply = initRound + 1;
-        long currentRound = initRound;
-        outer:
-        for (final Block block : blocks) {
+        AtomicLong currentRound = new AtomicLong(initRound);
+
+        blocks.forEach(block -> {
             for (final BlockItem item : block.items()) {
                 // if the first block item belongs to the round after the first round to apply, we can't proceed
                 // as the block stream is incomplete
-                if (!foundStartingRound
+                if (!foundStartingRound.get()
                         && item.hasRoundHeader()
                         && item.roundHeader().roundNumber() > firstRoundToApply) {
                     throw new RuntimeException(
@@ -88,11 +90,11 @@ public class BlockStreamRecoveryWorkflow {
                                             item.roundHeader().roundNumber()));
                 }
 
-                foundStartingRound |=
-                        item.hasRoundHeader() && item.roundHeader().roundNumber() == firstRoundToApply;
+                foundStartingRound.set(foundStartingRound.get()
+                        || (item.hasRoundHeader() && item.roundHeader().roundNumber() == firstRoundToApply));
 
                 // skip forward to the starting round
-                if (!foundStartingRound) {
+                if (!foundStartingRound.get()) {
                     continue;
                 }
 
@@ -100,13 +102,13 @@ public class BlockStreamRecoveryWorkflow {
                 if (item.hasRoundHeader()) {
                     long itemRound = item.roundHeader().roundNumber();
                     if (itemRound > targetRound) {
-                        break outer;
+                        return;
                     } else {
-                        if (itemRound != currentRound + 1) {
+                        if (itemRound != currentRound.get() + 1) {
                             throw new RuntimeException("Unexpected round number. Expected = %d, actual = %d"
-                                    .formatted(currentRound + 1, itemRound));
+                                    .formatted(currentRound.get() + 1, itemRound));
                         }
-                        currentRound++;
+                        currentRound.incrementAndGet();
                     }
                 }
 
@@ -114,17 +116,17 @@ public class BlockStreamRecoveryWorkflow {
                     applyStateChanges(item.stateChangesOrThrow());
                 }
             }
-        }
+        });
 
-        if (targetRound != DEFAULT_TARGET_ROUND && currentRound != targetRound) {
+        if (targetRound != DEFAULT_TARGET_ROUND && currentRound.get() != targetRound) {
             throw new RuntimeException(
                     "Block stream is incomplete. Expected target round is %d, last applied round is %d"
-                            .formatted(targetRound, currentRound));
+                            .formatted(targetRound, currentRound.get()));
         }
 
         // To make sure that VirtualMapMetadata is persisted after all changes from the block stream were applied
         state.copy();
-        state.getRoot().getHash();
+        state.getHash();
         final var rootHash = requireNonNull(state.getHash()).getBytes();
 
         if (!expectedRootHash.isEmpty() && !expectedRootHash.equals(rootHash.toString())) {
@@ -134,17 +136,21 @@ public class BlockStreamRecoveryWorkflow {
 
         final SignedState signedState = new SignedState(
                 platformContext.getConfiguration(),
-                CryptoStatic::verifySignature,
+                ConsensusCryptoUtils::verifySignature,
                 state,
                 "BlockStreamWorkflow.applyBlocks()",
                 false,
                 false,
-                false,
-                DEFAULT_PLATFORM_STATE_FACADE);
+                false);
 
+        final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager = new StateLifecycleManagerImpl(
+                platformContext.getMetrics(),
+                platformContext.getTime(),
+                vm -> new VirtualMapStateImpl(vm, platformContext.getMetrics()),
+                platformContext.getConfiguration());
         try {
             SignedStateFileWriter.writeSignedStateFilesToDirectory(
-                    platformContext, selfId, outputPath, signedState, DEFAULT_PLATFORM_STATE_FACADE);
+                    platformContext, selfId, outputPath, signedState, stateLifecycleManager);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -159,7 +165,7 @@ public class BlockStreamRecoveryWorkflow {
         for (int i = 0; i < n; i++) {
             final var stateChange = stateChanges.stateChanges().get(i);
 
-            final var stateName = stateNameOf(stateChange.stateId());
+            final var stateName = BlockStreamUtils.stateNameOf(stateChange.stateId());
             final var delimIndex = stateName.indexOf('.');
             if (delimIndex == -1) {
                 throw new RuntimeException("State name '" + stateName + "' is not in the correct format");
@@ -173,22 +179,25 @@ public class BlockStreamRecoveryWorkflow {
                 }
                 case SINGLETON_UPDATE -> {
                     final var singletonState = writableStates.getSingleton(stateChange.stateId());
-                    final var singleton = singletonPutFor(stateChange.singletonUpdateOrThrow());
+                    final var singleton = BlockStreamUtils.singletonPutFor(stateChange.singletonUpdateOrThrow());
                     singletonState.put(singleton);
                 }
                 case MAP_UPDATE -> {
                     final var mapState = writableStates.get(stateChange.stateId());
-                    final var key = mapKeyFor(stateChange.mapUpdateOrThrow().keyOrThrow());
-                    final var value = mapValueFor(stateChange.mapUpdateOrThrow().valueOrThrow());
+                    final var key = BlockStreamUtils.mapKeyFor(
+                            stateChange.mapUpdateOrThrow().keyOrThrow());
+                    final var value = BlockStreamUtils.mapValueFor(
+                            stateChange.mapUpdateOrThrow().valueOrThrow());
                     mapState.put(key, value);
                 }
                 case MAP_DELETE -> {
                     final var mapState = writableStates.get(stateChange.stateId());
-                    mapState.remove(mapKeyFor(stateChange.mapDeleteOrThrow().keyOrThrow()));
+                    mapState.remove(BlockStreamUtils.mapKeyFor(
+                            stateChange.mapDeleteOrThrow().keyOrThrow()));
                 }
                 case QUEUE_PUSH -> {
                     final var queueState = writableStates.getQueue(stateChange.stateId());
-                    queueState.add(queuePushFor(stateChange.queuePushOrThrow()));
+                    queueState.add(BlockStreamUtils.queuePushFor(stateChange.queuePushOrThrow()));
                 }
                 case QUEUE_POP -> {
                     final var queueState = writableStates.getQueue(stateChange.stateId());

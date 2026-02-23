@@ -8,6 +8,7 @@ module com.hedera.node.app.spi.test.fixtures {
     exports com.hedera.node.app.spi.fixtures.workflows;
 
     requires transitive com.hedera.node.app.hapi.utils;
+    requires transitive com.hedera.node.app.service.entityid;
     requires transitive com.hedera.node.app.service.token; // TMP until FakePreHandleContext can be removed
     requires transitive com.hedera.node.app.spi;
     requires transitive com.hedera.node.hapi;
@@ -19,7 +20,6 @@ module com.hedera.node.app.spi.test.fixtures {
     requires transitive org.assertj.core;
     requires transitive org.junit.jupiter.api;
     requires com.hedera.node.app.service.token.impl;
-    requires com.swirlds.platform.core;
     requires org.hiero.base.utility;
     requires org.hiero.consensus.model;
     requires com.google.common;

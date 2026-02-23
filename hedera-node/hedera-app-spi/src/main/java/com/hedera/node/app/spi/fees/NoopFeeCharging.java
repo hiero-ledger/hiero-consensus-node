@@ -15,8 +15,15 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 /**
  * A fee charging strategy that validates all scenarios and charges no fees.
  */
-public enum NoopFeeCharging implements FeeCharging {
-    NOOP_FEE_CHARGING;
+public class NoopFeeCharging implements FeeCharging {
+    public static final NoopFeeCharging UNIVERSAL_NOOP_FEE_CHARGING = new NoopFeeCharging(false);
+    public static final NoopFeeCharging DISPATCH_ONLY_NOOP_FEE_CHARGING = new NoopFeeCharging(true);
+
+    private final boolean bypassForExtraHandlerCharges;
+
+    public NoopFeeCharging(final boolean bypassForExtraHandlerCharges) {
+        this.bypassForExtraHandlerCharges = bypassForExtraHandlerCharges;
+    }
 
     @Override
     public Validation validate(
@@ -37,7 +44,12 @@ public enum NoopFeeCharging implements FeeCharging {
     }
 
     @Override
-    public Fees charge(@NonNull final Context ctx, @NonNull final Validation validation, @NonNull final Fees fees) {
+    public Fees charge(
+            @NonNull final AccountID payerId,
+            @NonNull final Context ctx,
+            @NonNull final Validation validation,
+            @NonNull final Fees fees) {
+        requireNonNull(payerId);
         requireNonNull(ctx);
         requireNonNull(validation);
         requireNonNull(fees);
@@ -45,10 +57,16 @@ public enum NoopFeeCharging implements FeeCharging {
     }
 
     @Override
-    public void refund(@NonNull final Context ctx, @NonNull final Fees fees) {
+    public void refund(@NonNull final AccountID payerId, @NonNull final Context ctx, @NonNull final Fees fees) {
+        requireNonNull(payerId);
         requireNonNull(ctx);
         requireNonNull(fees);
         // No-op
+    }
+
+    @Override
+    public boolean bypassForExtraHandlerCharges() {
+        return bypassForExtraHandlerCharges;
     }
 
     private record PassedValidation(boolean creatorDidDueDiligence, @Nullable ResponseCodeEnum maybeErrorStatus)

@@ -12,10 +12,6 @@ import com.swirlds.base.units.UnitConstants;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.io.config.FileSystemManagerConfig;
 import com.swirlds.common.io.config.TemporaryFileConfig;
-import com.swirlds.common.metrics.config.MetricsConfig;
-import com.swirlds.common.metrics.platform.DefaultPlatformMetrics;
-import com.swirlds.common.metrics.platform.MetricKeyRegistry;
-import com.swirlds.common.metrics.platform.PlatformMetricsFactoryImpl;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
@@ -55,6 +51,10 @@ import org.hiero.base.constructable.ConstructableIgnored;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.HashBuilder;
+import org.hiero.consensus.metrics.config.MetricsConfig;
+import org.hiero.consensus.metrics.platform.DefaultPlatformMetrics;
+import org.hiero.consensus.metrics.platform.MetricKeyRegistry;
+import org.hiero.consensus.metrics.platform.PlatformMetricsFactoryImpl;
 
 @ConstructableIgnored
 @SuppressWarnings("unused")
@@ -90,7 +90,7 @@ public class MerkleDbTestUtils {
         // run test in background thread
         final ExecutorService executorService = Executors.newSingleThreadExecutor();
         final var future = executorService.submit(callable);
-        future.get(60, TimeUnit.MINUTES);
+        future.get(300, TimeUnit.SECONDS);
         executorService.shutdown();
         // Check we did not leak direct memory now that the thread is shut down so thread locals
         // should be released

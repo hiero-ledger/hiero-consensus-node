@@ -11,7 +11,8 @@ import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.AC
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.BYTECODE_SIDECARS_VARIABLE;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.CONFIG_CONTEXT_VARIABLE;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.HAPI_RECORD_BUILDER_CONTEXT_VARIABLE;
-import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.IS_HOOK_VARIABLE;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.HOOK_OWNER_ADDRESS;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.INVALID_ADDRESS_CONTEXT_VARIABLE;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.OPS_DURATION_COUNTER;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.PENDING_CREATION_BUILDER_CONTEXT_VARIABLE;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.PROPAGATED_CALL_FAILURE_CONTEXT_VARIABLE;
@@ -31,6 +32,7 @@ import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.HashMap;
 import java.util.Map;
 import javax.inject.Inject;
@@ -95,7 +97,7 @@ public class FrameBuilder {
         final var ledgerConfig = config.getConfigData(LedgerConfig.class);
         final var nominalCoinbase = asLongZeroAddress(ledgerConfig.fundingAccount());
         final var contextVariables =
-                contextVariablesFrom(config, opsDurationCounter, context, transaction.isHookDispatch());
+                contextVariablesFrom(config, opsDurationCounter, context, transaction.hookOwnerAddress(worldUpdater));
         final var builder = MessageFrame.builder()
                 .maxStackSize(MAX_STACK_SIZE)
                 .worldUpdater(worldUpdater.updater())
@@ -130,7 +132,7 @@ public class FrameBuilder {
             @NonNull final Configuration config,
             @NonNull final OpsDurationCounter opsDurationCounter,
             @NonNull final HederaEvmContext context,
-            final boolean hookDispatch) {
+            @Nullable final Address hookOwnerAddress) {
         final Map<String, Object> contextEntries = new HashMap<>();
         contextEntries.put(CONFIG_CONTEXT_VARIABLE, config);
         contextEntries.put(TINYBAR_VALUES_CONTEXT_VARIABLE, context.tinybarValues());
@@ -156,9 +158,10 @@ public class FrameBuilder {
                     PENDING_CREATION_BUILDER_CONTEXT_VARIABLE, context.pendingCreationRecordBuilderReference());
         }
         contextEntries.put(OPS_DURATION_COUNTER, opsDurationCounter);
-        if (hookDispatch) {
-            contextEntries.put(IS_HOOK_VARIABLE, true);
+        if (hookOwnerAddress != null) {
+            contextEntries.put(HOOK_OWNER_ADDRESS, hookOwnerAddress);
         }
+        contextEntries.put(INVALID_ADDRESS_CONTEXT_VARIABLE, new InvalidAddressContext());
         return contextEntries;
     }
 

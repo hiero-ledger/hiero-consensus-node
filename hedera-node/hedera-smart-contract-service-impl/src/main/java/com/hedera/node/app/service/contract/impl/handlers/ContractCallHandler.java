@@ -18,6 +18,7 @@ import com.hedera.node.app.service.contract.impl.ContractServiceComponent;
 import com.hedera.node.app.service.contract.impl.exec.TransactionComponent;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
 import com.hedera.node.app.service.contract.impl.utils.ConstantUtils;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -47,8 +48,9 @@ public class ContractCallHandler extends AbstractContractTransactionHandler {
     public ContractCallHandler(
             @NonNull final Provider<TransactionComponent.Factory> provider,
             @NonNull final GasCalculator gasCalculator,
+            @NonNull final EntityIdFactory entityIdFactory,
             @NonNull final ContractServiceComponent component) {
-        super(provider, gasCalculator, component);
+        super(provider, gasCalculator, entityIdFactory, component);
     }
 
     @Override
@@ -61,7 +63,7 @@ public class ContractCallHandler extends AbstractContractTransactionHandler {
 
         // Assemble the appropriate top-level record for the result
         final var streamBuilder = context.savepointStack().getBaseBuilder(ContractCallStreamBuilder.class);
-        outcome.addCallDetailsTo(streamBuilder, context);
+        outcome.addCallDetailsTo(streamBuilder, context, entityIdFactory);
 
         throwIfUnsuccessfulCall(outcome, component.hederaOperations(), streamBuilder);
     }
@@ -81,15 +83,13 @@ public class ContractCallHandler extends AbstractContractTransactionHandler {
             if (op.contractID().hasEvmAddress()) {
                 final var evmAddress = op.contractID().evmAddressOrThrow();
                 validateTruePreCheck(evmAddress.length() == EVM_ADDRESS_LENGTH_AS_INT, INVALID_CONTRACT_ID);
-                // In the EVM, call to zero address means contract deploy and we are not supporting contract deploy from
-                // contract call
+                // call to zero address make no sense, and we are not supporting it
                 validateFalsePreCheck(
                         Arrays.equals(ConstantUtils.ZERO_ADDRESS_BYTE_ARRAY, evmAddress.toByteArray()),
                         INVALID_CONTRACT_ID);
             } else if (op.contractID().hasContractNum()) {
                 final var contractId = op.contractID();
-                // In the EVM, call to zero address means contract deploy and we are not supporting contract deploy from
-                // contract call
+                // call to zero address make no sense, and we are not supporting it
                 validateFalsePreCheck(ConstantUtils.ZERO_CONTRACT_ID.equals(contractId), INVALID_CONTRACT_ID);
             }
 
