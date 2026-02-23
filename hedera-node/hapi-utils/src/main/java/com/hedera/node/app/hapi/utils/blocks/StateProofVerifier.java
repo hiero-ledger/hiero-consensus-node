@@ -70,6 +70,7 @@ public final class StateProofVerifier {
      * @throws NullPointerException if stateProof is null
      * @throws IllegalStateException if the proof structure is invalid
      */
+    @Deprecated
     public static boolean verify(@NonNull final StateProof stateProof) {
         requireNonNull(stateProof, "stateProof must not be null");
 
@@ -82,6 +83,27 @@ public final class StateProofVerifier {
 
         // Verify TSS signature (Phase 1: mock verification)
         return verifyTssSignature(rootHash, stateProof);
+    }
+
+    /**
+     * Verifies a complete {@link StateProof} using the provided {@link TssSignatureVerifier}.
+     *
+     * <p>The process is identical to {@link #verify(StateProof)}, except that the TSS signature
+     * is validated by the caller-supplied {@code tssVerifier} rather than the Phase-1 mock.
+     * This is the intended entry point for production code (e.g. CLPR cross-ledger verification).
+     *
+     * @param stateProof  the state proof to verify
+     * @param tssVerifier the verifier that will validate the TSS signature over the block hash
+     * @return true if the state proof is valid, false otherwise
+     * @throws NullPointerException if either argument is null
+     */
+    public static boolean verify(
+            @NonNull final StateProof stateProof, @NonNull final TssSignatureVerifier tssVerifier) {
+        requireNonNull(stateProof, "stateProof must not be null");
+        requireNonNull(tssVerifier, "tssVerifier must not be null");
+
+        final byte[] rootHash = computeRootHash(stateProof.paths());
+        return verifyTssSignature(rootHash, stateProof, tssVerifier);
     }
 
     /**
@@ -324,18 +346,58 @@ public final class StateProofVerifier {
     }
 
     /**
+     * Verifies the TSS signature over the computed root hash using the provided {@link TssSignatureVerifier}.
+     *
+     * <p>Extracts the signature from the {@code signedBlockProof} and delegates to {@code tssVerifier}.
+     *
+     * @param rootHash    the computed root hash from the merkle paths (this is the signed block hash)
+     * @param stateProof  the state proof containing the TSS signature
+     * @param tssVerifier the verifier to use for signature validation
+     * @return true if the signature is valid according to {@code tssVerifier}
+     */
+    private static boolean verifyTssSignature(
+            @NonNull final byte[] rootHash,
+            @NonNull final StateProof stateProof,
+            @NonNull final TssSignatureVerifier tssVerifier) {
+        if (!stateProof.hasSignedBlockProof()) {
+            log.warn("TSS verification: no signedBlockProof present");
+            return false;
+        }
+
+        final Bytes signatureBytes = stateProof.signedBlockProof().blockSignature();
+        if (signatureBytes == null) {
+            log.warn("TSS verification: blockSignature is null");
+            return false;
+        }
+
+        if (log.isDebugEnabled()) {
+            logStateProof(stateProof);
+        }
+
+        final Bytes rootHashBytes = Bytes.wrap(rootHash);
+        final boolean result = tssVerifier.verify(rootHashBytes, signatureBytes);
+        if (!result) {
+            log.warn(
+                    "TSS verification failed: rootHash={} (len={}), signature len={}",
+                    bytesToHex(rootHash),
+                    rootHash.length,
+                    signatureBytes.length());
+        }
+        return result;
+    }
+
+    /**
      * Verifies the TSS signature over the computed root hash.
      *
      * <p><b>Phase 1 (Current):</b> Mock verification that compares the signature bytes
      * directly with the root hash. This is a placeholder for testing purposes.
-     *
-     * <p><b>Phase 2 (Future):</b> Will implement real TSS signature verification using
-     * cryptographic libraries and ledger ID validation.
+     * Production code should use {@link #verify(StateProof, TssSignatureVerifier)} instead.
      *
      * @param rootHash the computed root hash from the merkle paths
      * @param stateProof the state proof containing the TSS signature
      * @return true if the signature is valid (Phase 1: if bytes match), false otherwise
      */
+    @Deprecated
     private static boolean verifyTssSignature(@NonNull final byte[] rootHash, @NonNull final StateProof stateProof) {
         if (!stateProof.hasSignedBlockProof()) {
             return false;
@@ -351,7 +413,6 @@ public final class StateProofVerifier {
         }
 
         // Phase 1: Mock verification - just compare bytes
-        // Phase 2 TODO: Implement real TSS signature verification
         return Arrays.equals(rootHash, signatureBytes.toByteArray());
     }
 

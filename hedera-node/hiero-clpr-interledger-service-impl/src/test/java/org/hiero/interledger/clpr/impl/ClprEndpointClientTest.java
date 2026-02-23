@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.interledger.clpr.impl;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import com.hedera.hapi.block.stream.StateProof;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.ServiceEndpoint;
@@ -135,8 +137,11 @@ class ClprEndpointClientTest extends ClprTestBase {
                 .timestamp(Timestamp.newBuilder().seconds(20).nanos(0).build())
                 .build();
         when(stateProofManager.getLocalLedgerId()).thenReturn(localClprLedgerId);
+        when(stateProofManager.readLedgerConfiguration(localClprLedgerId)).thenReturn(localConfig);
         final var localProof = buildLocalClprStateProofWrapper(localConfig);
         when(stateProofManager.getLedgerConfiguration(localClprLedgerId)).thenReturn(localProof);
+        when(stateProofManager.verifyProof(any(StateProof.class), any(Bytes.class)))
+                .thenReturn(true);
         when(stateProofManager.readAllLedgerConfigurations())
                 .thenReturn(java.util.Map.of(localClprLedgerId, localConfig, remoteClprLedgerId, remoteStored));
         when(connectionManager.createClient(remoteEndpoint)).thenReturn(remoteClient);
@@ -171,8 +176,11 @@ class ClprEndpointClientTest extends ClprTestBase {
                 .timestamp(Timestamp.newBuilder().seconds(20).nanos(0).build())
                 .build();
         when(stateProofManager.getLocalLedgerId()).thenReturn(localClprLedgerId);
+        when(stateProofManager.readLedgerConfiguration(localClprLedgerId)).thenReturn(localConfig);
         final var localProof = buildLocalClprStateProofWrapper(localConfig);
         when(stateProofManager.getLedgerConfiguration(localClprLedgerId)).thenReturn(localProof);
+        when(stateProofManager.verifyProof(any(StateProof.class), any(Bytes.class)))
+                .thenReturn(true);
         when(stateProofManager.readAllLedgerConfigurations())
                 .thenReturn(java.util.Map.of(localClprLedgerId, localConfig, remoteClprLedgerId, remoteStored));
         when(connectionManager.createClient(remoteEndpoint)).thenReturn(remoteClient);

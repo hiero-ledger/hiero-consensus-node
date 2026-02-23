@@ -12,6 +12,7 @@ import com.hedera.node.app.hapi.utils.blocks.HashUtils;
 import com.hedera.node.app.hapi.utils.blocks.MerklePathBuilder;
 import com.hedera.node.app.hapi.utils.blocks.StateProofBuilder;
 import com.hedera.node.app.hapi.utils.blocks.StateProofVerifier;
+import com.hedera.node.app.hapi.utils.blocks.TssSignatureVerifierFactory;
 import com.hedera.node.app.spi.state.BlockProvenSnapshot;
 import com.hedera.node.app.spi.state.BlockProvenSnapshotProvider;
 import com.hedera.pbj.runtime.ParseException;
@@ -31,6 +32,8 @@ import java.util.Objects;
 import java.util.Optional;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.hiero.hapi.interledger.clpr.ClprSetLedgerConfigurationTransactionBody;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerId;
@@ -45,22 +48,25 @@ import org.hiero.interledger.clpr.impl.schemas.V0700ClprSchema;
  * demand without holding onto stale references. The provider is implemented by the application layer, keeping this
  * implementation free of direct application-module dependencies.</p>
  *
- * <p><b>Dev Mode Only:</b> All methods in this class require {@code devModeEnabled} to be {@code true}.
- * When dev mode is disabled, methods return {@code null} or throw {@link UnsupportedOperationException}
- * as production mode is not yet implemented.</p>
+ * <p>All public methods work in both dev and production modes. State proof building and
+ * validation use the injected {@link TssSignatureVerifierFactory} for TSS signature verification.</p>
  */
 @Singleton
 public class ClprStateProofManager {
+    private static final Logger log = LogManager.getLogger(ClprStateProofManager.class);
 
     private final BlockProvenSnapshotProvider snapshotProvider;
     private final com.hedera.node.config.data.ClprConfig clprConfig;
+    private final TssSignatureVerifierFactory tssVerifierFactory;
 
     @Inject
     public ClprStateProofManager(
             @NonNull final BlockProvenSnapshotProvider snapshotProvider,
-            @NonNull final com.hedera.node.config.data.ClprConfig clprConfig) {
+            @NonNull final com.hedera.node.config.data.ClprConfig clprConfig,
+            @NonNull final TssSignatureVerifierFactory tssVerifierFactory) {
         this.snapshotProvider = requireNonNull(snapshotProvider);
         this.clprConfig = requireNonNull(clprConfig);
+        this.tssVerifierFactory = requireNonNull(tssVerifierFactory);
     }
 
     /**
@@ -75,28 +81,23 @@ public class ClprStateProofManager {
     /**
      * Returns the most recent local ledger id, or {@code null} if it is not yet known.
      *
-     * <p><b>Dev Mode Behavior:</b> Returns the ledger ID from the first configuration found in state.
-     * If no configuration exists yet an empty {@link ClprLedgerId} is returned so callers can treat the
-     * value as “still bootstrapping”. In production this should be replaced with a history-service lookup.</p>
+     * <p>The authoritative ledgerId (genesis address book hash) is written to
+     * {@link ClprLocalLedgerMetadata} by the HandleWorkflow bridge after the history service
+     * completes its genesis proof. Until that bridge fires, this method returns {@code null}
+     * to signal that the node is still bootstrapping.</p>
      *
-     * @return the local ledger ID, {@code null} when dev mode is disabled, or an empty id while bootstrapping
+     * @return the local ledger ID, or {@code null} when not yet available
      */
     @Nullable
     public ClprLedgerId getLocalLedgerId() {
-        if (!clprConfig.devModeEnabled()) {
-            return null;
-        }
         final var snapshot = latestSnapshot().orElse(null);
         if (snapshot == null) {
-            return emptyLedgerId();
+            return null;
         }
         final var state = snapshot.state();
         final var readableStates = state.getReadableStates(ClprService.NAME);
         if (!readableStates.contains(V0700ClprSchema.CLPR_LEDGER_METADATA_STATE_ID)) {
-            // TODO: Remove this throw once production bootstrapping (HistoryService-provided ledgerId + metadata init)
-            // is fully wired; at that point the metadata state should be provisioned by bootstrap flows instead of
-            // enforced here.
-            throw new IllegalStateException("State is not configured for CLPR");
+            return null;
         }
         final ReadableSingletonState<ClprLocalLedgerMetadata> metadataState =
                 readableStates.getSingleton(V0700ClprSchema.CLPR_LEDGER_METADATA_STATE_ID);
@@ -106,7 +107,7 @@ public class ClprStateProofManager {
                 && metadata.ledgerId().ledgerId() != Bytes.EMPTY) {
             return metadata.ledgerId();
         }
-        return emptyLedgerId();
+        return null;
     }
 
     /**
@@ -117,10 +118,14 @@ public class ClprStateProofManager {
     public Map<ClprLedgerId, ClprLedgerConfiguration> readAllLedgerConfigurations() {
         final var snapshot = latestSnapshot().orElse(null);
         if (snapshot == null) {
+            log.warn("readAllLedgerConfigurations: no snapshot available");
             return Map.of();
         }
         final var state = snapshot.state();
         if (!(state instanceof VirtualMapState virtualMapState)) {
+            log.warn(
+                    "readAllLedgerConfigurations: state is not VirtualMapState, type={}",
+                    state.getClass().getName());
             return Map.of();
         }
         final var readableStates = state.getReadableStates(ClprService.NAME);
@@ -149,30 +154,19 @@ public class ClprStateProofManager {
         return configs;
     }
 
-    @Deprecated
-    private ClprLedgerId emptyLedgerId() {
-        if (!clprConfig.devModeEnabled()) {
-            throw new IllegalStateException("Can only return empty ledger ids in dev mode");
-        }
-        return ClprLedgerId.newBuilder().build();
-    }
-
     /**
      * Returns a state proof for the requested ledger configuration, or {@code null} if none exists.
      *
-     * <p><b>Dev Mode Behavior:</b> Builds a state proof from the actual Merkle tree containing the configuration.
-     * The state root hash is used as the TSS signature. In production mode, this should return a TSS-backed
-     * proof from the history service.</p>
+     * <p>Builds a state proof from the Merkle tree and signs it with the TSS signature from
+     * the latest block-proven snapshot. The proof can be independently verified by any party
+     * using {@link #validateStateProof} or {@link #verifyProof}.</p>
      *
      * @param ledgerId the ledger ID to query
-     * @return state proof containing the configuration, or {@code null} if not in dev mode or configuration not found
+     * @return state proof containing the configuration, or {@code null} if state is unavailable or config not found
      */
     @Nullable
     public StateProof getLedgerConfiguration(@NonNull final ClprLedgerId ledgerId) {
         requireNonNull(ledgerId);
-        if (!clprConfig.devModeEnabled()) {
-            return null;
-        }
         ClprLedgerId resolvedLedgerId = ledgerId;
         if (ledgerId.ledgerId() == Bytes.EMPTY) {
             final var localLedgerId = getLocalLedgerId();
@@ -235,16 +229,25 @@ public class ClprStateProofManager {
         requireNonNull(ledgerId);
         final var snapshot = latestSnapshot().orElse(null);
         if (snapshot == null) {
+            log.warn("readLedgerConfiguration: no snapshot for key={}", ledgerId);
             return null;
         }
         final var state = snapshot.state();
         final var readableStates = state.getReadableStates(ClprService.NAME);
         if (!readableStates.contains(V0700ClprSchema.CLPR_LEDGER_CONFIGURATIONS_STATE_ID)) {
+            log.warn("readLedgerConfiguration: state does not contain config state ID");
             return null;
         }
         final ReadableKVState<ClprLedgerId, ClprLedgerConfiguration> configsState =
                 readableStates.get(V0700ClprSchema.CLPR_LEDGER_CONFIGURATIONS_STATE_ID);
-        return configsState.get(ledgerId);
+        final var result = configsState.get(ledgerId);
+        log.warn(
+                "readLedgerConfiguration: key={} keyBytes={} found={} stateType={}",
+                ledgerId,
+                ledgerId.ledgerId(),
+                result != null,
+                state.getClass().getName());
+        return result;
     }
 
     @NonNull
@@ -312,25 +315,60 @@ public class ClprStateProofManager {
     /**
      * Validates the state proof embedded in the supplied transaction.
      *
-     * <p><b>Dev Mode Behavior:</b> Validates proof structure and root hash signature matching.
-     * In production mode, validation is not yet implemented.</p>
+     * <p>Extracts the remote ledger's self-asserted {@code ledgerId} from the configuration
+     * inside the proof, then verifies the TSS signature against that ledger identity.
+     * This is cryptographically safe: if the remote lies about its ledgerId, the SNARK
+     * proof anchored to the real genesis address book hash will not validate.</p>
      *
      * @param configTxn the transaction containing the state proof
      * @return {@code true} if the proof is structurally sound and its signature matches the computed root hash
-     * @throws UnsupportedOperationException if dev mode is not enabled
      */
     public boolean validateStateProof(@NonNull final ClprSetLedgerConfigurationTransactionBody configTxn) {
         requireNonNull(configTxn);
-        if (!clprConfig.devModeEnabled()) {
-            throw new UnsupportedOperationException("State proof validation not available in production mode");
-        }
         if (!configTxn.hasLedgerConfigurationProof()) {
             return false;
         }
         try {
-            // verify the state proof structure and signature
-            return StateProofVerifier.verify(configTxn.ledgerConfigurationProofOrThrow());
+            final var proof = configTxn.ledgerConfigurationProofOrThrow();
+            // Extract the remote ledger's self-asserted ledgerId from the config inside the proof.
+            // This is cryptographically safe: TSS.verifyTSS with a SNARK proof will fail if
+            // the ledgerId doesn't match the genesis embedded in the chain-of-trust proof.
+            final var config = org.hiero.interledger.clpr.ClprStateProofUtils.extractConfiguration(proof);
+            final var ledgerId = config.ledgerIdOrThrow().ledgerId();
+            final var verifier = tssVerifierFactory.forLedger(ledgerId);
+            return StateProofVerifier.verify(proof, verifier);
         } catch (final Exception e) {
+            return false;
+        }
+    }
+
+    /**
+     * Verifies a state proof against the given ledger identity using the TSS verifier factory.
+     *
+     * <p>This is the general-purpose verification entry point for callers that already have the
+     * {@code ledgerId} and state proof. Both local and remote proofs can be verified this way.
+     *
+     * @param proof    the state proof to verify
+     * @param ledgerId the ledger identity (genesis address book hash) to verify against
+     * @return {@code true} if the proof's TSS signature is valid for the given ledger
+     */
+    public boolean verifyProof(@NonNull final StateProof proof, @NonNull final Bytes ledgerId) {
+        requireNonNull(proof);
+        requireNonNull(ledgerId);
+        try {
+            final var verifier = tssVerifierFactory.forLedger(ledgerId);
+            final boolean result = StateProofVerifier.verify(proof, verifier);
+            if (!result) {
+                log.warn(
+                        "State proof TSS verification returned false for ledger {}; "
+                                + "proof has {} paths, signedBlockProof present={}",
+                        ledgerId,
+                        proof.paths().size(),
+                        proof.hasSignedBlockProof());
+            }
+            return result;
+        } catch (final Exception e) {
+            log.error("State proof verification threw exception for ledger {}", ledgerId, e);
             return false;
         }
     }

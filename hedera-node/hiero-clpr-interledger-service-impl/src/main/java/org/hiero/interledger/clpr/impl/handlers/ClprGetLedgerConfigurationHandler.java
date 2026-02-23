@@ -76,8 +76,10 @@ public class ClprGetLedgerConfigurationHandler extends FreeQueryHandler {
             throw new PreCheckException(CLPR_LEDGER_CONFIGURATION_NOT_AVAILABLE);
         }
         try {
-            // TODO: Are either or both of these necessary?
-            ClprStateProofUtils.validateStateProof(stateProof);
+            // Verify the proof's TSS signature against the queried ledger's identity
+            if (!stateProofManager.verifyProof(stateProof, queryLedgerId.ledgerId())) {
+                throw new PreCheckException(CLPR_INVALID_STATE_PROOF);
+            }
             ClprStateProofUtils.extractConfiguration(stateProof);
         } catch (final IllegalArgumentException | IllegalStateException e) {
             throw new PreCheckException(CLPR_INVALID_STATE_PROOF);

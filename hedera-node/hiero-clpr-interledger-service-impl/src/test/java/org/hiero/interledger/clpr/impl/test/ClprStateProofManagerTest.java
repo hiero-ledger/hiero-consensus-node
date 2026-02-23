@@ -83,7 +83,7 @@ class ClprStateProofManagerTest extends ClprTestBase {
 
         // Create dev mode config for testing
         devModeConfig = new ClprConfig(true, 5000, true, true);
-        manager = new ClprStateProofManager(snapshotProvider, devModeConfig);
+        manager = new ClprStateProofManager(snapshotProvider, devModeConfig, MOCK_TSS_FACTORY);
     }
 
     private com.swirlds.state.lifecycle.StateMetadata<ClprLedgerId, ClprLedgerConfiguration>
@@ -114,17 +114,33 @@ class ClprStateProofManagerTest extends ClprTestBase {
     }
 
     @Test
-    void getLocalLedgerIdReturnsEmptyWhenLedgerIdMissing() {
+    void getLocalLedgerIdReturnsNullWhenLedgerIdMissing() {
         final var emptyState = buildMerkleStateWithConfigurations(java.util.Map.of());
         final var emptyLifecycleManager = mock(StateLifecycleManager.class);
         when(emptyLifecycleManager.getLatestImmutableState()).thenReturn(emptyState);
         final var emptyAccessor = new BlockProvenStateAccessor(emptyLifecycleManager);
         emptyAccessor.registerBlockMetadata(
                 HASH_OF_ZERO, HASH_OF_ZERO, TSS_SIGNATURE, BLOCK_TIMESTAMP, STATE_SUBROOT_MERKLE_PATH);
-        final var managerWithMissingLedgerId = new ClprStateProofManager(emptyAccessor, devModeConfig);
-        final var ledgerId = managerWithMissingLedgerId.getLocalLedgerId();
+        final var managerWithMissingLedgerId =
+                new ClprStateProofManager(emptyAccessor, devModeConfig, MOCK_TSS_FACTORY);
+        assertNull(managerWithMissingLedgerId.getLocalLedgerId());
+    }
+
+    @Test
+    void getLocalLedgerIdWorksInProductionMode() {
+        final var prodConfig = new ClprConfig(true, devModeConfig.connectionFrequency(), true, false);
+        final var prodManager = new ClprStateProofManager(snapshotProvider, prodConfig, MOCK_TSS_FACTORY);
+        final var ledgerId = prodManager.getLocalLedgerId();
         assertNotNull(ledgerId);
-        assertEquals(ClprLedgerId.DEFAULT, ledgerId);
+        assertEquals(Bytes.wrap(rawLocalLedgerId), ledgerId.ledgerId());
+    }
+
+    @Test
+    void getLocalLedgerIdReturnsNullInProductionModeWhenSnapshotUnavailable() {
+        final var prodConfig = new ClprConfig(true, devModeConfig.connectionFrequency(), true, false);
+        final BlockProvenSnapshotProvider emptyProvider = Optional::empty;
+        final var prodManager = new ClprStateProofManager(emptyProvider, prodConfig, MOCK_TSS_FACTORY);
+        assertNull(prodManager.getLocalLedgerId());
     }
 
     @Test
@@ -166,7 +182,7 @@ class ClprStateProofManagerTest extends ClprTestBase {
                 buildMerkleStateWithConfigurations(java.util.Map.of(remoteClprLedgerId, remoteClprConfig), metadata);
         final var lifecycleManager = mock(StateLifecycleManager.class);
         when(lifecycleManager.getLatestImmutableState()).thenReturn(state);
-        final var managerWithMetadata = new ClprStateProofManager(snapshotProvider, devModeConfig);
+        final var managerWithMetadata = new ClprStateProofManager(snapshotProvider, devModeConfig, MOCK_TSS_FACTORY);
 
         final var ledgerId = managerWithMetadata.getLocalLedgerId();
         assertNotNull(ledgerId);
@@ -191,7 +207,7 @@ class ClprStateProofManagerTest extends ClprTestBase {
     @Test
     void getLedgerConfigurationReturnsNullWhenStateUnavailable() {
         final BlockProvenSnapshotProvider emptyProvider = Optional::empty;
-        final var emptyManager = new ClprStateProofManager(emptyProvider, devModeConfig);
+        final var emptyManager = new ClprStateProofManager(emptyProvider, devModeConfig, MOCK_TSS_FACTORY);
         assertNull(emptyManager.getLedgerConfiguration(remoteClprLedgerId));
     }
 
@@ -206,7 +222,7 @@ class ClprStateProofManagerTest extends ClprTestBase {
     void isDevModeEnabledReflectsConfig() {
         assertTrue(manager.isDevModeEnabled());
         final var prodConfig = new ClprConfig(true, devModeConfig.connectionFrequency(), true, false);
-        final var prodManager = new ClprStateProofManager(snapshotProvider, prodConfig);
+        final var prodManager = new ClprStateProofManager(snapshotProvider, prodConfig, MOCK_TSS_FACTORY);
         assertFalse(prodManager.isDevModeEnabled());
     }
 
@@ -232,22 +248,22 @@ class ClprStateProofManagerTest extends ClprTestBase {
     }
 
     @Test
-    void getLedgerConfigurationReturnsNullWhenDevModeDisabled() {
+    void getLedgerConfigurationWorksWhenDevModeDisabled() {
         final var prodConfig = new ClprConfig(true, devModeConfig.connectionFrequency(), true, false);
-        final var prodManager = new ClprStateProofManager(snapshotProvider, prodConfig);
-        assertNull(prodManager.getLedgerConfiguration(remoteClprLedgerId));
+        final var prodManager = new ClprStateProofManager(snapshotProvider, prodConfig, MOCK_TSS_FACTORY);
+        final var proof = prodManager.getLedgerConfiguration(remoteClprLedgerId);
+        assertNotNull(proof);
+        assertEquals(remoteClprConfig, ClprStateProofUtils.extractConfiguration(proof));
     }
 
     @Test
-    void validateStateProofThrowsWhenDevModeDisabled() {
+    void validateStateProofWorksWhenDevModeDisabled() {
         final var prodConfig = new ClprConfig(true, devModeConfig.connectionFrequency(), true, false);
-        final var prodManager = new ClprStateProofManager(snapshotProvider, prodConfig);
+        final var prodManager = new ClprStateProofManager(snapshotProvider, prodConfig, MOCK_TSS_FACTORY);
         final var stateProof = buildLocalClprStateProofWrapper(remoteClprConfig);
         final var txn = validTransaction(stateProof);
 
-        Assertions.assertThatThrownBy(() -> prodManager.validateStateProof(txn))
-                .isInstanceOf(UnsupportedOperationException.class)
-                .hasMessageContaining("production mode");
+        assertTrue(prodManager.validateStateProof(txn));
     }
 
     @Test
@@ -264,7 +280,7 @@ class ClprStateProofManagerTest extends ClprTestBase {
     @Test
     void readAllLedgerConfigurationsReturnsEmptyWhenSnapshotUnavailable() {
         final BlockProvenSnapshotProvider emptyProvider = Optional::empty;
-        final var emptyManager = new ClprStateProofManager(emptyProvider, devModeConfig);
+        final var emptyManager = new ClprStateProofManager(emptyProvider, devModeConfig, MOCK_TSS_FACTORY);
         final var configs = emptyManager.readAllLedgerConfigurations();
         assertNotNull(configs);
         assertTrue(configs.isEmpty());
@@ -278,7 +294,7 @@ class ClprStateProofManagerTest extends ClprTestBase {
         final var emptyAccessor = new BlockProvenStateAccessor(emptyLifecycleManager);
         emptyAccessor.registerBlockMetadata(
                 HASH_OF_ZERO, HASH_OF_ZERO, TSS_SIGNATURE, BLOCK_TIMESTAMP, STATE_SUBROOT_MERKLE_PATH);
-        final var managerWithoutState = new ClprStateProofManager(emptyAccessor, devModeConfig);
+        final var managerWithoutState = new ClprStateProofManager(emptyAccessor, devModeConfig, MOCK_TSS_FACTORY);
 
         final var configs = managerWithoutState.readAllLedgerConfigurations();
         assertNotNull(configs);
@@ -295,7 +311,7 @@ class ClprStateProofManagerTest extends ClprTestBase {
     @Test
     void readLedgerConfigurationReturnsNullWhenSnapshotUnavailable() {
         final BlockProvenSnapshotProvider emptyProvider = Optional::empty;
-        final var emptyManager = new ClprStateProofManager(emptyProvider, devModeConfig);
+        final var emptyManager = new ClprStateProofManager(emptyProvider, devModeConfig, MOCK_TSS_FACTORY);
         assertNull(emptyManager.readLedgerConfiguration(remoteClprLedgerId));
     }
 
@@ -307,7 +323,7 @@ class ClprStateProofManagerTest extends ClprTestBase {
         final var emptyAccessor = new BlockProvenStateAccessor(emptyLifecycleManager);
         emptyAccessor.registerBlockMetadata(
                 HASH_OF_ZERO, HASH_OF_ZERO, TSS_SIGNATURE, BLOCK_TIMESTAMP, STATE_SUBROOT_MERKLE_PATH);
-        final var managerWithoutState = new ClprStateProofManager(emptyAccessor, devModeConfig);
+        final var managerWithoutState = new ClprStateProofManager(emptyAccessor, devModeConfig, MOCK_TSS_FACTORY);
 
         assertNull(managerWithoutState.readLedgerConfiguration(remoteClprLedgerId));
     }
@@ -324,7 +340,7 @@ class ClprStateProofManagerTest extends ClprTestBase {
     void clprEnabledReflectsConfig() {
         assertTrue(manager.clprEnabled());
         final var disabledConfig = new ClprConfig(false, devModeConfig.connectionFrequency(), true, true);
-        final var disabledManager = new ClprStateProofManager(snapshotProvider, disabledConfig);
+        final var disabledManager = new ClprStateProofManager(snapshotProvider, disabledConfig, MOCK_TSS_FACTORY);
         assertFalse(disabledManager.clprEnabled());
     }
 

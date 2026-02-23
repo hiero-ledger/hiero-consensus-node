@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.interledger.clpr.impl;
 
+import com.hedera.node.app.hapi.utils.blocks.TssSignatureVerifierFactory;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.state.BlockProvenSnapshotProvider;
 import com.hedera.node.config.ConfigProvider;
@@ -33,14 +34,16 @@ public interface ClprModule {
      *
      * @param snapshotProvider supplies the latest block-proven snapshot (provided by hedera-app's accessor)
      * @param clprConfig CLPR configuration for dev mode gating
+     * @param tssVerifierFactory factory for creating TSS signature verifiers per-ledger
      * @return configured ClprStateProofManager instance
      */
     @Provides
     @Singleton
     static ClprStateProofManager provideClprStateProofManager(
             @NonNull final BlockProvenSnapshotProvider snapshotProvider,
-            @NonNull final com.hedera.node.config.data.ClprConfig clprConfig) {
-        return new ClprStateProofManager(snapshotProvider, clprConfig);
+            @NonNull final com.hedera.node.config.data.ClprConfig clprConfig,
+            @NonNull final TssSignatureVerifierFactory tssVerifierFactory) {
+        return new ClprStateProofManager(snapshotProvider, clprConfig, tssVerifierFactory);
     }
 
     /**

@@ -135,13 +135,13 @@ public class ClprSetLedgerConfigurationHandlerTest extends ClprHandlerTestBase {
         final var txn = newTxnBuilder().withClprLedgerConfig(remoteClprConfig).build();
         given(stateProofManager.getLedgerConfiguration(any())).willReturn(null);
         given(stateProofManager.getLocalLedgerId()).willReturn(localClprLedgerId);
+        given(stateProofManager.isDevModeEnabled()).willReturn(true);
+        given(stateProofManager.validateStateProof(any(ClprSetLedgerConfigurationTransactionBody.class)))
+                .willReturn(true);
         given(preHandleContext.body()).willReturn(txn);
 
-        // Then pre-handling succeeds without calling state proof validation
+        // Then pre-handling succeeds
         assertThatCode(() -> subject.preHandle(preHandleContext)).doesNotThrowAnyException();
-
-        // Verify state proof validation was never called for local transactions
-        verify(stateProofManager, never()).validateStateProof(any());
     }
 
     @Test
@@ -197,6 +197,8 @@ public class ClprSetLedgerConfigurationHandlerTest extends ClprHandlerTestBase {
         given(stateProofManager.getLedgerConfiguration(localClprLedgerId)).willReturn(null);
         given(stateProofManager.readLedgerConfiguration(localClprLedgerId)).willReturn(localClprConfig);
         given(stateProofManager.isDevModeEnabled()).willReturn(false);
+        given(stateProofManager.validateStateProof(any(ClprSetLedgerConfigurationTransactionBody.class)))
+                .willReturn(true);
         given(preHandleContext.body()).willReturn(txn);
 
         assertThatCode(() -> subject.preHandle(preHandleContext))
@@ -217,6 +219,8 @@ public class ClprSetLedgerConfigurationHandlerTest extends ClprHandlerTestBase {
         given(stateProofManager.getLocalLedgerId()).willReturn(localClprLedgerId);
         given(stateProofManager.getLedgerConfiguration(localClprLedgerId)).willReturn(null);
         given(stateProofManager.readLedgerConfiguration(localClprLedgerId)).willReturn(localClprConfig);
+        given(stateProofManager.validateStateProof(any(ClprSetLedgerConfigurationTransactionBody.class)))
+                .willReturn(true);
         given(preHandleContext.body()).willReturn(txn);
 
         assertThatCode(() -> subject.preHandle(preHandleContext))
@@ -296,6 +300,8 @@ public class ClprSetLedgerConfigurationHandlerTest extends ClprHandlerTestBase {
         final var txn = newTxnBuilder().withClprLedgerConfig(remoteClprConfig).build();
         given(stateProofManager.getLocalLedgerId()).willReturn(localClprLedgerId);
         given(stateProofManager.isDevModeEnabled()).willReturn(false);
+        given(stateProofManager.validateStateProof(any(ClprSetLedgerConfigurationTransactionBody.class)))
+                .willReturn(true);
         given(preHandleContext.body()).willReturn(txn);
 
         assertThatCode(() -> subject.preHandle(preHandleContext)).doesNotThrowAnyException();
@@ -347,7 +353,9 @@ public class ClprSetLedgerConfigurationHandlerTest extends ClprHandlerTestBase {
     }
 
     @Test
-    public void handleUpdatesMetadataWithRosterHashAndStableLedgerId() throws Exception {
+    @DisplayName("Handle does NOT set metadata.ledgerId from incoming config in production mode")
+    public void handleDoesNotSetLedgerIdFromConfigWhenMetadataEmptyProdMode() throws Exception {
+        given(stateProofManager.isDevModeEnabled()).willReturn(false);
         final var txn = TransactionBody.newBuilder()
                 .clprSetLedgerConfiguration(ClprSetLedgerConfigurationTransactionBody.newBuilder()
                         .ledgerConfigurationProof(buildLocalClprStateProofWrapper(localClprConfig))
@@ -361,8 +369,30 @@ public class ClprSetLedgerConfigurationHandlerTest extends ClprHandlerTestBase {
         final var captor = ArgumentCaptor.forClass(ClprLocalLedgerMetadata.class);
         verify(metadataStore).put(captor.capture());
         final var persisted = captor.getValue();
-        assertThat(persisted.ledgerIdOrThrow().ledgerId())
-                .isEqualTo(localClprConfig.ledgerId().ledgerId());
+        // In production, ledgerId must NOT be taken from incoming config — only the bridge sets it
+        assertThat(persisted.ledgerId()).isNull();
+        assertThat(persisted.rosterHash()).isEqualTo(rosterHash);
+    }
+
+    @Test
+    @DisplayName("Handle bootstraps metadata.ledgerId from incoming config in dev mode")
+    public void handleBootstrapsLedgerIdFromConfigInDevMode() throws Exception {
+        given(stateProofManager.isDevModeEnabled()).willReturn(true);
+        final var txn = TransactionBody.newBuilder()
+                .clprSetLedgerConfiguration(ClprSetLedgerConfigurationTransactionBody.newBuilder()
+                        .ledgerConfigurationProof(buildLocalClprStateProofWrapper(localClprConfig))
+                        .build())
+                .build();
+        given(handleContext.body()).willReturn(txn);
+        given(metadataStore.get()).willReturn(null);
+
+        subject.handle(handleContext);
+
+        final var captor = ArgumentCaptor.forClass(ClprLocalLedgerMetadata.class);
+        verify(metadataStore).put(captor.capture());
+        final var persisted = captor.getValue();
+        // In dev mode, ledgerId bootstraps from the incoming config since the bridge never fires
+        assertThat(persisted.ledgerId()).isEqualTo(localClprConfig.ledgerId());
         assertThat(persisted.rosterHash()).isEqualTo(rosterHash);
     }
 
@@ -419,6 +449,39 @@ public class ClprSetLedgerConfigurationHandlerTest extends ClprHandlerTestBase {
         final var configCaptor = ArgumentCaptor.forClass(ClprLedgerConfiguration.class);
         verify(writableConfigStoreMock).put(configCaptor.capture());
         assertThat(configCaptor.getValue().ledgerId()).isEqualTo(localClprConfig.ledgerId());
+    }
+
+    @Test
+    @DisplayName("Handle preserves bridge-set ledgerId and does not overwrite with incoming config")
+    void handlePreservesBridgeSetLedgerId() throws Exception {
+        // Simulate the bridge having already set the correct genesis address book hash
+        final var bridgeLedgerId = ClprLedgerId.newBuilder()
+                .ledgerId(Bytes.wrap("genesis-address-book-hash"))
+                .build();
+        final var bridgeMetadata = ClprLocalLedgerMetadata.newBuilder()
+                .ledgerId(bridgeLedgerId)
+                .rosterHash(Bytes.wrap("old-roster"))
+                .build();
+        given(metadataStore.get()).willReturn(bridgeMetadata);
+        given(storeFactory.writableStore(WritableClprLedgerConfigurationStore.class))
+                .willReturn(writableConfigStoreMock);
+
+        // Incoming config has a DIFFERENT ledgerId (the remote ledger's id)
+        final var txn = TransactionBody.newBuilder()
+                .clprSetLedgerConfiguration(ClprSetLedgerConfigurationTransactionBody.newBuilder()
+                        .ledgerConfigurationProof(buildLocalClprStateProofWrapper(remoteClprConfig))
+                        .build())
+                .build();
+        given(handleContext.body()).willReturn(txn);
+
+        subject.handle(handleContext);
+
+        final var captor = ArgumentCaptor.forClass(ClprLocalLedgerMetadata.class);
+        verify(metadataStore).put(captor.capture());
+        final var persisted = captor.getValue();
+        // Bridge-set ledgerId must be preserved, NOT overwritten by incoming config's ledgerId
+        assertThat(persisted.ledgerId()).isEqualTo(bridgeLedgerId);
+        assertThat(persisted.rosterHash()).isEqualTo(rosterHash);
     }
 
     @Test

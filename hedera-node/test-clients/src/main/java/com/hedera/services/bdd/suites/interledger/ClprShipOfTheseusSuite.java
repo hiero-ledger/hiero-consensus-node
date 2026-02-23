@@ -96,7 +96,11 @@ public class ClprShipOfTheseusSuite implements LifecycleTest {
                         setupOverrides = {
                             @ConfigOverride(key = "clpr.clprEnabled", value = "true"),
                             @ConfigOverride(key = "clpr.publicizeNetworkAddresses", value = "true"),
-                            @ConfigOverride(key = "clpr.connectionFrequency", value = "1000")
+                            @ConfigOverride(key = "clpr.connectionFrequency", value = "1000"),
+                            @ConfigOverride(key = "tss.hintsEnabled", value = "true"),
+                            @ConfigOverride(key = "tss.historyEnabled", value = "true"),
+                            @ConfigOverride(key = "tss.wrapsEnabled", value = "true"),
+                            @ConfigOverride(key = "tss.initialCrsParties", value = "16")
                         }),
                 @MultiNetworkHapiTest.Network(
                         name = "SHIP_B",
@@ -105,7 +109,11 @@ public class ClprShipOfTheseusSuite implements LifecycleTest {
                         setupOverrides = {
                             @ConfigOverride(key = "clpr.clprEnabled", value = "true"),
                             @ConfigOverride(key = "clpr.publicizeNetworkAddresses", value = "false"),
-                            @ConfigOverride(key = "clpr.connectionFrequency", value = "1000")
+                            @ConfigOverride(key = "clpr.connectionFrequency", value = "1000"),
+                            @ConfigOverride(key = "tss.hintsEnabled", value = "true"),
+                            @ConfigOverride(key = "tss.historyEnabled", value = "true"),
+                            @ConfigOverride(key = "tss.wrapsEnabled", value = "true"),
+                            @ConfigOverride(key = "tss.initialCrsParties", value = "16")
                         })
             })
     @DisplayName("Two-network Ship of Theseus baseline")

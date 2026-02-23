@@ -848,7 +848,11 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                         currentPendingBlock.consensusHeaderRootHash(),
                         currentPendingBlock.siblingHashes());
                 blockProvenStateAccessor.registerBlockMetadata(
-                        startOfBlockStateHash, blockHash, blockSignature, blockTimestamp, path);
+                        startOfBlockStateHash,
+                        blockHash,
+                        effectiveSignature,
+                        currentPendingBlock.blockTimestamp(),
+                        path);
             }
             if (currentPendingBlock.contentsPath() != null) {
                 cleanUpPendingBlock(currentPendingBlock.contentsPath());

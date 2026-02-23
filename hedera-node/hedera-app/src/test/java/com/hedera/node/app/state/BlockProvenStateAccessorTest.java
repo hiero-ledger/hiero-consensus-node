@@ -58,8 +58,7 @@ class BlockProvenStateAccessorTest {
         final BlockProvenSnapshot snapshot = subject.latestSnapshot().orElseThrow();
         assertThat(snapshot.state()).isSameAs(state);
         assertThat(subject.latestState()).contains(state);
-        // Note: latestSnapshot() currently uses blockHash as tssSignature
-        assertThat(snapshot.tssSignature()).isSameAs(BLOCK_HASH_A);
+        assertThat(snapshot.tssSignature()).isSameAs(TSS_SIGNATURE_A);
         assertThat(snapshot.blockTimestamp()).isSameAs(timestamp);
         assertThat(snapshot.path()).isSameAs(merklePath);
     }
@@ -98,8 +97,7 @@ class BlockProvenStateAccessorTest {
         final BlockProvenSnapshot snapshot = subject.latestSnapshot().orElseThrow();
         assertThat(snapshot.state()).isSameAs(firstState);
         assertThat(subject.latestState()).contains(firstState);
-        // Note: latestSnapshot() currently uses blockHash as tssSignature
-        assertThat(snapshot.tssSignature()).isSameAs(BLOCK_HASH_A);
+        assertThat(snapshot.tssSignature()).isSameAs(TSS_SIGNATURE_A);
         assertThat(snapshot.blockTimestamp()).isSameAs(firstTimestamp);
         assertThat(snapshot.path()).isSameAs(firstMerklePath);
 
@@ -113,7 +111,7 @@ class BlockProvenStateAccessorTest {
         final BlockProvenSnapshot updatedSnapshot = subject.latestSnapshot().orElseThrow();
         assertThat(updatedSnapshot.state()).isSameAs(secondState);
         assertThat(subject.latestState()).contains(secondState);
-        assertThat(updatedSnapshot.tssSignature()).isSameAs(BLOCK_HASH_B);
+        assertThat(updatedSnapshot.tssSignature()).isSameAs(TSS_SIGNATURE_B);
         assertThat(updatedSnapshot.blockTimestamp()).isSameAs(secondTimestamp);
         assertThat(updatedSnapshot.path()).isSameAs(secondMerklePath);
     }
@@ -174,7 +172,7 @@ class BlockProvenStateAccessorTest {
 
         final BlockProvenSnapshot snapshot = subject.latestSnapshot().orElseThrow();
         assertThat(snapshot.state()).isSameAs(firstState);
-        assertThat(snapshot.tssSignature()).isSameAs(BLOCK_HASH_A);
+        assertThat(snapshot.tssSignature()).isSameAs(TSS_SIGNATURE_A);
     }
 
     @Test
@@ -197,8 +195,7 @@ class BlockProvenStateAccessorTest {
     }
 
     @Test
-    void blockSignedSnapshotReturnsBlockHashAsTssSignature() {
-        // Verify that the snapshot tssSignature is the blockHash, not the tssSignature from metadata
+    void blockSignedSnapshotReturnsTssSignature() {
         final var stateHash = newHashBytes(60);
         final var state = mockState(stateHash);
         final var timestamp = Timestamp.newBuilder().seconds(nowSeconds()).build();
@@ -208,9 +205,8 @@ class BlockProvenStateAccessorTest {
         subject.registerBlockMetadata(stateHash, BLOCK_HASH_A, TSS_SIGNATURE_A, timestamp, path);
 
         final BlockProvenSnapshot snapshot = subject.latestSnapshot().orElseThrow();
-        // The production code uses blockHash as tssSignature (see TODO in source)
-        assertThat(snapshot.tssSignature()).isEqualTo(BLOCK_HASH_A);
-        assertThat(snapshot.tssSignature()).isNotEqualTo(TSS_SIGNATURE_A);
+        assertThat(snapshot.tssSignature()).isEqualTo(TSS_SIGNATURE_A);
+        assertThat(snapshot.tssSignature()).isNotEqualTo(BLOCK_HASH_A);
     }
 
     @Test

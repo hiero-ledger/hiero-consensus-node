@@ -11,6 +11,7 @@ import com.hedera.hapi.platform.state.StateKey;
 import com.hedera.hapi.platform.state.StateValue;
 import com.hedera.node.app.hapi.utils.blocks.MerklePathBuilder;
 import com.hedera.node.app.hapi.utils.blocks.StateProofBuilder;
+import com.hedera.node.app.hapi.utils.blocks.TssSignatureVerifierFactory;
 import com.hedera.node.app.history.ReadableHistoryStore;
 import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.hedera.pbj.runtime.Codec;
@@ -41,6 +42,14 @@ import org.hiero.interledger.clpr.impl.WritableClprLedgerConfigurationStoreImpl;
 import org.mockito.Mock;
 
 public class ClprTestBase {
+
+    /**
+     * A mock {@link TssSignatureVerifierFactory} that replicates Phase-1 mock behavior:
+     * verification passes when the block hash equals the signature bytes (i.e. rootHash == sig).
+     * Use this in tests that don't exercise real TSS verification.
+     */
+    protected static final TssSignatureVerifierFactory MOCK_TSS_FACTORY =
+            ledgerId -> (blockHash, sig) -> blockHash.equals(sig);
 
     // data instances
     protected final byte[] rawLocalLedgerId = "localLedgerId".getBytes();

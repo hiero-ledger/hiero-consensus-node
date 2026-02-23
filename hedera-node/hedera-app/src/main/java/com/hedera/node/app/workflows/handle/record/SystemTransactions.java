@@ -553,6 +553,10 @@ public class SystemTransactions {
                         .nodeContributions(contributions)
                         .historyProofVerificationKey(historyProofVerificationKey)
                         .build()));
+        // The HandleWorkflow bridge callback committed the authoritative genesis ledgerId into
+        // CLPR metadata. Re-dispatch the CLPR bootstrap so the config is stored under the
+        // authoritative ledgerId (replacing the provisional rosterHash key from genesis).
+        maybeDispatchClprBootstrap(systemContext, state);
     }
 
     /**

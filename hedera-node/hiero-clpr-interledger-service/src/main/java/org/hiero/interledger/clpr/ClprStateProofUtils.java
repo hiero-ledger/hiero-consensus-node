@@ -7,6 +7,7 @@ import com.hedera.hapi.block.stream.StateProof;
 import com.hedera.hapi.platform.state.StateItem;
 import com.hedera.hapi.platform.state.StateValue;
 import com.hedera.node.app.hapi.utils.blocks.StateProofVerifier;
+import com.hedera.node.app.hapi.utils.blocks.TssSignatureVerifier;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration;
@@ -74,16 +75,31 @@ public final class ClprStateProofUtils {
     }
 
     /**
-     * Validates a state proof without extracting the configuration.
+     * Validates a state proof using the Phase-1 mock (rootHash == signature).
      *
-     * <p>This is useful for pure validation checks where the configuration content is not needed.
-     *
+     * @deprecated Use {@link #validateStateProof(StateProof, TssSignatureVerifier)} with a real
+     *     TSS verifier, or delegate to {@code ClprStateProofManager.verifyProof()} instead.
      * @param stateProof the state proof to validate
      * @return true if the state proof is valid, false otherwise
      */
+    @Deprecated
     public static boolean validateStateProof(@NonNull final StateProof stateProof) {
         requireNonNull(stateProof, "stateProof must not be null");
         return StateProofVerifier.verify(stateProof);
+    }
+
+    /**
+     * Validates a state proof using the provided TSS signature verifier.
+     *
+     * @param stateProof  the state proof to validate
+     * @param tssVerifier the verifier that validates the TSS signature over the block hash
+     * @return true if the state proof is valid, false otherwise
+     */
+    public static boolean validateStateProof(
+            @NonNull final StateProof stateProof, @NonNull final TssSignatureVerifier tssVerifier) {
+        requireNonNull(stateProof, "stateProof must not be null");
+        requireNonNull(tssVerifier, "tssVerifier must not be null");
+        return StateProofVerifier.verify(stateProof, tssVerifier);
     }
 
     /**

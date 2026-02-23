@@ -8,7 +8,6 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.base.Timestamp;
-import com.hedera.node.app.hapi.utils.blocks.StateProofVerifier;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.ClprConfig;
@@ -105,10 +104,20 @@ public class ClprEndpointClient {
                 log.debug("CLPR endpoint maintenance awaiting local ledgerId bootstrap");
                 return;
             }
-            final var configsByLedgerId = stateProofManager.readAllLedgerConfigurations();
-            final var localConfig = configsByLedgerId.get(localLedgerId);
+            final var localConfig = stateProofManager.readLedgerConfiguration(localLedgerId);
             if (localConfig == null) {
-                log.debug("CLPR endpoint maintenance found no local configuration for ledger {}", localLedgerId);
+                log.warn(
+                        "CLPR endpoint maintenance found no local configuration for ledger {}; ledgerId bytes={}",
+                        localLedgerId,
+                        localLedgerId.ledgerId());
+                final var allConfigs = stateProofManager.readAllLedgerConfigurations();
+                log.warn("CLPR endpoint maintenance: all config keys={}", allConfigs.keySet());
+                for (final var entry : allConfigs.entrySet()) {
+                    log.warn(
+                            "CLPR endpoint maintenance: config key={} ledgerIdBytes={}",
+                            entry.getKey(),
+                            entry.getKey().ledgerId());
+                }
                 return;
             }
             final var localProof = stateProofManager.getLedgerConfiguration(localLedgerId);
@@ -116,7 +125,8 @@ public class ClprEndpointClient {
                 log.debug("CLPR endpoint maintenance skipped; no state proof available for ledger {}", localLedgerId);
                 return;
             } else {
-                final boolean isValid = StateProofVerifier.verify(requireNonNull(localProof));
+                final boolean isValid =
+                        stateProofManager.verifyProof(requireNonNull(localProof), localLedgerId.ledgerId());
                 if (!isValid) {
                     log.warn("Found invalid state proof for local ledger {}; skipping this cycle", localLedgerId);
                     return;
@@ -124,6 +134,7 @@ public class ClprEndpointClient {
             }
             final var selfNodeInfo = networkInfo.selfNodeInfo();
             final var localEndpoint = localServiceEndpoint();
+            final var configsByLedgerId = stateProofManager.readAllLedgerConfigurations();
             for (final var entry : configsByLedgerId.entrySet()) {
                 final var remoteLedgerId = entry.getKey();
                 if (localLedgerId.equals(remoteLedgerId)) {

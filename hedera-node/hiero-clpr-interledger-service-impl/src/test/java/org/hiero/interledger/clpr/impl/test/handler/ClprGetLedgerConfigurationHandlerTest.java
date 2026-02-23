@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 
+import com.hedera.hapi.block.stream.StateProof;
 import com.hedera.hapi.node.base.QueryHeader;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.ResponseHeader;
@@ -85,6 +86,8 @@ public class ClprGetLedgerConfigurationHandlerTest extends ClprHandlerTestBase {
         given(stateProofManager.getLocalLedgerId()).willReturn(localClprLedgerId);
         given(stateProofManager.getLedgerConfiguration(remoteClprLedgerId))
                 .willReturn(buildLocalClprStateProofWrapper(remoteClprConfig));
+        given(stateProofManager.verifyProof(any(StateProof.class), any(Bytes.class)))
+                .willReturn(true);
         assertThatCode(() -> subject.validate(context)).doesNotThrowAnyException();
     }
 
@@ -95,6 +98,8 @@ public class ClprGetLedgerConfigurationHandlerTest extends ClprHandlerTestBase {
         given(stateProofManager.getLocalLedgerId()).willReturn(localClprLedgerId);
         given(stateProofManager.getLedgerConfiguration(localClprLedgerId))
                 .willReturn(buildLocalClprStateProofWrapper(localClprConfig));
+        given(stateProofManager.verifyProof(any(StateProof.class), any(Bytes.class)))
+                .willReturn(true);
         assertThatCode(() -> subject.validate(context)).doesNotThrowAnyException();
     }
 

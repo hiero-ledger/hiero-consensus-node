@@ -112,15 +112,8 @@ public class ClprSetLedgerConfigurationHandler implements TransactionHandler {
             return; // In all cases it is safe to update the existing ledger configuration.
         }
 
-        // there is no existing configuration for this ledger id.
-        final boolean devModeEnabled = stateProofManager.isDevModeEnabled();
-        if (devModeEnabled) {
-            // DevMode always sets the ledger configuration if it does not already exist.
-            return;
-        }
-
-        // In production mode, we need to ensure that the local ledger ID is known before accepting new configurations.
-        // This is enforced above; if we reached here, the local ledger ID is present and non-empty.
+        // No existing configuration for this ledger id — accept it.
+        // The local ledger ID is known (enforced above), so new remote configurations are allowed.
     }
 
     private @NonNull org.hiero.hapi.interledger.state.clpr.ClprLedgerId getLocalLedgerIdOrThrow()
@@ -178,17 +171,20 @@ public class ClprSetLedgerConfigurationHandler implements TransactionHandler {
             throw new HandleException(ResponseCodeEnum.CLPR_INVALID_STATE_PROOF);
         }
 
-        // Persist local metadata alongside the configuration update. LedgerId is set once (if unset) to the
-        // active roster hash; roster hash must always advance on each local configuration update.
+        // Persist local metadata alongside the configuration update. LedgerId is set exclusively by the
+        // HandleWorkflow bridge after genesis proof completion; this handler only preserves existing values.
         final var storeFactory = context.storeFactory();
         final var rosterStore = storeFactory.readableStore(ReadableRosterStore.class);
         final var metadataStore = storeFactory.writableStore(WritableClprMetadataStore.class);
         final var activeRosterHash = requireNonNull(
                 rosterStore.getCurrentRosterHash(), "active roster hash must be present for CLPR updates");
         final var existingMetadata = metadataStore.get();
-        final var metadataLedgerId = existingMetadata != null && existingMetadata.ledgerId() != null
+        // In production, ledgerId is set exclusively by the HandleWorkflow bridge after genesis
+        // proof completion. In dev mode, the bridge never fires (no WRAPS genesis), so the handler
+        // bootstraps ledgerId from the incoming config as a fallback.
+        final var metadataLedgerId = existingMetadata != null
                 ? existingMetadata.ledgerId()
-                : newConfig.ledgerId();
+                : (stateProofManager.isDevModeEnabled() ? newConfig.ledgerId() : null);
 
         final var ledgerId = newConfig.ledgerIdOrThrow();
         final var configStore = context.storeFactory().writableStore(WritableClprLedgerConfigurationStore.class);
@@ -200,17 +196,28 @@ public class ClprSetLedgerConfigurationHandler implements TransactionHandler {
                 || existingMetadata.rosterHash() == null
                 || !existingMetadata.ledgerId().equals(metadataLedgerId)
                 || !existingMetadata.rosterHash().equals(activeRosterHash);
+        log.warn(
+                "CLPR handler: configLedgerId={} metadataLedgerId={} existingMeta={} existingConfig={}"
+                        + " metadataChanged={} shouldUpdateConfig={} activeRosterHash={}",
+                ledgerId,
+                metadataLedgerId,
+                existingMetadata != null ? existingMetadata.ledgerId() : "null",
+                existingConfig != null,
+                metadataChanged,
+                shouldUpdateConfig,
+                activeRosterHash);
         if (!metadataChanged && !shouldUpdateConfig) {
             return;
         }
         if (metadataChanged) {
+            log.warn("CLPR handler: storing metadata with ledgerId={}", metadataLedgerId);
             metadataStore.put(ClprLocalLedgerMetadata.newBuilder()
                     .ledgerId(metadataLedgerId)
                     .rosterHash(activeRosterHash)
                     .build());
         }
         if (shouldUpdateConfig) {
-            // If the configuration is an update, we store it in the writable store.
+            log.warn("CLPR handler: storing config with key={}", newConfig.ledgerId());
             configStore.put(newConfig);
         }
     }
@@ -252,15 +259,14 @@ public class ClprSetLedgerConfigurationHandler implements TransactionHandler {
     }
 
     @NonNull
-    private static ClprLedgerConfiguration extractConfigurationOrThrow(
+    private ClprLedgerConfiguration extractConfigurationOrThrow(
             @NonNull final ClprSetLedgerConfigurationTransactionBody txn, final boolean validateStateProof)
             throws PreCheckException {
         try {
-            final var stateProof = txn.ledgerConfigurationProofOrThrow();
-            if (validateStateProof && !ClprStateProofUtils.validateStateProof(stateProof)) {
+            if (validateStateProof && !stateProofManager.validateStateProof(txn)) {
                 throw new PreCheckException(ResponseCodeEnum.CLPR_INVALID_STATE_PROOF);
             }
-            return ClprStateProofUtils.extractConfiguration(stateProof);
+            return ClprStateProofUtils.extractConfiguration(txn.ledgerConfigurationProofOrThrow());
         } catch (final IllegalArgumentException | IllegalStateException e) {
             throw new PreCheckException(ResponseCodeEnum.CLPR_INVALID_STATE_PROOF);
         }

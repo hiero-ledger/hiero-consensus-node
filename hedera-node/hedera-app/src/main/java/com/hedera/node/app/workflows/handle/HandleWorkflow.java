@@ -30,10 +30,10 @@ import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.history.ProofKey;
-import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
+import com.hedera.hapi.platform.state.StateKey;
 import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
@@ -92,6 +92,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.CommittableWritableStates;
+import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -119,6 +120,7 @@ import org.hiero.consensus.platformstate.ReadablePlatformStateStore;
 import org.hiero.consensus.platformstate.WritablePlatformStateStore;
 import org.hiero.consensus.roster.ReadableRosterStoreImpl;
 import org.hiero.consensus.roster.WritableRosterStore;
+import org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerId;
 import org.hiero.hapi.interledger.state.clpr.ClprLocalLedgerMetadata;
 import org.hiero.interledger.clpr.ClprService;
@@ -1032,7 +1034,8 @@ public class HandleWorkflow {
             if (tssConfig.historyEnabled()) {
                 historyService.onFinishedConstruction((historyStore, construction, targetNodeWeights) -> {
                     final var rosterStore = new ReadableRosterStoreImpl(state.getReadableStates(RosterService.NAME));
-                    final var clprStore = new WritableClprMetadataStoreImpl(state.getWritableStates(ClprService.NAME));
+                    final var clprWritableStates = state.getWritableStates(ClprService.NAME);
+                    final var clprStore = new WritableClprMetadataStoreImpl(clprWritableStates);
                     final var activeConstruction = historyStore.getActiveConstruction();
                     if (activeConstruction.constructionId() == construction.constructionId()) {
                         // We just finished the genesis proof, so we use it immediately
@@ -1046,14 +1049,46 @@ public class HandleWorkflow {
                         setLedgerIdContext.set(
                                 new LedgerIdContext(ledgerId, proof.targetProofKeys(), targetNodeWeights));
 
-                        // Tie the current active roster to the computed ledger ID. This will be submitted as a
-                        // transaction in production code, but is fine for the prototype
-                        final var activeRoster = requireNonNull(rosterStore.getActiveRoster());
-                        final var activeRosterHash = Roster.PROTOBUF.toBytes(activeRoster);
+                        // Authoritative bridge: tie the genesis address book hash (ledgerId) and active
+                        // roster hash to CLPR's local metadata, and re-key any existing CLPR config
+                        // from the provisional rosterHash to the authoritative genesis ledgerId.
+                        final var currentRosterHash = rosterStore.getCurrentRosterHash();
+                        final var newLedgerIdKey =
+                                ClprLedgerId.newBuilder().ledgerId(ledgerId).build();
                         clprStore.put(ClprLocalLedgerMetadata.newBuilder()
-                                .ledgerId(ClprLedgerId.newBuilder().ledgerId(ledgerId))
-                                .rosterHash(activeRosterHash)
+                                .ledgerId(newLedgerIdKey)
+                                .rosterHash(currentRosterHash)
                                 .build());
+                        // Re-key the config from the provisional key (rosterHash) to the
+                        // authoritative key (genesis address book hash). The genesis bootstrap
+                        // stored the config under rosterHash before the address book hash was known.
+                        if (currentRosterHash != null) {
+                            @SuppressWarnings("unchecked")
+                            final WritableKVState<ClprLedgerId, ClprLedgerConfiguration> configState =
+                                    clprWritableStates.get(
+                                            StateKey.KeyOneOfType.CLPRSERVICE_I_CONFIGURATIONS.protoOrdinal());
+                            final var oldKey = ClprLedgerId.newBuilder()
+                                    .ledgerId(currentRosterHash)
+                                    .build();
+                            final var existingConfig = configState.get(oldKey);
+                            if (existingConfig != null) {
+                                configState.put(
+                                        newLedgerIdKey,
+                                        existingConfig
+                                                .copyBuilder()
+                                                .ledgerId(newLedgerIdKey)
+                                                .build());
+                                logger.warn("CLPR bridge: re-keyed config from {} to {}", currentRosterHash, ledgerId);
+                            }
+                        }
+                        // Commit both metadata and config changes atomically.
+                        if (clprWritableStates instanceof CommittableWritableStates committable) {
+                            committable.commit();
+                        }
+                        logger.warn(
+                                "CLPR bridge: committed metadata+config ledgerId={} rosterHash={}",
+                                ledgerId,
+                                currentRosterHash);
                         return;
                     }
                     // WRAPS genesis is the first proof that bootstraps the chain of trust; but it takes a long time

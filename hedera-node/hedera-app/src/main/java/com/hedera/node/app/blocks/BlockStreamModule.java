@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks;
 
+import com.hedera.cryptography.tss.TSS;
 import com.hedera.node.app.blocks.impl.BlockStreamManagerImpl;
 import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
 import com.hedera.node.app.blocks.impl.streaming.BlockBufferService;
@@ -8,6 +9,7 @@ import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnectionManager;
 import com.hedera.node.app.blocks.impl.streaming.FileAndGrpcBlockItemWriter;
 import com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter;
 import com.hedera.node.app.blocks.impl.streaming.GrpcBlockItemWriter;
+import com.hedera.node.app.hapi.utils.blocks.TssSignatureVerifierFactory;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.app.services.NodeFeeManager;
 import com.hedera.node.app.services.NodeRewardManager;
@@ -112,5 +114,17 @@ public interface BlockStreamModule {
                 nodeRewardManager.onCloseBlock(state, listener.nodeFeesCollected());
             }
         };
+    }
+
+    /**
+     * Provides a {@link TssSignatureVerifierFactory} that delegates to the real TSS cryptographic
+     * verification ({@link TSS#verifyTSS}). The factory creates a per-ledger verifier that binds
+     * the given {@code ledgerId} (genesis address book hash) into each verification call.
+     */
+    @Provides
+    @Singleton
+    static TssSignatureVerifierFactory provideTssSignatureVerifierFactory() {
+        return ledgerId ->
+                (blockHash, sig) -> TSS.verifyTSS(ledgerId.toByteArray(), sig.toByteArray(), blockHash.toByteArray());
     }
 }

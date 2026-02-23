@@ -127,10 +127,8 @@ public final class BlockProvenStateAccessor implements BlockProvenSnapshotProvid
         if (cachedState == null || meta == null) {
             return Optional.empty();
         }
-        // Temporarily use the block hash as the TSS signature so we can partially verify the proof
-        // TODO: replace block hash with the real TSS signature
         return Optional.of(
-                new BlockSignedSnapshot(cachedState.state(), meta.blockHash(), meta.blockTimestamp(), meta.path()));
+                new BlockSignedSnapshot(cachedState.state(), meta.tssSignature(), meta.blockTimestamp(), meta.path()));
     }
 
     /**
