@@ -49,7 +49,7 @@ dependencies.constraints {
     }
     api("com.google.guava:guava:33.4.8-jre") { because("com.google.common") }
     api("com.google.j2objc:j2objc-annotations:3.0.0") { because("com.google.j2objc.annotations") }
-    api("com.google.jimfs:jimfs:1.3.0") { because("com.google.common.jimfs") }
+    api("com.google.jimfs:jimfs:1.3.1") { because("com.google.common.jimfs") }
     api("com.google.protobuf:protobuf-java:$protobuf") { because("com.google.protobuf") }
     api("com.google.protobuf:protobuf-java-util:$protobuf") { because("com.google.protobuf.util") }
     api("com.hedera.pbj:pbj-grpc-client-helidon:$pbj") {
@@ -67,7 +67,7 @@ dependencies.constraints {
     api("io.grpc:grpc-netty-shaded:$grpc") { because("io.grpc.netty.shaded") }
     api("com.esaulpaugh:headlong:13.3.0") { because("com.esaulpaugh.headlong") }
     api("info.picocli:picocli:4.7.7") { because("info.picocli") }
-    api("io.github.classgraph:classgraph:4.8.179") { because("io.github.classgraph") }
+    api("io.github.classgraph:classgraph:4.8.184") { because("io.github.classgraph") }
     api("io.perfmark:perfmark-api:0.27.0") { because("io.perfmark") }
     api("io.prometheus:simpleclient:0.16.0") { because("simpleclient") }
     api("io.prometheus:simpleclient_httpserver:0.16.0") { because("simpleclient.httpserver") }
