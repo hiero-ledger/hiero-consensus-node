@@ -91,7 +91,7 @@ final class RpcPingHandler {
      */
     GossipPing possiblyInitiatePing() {
         final long timestamp = time.currentTimeMillis();
-        if ((timestamp - lastPingInitiationTime) < 1000) {
+        if ((timestamp - lastPingInitiationTime) < 100) {
             return null;
         }
         this.lastPingInitiationTime = timestamp;
