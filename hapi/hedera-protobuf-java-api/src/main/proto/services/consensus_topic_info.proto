@@ -175,4 +175,9 @@ message ConsensusTopicInfo {
      * network and node fees.
      */
     repeated FixedCustomFee custom_fees = 12;
+
+    /**
+     * A flag indicating that this topic is deleted.
+     */
+    bool deleted = 13;
 }
