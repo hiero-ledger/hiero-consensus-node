@@ -50,7 +50,7 @@ public class ValidateCommand implements Callable<Integer> {
 
     @Option(
             names = {"-p", "--process-threads"},
-            description = "Number of CPU threads for processing chunks. Default: 6.")
+            description = "Number of CPU threads for processing segments. Default: 6.")
     private int processThreads = 6;
 
     @Option(
@@ -64,15 +64,15 @@ public class ValidateCommand implements Callable<Integer> {
     private int batchSize = 10;
 
     @Option(
-            names = {"-mcs", "--min-chunk-size-mib"},
-            description = "Minimum chunk size in mebibytes (MiB) for file reading. Default: 128 MiB.")
-    private int minChunkSizeMib = 128;
+            names = {"-mss", "--min-segment-size-mib"},
+            description = "Minimum segment size in mebibytes (MiB) for file reading. Default: 128 MiB.")
+    private int minSegmentSizeMib = 128;
 
     @Option(
-            names = {"-c", "--chunk-multiplier"},
+            names = {"-s", "--segment-multiplier"},
             description =
-                    "Multiplier for IO threads to determine target number of chunks (higher value = more, smaller chunks). Default: 2.")
-    private int chunkMultiplier = 2;
+                    "Multiplier for IO threads to determine target number of segments (higher value = more, smaller segments). Default: 2.")
+    private int segmentMultiplier = 2;
 
     @Option(
             names = {"-bs", "--buffer-size-kib"},
@@ -156,8 +156,8 @@ public class ValidateCommand implements Callable<Integer> {
                     processThreads,
                     queueCapacity,
                     batchSize,
-                    minChunkSizeMib,
-                    chunkMultiplier,
+                    minSegmentSizeMib,
+                    segmentMultiplier,
                     bufferSizeKib);
 
             log.info("Time spent for validation: {} ms", System.currentTimeMillis() - startTime);

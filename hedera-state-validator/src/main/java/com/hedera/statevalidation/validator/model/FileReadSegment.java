@@ -6,12 +6,12 @@ import com.swirlds.merkledb.files.DataFileReader;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**
- * Represents a task config for reading a specific byte range (chunk) from a data file.
+ * Represents a segment of a data file assigned for parallel reading a specific byte range from it.
  *
  * @param reader the data file reader
  * @param type the MerkleDB data type
  * @param startByte the starting byte offset (inclusive)
  * @param endByte the ending byte offset (exclusive)
  */
-public record FileReadTaskConfig(
+public record FileReadSegment(
         @NonNull DataFileReader reader, @NonNull Type type, long startByte, long endByte) {}

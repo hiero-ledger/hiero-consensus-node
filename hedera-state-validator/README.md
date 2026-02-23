@@ -37,12 +37,12 @@ java -jar ./validator-.jar {path-to-state-round} validate {group} [{group}...] [
 ### Options
 
 - `--io-threads` (or `-io`) - Number of IO threads for reading data files from disk and memory. Default: `4`.
-- `--process-threads` (or `-p`) - Number of CPU threads for processing data chunks. These threads parse and validate data items read by IO threads. Default: `6`.
+- `--process-threads` (or `-p`) - Number of CPU threads for processing data segments. These threads parse and validate data items read by IO threads. Default: `6`.
 - `--queue-capacity` (or `-q`) - Maximum number of batches that can be queued between IO and processor threads. Controls memory usage and provides backpressure when processors are slower than readers. Default: `100`.
 - `--batch-size` (or `-b`) - Number of data items grouped together before being placed in the queue. Larger batches reduce queue contention but increase memory per batch. Default: `10`.
-- `--min-chunk-size-mib` (or `-mcs`) - Minimum size in mebibytes (MiB) for file chunks. Each data file is divided into chunks for parallel reading; this sets the floor for chunk size to avoid excessive overhead from too many small chunks. Default: `128`.
-- `--chunk-multiplier` (or `-c`) - Multiplier applied to IO thread count to determine the target number of chunks per file collection. Higher values create more, smaller chunks for better load balancing across threads. Default: `2`.
-- `--buffer-size-kib` (or `-bs`) - Buffer size in kibibytes (KiB) for file reading operations and chunk boundary detection. Default: `128`.
+- `--min-segment-size-mib` (or `-mss`) - Minimum size in mebibytes (MiB) for file segments. Each data file is divided into segments for parallel reading; this sets the floor for segment size to avoid excessive overhead from too many small segments. Default: `128`.
+- `--segment-multiplier` (or `-s`) - Multiplier applied to IO thread count to determine the target number of segments per file collection. Higher values create more, smaller segments for better load balancing across threads. Default: `2`.
+- `--buffer-size-kib` (or `-bs`) - Buffer size in kibibytes (KiB) for file reading operations and segment boundary detection. Default: `128`.
 
 ### Architecture
 
@@ -142,8 +142,8 @@ Individual validators (those implementing only the base [Validator](src/main/jav
 2. **Individual validators** — [ValidatorRegistry](src/main/java/com/hedera/statevalidation/validator/ValidatorRegistry.java) filters, initializes, and runs individual validators sequentially (e.g., [RehashValidator](src/main/java/com/hedera/statevalidation/validator/RehashValidator.java) performs a full task-based tree rehash, [RootHashValidator](src/main/java/com/hedera/statevalidation/validator/RootHashValidator.java) compares the root hash against a reference file).
 3. **Pipeline execution** — [ValidationPipelineExecutor](src/main/java/com/hedera/statevalidation/validator/pipeline/ValidationPipelineExecutor.java) orchestrates the parallel pipeline:
 
-- **Task planning** — Data files are divided into chunks; in-memory hash ranges are partitioned.
-- **IO threads** read chunks via [ChunkedFileIterator](src/main/java/com/hedera/statevalidation/validator/pipeline/ChunkedFileIterator.java) (disk) or directly from `HashList` (memory), producing batches into a bounded queue.
+- **Segmentation** — Partitions data sources into segments for parallel reading; in-memory hash ranges are partitioned as well.
+- **IO threads** read segments via [ChunkedFileIterator](src/main/java/com/hedera/statevalidation/validator/pipeline/ChunkedFileIterator.java) (disk) or directly from `HashList` (memory), producing batches into a bounded queue.
 - **Processor threads** ([ProcessorTask](src/main/java/com/hedera/statevalidation/validator/pipeline/ProcessorTask.java)) consume batches, check liveness against location indexes, and dispatch live items to the appropriate validators by data type.
 - After all data is consumed, `validate()` is called on each pipeline validator.
 

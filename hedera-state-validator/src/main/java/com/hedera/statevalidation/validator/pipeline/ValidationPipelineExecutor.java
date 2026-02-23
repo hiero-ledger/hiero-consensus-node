@@ -12,9 +12,9 @@ import com.hedera.statevalidation.validator.listener.ValidationListener;
 import com.hedera.statevalidation.validator.model.DataStats;
 import com.hedera.statevalidation.validator.model.DiskDataItem;
 import com.hedera.statevalidation.validator.model.DiskDataItem.Type;
-import com.hedera.statevalidation.validator.model.FileReadTaskConfig;
+import com.hedera.statevalidation.validator.model.FileReadSegment;
 import com.hedera.statevalidation.validator.model.MemoryHashItem;
-import com.hedera.statevalidation.validator.model.MemoryReadTaskConfig;
+import com.hedera.statevalidation.validator.model.MemoryReadSegment;
 import com.hedera.statevalidation.validator.model.ValidationItem;
 import com.hedera.statevalidation.validator.util.ValidationException;
 import com.swirlds.merkledb.MerkleDbDataSource;
@@ -44,7 +44,7 @@ import org.hiero.base.crypto.Hash;
  *
  * <p>This executor implements a producer-consumer pattern with the following stages:
  * <ol>
- *   <li><b>Task Planning</b> - Divides data files into chunks for parallel reading</li>
+ *   <li><b>Segmentation</b> - Partitions data sources into segments for parallel reading</li>
  *   <li><b>Data Reading</b> - IO threads read data from in-memory stores and disk files</li>
  *   <li><b>Processing</b> - CPU threads consume batches from a bounded queue and feed validators</li>
  *   <li><b>Final Validation</b> - Validators perform their final checks after all data is processed</li>
@@ -65,8 +65,8 @@ public final class ValidationPipelineExecutor {
     private final int processThreads;
     private final int queueCapacity;
     private final int batchSize;
-    private final int minChunkSizeMib;
-    private final int chunkMultiplier;
+    private final int minSegmentSizeMib;
+    private final int segmentMultiplier;
     private final int bufferSizeKib;
 
     // Input data
@@ -88,8 +88,8 @@ public final class ValidationPipelineExecutor {
             final int processThreads,
             final int queueCapacity,
             final int batchSize,
-            final int minChunkSizeMib,
-            final int chunkMultiplier,
+            final int minSegmentSizeMib,
+            final int segmentMultiplier,
             final int bufferSizeKib) {
         this.vds = vds;
         this.validators = validators;
@@ -98,8 +98,8 @@ public final class ValidationPipelineExecutor {
         this.processThreads = processThreads;
         this.queueCapacity = queueCapacity;
         this.batchSize = batchSize;
-        this.minChunkSizeMib = minChunkSizeMib;
-        this.chunkMultiplier = chunkMultiplier;
+        this.minSegmentSizeMib = minSegmentSizeMib;
+        this.segmentMultiplier = segmentMultiplier;
         this.bufferSizeKib = bufferSizeKib;
     }
 
@@ -110,11 +110,11 @@ public final class ValidationPipelineExecutor {
      * @param validators map of validators by data type
      * @param validationListeners listeners for validation events
      * @param ioThreads number of IO threads for reading from disk
-     * @param processThreads number of CPU threads for processing chunks
+     * @param processThreads number of CPU threads for processing segments
      * @param queueCapacity queue capacity for backpressure control
      * @param batchSize batch size for processing items
-     * @param minChunkSizeMib minimum chunk size in mebibytes (MiB) for file reading
-     * @param chunkMultiplier multiplier for IO threads to determine target number of chunks
+     * @param minSegmentSizeMib minimum segment size in mebibytes (MiB) for file reading
+     * @param segmentMultiplier multiplier for IO threads to determine target number of segments
      * @param bufferSizeKib buffer size in kibibytes (KiB) for file reading operations
      * @return true if pipeline completed successfully without errors, false otherwise
      * @throws InterruptedException if the pipeline was interrupted
@@ -127,8 +127,8 @@ public final class ValidationPipelineExecutor {
             final int processThreads,
             final int queueCapacity,
             final int batchSize,
-            final int minChunkSizeMib,
-            final int chunkMultiplier,
+            final int minSegmentSizeMib,
+            final int segmentMultiplier,
             final int bufferSizeKib)
             throws InterruptedException {
 
@@ -140,8 +140,8 @@ public final class ValidationPipelineExecutor {
                         processThreads,
                         queueCapacity,
                         batchSize,
-                        minChunkSizeMib,
-                        chunkMultiplier,
+                        minSegmentSizeMib,
+                        segmentMultiplier,
                         bufferSizeKib)
                 .execute();
     }
@@ -160,36 +160,36 @@ public final class ValidationPipelineExecutor {
                 pathToHashRam = vds.getHashStoreRam();
                 final long inMemoryHashThreshold = pathToHashRam != null ? vds.getHashesRamToDiskThreshold() : 0;
 
-                // Plan read tasks
-                final var fileReadTasks = new ArrayList<FileReadTaskConfig>();
-                final var memoryReadTasks = new ArrayList<MemoryReadTaskConfig>();
+                // Partition data sources into file and memory read segments
+                final var fileReadSegments = new ArrayList<FileReadSegment>();
+                final var memoryReadSegments = new ArrayList<MemoryReadSegment>();
 
                 if (validators.containsKey(Type.P2KV)) {
-                    fileReadTasks.addAll(planFileReadTasks(pathToKeyValueDfc, Type.P2KV));
+                    fileReadSegments.addAll(partitionIntoFileSegments(pathToKeyValueDfc, Type.P2KV));
                 }
                 if (validators.containsKey(Type.P2H)) {
-                    fileReadTasks.addAll(planFileReadTasks(pathToHashDfc, Type.P2H));
+                    fileReadSegments.addAll(partitionIntoFileSegments(pathToHashDfc, Type.P2H));
 
-                    // Submit in-memory hash read tasks if memory store is available
+                    // Partition in-memory hash path range if memory store is available
                     if (pathToHashRam != null) {
                         final long lastLeafPath = vds.getLastLeafPath();
                         final long memoryEndPathExc = Math.min(inMemoryHashThreshold, lastLeafPath + 1);
                         if (memoryEndPathExc > 0) {
-                            memoryReadTasks.addAll(planP2HMemoryReadTasks(memoryEndPathExc));
+                            memoryReadSegments.addAll(partitionIntoMemorySegments(memoryEndPathExc));
                             log.debug(
-                                    "In-memory P2H read tasks: {}, range: [0, {})",
-                                    memoryReadTasks.size(),
+                                    "In-memory P2H read segments: {}, range: [0, {})",
+                                    memoryReadSegments.size(),
                                     memoryEndPathExc);
                         }
                     }
                 }
                 if (validators.containsKey(Type.K2P)) {
-                    fileReadTasks.addAll(planFileReadTasks(keyToPathDfc, Type.K2P));
+                    fileReadSegments.addAll(partitionIntoFileSegments(keyToPathDfc, Type.K2P));
                 }
-                log.debug("Total file read tasks: {}", fileReadTasks.size());
+                log.debug("Total file read segments: {}", fileReadSegments.size());
 
-                // Sort tasks: largest chunks first (better thread utilization)
-                fileReadTasks.sort((a, b) -> Long.compare(b.endByte() - b.startByte(), a.endByte() - a.startByte()));
+                // Sort segments: largest segments first (better thread utilization)
+                fileReadSegments.sort((a, b) -> Long.compare(b.endByte() - b.startByte(), a.endByte() - a.startByte()));
 
                 // Initialize data structures for processing
                 dataStats = new DataStats();
@@ -206,15 +206,15 @@ public final class ValidationPipelineExecutor {
                 }
 
                 // Submit read tasks
-                for (final MemoryReadTaskConfig task : memoryReadTasks) {
+                for (final MemoryReadSegment segment : memoryReadSegments) {
                     ioFutures.add(ioPool.submit(() -> {
-                        readInMemoryHashChunk(task.startPath(), task.endPath());
+                        readInMemoryHashSegment(segment.startPath(), segment.endPath());
                         return null;
                     }));
                 }
-                for (final FileReadTaskConfig task : fileReadTasks) {
+                for (final FileReadSegment segment : fileReadSegments) {
                     ioFutures.add(ioPool.submit(() -> {
-                        readFileChunk(task.reader(), task.type(), task.startByte(), task.endByte());
+                        readFileSegment(segment.reader(), segment.type(), segment.startByte(), segment.endByte());
                         return null;
                     }));
                 }
@@ -297,26 +297,26 @@ public final class ValidationPipelineExecutor {
         }
     }
 
-    // ==================== Task Planning Methods ====================
+    // ==================== Segment Partitioning Methods ====================
 
     /**
-     * Plans file read tasks for a data file collection.
-     * Divides files into chunks based on configuration parameters for parallel processing.
+     * Partitions a data file collection into read segments for parallel processing.
+     * Divides files into segments based on configuration parameters.
      *
      * @param dfc the data file collection to read from
      * @param dataType the type of data items in this collection
-     * @return list of file read tasks
+     * @return list of file read segments
      */
-    private List<FileReadTaskConfig> planFileReadTasks(
+    private List<FileReadSegment> partitionIntoFileSegments(
             @NonNull final DataFileCollection dfc, @NonNull final Type dataType) {
 
-        final List<FileReadTaskConfig> tasks = new ArrayList<>();
+        final List<FileReadSegment> fileReadSegments = new ArrayList<>();
 
         final long collectionTotalSize = dfc.getAllCompletedFiles().stream()
                 .mapToLong(DataFileReader::getSize)
                 .sum();
 
-        // Calculate chunks for each file
+        // Determine segment count and size for each file
         for (final DataFileReader reader : dfc.getAllCompletedFiles()) {
             final long fileSize = reader.getSize();
             if (fileSize == 0) {
@@ -326,78 +326,78 @@ public final class ValidationPipelineExecutor {
                 continue;
             }
 
-            final int chunks = calculateOptimalChunks(fileSize, collectionTotalSize);
-            final long chunkSize = (fileSize + chunks - 1) / chunks;
+            final int segments = calculateOptimalSegments(fileSize, collectionTotalSize);
+            final long segmentSize = (fileSize + segments - 1) / segments;
 
             log.debug(
-                    "File: {} size: {} MB, chunks: {} chunkSize: {} MB",
+                    "File: {} size: {} MB, segments: {} segment size: {} MB",
                     reader.getPath().getFileName(),
                     fileSize * BYTES_TO_MEBIBYTES,
-                    chunks,
-                    chunkSize * BYTES_TO_MEBIBYTES);
+                    segments,
+                    segmentSize * BYTES_TO_MEBIBYTES);
 
-            // Create tasks for each chunk
-            for (int i = 0; i < chunks; i++) {
-                final long startByte = i * chunkSize;
-                final long endByte = Math.min(startByte + chunkSize, fileSize);
+            // Divide each file into segments for parallel reading
+            for (int i = 0; i < segments; i++) {
+                final long startByte = i * segmentSize;
+                final long endByte = Math.min(startByte + segmentSize, fileSize);
 
-                tasks.add(new FileReadTaskConfig(reader, dataType, startByte, endByte));
+                fileReadSegments.add(new FileReadSegment(reader, dataType, startByte, endByte));
             }
         }
 
-        return tasks;
+        return fileReadSegments;
     }
 
     /**
-     * Calculates the optimal number of chunks for a file based on its size and configuration.
+     * Calculates the optimal number of segments for a file based on its size and configuration.
      *
      * @param fileSize the size of the file in bytes
      * @param collectionTotalSize the total size of all files in the collection
-     * @return the optimal number of chunks for the file
+     * @return the optimal number of segments for the file
      */
-    private int calculateOptimalChunks(final long fileSize, final long collectionTotalSize) {
-        final int minChunkSize = minChunkSizeMib * MEBIBYTES_TO_BYTES;
+    private int calculateOptimalSegments(final long fileSize, final long collectionTotalSize) {
+        final int minSegmentSize = minSegmentSizeMib * MEBIBYTES_TO_BYTES;
 
-        // Calculate target chunk size: divide total collection size by (ioThreads * chunkMultiplier)
-        // to distribute work evenly across threads, but ensure it's at least minChunkSize
-        final long targetChunkSize = Math.max(collectionTotalSize / (ioThreads * chunkMultiplier), minChunkSize);
+        // Calculate target segment size: divide total collection size by (ioThreads * segmentMultiplier)
+        // to distribute work evenly across threads, but ensure it's at least minSegmentSize
+        final long targetSegmentSize = Math.max(collectionTotalSize / (ioThreads * segmentMultiplier), minSegmentSize);
 
-        // If file is smaller than target chunk size, process it as a single chunk
-        if (fileSize < targetChunkSize) {
+        // If file is smaller than target segment size, process it as a single segment
+        if (fileSize < targetSegmentSize) {
             return 1;
         }
 
-        // Otherwise, divide file into chunks of approximately targetChunkSize (round up)
-        return (int) Math.ceil((double) fileSize / targetChunkSize);
+        // Otherwise, divide file into segments of approximately targetSegmentSize (round up)
+        return (int) Math.ceil((double) fileSize / targetSegmentSize);
     }
 
     /**
-     * Plans in-memory read tasks for P2H (Path to Hash) data.
-     * Chunks the path range for parallel processing.
+     * Partitions the in-memory P2H (Path to Hash) path range into read segments
+     * for parallel processing.
      *
      * @param totalPaths the total number of paths to read
-     * @return list of memory read tasks
+     * @return list of memory read segments
      */
-    private List<MemoryReadTaskConfig> planP2HMemoryReadTasks(final long totalPaths) {
-        final List<MemoryReadTaskConfig> tasks = new ArrayList<>();
+    private List<MemoryReadSegment> partitionIntoMemorySegments(final long totalPaths) {
+        final List<MemoryReadSegment> segments = new ArrayList<>();
 
-        // Use a reasonable min chunk size
-        final long minPathsPerChunk = 100_000L;
-        final int targetChunks = Math.max(1, ioThreads * chunkMultiplier);
-        final long pathsPerChunk = Math.max(minPathsPerChunk, (totalPaths + targetChunks - 1) / targetChunks);
+        // Use a reasonable min segment size
+        final long minPathsPerSegment = 100_000L;
+        final int targetSegments = Math.max(1, ioThreads * segmentMultiplier);
+        final long pathsPerSegment = Math.max(minPathsPerSegment, (totalPaths + targetSegments - 1) / targetSegments);
 
-        for (long start = 0; start < totalPaths; start += pathsPerChunk) {
-            final long end = Math.min(start + pathsPerChunk, totalPaths);
-            tasks.add(new MemoryReadTaskConfig(start, end));
+        for (long start = 0; start < totalPaths; start += pathsPerSegment) {
+            final long end = Math.min(start + pathsPerSegment, totalPaths);
+            segments.add(new MemoryReadSegment(start, end));
         }
 
-        return tasks;
+        return segments;
     }
 
-    // ==================== Task Reading Methods ====================
+    // ==================== Segment Reading Methods ====================
 
     /**
-     * Reads a chunk of data from a file and puts batches into the queue.
+     * Reads a segment of data from a file and puts batches into the queue.
      *
      * @param reader the data file reader
      * @param dataType the type of data items
@@ -406,7 +406,7 @@ public final class ValidationPipelineExecutor {
      * @throws IOException if there was a problem reading from the file
      * @throws InterruptedException if the thread was interrupted while waiting to put into the queue
      */
-    private void readFileChunk(
+    private void readFileSegment(
             @NonNull final DataFileReader reader,
             @NonNull final Type dataType,
             final long startByte,
@@ -451,7 +451,7 @@ public final class ValidationPipelineExecutor {
      * @param endPath the ending path (exclusive)
      * @throws InterruptedException if the thread was interrupted while waiting to put into the queue
      */
-    private void readInMemoryHashChunk(final long startPath, final long endPath) throws InterruptedException {
+    private void readInMemoryHashSegment(final long startPath, final long endPath) throws InterruptedException {
         List<ValidationItem> batch = new ArrayList<>(batchSize);
 
         for (long path = startPath; path < endPath; path++) {
