@@ -7,6 +7,7 @@ open module com.swirlds.virtualmap.test.fixtures {
     requires transitive com.swirlds.metrics.api;
     requires transitive org.hiero.base.crypto;
     requires transitive org.junit.jupiter.api;
+    requires com.swirlds.common.test.fixtures;
     requires com.swirlds.common;
     requires com.swirlds.virtualmap;
     requires org.hiero.base.utility;

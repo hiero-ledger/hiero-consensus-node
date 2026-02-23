@@ -6,6 +6,7 @@ import static org.hiero.otter.fixtures.util.EnvironmentUtils.getDefaultOutputDir
 
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.common.io.utility.FileUtils;
+import com.swirlds.common.test.fixtures.ConstructableTestFixtures;
 import com.swirlds.common.utility.RuntimeObjectRegistry;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -110,9 +111,8 @@ public class TurtleTestEnvironment implements TestEnvironment {
         RuntimeObjectRegistry.initialize(time);
 
         try {
-            final ConstructableRegistry registry = ConstructableRegistry.getInstance();
-            registry.reset();
-            registry.registerConstructables("");
+            ConstructableRegistry.getInstance().reset();
+            ConstructableTestFixtures.registerAllConstructables();
         } catch (final ConstructableRegistryException e) {
             throw new RuntimeException(e);
         }

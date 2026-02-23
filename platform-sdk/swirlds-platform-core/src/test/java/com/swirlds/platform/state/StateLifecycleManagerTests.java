@@ -15,6 +15,7 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.state.MutabilityException;
 import com.swirlds.common.Reservable;
 import com.swirlds.common.context.PlatformContext;
+import com.swirlds.common.test.fixtures.ConstructableTestFixtures;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.platform.SwirldsPlatform;
@@ -25,7 +26,6 @@ import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils;
 import com.swirlds.virtualmap.VirtualMap;
-import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
 import org.hiero.consensus.state.signed.SignedState;
@@ -43,12 +43,7 @@ class StateLifecycleManagerTests {
 
     @BeforeAll
     static void beforeAll() throws ConstructableRegistryException {
-        final var registry = ConstructableRegistry.getInstance();
-        registry.registerConstructables("org.hiero");
-        registry.registerConstructables("com.swirlds.platform");
-        registry.registerConstructables("com.swirlds.state");
-        registry.registerConstructables("com.swirlds.virtualmap");
-        registry.registerConstructables("com.swirlds.merkledb");
+        ConstructableTestFixtures.registerCoreConstructables();
     }
 
     @BeforeEach

@@ -21,6 +21,7 @@ import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.config.StateCommonConfig_;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
+import com.swirlds.common.test.fixtures.ConstructableTestFixtures;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.components.DefaultSavedStateController;
@@ -52,7 +53,6 @@ import java.util.List;
 import java.util.Random;
 import java.util.stream.Stream;
 import org.hiero.base.CompareTo;
-import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.state.StateSavingResult;
@@ -81,9 +81,7 @@ class StateFileManagerTests {
 
     @BeforeAll
     static void beforeAll() throws ConstructableRegistryException {
-        final ConstructableRegistry registry = ConstructableRegistry.getInstance();
-        registry.registerConstructables("com.swirlds");
-        registry.registerConstructables("org.hiero");
+        ConstructableTestFixtures.registerAllConstructables();
     }
 
     @BeforeEach

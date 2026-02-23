@@ -22,6 +22,7 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.common.io.utility.RecycleBinImpl;
+import com.swirlds.common.test.fixtures.ConstructableTestFixtures;
 import com.swirlds.common.test.fixtures.TestRecycleBin;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
@@ -43,7 +44,6 @@ import java.nio.file.Path;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
-import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
@@ -94,9 +94,7 @@ public class StartupStateUtilsTests {
 
     @BeforeAll
     static void beforeAll() throws ConstructableRegistryException {
-        final ConstructableRegistry registry = ConstructableRegistry.getInstance();
-        registry.registerConstructables("com.swirlds");
-        registry.registerConstructables("org.hiero");
+        ConstructableTestFixtures.registerAllConstructables();
     }
 
     @NonNull

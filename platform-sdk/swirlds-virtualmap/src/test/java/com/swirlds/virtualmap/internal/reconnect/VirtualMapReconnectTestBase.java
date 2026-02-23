@@ -8,7 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.merkle.synchronization.task.QueryResponse;
+import com.swirlds.common.test.fixtures.ConstructableTestFixtures;
 import com.swirlds.common.test.fixtures.merkle.util.MerkleTestUtils;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.metrics.api.Metrics;
@@ -30,8 +30,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import org.hiero.base.constructable.ClassConstructorPair;
-import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.reconnect.config.ReconnectConfig;
@@ -92,10 +90,7 @@ public abstract class VirtualMapReconnectTestBase {
     @BeforeAll
     public static void startup() throws ConstructableRegistryException, FileNotFoundException {
         loadLog4jContext();
-        final ConstructableRegistry registry = ConstructableRegistry.getInstance();
-        registry.registerConstructables("com.swirlds.common");
-        registry.registerConstructables("org.hiero");
-        registry.registerConstructable(new ClassConstructorPair(QueryResponse.class, QueryResponse::new));
+        ConstructableTestFixtures.registerAllConstructables();
     }
 
     protected void reconnect() throws Exception {

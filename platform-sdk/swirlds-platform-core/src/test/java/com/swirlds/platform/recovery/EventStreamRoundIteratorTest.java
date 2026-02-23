@@ -17,6 +17,7 @@ import static org.mockito.Mockito.mock;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
+import com.swirlds.common.test.fixtures.ConstructableTestFixtures;
 import com.swirlds.platform.recovery.internal.EventStreamPathIterator;
 import com.swirlds.platform.recovery.internal.EventStreamRoundIterator;
 import com.swirlds.platform.recovery.internal.StreamedRound;
@@ -29,7 +30,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Random;
-import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.consensus.io.IOIterator;
 import org.hiero.consensus.model.event.CesEvent;
@@ -43,9 +43,7 @@ class EventStreamRoundIteratorTest {
 
     @BeforeAll
     static void beforeAll() throws ConstructableRegistryException {
-        final ConstructableRegistry registry = ConstructableRegistry.getInstance();
-        registry.registerConstructables("com.swirlds");
-        registry.registerConstructables("org.hiero");
+        ConstructableTestFixtures.registerAllConstructables();
     }
 
     public static void assertEventsAreEqual(final CesEvent expected, final CesEvent actual) {

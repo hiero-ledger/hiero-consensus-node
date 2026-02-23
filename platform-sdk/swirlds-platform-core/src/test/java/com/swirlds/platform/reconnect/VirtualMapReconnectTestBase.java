@@ -6,6 +6,7 @@ import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATIO
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.fail;
 
+import com.swirlds.common.test.fixtures.ConstructableTestFixtures;
 import com.swirlds.common.test.fixtures.merkle.util.MerkleTestUtils;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
@@ -13,7 +14,6 @@ import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.consensus.reconnect.config.ReconnectConfig;
 import org.hiero.consensus.reconnect.config.ReconnectConfig_;
@@ -53,9 +53,7 @@ public abstract class VirtualMapReconnectTestBase {
     @BeforeAll
     public static void startup() throws ConstructableRegistryException, FileNotFoundException {
         loadLog4jContext();
-        final ConstructableRegistry registry = ConstructableRegistry.getInstance();
-        registry.registerConstructables("com.swirlds.common");
-        registry.registerConstructables("org.hiero");
+        ConstructableTestFixtures.registerAllConstructables();
     }
 
     protected void reconnect() throws Exception {

@@ -16,6 +16,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
+import com.swirlds.common.test.fixtures.ConstructableTestFixtures;
 import com.swirlds.platform.recovery.internal.EventStreamSingleFileIterator;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -24,7 +25,6 @@ import java.time.Duration;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Random;
-import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.consensus.model.event.CesEvent;
 import org.junit.jupiter.api.BeforeAll;
@@ -37,9 +37,7 @@ class EventStreamSingleFileIteratorTest {
 
     @BeforeAll
     static void beforeAll() throws ConstructableRegistryException {
-        final ConstructableRegistry registry = ConstructableRegistry.getInstance();
-        registry.registerConstructables("com.swirlds");
-        registry.registerConstructables("org.hiero");
+        ConstructableTestFixtures.registerAllConstructables();
     }
 
     public static void assertEventsAreEqual(final CesEvent expected, final CesEvent actual) {
