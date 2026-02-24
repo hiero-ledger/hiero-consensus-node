@@ -13,6 +13,7 @@ import com.swirlds.component.framework.model.WiringModelBuilder;
 import com.swirlds.component.framework.schedulers.builders.TaskSchedulerConfiguration;
 import com.swirlds.component.framework.wires.input.InputWire;
 import com.swirlds.component.framework.wires.output.OutputWire;
+import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.List;
@@ -29,6 +30,8 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 public class ComponentWiringTests {
+    private static final Metrics METRICS = new NoOpMetrics();
+    private static final Time TIME = Time.getCurrent();
 
     private interface FooBarBaz {
         @NonNull
@@ -142,7 +145,7 @@ public class ComponentWiringTests {
     @Test
     void methodNotOnComponentTest() {
         final WiringModel wiringModel =
-                WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
+                WiringModelBuilder.create(METRICS, TIME).build();
 
         final TaskSchedulerConfiguration schedulerConfiguration = TaskSchedulerConfiguration.parse("DIRECT");
 
@@ -162,7 +165,7 @@ public class ComponentWiringTests {
     void simpleComponentTest(final int bindLocation) {
 
         final WiringModel wiringModel =
-                WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
+                WiringModelBuilder.create(METRICS, TIME).build();
 
         final TaskSchedulerConfiguration schedulerConfiguration = TaskSchedulerConfiguration.parse("DIRECT");
 
@@ -250,7 +253,7 @@ public class ComponentWiringTests {
     void transformerTest(final int bindLocation) {
 
         final WiringModel wiringModel =
-                WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
+                WiringModelBuilder.create(METRICS, TIME).build();
 
         final TaskSchedulerConfiguration schedulerConfiguration = TaskSchedulerConfiguration.parse("DIRECT");
 
@@ -318,7 +321,7 @@ public class ComponentWiringTests {
     void filterTest(final int bindLocation) {
 
         final WiringModel wiringModel =
-                WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
+                WiringModelBuilder.create(METRICS, TIME).build();
 
         final TaskSchedulerConfiguration schedulerConfiguration = TaskSchedulerConfiguration.parse("DIRECT");
 
@@ -388,7 +391,7 @@ public class ComponentWiringTests {
     void splitterTest(final int bindLocation) {
 
         final WiringModel wiringModel =
-                WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
+                WiringModelBuilder.create(METRICS, TIME).build();
 
         final TaskSchedulerConfiguration schedulerConfiguration = TaskSchedulerConfiguration.parse("DIRECT");
 
@@ -426,7 +429,7 @@ public class ComponentWiringTests {
     void filteredSplitterTest(final int bindLocation) {
 
         final WiringModel wiringModel =
-                WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
+                WiringModelBuilder.create(METRICS, TIME).build();
 
         final TaskSchedulerConfiguration schedulerConfiguration = TaskSchedulerConfiguration.parse("DIRECT");
 
@@ -473,7 +476,7 @@ public class ComponentWiringTests {
     void transformedSplitterTest(final int bindLocation) {
 
         final WiringModel wiringModel =
-                WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
+                WiringModelBuilder.create(METRICS, TIME).build();
 
         final TaskSchedulerConfiguration schedulerConfiguration = TaskSchedulerConfiguration.parse("DIRECT");
 
@@ -514,9 +517,12 @@ public class ComponentWiringTests {
 
     @Test
     void inputWireThreadSafetyTest() {
+        final int NUM_THREADS = 16;
+        final int NUM_TASKS = 10000;
+
         final AtomicReference<Throwable> uncaughtException = new AtomicReference<>();
         final WiringModel wiringModel =
-                WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent())
+                WiringModelBuilder.create(METRICS, TIME)
                         .withUncaughtExceptionHandler((t, e) -> uncaughtException.set(e))
                         .build();
 
@@ -533,7 +539,7 @@ public class ComponentWiringTests {
         wiringModel.start();
 
         final AtomicReference<RuntimeException> getInputException = new AtomicReference<>();
-        try (final ExecutorService executor = Executors.newFixedThreadPool(16)) {
+        try (final ExecutorService executor = Executors.newFixedThreadPool(NUM_THREADS)) {
             final Runnable task = () -> {
                 try {
                     final InputWire<Integer> fooInput = fooBarBazWiring.getInputWire(FooBarBaz::handleFoo);
@@ -542,7 +548,7 @@ public class ComponentWiringTests {
                     getInputException.set(e);
                 }
             };
-            for (int i = 0; i < 10000; i++) {
+            for (int i = 0; i < NUM_TASKS; i++) {
                 executor.submit(task);
             }
         }
