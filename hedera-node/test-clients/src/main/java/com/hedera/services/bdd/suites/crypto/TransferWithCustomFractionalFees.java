@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.crypto;
 
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountDetailsAsserts.accountDetailsWith;
 import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFullPrefixesFor;
@@ -311,7 +310,6 @@ public class TransferWithCustomFractionalFees {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> transferWithFractionalCustomFeeAllowanceNetOfTransfers() {
         return hapiTest(
                 cryptoCreate(htsCollector).balance(ONE_HUNDRED_HBARS),
@@ -411,7 +409,6 @@ public class TransferWithCustomFractionalFees {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> transferWithFractionalCustomFeesThreeCollectors() {
         return hapiTest(
                 cryptoCreate(alice),
@@ -484,7 +481,6 @@ public class TransferWithCustomFractionalFees {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> transferWithFractionalCustomFeesDenominatorMax() {
         return hapiTest(
                 cryptoCreate(alice),

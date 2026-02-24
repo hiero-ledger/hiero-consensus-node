@@ -16,6 +16,7 @@ import static com.hedera.node.app.workflows.prehandle.PreHandleResult.Status.SO_
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableSortedSet;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.hapi.fees.HighVolumePricingCalculator.HIGH_VOLUME_PRICING_FUNCTIONS;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
@@ -145,14 +146,14 @@ public class ChildDispatchFactory {
      * Creates a child dispatch. This method computes the transaction info and initializes record builder for the child
      * transaction. This method also computes a pre-handle result for the child transaction.
      *
-     * @param config                  the configuration
-     * @param stack                   the savepoint stack
-     * @param readableStoreFactory    the readable store factory
-     * @param creatorInfo             the node info of the creator
-     * @param topLevelFunction        the top level functionality
-     * @param consensusNow            the consensus time
-     * @param blockRecordInfo         the block record info
-     * @param options                 the dispatch options
+     * @param config the configuration
+     * @param stack the savepoint stack
+     * @param readableStoreFactory the readable store factory
+     * @param creatorInfo the node info of the creator
+     * @param topLevelFunction the top level functionality
+     * @param consensusNow the consensus time
+     * @param blockRecordInfo the block record info
+     * @param options the dispatch options
      * @param overridePreHandleResult the override pre-handle result for the inner transaction from atomic batch
      * @return the child dispatch
      * @throws HandleException if the child stack base builder cannot be created
@@ -315,6 +316,11 @@ public class ChildDispatchFactory {
         if (congestionMultiplier > 1) {
             builder.congestionMultiplier(congestionMultiplier);
         }
+        // Child transactions can inherit highVolume from a parent synthetic dispatch.
+        final var isHighVolume = txnInfo.txBody().highVolume();
+        if (isHighVolume && HIGH_VOLUME_PRICING_FUNCTIONS.contains(txnInfo.functionality())) {
+            builder.highVolumePricingMultiplier(childFees.highVolumeMultiplier());
+        }
         final var childTokenContext = new TokenContextImpl(config, childStack, consensusNow, writableEntityIdStore);
         return new RecordDispatch(
                 builder,
@@ -438,8 +444,8 @@ public class ChildDispatchFactory {
      * A null callback is useful for internal dispatches that do not need further signature verifications;
      * for example, hollow account completion and auto account creation.
      *
-     * @param callback        the callback
-     * @param config          the configuration
+     * @param callback the callback
+     * @param config the configuration
      * @param authorizingKeys any simple keys that authorized this verifier
      * @return the key verifier
      */
@@ -499,7 +505,7 @@ public class ChildDispatchFactory {
      * Provides the transaction information for the given dispatched transaction body.
      *
      * @param payerId the payer id
-     * @param txBody  the transaction body
+     * @param txBody the transaction body
      * @return the transaction information
      */
     public static TransactionInfo getTxnInfoFrom(

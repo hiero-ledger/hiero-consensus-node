@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.consensus;
+package org.hiero.consensus.hashgraph.impl.consensus;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -16,6 +16,7 @@ import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.GeneratorEventGraphSource;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.GeneratorEventGraphSourceBuilder;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
+import org.hiero.consensus.model.event.NonDeterministicGeneration;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterUtils;
@@ -334,6 +335,46 @@ class GeneratorEventGraphSourceTest {
         for (final PlatformEvent event : events) {
             assertEquals(expectedCreator, event.getCreatorId(), "all events should be from the single node");
             assertTrue(event.getOtherParents().isEmpty(), "single-node network should have no other parents");
+        }
+    }
+
+    @Test
+    @Tag(TestComponentTags.PLATFORM)
+    @DisplayName("populateNgen sets ngen on generated events")
+    void populateNgenEnabled() {
+        final GeneratorEventGraphSource generator = GeneratorEventGraphSourceBuilder.builder()
+                .numNodes(4)
+                .seed(0L)
+                .populateNgen(true)
+                .build();
+
+        final List<PlatformEvent> events = generator.nextEvents(200);
+
+        for (final PlatformEvent event : events) {
+            assertTrue(event.hasNGen(), "every event should have ngen set when populateNgen is enabled");
+            assertTrue(
+                    event.getNGen() >= NonDeterministicGeneration.FIRST_GENERATION,
+                    "ngen should be at least FIRST_GENERATION");
+        }
+
+        // Verify that ngen actually advances beyond FIRST_GENERATION
+        final long maxNGen =
+                events.stream().mapToLong(PlatformEvent::getNGen).max().orElse(0);
+        assertTrue(
+                maxNGen > NonDeterministicGeneration.FIRST_GENERATION, "ngen should advance beyond FIRST_GENERATION");
+    }
+
+    @Test
+    @Tag(TestComponentTags.PLATFORM)
+    @DisplayName("Events do not have ngen set when populateNgen is disabled")
+    void populateNgenDisabled() {
+        final GeneratorEventGraphSource generator =
+                GeneratorEventGraphSourceBuilder.builder().numNodes(4).seed(0L).build();
+
+        final List<PlatformEvent> events = generator.nextEvents(100);
+
+        for (final PlatformEvent event : events) {
+            assertFalse(event.hasNGen(), "events should not have ngen set when populateNgen is disabled");
         }
     }
 

@@ -8,12 +8,13 @@ import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.component.framework.model.WiringModel;
-import com.swirlds.platform.reconnect.api.ReservedSignedStateResult;
 import com.swirlds.platform.scratchpad.Scratchpad;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.iss.IssScratchpad;
+import com.swirlds.platform.state.nexus.SignedStateNexus;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.wiring.PlatformComponents;
+import com.swirlds.platform.wiring.PlatformCoordinator;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
@@ -26,6 +27,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import org.hiero.base.concurrent.BlockingResourceProvider;
 import org.hiero.consensus.event.IntakeEventCounter;
+import org.hiero.consensus.gossip.ReservedSignedStateResult;
 import org.hiero.consensus.hashgraph.FreezePeriodChecker;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.KeysAndCerts;
@@ -81,6 +83,8 @@ import org.hiero.consensus.state.signed.ReservedSignedState;
  * @param fallenBehindMonitor                    an instance of the fallenBehind Monitor which tracks if the node has fallen behind
  * @param reservedSignedStateResultPromise             a shared data structure that Gossip and the ReconnectController will use provide
  *                                               and obtain a reference to a ReservedSignedState
+ * @param platformCoordinator                    the platform coordinator, which allows components to trigger platform status changes
+ * @param latestImmutableStateNexus              a nexus for accessing the latest immutable state
  */
 public record PlatformBuildingBlocks(
         @NonNull PlatformComponents platformComponents,
@@ -110,7 +114,9 @@ public record PlatformBuildingBlocks(
         @NonNull ConsensusStateEventHandler consensusStateEventHandler,
         @NonNull ExecutionLayer execution,
         @NonNull FallenBehindMonitor fallenBehindMonitor,
-        @NonNull BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise) {
+        @NonNull BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise,
+        @NonNull PlatformCoordinator platformCoordinator,
+        @NonNull SignedStateNexus latestImmutableStateNexus) {
     public PlatformBuildingBlocks {
         requireNonNull(platformComponents);
         requireNonNull(platformContext);
@@ -137,5 +143,7 @@ public record PlatformBuildingBlocks(
         requireNonNull(execution);
         requireNonNull(fallenBehindMonitor);
         requireNonNull(reservedSignedStateResultPromise);
+        requireNonNull(platformCoordinator);
+        requireNonNull(latestImmutableStateNexus);
     }
 }

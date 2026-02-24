@@ -954,10 +954,10 @@ public class VirtualMapStateImplTest extends MerkleTestBase {
             assertThat(siblingHashes.size()).isEqualTo(2);
 
             assertThat(siblingHashes.get(0).hash()).isEqualTo(getHash(6));
-            assertTrue(siblingHashes.get(0).isRight());
+            assertFalse(siblingHashes.get(0).isLeft());
 
             assertThat(siblingHashes.get(1).hash()).isEqualTo(getHash(1));
-            assertFalse(siblingHashes.get(1).isRight());
+            assertTrue(siblingHashes.get(1).isLeft());
 
             // Parent hashes leaf(5) -> internal(2) -> root(0)
             final List<Hash> innerParentHashes = proof.innerParentHashes();
@@ -1027,13 +1027,13 @@ public class VirtualMapStateImplTest extends MerkleTestBase {
             assertThat(siblingHashes.size()).isEqualTo(3);
             // Siblings along the path from leaf(7) -> internal(3) -> internal(1)
             assertThat(siblingHashes.get(0).hash()).isEqualTo(getHash(8));
-            assertTrue(siblingHashes.get(0).isRight());
+            assertFalse(siblingHashes.get(0).isLeft());
 
             assertThat(siblingHashes.get(1).hash()).isEqualTo(getHash(4));
-            assertTrue(siblingHashes.get(1).isRight());
+            assertFalse(siblingHashes.get(1).isLeft());
 
             assertThat(siblingHashes.get(2).hash()).isEqualTo(getHash(2));
-            assertTrue(siblingHashes.get(2).isRight());
+            assertFalse(siblingHashes.get(2).isLeft());
 
             final List<Hash> innerParentHashes = proof.innerParentHashes();
             // leaf hash, then internal(3), then internal(1), then root
@@ -1083,13 +1083,13 @@ public class VirtualMapStateImplTest extends MerkleTestBase {
             assertThat(siblingHashes.size()).isEqualTo(3);
             // Path from leaf(10) -> internal(4) -> internal(1)
             assertThat(siblingHashes.get(0).hash()).isEqualTo(getHash(9));
-            assertFalse(siblingHashes.get(0).isRight());
+            assertTrue(siblingHashes.get(0).isLeft());
 
             assertThat(siblingHashes.get(1).hash()).isEqualTo(getHash(3));
-            assertFalse(siblingHashes.get(1).isRight());
+            assertTrue(siblingHashes.get(1).isLeft());
 
             assertThat(siblingHashes.get(2).hash()).isEqualTo(getHash(2));
-            assertTrue(siblingHashes.get(2).isRight());
+            assertFalse(siblingHashes.get(2).isLeft());
 
             final List<Hash> innerParentHashes = proof.innerParentHashes();
             // leaf hash, then internal(4), then internal(1), then root
@@ -1189,7 +1189,7 @@ public class VirtualMapStateImplTest extends MerkleTestBase {
                         + "\"VirtualMapMetadata\":{\"firstLeafPath\":2,\"lastLeafPath\":4},"
                         + "\"Singletons\":"
                         + "{\"First-Service." + COUNTRY_STATE_KEY
-                        + "\":{\"path\":3,\"mnemonic\":\"cushion-bright-early-flight\"}}}");
+                        + "\":{\"path\":3,\"mnemonic\":\"jelly-blast-anxiety-outside\"}}}");
     }
 
     @Test

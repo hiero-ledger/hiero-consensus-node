@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.state;
 
+import static com.hedera.node.app.utils.TestUtils.randomBytes;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -17,6 +18,7 @@ import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.swirlds.state.merkle.StateValue.StateValueCodec;
+import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import org.junit.jupiter.api.DisplayName;
@@ -150,5 +152,32 @@ public class ProtoObjectEquivalenceTest {
         final StateItem pbjParsedFromSw = decode(StateItem.PROTOBUF, swBytes);
         // Re-encode and compare
         assertArrayEquals(pbjBytes, encode(StateItem.PROTOBUF, pbjParsedFromSw));
+    }
+
+    @Test
+    @DisplayName("VirtualLeafBytes: hashing bytes match StateItem bytes with 0x00 prefix")
+    void virtualLeafBytes_forHashing_matches_stateItem_with_prefix() {
+        final Bytes keyBytes = Bytes.wrap(randomBytes(10));
+        final Bytes valueBytes = Bytes.wrap(randomBytes(10));
+
+        // 1. Get bytes from VirtualLeafBytes#writeToForHashing
+        final VirtualLeafBytes<Void> leafBytes = new VirtualLeafBytes<>(123, keyBytes, valueBytes);
+        final BufferedData hashingOut = BufferedData.allocate(1024);
+        leafBytes.writeToForHashing(hashingOut);
+        hashingOut.flip();
+        final byte[] actualHashingBytes = new byte[(int) hashingOut.remaining()];
+        hashingOut.readBytes(actualHashingBytes);
+
+        // 2. Get bytes from StateItem#CODEC
+        final com.swirlds.state.merkle.StateItem swItem = new com.swirlds.state.merkle.StateItem(keyBytes, valueBytes);
+        final byte[] stateItemBytes = encode(com.swirlds.state.merkle.StateItem.CODEC, swItem);
+
+        // 3. Verify prefix and equivalence
+        assertEquals(stateItemBytes.length + 1, actualHashingBytes.length, "Hashing bytes must have one extra byte");
+        assertEquals((byte) 0x00, actualHashingBytes[0], "First byte must be 0x00");
+
+        final byte[] actualWithoutPrefix = new byte[stateItemBytes.length];
+        System.arraycopy(actualHashingBytes, 1, actualWithoutPrefix, 0, stateItemBytes.length);
+        assertArrayEquals(stateItemBytes, actualWithoutPrefix, "Remaining bytes must match StateItem encoding");
     }
 }

@@ -27,9 +27,9 @@ module org.hiero.base.crypto {
     requires transitive org.hiero.base.concurrent;
     requires transitive org.hiero.base.utility;
     requires transitive com.goterl.lazysodium;
-    requires transitive org.apache.logging.log4j;
     requires com.swirlds.base;
     requires com.sun.jna;
+    requires org.apache.logging.log4j;
     requires org.bouncycastle.provider;
     requires org.hyperledger.besu.nativelib.secp256k1;
     requires static transitive com.github.spotbugs.annotations;

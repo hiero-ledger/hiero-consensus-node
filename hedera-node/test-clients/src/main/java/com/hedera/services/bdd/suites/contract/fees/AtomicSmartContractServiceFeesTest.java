@@ -15,10 +15,16 @@ import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfe
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateInnerTxnChargedUsd;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SOURCE_KEY;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedContractCreateSimpleFeesUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.getChargedGasForContractCreateInnerTxn;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateInnerTxnFeesWithTxnSize;
+import static org.hiero.hapi.support.fees.Extra.PROCESSING_BYTES;
+import static org.hiero.hapi.support.fees.Extra.SIGNATURES;
 
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData.EthTransactionType;
 import com.hedera.services.bdd.junit.HapiTest;
@@ -30,6 +36,7 @@ import com.hedera.services.bdd.spec.dsl.annotations.Account;
 import com.hedera.services.bdd.spec.dsl.annotations.Contract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecAccount;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
+import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -66,6 +73,7 @@ class AtomicSmartContractServiceFeesTest {
     @Order(0)
     final Stream<DynamicTest> contractCreateBaseUSDFee() {
         final var creation = "creation";
+        final var gasUsedRef = new java.util.concurrent.atomic.AtomicReference<>(0.0);
         return hapiTest(
                 cryptoCreate(BATCH_OPERATOR),
                 uploadInitCode("EmptyOne"),
@@ -76,7 +84,20 @@ class AtomicSmartContractServiceFeesTest {
                                 .batchKey(BATCH_OPERATOR))
                         .via(ATOMIC_BATCH)
                         .signedByPayerAnd(BATCH_OPERATOR),
-                validateInnerTxnChargedUsd(creation, ATOMIC_BATCH, 0.72, 5));
+                // compute gasUsd
+                withOpContext((spec, op) -> {
+                    final var gasUsd = getChargedGasForContractCreateInnerTxn(spec, creation, ATOMIC_BATCH);
+                    gasUsedRef.set(gasUsd);
+                }),
+                validateInnerTxnFeesWithTxnSize(
+                        creation,
+                        ATOMIC_BATCH,
+                        0.727,
+                        1.0,
+                        txnSize -> expectedContractCreateSimpleFeesUsd(
+                                        Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize))
+                                + gasUsedRef.get(),
+                        0.1));
     }
 
     @HapiTest
