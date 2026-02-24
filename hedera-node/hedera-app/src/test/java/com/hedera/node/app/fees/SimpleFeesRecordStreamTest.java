@@ -26,6 +26,7 @@ import java.util.stream.Stream;
 import java.util.zip.GZIPInputStream;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
 
 /*
 to use this first download historical data.
@@ -150,12 +151,52 @@ public class SimpleFeesRecordStreamTest {
      */
     @BeforeAll
     static void beforeAll() throws IOException {
-        csv = new CSVWriter(new FileWriter("simple-fees-historical-comparison.csv"));
+        csv = new CSVWriter(new FileWriter("../../reports/simple-fees-historical-comparison.csv"));
         csv.write(
                 "Service Name, Simple Fee, Old Fees, Comparison, SF Service, SF Node, SF Network, Timestamp, Details, rate cents, rate hbar");
         csv.endLine();
-        json = new JSONFormatter(new FileWriter("simple-fees-historical-comparison.json"));
+        json = new JSONFormatter(new FileWriter("../../reports/simple-fees-historical-comparison.json"));
     }
+    /*
+
+good:
+ROUND:                               238858155
+HASH:                                4c505baf460d63545859f57a362cc1e8f4613383283265a593df23a4fbca27721436ae624cb07c639b43abe8e8256234
+HASH_MNEMONIC:                       meat-invest-script-hedgehog
+NUMBER_OF_CONSENSUS_EVENTS:          98945886808
+CONSENSUS_TIMESTAMP:                 2026-02-20T19:45:00.384747Z
+LEGACY_RUNNING_EVENT_HASH:           2aaa3daf94df20ebb010ef1ea4f1e3c24df99d2b19d65b23f6ba068ddfaa21044fec0e5b0d6d295776fde69968f5ba94
+LEGACY_RUNNING_EVENT_HASH_MNEMONIC:  fetch-remove-goddess-buddy
+MINIMUM_BIRTH_ROUND_NON_ANCIENT:     238858127
+SOFTWARE_VERSION:                    SemanticVersion[major=0, minor=70, patch=0, pre=, build=0]
+WALL_CLOCK_TIME:                     2026-02-20T19:45:07.642150244Z
+NODE_ID:                             1
+SIGNING_NODES:                       1, 10, 11, 12, 14, 15, 16, 17, 18, 19, 20, 24, 25, 26, 27, 28, 29, 31, 32, 33, 34, 35
+SIGNING_WEIGHT_SUM:                  965428892200000000
+TOTAL_WEIGHT:                        1390468431700000000
+FREEZE_STATE:                        false
+
+const TIMESTAMP_15   = '2026-02-19T16_15'
+
+using state from
+bad
+ROUND:                               238744171
+HASH:                                e33367cf9997e8b395a0ca21a55c16db14b633767e4497fe6c4dc7c0aa5b02bc769de0b4c886af856e75bbd2f228fe26
+HASH_MNEMONIC:                       often-wheat-snake-trust
+NUMBER_OF_CONSENSUS_EVENTS:          98898305208
+CONSENSUS_TIMESTAMP:                 2026-02-19T16:00:02.172989040Z
+LEGACY_RUNNING_EVENT_HASH:           838e4ff9af0631717a60441779734acbf0754094badf2a8623d880522eb335c8e9c92d41f23b74f2abf698262f99779e
+LEGACY_RUNNING_EVENT_HASH_MNEMONIC:  mixture-you-butter-comfort
+MINIMUM_BIRTH_ROUND_NON_ANCIENT:     238744144
+SOFTWARE_VERSION:                    SemanticVersion[major=0, minor=70, patch=0, pre=, build=0]
+WALL_CLOCK_TIME:                     2026-02-19T16:00:09.834184010Z
+NODE_ID:                             1
+SIGNING_NODES:                       1, 3, 5, 10, 11, 12, 14, 15, 18, 19, 22, 24, 25, 26, 27, 28, 29, 31, 32, 33, 34, 35
+SIGNING_WEIGHT_SUM:                  950253670800000000
+TOTAL_WEIGHT:                        1390468431700000000
+FREEZE_STATE:                        false
+mainnet/latest-round/stateMetadata.txt (END)
+     */
 
     @AfterAll
     static void afterAll() throws IOException {
@@ -167,7 +208,7 @@ public class SimpleFeesRecordStreamTest {
         }
     }
 
-    //    @Test
+    @Test
     void streamingSimpleFees() throws IOException {
         // set the overrides
         final var overrides = Map.of("hedera.transaction.maxMemoUtf8Bytes", "101", "fees.simpleFeesEnabled", "true");
@@ -261,6 +302,7 @@ public class SimpleFeesRecordStreamTest {
         json.key("rate_cents", rate.getCurrentRate().getCentEquiv());
         csv.field(rate.getCurrentRate().getHbarEquiv());
         json.key("rate_hbar", rate.getCurrentRate().getHbarEquiv());
+        json.key("signed_txn_size",signedTxnBytes.size());
         csv.endLine();
         json.endRecord();
     }

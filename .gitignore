@@ -1087,3 +1087,11 @@ hedera-state-validator/state-analysis.log
 snyk-code.html
 snyk-code.json
 snyk/
+sftest
+latest-round
+hedera-node/test-clients/redacted-blocks
+hedera-node/data/recordStreams
+mainnet
+testnet
+previewnet
+temp
