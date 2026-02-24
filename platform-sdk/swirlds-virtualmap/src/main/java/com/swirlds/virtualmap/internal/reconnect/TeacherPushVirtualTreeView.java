@@ -165,12 +165,12 @@ public final class TeacherPushVirtualTreeView extends VirtualTreeViewBase implem
             // so we have to flip w/o waiting in that case (when it's null.)
             if (lastNodeAwaitingReporting != null) {
                 try {
-                    synchronized (this) {
+                    synchronized (lastNodeAwaitingReporting) {
                         final long waitStartMillis = System.currentTimeMillis();
                         while (!hasLearnerReportedFor(lastNodeAwaitingReporting)
                                 && System.currentTimeMillis() - waitStartMillis
                                         < MAX_TOTAL_AWAIT_FOR_REPORT_TIMEOUT_MILLIS) {
-                            wait(AWAIT_FOR_REPORT_TIMEOUT_MILLIS);
+                            lastNodeAwaitingReporting.wait(AWAIT_FOR_REPORT_TIMEOUT_MILLIS);
                         }
                     }
                 } catch (InterruptedException ignore) {
@@ -235,8 +235,8 @@ public final class TeacherPushVirtualTreeView extends VirtualTreeViewBase implem
                 : ConcurrentNodeStatusTracker.Status.NOT_KNOWN;
         nodeStatusTracker.set(node, status);
         if (node.equals(lastNodeAwaitingReporting)) {
-            synchronized (this) {
-                notifyAll();
+            synchronized (node) {
+                node.notifyAll();
             }
         }
     }
