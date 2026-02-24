@@ -14,13 +14,13 @@ on:
       nlg-time: #'-R -c 32 -a 100000000 -T 1000 -n 100000 -S hot -p 50 -tt 1m
         required: true
         default: "3"
-        description: "Test execution time options"
+        description: "Test execution time options, in seconds"
         type: choice
         options:
-          - "1m"
-          - "20m"
-          - "120m"
-          - "330m"
+          - "60"
+          - "1200"
+          - "7200"
+          - "19800"
       add-app-props:
         required: false
         default: ""
@@ -175,12 +175,13 @@ jobs:
                 jmap -dump:live,format=b,file=/tmp/test.hprof \$jpid; fi"; \
           done 2>/dev/null
           EOF
-          nohup bash -c 'sleep 500; sh heapInfoByPod.sh' > heapInfoByPod.log 2>&1 &
+          wait_time=$(expr ${{ inputs.nlg-time }} / 100 \* 90 )
+          nohup bash -c "sleep ${wait_time}; sh heapInfoByPod.sh" > heapInfoByPod.log 2>&1 &
 
       - name: Run NLG test
         run: |
           cd hiero-block-node/tools-and-tests/scripts/solo-e2e-test
-          task load:up NLG_TEST_TYPE="{{ inputs.nlg-test }}" NLG_ARGS="{{ inputs.nlg-args }} -a {{ inputs.nlg-accounts }} -tt {{ inputs.nlg-time }}" NLG_MAX_TPS="{{ inputs.nlg-tps }}"
+          task load:up NLG_TEST_TYPE="${{ inputs.nlg-test }}" NLG_ARGS="${{ inputs.nlg-args }} -a ${{ inputs.nlg-accounts }} -tt ${{ inputs.nlg-time }}s" NLG_MAX_TPS="${{ inputs.nlg-tps }}"
 
       - name: Stop NLG test
         run: |
