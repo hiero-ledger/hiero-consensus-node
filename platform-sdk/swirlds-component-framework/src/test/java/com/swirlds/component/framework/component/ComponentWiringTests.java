@@ -515,6 +515,10 @@ public class ComponentWiringTests {
         assertEquals(expectedOutputData, outputData);
     }
 
+    /**
+     * Tests if getting the input wires concurrently causes any issues. This was added in response to a bug where a
+     * single proxy component was being reused in the ComponentWiring, making it unreliable when retrieving input wires.
+     */
     @Test
     void inputWireThreadSafetyTest() {
         final int NUM_THREADS = 16;

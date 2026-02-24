@@ -43,7 +43,6 @@ public class ComponentWiring<COMPONENT_TYPE, OUTPUT_TYPE> {
 
     private final WiringModel model;
     private final TaskScheduler<OUTPUT_TYPE> scheduler;
-
     private final Class<COMPONENT_TYPE> clazz;
 
     /**
@@ -194,6 +193,7 @@ public class ComponentWiring<COMPONENT_TYPE, OUTPUT_TYPE> {
             @NonNull final BiFunction<COMPONENT_TYPE, INPUT_TYPE, OUTPUT_TYPE> handler, @Nullable final String name) {
 
         Objects.requireNonNull(handler);
+        // Since multiple threads can call getInputWire at the same time, we create a new proxy instance every time
         final WiringComponentProxy<COMPONENT_TYPE> proxy = new WiringComponentProxy<>(clazz);
         try {
             handler.apply(proxy.getProxyComponent(), null);
@@ -234,6 +234,7 @@ public class ComponentWiring<COMPONENT_TYPE, OUTPUT_TYPE> {
             @NonNull final BiConsumer<COMPONENT_TYPE, INPUT_TYPE> handler, @Nullable final String name) {
 
         Objects.requireNonNull(handler);
+        // Since multiple threads can call getInputWire at the same time, we create a new proxy instance every time
         final WiringComponentProxy<COMPONENT_TYPE> proxy = new WiringComponentProxy<>(clazz);
         try {
             handler.accept(proxy.getProxyComponent(), null);
@@ -273,6 +274,7 @@ public class ComponentWiring<COMPONENT_TYPE, OUTPUT_TYPE> {
     public <INPUT_TYPE> InputWire<INPUT_TYPE> getInputWire(
             @NonNull final Function<COMPONENT_TYPE, OUTPUT_TYPE> handler, @Nullable final String name) {
         Objects.requireNonNull(handler);
+        // Since multiple threads can call getInputWire at the same time, we create a new proxy instance every time
         final WiringComponentProxy<COMPONENT_TYPE> proxy = new WiringComponentProxy<>(clazz);
         try {
             handler.apply(proxy.getProxyComponent());
@@ -295,6 +297,7 @@ public class ComponentWiring<COMPONENT_TYPE, OUTPUT_TYPE> {
     @NonNull
     public <INPUT_TYPE> InputWire<INPUT_TYPE> getInputWire(@NonNull final Consumer<COMPONENT_TYPE> handler) {
         Objects.requireNonNull(handler);
+        // Since multiple threads can call getInputWire at the same time, we create a new proxy instance every time
         final WiringComponentProxy<COMPONENT_TYPE> proxy = new WiringComponentProxy<>(clazz);
         try {
             handler.accept(proxy.getProxyComponent());
@@ -401,6 +404,7 @@ public class ComponentWiring<COMPONENT_TYPE, OUTPUT_TYPE> {
             @NonNull final OutputWire<ELEMENT> transformerSource) {
 
         Objects.requireNonNull(transformation);
+        // Since multiple threads can call getInputWire at the same time, we create a new proxy instance every time
         final WiringComponentProxy<COMPONENT_TYPE> proxy = new WiringComponentProxy<>(clazz);
         try {
             transformation.apply(proxy.getProxyComponent(), null);
@@ -468,6 +472,7 @@ public class ComponentWiring<COMPONENT_TYPE, OUTPUT_TYPE> {
             @NonNull final OutputWire<ELEMENT> filterSource) {
 
         Objects.requireNonNull(predicate);
+        // Since multiple threads can call getInputWire at the same time, we create a new proxy instance every time
         final WiringComponentProxy<COMPONENT_TYPE> proxy = new WiringComponentProxy<>(clazz);
         try {
             predicate.apply(proxy.getProxyComponent(), null);

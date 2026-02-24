@@ -17,11 +17,21 @@ public class WiringComponentProxy<T> implements InvocationHandler {
     private final T proxyComponent;
     private Method mostRecentlyInvokedMethod = null;
 
+    /**
+     * Create a new WiringComponentProxy for the given component class.
+     * @param clazz the class of the component being wired
+     */
     @SuppressWarnings("unchecked")
     public WiringComponentProxy(@NonNull final Class<T> clazz) {
         proxyComponent = (T) Proxy.newProxyInstance(clazz.getClassLoader(), new Class[] {clazz}, this);
     }
 
+    /**
+     * Get the proxy component instance. This is the instance has the same interface as the component being wired, but
+     * is a dynamic proxy that captures the most recently invoked method.
+     *
+     * @return the proxy component instance
+     */
     public T getProxyComponent() {
         return proxyComponent;
     }
