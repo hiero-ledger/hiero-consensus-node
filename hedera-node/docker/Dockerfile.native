@@ -1,0 +1,91 @@
+## Multi-stage native-image build for Hedera node with G1 GC.
+##
+## Builds a GraalVM native binary inside Linux (where G1 GC is supported),
+## then creates a minimal runtime image.
+##
+## Usage:
+##   ./native-image.sh docker [profile]
+
+########################################################################################################################
+#
+# Stage 1: Export native libraries from Debian (libsodium, libffi)
+#
+########################################################################################################################
+FROM debian:bookworm-slim AS libs
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends libsodium23 libffi8 && \
+    mkdir -p /exported-libs && \
+    cp /usr/lib/*/libsodium.so* /exported-libs/ && \
+    cp /usr/lib/*/libffi.so* /exported-libs/ && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+########################################################################################################################
+#
+# Stage 2: Build native image with GraalVM
+#
+########################################################################################################################
+FROM container-registry.oracle.com/graalvm/native-image:25 AS builder
+
+# Native libraries needed at build time for JNI linkage
+COPY --from=libs /exported-libs/ /usr/lib64/
+RUN ldconfig
+
+# Install zip for stripping Netty native-image.properties
+RUN microdnf install -y zip && microdnf clean all
+
+WORKDIR /build
+
+# Copy pre-assembled JARs from host
+COPY --from=node-data data/lib/ data/lib/
+COPY --from=node-data data/apps/ data/apps/
+
+# Copy native-image tracing agent configs from host
+COPY --from=native-config . native-image-config/
+
+# Strip Netty's bundled native-image.properties (they conflict with our config)
+RUN for jar in data/lib/netty-*.jar data/lib/grpc-netty*.jar; do \
+        [ -f "$jar" ] && zip -dq "$jar" 'META-INF/native-image/*' 2>/dev/null || true; \
+    done
+
+# Build the native image with G1 GC
+RUN native-image \
+    -cp "data/lib/*:data/apps/*" \
+    -H:ConfigurationFileDirectories=native-image-config \
+    -o hedera-node \
+    --no-fallback \
+    --gc=G1 \
+    "--initialize-at-build-time=org.slf4j,com.fasterxml.jackson,com.google.common,org.apache.commons,com.google.gson,com.google.errorprone,javax.annotation,io.perfmark,org.yaml.snakeyaml" \
+    "--initialize-at-run-time=com.sun.jna,io.netty.channel.epoll" \
+    -J-Xmx8g \
+    com.hedera.node.app.ServicesMain
+
+########################################################################################################################
+#
+# Stage 3: Minimal runtime image
+#
+########################################################################################################################
+FROM debian:bookworm-slim
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends libsodium23 libffi8 procps && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy the native binary
+COPY --from=builder /build/hedera-node ./hedera-node
+
+# Copy configuration
+ARG CONFIGURATION_PROFILE=small-memory
+COPY hedera-node/configuration/${CONFIGURATION_PROFILE}/ data/config/
+COPY hedera-node/configuration/${CONFIGURATION_PROFILE}/settings.txt ./
+COPY hedera-node/config.txt ./
+COPY hedera-node/log4j2.xml ./
+
+# Copy node onboard and key data
+COPY hedera-node/data/onboard/ data/onboard/
+COPY hedera-node/data/keys/ data/keys/
+
+ENTRYPOINT ["/bin/sh", "-c", \
+    "./hedera-node -Xmx128m -Xss512k -local 0; rc=$?; echo \"#### Hedera Node Stopped (Exit Code: $rc) at $(date '+%Y-%m-%d %H:%M:%S') ####\"; exit $rc"]
