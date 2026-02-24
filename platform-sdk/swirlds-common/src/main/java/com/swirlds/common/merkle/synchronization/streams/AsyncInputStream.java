@@ -45,20 +45,6 @@ public class AsyncInputStream {
 
     private final SerializableDataInputStream inputStream;
 
-    // Reading directly from inputStream is expensive, since every read results in
-    // taking a lock. To minimize the number of reads, let's use our own buffer
-    private final byte[] readBuffer = new byte[256 * 1024];
-
-    // A position in readBuffer to read data next. If the position is equal readLimit
-    // below, there is no data available in the buffer, and a read from inputStream
-    // is required
-    private int readPos = 0;
-
-    // Read buffer may not be filled up completely, it really depends on how much
-    // data is available in the socket. This limit indicates the last position in
-    // the buffer that holds data read from inputStream
-    private int readLimit = 0;
-
     private final Queue<byte[]> inputQueue = new ConcurrentLinkedQueue<>();
 
     // Checking queue size on every received message may be expensive. Instead, track the
