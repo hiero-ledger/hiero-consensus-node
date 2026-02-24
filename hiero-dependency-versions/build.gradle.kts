@@ -78,7 +78,7 @@ dependencies.constraints {
     api("org.antlr:antlr4-runtime:4.13.2") { because("org.antlr.antlr4.runtime") }
     api("commons-codec:commons-codec:1.19.0") { because("org.apache.commons.codec") }
     api("commons-io:commons-io:2.20.0") { because("org.apache.commons.io") }
-    api("org.apache.commons:commons-lang3:3.18.0") { because("org.apache.commons.lang3") }
+    api("org.apache.commons:commons-lang3:3.20.0") { because("org.apache.commons.lang3") }
     api("org.apache.commons:commons-compress:1.28.0") { because("org.apache.commons.compress") }
     api("org.apache.logging.log4j:log4j-api:$log4j") { because("org.apache.logging.log4j") }
     api("org.apache.logging.log4j:log4j-core:$log4j") { because("org.apache.logging.log4j.core") }
