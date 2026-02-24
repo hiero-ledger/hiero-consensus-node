@@ -63,7 +63,7 @@ import static com.hedera.services.bdd.suites.contract.leaky.LeakyContractTestsSu
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedFeeFromBytesFor;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenCreateNftFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenCreateNftWithCustomFeesFullFeeUsd;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenMintNftFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenNftUpdateFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenUpdateFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.AIRDROPS_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NODE_AND_NETWORK_BASE_FEE;
@@ -71,6 +71,7 @@ import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleCon
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_ASSOCIATE_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_CREATE_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_CREATE_WITH_CUSTOM_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_MINT_NFT_FEE;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_TRANSFER_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip904.TokenAirdropBase.setUpTokensAndAllReceivers;
 import static com.hedera.services.bdd.suites.utils.MiscEETUtils.metadata;
@@ -97,7 +98,6 @@ import org.junit.jupiter.api.Tag;
 
 @Tag(TOKEN)
 public class TokenServiceFeesSuite {
-    private static final double ALLOWED_DIFFERENCE_PERCENTAGE = 0.01;
     private static final String TOKEN_TREASURY = "treasury";
     private static final String NON_FUNGIBLE_TOKEN = "nonFungible";
     private static final String SUPPLY_KEY = "supplyKey";
@@ -637,8 +637,8 @@ public class TokenServiceFeesSuite {
                         safeValidateChargedUsdWithin(
                                 BASE_TXN,
                                 expectedFee,
-                                ALLOWED_DIFFERENCE_PERCENTAGE,
-                                expectedTokenMintNftFullFeeUsd(0, 10) + expectedFeeFromBytesFor(spec, opLog, BASE_TXN),
+                                1,
+                                10 * TOKEN_MINT_NFT_FEE + expectedFeeFromBytesFor(spec, opLog, BASE_TXN),
                                 0.1))));
     }
 
@@ -933,7 +933,11 @@ public class TokenServiceFeesSuite {
                         .fee(10 * ONE_HBAR)
                         .via(nftUpdateTxn),
                 safeValidateChargedUsdWithin(
-                        nftUpdateTxn, expectedNftUpdatePriceUsd, 0.01, expectedTokenUpdateFullFeeUsd(2, 0, 5), 0.01));
+                        nftUpdateTxn,
+                        expectedNftUpdatePriceUsd,
+                        0.01,
+                        expectedTokenNftUpdateFullFeeUsd(2, 5, 0),
+                        0.01));
     }
 
     @HapiTest
@@ -1055,7 +1059,7 @@ public class TokenServiceFeesSuite {
 
         @HapiTest
         final Stream<DynamicTest> updateOneNftTokenWithoutCustomFees() {
-            return updateBulkNftTokensAndValidateFees(10, Arrays.asList(1L));
+            return updateBulkNftTokensAndValidateFees(10, List.of(1L));
         }
 
         @HapiTest

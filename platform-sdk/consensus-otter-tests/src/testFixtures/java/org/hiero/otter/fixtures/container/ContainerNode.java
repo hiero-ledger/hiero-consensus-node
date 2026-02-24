@@ -6,6 +6,7 @@ import static org.hiero.consensus.pces.impl.common.PcesUtilities.getDatabaseDire
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.CONTAINER_APP_WORKING_DIR;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.CONTAINER_CONTROL_PORT;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.HASHSTREAM_LOG_PATH;
+import static org.hiero.otter.fixtures.container.utils.ContainerConstants.METRICS_OTHER;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.METRICS_PATH;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.NODE_COMMUNICATION_PORT;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.OTTER_LOG_PATH;
@@ -531,6 +532,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         copyFileFromContainer(HASHSTREAM_LOG_PATH);
         copyFileFromContainer(OTTER_LOG_PATH);
         copyFileFromContainer(METRICS_PATH.formatted(selfId.id()));
+        copyFileFromContainer(METRICS_OTHER);
     }
 
     private void downloadStateFiles() {

@@ -8,6 +8,7 @@ import static org.hiero.hapi.fees.FeeScheduleUtils.makeExtraDef;
 import static org.hiero.hapi.fees.FeeScheduleUtils.makeExtraIncluded;
 import static org.hiero.hapi.fees.FeeScheduleUtils.makeService;
 import static org.hiero.hapi.fees.FeeScheduleUtils.makeServiceFee;
+import static org.hiero.hapi.fees.HighVolumePricingCalculator.DEFAULT_HIGH_VOLUME_MULTIPLIER;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
@@ -159,6 +160,7 @@ class SimpleFeeCalculatorImplTest {
 
         // The total fee should be 7x the base fee
         assertThat(result.totalTinycents()).isEqualTo(baseFee * 7);
+        assertThat(result.getHighVolumeMultiplier()).isEqualTo(DEFAULT_HIGH_VOLUME_MULTIPLIER);
     }
 
     @Test
@@ -280,11 +282,13 @@ class SimpleFeeCalculatorImplTest {
                 .cryptoCreateAccount(CryptoCreateTransactionBody.newBuilder().build())
                 .highVolume(true)
                 .build();
+        when(simpleFeeContext.body()).thenReturn(txnBody);
 
         var result = calculator.calculateTxFee(txnBody, simpleFeeContext);
 
         assertThat(result.getServiceTotalTinycents()).isEqualTo(4000L);
         assertThat(result.totalTinycents()).isEqualTo(4000L);
+        assertThat(result.getHighVolumeMultiplier()).isEqualTo(4000L);
     }
 
     @Test
@@ -340,11 +344,13 @@ class SimpleFeeCalculatorImplTest {
                 .cryptoCreateAccount(CryptoCreateTransactionBody.newBuilder().build())
                 .highVolume(true)
                 .build();
+        when(simpleFeeContext.body()).thenReturn(txnBody);
 
         var result = calculator.calculateTxFee(txnBody, simpleFeeContext);
 
         assertThat(result.getServiceTotalTinycents()).isEqualTo(4000L);
         assertThat(result.totalTinycents()).isEqualTo(4000L);
+        assertThat(result.getHighVolumeMultiplier()).isEqualTo(4000L);
     }
 
     private SimpleFeeContext createMockSimpleFeeContext(final HederaFunctionality function) {
@@ -360,6 +366,7 @@ class SimpleFeeCalculatorImplTest {
         lenient().when(simpleFeeContext.functionality()).thenReturn(function);
         lenient().when(simpleFeeContext.numTxnBytes()).thenReturn(100);
         lenient().when(simpleFeeContext.feeContext()).thenReturn(feeContext);
+        lenient().when(feeContext.functionality()).thenReturn(function);
         lenient().when(feeContext.readableStoreFactory()).thenReturn(storeFactory);
         lenient()
                 .when(simpleFeeContext.getHighVolumeThrottleUtilization(function))
