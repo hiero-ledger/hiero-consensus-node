@@ -56,12 +56,8 @@ import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.internal.network.Network;
 import com.hedera.pbj.runtime.JsonCodec;
 import com.hedera.pbj.runtime.OneOf;
+import com.swirlds.common.constructable.ConstructableRegistration;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.merkle.synchronization.task.InternalDataLesson;
-import com.swirlds.common.merkle.synchronization.task.LeafDataLesson;
-import com.swirlds.common.merkle.synchronization.task.Lesson;
-import com.swirlds.common.merkle.synchronization.task.QueryResponse;
-import com.swirlds.common.merkle.utility.SerializableLong;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
@@ -93,11 +89,7 @@ import java.util.function.Supplier;
 import org.hiero.base.constructable.ClassConstructorPair;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
-import org.hiero.base.crypto.Hash;
-import org.hiero.base.crypto.SerializablePublicKey;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
-import org.hiero.consensus.model.event.CesEvent;
-import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.platformstate.PlatformStateService;
 import org.hiero.consensus.state.signed.SignedState;
 
@@ -228,17 +220,8 @@ public final class StateUtils {
     }
 
     private static void registerConstructables() throws ConstructableRegistryException {
+        ConstructableRegistration.registerAllConstructables();
         final ConstructableRegistry registry = ConstructableRegistry.getInstance();
-        registry.registerConstructable(new ClassConstructorPair(Hash.class, Hash::new));
-        registry.registerConstructable(
-                new ClassConstructorPair(SerializablePublicKey.class, SerializablePublicKey::new));
-        registry.registerConstructable(new ClassConstructorPair(CesEvent.class, CesEvent::new));
-        registry.registerConstructable(new ClassConstructorPair(NodeId.class, NodeId::new));
-        registry.registerConstructable(new ClassConstructorPair(Lesson.class, Lesson::new));
-        registry.registerConstructable(new ClassConstructorPair(InternalDataLesson.class, InternalDataLesson::new));
-        registry.registerConstructable(new ClassConstructorPair(QueryResponse.class, QueryResponse::new));
-        registry.registerConstructable(new ClassConstructorPair(LeafDataLesson.class, LeafDataLesson::new));
-        registry.registerConstructable(new ClassConstructorPair(SerializableLong.class, SerializableLong::new));
         registry.registerConstructable(
                 new ClassConstructorPair(PullVirtualTreeRequest.class, PullVirtualTreeRequest::new));
         registry.registerConstructable(

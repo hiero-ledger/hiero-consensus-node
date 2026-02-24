@@ -33,7 +33,6 @@ module com.hedera.node.app.hapi.utils {
     requires transitive tuweni.bytes;
     requires com.swirlds.base;
     requires org.hiero.base.crypto;
-    requires org.hiero.consensus.model;
     requires com.fasterxml.jackson.databind;
     requires com.google.common;
     requires com.sun.jna;

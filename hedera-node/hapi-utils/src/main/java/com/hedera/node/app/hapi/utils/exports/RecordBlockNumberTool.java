@@ -4,11 +4,7 @@ package com.hedera.node.app.hapi.utils.exports;
 import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
 
 import com.hedera.services.stream.proto.RecordStreamFile;
-import com.swirlds.common.merkle.synchronization.task.InternalDataLesson;
-import com.swirlds.common.merkle.synchronization.task.LeafDataLesson;
-import com.swirlds.common.merkle.synchronization.task.Lesson;
-import com.swirlds.common.merkle.synchronization.task.QueryResponse;
-import com.swirlds.common.merkle.utility.SerializableLong;
+import com.swirlds.common.constructable.ConstructableRegistration;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -24,13 +20,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 import org.apache.logging.log4j.MarkerManager;
 import org.apache.logging.log4j.core.LoggerContext;
-import org.hiero.base.constructable.ClassConstructorPair;
-import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
-import org.hiero.base.crypto.Hash;
-import org.hiero.base.crypto.SerializablePublicKey;
-import org.hiero.consensus.model.event.CesEvent;
-import org.hiero.consensus.model.node.NodeId;
 
 /**
  * This is a standalone utility tool to read record stream file and check if block number is
@@ -57,17 +47,7 @@ public class RecordBlockNumberTool {
     }
 
     public static void prepare() throws ConstructableRegistryException {
-        final ConstructableRegistry registry = ConstructableRegistry.getInstance();
-        registry.registerConstructable(new ClassConstructorPair(Hash.class, Hash::new));
-        registry.registerConstructable(
-                new ClassConstructorPair(SerializablePublicKey.class, SerializablePublicKey::new));
-        registry.registerConstructable(new ClassConstructorPair(CesEvent.class, CesEvent::new));
-        registry.registerConstructable(new ClassConstructorPair(NodeId.class, NodeId::new));
-        registry.registerConstructable(new ClassConstructorPair(Lesson.class, Lesson::new));
-        registry.registerConstructable(new ClassConstructorPair(InternalDataLesson.class, InternalDataLesson::new));
-        registry.registerConstructable(new ClassConstructorPair(QueryResponse.class, QueryResponse::new));
-        registry.registerConstructable(new ClassConstructorPair(LeafDataLesson.class, LeafDataLesson::new));
-        registry.registerConstructable(new ClassConstructorPair(SerializableLong.class, SerializableLong::new));
+        ConstructableRegistration.registerAllConstructables();
     }
 
     private static Pair<Integer, Optional<RecordStreamFile>> readMaybeCompressedRecordStreamFile(final String loc)
