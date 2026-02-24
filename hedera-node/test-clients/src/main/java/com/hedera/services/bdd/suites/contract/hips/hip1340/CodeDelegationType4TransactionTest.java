@@ -96,7 +96,9 @@ public class CodeDelegationType4TransactionTest {
                         .gasLimit(2_000_000L)
                         .via(DELEGATION_SET)),
                 // check delegation is set
-                getAliasedAccountInfo(DELEGATING_ACCOUNT).hasDelegationAddress(DELEGATION_TARGET.get()),
+                getAliasedAccountInfo(DELEGATING_ACCOUNT)
+                        .hasDelegationAddress(DELEGATION_TARGET.get())
+                        .isNotHollow(),
                 // Try calling the delegation
                 sourcing(() -> new HapiEthereumCall(DELEGATING_ACCOUNT_ID, 0L)
                         .withExplicitParams(() -> delegatedFunctionSelector)
@@ -165,10 +167,18 @@ public class CodeDelegationType4TransactionTest {
                         .gasLimit(2_000_000L)
                         .via(DELEGATION_SET)),
                 // check delegation is set
-                getAliasedAccountInfo(DELEGATING_ACCOUNT).hasDelegationAddress(delegationTargetAddress),
-                getAliasedAccountInfo(DELEGATING_ACCOUNT_1).hasDelegationAddress(delegationTargetAddress),
-                getAliasedAccountInfo(DELEGATING_ACCOUNT_2).hasDelegationAddress(delegationTargetAddress),
-                getAliasedAccountInfo(DELEGATING_ACCOUNT_3).hasDelegationAddress(delegationTargetAddress),
+                getAliasedAccountInfo(DELEGATING_ACCOUNT)
+                        .hasDelegationAddress(delegationTargetAddress)
+                        .isNotHollow(),
+                getAliasedAccountInfo(DELEGATING_ACCOUNT_1)
+                        .hasDelegationAddress(delegationTargetAddress)
+                        .isNotHollow(),
+                getAliasedAccountInfo(DELEGATING_ACCOUNT_2)
+                        .hasDelegationAddress(delegationTargetAddress)
+                        .isNotHollow(),
+                getAliasedAccountInfo(DELEGATING_ACCOUNT_3)
+                        .hasDelegationAddress(delegationTargetAddress)
+                        .isNotHollow(),
                 // check records
                 getTxnRecord(DELEGATION_SET)
                         .andAllChildRecords()
@@ -214,6 +224,8 @@ public class CodeDelegationType4TransactionTest {
                         .gasLimit(2_000_000L)
                         .via(DELEGATION_SET)),
                 // check delegation is set
-                getAliasedAccountInfo(DELEGATING_ACCOUNT).hasDelegationAddress(DELEGATION_TARGET.get()))));
+                getAliasedAccountInfo(DELEGATING_ACCOUNT)
+                        .hasDelegationAddress(DELEGATION_TARGET.get())
+                        .isNotHollow())));
     }
 }

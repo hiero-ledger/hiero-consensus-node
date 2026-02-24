@@ -68,7 +68,6 @@ import com.hederahashgraph.api.proto.java.TokenType;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
-import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
@@ -507,15 +506,24 @@ public class CryptoUpdateSuite {
     @HapiTest
     final Stream<DynamicTest> updateAccountWithDelegationAddress() {
         final var accountTotest = "accountToTest";
-        final var longZeroAddress = ByteString.copyFrom(CommonUtils.unhex("0000000000000000000000000000000fffffffff"));
+        final var longZeroAddress = ByteString.fromHex("0000000000000000000000000000000fffffffff");
+        final var zeroAddress = ByteString.fromHex("0000000000000000000000000000000000000000");
         final var emptyAddress = ByteString.empty();
-        final var badAddress = ByteString.copyFrom(CommonUtils.unhex("0fffffffff"));
+        final var badAddress = ByteString.fromHex("0fffffffff");
         return hapiTest(
                 cryptoCreate(accountTotest).balance(ONE_HUNDRED_HBARS),
+                // Delegation is initially empty
                 getAccountInfo(accountTotest).has(accountWith().delegationAddress(emptyAddress)),
+                // Submitting a regular address (here long-zero) works as expected
                 cryptoUpdate(accountTotest).delegationAddress(longZeroAddress),
                 getAccountInfo(accountTotest).has(accountWith().delegationAddress(longZeroAddress)),
+
+                // Submitting empty delegationAddress is a no-op
                 cryptoUpdate(accountTotest).delegationAddress(emptyAddress),
+                getAccountInfo(accountTotest).has(accountWith().delegationAddress(longZeroAddress)),
+
+                // Submitting 0x00..00 clears the delegation (sets to empty)
+                cryptoUpdate(accountTotest).delegationAddress(zeroAddress),
                 getAccountInfo(accountTotest).has(accountWith().delegationAddress(emptyAddress)),
                 cryptoUpdate(accountTotest).delegationAddress(badAddress).hasPrecheck(INVALID_CONTRACT_ID));
     }

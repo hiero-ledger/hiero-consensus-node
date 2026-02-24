@@ -23,6 +23,7 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_SYS
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.PARANOID_SOMEBODY;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SOMEBODY;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
+import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.synthAccountCreationWithKeyAndCodeDelegation;
 import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.synthHollowAccountCreation;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -186,7 +187,7 @@ class HandleHederaNativeOperationsTest {
     @Test
     void createsHollowAccountByDispatching() {
         final var synthLazyCreate = TransactionBody.newBuilder()
-                .cryptoCreateAccount(synthHollowAccountCreation(CANONICAL_ALIAS, true, Bytes.EMPTY))
+                .cryptoCreateAccount(synthHollowAccountCreation(CANONICAL_ALIAS, true))
                 .build();
         given(context.payer()).willReturn(A_NEW_ACCOUNT_ID);
 
@@ -195,7 +196,7 @@ class HandleHederaNativeOperationsTest {
         given(cryptoCreateRecordBuilder.status()).willReturn(OK);
         given(context.configuration()).willReturn(DEFAULT_CONFIG);
 
-        final var status = subject.createHollowAccount(CANONICAL_ALIAS, Bytes.EMPTY);
+        final var status = subject.createHollowAccount(CANONICAL_ALIAS);
         assertEquals(OK, status);
 
         verify(cryptoCreateRecordBuilder, never()).memo(any());
@@ -204,7 +205,7 @@ class HandleHederaNativeOperationsTest {
     @Test
     void createsHollowAccountByDispatchingDoesNotThrowErrors() {
         final var synthLazyCreate = TransactionBody.newBuilder()
-                .cryptoCreateAccount(synthHollowAccountCreation(CANONICAL_ALIAS, true, Bytes.EMPTY))
+                .cryptoCreateAccount(synthHollowAccountCreation(CANONICAL_ALIAS, true))
                 .build();
         given(context.payer()).willReturn(A_NEW_ACCOUNT_ID);
         given(context.dispatch(assertArg(options -> assertEquals(synthLazyCreate, options.body()))))
@@ -212,16 +213,19 @@ class HandleHederaNativeOperationsTest {
         given(cryptoCreateRecordBuilder.status()).willReturn(MAX_ENTITIES_IN_PRICE_REGIME_HAVE_BEEN_CREATED);
         given(context.configuration()).willReturn(DEFAULT_CONFIG);
 
-        final var status = assertDoesNotThrow(() -> subject.createHollowAccount(CANONICAL_ALIAS, Bytes.EMPTY));
+        final var status = assertDoesNotThrow(() -> subject.createHollowAccount(CANONICAL_ALIAS));
         assertThat(status).isEqualTo(MAX_ENTITIES_IN_PRICE_REGIME_HAVE_BEEN_CREATED);
 
         verify(cryptoCreateRecordBuilder, never()).memo(any());
     }
 
     @Test
-    void createsHollowAccountWithDelegationByDispatchingDoesNotThrowErrors() {
+    void createsAccountWithDelegationByDispatchingDoesNotThrowErrors() {
+        final var key =
+                Key.newBuilder().ecdsaSecp256k1(Bytes.wrap(new byte[32])).build();
         final var synthLazyCreate = TransactionBody.newBuilder()
-                .cryptoCreateAccount(synthHollowAccountCreation(CANONICAL_ALIAS, true, Bytes.fromHex("1234")))
+                .cryptoCreateAccount(
+                        synthAccountCreationWithKeyAndCodeDelegation(CANONICAL_ALIAS, key, Bytes.fromHex("1234"), true))
                 .build();
         given(context.payer()).willReturn(A_NEW_ACCOUNT_ID);
         given(context.dispatch(assertArg(options -> {
@@ -233,8 +237,8 @@ class HandleHederaNativeOperationsTest {
         given(cryptoCreateRecordBuilder.status()).willReturn(MAX_ENTITIES_IN_PRICE_REGIME_HAVE_BEEN_CREATED);
         given(context.configuration()).willReturn(DEFAULT_CONFIG);
 
-        final var status =
-                assertDoesNotThrow(() -> subject.createHollowAccount(CANONICAL_ALIAS, Bytes.fromHex("1234")));
+        final var status = assertDoesNotThrow(
+                () -> subject.createAccountWithKeyAndCodeDelegation(CANONICAL_ALIAS, key, Bytes.fromHex("1234")));
         assertThat(status).isEqualTo(MAX_ENTITIES_IN_PRICE_REGIME_HAVE_BEEN_CREATED);
 
         verify(cryptoCreateRecordBuilder, never()).memo(any());

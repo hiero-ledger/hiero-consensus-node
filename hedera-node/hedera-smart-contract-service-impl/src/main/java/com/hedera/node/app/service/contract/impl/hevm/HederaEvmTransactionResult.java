@@ -64,7 +64,7 @@ public record HederaEvmTransactionResult(
         @Nullable List<ContractAction> actions,
         @Nullable Long signerNonce,
         @Nullable TxStorageUsage txStorageUsage,
-        @Nullable CodeDelegationResult codeDelegationResult) {
+        @NonNull CodeDelegationResult codeDelegationResult) {
     public HederaEvmTransactionResult {
         requireNonNull(senderId);
         requireNonNull(output);

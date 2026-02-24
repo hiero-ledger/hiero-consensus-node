@@ -3,6 +3,7 @@ package com.hedera.node.app.service.contract.impl.exec.scope;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
@@ -18,7 +19,6 @@ import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Objects;
 import javax.inject.Inject;
 import org.hyperledger.besu.evm.frame.MessageFrame;
@@ -28,6 +28,7 @@ import org.hyperledger.besu.evm.frame.MessageFrame;
  */
 @QueryScope
 public class QueryHederaNativeOperations implements HederaNativeOperations {
+
     private final QueryContext context;
 
     private final EntityIdFactory entityIdFactory;
@@ -110,9 +111,14 @@ public class QueryHederaNativeOperations implements HederaNativeOperations {
      * @throws UnsupportedOperationException always
      */
     @Override
-    public ResponseCodeEnum createHollowAccount(
-            @NonNull final Bytes evmAddress, @Nullable final Bytes delegationAddress) {
+    public ResponseCodeEnum createHollowAccount(@NonNull final Bytes evmAddress) {
         throw new UnsupportedOperationException("Cannot create hollow account in query context");
+    }
+
+    @Override
+    public ResponseCodeEnum createAccountWithKeyAndCodeDelegation(
+            @NonNull final Bytes evmAddress, @NonNull final Key key, @NonNull final Bytes delegationAddress) {
+        throw new UnsupportedOperationException("Cannot create an account in query context");
     }
 
     /**
