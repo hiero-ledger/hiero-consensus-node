@@ -22,6 +22,7 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import org.hiero.base.StackTrace;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -527,6 +528,9 @@ public class ComponentWiringTests {
 
         final FooBarBazImpl fooBarBazImpl = new FooBarBazImpl();
         fooBarBazWiring.bind(fooBarBazImpl);
+        // build the wire ahead of time
+        fooBarBazWiring.getInputWire(FooBarBaz::handleFoo);
+        wiringModel.start();
 
         final AtomicReference<RuntimeException> getInputException = new AtomicReference<>();
         try (final ExecutorService executor = Executors.newFixedThreadPool(16)) {
@@ -542,10 +546,13 @@ public class ComponentWiringTests {
                 executor.submit(task);
             }
         }
+        wiringModel.stop();
 
         assertNull(getInputException.get(),
-                "Concurrent access to input wires should not throw exceptions, but got:\n" + getInputException.get());
+                "Concurrent access to input wires should not throw exceptions, but got:\n" +
+                        getInputException.get());
         assertNull(uncaughtException.get(),
-                "There should be no uncaught exceptions, but got:\n" + uncaughtException.get());
+                "There should be no uncaught exceptions, but got:\n" +
+                        uncaughtException.get());
     }
 }

@@ -142,4 +142,6 @@ public interface WiringModel extends Startable, Stoppable {
      */
     @Override
     void stop();
+
+    boolean isRunning();
 }

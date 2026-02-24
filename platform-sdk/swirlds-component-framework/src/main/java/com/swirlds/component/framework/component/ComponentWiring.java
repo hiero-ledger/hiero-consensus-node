@@ -44,8 +44,7 @@ public class ComponentWiring<COMPONENT_TYPE, OUTPUT_TYPE> {
     private final WiringModel model;
     private final TaskScheduler<OUTPUT_TYPE> scheduler;
 
-    private final WiringComponentProxy proxy = new WiringComponentProxy();
-    private final COMPONENT_TYPE proxyComponent;
+    private final Class<COMPONENT_TYPE> clazz;
 
     /**
      * The component that implements the business logic. Will be null until {@link #bind(Object)} is called.
@@ -99,12 +98,11 @@ public class ComponentWiring<COMPONENT_TYPE, OUTPUT_TYPE> {
 
         this.model = Objects.requireNonNull(model);
         this.scheduler = Objects.requireNonNull(scheduler);
+        this.clazz = Objects.requireNonNull(clazz);
 
         if (!clazz.isInterface()) {
             throw new IllegalArgumentException("Component class " + clazz.getName() + " is not an interface.");
         }
-
-        proxyComponent = (COMPONENT_TYPE) Proxy.newProxyInstance(clazz.getClassLoader(), new Class[] {clazz}, proxy);
     }
 
     /**
@@ -137,6 +135,7 @@ public class ComponentWiring<COMPONENT_TYPE, OUTPUT_TYPE> {
 
         this.model = Objects.requireNonNull(model);
         Objects.requireNonNull(schedulerConfiguration);
+        this.clazz = Objects.requireNonNull(clazz);
 
         final String schedulerName;
         final SchedulerLabel schedulerLabelAnnotation = clazz.getAnnotation(SchedulerLabel.class);
@@ -156,8 +155,6 @@ public class ComponentWiring<COMPONENT_TYPE, OUTPUT_TYPE> {
         if (!clazz.isInterface()) {
             throw new IllegalArgumentException("Component class " + clazz.getName() + " is not an interface.");
         }
-
-        proxyComponent = (COMPONENT_TYPE) Proxy.newProxyInstance(clazz.getClassLoader(), new Class[] {clazz}, proxy);
     }
 
     /**
@@ -197,9 +194,9 @@ public class ComponentWiring<COMPONENT_TYPE, OUTPUT_TYPE> {
             @NonNull final BiFunction<COMPONENT_TYPE, INPUT_TYPE, OUTPUT_TYPE> handler, @Nullable final String name) {
 
         Objects.requireNonNull(handler);
-
+        final WiringComponentProxy<COMPONENT_TYPE> proxy = new WiringComponentProxy<>(clazz);
         try {
-            handler.apply(proxyComponent, null);
+            handler.apply(proxy.getProxyComponent(), null);
         } catch (final NullPointerException e) {
             throw new IllegalStateException(
                     "Component wiring does not support primitive input types or return types. Use a boxed primitive "
@@ -237,9 +234,9 @@ public class ComponentWiring<COMPONENT_TYPE, OUTPUT_TYPE> {
             @NonNull final BiConsumer<COMPONENT_TYPE, INPUT_TYPE> handler, @Nullable final String name) {
 
         Objects.requireNonNull(handler);
-
+        final WiringComponentProxy<COMPONENT_TYPE> proxy = new WiringComponentProxy<>(clazz);
         try {
-            handler.accept(proxyComponent, null);
+            handler.accept(proxy.getProxyComponent(), null);
         } catch (final NullPointerException e) {
             throw new IllegalStateException(
                     "Component wiring does not support primitive input types. Use a boxed primitive instead.", e);
@@ -276,9 +273,9 @@ public class ComponentWiring<COMPONENT_TYPE, OUTPUT_TYPE> {
     public <INPUT_TYPE> InputWire<INPUT_TYPE> getInputWire(
             @NonNull final Function<COMPONENT_TYPE, OUTPUT_TYPE> handler, @Nullable final String name) {
         Objects.requireNonNull(handler);
-
+        final WiringComponentProxy<COMPONENT_TYPE> proxy = new WiringComponentProxy<>(clazz);
         try {
-            handler.apply(proxyComponent);
+            handler.apply(proxy.getProxyComponent());
         } catch (final NullPointerException e) {
             throw new IllegalStateException(
                     "Component wiring does not support primitive input types. Use a boxed primitive instead.", e);
@@ -298,9 +295,9 @@ public class ComponentWiring<COMPONENT_TYPE, OUTPUT_TYPE> {
     @NonNull
     public <INPUT_TYPE> InputWire<INPUT_TYPE> getInputWire(@NonNull final Consumer<COMPONENT_TYPE> handler) {
         Objects.requireNonNull(handler);
-
+        final WiringComponentProxy<COMPONENT_TYPE> proxy = new WiringComponentProxy<>(clazz);
         try {
-            handler.accept(proxyComponent);
+            handler.accept(proxy.getProxyComponent());
         } catch (final NullPointerException e) {
             throw new IllegalStateException(
                     "Component wiring does not support primitive input types. Use a boxed primitive instead.", e);
@@ -404,8 +401,9 @@ public class ComponentWiring<COMPONENT_TYPE, OUTPUT_TYPE> {
             @NonNull final OutputWire<ELEMENT> transformerSource) {
 
         Objects.requireNonNull(transformation);
+        final WiringComponentProxy<COMPONENT_TYPE> proxy = new WiringComponentProxy<>(clazz);
         try {
-            transformation.apply(proxyComponent, null);
+            transformation.apply(proxy.getProxyComponent(), null);
         } catch (final NullPointerException e) {
             throw new IllegalStateException(
                     "Component wiring does not support primitive input types or return types. "
@@ -470,8 +468,9 @@ public class ComponentWiring<COMPONENT_TYPE, OUTPUT_TYPE> {
             @NonNull final OutputWire<ELEMENT> filterSource) {
 
         Objects.requireNonNull(predicate);
+        final WiringComponentProxy<COMPONENT_TYPE> proxy = new WiringComponentProxy<>(clazz);
         try {
-            predicate.apply(proxyComponent, null);
+            predicate.apply(proxy.getProxyComponent(), null);
         } catch (final NullPointerException e) {
             throw new IllegalStateException(
                     "Component wiring does not support primitive input types or return types. "
@@ -572,6 +571,10 @@ public class ComponentWiring<COMPONENT_TYPE, OUTPUT_TYPE> {
         if (inputWires.containsKey(method)) {
             // We've already created this wire
             return (InputWire<INPUT_TYPE>) inputWires.get(method);
+        }
+
+        if (model.isRunning()) {
+            throw new IllegalStateException("Cannot create new input wires after the model has been started.");
         }
 
         final String label;
