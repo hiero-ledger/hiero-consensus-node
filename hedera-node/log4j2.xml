@@ -369,6 +369,10 @@
       <AppenderRef ref="Console"/>
       <AppenderRef ref="fileLog"/>
     </Logger>
+    <Logger name="org.hiero.interledger.clpr.impl" level="debug" additivity="false">
+      <AppenderRef ref="Console"/>
+      <AppenderRef ref="fileLog"/>
+    </Logger>
     <Logger name="org.hiero.interledger.clpr.impl.ClprEndpointClient" level="debug" additivity="false">
       <AppenderRef ref="Console"/>
       <AppenderRef ref="fileLog"/>

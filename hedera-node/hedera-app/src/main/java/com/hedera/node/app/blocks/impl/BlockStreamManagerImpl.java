@@ -562,6 +562,16 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             final var stateChangesHash = Bytes.wrap(stateChangesHasher.computeRootHash());
 
             final var prevBlockRootsHash = Bytes.wrap(previousBlockHashes.computeRootHash());
+//            log.fatal("matt(b={}): final block hash components: lastBlockHash={}, prevBlockRootsHash={}, blockStartStateHash={}, consensusHeaderHash={}, inputsHash={}, outputsHash={}, stateChangesHash={}, traceDataHash={}",
+//                    blockNumber,
+//                    lastBlockHash.toHex(),
+//                        prevBlockRootsHash.toHex(),
+//                    blockStartStateHash.toHex(),
+//                    consensusHeaderHash.toHex(),
+//                    inputsHash.toHex(),
+//                    outputsHash.toHex(),
+//                    stateChangesHash.toHex(),
+//                    traceDataHash.toHex());
             final var rootAndSiblingHashes = combine(
                     lastBlockHash,
                     prevBlockRootsHash,
@@ -574,6 +584,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     newBlockStreamInfo.blockTime());
             final var finalBlockRootHash = rootAndSiblingHashes.blockRootHash();
 
+            log.fatal("(b={}): final block root hash: {}", blockNumber, finalBlockRootHash.toHex());
             // Create BlockFooter with the three essential hashes:
             final var blockFooter = com.hedera.hapi.block.stream.output.BlockFooter.newBuilder()
                     // 1. previousBlockRootHash - Root hash of the previous block (N-1)

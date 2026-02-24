@@ -102,6 +102,14 @@ public final class BlockProvenStateAccessor implements BlockProvenSnapshotProvid
         requireNonNull(blockTimestamp);
         requireNonNull(path);
 
+//        log.warn(
+//                "TSS_DEBUG registerBlockMetadata: stateHash={} blockHash={} (len={}), tssSignatureLen={}, pathSiblings={}, pathHash={}",
+//                stateHash.toHex(),
+//                blockHash.toHex(),
+//                blockHash.length(),
+//                tssSignature.length(),
+//                path.siblings().size(),
+//                path.hasHash() ? path.hash().toHex() : "<none>");
         blockMetasByStateHash.put(stateHash, new BlockMetadata(blockHash, tssSignature, blockTimestamp, path));
 
         if (immutableStatesByHash.containsKey(stateHash)) {
@@ -127,6 +135,11 @@ public final class BlockProvenStateAccessor implements BlockProvenSnapshotProvid
         if (cachedState == null || meta == null) {
             return Optional.empty();
         }
+//        log.warn(
+//                "TSS_DEBUG latestSnapshot: stateHash={} blockHash={} stateType={}",
+//                latestCompletableStateHash.toHex(),
+//                meta.blockHash().toHex(),
+//                cachedState.state().getClass().getSimpleName());
         return Optional.of(
                 new BlockSignedSnapshot(cachedState.state(), meta.tssSignature(), meta.blockTimestamp(), meta.path()));
     }

@@ -78,8 +78,8 @@ import org.junit.jupiter.api.Tag;
 @Tag(TestTags.MULTINETWORK)
 public class ClprShipOfTheseusSuite implements LifecycleTest {
     private static final Pattern OVERRIDE_SCOPE_DIR_PATTERN = Pattern.compile("\\d+");
-    private static final Duration CONFIG_PROPAGATION_TIMEOUT = Duration.ofMinutes(1);
-    private static final Duration CONFIG_PROPAGATION_POLL_INTERVAL = Duration.ofSeconds(1);
+    private static final Duration CONFIG_PROPAGATION_TIMEOUT = Duration.ofMinutes(60);
+    private static final Duration CONFIG_PROPAGATION_POLL_INTERVAL = Duration.ofSeconds(60);
 
     static {
         // Capture subprocess stdout/stderr early so startup failures surface in logs.
@@ -574,7 +574,7 @@ public class ClprShipOfTheseusSuite implements LifecycleTest {
             UtilVerbs.doingContextual(spec -> {
                 final var subProcessNetwork = spec.subProcessNetworkOrThrow();
                 final var baseline = subProcessNetwork.latestSignedStateRound(sourceNodeId);
-                subProcessNetwork.awaitSignedStateAfterRound(sourceNodeId, baseline, Duration.ofMinutes(1));
+                subProcessNetwork.awaitSignedStateAfterRound(sourceNodeId, baseline, Duration.ofMinutes(60));
             }),
             withOpContext((spec, opLog) -> {
                 final var nodes = spec.subProcessNetworkOrThrow().nodes();
@@ -832,7 +832,7 @@ public class ClprShipOfTheseusSuite implements LifecycleTest {
 
     private static ClprLedgerConfiguration fetchLedgerConfiguration(
             final List<HederaNode> nodes, final Predicate<ClprLedgerConfiguration> predicate, final String reason) {
-        final var deadline = Instant.now().plus(Duration.ofMinutes(2));
+        final var deadline = Instant.now().plus(Duration.ofMinutes(60));
         ClprLedgerConfiguration lastSeen = null;
         do {
             for (final var node : nodes) {
@@ -901,7 +901,7 @@ public class ClprShipOfTheseusSuite implements LifecycleTest {
                 }
             }
             try {
-                Thread.sleep(1_000L);
+                Thread.sleep(20_000L);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 break;

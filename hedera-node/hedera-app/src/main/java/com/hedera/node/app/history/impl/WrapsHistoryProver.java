@@ -630,6 +630,7 @@ public class WrapsHistoryProver implements HistoryProver {
                                 signature,
                                 signers,
                                 targetBook);
+                        log.fatal("Returned from constructing genesis WRAPS proof");
                         logElapsed("constructing genesis WRAPS proof", now);
                         yield new ProofPhaseOutput(proof.compressed(), proof.uncompressed());
                     }

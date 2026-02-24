@@ -59,7 +59,9 @@ class ClprStateProofManagerTest extends ClprTestBase {
             .hash(CONSENSUS_HEADERS_SUBROOT)
             .siblings(SIBLING_HASHES)
             .build();
-    public static final Bytes TSS_SIGNATURE = Bytes.fromHex("AAAAAABBBBBBAAAAABBBBB");
+    // Signature must be at least MINIMUM_SNARK_EFFECTIVE_SIGNATURE_SIZE (3816) bytes
+    // to pass the SNARK-readiness check in getLedgerConfiguration()
+    public static final Bytes TSS_SIGNATURE = Bytes.wrap(new byte[3816]);
     public static final Timestamp BLOCK_TIMESTAMP =
             Timestamp.newBuilder().seconds(1764665134).nanos(146615000).build();
 
@@ -172,6 +174,17 @@ class ClprStateProofManagerTest extends ClprTestBase {
         Assertions.assertThatThrownBy(() -> manager.getLedgerConfiguration(someLedgerId))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("Merkle path");
+    }
+
+    @Test
+    void getLedgerConfigurationReturnsNullWhenSignatureTooSmallForSnark() {
+        // A signature smaller than 3816 bytes indicates a Schnorr aggregate (not SNARK),
+        // which cannot be verified without TSS.setAddressBook(). Should return null.
+        final var schnorrSig = Bytes.wrap(new byte[3112]); // VK + hinTS + Schnorr = 1480+1632+192 = 3304
+        given(snapshotProvider.latestSnapshot())
+                .willReturn(Optional.of(new BlockProvenStateAccessor.BlockSignedSnapshot(
+                        testState, schnorrSig, BLOCK_TIMESTAMP, STATE_SUBROOT_MERKLE_PATH)));
+        assertNull(manager.getLedgerConfiguration(remoteClprLedgerId));
     }
 
     @Test

@@ -11,6 +11,7 @@ import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.workflows.*;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.ClprConfig;
+import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -25,6 +26,8 @@ import org.hiero.interledger.clpr.ClprStateProofUtils;
 import org.hiero.interledger.clpr.WritableClprLedgerConfigurationStore;
 import org.hiero.interledger.clpr.WritableClprMetadataStore;
 import org.hiero.interledger.clpr.impl.ClprStateProofManager;
+
+import java.util.Objects;
 
 /**
  * Handles the {@link  org.hiero.hapi.interledger.clpr.ClprSetLedgerConfigurationTransactionBody} to set the
@@ -179,17 +182,19 @@ public class ClprSetLedgerConfigurationHandler implements TransactionHandler {
         final var activeRosterHash = requireNonNull(
                 rosterStore.getCurrentRosterHash(), "active roster hash must be present for CLPR updates");
         final var existingMetadata = metadataStore.get();
-        // In production, ledgerId is set exclusively by the HandleWorkflow bridge after genesis
-        // proof completion. In dev mode, the bridge never fires (no WRAPS genesis), so the handler
-        // bootstraps ledgerId from the incoming config as a fallback.
-        final var metadataLedgerId = existingMetadata != null
-                ? existingMetadata.ledgerId()
-                : (stateProofManager.isDevModeEnabled() ? newConfig.ledgerId() : null);
+        final var tssConfig = configProvider.getConfiguration().getConfigData(TssConfig.class);
+        // The authoritative local ledgerId comes from the HandleWorkflow WRAPS-history bridge.
+        // Only use dev-mode fallback from the incoming config when history is disabled.
+        final var allowDevFallbackLedgerId = stateProofManager.isDevModeEnabled() && !tssConfig.historyEnabled();
+        final var existingLedgerId = existingMetadata != null ? existingMetadata.ledgerId() : null;
+        final var metadataLedgerId =
+                existingLedgerId != null ? existingLedgerId : (allowDevFallbackLedgerId ? newConfig.ledgerId() : null);
 
         final var ledgerId = newConfig.ledgerIdOrThrow();
         final var configStore = context.storeFactory().writableStore(WritableClprLedgerConfigurationStore.class);
         final var existingConfig = configStore.get(ledgerId);
         final var endpointVisibilityChanged = endpointVisibilityChanged(existingConfig, newConfig);
+        final var existingRosterHash = existingMetadata != null ? existingMetadata.rosterHash() : null;
         final var shouldUpdateConfig = updatesConfig(existingConfig, newConfig) || endpointVisibilityChanged;
         final var metadataChanged = existingMetadata == null
                 || existingMetadata.ledgerId() == null

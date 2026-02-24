@@ -55,6 +55,16 @@ import org.hiero.interledger.clpr.impl.schemas.V0700ClprSchema;
 public class ClprStateProofManager {
     private static final Logger log = LogManager.getLogger(ClprStateProofManager.class);
 
+    /**
+     * Minimum effective signature size that indicates a SNARK-based chain-of-trust proof.
+     * The effective signature is composed of: VK (1480 bytes) + hinTS aggregate (1632 bytes) +
+     * chain-of-trust proof. A SNARK proof is 704 bytes (self-contained, no external state needed),
+     * while a Schnorr aggregate is only 192 bytes (requires TSS.setAddressBook() to be called first,
+     * which is not available in the application code path). We only build state proofs when the
+     * SNARK proof is available, since Schnorr proofs cannot be verified without the address book.
+     */
+    private static final int MINIMUM_SNARK_EFFECTIVE_SIGNATURE_SIZE = 1480 + 1632 + 704;
+
     private final BlockProvenSnapshotProvider snapshotProvider;
     private final com.hedera.node.config.data.ClprConfig clprConfig;
     private final TssSignatureVerifierFactory tssVerifierFactory;
@@ -194,6 +204,18 @@ public class ClprStateProofManager {
         final var tssSigBytes = snapshot.tssSignature();
         if (tssSigBytes == null || Objects.equals(tssSigBytes, Bytes.EMPTY)) {
             throw new IllegalStateException("TSS signature is missing or invalid");
+        }
+
+        // Only build state proofs when the effective signature contains a SNARK chain-of-trust
+        // proof. Schnorr aggregate proofs (smaller) require TSS.setAddressBook() which is not
+        // available in the application code path, so verification would always fail.
+        if (tssSigBytes.length() < MINIMUM_SNARK_EFFECTIVE_SIGNATURE_SIZE) {
+            log.fatal(
+                    "Deferring state proof construction: effective signature is {} bytes "
+                            + "(minimum {} for SNARK proof); SNARK prover may still be running",
+                    tssSigBytes.length(),
+                    MINIMUM_SNARK_EFFECTIVE_SIGNATURE_SIZE);
+            return null;
         }
 
         final var blockTimestamp = snapshot.blockTimestamp();
@@ -356,8 +378,13 @@ public class ClprStateProofManager {
         requireNonNull(proof);
         requireNonNull(ledgerId);
         try {
+//            log.warn(
+//                    "TSS_DEBUG verifyProof: entering for ledger {}, paths={}",
+//                    ledgerId,
+//                    proof.paths().size());
             final var verifier = tssVerifierFactory.forLedger(ledgerId);
             final boolean result = StateProofVerifier.verify(proof, verifier);
+//            log.warn("TSS_DEBUG verifyProof: result={} for ledger {}", result, ledgerId);
             if (!result) {
                 log.warn(
                         "State proof TSS verification returned false for ledger {}; "
@@ -368,6 +395,7 @@ public class ClprStateProofManager {
             }
             return result;
         } catch (final Exception e) {
+            log.warn("TSS_DEBUG verifyProof: EXCEPTION for ledger {}: {}", ledgerId, e.toString());
             log.error("State proof verification threw exception for ledger {}", ledgerId, e);
             return false;
         }

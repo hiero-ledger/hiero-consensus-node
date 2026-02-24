@@ -1,13 +1,19 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.interledger.clpr.impl;
 
+import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
+import com.hedera.hapi.block.stream.MerklePath;
+import com.hedera.hapi.block.stream.SiblingNode;
+import com.hedera.hapi.block.stream.StateProof;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.node.app.hapi.utils.blocks.HashUtils;
+import com.hedera.node.app.hapi.utils.blocks.StateProofVerifier;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.ClprConfig;
@@ -17,6 +23,7 @@ import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.net.UnknownHostException;
+import java.security.MessageDigest;
 import java.time.Clock;
 import java.time.DateTimeException;
 import java.time.Instant;
@@ -125,8 +132,29 @@ public class ClprEndpointClient {
                 log.debug("CLPR endpoint maintenance skipped; no state proof available for ledger {}", localLedgerId);
                 return;
             } else {
-                final boolean isValid =
-                        stateProofManager.verifyProof(requireNonNull(localProof), localLedgerId.ledgerId());
+                // --- TSS DEBUG: log all three inputs to TSS.verifyTSS ---
+                final var proof = requireNonNull(localProof);
+                final var sigBytes =
+                        proof.hasSignedBlockProof() && proof.signedBlockProof().blockSignature() != null
+                                ? proof.signedBlockProof().blockSignature()
+                                : Bytes.EMPTY;
+                try {
+                    final byte[] rootHash = StateProofVerifier.debugComputeRootHash(proof);
+                    final var ledgerIdBytes = localLedgerId.ledgerId();
+//                    log.warn(
+//                            "TSS_DEBUG inputs: ledgerId={} (len={}), rootHash={} (len={}), sigLen={}",
+//                            ledgerIdBytes.toHex(),
+//                            ledgerIdBytes.length(),
+//                            Bytes.wrap(rootHash).toHex(),
+//                            rootHash.length,
+//                            sigBytes.length());
+                    // Step-by-step hash walk to find divergence point
+//                    debugWalkProofHashes(proof);
+                } catch (final Exception e) {
+//                    log.warn("TSS_DEBUG: rootHash computation THREW: {}", e.toString());
+                }
+                // Real verification via stateProofManager
+                final boolean isValid = stateProofManager.verifyProof(proof, localLedgerId.ledgerId());
                 if (!isValid) {
                     log.warn("Found invalid state proof for local ledger {}; skipping this cycle", localLedgerId);
                     return;
@@ -467,5 +495,143 @@ public class ClprEndpointClient {
                     return new RemoteEndpoint(endpoint.endpoint(), resolvedAccountId);
                 })
                 .toArray(RemoteEndpoint[]::new);
+    }
+
+    /**
+     * DEBUG: Walks through every MerklePath in the proof, computing and logging the intermediate
+     * hash at each sibling step. This pinpoints exactly where the hash chain diverges from the
+     * expected block root hash.
+     */
+    @SuppressWarnings("java:S3776") // complexity acceptable for temporary debug method
+    private static void debugWalkProofHashes(@NonNull final StateProof proof) {
+        final var paths = proof.paths();
+//        log.warn("TSS_DEBUG_WALK: proof has {} path(s)", paths.size());
+
+        final MessageDigest digest = sha384DigestOrThrow();
+        // Stores computed hashes for each path index, keyed by path index
+        final byte[][] pathResults = new byte[paths.size()][];
+
+        for (int pathIdx = 0; pathIdx < paths.size(); pathIdx++) {
+            final MerklePath path = paths.get(pathIdx);
+            final var siblings = path.siblings();
+//            log.warn(
+//                    "TSS_DEBUG_WALK: path[{}] nextPathIndex={}, siblings={}, hasHash={}, hasStateItemLeaf={}, hasTimestampLeaf={}, hasBlockItemLeaf={}",
+//                    pathIdx,
+//                    path.nextPathIndex(),
+//                    siblings.size(),
+//                    path.hasHash(),
+//                    path.hasStateItemLeaf(),
+//                    path.hasTimestampLeaf(),
+//                    path.hasBlockItemLeaf());
+
+            byte[] current;
+
+            // --- Determine the base hash for this path ---
+            if (path.hasStateItemLeaf()) {
+                current = HashUtils.computeStateItemLeafHash(digest, path.stateItemLeaf());
+//                log.warn(
+//                        "TSS_DEBUG_WALK: path[{}] base=stateItemLeaf hash={} leafLen={}",
+//                        pathIdx,
+//                        Bytes.wrap(current).toHex(),
+//                        path.stateItemLeaf().length());
+            } else if (path.hasBlockItemLeaf()) {
+                current = HashUtils.computeBlockItemLeafHash(digest, path.blockItemLeaf());
+//                log.warn(
+//                        "TSS_DEBUG_WALK: path[{}] base=blockItemLeaf hash={}",
+//                        pathIdx,
+//                        Bytes.wrap(current).toHex());
+            } else if (path.hasTimestampLeaf()) {
+                current = HashUtils.computeTimestampLeafHash(digest, path.timestampLeaf());
+//                log.warn(
+//                        "TSS_DEBUG_WALK: path[{}] base=timestampLeaf hash={}",
+//                        pathIdx,
+//                        Bytes.wrap(current).toHex());
+            } else if (path.hasHash()) {
+                current = path.hash().toByteArray();
+//                log.warn(
+//                        "TSS_DEBUG_WALK: path[{}] base=explicitHash hash={}",
+//                        pathIdx,
+//                        Bytes.wrap(current).toHex());
+            } else {
+                // Internal-only path — needs child hashes from the stack
+                // Collect children that point to this path
+                final java.util.List<byte[]> childHashes = new java.util.ArrayList<>();
+                for (int ci = 0; ci < pathIdx; ci++) {
+                    if (paths.get(ci).nextPathIndex() == pathIdx && pathResults[ci] != null) {
+                        childHashes.add(pathResults[ci]);
+                    }
+                }
+//                log.warn(
+//                        "TSS_DEBUG_WALK: path[{}] base=internalNode, {} child(ren) pointing here",
+//                        pathIdx,
+//                        childHashes.size());
+
+                if (childHashes.size() == 1) {
+                    current = HashUtils.computeSingleChildHash(digest, childHashes.get(0));
+//                    log.warn(
+//                            "TSS_DEBUG_WALK: path[{}] singleChild hash={}",
+//                            pathIdx,
+//                            Bytes.wrap(current).toHex());
+                } else if (childHashes.size() == 2) {
+                    current = HashUtils.joinHashes(digest, childHashes.get(0), childHashes.get(1));
+                    log.warn(
+                            "TSS_DEBUG_WALK: path[{}] joinChildren hash={}",
+                            pathIdx,
+                            Bytes.wrap(current).toHex());
+                } else {
+                    log.warn(
+                            "TSS_DEBUG_WALK: path[{}] ERROR: expected 1 or 2 children, got {}",
+                            pathIdx,
+                            childHashes.size());
+                    return;
+                }
+            }
+
+            // --- Walk through siblings, logging each step ---
+            for (int sibIdx = 0; sibIdx < siblings.size(); sibIdx++) {
+                final SiblingNode sibling = siblings.get(sibIdx);
+                final byte[] siblingBytes = sibling.hash().toByteArray();
+
+                final String label;
+                if (siblingBytes.length == 0) {
+                    current = HashUtils.computeSingleChildHash(digest, current);
+                    label = "singleChild";
+                } else if (sibling.isLeft()) {
+                    current = HashUtils.joinHashes(digest, siblingBytes, current);
+                    label = "join(LEFT_sibling, current)";
+                } else {
+                    current = HashUtils.joinHashes(digest, current, siblingBytes);
+                    label = "join(current, RIGHT_sibling)";
+                }
+                log.warn(
+                        "TSS_DEBUG_WALK: path[{}] sib[{}/{}] {} isLeft={} sibHash={} -> intermediate={}",
+                        pathIdx,
+                        sibIdx,
+                        siblings.size() - 1,
+                        label,
+                        sibling.isLeft(),
+                        siblingBytes.length == 0
+                                ? "<empty>"
+                                : Bytes.wrap(siblingBytes).toHex(),
+                        Bytes.wrap(current).toHex());
+            }
+
+            pathResults[pathIdx] = current;
+            log.warn(
+                    "TSS_DEBUG_WALK: path[{}] FINAL hash={} (nextPathIndex={})",
+                    pathIdx,
+                    Bytes.wrap(current).toHex(),
+                    path.nextPathIndex());
+        }
+
+        // The root hash is the result of the last path with nextPathIndex=-1
+        for (int i = paths.size() - 1; i >= 0; i--) {
+            if (paths.get(i).nextPathIndex() == -1 && pathResults[i] != null) {
+                log.warn(
+                        "TSS_DEBUG_WALK: ROOT hash={}",
+                        Bytes.wrap(pathResults[i]).toHex());
+                break;
+            }
+        }
     }
 }

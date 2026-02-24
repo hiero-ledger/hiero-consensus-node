@@ -123,6 +123,16 @@ public final class StateProofVerifier {
     }
 
     /**
+     * DEBUG ONLY: Computes and returns the root hash from a state proof's Merkle paths.
+     * This exposes the intermediate root hash for diagnostic logging.
+     */
+    @NonNull
+    public static byte[] debugComputeRootHash(@NonNull final StateProof stateProof) {
+        requireNonNull(stateProof, "stateProof must not be null");
+        return computeRootHash(stateProof.paths());
+    }
+
+    /**
      * Computes the root hash from a list of {@link MerklePath} objects.
      *
      * <p>This method reconstructs the Merkle tree using a stack-based algorithm:
