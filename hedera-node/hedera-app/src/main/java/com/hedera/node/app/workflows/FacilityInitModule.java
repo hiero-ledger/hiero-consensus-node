@@ -216,7 +216,7 @@ public interface FacilityInitModule {
             requireNonNull(streamMode);
             if (hasHandledGenesisTxn(state, streamMode)) {
                 initializeExchangeRateManager(state, configProvider, exchangeRateManager);
-                initializeFeeManager(state, configProvider, feeManager);
+                initializeFeeManager(state, fileService, configProvider, feeManager);
                 observePropertiesAndPermissions(state, configProvider.getConfiguration(), (properties, permissions) -> {
                     if (!Bytes.EMPTY.equals(properties) || !Bytes.EMPTY.equals(permissions)) {
                         configProvider.update(properties, permissions);
@@ -262,6 +262,7 @@ public interface FacilityInitModule {
 
     private static void initializeFeeManager(
             @NonNull final State state,
+            @NonNull final FileServiceImpl fileService,
             @NonNull final ConfigProvider configProvider,
             @NonNull final FeeManager feeManager) {
         log.info("Initializing fee schedules");
@@ -278,14 +279,23 @@ public interface FacilityInitModule {
             log.error("State file 0.0.{} did not contain parseable fee schedules ({})", fileNum, status);
         }
 
-        final var simpleFileNum = filesConfig.simpleFeesSchedules();
-        final var simpleFile = requireNonNull(
-                getFileFromStorage(state, configProvider, simpleFileNum),
-                "The initialized state had no fee schedule file 0.0." + simpleFileNum);
-        final var simpleStatus = feeManager.updateSimpleFees(simpleFile.contents());
+        final var simpleFeesFileNum = filesConfig.simpleFeesSchedules();
+        final var simpleFeesFile = getFileFromStorage(state, configProvider, simpleFeesFileNum);
+
+        final Bytes simpleFeesContents;
+        if (simpleFeesFile == null) {
+            log.warn(
+                    "The initialized state had no simple fee schedule file 0.0.{}, using bootstrap genesis schedules",
+                    simpleFeesFileNum);
+            simpleFeesContents = fileService.fileSchema().genesisSimpleFeesSchedules(configProvider.getConfiguration());
+        } else {
+            simpleFeesContents = simpleFeesFile.contents();
+        }
+
+        final var simpleStatus = feeManager.updateSimpleFees(simpleFeesContents);
         if (simpleStatus != SUCCESS) {
-            throw new IllegalStateException("State file 0.0." + simpleFileNum
-                    + " did not contain parseable simple fee schedules (" + simpleStatus + ")");
+            log.error(
+                    "State file 0.0.{} did not contain parseable simple fee schedules ({})", simpleFeesFileNum, status);
         }
     }
 
