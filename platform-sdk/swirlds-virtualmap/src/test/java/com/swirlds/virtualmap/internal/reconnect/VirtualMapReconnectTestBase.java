@@ -8,7 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.test.fixtures.ConstructableTestFixtures;
+import com.swirlds.common.constructable.ConstructableRegistration;
 import com.swirlds.common.test.fixtures.merkle.util.MerkleTestUtils;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.metrics.api.Metrics;
@@ -90,7 +90,7 @@ public abstract class VirtualMapReconnectTestBase {
     @BeforeAll
     public static void startup() throws ConstructableRegistryException, FileNotFoundException {
         loadLog4jContext();
-        ConstructableTestFixtures.registerAllConstructables();
+        ConstructableRegistration.registerAllConstructables();
     }
 
     protected void reconnect() throws Exception {

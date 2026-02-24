@@ -37,11 +37,11 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 
 import com.swirlds.base.utility.Pair;
+import com.swirlds.common.constructable.ConstructableRegistration;
 import com.swirlds.common.stream.internal.InvalidStreamFileException;
 import com.swirlds.common.stream.internal.LinkedObjectStreamValidateUtils;
 import com.swirlds.common.stream.internal.SingleStreamIterator;
 import com.swirlds.common.stream.internal.StreamValidationResult;
-import com.swirlds.common.test.fixtures.ConstructableTestFixtures;
 import com.swirlds.common.test.fixtures.io.InputOutputStream;
 import com.swirlds.common.test.fixtures.stream.ObjectForTestStream;
 import com.swirlds.common.test.fixtures.stream.StreamObjectWorker;
@@ -98,7 +98,7 @@ class StreamUtilitiesTest {
 
     @BeforeAll
     static void setUp() throws ConstructableRegistryException {
-        ConstructableTestFixtures.registerAllConstructables();
+        ConstructableRegistration.registerAllConstructables();
     }
 
     private static File getResourceFile(final String path) {

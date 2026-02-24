@@ -10,9 +10,9 @@ import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSee
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.swirlds.common.constructable.ConstructableRegistration;
 import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
-import com.swirlds.common.test.fixtures.ConstructableTestFixtures;
 import com.swirlds.platform.recovery.internal.EventStreamLowerBound;
 import com.swirlds.platform.recovery.internal.EventStreamPathIterator;
 import com.swirlds.platform.recovery.internal.EventStreamRoundLowerBound;
@@ -41,7 +41,7 @@ class EventStreamPathIteratorTest {
 
     @BeforeAll
     static void beforeAll() throws ConstructableRegistryException {
-        ConstructableTestFixtures.registerAllConstructables();
+        ConstructableRegistration.registerAllConstructables();
     }
 
     @Test

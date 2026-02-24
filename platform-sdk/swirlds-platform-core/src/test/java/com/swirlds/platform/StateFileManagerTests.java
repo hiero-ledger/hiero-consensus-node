@@ -19,9 +19,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.hedera.pbj.runtime.ParseException;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.config.StateCommonConfig_;
+import com.swirlds.common.constructable.ConstructableRegistration;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
-import com.swirlds.common.test.fixtures.ConstructableTestFixtures;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.components.DefaultSavedStateController;
@@ -81,7 +81,7 @@ class StateFileManagerTests {
 
     @BeforeAll
     static void beforeAll() throws ConstructableRegistryException {
-        ConstructableTestFixtures.registerAllConstructables();
+        ConstructableRegistration.registerAllConstructables();
     }
 
     @BeforeEach

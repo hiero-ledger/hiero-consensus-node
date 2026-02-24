@@ -6,7 +6,7 @@ import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATIO
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.fail;
 
-import com.swirlds.common.test.fixtures.ConstructableTestFixtures;
+import com.swirlds.common.constructable.ConstructableRegistration;
 import com.swirlds.common.test.fixtures.merkle.util.MerkleTestUtils;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
@@ -53,7 +53,7 @@ public abstract class VirtualMapReconnectTestBase {
     @BeforeAll
     public static void startup() throws ConstructableRegistryException, FileNotFoundException {
         loadLog4jContext();
-        ConstructableTestFixtures.registerAllConstructables();
+        ConstructableRegistration.registerAllConstructables();
     }
 
     protected void reconnect() throws Exception {

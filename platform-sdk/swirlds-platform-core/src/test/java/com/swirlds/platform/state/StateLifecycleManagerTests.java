@@ -14,8 +14,8 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.state.MutabilityException;
 import com.swirlds.common.Reservable;
+import com.swirlds.common.constructable.ConstructableRegistration;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.ConstructableTestFixtures;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.platform.SwirldsPlatform;
@@ -43,7 +43,7 @@ class StateLifecycleManagerTests {
 
     @BeforeAll
     static void beforeAll() throws ConstructableRegistryException {
-        ConstructableTestFixtures.registerCoreConstructables();
+        ConstructableRegistration.registerCoreConstructables();
     }
 
     @BeforeEach

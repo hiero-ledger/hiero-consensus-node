@@ -14,9 +14,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
+import com.swirlds.common.constructable.ConstructableRegistration;
 import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
-import com.swirlds.common.test.fixtures.ConstructableTestFixtures;
 import com.swirlds.platform.recovery.internal.ObjectStreamIterator;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -40,7 +40,7 @@ class ObjectStreamIteratorTest {
 
     @BeforeAll
     static void beforeAll() throws ConstructableRegistryException {
-        ConstructableTestFixtures.registerAllConstructables();
+        ConstructableRegistration.registerAllConstructables();
     }
 
     public static void assertEventsAreEqual(final CesEvent expected, final CesEvent actual) {

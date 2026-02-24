@@ -23,9 +23,9 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.pbj.runtime.ParseException;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.common.config.StateCommonConfig_;
+import com.swirlds.common.constructable.ConstructableRegistration;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
-import com.swirlds.common.test.fixtures.ConstructableTestFixtures;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.common.utility.Mnemonics;
 import com.swirlds.config.api.Configuration;
@@ -69,7 +69,7 @@ class SignedStateFileReadWriteTest {
     static void beforeAll() throws ConstructableRegistryException {
         platformVersion =
                 SemanticVersion.newBuilder().major(RandomUtils.nextInt(1, 100)).build();
-        ConstructableTestFixtures.registerCoreConstructables();
+        ConstructableRegistration.registerCoreConstructables();
     }
 
     @BeforeEach
