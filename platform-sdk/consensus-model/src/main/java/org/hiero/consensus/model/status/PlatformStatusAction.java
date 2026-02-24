@@ -1,7 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.system.status.actions;
-
-import org.hiero.consensus.model.status.PlatformStatus;
+package org.hiero.consensus.model.status;
 
 /**
  * An interface for platform status actions.
