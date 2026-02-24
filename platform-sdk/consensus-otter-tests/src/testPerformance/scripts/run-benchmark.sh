@@ -3,8 +3,8 @@ set -eo pipefail
 
 # Configuration
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_DIR="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
-RESULTS_BASE_DIR="$HOME/benchmark-results"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/../../../../.." && pwd)"
+RESULTS_BASE_DIR="${RESULTS_BASE_DIR:-$HOME/benchmark-results}"
 CLEAN_BETWEEN_RUNS=true
 
 # Available experiments (name:ClassName pairs)
