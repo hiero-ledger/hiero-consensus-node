@@ -3,12 +3,6 @@ name: "[CITR] XTS Dry Run"
 on:
   workflow_dispatch:
     inputs:
-      ref:
-        required: true
-        description: "The commit sha, tag, or branch to check out"
-      branch_name:
-        required: false
-        description: "The branch name, for JRS Panel output"
       enable-timing-sensitive-test-suite:
         type: boolean
         description: "Run Timing Sensitive Test Suite"
@@ -92,8 +86,8 @@ jobs:
           if [[ "${SOLO_GE_0440}" == "true" ]]; then
             HELM_NAME="mirror-1"
           fi
-          echo "Commit SHA: ${{ inputs.ref }}" | tee -a "${GITHUB_STEP_SUMMARY}"
-          echo "Branch Name: ${{ inputs.branch_name }}" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "Commit SHA: ${{ github.sha }}" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "Branch Name: ${{ github.ref_name }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "Enable Timing Sensitive Test Suite: ${{ inputs.enable-timing-sensitive-test-suite }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "Enable Hammer Test Suite: ${{ inputs.enable-hammer-test-suite }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "Enable HAPI Test Suite: ${{ inputs.enable-hapi-test-suite }}" | tee -a "${GITHUB_STEP_SUMMARY}"
@@ -116,7 +110,7 @@ jobs:
     if: ${{ inputs.execute-state-validator-build == true }}
     uses: ./.github/workflows/zxc-build-publish-state-validator.yaml
     with:
-      ref: ${{ inputs.ref }}
+      ref: ${{ github.sha }}
       dry-run-enabled: "true"
 
   xts-execution:
@@ -124,8 +118,8 @@ jobs:
     needs: parameters
     uses: ./.github/workflows/zxc-xts-tests.yaml
     with:
-      ref: ${{ inputs.ref }}
-      branch_name: ${{ inputs.branch_name }}
+      ref: ${{ github.sha }}
+      branch_name: ${{ github.ref_name }}
       solo-version: ${{ needs.parameters.outputs.solo-version }}
       helm-release-name: ${{ needs.parameters.outputs.helm-release-name }}
       mirror-node-version: ${{ vars.CITR_MIRROR_NODE_VERSION }}
