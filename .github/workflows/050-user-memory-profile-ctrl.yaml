@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "Single Node Memory Resource Meter"
+name: "[USER] Memory Profile Ctrl"
 on:
   workflow_dispatch:
     inputs:
