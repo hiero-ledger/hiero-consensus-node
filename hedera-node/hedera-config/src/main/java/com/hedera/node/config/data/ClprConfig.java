@@ -11,7 +11,6 @@ import com.swirlds.config.api.ConfigProperty;
  * @param clprEnabled whether to enable the CLPR interledger communication protocol
  * @param connectionFrequency the frequency at which connections are made to other ledgers, in milliseconds
  * @param publicizeNetworkAddresses whether the node should advertise its CLPR endpoint network addresses.
- * @param devModeEnabled toggle to enable development-mode behaviours (auto-bootstrap, relaxed validation)
  */
 @ConfigData("clpr")
 public record ClprConfig(
@@ -23,9 +22,6 @@ public record ClprConfig(
 
         @ConfigProperty(defaultValue = "true") @NetworkProperty
         boolean publicizeNetworkAddresses,
-
-        @ConfigProperty(defaultValue = "true") @NetworkProperty
-        boolean devModeEnabled,
 
         @ConfigProperty(defaultValue = "5") @NetworkProperty int maxBundleMessages,
 

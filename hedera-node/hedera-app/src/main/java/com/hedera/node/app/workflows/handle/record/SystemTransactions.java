@@ -643,7 +643,7 @@ public class SystemTransactions {
         final Bytes rawLedgerId = existingMetadata != null && existingMetadata.ledgerId() != null
                 ? existingMetadata.ledgerId().ledgerId()
                 : rosterHash;
-        final Bytes ledgerId = normalizeClprLedgerId(rawLedgerId, clprConfig.devModeEnabled());
+        final Bytes ledgerId = normalizeClprLedgerId(rawLedgerId);
 
         final var existingConfig =
                 configStore.get(ClprLedgerId.newBuilder().ledgerId(ledgerId).build());
@@ -713,10 +713,7 @@ public class SystemTransactions {
 
     private static final int CLPR_LEDGER_ID_BYTES = 32;
 
-    private static Bytes normalizeClprLedgerId(@NonNull final Bytes rawLedgerId, final boolean devModeEnabled) {
-        if (!devModeEnabled) {
-            return rawLedgerId;
-        }
+    private static Bytes normalizeClprLedgerId(@NonNull final Bytes rawLedgerId) {
         if (rawLedgerId.length() == 0 || rawLedgerId.length() == CLPR_LEDGER_ID_BYTES) {
             return rawLedgerId;
         }

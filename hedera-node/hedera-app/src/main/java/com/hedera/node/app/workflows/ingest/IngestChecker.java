@@ -554,7 +554,7 @@ public final class IngestChecker {
         final var payerKey = account.key();
         final var hederaConfig = configuration.getConfigData(HederaConfig.class);
         final var clprConfig = configuration.getConfigData(ClprConfig.class);
-        if (clprConfig.devModeEnabled()
+        if (clprConfig.clprEnabled()
                 && (txInfo.functionality() == HederaFunctionality.CLPR_SET_LEDGER_CONFIG
                         || txInfo.functionality() == HederaFunctionality.CLPR_UPDATE_MESSAGE_QUEUE_METADATA
                         || txInfo.functionality() == HederaFunctionality.CLPR_PROCESS_MESSAGE_BUNDLE)) {
