@@ -180,7 +180,7 @@ jobs:
       - name: Run NLG test
         run: |
           cd hiero-block-node/tools-and-tests/scripts/solo-e2e-test
-          task load:up NLG_TEST_TYPE="{{ inputs.nlg-test }}" NLG_ARGS="{{ inputs.nlg-args }} -a {{ inputs.nlg-accounts }}" -tt {{ inputs.nlg-time }}" NLG_MAX_TPS="{{ inputs.nlg-tps }}"
+          task load:up NLG_TEST_TYPE="{{ inputs.nlg-test }}" NLG_ARGS="{{ inputs.nlg-args }} -a {{ inputs.nlg-accounts }} -tt {{ inputs.nlg-time }}" NLG_MAX_TPS="{{ inputs.nlg-tps }}"
 
       - name: Stop NLG test
         run: |
