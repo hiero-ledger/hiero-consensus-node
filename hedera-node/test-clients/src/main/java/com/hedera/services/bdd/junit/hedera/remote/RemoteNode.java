@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.hedera.remote;
 
+import com.hedera.node.internal.network.Network;
 import com.hedera.services.bdd.junit.hedera.AbstractNode;
 import com.hedera.services.bdd.junit.hedera.ExternalPath;
 import com.hedera.services.bdd.junit.hedera.HederaNode;
@@ -25,7 +26,8 @@ public class RemoteNode extends AbstractNode implements HederaNode {
     }
 
     @Override
-    public HederaNode initWorkingDir(@NonNull final String configTxt) {
+    @NonNull
+    public HederaNode initWorkingDir(@NonNull final Network network) {
         throw new UnsupportedOperationException("Cannot initialize a remote node's working directory");
     }
 

@@ -38,15 +38,14 @@ env:
 jobs:
   parameters:
     name: Determine Configurable Parameters
-    runs-on: hiero-citr-linux-medium
+    runs-on: hl-cn-default-lin-sm
     outputs:
       solo-ge-0440: ${{ steps.set-parameters.outputs.solo-ge-0440 }}
+      solo-version: ${{ steps.set-parameters.outputs.solo-version }}
       helm-release-name: ${{ steps.set-parameters.outputs.helm-release-name }}
     steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
-        with:
-          egress-policy: audit
+      - name: Initialize GitHub Job
+        uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
 
       - name: Set Parameters
         id: set-parameters
@@ -60,10 +59,11 @@ jobs:
           echo "::debug::SOLO_GE_0440=${SOLO_GE_0440}"
           echo "helm-release-name=${HELM_NAME}" >> "${GITHUB_OUTPUT}"
           echo "solo-ge-0440=${SOLO_GE_0440}" >> "${GITHUB_OUTPUT}"
+          echo "solo-version=${{ vars.CITR_SOLO_VERSION }}" >> "${GITHUB_OUTPUT}"
 
   fetch-xts-candidate:
     name: Fetch XTS Candidate Tag
-    runs-on: hiero-citr-linux-medium
+    runs-on: hl-cn-default-lin-sm
     outputs:
       xts-tag-exists: ${{ steps.check-tags-exist.outputs.xts-tag-exists }}
       xts-tag-commit: ${{ steps.check-tags-exist.outputs.xts-tag-commit }}
@@ -74,18 +74,13 @@ jobs:
       xts-info: ${{ steps.check-tags-exist.outputs.xts-info }}
       commit-list: ${{ steps.check-tags-exist.outputs.commit-list }}
     steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+      - name: Initialize GitHub Job
+        uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
         with:
-          egress-policy: audit
-
-      # Checkout the latest from main
-      - name: Checkout Code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          fetch-depth: "0"
-          ref: main
-          token: ${{ secrets.GH_ACCESS_TOKEN }}
+          checkout: "true"
+          checkout-ref: "main"
+          checkout-fetch-depth: "0"
+          checkout-token: "${{ secrets.GH_ACCESS_TOKEN }}"
 
       # Check if the xts-candidate tag exists
       # the command git branch --contains xts-tag-commit | grep --quiet <default branch>
@@ -211,10 +206,20 @@ jobs:
             echo "xts-tag-commit-email=${AUTHOR_EMAIL}" >> "${GITHUB_OUTPUT}"
             echo "xts-info=${XTS_COMMIT_BRANCH} - ${XTS_SHORT_COMMIT}" >> "${GITHUB_OUTPUT}"
 
-            CLEANED_COMMIT_LIST="${COMMIT_LIST//\`/}"
-            ESCAPED_COMMIT_LIST=$(jq -Rs . <<< "${CLEANED_COMMIT_LIST}")
-            ESCAPED_COMMIT_LIST=${ESCAPED_COMMIT_LIST:1:-1}
-            echo "commit-list=${ESCAPED_COMMIT_LIST}" >> "${GITHUB_OUTPUT}"
+            COMMIT_COUNT=$(echo "$COMMIT_LIST" | wc -l)
+            COMMIT_LIST_STR=""
+            if [[ -z "${COMMIT_LIST//[[:space:]]/}" ]]; then
+              # should never get here.
+              echo "::error file=zxcron-extended-test-suite.yaml,line=213::No commits associated with this release; exiting."
+              exit 1
+            elif [[ ${COMMIT_COUNT} -gt 15 ]]; then
+              COMMIT_LIST_STR="Please refer to the workflow summary for the full list of associated commits."
+            else
+              PARSED_COMMIT_LIST="${COMMIT_LIST//\`/}"
+              ESCAPED_COMMIT_LIST=$(jq -Rs . <<< "${PARSED_COMMIT_LIST}")
+              COMMIT_LIST_STR=${ESCAPED_COMMIT_LIST:1:-1}
+            fi
+            echo "commit-list=${COMMIT_LIST_STR}" >> "${GITHUB_OUTPUT}"
 
             # GitHub Step Summary
             echo "### XTS-Candidate commit found" >>  "${GITHUB_STEP_SUMMARY}"
@@ -235,239 +240,91 @@ jobs:
           fi
           echo "::endgroup::" # Set Outputs
 
-  xts-timing-sensitive-tests:
-    name: XTS Timing Sensitive Tests
-    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
-    needs: fetch-xts-candidate
+  state-validator-uberjar:
+    name: Build & Publish Hedera State Validator Uber JAR
+    needs:
+      - fetch-xts-candidate
     if: ${{ needs.fetch-xts-candidate.result == 'success' && needs.fetch-xts-candidate.outputs.xts-tag-exists == 'true' }}
+    uses: ./.github/workflows/zxc-build-publish-state-validator.yaml
     with:
-      custom-job-label: "XTS Timing Sensitive"
-      enable-timing-sensitive-tests: true
-      enable-network-log-capture: true
       ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
-    secrets:
-      access-token: ${{ secrets.GITHUB_TOKEN }}
-      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
-      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
 
-  xts-time-consuming-tests:
-    name: XTS Time Consuming Tests
-    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
-    needs: fetch-xts-candidate
-    if: ${{ needs.fetch-xts-candidate.result == 'success' && needs.fetch-xts-candidate.outputs.xts-tag-exists == 'true' }}
-    with:
-      custom-job-label: "XTS Time Consuming"
-      enable-time-consuming-tests: true
-      enable-network-log-capture: true
-      ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
-    secrets:
-      access-token: ${{ secrets.GITHUB_TOKEN }}
-      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
-      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
-
-  xts-hammer-tests:
-    name: XTS Hammer Tests
-    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
-    needs: fetch-xts-candidate
-    if: ${{ needs.fetch-xts-candidate.result == 'success' && needs.fetch-xts-candidate.outputs.xts-tag-exists == 'true' }}
-    with:
-      custom-job-label: "XTS Hammer Tests"
-      enable-hammer-tests: true
-      enable-network-log-capture: true
-      ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
-    secrets:
-      access-token: ${{ secrets.GITHUB_TOKEN }}
-      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
-      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
-
-  xts-hapi-time-consuming-tests:
-    name: XTS HAPI Tests (Time Consuming)
-    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
-    needs: fetch-xts-candidate
-    if: ${{ needs.fetch-xts-candidate.result == 'success' && needs.fetch-xts-candidate.outputs.xts-tag-exists == 'true' }}
-    with:
-      custom-job-label: "XTS HAPI Time Consuming"
-      enable-hapi-tests-time-consuming: true
-      enable-network-log-capture: true
-      ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
-    secrets:
-      access-token: ${{ secrets.GITHUB_TOKEN }}
-      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
-      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
-
-  xts-hapi-block-node-comms-tests:
-    name: XTS HAPI Tests (Block Node Communication)
-    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
-    needs: fetch-xts-candidate
-    if: ${{ needs.fetch-xts-candidate.result == 'success' && needs.fetch-xts-candidate.outputs.xts-tag-exists == 'true' }}
-    with:
-      custom-job-label: "XTS HAPI Block Node Comms"
-      enable-hapi-tests-bn-communication: true
-      enable-network-log-capture: true
-      ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
-    secrets:
-      access-token: ${{ secrets.GITHUB_TOKEN }}
-      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
-      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
-
-  xts-otter-tests:
-    name: XTS Otter Tests
-    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
-    needs: fetch-xts-candidate
-    if: ${{ needs.fetch-xts-candidate.result == 'success' && needs.fetch-xts-candidate.outputs.xts-tag-exists == 'true' }}
-    with:
-      custom-job-label: "XTS Otter Tests"
-      enable-full-otter-tests: true
-      enable-network-log-capture: true
-      ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
-    secrets:
-      access-token: ${{ secrets.GITHUB_TOKEN }}
-      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
-      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
-
-  abbreviated-panel:
-    name: JRS Panel
-    uses: ./.github/workflows/zxc-jrs-regression.yaml
-    needs: fetch-xts-candidate
-    if: ${{ needs.fetch-xts-candidate.result == 'success' && needs.fetch-xts-candidate.outputs.xts-tag-exists == 'true' }}
-    with:
-      custom-job-name: "Platform SDK"
-      panel-config: "configs/suites/GCP-PRCheck-Abbrev-4N.json"
-      ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }} # pass the xts-candidate tag to the JRS panel for checkout
-      branch-name: ${{ github.head_ref || github.ref_name }}
-      base-branch-name: ${{ github.base_ref || '' }}
-      slack-results-channel: "regression-test"
-      slack-summary-channel: "regression-test"
-      use-branch-for-slack-channel: false
-    secrets:
-      access-token: ${{ secrets.PLATFORM_GH_ACCESS_TOKEN }}
-      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
-      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
-      jrs-ssh-user-name: ${{ secrets.PLATFORM_JRS_SSH_USER_NAME }}
-      jrs-ssh-key-file: ${{ secrets.PLATFORM_JRS_SSH_KEY_FILE }}
-      gcp-project-number: ${{ secrets.PLATFORM_GCP_PROJECT_NUMBER }}
-      gcp-sa-key-contents: ${{ secrets.PLATFORM_GCP_KEY_FILE }}
-      slack-api-token: ${{ secrets.PLATFORM_SLACK_API_TOKEN }}
-      grafana-agent-username: ${{ secrets.GRAFANA_AGENT_USERNAME }}
-      grafana-agent-password: ${{ secrets.GRAFANA_AGENT_PASSWORD }}
-
-  hedera-node-jrs-panel:
-    name: Hedera Node JRS Panel
-    uses: ./.github/workflows/zxc-jrs-regression.yaml
-    needs: fetch-xts-candidate
-    if: ${{ needs.fetch-xts-candidate.result == 'success' && needs.fetch-xts-candidate.outputs.xts-tag-exists == 'true' }}
-    with:
-      custom-job-name: "Abbrev Update Test"
-      ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }} # pass the xts-candidate tag to the JRS panel for checkout
-      branch-name: ${{ github.head_ref || github.ref_name }}
-      hedera-tests-enabled: true
-      use-branch-for-slack-channel: false
-      panel-config: "configs/services/suites/daily/GCP-Daily-Services-Abbrev-DAB-Update-4N-2C.json"
-    secrets:
-      access-token: ${{ secrets.PLATFORM_GH_ACCESS_TOKEN }}
-      jrs-ssh-user-name: ${{ secrets.PLATFORM_JRS_SSH_USER_NAME }}
-      jrs-ssh-key-file: ${{ secrets.PLATFORM_JRS_SSH_KEY_FILE }}
-      gcp-project-number: ${{ secrets.PLATFORM_GCP_PROJECT_NUMBER }}
-      gcp-sa-key-contents: ${{ secrets.PLATFORM_GCP_KEY_FILE }}
-      slack-api-token: ${{ secrets.PLATFORM_SLACK_API_TOKEN }}
-      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
-      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
-      grafana-agent-username: ${{ secrets.GRAFANA_AGENT_USERNAME }}
-      grafana-agent-password: ${{ secrets.GRAFANA_AGENT_PASSWORD }}
-
-  sdk-tck-regression-panel:
-    name: SDK TCK Regression Panel
-    needs: fetch-xts-candidate
-    if: ${{ needs.fetch-xts-candidate.result == 'success' && needs.fetch-xts-candidate.outputs.xts-tag-exists == 'true' }}
-    uses: ./.github/workflows/zxc-tck-regression.yaml
-    with:
-      ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }} # pass the xts-candidate tag to the JRS panel for checkout
-      custom-job-name: "SDK TCK Regression"
-      solo-version: ${{ vars.CITR_SOLO_VERSION }}
-    secrets:
-      access-token: ${{ secrets.GH_ACCESS_TOKEN }}
-      slack-tck-report-webhook: ${{ secrets.SLACK_TCK_MONITOR_WEBHOOK }}
-      slack-detailed-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
-
-  mirror-node-regression-panel:
-    name: Mirror Node Regression Panel
+  xts-execution:
+    name: Execute XTS
     needs:
       - fetch-xts-candidate
       - parameters
+      - state-validator-uberjar
     if: ${{ needs.fetch-xts-candidate.result == 'success' && needs.fetch-xts-candidate.outputs.xts-tag-exists == 'true' }}
-    uses: ./.github/workflows/zxc-mirror-node-regression.yaml
+    uses: ./.github/workflows/zxc-xts-tests.yaml
     with:
-      ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }} # pass the xts-candidate tag to the JRS panel for checkout
-      custom-job-name: "Mirror Node Regression"
-      solo-version: ${{ vars.CITR_SOLO_VERSION }}
+      ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
+      branch_name: ${{ needs.fetch-xts-candidate.outputs.xts-commit-branch }}
+      solo-version: ${{ needs.parameters.outputs.solo-version }}
+      solo-ge-0440: ${{ needs.parameters.outputs.solo-ge-0440 }}
       helm-release-name: ${{ needs.parameters.outputs.helm-release-name }}
+      custom-job-label: "XTS (main):"
+      enable-timing-sensitive-test-suite: "true"
+      enable-hammer-test-suite: "true"
+      enable-hapi-test-suite: "true"
+      enable-otter-test-suite: "true"
+      enable-hedera-node-jrs-panel: "true"
+      enable-sdk-tck-regression-panel: "true"
     secrets:
-      access-token: ${{ secrets.GH_ACCESS_TOKEN }}
-      slack-detailed-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
+      access-token: ${{ secrets.GITHUB_TOKEN }}
+      platform-access-token: ${{ secrets.PLATFORM_GH_ACCESS_TOKEN }}
+      regression-access-token: ${{ secrets.GH_ACCESS_TOKEN }}
+      gcp-project-number: ${{ secrets.PLATFORM_GCP_PROJECT_NUMBER }}
+      gcp-sa-key-contents: ${{ secrets.PLATFORM_GCP_KEY_FILE }}
+      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
+      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
+      grafana-agent-username: ${{ secrets.GRAFANA_AGENT_USERNAME }}
+      grafana-agent-password: ${{ secrets.GRAFANA_AGENT_PASSWORD }}
+      jrs-ssh-user-name: ${{ secrets.PLATFORM_JRS_SSH_USER_NAME }}
+      jrs-ssh-key-file: ${{ secrets.PLATFORM_JRS_SSH_KEY_FILE }}
+      slack-api-token: ${{ secrets.PLATFORM_SLACK_API_TOKEN }}
+      slack-citr-details-token: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
+      slack-tck-report-webhook: ${{ secrets.SLACK_TCK_MONITOR_WEBHOOK }}
 
-  json-rpc-relay-regression-panel:
-    name: JSON-RPC Relay Regression Panel
-    needs: fetch-xts-candidate
-    if: ${{ needs.fetch-xts-candidate.result == 'success' && needs.fetch-xts-candidate.outputs.xts-tag-exists == 'true' }}
-    uses: ./.github/workflows/zxc-json-rpc-relay-regression.yaml
-    with:
-      ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }} # pass the xts-candidate tag to the JRS panel for checkout
-      custom-job-name: "JSON-RPC Relay Regression"
-      solo-version: ${{ vars.CITR_SOLO_VERSION }}
-    secrets:
-      access-token: ${{ secrets.GH_ACCESS_TOKEN }}
-      slack-detailed-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
-
-  block-node-regression-panel:
-    name: Block Node Regression Panel
+  xts-optional-execution:
+    name: Execute Optional XTS Tests
     needs:
       - fetch-xts-candidate
       - parameters
-    if: ${{ needs.fetch-xts-candidate.result == 'success' && needs.fetch-xts-candidate.outputs.xts-tag-exists == 'true' && needs.parameters.outputs.solo-ge-0440 == 'true' }}
-    uses: ./.github/workflows/zxc-block-node-regression.yaml
+      - state-validator-uberjar
+    if: ${{ needs.fetch-xts-candidate.result == 'success' && needs.fetch-xts-candidate.outputs.xts-tag-exists == 'true' }}
+    uses: ./.github/workflows/zxc-xts-tests.yaml
     with:
-      ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }} # pass the xts-candidate tag to the JRS panel for checkout
-      custom-job-name: "Block Node Regression"
-      solo-version: ${{ vars.CITR_SOLO_VERSION }}
+      ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
+      branch_name: ${{ needs.fetch-xts-candidate.outputs.xts-commit-branch }}
+      solo-version: ${{ needs.parameters.outputs.solo-version }}
+      solo-ge-0440: ${{ needs.parameters.outputs.solo-ge-0440 }}
+      helm-release-name: ${{ needs.parameters.outputs.helm-release-name }}
+      mirror-node-version: ${{ vars.CITR_MIRROR_NODE_VERSION }}
+      custom-job-label: "XTS (Optional):"
+      enable-mirror-node-regression-panel: "true"
+      enable-rpc-relay-regression-panel: "true"
+      enable-block-node-regression-panel: "true"
+      enable-chaos-otter-test-suite: "true"
     secrets:
       access-token: ${{ secrets.GH_ACCESS_TOKEN }}
-      slack-detailed-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
+      slack-citr-details-token: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
 
   tag-for-promotion:
     name: Tag as XTS-Passing
-    runs-on: hiero-citr-linux-medium
+    runs-on: hl-cn-default-lin-sm
     needs:
-      - abbreviated-panel
       - fetch-xts-candidate
-      - hedera-node-jrs-panel
-      - sdk-tck-regression-panel
-      - xts-hammer-tests
-      - xts-hapi-block-node-comms-tests
-      - xts-hapi-time-consuming-tests
-      - xts-time-consuming-tests
-      - xts-timing-sensitive-tests
-    if: ${{ needs.abbreviated-panel.result == 'success' ||
-      needs.hedera-node-jrs-panel.result == 'success' ||
-      needs.sdk-tck-regression-panel.result == 'success' ||
-      needs.xts-hammer-tests.result == 'success' ||
-      needs.xts-hapi-block-node-comms-tests.result == 'success' ||
-      needs.xts-hapi-time-consuming-tests.result == 'success' ||
-      needs.xts-time-consuming-tests.result == 'success' ||
-      needs.xts-timing-sensitive-tests.result == 'success' }}
+      - xts-execution
+    if: ${{ needs.xts-execution.result == 'success' }}
     steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+      - name: Initialize GitHub Job
+        uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
         with:
-          egress-policy: audit
-
-      - name: Checkout Tagged Code
-        id: checkout_tagged_code
-        if: ${{ needs.fetch-xts-candidate.outputs.xts-tag-exists == 'true' }}
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          fetch-depth: "0"
-          ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
-          token: ${{ secrets.GH_ACCESS_TOKEN }}
+          checkout: "true"
+          checkout-ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
+          checkout-fetch-depth: "0"
+          checkout-token: ${{ secrets.GH_ACCESS_TOKEN }}
 
       - name: Import GPG Key
         id: gpg_importer
@@ -518,34 +375,18 @@ jobs:
 
   report-success:
     name: Report XTS execution success
-    runs-on: hiero-citr-linux-medium
+    runs-on: hl-cn-default-lin-sm
     needs:
-      - abbreviated-panel
       - fetch-xts-candidate
-      - hedera-node-jrs-panel
-      - sdk-tck-regression-panel
+      - xts-execution
       - tag-for-promotion
-      - xts-hammer-tests
-      - xts-hapi-block-node-comms-tests
-      - xts-hapi-time-consuming-tests
-      - xts-time-consuming-tests
-      - xts-timing-sensitive-tests
-    if: ${{ (needs.abbreviated-panel.result == 'success' &&
-      needs.fetch-xts-candidate.result == 'success' &&
-      needs.hedera-node-jrs-panel.result == 'success' &&
-      needs.sdk-tck-regression-panel.result == 'success' &&
-      needs.tag-for-promotion.result == 'success' &&
-      needs.xts-hammer-tests.result == 'success' &&
-      needs.xts-hapi-block-node-comms-tests.result == 'success' &&
-      needs.xts-hapi-time-consuming-tests.result == 'success' &&
-      needs.xts-time-consuming-tests.result == 'success' &&
-      needs.xts-timing-sensitive-tests == 'success') &&
+    if: ${{ (needs.fetch-xts-candidate.result == 'success' &&
+      needs.xts-execution.result == 'success' &&
+      needs.tag-for-promotion.result == 'success') &&
       !cancelled() }}
     steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
-        with:
-          egress-policy: audit
+      - name: Initialize GitHub Job
+        uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
 
       - name: Report Success (slack)
         uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
@@ -583,35 +424,7 @@ jobs:
                         },
                         {
                           "type": "plain_text",
-                          "text": "XTS Timing Sensitive Tests: ${{ needs.xts-timing-sensitive-tests.result }}"
-                        },
-                        {
-                          "type": "plain_text",
-                          "text": "XTS Time Consuming Tests: ${{ needs.xts-time-consuming-tests.result }}"
-                        },
-                        {
-                          "type": "plain_text",
-                          "text": "XTS Hammer Tests: ${{ needs.xts-hammer-tests.result }}"
-                        },
-                        {
-                          "type": "plain_text",
-                          "text": "XTS HAPI Time Consuming Tests: ${{ needs.xts-hapi-time-consuming-tests.result }}"
-                        },
-                        {
-                          "type": "plain_text",
-                          "text": "XTS HAPI Block Node Comms Tests: ${{ needs.xts-hapi-block-node-comms-tests.result }}"
-                        },
-                        {
-                          "type": "plain_text",
-                          "text": "JRS Panel: ${{ needs.abbreviated-panel.result }}"
-                        },
-                        {
-                          "type": "plain_text",
-                          "text": "Hedera Node JRS Panel: ${{ needs.hedera-node-jrs-panel.result }}"
-                        },
-                        {
-                          "type": "plain_text",
-                          "text": "SDK TCK Regression Panel: ${{ needs.sdk-tck-regression-panel.result }}"
+                          "text": "XTS Execution: ${{ needs.xts-execution.result }}"
                         },
                         {
                           "type": "plain_text",
@@ -686,42 +499,24 @@ jobs:
 
   report-failure:
     name: Report XTS execution failure
-    runs-on: hiero-citr-linux-medium
+    runs-on: hl-cn-default-lin-sm
     needs:
-      - abbreviated-panel
       - fetch-xts-candidate
-      - hedera-node-jrs-panel
-      - sdk-tck-regression-panel
+      - xts-execution
       - tag-for-promotion
-      - xts-hammer-tests
-      - xts-hapi-block-node-comms-tests
-      - xts-hapi-time-consuming-tests
-      - xts-time-consuming-tests
-      - xts-timing-sensitive-tests
     if: ${{ (needs.fetch-xts-candidate.result != 'success' ||
-      needs.abbreviated-panel.result != 'success' ||
-      needs.hedera-node-jrs-panel.result != 'success' ||
-      needs.sdk-tck-regression-panel.result != 'success' ||
-      needs.tag-for-promotion.result != 'success' ||
-      needs.xts-hammer-tests.result != 'success' ||
-      needs.xts-hapi-block-node-comms-tests.result != 'success' ||
-      needs.xts-hapi-time-consuming-tests.result != 'success' ||
-      needs.xts-time-consuming-tests.result != 'success' ||
-      needs.xts-timing-sensitive-tests.result != 'success') &&
+      needs.xts-execution.result != 'success' ||
+      needs.tag-for-promotion.result != 'success') &&
       !cancelled() && always() }}
 
     steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+      - name: Initialize GitHub Job
+        uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
         with:
-          egress-policy: audit
-
-      - name: Checkout Code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          fetch-depth: "0"
-          ref: main
-          token: ${{ secrets.GH_ACCESS_TOKEN }}
+          checkout: "true"
+          checkout-ref: main
+          checkout-fetch-depth: "0"
+          checkout-token: ${{ secrets.GH_ACCESS_TOKEN }}
 
       - name: Collect run logs in a log file
         env:
@@ -769,37 +564,9 @@ jobs:
 
       - name: Determine failure mode
         id: extended-test-suite-failure
-        if: ${{ needs.xts-timing-sensitive-tests.result != 'success' ||
-          needs.xts-time-consuming-tests.result != 'success' ||
-          needs.xts-hammer-tests.result != 'success' ||
-          needs.xts-hapi-time-consuming-tests.result != 'success' ||
-          needs.xts-hapi-block-node-comms-tests.result != 'success' }}
+        if: ${{ needs.xts-execution.result != 'success' }}
         run: |
-          # define a function to check for workflow failure mode
-          has_workflow() {
-            local arr=("$@")
-            for mode in "${arr[@]}"; do
-              [[ "mode" == "workflow" ]] && return 0
-            done
-            return 1
-          }
-
-          # Collect the statuses of all XTS suite jobs
-          xts_suite_statuses=(
-            "${{ needs.xts-timing-sensitive-tests.outputs.mode }}"
-            "${{ needs.xts-time-consuming-tests.outputs.mode }}"
-            "${{ needs.xts-hammer-tests.outputs.mode }}"
-            "${{ needs.xts-hapi-time-consuming-tests.outputs.mode }}"
-            "${{ needs.xts-hapi-block-node-comms-tests.outputs.mode }}"
-          )
-
-          # determine failure mode
-          failure_mode="general"
-          if has_workflow "${xts_suite_statuses[@]}"; then
-            failure_mode="workflow"
-          fi
-
-          # Set the output variable
+          failure_mode="${{ needs.xts-execution.outputs.failure-mode || 'general' }}"
           echo "mode=${failure_mode}" >> "${GITHUB_OUTPUT}"
 
       - name: Set Rootly Service Name
@@ -810,30 +577,30 @@ jobs:
             || [[ "${{ needs.tag-for-promotion.result }}" =~ ^(cancelled|failure)$ ]] \
             || [[ "${{ steps.extended-test-suite-failure.outputs.mode || 'general' }}" == "workflow" ]]; then
             ROOTLY_SERVICE_NAME="CI/CD Workflows"
-          elif [[ "${{ needs.sdk-tck-regression-panel.result }}" =~ ^(cancelled|failure)$ ]]; then
-            ROOTLY_SERVICE_NAME="CITR TCK"
           fi
           echo "service=${ROOTLY_SERVICE_NAME}" >> "${GITHUB_OUTPUT}"
 
       - name: Build Rootly Summary
         id: rootly-summary
+        env:
+          PRINT_FAILED_TESTS_SCRIPT: ".github/workflows/support/scripts/print-failed-tests.sh"
         run: |
           title="The eXtended Test Suite job failed (${{ needs.fetch-xts-candidate.outputs.xts-info }})."
+
           echo "title=${title}" >> "${GITHUB_OUTPUT}"
           {
             echo 'summary<<EOF'
             echo "------------------------------------"
             echo "Status of each jobs:"
-            echo "- Abbreviated Panel: ${{ needs.abbreviated-panel.result }}"
-            echo "- XTS Timing Sensitive Tests: ${{ needs.xts-timing-sensitive-tests.result }}"
-            echo "- XTS Time Consuming Tests: ${{ needs.xts-time-consuming-tests.result }}"
-            echo "- XTS Hammer Tests: ${{ needs.xts-hammer-tests.result }}"
-            echo "- XTS HAPI Time Consuming Tests: ${{ needs.xts-hapi-time-consuming-tests.result }}"
-            echo "- XTS HAPI Block Node Comms Tests: ${{ needs.xts-hapi-block-node-comms-tests.result }}"
-            echo "- Hedera Node JRS Panel: ${{ needs.hedera-node-jrs-panel.result }}"
-            echo "- SDK TCK Regression Panel: ${{ needs.sdk-tck-regression-panel.result }}"
+            echo "- Execute XTS: ${{ needs.xts-execution.result }}"
             echo "- Tag for Promotion: ${{ needs.tag-for-promotion.result }}"
             echo "------------------------------------"
+            if [[ "${{ needs.xts-execution.result }}" != "success" ]]; then
+              echo "XTS tests failed due to a ${{ needs.xts-execution.outputs.failure-mode }} error."
+              echo "Failing Test(s):"
+              bash "${{ github.workspace }}/${{ env.PRINT_FAILED_TESTS_SCRIPT }}" "${{ needs.xts-execution.outputs.failed-tests }}"
+              echo "------------------------------------"
+            fi
             echo "Commit information:"
             echo "- Author: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit-author }}"
             echo "- Commit: <${{ github.server_url }}/${{ github.repository }}/commit/${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}>"
@@ -901,35 +668,7 @@ jobs:
                       },
                       {
                         "type": "plain_text",
-                        "text": "XTS Timing Sensitive Tests: ${{ needs.xts-timing-sensitive-tests.result }}"
-                      },
-                      {
-                        "type": "plain_text",
-                        "text": "XTS Time Consuming Tests: ${{ needs.xts-time-consuming-tests.result }}"
-                      },
-                      {
-                        "type": "plain_text",
-                        "text": "XTS Hammer Tests: ${{ needs.xts-hammer-tests.result }}"
-                      },
-                      {
-                        "type": "plain_text",
-                        "text": "XTS HAPI Time Consuming Tests: ${{ needs.xts-hapi-time-consuming-tests.result }}"
-                      },
-                      {
-                        "type": "plain_text",
-                        "text": "XTS HAPI Block Node Comms Tests: ${{ needs.xts-hapi-block-node-comms-tests.result }}"
-                      },
-                      {
-                        "type": "plain_text",
-                        "text": "JRS Panel: ${{ needs.abbreviated-panel.result }}"
-                      },
-                      {
-                        "type": "plain_text",
-                        "text": "Hedera Node JRS Panel: ${{ needs.hedera-node-jrs-panel.result }}"
-                      },
-                      {
-                        "type": "plain_text",
-                        "text": "SDK TCK Regression Panel: ${{ needs.sdk-tck-regression-panel.result }}"
+                        "text": "XTS Execution: ${{ needs.xts-execution.result }}"
                       },
                       {
                         "type": "plain_text",
@@ -1012,9 +751,19 @@ jobs:
           EOF
 
       - name: Report failure (slack citr-operations)
+        if: ${{ steps.set-rootly-service.outputs.service != 'CI/CD Workflows' }}
         uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
         with:
           webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
+          webhook-type: incoming-webhook
+          payload-templated: true
+          payload-file-path: slack_payload.json
+
+      - name: Report failure (slack citr-failures)
+        if: ${{ steps.set-rootly-service.outputs.service == 'CI/CD Workflows' }}
+        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+        with:
+          webhook: ${{ secrets.SLACK_CITR_FAILURES_WEBHOOK }}
           webhook-type: incoming-webhook
           payload-templated: true
           payload-file-path: slack_payload.json

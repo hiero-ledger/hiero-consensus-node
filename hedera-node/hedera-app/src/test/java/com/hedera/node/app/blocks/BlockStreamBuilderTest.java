@@ -4,7 +4,6 @@ package com.hedera.node.app.blocks;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_SUBMIT_MESSAGE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
-import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_UPDATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.UTIL_PRNG;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.USER;
@@ -25,7 +24,6 @@ import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.ScheduleID;
 import com.hedera.hapi.node.base.TokenAssociation;
-import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenTransferList;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.base.TransferList;
@@ -149,29 +147,6 @@ public class BlockStreamBuilderTest {
     }
 
     @Test
-    void testBlockItemsWithAdditionalAutomaticTokenAssociationTraceData() {
-        final var association = TokenAssociation.newBuilder()
-                .tokenId(TokenID.newBuilder().tokenNum(1L))
-                .accountId(AccountID.newBuilder().accountNum(2L))
-                .build();
-
-        final var itemsBuilder = createEmptyBuilder().functionality(TOKEN_UPDATE);
-        // set additional trace data
-        itemsBuilder.addAutomaticTokenAssociation(association);
-        final var blockItems = itemsBuilder.build(false, List.of()).blockItems();
-
-        final var traceItem = blockItems.get(2);
-        assertThat(traceItem.hasTraceData()).isTrue();
-        final var trace = traceItem.traceDataOrThrow();
-
-        assertThat(trace.hasAutoAssociateTraceData()).isTrue();
-        final var autoAssociateTraceData = trace.autoAssociateTraceData();
-        assertThat(autoAssociateTraceData).isNotNull();
-        assertThat(autoAssociateTraceData.automaticTokenAssociations().accountNum())
-                .isEqualTo(2);
-    }
-
-    @Test
     void testBlockItemsWithAdditionalSubmitMsgTraceData() {
         final var itemsBuilder = createEmptyBuilder().functionality(CONSENSUS_SUBMIT_MESSAGE);
         // set additional trace data
@@ -218,6 +193,7 @@ public class BlockStreamBuilderTest {
         assertEquals(List.of(tokenAssociation), result.automaticTokenAssociations());
         assertEquals(List.of(accountAmount), result.paidStakingRewards());
         assertEquals(10L, result.congestionPricingMultiplier());
+        assertEquals(4L, result.highVolumePricingMultiplier());
     }
 
     private void validateTransactionBlockItems(final List<BlockItem> blockItems) {
@@ -244,7 +220,8 @@ public class BlockStreamBuilderTest {
                 .tokenTransferLists(tokenTransferLists)
                 .addAutomaticTokenAssociation(tokenAssociation)
                 .paidStakingRewards(paidStakingRewards)
-                .congestionMultiplier(10L);
+                .congestionMultiplier(10L)
+                .highVolumePricingMultiplier(4L);
     }
 
     private BlockStreamBuilder createEmptyBuilder() {

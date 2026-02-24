@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.network;
 
-import static org.hiero.otter.fixtures.network.utils.BandwidthLimit.UNLIMITED_BANDWIDTH;
+import static org.hiero.otter.fixtures.network.BandwidthLimit.UNLIMITED_BANDWIDTH;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
@@ -9,7 +9,6 @@ import java.util.List;
 import org.assertj.core.data.Percentage;
 import org.hiero.otter.fixtures.InstrumentedNode;
 import org.hiero.otter.fixtures.Node;
-import org.hiero.otter.fixtures.network.utils.BandwidthLimit;
 
 /**
  * Interface representing a network topology.
@@ -21,8 +20,8 @@ import org.hiero.otter.fixtures.network.utils.BandwidthLimit;
 public interface Topology {
 
     /** Default connection data for a disconnected state. */
-    ConnectionData DISCONNECTED =
-            new ConnectionData(false, Duration.ZERO, Percentage.withPercentage(0), UNLIMITED_BANDWIDTH);
+    ConnectionState DISCONNECTED =
+            new ConnectionState(false, Duration.ZERO, Percentage.withPercentage(0), UNLIMITED_BANDWIDTH);
 
     /**
      * Adds a single node to the topology.
@@ -75,51 +74,51 @@ public interface Topology {
      *
      * @param sender the source node
      * @param receiver the destination node
-     * @return the {@link ConnectionData}
+     * @return the {@link ConnectionState}
      */
     @NonNull
-    ConnectionData getConnectionData(@NonNull Node sender, @NonNull Node receiver);
+    ConnectionState getConnectionData(@NonNull Node sender, @NonNull Node receiver);
 
     /**
      * Represents the data associated with a connection between two nodes in the topology.
      *
      * @param connected indicates whether the nodes are connected
      */
-    record ConnectionData(
+    record ConnectionState(
             boolean connected,
             @NonNull Duration latency,
             @NonNull Percentage jitter,
             @NonNull BandwidthLimit bandwidthLimit) {
 
         /**
-         * Creates a new instance of {@link ConnectionData} with the specified {@code connected} parameters.
+         * Creates a new instance of {@link ConnectionState} with the specified {@code connected} parameters.
          *
          * @param connected indicates whether the nodes are connected
-         * @return a new instance of {@link ConnectionData} with the specified connected state
+         * @return a new instance of {@link ConnectionState} with the specified connected state
          */
-        public ConnectionData withConnected(final boolean connected) {
-            return new ConnectionData(connected, latency, jitter, bandwidthLimit);
+        public ConnectionState withConnected(final boolean connected) {
+            return new ConnectionState(connected, latency, jitter, bandwidthLimit);
         }
 
         /**
-         * Creates a new instance of {@link ConnectionData} with the specified {@code latency} and {@code jitter}.
+         * Creates a new instance of {@link ConnectionState} with the specified {@code latency} and {@code jitter}.
          *
          * @param latency the latency of the connection
          * @param jitter the jitter of the connection
-         * @return a new instance of {@link ConnectionData} with the specified latency and jitter
+         * @return a new instance of {@link ConnectionState} with the specified latency and jitter
          */
-        public ConnectionData withLatencyAndJitter(@NonNull final Duration latency, @NonNull final Percentage jitter) {
-            return new ConnectionData(connected, latency, jitter, bandwidthLimit);
+        public ConnectionState withLatencyAndJitter(@NonNull final Duration latency, @NonNull final Percentage jitter) {
+            return new ConnectionState(connected, latency, jitter, bandwidthLimit);
         }
 
         /**
-         * Creates a new instance of {@link ConnectionData} with the specified {@code bandwidthLimit}.
+         * Creates a new instance of {@link ConnectionState} with the specified {@code bandwidthLimit}.
          *
          * @param bandwidthLimit the bandwidth limit of the connection
-         * @return a new instance of {@link ConnectionData} with the specified bandwidth limit
+         * @return a new instance of {@link ConnectionState} with the specified bandwidth limit
          */
-        public ConnectionData withBandwidthLimit(@NonNull final BandwidthLimit bandwidthLimit) {
-            return new ConnectionData(connected, latency, jitter, bandwidthLimit);
+        public ConnectionState withBandwidthLimit(@NonNull final BandwidthLimit bandwidthLimit) {
+            return new ConnectionState(connected, latency, jitter, bandwidthLimit);
         }
     }
 }

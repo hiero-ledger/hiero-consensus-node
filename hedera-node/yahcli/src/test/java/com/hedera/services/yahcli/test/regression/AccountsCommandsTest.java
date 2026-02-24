@@ -13,6 +13,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
@@ -34,6 +35,7 @@ import com.hedera.services.yahcli.test.profile.Civilian;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
+import org.apache.commons.lang3.StringUtils;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
@@ -52,6 +54,21 @@ public class AccountsCommandsTest {
                 sourcingContextual(spec -> getAccountInfo(
                                 asAccountString(spec.accountIdFactory().apply(newAccountNum.get())))
                         .has(accountWith().balance(ONE_HBAR).memo("Who danced between"))));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> governanceTransactionWithLargerTxnSize() {
+        final var newAccountNum = new AtomicLong();
+        return hapiTest(
+                overriding("hedera.transaction.maxMemoUtf8Bytes", "133120"),
+                // Create an account with yahcli (fails if yahcli exits with a non-zero return code)
+                yahcliAccounts("create", "-d", "hbar", "-a", "1", "--memo", StringUtils.repeat("a", 100_000))
+                        // Capture the new account number from the yahcli output
+                        .exposingOutputTo(newAccountCapturer(newAccountNum::set)),
+                // Query the new account by number and assert it has the expected memo and balance
+                sourcingContextual(spec -> getAccountInfo(
+                                asAccountString(spec.accountIdFactory().apply(newAccountNum.get())))
+                        .has(accountWith().balance(ONE_HBAR).memo(StringUtils.repeat("a", 100_000)))));
     }
 
     @HapiTest

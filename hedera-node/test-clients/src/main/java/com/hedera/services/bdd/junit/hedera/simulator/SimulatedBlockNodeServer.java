@@ -30,13 +30,17 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.block.api.BlockNodeServiceInterface;
 import org.hiero.block.api.BlockStreamPublishServiceInterface;
 import org.hiero.block.api.PublishStreamRequest;
 import org.hiero.block.api.PublishStreamResponse;
+import org.hiero.block.api.PublishStreamResponse.BehindPublisher;
 import org.hiero.block.api.PublishStreamResponse.BlockAcknowledgement;
 import org.hiero.block.api.PublishStreamResponse.EndOfStream;
 import org.hiero.block.api.PublishStreamResponse.ResendBlock;
 import org.hiero.block.api.PublishStreamResponse.SkipBlock;
+import org.hiero.block.api.ServerStatusRequest;
+import org.hiero.block.api.ServerStatusResponse;
 
 /**
  * A simulated block node server that implements the block streaming gRPC service.
@@ -71,7 +75,8 @@ public class SimulatedBlockNodeServer {
 
     private final WebServer webServer;
     private final int port;
-    private final MockBlockStreamServiceImpl serviceImpl;
+    private final MockBlockStreamServiceImpl streamingImpl;
+    private final MockBlockNodeServiceImpl serviceImpl;
     private final boolean highLatency;
 
     // Configuration for EndOfStream responses
@@ -114,7 +119,8 @@ public class SimulatedBlockNodeServer {
             final int port, final boolean highLatency, @Nullable final Supplier<Long> lastVerifiedBlockNumberSupplier) {
         this.port = port;
         this.highLatency = highLatency;
-        this.serviceImpl = new MockBlockStreamServiceImpl();
+        this.streamingImpl = new MockBlockStreamServiceImpl();
+        this.serviceImpl = new MockBlockNodeServiceImpl();
         this.externalLastVerifiedBlockNumberSupplier = lastVerifiedBlockNumberSupplier;
 
         final PbjConfig pbjConfig = PbjConfig.builder()
@@ -128,7 +134,7 @@ public class SimulatedBlockNodeServer {
 
         this.webServer = WebServer.builder()
                 .port(port)
-                .addRouting(PbjRouting.builder().service(serviceImpl))
+                .addRouting(PbjRouting.builder().service(streamingImpl).service(serviceImpl))
                 .addProtocol(pbjConfig)
                 .connectionConfig(connectionConfig)
                 .build();
@@ -152,7 +158,6 @@ public class SimulatedBlockNodeServer {
     public void stop() {
         if (webServer != null) {
             try {
-
                 webServer.stop();
                 log.info("Simulated block node server on port {} stopped", port);
             } catch (final Exception e) {
@@ -200,7 +205,7 @@ public class SimulatedBlockNodeServer {
      */
     public long sendEndOfStreamImmediately(@NonNull final EndOfStream.Code responseCode, final long blockNumber) {
         requireNonNull(responseCode, "responseCode cannot be null");
-        serviceImpl.sendEndOfStreamToAllStreams(responseCode, blockNumber);
+        streamingImpl.sendEndOfStreamToAllStreams(responseCode, blockNumber);
         log.info(
                 "Sent immediate EndOfStream response with code {} for block {} on port {}",
                 responseCode,
@@ -216,7 +221,7 @@ public class SimulatedBlockNodeServer {
      * @param blockNumber the block number to skip
      */
     public void sendSkipBlockImmediately(final long blockNumber) {
-        serviceImpl.sendSkipBlockToAllStreams(blockNumber);
+        streamingImpl.sendSkipBlockToAllStreams(blockNumber);
         log.info("Sent immediate SkipBlock response for block {} on port {}", blockNumber, port);
     }
 
@@ -227,8 +232,19 @@ public class SimulatedBlockNodeServer {
      * @param blockNumber the block number to resend
      */
     public void sendResendBlockImmediately(final long blockNumber) {
-        serviceImpl.sendResendBlockToAllStreams(blockNumber);
+        streamingImpl.sendResendBlockToAllStreams(blockNumber);
         log.info("Sent immediate ResendBlock response for block {} on port {}", blockNumber, port);
+    }
+
+    /**
+     * Send a NodeBehindPublisher response immediately to all active streams.
+     * This indicates that the block node is behind the publisher and needs to catch up.
+     *
+     * @param blockNumber the last verified block number to include in the response
+     */
+    public void sendNodeBehindPublisherImmediately(final long blockNumber) {
+        streamingImpl.sendNodeBehindPublisherToAllStreams(blockNumber);
+        log.info("Sent immediate NodeBehindPublisher response for block {} on port {}", blockNumber, port);
     }
 
     /**
@@ -310,6 +326,23 @@ public class SimulatedBlockNodeServer {
     }
 
     /**
+     * Mock implementation of the {@link BlockNodeServiceInterface} that also implements the get server status
+     * functionality. The response will include the latest block verified by the mock Block Node for both the first and
+     * last available block.
+     */
+    private class MockBlockNodeServiceImpl implements BlockNodeServiceInterface {
+        @Override
+        public @NonNull ServerStatusResponse serverStatus(@NonNull final ServerStatusRequest ignored) {
+            final long lastBlock = lastVerifiedBlockNumber.get();
+
+            return ServerStatusResponse.newBuilder()
+                    .firstAvailableBlock(lastBlock)
+                    .lastAvailableBlock(lastBlock)
+                    .build();
+        }
+    }
+
+    /**
      * Implementation of the BlockStreamService that can be configured to respond
      * with different response codes. This class handles the gRPC streaming interactions
      * with clients and manages block state tracking.
@@ -317,7 +350,7 @@ public class SimulatedBlockNodeServer {
     private class MockBlockStreamServiceImpl implements BlockStreamPublishServiceInterface {
         @Override
         public @NonNull Pipeline<? super org.hiero.block.api.PublishStreamRequest> publishBlockStream(
-                @NonNull Pipeline<? super PublishStreamResponse> replies) {
+                @NonNull final Pipeline<? super PublishStreamResponse> replies) {
             requireNonNull(replies, "replies cannot be null");
 
             // Add the new stream pipeline to the list of active streams
@@ -351,7 +384,7 @@ public class SimulatedBlockNodeServer {
 
                         if (request.hasEndStream()) {
                             log.debug("Received end of stream from stream {}", replies.hashCode());
-                            serviceImpl.removeStreamFromTracking(replies);
+                            streamingImpl.removeStreamFromTracking(replies);
                         } else if (request.hasBlockItems()) {
                             // Iterate through each BlockItem in the request
                             for (final BlockItem item : request.blockItems().blockItems()) {
@@ -370,7 +403,7 @@ public class SimulatedBlockNodeServer {
 
                                     final long lastVerifiedBlockNum = lastVerifiedBlockNumber.get();
                                     if (blockNumber - lastVerifiedBlockNum > 1) {
-                                        handleBehindResponse(replies, blockNumber, lastVerifiedBlockNum);
+                                        handleBehindPublisherResponse(replies, blockNumber, lastVerifiedBlockNum);
                                         return;
                                     }
 
@@ -624,6 +657,37 @@ public class SimulatedBlockNodeServer {
             }
         }
 
+        /**
+         * Sends a NodeBehindPublisher response to all active streams.
+         * This indicates that the block node is behind the publisher and needs to catch up.
+         *
+         * @param blockNumber the last verified block number
+         */
+        public void sendNodeBehindPublisherToAllStreams(final long blockNumber) {
+            log.info(
+                    "Sending NodeBehindPublisher for block {} to {} active streams on port {}",
+                    blockNumber,
+                    activeStreams.size(),
+                    port);
+            // Use lock for consistent locking strategy with other methods
+            blockTrackingLock.readLock().lock(); // Read lock is sufficient for iteration
+            try {
+                for (final Pipeline<? super PublishStreamResponse> pipeline : activeStreams) {
+                    try {
+                        sendNodeBehindPublisher(pipeline, blockNumber);
+                    } catch (final Exception e) {
+                        log.error(
+                                "Failed to send NodeBehindPublisher to stream {} on port {}",
+                                pipeline.hashCode(),
+                                port,
+                                e);
+                    }
+                }
+            } finally {
+                blockTrackingLock.readLock().unlock();
+            }
+        }
+
         // Helper methods for sending specific responses
 
         /**
@@ -661,7 +725,7 @@ public class SimulatedBlockNodeServer {
          *
          * @param pipeline the pipeline to send the response to, must not be null
          * @param blockNumber the block number to skip
-         * @throws NullPointerException if pipeline is null
+         * @throws NullPointerException if the pipeline is null
          */
         private void sendSkipBlock(
                 @NonNull final Pipeline<? super PublishStreamResponse> pipeline, final long blockNumber) {
@@ -679,7 +743,7 @@ public class SimulatedBlockNodeServer {
          *
          * @param pipeline the pipeline to send the response to, must not be null
          * @param blockNumber the block number to resend
-         * @throws NullPointerException if pipeline is null
+         * @throws NullPointerException if the pipeline is null
          */
         private void sendResendBlock(
                 @NonNull final Pipeline<? super PublishStreamResponse> pipeline, final long blockNumber) {
@@ -693,44 +757,67 @@ public class SimulatedBlockNodeServer {
         }
 
         /**
-         * Handles sending a BEHIND response to a client when the block number is more than 1 ahead of the last verified block.
+         * Sends a NodeBehindPublisher response to a specific pipeline.
+         *
+         * @param pipeline the pipeline to send the response to, must not be null
+         * @param blockNumber the last verified block number
+         * @throws NullPointerException if the pipeline is null
+         */
+        private void sendNodeBehindPublisher(
+                @NonNull final Pipeline<? super PublishStreamResponse> pipeline, final long blockNumber) {
+            requireNonNull(pipeline, "pipeline cannot be null");
+            final BehindPublisher behindPublisher =
+                    BehindPublisher.newBuilder().blockNumber(blockNumber).build();
+            final PublishStreamResponse response = PublishStreamResponse.newBuilder()
+                    .nodeBehindPublisher(behindPublisher)
+                    .build();
+            pipeline.onNext(response);
+            log.debug(
+                    "Sent NodeBehindPublisher for block {} to stream {} on port {}",
+                    blockNumber,
+                    pipeline.hashCode(),
+                    port);
+        }
+
+        /**
+         * Handles sending a BehindPublisher response to a client when the block number is more than 1 ahead of the last verified block.
          * This indicates that the client is ahead of the server and should restart streaming from an earlier block.
          *
          * @param pipeline The pipeline to send the response to, must not be null
          * @param blockNumber The block number that was requested
          * @param lastVerifiedBlockNum The last verified block number
-         * @throws NullPointerException if pipeline is null
+         * @throws NullPointerException if the pipeline is null
          */
-        private void handleBehindResponse(
+        private void handleBehindPublisherResponse(
                 @NonNull final Pipeline<? super PublishStreamResponse> pipeline,
                 final long blockNumber,
                 final long lastVerifiedBlockNum) {
             requireNonNull(pipeline, "pipeline cannot be null");
 
-            final EndOfStream eos = EndOfStream.newBuilder()
+            final BehindPublisher behindPublisher = BehindPublisher.newBuilder()
                     .blockNumber(lastVerifiedBlockNum)
-                    .status(EndOfStream.Code.BEHIND)
                     .build();
-            final PublishStreamResponse response =
-                    PublishStreamResponse.newBuilder().endStream(eos).build();
+            final PublishStreamResponse response = PublishStreamResponse.newBuilder()
+                    .nodeBehindPublisher(behindPublisher)
+                    .build();
 
             try {
                 pipeline.onNext(response);
                 log.debug(
-                        "Sent EndOfStream BEHIND for block {} to stream {} on port {}. Last verified: {}",
+                        "Sent BehindPublisher for block {} to stream {} on port {}. Last verified: {}",
                         blockNumber,
                         pipeline.hashCode(),
                         port,
                         lastVerifiedBlockNum);
             } catch (final Exception e) {
                 log.error(
-                        "Failed to send EndOfStream BEHIND for block {} to stream {} on port {}. Removing stream.",
+                        "Failed to send BehindPublisher for block {} to stream {} on port {}. Removing stream.",
                         blockNumber,
                         pipeline.hashCode(),
                         port,
                         e);
                 // Clean up the stream on error
-                serviceImpl.removeStreamFromTracking(pipeline);
+                streamingImpl.removeStreamFromTracking(pipeline);
             }
         }
 
@@ -739,7 +826,7 @@ public class SimulatedBlockNodeServer {
          * Acquires the necessary write lock to ensure thread safety.
          *
          * @param pipeline The pipeline to remove.
-         * @throws NullPointerException if pipeline is null
+         * @throws NullPointerException if the pipeline is null
          */
         private void removeStreamFromTracking(@NonNull final Pipeline<? super PublishStreamResponse> pipeline) {
             requireNonNull(pipeline, "pipeline cannot be null");
@@ -756,7 +843,7 @@ public class SimulatedBlockNodeServer {
          * This method removes the pipeline from active streams and cleans up any blocks that were being streamed.
          *
          * @param pipeline The pipeline to remove, must not be null
-         * @throws NullPointerException if pipeline is null
+         * @throws NullPointerException if the pipeline is null
          */
         private void removeStreamFromTrackingInternal(@NonNull final Pipeline<? super PublishStreamResponse> pipeline) {
             requireNonNull(pipeline, "pipeline cannot be null");
@@ -894,7 +981,7 @@ public class SimulatedBlockNodeServer {
      * @param blockNumber The block number being acknowledged
      * @param pipeline The pipeline to send the acknowledgment to, must not be null
      *
-     * @throws NullPointerException if pipeline is null
+     * @throws NullPointerException if the pipeline is null
      */
     private void buildAndSendBlockAcknowledgement(
             final long blockNumber, @NonNull final Pipeline<? super PublishStreamResponse> pipeline) {
@@ -924,7 +1011,7 @@ public class SimulatedBlockNodeServer {
                     port,
                     e);
             // If we can't send an ack, the stream is likely broken. Remove it.
-            serviceImpl.removeStreamFromTracking(pipeline);
+            streamingImpl.removeStreamFromTracking(pipeline);
         }
     }
 }

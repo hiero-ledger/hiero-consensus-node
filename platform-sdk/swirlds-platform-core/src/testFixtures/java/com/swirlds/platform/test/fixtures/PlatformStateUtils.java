@@ -6,18 +6,20 @@ import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomHash;
 import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomHashBytes;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.nextInt;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.randomInstant;
+import static org.hiero.consensus.model.PbjConverters.toPbjTimestamp;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.bulkUpdateOf;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.getWritablePlatformStateOf;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.setSnapshotTo;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.JudgeId;
 import com.hedera.hapi.platform.state.MinimumJudgeInfo;
-import com.swirlds.platform.state.PlatformStateModifier;
-import com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade;
 import com.swirlds.state.State;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Random;
-import org.hiero.base.utility.CommonUtils;
+import org.hiero.consensus.platformstate.PlatformStateModifier;
 
 public final class PlatformStateUtils {
 
@@ -26,17 +28,16 @@ public final class PlatformStateUtils {
     /**
      * Generate a randomized PlatformState object. Values contained internally may be nonsensical.
      */
-    public static PlatformStateModifier randomPlatformState(State state, TestPlatformStateFacade platformState) {
-        return randomPlatformState(new Random(), state, platformState);
+    public static PlatformStateModifier randomPlatformState(State state) {
+        return randomPlatformState(new Random(), state);
     }
 
     /**
      * Generate a randomized PlatformState object. Values contained internally may be nonsensical.
      */
-    public static PlatformStateModifier randomPlatformState(
-            final Random random, State state, TestPlatformStateFacade platformStateFacade) {
+    public static PlatformStateModifier randomPlatformState(final Random random, State state) {
 
-        platformStateFacade.bulkUpdateOf(state, v -> {
+        bulkUpdateOf(state, v -> {
             v.setLegacyRunningEventHash(randomHash(random));
             v.setRound(random.nextLong());
             v.setConsensusTimestamp(randomInstant(random));
@@ -52,16 +53,16 @@ public final class PlatformStateUtils {
                 new JudgeId(0L, randomHashBytes(random)),
                 new JudgeId(1L, randomHashBytes(random)),
                 new JudgeId(2L, randomHashBytes(random)));
-        platformStateFacade.setSnapshotTo(
+        setSnapshotTo(
                 state,
                 ConsensusSnapshot.newBuilder()
                         .round(random.nextLong())
                         .judgeIds(judges)
                         .minimumJudgeInfoList(minimumJudgeInfo)
                         .nextConsensusNumber(random.nextLong())
-                        .consensusTimestamp(CommonUtils.toPbjTimestamp(randomInstant(random)))
+                        .consensusTimestamp(toPbjTimestamp(randomInstant(random)))
                         .build());
 
-        return platformStateFacade.getWritablePlatformStateOf(state);
+        return getWritablePlatformStateOf(state);
     }
 }

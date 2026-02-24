@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl;
 
-import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_LAMBDA_STORAGE;
+import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_EVM_HOOK_STORAGE;
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_STORAGE;
 import static com.hedera.hapi.block.stream.trace.SlotRead.IdentifierOneOfType.INDEX;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
-import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_UPDATE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.IDENTICAL_SCHEDULE_ALREADY_CREATED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.REVERTED_SUCCESS;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.service.token.HookDispatchUtils.HTS_HOOKS_CONTRACT_NUM;
 import static com.hedera.node.app.service.token.impl.comparator.TokenComparators.PENDING_AIRDROP_ID_COMPARATOR;
@@ -28,7 +28,6 @@ import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.block.stream.output.TransactionOutput;
 import com.hedera.hapi.block.stream.output.TransactionResult;
 import com.hedera.hapi.block.stream.output.UtilPrngOutput;
-import com.hedera.hapi.block.stream.trace.AutoAssociateTraceData;
 import com.hedera.hapi.block.stream.trace.ContractSlotUsage;
 import com.hedera.hapi.block.stream.trace.EvmTraceData;
 import com.hedera.hapi.block.stream.trace.EvmTransactionLog;
@@ -36,6 +35,7 @@ import com.hedera.hapi.block.stream.trace.ExecutedInitcode;
 import com.hedera.hapi.block.stream.trace.SlotRead;
 import com.hedera.hapi.block.stream.trace.SubmitMessageTraceData;
 import com.hedera.hapi.block.stream.trace.TraceData;
+import com.hedera.hapi.block.stream.trace.WrittenSlotKeys;
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
@@ -472,7 +472,8 @@ public class BlockStreamBuilder
      * @param blockItems the list of block items
      * @param translationContext the translation context
      */
-    public record Output(@NonNull List<BlockItem> blockItems, @NonNull TranslationContext translationContext) {
+    public record Output(
+            @NonNull List<BlockItem> blockItems, @NonNull TranslationContext translationContext) {
         public Output {
             requireNonNull(blockItems);
             requireNonNull(translationContext);
@@ -614,6 +615,35 @@ public class BlockStreamBuilder
             if (slotUsages != null) {
                 final boolean traceExplicitWrites = logicallyIdentical == null;
                 if (traceExplicitWrites) {
+                    // When writes are traced explicitly in ContractSlotUsage#writtenSlotKeys, we index the reads
+                    // to their corresponding writes; so in the case of a reverted transaction, we need to swap
+                    // the indexes back to the original keys before output
+                    if (status == REVERTED_SUCCESS) {
+                        slotUsages = slotUsages.stream()
+                                .map(usage -> {
+                                    final var writtenKeys = usage.writtenSlotKeysOrElse(WrittenSlotKeys.DEFAULT)
+                                            .keys();
+                                    var reads = usage.slotReads();
+                                    if (!writtenKeys.isEmpty()) {
+                                        final List<SlotRead> explicitReads = new ArrayList<>(reads.size());
+                                        for (final var read : reads) {
+                                            if (read.hasIndex()) {
+                                                explicitReads.add(read.copyBuilder()
+                                                        .key(writtenKeys.get(read.indexOrThrow()))
+                                                        .build());
+                                            } else {
+                                                explicitReads.add(read);
+                                            }
+                                        }
+                                        reads = explicitReads;
+                                    }
+                                    return usage.copyBuilder()
+                                            .slotReads(reads)
+                                            .writtenSlotKeys((WrittenSlotKeys) null)
+                                            .build();
+                                })
+                                .toList();
+                    }
                     // Nothing else to do if these slot usages already traced their written keys explicitly
                     builder.contractSlotUsages(slotUsages);
                 } else {
@@ -642,7 +672,7 @@ public class BlockStreamBuilder
                                         slotKey.contractID(), k -> new HashMap<>());
                                 indexes.put(slotKey.key(), indexes.size());
                             }
-                        } else if (stateChange.stateId() == STATE_ID_LAMBDA_STORAGE.protoOrdinal()) {
+                        } else if (stateChange.stateId() == STATE_ID_EVM_HOOK_STORAGE.protoOrdinal()) {
                             SlotKey slotKey = null;
                             if (stateChange.hasMapUpdate()
                                     && !stateChange.mapUpdateOrThrow().identical()) {
@@ -651,7 +681,7 @@ public class BlockStreamBuilder
                                         stateChange
                                                 .mapUpdateOrThrow()
                                                 .keyOrThrow()
-                                                .lambdaSlotKeyOrThrow()
+                                                .evmHookSlotKeyOrThrow()
                                                 .key());
                             } else if (stateChange.hasMapDelete()) {
                                 slotKey = new SlotKey(
@@ -659,7 +689,7 @@ public class BlockStreamBuilder
                                         stateChange
                                                 .mapDeleteOrThrow()
                                                 .keyOrThrow()
-                                                .lambdaSlotKeyOrThrow()
+                                                .evmHookSlotKeyOrThrow()
                                                 .key());
                             }
                             if (slotKey != null) {
@@ -722,15 +752,6 @@ public class BlockStreamBuilder
 
         // Add trace data for batch inner transaction fields, that are normally computed by state changes
         if (groupStateChanges != null) {
-            // automatic token association trace data
-            if (!automaticTokenAssociations.isEmpty() && TOKEN_UPDATE.equals(functionality)) {
-                final var builder = AutoAssociateTraceData.newBuilder()
-                        .automaticTokenAssociations(
-                                automaticTokenAssociations.getLast().accountId());
-                blockItems.add(BlockItem.newBuilder()
-                        .traceData(TraceData.newBuilder().autoAssociateTraceData(builder))
-                        .build());
-            }
             // message submit trace data
             if (sequenceNumber > 0 || runningHash != Bytes.EMPTY) {
                 final var builder = SubmitMessageTraceData.newBuilder()
@@ -810,6 +831,11 @@ public class BlockStreamBuilder
                 .nanos(parentConsensus.getNano())
                 .build());
         return this;
+    }
+
+    @Override
+    public StreamBuilder triggeringParentConsensus(@NonNull final Instant at) {
+        return parentConsensus(at);
     }
 
     @Override
@@ -1166,6 +1192,13 @@ public class BlockStreamBuilder
         return this;
     }
 
+    @NonNull
+    @Override
+    public BlockStreamBuilder highVolumePricingMultiplier(final long highVolumePricingMultiplier) {
+        transactionResultBuilder.highVolumePricingMultiplier(highVolumePricingMultiplier);
+        return this;
+    }
+
     @Override
     @NonNull
     public BlockStreamBuilder topicID(@NonNull final TopicID topicID) {
@@ -1391,7 +1424,6 @@ public class BlockStreamBuilder
             scheduleId = null;
             scheduledTransactionId = null;
         }
-
         evmAddress = Bytes.EMPTY;
         runningHash = Bytes.EMPTY;
         sequenceNumber = 0L;
@@ -1501,7 +1533,12 @@ public class BlockStreamBuilder
      */
     private TranslationContext translationContext() {
         return switch (requireNonNull(functionality)) {
-            case CONTRACT_CALL, CONTRACT_CREATE, CONTRACT_DELETE, CONTRACT_UPDATE, ETHEREUM_TRANSACTION ->
+            case HOOK_DISPATCH,
+                    CONTRACT_CALL,
+                    CONTRACT_CREATE,
+                    CONTRACT_DELETE,
+                    CONTRACT_UPDATE,
+                    ETHEREUM_TRANSACTION ->
                 new ContractOpContext(
                         memo,
                         translationContextExchangeRates,

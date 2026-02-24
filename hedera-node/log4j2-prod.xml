@@ -26,12 +26,6 @@
     <MarkerFilter marker="HEARTBEAT"              onMatch="DENY"     onMismatch="NEUTRAL"/>
     <MarkerFilter marker="EVENT_SIG"              onMatch="DENY"     onMismatch="NEUTRAL"/>
     <MarkerFilter marker="CERTIFICATES"           onMatch="DENY"     onMismatch="NEUTRAL"/>
-    <MarkerFilter marker="FCM_COPY"               onMatch="DENY"     onMismatch="NEUTRAL"/>
-    <MarkerFilter marker="FCM_COPY_FROM"          onMatch="DENY"     onMismatch="NEUTRAL"/>
-    <MarkerFilter marker="FCM_COPY_TO"            onMatch="DENY"     onMismatch="NEUTRAL"/>
-    <MarkerFilter marker="FCM_DEMO"               onMatch="DENY"     onMismatch="NEUTRAL"/>
-    <MarkerFilter marker="FCM_COPY_FROM_DIFF"     onMatch="DENY"     onMismatch="NEUTRAL"/>
-    <MarkerFilter marker="FCM_COPY_TO_DIFF"       onMatch="DENY"     onMismatch="NEUTRAL"/>
     <MarkerFilter marker="FC_SERIALIZATION"       onMatch="DENY"     onMismatch="NEUTRAL"/>
     <MarkerFilter marker="MERKLE_FORCE_FLUSH"     onMatch="DENY"     onMismatch="NEUTRAL"/>
     <MarkerFilter marker="MERKLE_HASH"            onMatch="DENY"     onMismatch="NEUTRAL"/>
@@ -108,13 +102,6 @@
         <MarkerFilter marker="HEARTBEAT"              onMatch="DENY"     onMismatch="NEUTRAL"/>
         <MarkerFilter marker="EVENT_SIG"              onMatch="DENY"     onMismatch="NEUTRAL"/>
         <MarkerFilter marker="CERTIFICATES"           onMatch="DENY"     onMismatch="NEUTRAL"/>
-        <MarkerFilter marker="FCM_COPY"               onMatch="DENY"     onMismatch="NEUTRAL"/>
-        <MarkerFilter marker="FCM_COPY_FROM"          onMatch="DENY"     onMismatch="NEUTRAL"/>
-        <MarkerFilter marker="FCM_COPY_TO"            onMatch="DENY"     onMismatch="NEUTRAL"/>
-        <MarkerFilter marker="FCM_DEMO"               onMatch="DENY"     onMismatch="NEUTRAL"/>
-        <MarkerFilter marker="FCM_COPY_FROM_DIFF"     onMatch="DENY"     onMismatch="NEUTRAL"/>
-        <MarkerFilter marker="FCM_COPY_TO_DIFF"       onMatch="DENY"     onMismatch="NEUTRAL"/>
-        <MarkerFilter marker="FC_SERIALIZATION"       onMatch="DENY"     onMismatch="NEUTRAL"/>
         <MarkerFilter marker="MERKLE_FORCE_FLUSH"     onMatch="DENY"     onMismatch="NEUTRAL"/>
         <MarkerFilter marker="MERKLE_HASH"            onMatch="DENY"     onMismatch="NEUTRAL"/>
         <MarkerFilter marker="MERKLE_GENERATION"      onMatch="DENY"     onMismatch="NEUTRAL"/>

@@ -18,6 +18,10 @@ option java_package = "com.hedera.hapi.block.stream.protoc";
 // <<<pbj.java_package = "com.hedera.hapi.block.stream">>> This comment is special code for setting PBJ Compiler java package
 option java_multiple_files = true;
 
+import "block/stream/signed_record_file_proof.proto";
+import "block/stream/state_proof.proto";
+import "block/stream/tss_signed_block_proof.proto";
+
 /**
  * A cryptographic proof for the "Block Merkle Tree".
  *
@@ -27,49 +31,72 @@ option java_multiple_files = true;
  * all prior blocks.
  *
  * ### Block Merkle Tree
- * The Block Hash of any block is a merkle root hash comprised of a 4 leaf
- * binary merkle tree. The 4 leaves represent
- * 1. Previous block proof hash
- * 1. Merkle root of transaction inputs tree
- * 1. Merkle root of transaction outputs tree
- * 1. Merkle rook of state tree
+ * The Block Hash of any block is a merkle root hash comprised of a binary
+ * merkle tree, as described below.
  *
  * #### Computing the hash
  * The process for computing a block hash is somewhat complex, and involves
  * creating a "virtual" merkle tree to obtain the root merkle hash of
  * that virtual tree.<br/>
- * The merkle tree SHALL have a 4 part structure with 2 internal nodes,
- * structured in a strictly binary tree.
- * - The merkle tree root SHALL be the parent of both
- *   internal nodes.
- *    1. The first "internal" node SHALL be the parent of the
- *       two "left-most" nodes.
- *       1. The first leaf MUST be the previous block hash, and is a
- *          single 48-byte value.
- *       1. The second leaf MUST be the root of a, strictly binary, merkle tree
- *          composed of all "input" block items in the block.<br/>
- *          Input items SHALL be transactions, system transactions,
- *          and events.<br/>
- *          Leaf nodes in this subtree SHALL be ordered in the same order
- *          that the block items are encountered in the stream.
- *    1. The second "internal" node SHALL be the parent of the two
- *       "right-most" nodes.
- *       1. The third leaf MUST be the root of a, strictly binary, merkle tree
- *          composed of all "output" block items in the block.<br/>
- *          Output items SHALL be transaction result, transaction
- *          output, and state changes.<br/>
- *          Leaf nodes in this subtree SHALL be ordered in the same order that
- *          the block items are encountered in the stream.
- *       1. The fourth leaf MUST be the merkle tree root hash for network state
- *          at the start of the block, and is a single 48-byte value.
- * - The block hash SHALL be the hash calculated for the root of this merkle
+ * The merkle tree SHALL have the following structure:
+ * - The merkle tree SHALL be structured as a binary tree.
+ * - The merkle tree root SHALL have a "left-most" node containing the
+ *   block's beginning timestamp.
+ * - The merkle tree root SHALL have a "right-most" subtree comprised of 16
+ *   leaves and associated internal nodes.
+ * - The first four "levels" of the "right-most" subtree SHALL be internal
+ *   nodes, comprising 15 in total.
+ * - The fifth level of the "right-most" subtree SHALL be comprised of 16
+ *   components (detailed below).<br/>
+ * The "right-most" subtree's 16 components SHALL be, in order (from left
+ * to right):
+ * 1. A leaf containing the previous block's root hash.
+ * 2. A sub-tree of "incrementally-collapsed" block hashes, ranging from
+ *    the genesis block to the block immediately preceding the current
+ *    block number, strictly ordered by block number.
+ * 3. A leaf containing the hash of the state merkle tree at the start of
+ *    the block.
+ * 4. The root of a merkle tree composed of all consensus header items
+ *    in the block. Leaf nodes in this subtree SHALL be ordered in the
+ *    same order that the block items are encountered in the stream.
+ * 5. The root of a merkle tree composed of all input items in the block.
+ *    Input items SHALL be transactions, system transactions, and events.
+ *    Leaf nodes in this subtree SHALL be ordered in the same order that
+ *    the block items are encountered in the stream.
+ * 6. The root of a merkle tree composed of all output items in the
+ *    block. Output items SHALL be transaction result or transaction
+ *    output items. Leaf nodes in this subtree SHALL be ordered in the
+ *    same order that the block items are encountered in the stream.
+ * 7. The root of a merkle tree composed of all state changes in the
+ *    block. State change items SHALL be transaction result or
+ *    transaction output items. Leaf nodes in this subtree SHALL be
+ *    ordered in the same order that the block items are encountered
+ *    in the stream.
+ * 8. The root of a merkle tree composed of all trace data items in the
+ *    block. Trace data items SHALL be transaction result or transaction
+ *    output items. Leaf nodes in this subtree SHALL be ordered in the
+ *    same order that the block items are encountered in the stream.
+ * 9-16: Empty leaf nodes reserved for future use.<br/>
+ * For the "right-most" subtree's internal nodes:
+ * - Level four's internal nodes SHALL be the parents of the (ordered)
+ *   16 leaves described above.
+ * - Level three's internal nodes SHALL be the parents of level four's
+ *   (ordered) internal nodes.
+ * - Level two's internal nodes SHALL be the parents of level three's
+ *   (ordered) internal nodes.
+ * - Level one's internal node SHALL be the (single) parent of level two's
+ *   (ordered) internal nodes.
+ * The block hash SHALL be the hash calculated for the root of this merkle
  *   tree.
  * - The hash algorithm used SHALL be the algorithm specified in the
  *   corresponding block header.
  *
- * The "inputs" and "outputs" subtrees SHALL be "complete" binary merkle trees,
- * with nodes that would otherwise be missing replaced by a "null" hash
- * leaf.
+ * The term "incrementally collapsed" above is significant, and changes how
+ * the tree hash is computed. Internal nodes are produced only when necessary
+ * to add additional leaf nodes, and leaves may be at slightly different locations
+ * in the tree if there are not enough nodes "to the right" to complete the full
+ * tree. The specifics of this algorithm are published in detailed system
+ * documentation.
  */
 message BlockProof {
     /**
@@ -83,226 +110,64 @@ message BlockProof {
     uint64 block = 1;
 
     /**
-     * A block root hash for the previous block.
-     * <p>
-     * This value MUST match the block merkle tree root hash of the previous
-     * block in the block stream.<br/>
-     * This value SHALL be empty for the genesis block, and SHALL NOT be empty
-     * for any other block.<br/>
-     * Client systems SHOULD optimistically reject any block with a
-     * `previous_block_proof_hash` that does not match the block hash of the
-     * previous block and MAY assume the block stream has encountered data
-     * loss, data corruption, or unauthorized modification.
-     * <p>
-     * The process for computing a block hash is somewhat complex, and involves
-     * creating a "virtual" merkle tree to obtain the root merkle hash of
-     * that virtual tree.<br/>
-     * The merkle tree SHALL have a 4 part structure with 2 internal nodes,
-     * structured in a strictly binary tree.
-     * <ul>
-     *   <li>The merkle tree root SHALL be the parent of both
-     *       internal nodes.
-     *     <ol>
-     *       <li>The first "internal" node SHALL be the parent of the
-     *           two "left-most" nodes.
-     *         <ol>
-     *           <li>The first leaf MUST be the previous block hash, and is a
-     *               single 48-byte value.</li>
-     *           <li>The second leaf MUST be the root of a, strictly binary,
-     *               merkle tree composed of all "input" block items in
-     *               the block.<br/>
-     *               Input items SHALL be transactions, system transactions,
-     *               and events.<br/>
-     *               Leaf nodes in this subtree SHALL be ordered in the
-     *               same order that the block items are encountered
-     *               in the stream.</li>
-     *         </ol>
-     *       </li>
-     *       <li>The second "internal" node SHALL be the parent of the
-     *           two "right-most" nodes.
-     *         <ol>
-     *           <li>The third leaf MUST be the root of a, strictly binary,
-     *               merkle tree composed of all "output" block items in
-     *               the block.<br/>
-     *               Output items SHALL be transaction result, transaction
-     *               output, and state changes.<br/>
-     *               Leaf nodes in this subtree SHALL be ordered in the
-     *               same order that the block items are encountered
-     *               in the stream.</li>
-     *           <li>The fourth leaf MUST be the merkle tree root hash for
-     *               network state at the start of the block, and is a single
-     *               48-byte value.</li>
-     *         </ol>
-     *       </li>
-     *     </ol>
-     *   </li>
-     *   <li>The block hash SHALL be the SHA-384 hash calculated for the root
-     *       of this merkle tree.</li>
-     * </ul>
+     * The proof contents verifying the block's merkle root hash.<br/>
+     * This is a `oneof` field that MAY contain one several types of
+     * proofs.
      */
-    bytes previous_block_root_hash = 2;
+    oneof proof {
+        /**
+         * A TSS signature over the block's merkle root hash.<br/>
+         * This signature SHALL be produced by a threshold signature scheme
+         * that allows multiple nodes to contribute partial signatures that
+         * can be aggregated into a single signature. This field MUST be
+         * used when the current block is signed directly by the consensus
+         * nodes with a TSS signature; otherwise it MUST be empty.
+         */
+        TssSignedBlockProof signed_block_proof = 2;
 
-    /**
-     * A merkle root hash of the network state.<br/>
-     * This is present to support validation of this block proof by clients
-     * that do not maintain a full copy of the network state.
-     * <p>
-     * This MUST contain a hash of the "state" merkle tree root at the start
-     * of the current block (which this block proof verifies).<br/>
-     * State processing clients SHOULD calculate the state root hash
-     * independently and SHOULD NOT rely on this value.<br/>
-     * State processing clients MUST validate the application of state changes
-     * for a block using the value present in the Block Proof of the
-     * _following_ block.
-     * Compliant consensus nodes MUST produce an "empty" block (containing
-     * only `BlockHeader` and `BlockProof` as the last block prior to a
-     * network "freeze" to ensure the final state hash is incorporated into
-     * the Block Stream correctly.
-     * Stateless (non-state-processing) clients MUST use this value to
-     * construct the block merkle tree.
-     */
-    bytes start_of_block_state_root_hash = 3;
+        /**
+         * A proof of the block merkle tree's contents. This proof SHALL
+         * contain the information necessary to validate the previous block's
+         * hash, along with any information necessary to validate the current
+         * block's hash.
+         * <p>
+         * Of necessity, the state proof MUST contain a set of hash values,
+         * along with ordering information, that allows for reconstruction of the
+         * block's hash. This list of hash values form the set of sibling hash values
+         * needed to correctly reconstruct the parent hash, and all hash values
+         * "above" that hash in the merkle tree.
+         * <p>
+         * A Block proof can be constructed by combining the sibling hashes for
+         * a previous block hash and sibling hashes for each entry "above" that
+         * node in the merkle tree of a block proof that incorporates that previous
+         * block hash. This form of block proof may be used to prove a chain of
+         * blocks when one or more older blocks is missing the original block
+         * proof that signed the block's merkle root directly.
+         * <p>
+         * Such a list MUST be ordered from the sibling of the node that contains
+         * this block's root node hash, and continues up the merkle tree to the
+         * root hash of the signed block proof.
+         * <p>
+         * If this block proof has a "direct" signature, then any associated list
+         * of siblings MUST be empty.<br/>
+         * If said list is not empty, then this block proof MUST be verified by
+         * first constructing the "block" merkle tree and computing the root hash
+         * of that tree, then combining that hash with the values in this list,
+         * paying attention to the first/second sibling ordering, until the root
+         * merkle hash is produced from the last pair of sibling hashes. That
+         * "secondary" root hash MUST then be verified using the value of
+         * `block_signature`.
+         */
+        StateProof block_state_proof = 3;
 
-    /**
-     * A TSS signature for one block.<br/>
-     * This is a single signature representing the collection of partial
-     * signatures from nodes holding strictly greater than 2/3 of the
-     * current network "weight" in aggregate. The signature is produced by
-     * cryptographic "aggregation" of the partial signatures to produce a
-     * single signature that can be verified with the network public key,
-     * but could not be produced by fewer nodes than required to meet the
-     * threshold for network stake "weight".
-     * <p>
-     * This message MUST make use of a threshold signature scheme like `BLS`
-     * which provides the necessary cryptographic guarantees.<br/>
-     * This signature SHALL use a TSS signature to provide a single signature
-     * that represents the consensus signature of consensus nodes.<br/>
-     * The exact subset of nodes that signed SHALL neither be known nor
-     * tracked, but it SHALL be cryptographically verifiable that the
-     * threshold was met if the signature itself can be validated with
-     * the network public key (a.k.a `LedgerID`).
-     */
-    bytes block_signature = 4;
-
-    /**
-     * A set of hash values along with ordering information.<br/>
-     * This list of hash values form the set of sibling hash values needed to
-     * correctly reconstruct the parent hash, and all hash values "above" that
-     * hash in the merkle tree.
-     * <p>
-     * A Block proof can be constructed by combining the sibling hashes for
-     * a previous block hash and sibling hashes for each entry "above" that
-     * node in the merkle tree of a block proof that incorporates that previous
-     * block hash. This form of block proof may be used to prove a chain of
-     * blocks when one or more older blocks is missing the original block
-     * proof that signed the block's merkle root directly.
-     * <p>
-     * This list MUST be ordered from the sibling of the node that contains
-     * this block's root node hash, and continues up the merkle tree to the
-     * root hash of the signed block proof.
-     * <p>
-     * If this block proof has a "direct" signature, then this list MUST be
-     * empty.<br/>
-     * If this list is not empty, then this block proof MUST be verified by
-     * first constructing the "block" merkle tree and computing the root hash
-     * of that tree, then combining that hash with the values in this list,
-     * paying attention to the first/second sibling ordering, until the root
-     * merkle hash is produced from the last pair of sibling hashes. That
-     * "secondary" root hash MUST then be verified using
-     * the value of `block_signature`.
-     */
-    repeated MerkleSiblingHash sibling_hashes = 5;
-
-    /**
-     * The hinTS key that this signature verifies under; a stream consumer should
-     * only use this key after first checking the chain of trust proof.
-     */
-    bytes verification_key = 6;
-
-    /**
-     * Proof the hinTS verification key is in the chain of trust extending
-     * from the network's ledger id.
-     */
-    ChainOfTrustProof verification_key_proof = 7;
-}
-
-/**
- * A hash of a "sibling" to an entry in a Merkle tree.
- *
- * When constructing a binary merkle tree, each internal node is a hash
- * constructed from the hash of two "descendant" nodes. Those two nodes
- * are "siblings" and the order (first, second) in which the two hash values
- * are combined affects the parent hash.<br/>
- * This may be used to reconstruct a portion of a merkle tree starting from
- * a node of interest up to the root of the tree.
- */
-message MerkleSiblingHash {
-    /**
-     * A flag for the position of this sibling.
-     * <p>
-     * If this is set then this sibling MUST be the first hash in the pair of
-     * sibling hashes of a binary merkle tree.<br/>
-     * If this is unset, then this sibling MUST be the second hash in the pair
-     * of sibling hashes of a binary merkle tree.
-     */
-    bool is_first = 1;
-
-    /**
-     * A byte array of a sibling hash.<br/>
-     * This is the hash for the sibling at this point in the merkle tree.
-     * <p>
-     * The algorithm for this hash SHALL match the algorithm for the block that
-     * contains this sibling.<br/>
-     * This SHALL contain the raw (e.g.) 384 bits (48 bytes) of the hash value.
-     */
-    bytes sibling_hash = 2;
-}
-
-/**
- * Proof that some data belongs to the network's chain of trust, starting from
- * the genesis network whose address book hash formed the ledger id. (In the
- * current system, this data is always a hinTS verification key.)
- */
-message ChainOfTrustProof {
-  oneof proof {
-    /**
-     * If there is not yet a SNARK proving the chain of trust from ledger id to
-     * the hinTS verification key, the explicit list of Schnorr signatures on
-     * the concatenation of the ledger id and genesis hinTS verification key
-     * that serve as witnesses for the SNARK prover algorithm.
-     */
-    NodeSignatures node_signatures = 1;
-    /**
-     * If known, a ZK-compressed SNARK proof proving the chain of trust from
-     * the ledger id to this hinTS verification key.
-     */
-    bytes wraps_proof = 2;
-  }
-}
-
-/**
- * A list of valid node signatures on some data assumed known from the context
- * of the message, ordered by node id.
- * <p>
- * Can be used to prove the genesis hinTS verification key in a block proof; but
- * not succinct and not recursive; hence in normal operations with TSS, used only
- * until the first recursive proof is available.
- */
-message NodeSignatures {
-  repeated NodeSignature node_signatures = 1;
-}
-
-/**
- * A signature from a node on some data assumed known from the context of the
- * message.
- */
-message NodeSignature {
-  /**
-   * The node id of the signer.
-   */
-  uint64 node_id = 1;
-  /**
-   * The signature.
-   */
-  bytes signature = 2;
+        /**
+         * A proof consisting of RSA signatures from consensus nodes.<br/>
+         * This proof type exists for backward compatibility with blocks that
+         * wrap historical record files.<br/>
+         * This field MUST be set when the block wraps a record file signed by
+         * individual RSA signatures from consensus nodes; otherwise it MUST be
+         * empty.
+         */
+        SignedRecordFileProof signed_record_file_proof = 4;
+    }
 }

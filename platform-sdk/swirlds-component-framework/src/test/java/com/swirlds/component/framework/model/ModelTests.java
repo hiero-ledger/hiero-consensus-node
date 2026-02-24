@@ -7,7 +7,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.component.framework.schedulers.SequentialTaskSchedulerAliveThreadCleanup;
 import com.swirlds.component.framework.schedulers.TaskScheduler;
 import com.swirlds.component.framework.schedulers.builders.TaskSchedulerType;
@@ -17,6 +16,7 @@ import com.swirlds.component.framework.wires.input.InputWire;
 import com.swirlds.component.framework.wires.output.OutputWire;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 

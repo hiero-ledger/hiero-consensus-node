@@ -4,14 +4,14 @@ package com.swirlds.state.merkle;
 import static com.swirlds.metrics.api.FloatFormats.FORMAT_16_2;
 import static com.swirlds.metrics.api.Metrics.INTERNAL_CATEGORY;
 
-import com.swirlds.common.metrics.RunningAverageMetric;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.State;
+import org.hiero.consensus.metrics.RunningAverageMetric;
 
 /**
  * Collection of metrics related to the state lifecycle
  */
-public class StateMetrics {
+class StateMetrics {
 
     private static final RunningAverageMetric.Config AVG_STATE_COPY_MICROS_CONFIG = new RunningAverageMetric.Config(
                     INTERNAL_CATEGORY, "stateCopyMicros")

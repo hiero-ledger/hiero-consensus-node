@@ -5,12 +5,14 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.BUSY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.FAIL_INVALID;
 import static com.hedera.hapi.util.HapiUtils.ACCOUNT_ID_COMPARATOR;
 import static com.hedera.services.bdd.junit.EmbeddedReason.MANIPULATES_EVENT_VERSION;
+import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.SharedNetworkLauncherSessionListener.CLASSIC_HAPI_TEST_NETWORK_SIZE;
 import static com.hedera.services.bdd.junit.TestTags.INTEGRATION;
 import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.CONCURRENT;
-import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.CLASSIC_NODE_NAMES;
-import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.classicFeeCollectorIdFor;
+import static com.hedera.services.bdd.junit.hedera.utils.NetworkUtils.CLASSIC_NODE_NAMES;
+import static com.hedera.services.bdd.junit.hedera.utils.NetworkUtils.classicFeeCollectorIdFor;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
+import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.WIPE_KEY;
 import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFullPrefixesFor;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
@@ -22,10 +24,12 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.wipeTokenAccount;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUnique;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.mutateStakingInfos;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.mutateToken;
+import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewAccount;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewMappedValue;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewSingleton;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockStreamMustIncludePassFrom;
@@ -73,7 +77,11 @@ import com.hedera.services.bdd.junit.GenesisHapiTest;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.TargetEmbeddedMode;
+import com.hedera.services.bdd.spec.dsl.annotations.Account;
+import com.hedera.services.bdd.spec.dsl.annotations.FungibleToken;
 import com.hedera.services.bdd.spec.dsl.annotations.NonFungibleToken;
+import com.hedera.services.bdd.spec.dsl.entities.SpecAccount;
+import com.hedera.services.bdd.spec.dsl.entities.SpecFungibleToken;
 import com.hedera.services.bdd.spec.dsl.entities.SpecNonFungibleToken;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
@@ -90,8 +98,6 @@ import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
@@ -103,8 +109,6 @@ import org.junit.jupiter.api.Tag;
 @HapiTestLifecycle
 @TargetEmbeddedMode(CONCURRENT)
 public class ConcurrentIntegrationTests {
-    private static final Logger log = LogManager.getLogger(ConcurrentIntegrationTests.class);
-
     private static List<X509Certificate> gossipCertificates;
 
     @BeforeAll
@@ -127,6 +131,20 @@ public class ConcurrentIntegrationTests {
                         .sigMapPrefixes(uniqueWithFullPrefixesFor("hollowAccount"))
                         .hasKnownStatus(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT),
                 getAccountInfo("hollowAccount").isNotHollow());
+    }
+
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
+    Stream<DynamicTest> wipingZeroFromZeroBalanceIsNoopForPositiveCounts(
+            @Account SpecAccount wipeTarget,
+            @FungibleToken SpecFungibleToken miscToken,
+            @FungibleToken(keys = {WIPE_KEY}) SpecFungibleToken wipeableFungibleToken) {
+        return hapiTest(
+                wipeTarget.associateTokens(miscToken, wipeableFungibleToken),
+                cryptoTransfer(TokenMovement.moving(1, miscToken.name())
+                        .between(miscToken.treasury().name(), wipeTarget.name())),
+                viewAccount(wipeTarget.name(), (a) -> assertEquals(1, a.numberPositiveBalances())),
+                wipeTokenAccount(wipeableFungibleToken.name(), wipeTarget.name(), 0),
+                viewAccount(wipeTarget.name(), (a) -> assertEquals(1, a.numberPositiveBalances())));
     }
 
     @HapiTest

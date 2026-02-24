@@ -89,7 +89,7 @@ public interface FeeCalculator {
 
     /**
      * Resets the usage of all components to zero.
-     * @return
+     * @return {@code this} for fluent usage.
      */
     @NonNull
     FeeCalculator resetUsage();

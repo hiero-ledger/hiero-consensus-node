@@ -86,7 +86,7 @@ import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.impl.ReadableAccountStoreImpl;
 import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
 import com.hedera.node.app.spi.workflows.PreCheckException;
-import com.hedera.node.app.store.ReadableStoreFactory;
+import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.config.data.SchedulingConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -176,7 +176,7 @@ public class ScheduleTestBase {
     // spotless:on
 
     @Mock(strictness = Mock.Strictness.LENIENT)
-    protected ReadableStoreFactory mockStoreFactory;
+    protected ReadableStoreFactoryImpl mockStoreFactory;
 
     @Mock
     protected ReadableEntityIdStore readableEntityCounters;
@@ -246,10 +246,10 @@ public class ScheduleTestBase {
                 alternateCreateTransaction, testConsensusTime, scheduleConfig.maxExpirationFutureSeconds());
 
         setUpStates();
-        given(mockStoreFactory.getStore(ReadableScheduleStore.class)).willReturn(scheduleStore);
-        given(mockStoreFactory.getStore(ReadableAccountStore.class)).willReturn(accountStore);
-        given(mockStoreFactory.getStore(ReadableEntityIdStore.class)).willReturn(readableEntityCounters);
-        given(mockStoreFactory.getStore(WritableEntityIdStore.class)).willReturn(writableEntityCounters);
+        given(mockStoreFactory.readableStore(ReadableScheduleStore.class)).willReturn(scheduleStore);
+        given(mockStoreFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
+        given(mockStoreFactory.readableStore(ReadableEntityIdStore.class)).willReturn(readableEntityCounters);
+        given(mockStoreFactory.readableStore(WritableEntityIdStore.class)).willReturn(writableEntityCounters);
     }
 
     protected void commitScheduleStores() {

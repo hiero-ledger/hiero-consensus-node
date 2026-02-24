@@ -3,12 +3,7 @@ package com.swirlds.platform.state;
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.utility.FileUtils;
-import com.swirlds.platform.event.preconsensus.CommonPcesWriter;
-import com.swirlds.platform.event.preconsensus.PcesConfig;
-import com.swirlds.platform.event.preconsensus.PcesFileManager;
-import com.swirlds.platform.event.preconsensus.PcesFileReader;
-import com.swirlds.platform.event.preconsensus.PcesFileTracker;
-import com.swirlds.platform.event.preconsensus.PcesMultiFileIterator;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.state.snapshot.SavedStateMetadata;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -16,6 +11,12 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.pces.config.PcesConfig;
+import org.hiero.consensus.pces.impl.common.CommonPcesWriter;
+import org.hiero.consensus.pces.impl.common.PcesFileManager;
+import org.hiero.consensus.pces.impl.common.PcesFileReader;
+import org.hiero.consensus.pces.impl.common.PcesFileTracker;
+import org.hiero.consensus.pces.impl.common.PcesMultiFileIterator;
 
 public final class SavedStateUtils {
     /** The temporary directory to move PCES files to while there are being filtered out */
@@ -35,10 +36,9 @@ public final class SavedStateUtils {
      */
     public static int prepareStateForTransplant(
             @NonNull final Path statePath, @NonNull final PlatformContext platformContext) throws IOException {
-        final Path pcesFiles = statePath.resolve(platformContext
-                .getConfiguration()
-                .getConfigData(PcesConfig.class)
-                .databaseDirectory());
+        final Configuration configuration = platformContext.getConfiguration();
+        final Path pcesFiles =
+                statePath.resolve(configuration.getConfigData(PcesConfig.class).databaseDirectory());
         final Path pcesTmp = statePath.resolve(PCES_TEMPORARY_DIR);
 
         // move the old files to a temporary directory
@@ -48,17 +48,19 @@ public final class SavedStateUtils {
                 SavedStateMetadata.parse(statePath.resolve(SavedStateMetadata.FILE_NAME));
 
         final PcesFileTracker fileTracker = PcesFileReader.readFilesFromDisk(
-                platformContext.getConfiguration(),
-                platformContext.getRecycleBin(),
-                pcesTmp,
-                stateMetadata.round(),
-                false);
+                configuration, platformContext.getRecycleBin(), pcesTmp, stateMetadata.round(), false);
 
         final PcesMultiFileIterator eventIterator =
                 fileTracker.getEventIterator(stateMetadata.minimumBirthRoundNonAncient(), stateMetadata.round());
         final CommonPcesWriter pcesWriter = new CommonPcesWriter(
-                platformContext,
-                new PcesFileManager(platformContext, new PcesFileTracker(), pcesFiles, stateMetadata.round()));
+                configuration,
+                new PcesFileManager(
+                        configuration,
+                        platformContext.getMetrics(),
+                        platformContext.getTime(),
+                        new PcesFileTracker(),
+                        pcesFiles,
+                        stateMetadata.round()));
         pcesWriter.beginStreamingNewEvents();
 
         // Go through the events and write them to the new files, skipping any events that are from a future round

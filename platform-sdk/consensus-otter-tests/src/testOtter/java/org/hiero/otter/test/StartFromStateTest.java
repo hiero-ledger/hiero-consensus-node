@@ -10,8 +10,6 @@ import static org.hiero.otter.fixtures.OtterAssertions.assertThat;
 import static org.hiero.otter.fixtures.assertions.StatusProgressionStep.target;
 
 import com.hedera.hapi.node.base.SemanticVersion;
-import com.swirlds.platform.crypto.KeyGeneratingException;
-import com.swirlds.platform.crypto.KeysAndCertsGenerator;
 import com.swirlds.platform.state.snapshot.SavedStateMetadata;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -21,18 +19,19 @@ import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
 import java.security.SecureRandom;
 import java.time.Duration;
-import java.util.Map;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import org.hiero.base.crypto.internal.DetRandomProvider;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.base.crypto.DetRandomProvider;
+import org.hiero.consensus.crypto.KeyGeneratingException;
+import org.hiero.consensus.crypto.KeysAndCertsGenerator;
+import org.hiero.consensus.crypto.SigningSchema;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
-import org.hiero.otter.fixtures.OtterSpecs;
 import org.hiero.otter.fixtures.OtterTest;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
+import org.hiero.otter.fixtures.app.OtterApp;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
+import org.hiero.otter.fixtures.specs.OtterSpecs;
 import org.hiero.otter.fixtures.util.OtterSavedStateUtils;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -40,9 +39,9 @@ import org.junit.jupiter.params.provider.ValueSource;
 public class StartFromStateTest {
 
     /**
-     * Starts and validates the network from a previously saved state directory.
-     * This test simulates the environment by loading the network from a "previous-version-state"
-     * directory. The test is parametrized with different sizes of networks.
+     * Starts and validates the network from a previously saved state directory. This test simulates the environment by
+     * loading the network from a "previous-version-state" directory. The test is parametrized with different sizes of
+     * networks.
      *
      * @param env the test environment providing components such as the network and time manager
      */
@@ -65,10 +64,8 @@ public class StartFromStateTest {
         // Setup simulation
         network.addNodes(numberOfNodes);
         network.savedStateDirectory(Path.of("previous-version-state"));
-        // Bump version, because the saved state version is currently the same. This will get removed once we have a new
-        // release
         network.version(
-                currentVersion.copyBuilder().minor(currentVersion.minor() + 1).build());
+                currentVersion.copyBuilder().minor(currentVersion.minor()).build());
 
         // Setup continuous assertions
         assertContinuouslyThat(network.newLogResults()).haveNoErrorLevelMessages();
@@ -76,24 +73,22 @@ public class StartFromStateTest {
                 .haveEqualCommonRounds()
                 .haveConsistentRounds();
         assertContinuouslyThat(network.newReconnectResults()).doNotAttemptToReconnect();
-        assertContinuouslyThat(network.newMarkerFileResults()).haveNoMarkerFiles();
 
         network.start();
 
-        final Map<NodeId, Long> lastRoundByNodeAtStart = network.newConsensusResults().results().stream()
-                .collect(Collectors.toMap(SingleNodeConsensusResult::nodeId, SingleNodeConsensusResult::lastRoundNum));
-        final long highesRound = lastRoundByNodeAtStart.values().stream()
-                .mapToLong(Long::longValue)
-                .max()
-                .getAsLong();
+        final long highestRound = network.newConsensusResults().results().stream()
+                .map(SingleNodeConsensusResult::lastRoundNum)
+                .max(Long::compareTo)
+                .orElseThrow();
 
         // Wait for 30 seconds
         timeManager.waitFor(Duration.ofSeconds(30L));
 
         // Validations
-        // Verify that all nodes made progress
-        network.newConsensusResults().results().stream().forEach(result -> assertThat(result.lastRoundNum())
-                .isGreaterThan(lastRoundByNodeAtStart.get(result.nodeId())));
+        assertThat(network.newLogResults()).allNodesHaveMessageContaining(OtterApp.UPGRADE_DETECTED_LOG_PAYLOAD);
+        // Verify that all nodes progress at least 15 rounds
+        assertThat(network.newConsensusResults().allNodesAdvancedToRound(highestRound + 15))
+                .isTrue();
         assertThat(network.newPlatformStatusResults())
                 .haveSteps(target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING));
 
@@ -128,7 +123,8 @@ public class StartFromStateTest {
         final SecureRandom secureRandom = DetRandomProvider.getDetRandom();
         secureRandom.setSeed(new byte[] {1, 2, 3});
         for (final Node node : network.nodes()) {
-            node.keysAndCerts(KeysAndCertsGenerator.generate(node.selfId(), secureRandom, secureRandom));
+            node.keysAndCerts(
+                    KeysAndCertsGenerator.generate(node.selfId(), SigningSchema.RSA, secureRandom, secureRandom));
         }
 
         // Setup continuous assertions
@@ -137,7 +133,6 @@ public class StartFromStateTest {
                 .haveEqualCommonRounds()
                 .haveConsistentRounds();
         assertContinuouslyThat(network.newReconnectResults()).doNotAttemptToReconnect();
-        assertContinuouslyThat(network.newMarkerFileResults()).haveNoMarkerFiles();
 
         // Start the network
         network.start();

@@ -141,9 +141,9 @@ Change all protobuf `Roster` usages to `RosterData`. After this task is complete
 
 * Components:
   * `org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreator`
-  * `com.swirlds.platform.ConsensusImpl`
+  * `org.hiero.consensus.hashgraph.impl.consensus.ConsensusImpl`
   * `com.swirlds.platform.gossip.SyncGossipModular`
-  * `com.swirlds.platform.event.validation.DefaultEventSignatureValidator`
+  * `org.hiero.consensus.event.intake.impl.signature.DefaultEventSignatureValidator`
   * `com.swirlds.platform.event.branching.DefaultBranchReporter`
 
 > [!NOTE]
@@ -163,16 +163,16 @@ Change all protobuf `Roster` usages to `RosterData`. After this task is complete
   * `org.hiero.consensus.event.creator.impl.tipset.Tipset`
   * `org.hiero.consensus.event.creator.impl.tipset.TipsetMetrics`
 * ConsensusImpl support code:
-  * `com.swirlds.platform.consensus.ConsensusRounds`
+  * `org.hiero.consensus.hashgraph.impl.consensus.ConsensusRounds`
   * `org.hiero.consensus.model.hashgraph.ConsensusRound`
   * `org.hiero.consensus.model.hashgraph.Round`
 * SyncGossipModular support code
-  * `com.swirlds.platform.Utilities`
+  * `org.hiero.consensus.exceptions.ThrowableUtilities`
   * `com.swirlds.platform.gossip.DefaultIntakeEventCounter`
 * DefaultSignedStateValidator support code
-  * `com.swirlds.platform.reconnect.DefaultSignedStateValidator`
+  * `org.hiero.consensus.reconnect.impl.DefaultSignedStateValidator`
   * `com.swirlds.platform.state.signed.SignedStateValidator`
-  * `com.swirlds.platform.state.signed.SignedState`
+  * `org.hiero.consensus.state.signed.SignedState`
   * `com.swirlds.platform.state.signed.SignedStateInfo`
   * `com.swirlds.platform.state.signed.SignedStateValidationData`
   * `com.swirlds.platform.metrics.IssMetrics`
@@ -200,11 +200,11 @@ After this task, the old RosterHistory object will be deleted.
 ##### Affected pieces
 
 * `com.swirlds.platform.event.branching.DefaultBranchReporter`
-* `com.swirlds.platform.ConsensusImpl`
+* `org.hiero.consensus.hashgraph.impl.consensus.ConsensusImpl`
 * `com.swirlds.platform.state.iss.DefaultIssDetector`
 * `org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreator`
 * `com.swirlds.platform.gossip.SyncGossipModular`
-* `com.swirlds.platform.reconnect.DefaultSignedStateValidator`
+* `org.hiero.consensus.reconnect.impl.DefaultSignedStateValidator`
 
 ##### Removing from scope:
 
@@ -238,9 +238,9 @@ At the moment of creation of each component, the `PlatformComponentBuilder` will
 
 For DAB, all accesses to the RosterHistory needs to provide the round to get the applicable roster.
 
-* `com.swirlds.platform.event.validation.DefaultEventSignatureValidator`: is already accessing using the history and the round, so no impact here.
+* `org.hiero.consensus.event.intake.impl.signature.DefaultEventSignatureValidator`: is already accessing using the history and the round, so no impact here.
 * `com.swirlds.platform.event.branching.DefaultBranchReporter`: `#reportBranch` will use the event's birth round. `#updateEventWindow` will use the event's window latestConsensusRound. The constructor will still use getCurrentRoster.
-* `com.swirlds.platform.ConsensusImpl`: In all places where consensus is using the roster we need to access the roster for the pending round.
+* `org.hiero.consensus.hashgraph.impl.consensus.ConsensusImpl`: In all places where consensus is using the roster we need to access the roster for the pending round.
 * `org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreator`: `#registerEvent` can use the event's birth round. TipsetEventCreator's constructor will still use  `rosterHistory.getCurrentRoster()` for the creation of tipsetTracker, tipsetMetrics, tipsetWeightCalculator. networkSize field can be removed and calculated dynamically using the event window.
 * `com.swirlds.platform.state.iss.DefaultIssDetector`: `#handlePostconsensusSignature`:can access roster using the round in the signaturePayload; `#shiftRoundDataWindow` can access the roster using the roundNumber parameter.
 * `com.swirlds.platform.gossip.SyncGossipModular` The constructor will still use  `rosterHistory.getCurrentRoster()` unless we can create the component sending the round as another parameter.

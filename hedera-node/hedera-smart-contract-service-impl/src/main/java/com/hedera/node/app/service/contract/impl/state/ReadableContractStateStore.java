@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.state;
 
+import static com.hedera.node.app.hapi.utils.EntityType.CONTRACT_BYTECODE;
+import static com.hedera.node.app.hapi.utils.EntityType.CONTRACT_STORAGE;
+import static com.hedera.node.app.hapi.utils.EntityType.EVM_HOOK_STORAGE;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.state.contract.Bytecode;
 import com.hedera.hapi.node.state.contract.SlotKey;
 import com.hedera.hapi.node.state.contract.SlotValue;
-import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.service.contract.impl.schemas.V0490ContractSchema;
 import com.hedera.node.app.service.entityid.ReadableEntityCounters;
 import com.swirlds.state.spi.ReadableKVState;
@@ -111,11 +113,11 @@ public class ReadableContractStateStore implements ContractStateStore {
      */
     @Override
     public long getNumSlots() {
-        return entityCounters.getCounterFor(EntityType.CONTRACT_STORAGE);
+        return entityCounters.getCounterFor(CONTRACT_STORAGE) + entityCounters.getCounterFor(EVM_HOOK_STORAGE);
     }
 
     @Override
     public long getNumBytecodes() {
-        return entityCounters.getCounterFor(EntityType.CONTRACT_BYTECODE);
+        return entityCounters.getCounterFor(CONTRACT_BYTECODE);
     }
 }

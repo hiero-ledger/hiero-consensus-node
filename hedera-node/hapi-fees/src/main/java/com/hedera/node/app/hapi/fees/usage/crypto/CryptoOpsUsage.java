@@ -50,34 +50,26 @@ public class CryptoOpsUsage {
             final SigUsage sigUsage,
             final CryptoTransferMeta xferMeta,
             final BaseTransactionMeta baseMeta,
-            final UsageAccumulator accumulator,
-            final long hookGasLimit,
-            final boolean usesHooks) {
+            final UsageAccumulator accumulator) {
         accumulator.resetForTransaction(baseMeta, sigUsage);
-        // Use a different calculation if the transaction uses hooks
-        if (usesHooks) {
-            accumulator.addGas(hookGasLimit);
-            accumulator.addSbs(HOUR_TO_SECOND_MULTIPLIER);
-            accumulator.addVpt(Math.max(0, sigUsage.numSigs() - 1));
-        } else {
-            final int tokenMultiplier = xferMeta.getTokenMultiplier();
-            /* BPT calculations shouldn't include any custom fee payment usage */
-            int totalXfers = baseMeta.numExplicitTransfers();
-            int weightedTokensInvolved = tokenMultiplier * xferMeta.getNumTokensInvolved();
-            int weightedTokenXfers = tokenMultiplier * xferMeta.getNumFungibleTokenTransfers();
-            long incBpt = weightedTokensInvolved * LONG_BASIC_ENTITY_ID_SIZE;
-            incBpt += (weightedTokenXfers + totalXfers) * LONG_ACCOUNT_AMOUNT_BYTES;
-            incBpt += TOKEN_ENTITY_SIZES.bytesUsedForUniqueTokenTransfers(xferMeta.getNumNftOwnershipChanges());
-            accumulator.addBpt(incBpt);
 
-            totalXfers += xferMeta.getCustomFeeHbarTransfers();
-            weightedTokenXfers += tokenMultiplier * xferMeta.getCustomFeeTokenTransfers();
-            weightedTokensInvolved += tokenMultiplier * xferMeta.getCustomFeeTokensInvolved();
-            long incRb = totalXfers * LONG_ACCOUNT_AMOUNT_BYTES;
-            incRb += TOKEN_ENTITY_SIZES.bytesUsedToRecordTokenTransfers(
-                    weightedTokensInvolved, weightedTokenXfers, xferMeta.getNumNftOwnershipChanges());
-            accumulator.addRbs(incRb * USAGE_PROPERTIES.legacyReceiptStorageSecs());
-        }
+        final int tokenMultiplier = xferMeta.getTokenMultiplier();
+        /* BPT calculations shouldn't include any custom fee payment usage */
+        int totalXfers = baseMeta.numExplicitTransfers();
+        int weightedTokensInvolved = tokenMultiplier * xferMeta.getNumTokensInvolved();
+        int weightedTokenXfers = tokenMultiplier * xferMeta.getNumFungibleTokenTransfers();
+        long incBpt = weightedTokensInvolved * LONG_BASIC_ENTITY_ID_SIZE;
+        incBpt += (weightedTokenXfers + totalXfers) * LONG_ACCOUNT_AMOUNT_BYTES;
+        incBpt += TOKEN_ENTITY_SIZES.bytesUsedForUniqueTokenTransfers(xferMeta.getNumNftOwnershipChanges());
+        accumulator.addBpt(incBpt);
+
+        totalXfers += xferMeta.getCustomFeeHbarTransfers();
+        weightedTokenXfers += tokenMultiplier * xferMeta.getCustomFeeTokenTransfers();
+        weightedTokensInvolved += tokenMultiplier * xferMeta.getCustomFeeTokensInvolved();
+        long incRb = totalXfers * LONG_ACCOUNT_AMOUNT_BYTES;
+        incRb += TOKEN_ENTITY_SIZES.bytesUsedToRecordTokenTransfers(
+                weightedTokensInvolved, weightedTokenXfers, xferMeta.getNumNftOwnershipChanges());
+        accumulator.addRbs(incRb * USAGE_PROPERTIES.legacyReceiptStorageSecs());
     }
 
     public FeeData cryptoInfoUsage(final Query cryptoInfoReq, final ExtantCryptoContext ctx) {

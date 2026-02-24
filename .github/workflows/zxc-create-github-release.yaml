@@ -1,0 +1,222 @@
+# SPDX-License-Identifier: Apache-2.0
+name: "ZXC: Create Github Release"
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: "Branch, tag, or commit to build"
+        required: false
+        type: string
+      release-version:
+        description: "Release Version"
+        type: string
+        required: true
+      create-release-notes:
+        description: "Release Notes"
+        type: boolean
+        required: false
+        default: true
+      create-release:
+        description: "Create a Github Release"
+        type: boolean
+        required: false
+        default: false
+      dry-run:
+        description: "Perform Dry Run"
+        type: boolean
+        required: false
+        default: false
+    secrets:
+      gh-access-token:
+        description: "The GitHub access token used to create the release."
+        required: true
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  id-token: write
+  contents: write
+  actions: read
+
+jobs:
+  validate-input-version:
+    name: Validate Input Version
+    runs-on: hl-cn-default-lin-sm
+    outputs:
+      release-identifier: ${{ steps.validate.outputs.release-identifier }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+
+      - name: Print Parameters
+        run: |
+          echo "Input Parameters:"
+          echo "  Ref: ${{ inputs.ref }}"
+          echo "  Release Version: ${{ inputs.release-version }}"
+          echo "  Create Release Notes: ${{ inputs.create-release-notes }}"
+          echo "  Create Release: ${{ inputs.create-release }}"
+          echo "  Dry Run: ${{ inputs.dry-run }}"
+
+      - name: Extract the Input Version
+        id: extract-version
+        run: |
+          VERSION=""
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "Using version from workflow input."
+            VERSION="${{ inputs.release-version }}"
+          else
+            echo "Using version from git ref."
+            VERSION="${{ github.ref_name }}"
+          fi
+          echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
+
+      - name: Validate and Correct Release Identifier
+        id: validate
+        run: |
+          release_identifier="${{ steps.extract-version.outputs.version }}"
+
+          echo "Input release identifier: '${release_identifier}'"
+
+          is_valid=$(semver validate "${release_identifier}")
+          if [[ "$is_valid" != "valid" ]]; then
+            echo "Invalid semantic version: ${release_identifier}"
+            exit 1
+          fi
+
+          cleaned="${release_identifier#v}"
+
+          echo "Release identifier is valid: ${cleaned}"
+          echo "release-identifier=${cleaned}" >> "${GITHUB_OUTPUT}"
+          echo "Validated Input: ${cleaned}" >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Checkout Code
+        id: checkout_code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+          fetch-depth: "0"
+          token: ${{ secrets.gh-access-token }}
+
+      - name: Validate Tag Exists
+        run: |
+          tag="v${{ steps.validate.outputs.release-identifier }}"
+
+          echo "Checking if tag ${tag} exists..."
+
+          if git rev-parse "${tag}" >/dev/null 2>&1; then
+            echo "Tag ${tag} found in repo." >> "${GITHUB_STEP_SUMMARY}"
+          else
+            echo "Error: Tag ${tag} does not exist in repo." >> "${GITHUB_STEP_SUMMARY}"
+            exit 1
+          fi
+
+  generate-release-notes:
+    name: Generate Release Notes File
+    needs: validate-input-version
+    runs-on: hl-cn-default-lin-sm
+    if: ${{ inputs.create-release-notes == true }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout Code
+        id: checkout_code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+          fetch-depth: "0"
+          token: ${{ secrets.gh-access-token }}
+
+      - name: Git-Semver Setup Action
+        uses: PandasWhoCode/setup-git-semver@91baf2ca207495aa35db3441038ddeae2b6904c7 # v1.0.2
+
+      - name: Get All Changes in JSON Format
+        run: |
+          echo "Create Release Notes of Conventional Commits"
+          git-semver log --conventional-commits "${{ needs.validate-input-version.outputs.release-identifier }}" | tee changes.json
+
+      - name: Process All Changes to Markdown File
+        id: generate-md
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          python3 -m pip install --upgrade pip
+          pip install requests
+          python3 .github/workflows/support/scripts/process_json_release_notes.py ./changes.json ./RELEASE_NOTES.md
+
+      - name: Generate Release Notes - Full Markdown Format
+        run: |
+          echo "Release Notes - Full Markdown Format" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "" | tee -a "${GITHUB_STEP_SUMMARY}"
+          cat RELEASE_NOTES.md | tee -a "${GITHUB_STEP_SUMMARY}"
+
+      - name: Upload Release Notes as Artifact
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        with:
+          name: release-notes
+          path: RELEASE_NOTES.md
+
+  full-commit-history:
+    name: Full Commit History
+    needs: validate-input-version
+    runs-on: hl-cn-default-lin-sm
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout Code
+        id: checkout_code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+          fetch-depth: "0"
+          token: ${{ secrets.gh-access-token }}
+
+      - name: Git-Semver Setup Action
+        uses: PandasWhoCode/setup-git-semver@91baf2ca207495aa35db3441038ddeae2b6904c7 # v1.0.2
+
+      - name: Create Full List of Git History Commits
+        run: |
+          echo "Create Full List of Git History Commits:"
+          git-semver log "${{ needs.validate-input-version.outputs.release-identifier }}"
+
+  create-github-release:
+    name: Create Github Release
+    needs: generate-release-notes
+    runs-on: hl-cn-default-lin-sm
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout Code
+        id: checkout_code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+          fetch-depth: "0"
+          token: ${{ secrets.gh-access-token }}
+
+      - name: Download Release Notes Artifact
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
+        with:
+          name: release-notes
+          path: ./
+
+      - name: Create Official Github Release
+        if: ${{ inputs.create-release && !inputs.dry-run }}
+        uses: step-security/release-action@03a57407052f15d1537fd5469a6fbbc536aba326 # v1.20.0
+        with:
+          tag: ${{ inputs.release-version }}
+          skipIfReleaseExists: true
+          bodyFile: ${{ github.workspace }}/RELEASE_NOTES.md

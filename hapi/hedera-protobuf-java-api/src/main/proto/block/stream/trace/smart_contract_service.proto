@@ -20,10 +20,7 @@ option java_package = "com.hedera.hapi.block.stream.trace.protoc";
 option java_multiple_files = true;
 
 import "services/basic_types.proto";
-import "services/contract_types.proto";
-import "streams/sidecar_file.proto";
 import "streams/contract_action.proto";
-import "google/protobuf/wrappers.proto";
 
 /**
  * Usage of a contract's storage slots in an EVM transaction.<br/>

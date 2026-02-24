@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.state.hooks;
 
-import static com.hedera.node.app.hapi.utils.contracts.HookUtils.getHookOwnerId;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract.HTS_HOOKS_CONTRACT_ADDRESS;
 import static com.hedera.node.app.service.token.HookDispatchUtils.HTS_HOOKS_CONTRACT_NUM;
 import static java.util.Objects.requireNonNull;
@@ -42,11 +41,11 @@ public class ProxyEvmHook extends AbstractProxyEvmAccount {
     public ProxyEvmHook(
             @NonNull final EvmFrameState state,
             @NonNull final EvmHookState hookState,
-            final CodeFactory codeFactory,
+            @NonNull final CodeFactory codeFactory,
             @NonNull final EntityIdFactory entityIdFactory) {
         super(getOwnerId(hookState.hookIdOrThrow()), state);
         this.hookState = requireNonNull(hookState);
-        this.codeFactory = codeFactory;
+        this.codeFactory = requireNonNull(codeFactory);
         this.entityIdFactory = requireNonNull(entityIdFactory);
     }
 
@@ -83,7 +82,8 @@ public class ProxyEvmHook extends AbstractProxyEvmAccount {
 
     @NonNull
     private static AccountID getOwnerId(final @NonNull HookId hookId) {
-        return getHookOwnerId(hookId.entityIdOrThrow());
+        // We always use account id for hook owner internally
+        return hookId.entityIdOrThrow().accountIdOrThrow();
     }
 
     @Override

@@ -3,7 +3,7 @@ package com.hedera.services.bdd.junit.support.translators;
 
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_ACCOUNTS;
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_BYTECODE;
-import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_LAMBDA_STORAGE;
+import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_EVM_HOOK_STORAGE;
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_STORAGE;
 import static com.hedera.hapi.node.base.HederaFunctionality.ATOMIC_BATCH;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
@@ -57,7 +57,7 @@ import com.hedera.hapi.node.contract.ContractLoginfo;
 import com.hedera.hapi.node.contract.ContractNonceInfo;
 import com.hedera.hapi.node.contract.EvmTransactionResult;
 import com.hedera.hapi.node.state.contract.SlotKey;
-import com.hedera.hapi.node.state.hooks.LambdaSlotKey;
+import com.hedera.hapi.node.state.hooks.EvmHookSlotKey;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.hapi.node.transaction.PendingAirdropRecord;
@@ -121,6 +121,7 @@ public class BaseTranslator {
     private final long realm;
     private final Map<Long, Long> nonces = new HashMap<>();
     private final Map<AccountID, Address> evmAddresses = new HashMap<>();
+    private final Map<Bytes, AccountID> aliases = new HashMap<>();
     private final Map<TokenID, Long> totalSupplies = new HashMap<>();
     private final Map<TokenID, TokenType> tokenTypes = new HashMap<>();
     private final Map<TransactionID, ScheduleID> scheduleRefs = new HashMap<>();
@@ -473,39 +474,21 @@ public class BaseTranslator {
 
     /**
      * Adds the created IDs from the given state changes to the provided {@link ContractFunctionResult.Builder}.
+     *
      * @param resultBuilder the builder to populate with created IDs
-     * @param stateChanges the state changes to process
+     * @param contractNonceInfos the contract nonce infos to maybe add (from a {@link EvmTransactionResult})
      */
     public void addChangedContractNonces(
             @NonNull final ContractFunctionResult.Builder resultBuilder,
-            @NonNull final List<StateChange> stateChanges) {
+            @NonNull final List<ContractNonceInfo> contractNonceInfos) {
         requireNonNull(resultBuilder);
-        requireNonNull(stateChanges);
+        requireNonNull(contractNonceInfos);
         if (!externalizeNonces) {
             return;
         }
-        final List<ContractNonceInfo> changedNonces = new ArrayList<>();
-        stateChanges.stream()
-                .filter(StateChange::hasMapUpdate)
-                .map(StateChange::mapUpdateOrThrow)
-                .filter(change -> change.valueOrThrow().hasAccountValue())
-                .map(change -> change.valueOrThrow().accountValueOrThrow())
-                .filter(Account::smartContract)
-                .forEach(contract -> {
-                    final var contractId = contract.accountIdOrThrow();
-                    if (!contract.deleted()
-                            && contract.ethereumNonce() != nonces.getOrDefault(contractId.accountNumOrThrow(), 0L)) {
-                        changedNonces.add(new ContractNonceInfo(
-                                ContractID.newBuilder()
-                                        .shardNum(contractId.shardNum())
-                                        .realmNum(contractId.realmNum())
-                                        .contractNum(contractId.accountNumOrThrow())
-                                        .build(),
-                                contract.ethereumNonce()));
-                    }
-                });
-        changedNonces.sort(NONCE_INFO_CONTRACT_ID_COMPARATOR);
-        resultBuilder.contractNonces(changedNonces);
+        final var infos = new ArrayList<>(contractNonceInfos);
+        infos.sort(NONCE_INFO_CONTRACT_ID_COMPARATOR);
+        resultBuilder.contractNonces(infos);
     }
 
     /**
@@ -534,10 +517,17 @@ public class BaseTranslator {
                 .transferList(parts.transferList())
                 .tokenTransferLists(parts.tokenTransferLists())
                 .automaticTokenAssociations(parts.automaticTokenAssociations())
-                .paidStakingRewards(parts.paidStakingRewards())
-                .parentConsensusTimestamp(parts.parentConsensusTimestamp());
+                .paidStakingRewards(parts.paidStakingRewards());
         final var receiptBuilder = TransactionReceipt.newBuilder()
                 .status(requireNonNull(parts.transactionResult()).status());
+        if (parts.transactionResult().highVolumePricingMultiplier() != 0) {
+            recordBuilder.highVolumePricingMultiplier(parts.transactionResult().highVolumePricingMultiplier());
+        }
+        if (!txnId.scheduled() || parts.isTopLevel()) {
+            recordBuilder.parentConsensusTimestamp(parts.parentConsensusTimestamp());
+        } else {
+            receiptBuilder.exchangeRate(activeRates);
+        }
         final boolean followsUserRecord = asInstant(parts.consensusTimestamp()).isAfter(userTimestamp);
         if ((!followsUserRecord || parts.transactionIdOrThrow().scheduled())
                 && parts.parentConsensusTimestamp() == null) {
@@ -593,14 +583,14 @@ public class BaseTranslator {
                         c -> c.keyOrThrow().slotKeyKeyOrThrow(),
                         c -> c.valueOrThrow().slotValueValueOrThrow().value()));
         final Map<SlotKey, Bytes> writtenSlots = new HashMap<>(slotUpdates);
-        final var lambdaSlotUpdates = remainingStateChanges.stream()
-                .filter(change -> change.stateId() == STATE_ID_LAMBDA_STORAGE.protoOrdinal())
+        final var hookSlotUpdates = remainingStateChanges.stream()
+                .filter(change -> change.stateId() == STATE_ID_EVM_HOOK_STORAGE.protoOrdinal())
                 .filter(StateChange::hasMapUpdate)
                 .map(StateChange::mapUpdateOrThrow)
                 .collect(toMap(
-                        c -> c.keyOrThrow().lambdaSlotKeyOrThrow(),
+                        c -> c.keyOrThrow().evmHookSlotKeyOrThrow(),
                         c -> c.valueOrThrow().slotValueValueOrThrow().value()));
-        final Map<LambdaSlotKey, Bytes> writtenLambdaSlots = new HashMap<>(lambdaSlotUpdates);
+        final Map<EvmHookSlotKey, Bytes> writtenHookSlots = new HashMap<>(hookSlotUpdates);
         // Then the contract and hook slot removals
         final var slotRemovals = remainingStateChanges.stream()
                 .filter(change -> change.stateId() == STATE_ID_STORAGE.protoOrdinal())
@@ -608,12 +598,12 @@ public class BaseTranslator {
                 .map(StateChange::mapDeleteOrThrow)
                 .collect(toMap(d -> d.keyOrThrow().slotKeyKeyOrThrow(), d -> Bytes.EMPTY));
         writtenSlots.putAll(slotRemovals);
-        final var lambdaSlotRemovals = remainingStateChanges.stream()
-                .filter(change -> change.stateId() == STATE_ID_LAMBDA_STORAGE.protoOrdinal())
+        final var hookSlotRemovals = remainingStateChanges.stream()
+                .filter(change -> change.stateId() == STATE_ID_EVM_HOOK_STORAGE.protoOrdinal())
                 .filter(StateChange::hasMapDelete)
                 .map(StateChange::mapDeleteOrThrow)
-                .collect(toMap(d -> d.keyOrThrow().lambdaSlotKeyOrThrow(), d -> Bytes.EMPTY));
-        writtenLambdaSlots.putAll(lambdaSlotRemovals);
+                .collect(toMap(d -> d.keyOrThrow().evmHookSlotKeyOrThrow(), d -> Bytes.EMPTY));
+        writtenHookSlots.putAll(hookSlotRemovals);
 
         // Now filter to just EVM traces and build the sidecars
         final var evmTraces = tracesHere.stream()
@@ -672,8 +662,8 @@ public class BaseTranslator {
                                         || contractId.contractNumOrThrow() != HTS_HOOKS_CONTRACT_NUM) {
                                     valueFromState = writtenSlots.get(slotKey);
                                 } else {
-                                    valueFromState = writtenLambdaSlots.get(
-                                            new LambdaSlotKey(executingHookId, minimalKey(slotKey.key())));
+                                    valueFromState = writtenHookSlots.get(
+                                            new EvmHookSlotKey(executingHookId, minimalKey(slotKey.key())));
                                 }
                                 if (valueFromState == null) {
                                     throw new IllegalStateException("No written value found for write to " + slotKey
@@ -784,17 +774,17 @@ public class BaseTranslator {
                     if (slotKey != null && contractId.equals(slotKey.contractIDOrThrow())) {
                         writtenKeys.add(HookUtils.minimalRepresentationOf(slotKey.key()));
                     }
-                } else if (stateChange.stateId() == STATE_ID_LAMBDA_STORAGE.protoOrdinal()) {
+                } else if (stateChange.stateId() == STATE_ID_EVM_HOOK_STORAGE.protoOrdinal()) {
                     SlotKey slotKey = null;
                     if (stateChange.hasMapUpdate()
                             && !stateChange.mapUpdateOrThrow().identical()) {
                         final var lambdaSlotKey =
-                                stateChange.mapUpdateOrThrow().keyOrThrow().lambdaSlotKeyOrThrow();
+                                stateChange.mapUpdateOrThrow().keyOrThrow().evmHookSlotKeyOrThrow();
                         slotKey = new SlotKey(hookContractId(), lambdaSlotKey.key());
                     } else if (stateChange.hasMapDelete()) {
-                        final var lambdaSlotKey =
-                                stateChange.mapDeleteOrThrow().keyOrThrow().lambdaSlotKeyOrThrow();
-                        slotKey = new SlotKey(hookContractId(), lambdaSlotKey.key());
+                        final var hookSlotKey =
+                                stateChange.mapDeleteOrThrow().keyOrThrow().evmHookSlotKeyOrThrow();
+                        slotKey = new SlotKey(hookContractId(), hookSlotKey.key());
                     }
                     if (slotKey != null && contractId.equals(slotKey.contractIDOrThrow())) {
                         writtenKeys.add(HookUtils.minimalRepresentationOf(slotKey.key()));
@@ -825,7 +815,8 @@ public class BaseTranslator {
                 .contractID(result.contractId())
                 .contractCallResult(result.resultData())
                 .errorMessage(result.errorMessage())
-                .gasUsed(result.gasUsed());
+                .gasUsed(result.gasUsed())
+                .contractNonces(result.contractNonces());
         if (result.hasInternalCallContext()) {
             final var context = result.internalCallContextOrThrow();
             builder.gas(context.gas()).functionParameters(context.callData()).amount(context.value());
@@ -1018,6 +1009,13 @@ public class BaseTranslator {
                     highestPutSerialNos
                             .computeIfAbsent(tokenId, ignore -> new LinkedList<>())
                             .add(nftId.serialNumber());
+                } else if (key.hasProtoBytesKey()) {
+                    final var keyBytes = key.protoBytesKeyOrThrow();
+                    final var value = mapUpdate.valueOrThrow();
+                    if (value.hasAccountIdValue()) {
+                        final var accountId = value.accountIdValueOrThrow();
+                        aliases.put(keyBytes, accountId);
+                    }
                 }
             }
         });
@@ -1054,7 +1052,7 @@ public class BaseTranslator {
 
     private static Account findContractOrThrow(
             @NonNull final ContractID contractId, @NonNull final List<StateChange> stateChanges) {
-        return stateChanges.stream()
+        final var temp = stateChanges.stream()
                 .filter(change -> change.stateId() == STATE_ID_ACCOUNTS.protoOrdinal())
                 .filter(StateChange::hasMapUpdate)
                 .map(StateChange::mapUpdateOrThrow)
@@ -1068,8 +1066,8 @@ public class BaseTranslator {
                             && contractId.realmNum() == accountId.realmNum()
                             && contractId.contractNumOrThrow().longValue() == accountId.accountNumOrThrow();
                 })
-                .findFirst()
-                .orElseThrow();
+                .findFirst();
+        return temp.orElseThrow();
     }
 
     private static Optional<Account> findAccount(
@@ -1196,5 +1194,9 @@ public class BaseTranslator {
                     .build();
         }
         return Optional.ofNullable(result);
+    }
+
+    public Map<Bytes, AccountID> getAliases() {
+        return aliases;
     }
 }

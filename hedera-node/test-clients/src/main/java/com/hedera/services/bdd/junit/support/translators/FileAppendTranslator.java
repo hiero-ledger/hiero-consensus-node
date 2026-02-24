@@ -9,6 +9,7 @@ import com.hedera.hapi.block.stream.trace.TraceData;
 import com.hedera.hapi.node.base.HookId;
 import com.hedera.node.app.state.SingleTransactionRecord;
 import com.hedera.services.bdd.junit.support.translators.inputs.BlockTransactionParts;
+import com.hedera.services.bdd.junit.support.translators.inputs.HookMetadata;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
@@ -25,7 +26,8 @@ public class FileAppendTranslator implements BlockTransactionPartsTranslator {
             @NonNull final List<StateChange> remainingStateChanges,
             @Nullable final List<TraceData> tracesSoFar,
             @NonNull final List<ScopedTraceData> followingUnitTraces,
-            @Nullable final HookId executingHookId) {
+            @Nullable final HookId executingHookId,
+            HookMetadata hookMetadata) {
         requireNonNull(parts);
         requireNonNull(baseTranslator);
         requireNonNull(remainingStateChanges);

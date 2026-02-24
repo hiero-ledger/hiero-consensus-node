@@ -14,11 +14,11 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.HookEntityId;
 import com.hedera.hapi.node.base.HookId;
-import com.hedera.hapi.node.hooks.LambdaStorageSlot;
-import com.hedera.hapi.node.hooks.LambdaStorageUpdate;
+import com.hedera.hapi.node.hooks.EvmHookStorageSlot;
+import com.hedera.hapi.node.hooks.EvmHookStorageUpdate;
 import com.hedera.hapi.node.state.contract.SlotKey;
 import com.hedera.hapi.node.state.contract.SlotValue;
-import com.hedera.hapi.node.state.hooks.LambdaSlotKey;
+import com.hedera.hapi.node.state.hooks.EvmHookSlotKey;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaOperations;
@@ -29,8 +29,6 @@ import com.hedera.node.app.service.contract.impl.state.StorageAccess;
 import com.hedera.node.app.service.contract.impl.state.StorageAccesses;
 import com.hedera.node.app.service.contract.impl.state.StorageSizeChange;
 import com.hedera.node.app.service.contract.impl.state.WritableEvmHookStore;
-import com.hedera.node.app.service.entityid.EntityIdFactory;
-import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.List;
 import java.util.Set;
@@ -47,7 +45,6 @@ class IterableStorageManagerTest {
             ContractID.newBuilder().contractNum(1L).build();
     private final ContractID CONTRACT_2 =
             ContractID.newBuilder().contractNum(2L).build();
-    private final AccountID ACCOUNT_ID_1 = AccountID.newBuilder().accountNum(1L).build();
     private final AccountID ACCOUNT_ID_2 = AccountID.newBuilder().accountNum(2L).build();
     private final Bytes BYTES_1 = tuweniToPbjBytes(UInt256.ONE);
     private final Bytes BYTES_2 = tuweniToPbjBytes(UInt256.valueOf(2L));
@@ -71,14 +68,11 @@ class IterableStorageManagerTest {
     @Mock
     private Account account;
 
-    private EntityIdFactory entityIdFactory = new FakeEntityIdFactoryImpl(0, 0);
-
     private final IterableStorageManager subject = new IterableStorageManager();
 
     @BeforeEach
     void setUp() {
-        given(enhancement.nativeOperations()).willReturn(hederaNativeOperations);
-        given(hederaNativeOperations.entityIdFactory()).willReturn(entityIdFactory);
+        lenient().when(enhancement.nativeOperations()).thenReturn(hederaNativeOperations);
         lenient().when(hederaNativeOperations.writableEvmHookStore()).thenReturn(writableEvmHookStore);
     }
 
@@ -140,16 +134,15 @@ class IterableStorageManagerTest {
     void updatedHookStorageNumberOfSlots() {
         final var hookEntity = HookId.newBuilder()
                 .hookId(1L)
-                .entityId(HookEntityId.newBuilder().contractId(CONTRACT_2).build())
+                .entityId(HookEntityId.newBuilder().accountId(ACCOUNT_ID_2).build())
                 .build();
-        final var slotKey = new LambdaSlotKey(hookEntity, BYTES_1);
+        final var slotKey = new EvmHookSlotKey(hookEntity, BYTES_1);
 
-        given(enhancement.nativeOperations()).willReturn(hederaNativeOperations);
         given(enhancement.operations()).willReturn(hederaOperations);
         // Deleting the last slot contract storage for CONTRACT_2
         given(writableEvmHookStore.getSlotValue(slotKey))
                 .willReturn(new SlotValue(Bytes.EMPTY, Bytes.EMPTY, Bytes.EMPTY));
-        given(writableEvmHookStore.getModifiedLambdaSlotKeys()).willReturn(Set.of(slotKey));
+        given(writableEvmHookStore.getModifiedEvmHookSlotKeys()).willReturn(Set.of(slotKey));
         given(writableEvmHookStore.updateStorage(any(), anyList())).willReturn(-1);
 
         subject.persistChanges(enhancement, List.of(), List.of(), store, writableEvmHookStore);
@@ -157,13 +150,13 @@ class IterableStorageManagerTest {
         verify(writableEvmHookStore)
                 .updateStorage(
                         hookEntity,
-                        List.of(LambdaStorageUpdate.newBuilder()
-                                .storageSlot(LambdaStorageSlot.newBuilder()
+                        List.of(EvmHookStorageUpdate.newBuilder()
+                                .storageSlot(EvmHookStorageSlot.newBuilder()
                                         .key(BYTES_1)
                                         .value(Bytes.EMPTY)
                                         .build())
                                 .build()));
-        verify(hederaOperations).updateLambdaStorageSlots(ACCOUNT_ID_2, -1);
+        verify(hederaOperations).updateHookStorageSlots(ACCOUNT_ID_2, -1);
         verifyNoMoreInteractions(hederaOperations);
     }
 

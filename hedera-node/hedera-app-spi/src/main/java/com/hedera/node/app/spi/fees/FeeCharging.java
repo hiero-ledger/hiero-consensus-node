@@ -160,6 +160,12 @@ public interface FeeCharging {
         refund(ctx.payerId(), ctx, fees);
     }
 
+    /**
+     * Refunds the fees for the given payer in the given context.
+     * @param payerId the account to be refunded
+     * @param ctx the context in which fees may be refunded
+     * @param fees the fees to be refunded
+     */
     void refund(@NonNull AccountID payerId, @NonNull Context ctx, @NonNull Fees fees);
 
     /**

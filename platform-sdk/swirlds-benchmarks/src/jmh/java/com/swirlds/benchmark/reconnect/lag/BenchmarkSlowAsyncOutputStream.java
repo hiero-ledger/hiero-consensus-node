@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.benchmark.reconnect.lag;
 
-import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.merkle.synchronization.streams.AsyncOutputStream;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
-import com.swirlds.common.threading.pool.StandardWorkGroup;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.Random;
 import org.hiero.base.io.SelfSerializable;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
+import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
+import org.hiero.consensus.reconnect.config.ReconnectConfig;
 
 /**
  * This variant of the async output stream introduces an extra delay for every single

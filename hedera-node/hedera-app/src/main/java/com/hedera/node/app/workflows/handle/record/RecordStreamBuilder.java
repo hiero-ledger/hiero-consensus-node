@@ -2,12 +2,14 @@
 package com.hedera.node.app.workflows.handle.record;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.IDENTICAL_SCHEDULE_ALREADY_CREATED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.REVERTED_SUCCESS;
 import static com.hedera.node.app.service.token.impl.comparator.TokenComparators.PENDING_AIRDROP_ID_COMPARATOR;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
 import static com.hedera.node.app.state.logging.TransactionStateLogger.logEndTransactionRecord;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptySet;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.hapi.fees.HighVolumePricingCalculator.DEFAULT_HIGH_VOLUME_MULTIPLIER;
 
 import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.trace.ContractSlotUsage;
@@ -227,6 +229,8 @@ public class RecordStreamBuilder
      */
     private Long nextHookId;
 
+    private long highVolumePricingMultiplier;
+
     public RecordStreamBuilder(
             @NonNull final ReversingBehavior reversingBehavior,
             @NonNull final SignedTxCustomizer customizer,
@@ -295,6 +299,9 @@ public class RecordStreamBuilder
             newPendingAirdropRecords = new ArrayList<>(pendingAirdropRecords);
             newPendingAirdropRecords.sort(PENDING_AIRDROP_RECORD_COMPARATOR);
         }
+        if (highVolumePricingMultiplier > DEFAULT_HIGH_VOLUME_MULTIPLIER) {
+            transactionRecordBuilder.highVolumePricingMultiplier(highVolumePricingMultiplier);
+        }
 
         final var transactionRecord = transactionRecordBuilder
                 .transactionID(transactionID)
@@ -313,6 +320,22 @@ public class RecordStreamBuilder
         // create list of sidecar records
         List<TransactionSidecarRecord> transactionSidecarRecords = new ArrayList<>();
         if (contractStateChanges != null) {
+            if (status == REVERTED_SUCCESS) {
+                contractStateChanges = contractStateChanges.stream()
+                        .map(entry -> {
+                            final var changes = new ContractStateChanges(entry.getKey().contractStateChanges().stream()
+                                    .map(change -> change.copyBuilder()
+                                            .storageChanges(change.storageChanges().stream()
+                                                    .map(sc -> sc.copyBuilder()
+                                                            .valueWritten(null)
+                                                            .build())
+                                                    .toList())
+                                            .build())
+                                    .toList());
+                            return new AbstractMap.SimpleEntry<>(changes, entry.getValue());
+                        })
+                        .toList();
+            }
             contractStateChanges.stream()
                     .map(pair -> new TransactionSidecarRecord(
                             transactionRecord.consensusTimestamp(),
@@ -326,12 +349,15 @@ public class RecordStreamBuilder
                         pair.getValue(),
                         new OneOf<>(TransactionSidecarRecord.SidecarRecordsOneOfType.ACTIONS, pair.getKey())))
                 .forEach(transactionSidecarRecords::add);
-        contractBytecodes.stream()
-                .map(pair -> new TransactionSidecarRecord(
-                        transactionRecord.consensusTimestamp(),
-                        pair.getValue(),
-                        new OneOf<>(TransactionSidecarRecord.SidecarRecordsOneOfType.BYTECODE, pair.getKey())))
-                .forEach(transactionSidecarRecords::add);
+        // Any bytecodes created inside a batch and then reverted should not be streamed
+        if (status != REVERTED_SUCCESS) {
+            contractBytecodes.stream()
+                    .map(pair -> new TransactionSidecarRecord(
+                            transactionRecord.consensusTimestamp(),
+                            pair.getValue(),
+                            new OneOf<>(TransactionSidecarRecord.SidecarRecordsOneOfType.BYTECODE, pair.getKey())))
+                    .forEach(transactionSidecarRecords::add);
+        }
 
         // Log end of user transaction to transaction state log
         logEndTransactionRecord(transactionID, transactionRecord);
@@ -394,8 +420,15 @@ public class RecordStreamBuilder
     // ------------------------------------------------------------------------------------------------------------------------
     // base transaction data
 
+    @Override
     public RecordStreamBuilder parentConsensus(@NonNull final Instant parentConsensus) {
         this.parentConsensus = requireNonNull(parentConsensus, "parentConsensus must not be null");
+        return this;
+    }
+
+    @Override
+    public StreamBuilder triggeringParentConsensus(@NonNull final Instant parentConsensus) {
+        // No-op for backward compatibility with V6 record stream
         return this;
     }
 
@@ -943,7 +976,9 @@ public class RecordStreamBuilder
         return exchangeRate;
     }
 
-    /**{@inheritDoc}*/
+    /**
+     * {@inheritDoc}
+     */
     @NonNull
     @Override
     public RecordStreamBuilder exchangeRate(@Nullable final ExchangeRateSet exchangeRate) {
@@ -955,6 +990,14 @@ public class RecordStreamBuilder
     @Override
     public StreamBuilder congestionMultiplier(long congestionMultiplier) {
         // No-op
+        return this;
+    }
+
+    @NonNull
+    @Override
+    public StreamBuilder highVolumePricingMultiplier(long highVolumePricingMultiplier) {
+        this.highVolumePricingMultiplier = highVolumePricingMultiplier;
+        transactionRecordBuilder.highVolumePricingMultiplier(highVolumePricingMultiplier);
         return this;
     }
 
@@ -1310,6 +1353,7 @@ public class RecordStreamBuilder
 
     /**
      * Returns the {@link TransactionRecord.Builder} of the record. It can be PRECEDING, CHILD, USER or SCHEDULED.
+     *
      * @return the {@link TransactionRecord.Builder} of the record
      */
     @Override

@@ -5,7 +5,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.node.app.blocks.BlockItemWriter;
-import com.hedera.node.app.spi.info.NodeInfo;
+import com.hedera.node.app.spi.records.SelfNodeAccountIdManager;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.internal.network.PendingProof;
@@ -25,17 +25,17 @@ public class FileAndGrpcBlockItemWriter implements BlockItemWriter {
      * Construct a new FileAndGrpcBlockItemWriter.
      *
      * @param configProvider configuration provider
-     * @param nodeInfo information about the current node
+     * @param selfNodeAccountIdManager information about the current node
      * @param fileSystem the file system to use for writing block files
      * @param blockBufferService the block stream state manager
      */
     public FileAndGrpcBlockItemWriter(
             @NonNull final ConfigProvider configProvider,
-            @NonNull final NodeInfo nodeInfo,
+            @NonNull final SelfNodeAccountIdManager selfNodeAccountIdManager,
             @NonNull final FileSystem fileSystem,
             @NonNull final BlockBufferService blockBufferService,
             @NonNull final BlockNodeConnectionManager blockNodeConnectionManager) {
-        this.fileBlockItemWriter = new FileBlockItemWriter(configProvider, nodeInfo, fileSystem);
+        this.fileBlockItemWriter = new FileBlockItemWriter(configProvider, selfNodeAccountIdManager, fileSystem);
         this.grpcBlockItemWriter = new GrpcBlockItemWriter(blockBufferService, blockNodeConnectionManager);
         this.configProvider = requireNonNull(configProvider, "configProvider must not be null");
     }

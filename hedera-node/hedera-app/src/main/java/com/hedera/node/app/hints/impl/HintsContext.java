@@ -40,7 +40,8 @@ import org.apache.logging.log4j.Logger;
 public class HintsContext {
     private static final Logger log = LogManager.getLogger(HintsContext.class);
 
-    private static final Duration SIGNING_ATTEMPT_TIMEOUT = Duration.ofSeconds(10);
+    // For a quiesced network, a hinTS signature could in principle take an entire day to aggregate
+    private static final Duration SIGNING_ATTEMPT_TIMEOUT = Duration.ofDays(1);
 
     private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
 
@@ -145,7 +146,8 @@ public class HintsContext {
      */
     public boolean validate(
             final long nodeId, @Nullable final Bytes crs, @NonNull final HintsPartialSignatureTransactionBody body) {
-        if (crs == null || construction == null || nodePartyIds == null) {
+        requireNonNull(crs);
+        if (construction == null || nodePartyIds == null) {
             return false;
         }
         if (construction.constructionId() == body.constructionId() && nodePartyIds.containsKey(nodeId)) {
@@ -177,10 +179,7 @@ public class HintsContext {
             nodeWeights.put(nodePartyId.nodeId(), nodePartyId.partyWeight());
         }
         final var tssConfig = configProvider.get().getConfigData(TssConfig.class);
-        final int divisor = tssConfig.signingThresholdDivisor();
-        if (divisor <= 0) {
-            throw new IllegalArgumentException("signingThresholdDivisor must be > 0");
-        }
+        final int divisor = Math.max(1, tssConfig.signingThresholdDivisor());
         final long threshold = totalWeight / divisor;
         return new Signing(
                 blockHash,
@@ -286,7 +285,10 @@ public class HintsContext {
                 return;
             }
             final var partyId = partyIds.get(nodeId);
-            signatures.put(partyId, signature);
+            if (signatures.put(partyId, signature) != null) {
+                // Each valid signature should only accumulate weight once, so abort on duplicates
+                return;
+            }
             final var weight = nodeWeights.getOrDefault(nodeId, 0L);
             final var totalWeight = weightOfSignatures.addAndGet(weight);
             // For block hash signing, always require strictly greater than threshold

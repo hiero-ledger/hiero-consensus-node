@@ -57,10 +57,10 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.metrics.api.Metrics;
 import java.util.List;
 import java.util.Set;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -164,7 +164,7 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
                 null,
                 null,
                 null,
-                SUCCESS_RESULT.asEvmTxResultOf(null, null),
+                SUCCESS_RESULT.asEvmTxResultOf(null, baseProxyWorldUpdater, null, null),
                 SUCCESS_RESULT.signerNonce(),
                 Bytes.EMPTY,
                 null);
@@ -211,7 +211,7 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
                 null,
                 null,
                 null,
-                HALT_RESULT.asEvmTxResultOf(null, null),
+                HALT_RESULT.asEvmTxResultOf(null, baseProxyWorldUpdater, null, null),
                 null,
                 null,
                 null);

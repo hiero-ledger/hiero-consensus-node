@@ -22,12 +22,16 @@ import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenType;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.transaction.CustomFee;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.impl.WritableTokenStore;
 import com.hedera.node.app.service.token.impl.util.TokenHandlerHelper;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.node.config.ConfigProvider;
+import com.hedera.node.config.data.AccountsConfig;
+import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.List;
@@ -44,12 +48,17 @@ public class CustomFeesValidator {
     public static final TokenID SENTINEL_TOKEN_ID =
             TokenID.newBuilder().shardNum(0L).realmNum(0L).tokenNum(0L).build();
 
+    private final EntityIdFactory entityIdFactory;
+    private final Configuration configuration;
+
     /**
      * Constructs a {@link CustomFeesValidator} instance.
      */
     @Inject
-    public CustomFeesValidator() {
+    public CustomFeesValidator(final EntityIdFactory entityIdFactory, final ConfigProvider configProvider) {
         // Needed for Dagger injection
+        this.entityIdFactory = entityIdFactory;
+        this.configuration = configProvider.getConfiguration();
     }
 
     /**
@@ -87,10 +96,14 @@ public class CustomFeesValidator {
         final List<CustomFee> fees = new ArrayList<>();
         final var tokenType = createdToken.tokenType();
         final var createdTokenId = createdToken.tokenId();
+        final var feeCollectionAccount = entityIdFactory.newAccountId(
+                configuration.getConfigData(AccountsConfig.class).feeCollectionAccount());
         for (final var fee : customFees) {
+            final var collectorId = fee.feeCollectorAccountIdOrElse(AccountID.DEFAULT);
+            validateTrue(!collectorId.equals(feeCollectionAccount), INVALID_CUSTOM_FEE_COLLECTOR);
             // Validate the fee collector account is in a usable state
             getIfUsable(
-                    fee.feeCollectorAccountIdOrElse(AccountID.DEFAULT),
+                    collectorId,
                     accountStore,
                     expiryValidator,
                     INVALID_CUSTOM_FEE_COLLECTOR,
@@ -101,12 +114,13 @@ public class CustomFeesValidator {
             validateTrue(isSpecified, CUSTOM_FEE_NOT_FULLY_SPECIFIED);
 
             switch (fee.fee().kind()) {
-                case FIXED_FEE -> validateFixedFeeForCreation(
-                        tokenType, fee, createdTokenId, tokenRelationStore, tokenStore, fees);
+                case FIXED_FEE ->
+                    validateFixedFeeForCreation(tokenType, fee, createdTokenId, tokenRelationStore, tokenStore, fees);
                 case FRACTIONAL_FEE -> validateFractionalFeeForCreation(tokenType, fee, fees);
                 case ROYALTY_FEE -> validateRoyaltyFee(tokenType, fee, tokenRelationStore, tokenStore);
-                default -> throw new IllegalArgumentException(
-                        "Unexpected value for custom fee type: " + fee.fee().kind());
+                default ->
+                    throw new IllegalArgumentException(
+                            "Unexpected value for custom fee type: " + fee.fee().kind());
             }
         }
         return fees;
@@ -141,17 +155,19 @@ public class CustomFeesValidator {
         requireNonNull(customFees);
 
         final var tokenType = token.tokenType();
+        final var feeCollectionAccount = entityIdFactory.newAccountId(
+                configuration.getConfigData(AccountsConfig.class).feeCollectionAccount());
         for (final var fee : customFees) {
             final var collectorId = fee.feeCollectorAccountIdOrElse(AccountID.DEFAULT);
+            validateTrue(!collectorId.equals(feeCollectionAccount), INVALID_CUSTOM_FEE_COLLECTOR);
             // check if collector is usable
-            final var collector = getIfUsable(
+            getIfUsable(
                     collectorId,
                     accountStore,
                     expiryValidator,
                     INVALID_CUSTOM_FEE_COLLECTOR,
                     INVALID_CUSTOM_FEE_COLLECTOR,
                     TokenHandlerHelper.AccountIDType.NOT_ALIASED_ID);
-            validateTrue(collector != null, INVALID_CUSTOM_FEE_COLLECTOR);
 
             switch (fee.fee().kind()) {
                 case FIXED_FEE -> {
@@ -165,9 +181,9 @@ public class CustomFeesValidator {
                     }
                 }
                 case FRACTIONAL_FEE -> // fractional fee can be only applied to fungible common tokens
-                validateFractionalFeeForFeeScheduleUpdate(token, tokenRelationStore, collectorId, fee);
+                    validateFractionalFeeForFeeScheduleUpdate(token, tokenRelationStore, collectorId, fee);
                 case ROYALTY_FEE -> // royalty fee can be only applied to non-fungible unique tokens
-                validateRoyaltyFee(tokenType, fee, tokenRelationStore, tokenStore);
+                    validateRoyaltyFee(tokenType, fee, tokenRelationStore, tokenStore);
                 default -> throw new HandleException(CUSTOM_FEE_NOT_FULLY_SPECIFIED);
             }
         }

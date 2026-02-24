@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.snapshot;
 
-import static com.swirlds.common.formatting.StringFormattingUtils.formattedList;
+import static com.swirlds.base.formatting.StringFormattingUtils.formattedList;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.CONSENSUS_TIMESTAMP;
 import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.FREEZE_STATE;
@@ -19,12 +19,15 @@ import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.SOFTWA
 import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.TOTAL_WEIGHT;
 import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.WALL_CLOCK_TIME;
 import static org.hiero.base.utility.CommonUtils.unhex;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.ancientThresholdOf;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.consensusSnapshotOf;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.creationSoftwareVersionOf;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.legacyRunningEventHashOf;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.roundOf;
 
 import com.hedera.hapi.node.state.roster.Roster;
-import com.swirlds.common.formatting.TextTable;
+import com.swirlds.base.formatting.TextTable;
 import com.swirlds.common.utility.Mnemonics;
-import com.swirlds.platform.state.service.PlatformStateFacade;
-import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -43,12 +46,14 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterRetriever;
 import org.hiero.consensus.roster.RosterUtils;
+import org.hiero.consensus.state.signed.SignedState;
 
 /**
  * Metadata about a saved state. Fields in this record may be null if they are not present in the metadata file. All
@@ -163,20 +168,16 @@ public record SavedStateMetadata(
      * @param signedState the signed state
      * @param selfId the ID of the node that created the signed state
      * @param now the current time
-     * @param platformStateFacade the facade to access the platform state
      * @return the signed state metadata
      */
     public static SavedStateMetadata create(
-            @NonNull final SignedState signedState,
-            @NonNull final NodeId selfId,
-            @NonNull final Instant now,
-            @NonNull final PlatformStateFacade platformStateFacade) {
+            @NonNull final SignedState signedState, @NonNull final NodeId selfId, @NonNull final Instant now) {
         Objects.requireNonNull(signedState, "signedState must not be null");
         final State state = signedState.getState();
         Objects.requireNonNull(state.getHash(), "state must be hashed");
         Objects.requireNonNull(now, "now must not be null");
 
-        final long round = platformStateFacade.roundOf(state);
+        final long round = roundOf(state);
         final Roster roster = RosterRetriever.retrieveActive(state, round);
 
         final List<NodeId> signingNodes = signedState.getSigSet().getSigningNodes();
@@ -186,12 +187,12 @@ public record SavedStateMetadata(
                 signedState.getRound(),
                 state.getHash(),
                 Mnemonics.generateMnemonic(state.getHash()),
-                platformStateFacade.consensusSnapshotOf(state).nextConsensusNumber(),
-                signedState.getConsensusTimestamp(),
-                platformStateFacade.legacyRunningEventHashOf(state),
-                Mnemonics.generateMnemonic(platformStateFacade.legacyRunningEventHashOf(state)),
-                platformStateFacade.ancientThresholdOf(state),
-                convertToString(platformStateFacade.creationSoftwareVersionOf(state)),
+                consensusSnapshotOf(state).nextConsensusNumber(),
+                Optional.ofNullable(signedState.getConsensusTimestamp()).orElse(Instant.EPOCH),
+                legacyRunningEventHashOf(state),
+                Mnemonics.generateMnemonic(legacyRunningEventHashOf(state)),
+                round == 0 ? 0 : ancientThresholdOf(state),
+                convertToString(creationSoftwareVersionOf(state)),
                 now,
                 selfId,
                 signingNodes,

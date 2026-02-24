@@ -10,6 +10,7 @@ import com.swirlds.logging.legacy.LogMarker;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -50,9 +51,25 @@ public class Utils {
     @NonNull
     @SafeVarargs
     @SuppressWarnings("varargs")
-    public static <T> Set<T> collect(@NonNull final T first, @Nullable final T... rest) {
+    public static <T> Set<T> toSet(@NonNull final T first, @Nullable final T... rest) {
         final Stream<T> restStream = rest == null ? Stream.empty() : Arrays.stream(rest);
         return Stream.concat(Stream.of(first), restStream).collect(Collectors.toSet());
+    }
+
+    /**
+     * Gathers elements in a {@link List}
+     *
+     * @param first the first element
+     * @param rest additional optional elements
+     * @param <T> the type of the elements
+     * @return a list of elements collected from the provided elements in the given order
+     */
+    @NonNull
+    @SafeVarargs
+    @SuppressWarnings("varargs")
+    public static <T> List<T> toList(@NonNull final T first, @Nullable final T... rest) {
+        final Stream<T> restStream = rest == null ? Stream.empty() : Arrays.stream(rest);
+        return Stream.concat(Stream.of(first), restStream).toList();
     }
 
     /**

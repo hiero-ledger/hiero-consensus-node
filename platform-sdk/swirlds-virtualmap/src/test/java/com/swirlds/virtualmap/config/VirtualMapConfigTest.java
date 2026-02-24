@@ -76,10 +76,10 @@ class VirtualMapConfigTest {
     }
 
     @Test
-    void testFlushIntervalOutOfRangeMin() {
+    void testFlushThresholdOutOfRangeMin() {
         // given
         final ConfigurationBuilder configurationBuilder = ConfigurationBuilder.create()
-                .withSources(new SimpleConfigSource("virtualMap.flushInterval", 0L))
+                .withSources(new SimpleConfigSource("virtualMap.copyFlushCandidateThreshold", 0L))
                 .withConfigDataType(VirtualMapConfig.class);
 
         // then
@@ -87,6 +87,17 @@ class VirtualMapConfigTest {
                 ConfigViolationException.class, () -> configurationBuilder.build(), "init must end in a violation");
 
         Assertions.assertEquals(1, exception.getViolations().size(), "We must exactly have 1 violation");
+    }
+
+    @Test
+    void testFlushThresholdMinAllowed() {
+        // given
+        final ConfigurationBuilder configurationBuilder = ConfigurationBuilder.create()
+                .withSources(new SimpleConfigSource("virtualMap.copyFlushCandidateThreshold", 1L))
+                .withConfigDataType(VirtualMapConfig.class);
+
+        // then
+        Assertions.assertDoesNotThrow(() -> configurationBuilder.build(), "init must be successful");
     }
 
     @Test

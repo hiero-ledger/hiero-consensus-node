@@ -5,12 +5,9 @@ import static com.swirlds.virtualmap.internal.Path.ROOT_PATH;
 import static com.swirlds.virtualmap.internal.Path.getLeftChildPath;
 import static com.swirlds.virtualmap.internal.Path.getRightChildPath;
 
-import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
 import com.swirlds.common.merkle.synchronization.views.TreeView;
 import com.swirlds.virtualmap.VirtualMap;
-import com.swirlds.virtualmap.internal.merkle.VirtualInternalNode;
-import com.swirlds.virtualmap.internal.merkle.VirtualLeafNode;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
@@ -18,7 +15,7 @@ import java.util.Objects;
 /**
  * A convenient base class for {@link TreeView} implementations for virtual merkle.
  */
-public abstract class VirtualTreeViewBase implements TreeView<Long> {
+public abstract class VirtualTreeViewBase implements TreeView {
     /**
      * The root node that is involved in reconnect. This would be the saved state for the teacher, and
      * the new root node into which things are being serialized for the learner.
@@ -61,30 +58,16 @@ public abstract class VirtualTreeViewBase implements TreeView<Long> {
      * {@inheritDoc}
      */
     @Override
-    public MerkleNode getMerkleRoot(final Long node) {
-        // NOTE: It is not clear what this "node" is. Original path? New path? It seems to be both depending on the
-        // call site. Luckily, it doesn't really matter in my case.
-        if (node == null || node == ROOT_PATH) {
-            return map;
-        }
-        throw new UnsupportedOperationException("Nested virtual maps not supported " + node);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public boolean isInternal(final Long node, final boolean isOriginal) {
+    public boolean isInternal(final Long path, final boolean isOriginal) {
         // Sometimes this is null. Sometimes null is considered a leaf.
-        if (node == null) {
+        if (path == null) {
             return false;
         }
-
         // Based on isOriginal I can know whether the node is out of the original state or the reconnect state.
         // This only matters on the learner, on the teacher they are both the same instances.
         final VirtualMapMetadata state = isOriginal ? originalState : reconnectState;
-        checkValidNode(node, state);
-        return node == ROOT_PATH || (node > ROOT_PATH && node < state.getFirstLeafPath());
+        checkValidNode(path, state);
+        return path == ROOT_PATH || (path > ROOT_PATH && path < state.getFirstLeafPath());
     }
 
     /**
@@ -110,20 +93,19 @@ public abstract class VirtualTreeViewBase implements TreeView<Long> {
     }
 
     /**
-     * {@inheritDoc}
+     * Retrieves the child node path of a given parent node path at a specified index.
+     *
+     * @param originalParent The path of the parent node whose child is to be retrieved.
+     *                       Must represent a valid internal node.
+     * @param childIndex     The index of the child node to retrieve, where 0 corresponds
+     *                       to the left child and 1 corresponds to the right child.
+     *                       Must be either 0 or 1.
+     * @return The path of the child node if it exists within the bounds of the original state;
+     *         otherwise, returns null.
+     * @throws AssertionError If the childIndex is not 0 or 1.
+     * @throws MerkleSynchronizationException If the originalParent path is out of bounds
+     *         or not an internal node.
      */
-    @Override
-    public long getClassId(final Long originalNode) {
-        checkValidNode(originalNode, originalState);
-        if (originalNode >= originalState.getLastLeafPath()) {
-            return VirtualLeafNode.CLASS_ID;
-        } else if (originalNode > ROOT_PATH) {
-            return VirtualInternalNode.CLASS_ID;
-        } else {
-            return VirtualMap.CLASS_ID;
-        }
-    }
-
     public Long getChild(final Long originalParent, final int childIndex) {
         checkValidInternal(originalParent, originalState);
         assert childIndex >= 0 && childIndex < 2 : "childIndex was not 1 or 2";

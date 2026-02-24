@@ -220,6 +220,21 @@ public class ComponentWiring<COMPONENT_TYPE, OUTPUT_TYPE> {
      */
     public <INPUT_TYPE> InputWire<INPUT_TYPE> getInputWire(
             @NonNull final BiConsumer<COMPONENT_TYPE, INPUT_TYPE> handler) {
+        return getInputWire(handler, null);
+    }
+
+    /**
+     * Get an input wire for this component.
+     *
+     * @param handler      the component method that will handle the input, e.g. "MyComponent::handleInput". Should be a
+     *                     method on the class, not a method on a specific instance.
+     * @param name         the optional name of the input wire. It is only used if the {@code InputWire} has not been
+     *                     created yet.
+     * @param <INPUT_TYPE> the input type
+     * @return the input wire
+     */
+    public <INPUT_TYPE> InputWire<INPUT_TYPE> getInputWire(
+            @NonNull final BiConsumer<COMPONENT_TYPE, INPUT_TYPE> handler, @Nullable final String name) {
 
         Objects.requireNonNull(handler);
 
@@ -230,7 +245,7 @@ public class ComponentWiring<COMPONENT_TYPE, OUTPUT_TYPE> {
                     "Component wiring does not support primitive input types. Use a boxed primitive instead.", e);
         }
 
-        return getOrBuildInputWire(proxy.getMostRecentlyInvokedMethod(), null, handler, null, null);
+        return getOrBuildInputWire(proxy.getMostRecentlyInvokedMethod(), null, handler, null, null, name);
     }
 
     /**
@@ -244,6 +259,22 @@ public class ComponentWiring<COMPONENT_TYPE, OUTPUT_TYPE> {
     @NonNull
     public <INPUT_TYPE> InputWire<INPUT_TYPE> getInputWire(
             @NonNull final Function<COMPONENT_TYPE, OUTPUT_TYPE> handler) {
+        return getInputWire(handler, null);
+    }
+
+    /**
+     * Get an input wire for this component.
+     *
+     * @param handler      the component method that will handle the input, e.g. "MyComponent::handleInput". Should be a
+     *                     method on the class, not a method on a specific instance.
+     * @param name         the optional name of the input wire. It is only used if the {@code InputWire} has not been
+     *                     created yet.
+     * @param <INPUT_TYPE> the input type
+     * @return the input wire
+     */
+    @NonNull
+    public <INPUT_TYPE> InputWire<INPUT_TYPE> getInputWire(
+            @NonNull final Function<COMPONENT_TYPE, OUTPUT_TYPE> handler, @Nullable final String name) {
         Objects.requireNonNull(handler);
 
         try {
@@ -253,7 +284,7 @@ public class ComponentWiring<COMPONENT_TYPE, OUTPUT_TYPE> {
                     "Component wiring does not support primitive input types. Use a boxed primitive instead.", e);
         }
 
-        return getOrBuildInputWire(proxy.getMostRecentlyInvokedMethod(), null, null, handler, null);
+        return getOrBuildInputWire(proxy.getMostRecentlyInvokedMethod(), null, null, handler, null, name);
     }
 
     /**
@@ -685,14 +716,5 @@ public class ComponentWiring<COMPONENT_TYPE, OUTPUT_TYPE> {
     @NonNull
     public String getSchedulerName() {
         return scheduler.getName();
-    }
-    /**
-     * Get the type of the scheduler that is running this component.
-     *
-     * @return the type of the scheduler
-     */
-    @NonNull
-    public TaskSchedulerType getSchedulerType() {
-        return scheduler.getType();
     }
 }

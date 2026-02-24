@@ -6,15 +6,16 @@ import static java.util.Objects.requireNonNull;
 import com.swirlds.component.framework.model.DeterministicWiringModel;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.wires.input.BindableInputWire;
+import com.swirlds.component.framework.wires.input.NoInput;
 import com.swirlds.component.framework.wires.output.StandardOutputWire;
-import com.swirlds.platform.gossip.IntakeEventCounter;
-import com.swirlds.platform.wiring.NoInput;
-import com.swirlds.platform.wiring.components.Gossip;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import org.hiero.consensus.event.IntakeEventCounter;
+import org.hiero.consensus.gossip.impl.gossip.Gossip;
 import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.gossip.SyncProgress;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
@@ -78,7 +79,7 @@ public class SimulatedGossip implements Gossip {
             @NonNull final BindableInputWire<NoInput, Void> resumeInput,
             @NonNull final BindableInputWire<Duration, Void> systemHealthInput,
             @NonNull final BindableInputWire<PlatformStatus, Void> platformStatusInput,
-            @NonNull final StandardOutputWire<Double> syncLagOutput) {
+            @NonNull final StandardOutputWire<SyncProgress> syncLagOutput) {
 
         this.eventOutput = requireNonNull(eventOutput);
         this.deterministicWiringModel = (DeterministicWiringModel) requireNonNull(model);

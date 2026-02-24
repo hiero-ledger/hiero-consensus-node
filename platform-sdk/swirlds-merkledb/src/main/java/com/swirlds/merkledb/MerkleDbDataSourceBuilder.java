@@ -1,30 +1,20 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb;
 
-import static com.hedera.pbj.runtime.ProtoParserTools.TAG_FIELD_OFFSET;
 import static com.swirlds.common.io.utility.FileUtils.hardLinkTree;
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.pbj.runtime.FieldDefinition;
-import com.hedera.pbj.runtime.FieldType;
-import com.hedera.pbj.runtime.io.ReadableSequentialData;
-import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.merkledb.constructable.constructors.MerkleDbDataSourceBuilderConstructor;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Objects;
-import org.hiero.base.constructable.ConstructableClass;
-import org.hiero.base.io.streams.SerializableDataInputStream;
-import org.hiero.base.io.streams.SerializableDataOutputStream;
 
 /**
  * Virtual data source builder that manages MerkleDb data sources.
@@ -35,19 +25,9 @@ import org.hiero.base.io.streams.SerializableDataOutputStream;
  *
  * <p>When a data source snapshot is taken, or a data source is restored from a snapshot, the
  * builder uses certain sub-folder under snapshot dir as described in {@link #snapshot(Path, VirtualDataSource)}
- * and {@link #build(String, Path, boolean, boolean)} methods.
+ * and {@link VirtualDataSourceBuilder#build(String, Path, boolean, boolean)} methods.
  */
-@ConstructableClass(
-        value = MerkleDbDataSourceBuilder.CLASS_ID,
-        constructorType = MerkleDbDataSourceBuilderConstructor.class)
 public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder {
-
-    public static final long CLASS_ID = 0x176ede0e1a69828L;
-
-    private static final class ClassVersion {
-        public static final int ORIGINAL = 1;
-        public static final int NO_TABLE_CONFIG = 2;
-    }
 
     /** Platform configuration */
     private final Configuration configuration;
@@ -58,6 +38,7 @@ public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder {
 
     /**
      * Constructor for deserialization purposes.
+     * @param configuration configuration to use
      */
     public MerkleDbDataSourceBuilder(@NonNull final Configuration configuration) {
         this.configuration = requireNonNull(configuration);
@@ -66,8 +47,8 @@ public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder {
     /**
      * Creates a new data source builder with the specified table configuration.
      *
-     * @param initialCapacity
-     * @param hashesRamToDiskThreshold
+     * @param initialCapacity initial capacity of the map
+     * @param hashesRamToDiskThreshold threshold where we switch from storing internal hashes in ram to storing them on disk
      * @param configuration platform configuration
      */
     public MerkleDbDataSourceBuilder(
@@ -191,104 +172,10 @@ public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder {
                 hardLinkTree(snapshotDataSourceDir, dataSourceDir);
                 return new MerkleDbDataSource(dataSourceDir, configuration, label, compactionEnabled, offlineUse);
             }
-            final Path legacyDatabaseMetadataPath = snapshotDir.resolve("database_metadata.pbj");
-            if (Files.isReadable(legacyDatabaseMetadataPath)) {
-                final TableMetadata tableMetadata = getLegacyTableMetadata(legacyDatabaseMetadataPath, label);
-                if (tableMetadata != null) {
-                    final int tableId = tableMetadata.getTableId();
-                    final Path legacySnapshotDataSourceDir =
-                            snapshotDir.resolve("tables").resolve(label + "-" + tableId);
-                    if (Files.isDirectory(legacySnapshotDataSourceDir)) {
-                        hardLinkTree(legacySnapshotDataSourceDir, dataSourceDir);
-                        // Load initial capacity and hashes RAM/disk threshold from legacy MerkleDb database config
-                        final long initialCapacity =
-                                tableMetadata.getTableConfig().getInitialCapacity();
-                        final long hashesRamToDiskThreshold =
-                                tableMetadata.getTableConfig().getHashesRamToDiskThreshold();
-                        return new MerkleDbDataSource(
-                                dataSourceDir,
-                                configuration,
-                                label,
-                                initialCapacity,
-                                hashesRamToDiskThreshold,
-                                compactionEnabled,
-                                offlineUse);
-                    } else {
-                        throw new IOException("Table dir is not found: dir=" + legacySnapshotDataSourceDir);
-                    }
-                } else {
-                    throw new IOException("Table metadata not found: label=" + label);
-                }
-            }
             throw new IOException(
                     "Cannot restore MerkleDb data source: label=" + label + " snapshotDir=" + snapshotDir);
         } catch (final IOException z) {
             throw new UncheckedIOException(z);
-        }
-    }
-
-    private TableMetadata getLegacyTableMetadata(final Path databaseMetadataPath, final String label)
-            throws IOException {
-        final FieldDefinition FIELD_DBMETADATA_TABLEMETADATA =
-                new FieldDefinition("tableMetadata", FieldType.MESSAGE, true, true, false, 11);
-        try (final ReadableStreamingData in = new ReadableStreamingData(databaseMetadataPath)) {
-            while (in.hasRemaining()) {
-                final int tag = in.readVarInt(false);
-                final int fieldNum = tag >> TAG_FIELD_OFFSET;
-                if (fieldNum == FIELD_DBMETADATA_TABLEMETADATA.number()) {
-                    final int size = in.readVarInt(false);
-                    final long oldLimit = in.limit();
-                    in.limit(in.position() + size);
-                    final TableMetadata tableMetadata = new TableMetadata(in);
-                    in.limit(oldLimit);
-                    if (label.equals(tableMetadata.getTableName())) {
-                        return tableMetadata;
-                    }
-                } else {
-                    throw new IllegalArgumentException("Unknown database metadata field: " + fieldNum);
-                }
-            }
-        }
-        return null;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public long getClassId() {
-        return CLASS_ID;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public int getVersion() {
-        return ClassVersion.NO_TABLE_CONFIG;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void serialize(final SerializableDataOutputStream out) throws IOException {
-        out.writeLong(initialCapacity);
-        out.writeLong(hashesRamToDiskThreshold);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void deserialize(@NonNull final SerializableDataInputStream in, final int version) throws IOException {
-        if (version < ClassVersion.NO_TABLE_CONFIG) {
-            final MerkleDbTableConfig tableConfig = in.readSerializable(false, MerkleDbTableConfig::new);
-            initialCapacity = tableConfig.getInitialCapacity();
-            hashesRamToDiskThreshold = tableConfig.getHashesRamToDiskThreshold();
-        } else {
-            initialCapacity = in.readLong();
-            hashesRamToDiskThreshold = in.readLong();
         }
     }
 
@@ -309,78 +196,5 @@ public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder {
             return false;
         }
         return (initialCapacity == that.initialCapacity) && (hashesRamToDiskThreshold == that.hashesRamToDiskThreshold);
-    }
-
-    // This is a legacy class to read old snapshots (versions less than ClassVersion.NO_TABLE_CONFIG)
-    private static class TableMetadata {
-
-        private final int tableId;
-
-        private final String tableName;
-
-        private final MerkleDbTableConfig tableConfig;
-
-        private static final FieldDefinition FIELD_TABLEMETADATA_TABLEID =
-                new FieldDefinition("tableId", FieldType.UINT32, false, true, false, 1);
-        private static final FieldDefinition FIELD_TABLEMETADATA_TABLENAME =
-                new FieldDefinition("tableName", FieldType.BYTES, false, false, false, 2);
-        private static final FieldDefinition FIELD_TABLEMETADATA_TABLECONFIG =
-                new FieldDefinition("tableConfig", FieldType.MESSAGE, false, false, false, 3);
-
-        /**
-         * Creates a new table metadata object by reading it from an input stream.
-         *
-         * @param in Input stream to read table metadata from
-         */
-        public TableMetadata(final ReadableSequentialData in) {
-            // Defaults
-            int tableId = 0;
-            String tableName = null;
-            MerkleDbTableConfig tableConfig = null;
-
-            while (in.hasRemaining()) {
-                final int tag = in.readVarInt(false);
-                final int fieldNum = tag >> TAG_FIELD_OFFSET;
-                if (fieldNum == FIELD_TABLEMETADATA_TABLEID.number()) {
-                    tableId = in.readVarInt(false);
-                } else if (fieldNum == FIELD_TABLEMETADATA_TABLENAME.number()) {
-                    final int len = in.readVarInt(false);
-                    final byte[] bb = new byte[len];
-                    in.readBytes(bb);
-                    tableName = new String(bb, StandardCharsets.UTF_8);
-                } else if (fieldNum == FIELD_TABLEMETADATA_TABLECONFIG.number()) {
-                    final int len = in.readVarInt(false);
-                    final long oldLimit = in.limit();
-                    in.limit(in.position() + len);
-                    tableConfig = new MerkleDbTableConfig(in);
-                    in.limit(oldLimit);
-                } else {
-                    throw new IllegalArgumentException("Unknown table metadata field: " + fieldNum);
-                }
-            }
-
-            requireNonNull(tableName, "Null table name");
-            requireNonNull(tableConfig, "Null table config");
-
-            if (tableId < 0) {
-                throw new IllegalStateException("Corrupted MerkleDb metadata: wrong table ID");
-            }
-
-            this.tableId = tableId;
-            this.tableName = tableName;
-            this.tableConfig = tableConfig;
-        }
-
-        public int getTableId() {
-            return tableId;
-        }
-
-        public String getTableName() {
-            return tableName;
-        }
-
-        public MerkleDbTableConfig getTableConfig() {
-            return tableConfig;
-        }
     }
 }

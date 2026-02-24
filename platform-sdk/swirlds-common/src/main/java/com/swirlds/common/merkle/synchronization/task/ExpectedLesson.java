@@ -6,7 +6,7 @@ import com.swirlds.base.utility.ToStringBuilder;
 /**
  * This object is used to track a node for which the learner is expecting data.
  */
-public class ExpectedLesson<T> {
+public class ExpectedLesson {
 
     /**
      * Do we already have the node sent by the teacher?
@@ -16,7 +16,7 @@ public class ExpectedLesson<T> {
     /**
      * The node that will be the parent of this node.
      */
-    private final T parent;
+    private final Long parent;
 
     /**
      * This node's eventual position within its parent.
@@ -26,7 +26,7 @@ public class ExpectedLesson<T> {
     /**
      * The node that was originally in this position within the tree.
      */
-    private final T originalNode;
+    private final Long originalNode;
 
     /**
      * Create a record for a node for which we are expecting data.
@@ -41,7 +41,7 @@ public class ExpectedLesson<T> {
      * 		does the learner already have the node being sent by the teacher?
      */
     public ExpectedLesson(
-            final T parent, final int positionInParent, final T originalNode, final boolean nodeAlreadyPresent) {
+            final Long parent, final int positionInParent, final Long originalNode, final boolean nodeAlreadyPresent) {
         this.parent = parent;
         this.positionInParent = positionInParent;
         this.originalNode = originalNode;
@@ -58,7 +58,7 @@ public class ExpectedLesson<T> {
     /**
      * Get the eventual parent of the node.
      */
-    public T getParent() {
+    public Long getParent() {
         return parent;
     }
 
@@ -72,7 +72,7 @@ public class ExpectedLesson<T> {
     /**
      * Get the original node in this position.
      */
-    public T getOriginalNode() {
+    public Long getOriginalNode() {
         return originalNode;
     }
 

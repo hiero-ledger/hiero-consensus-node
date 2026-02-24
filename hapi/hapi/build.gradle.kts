@@ -20,7 +20,7 @@ tasks.withType<JavaCompile>().configureEach {
 // block would not be needed.
 dependencies {
     protobuf(platform(project(":hiero-dependency-versions")))
-    protobuf("org.hiero.block:block-node-protobuf-sources")
+    protobuf("org.hiero.block-node:protobuf-sources")
 }
 
 sourceSets {
@@ -29,13 +29,17 @@ sourceSets {
         pbj {
             srcDir(protoApiSrc)
             srcDir(tasks.extractProto) // see comment on the 'dependencies' block
-            exclude("mirror", "sdk", "internal")
+            // (FUTURE) Remove provision for proof_service.proto when it no longer conflicts with
+            // the block node protos (v0.22)
+            exclude("mirror", "sdk", "internal", "block-node/api/proof_service.proto")
         }
         // The below should be replaced with a 'requires com.hedera.protobuf.java.api'
         // in testFixtures scope - #14026
         proto {
             srcDir(protoApiSrc)
-            exclude("mirror", "sdk", "internal")
+            // (FUTURE) Remove provision for proof_service.proto when it no longer conflicts with
+            // the block node protos (v0.22)
+            exclude("mirror", "sdk", "internal", "block-node/api/proof_service.proto")
         }
     }
 }

@@ -23,12 +23,5 @@ module com.hedera.node.app.service.entityid.impl {
             EntityIdServiceImpl;
 
     exports com.hedera.node.app.service.entityid.impl.schemas;
-    exports com.hedera.node.app.service.entityid.impl to
-            com.hedera.node.app,
-            com.hedera.node.app.service.addressbook.impl,
-            com.hedera.node.app.service.file.impl,
-            com.hedera.node.app.service.schedule.impl,
-            com.hedera.node.app.service.token.impl,
-            com.hedera.node.test.clients,
-            com.hedera.state.validator;
+    exports com.hedera.node.app.service.entityid.impl;
 }

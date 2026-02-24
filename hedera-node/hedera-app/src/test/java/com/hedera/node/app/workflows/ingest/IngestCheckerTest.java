@@ -19,10 +19,10 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PLATFORM_NOT_ACTIVE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UNAUTHORIZED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.WAITING_FOR_LEDGER_ID;
+import static com.hedera.hapi.util.HapiUtils.endpointFor;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.estimatedFee;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
 import static com.hedera.node.app.workflows.handle.dispatch.DispatchValidator.WorkflowCheck.INGEST;
-import static com.swirlds.platform.system.address.AddressBookUtils.endpointFor;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -52,7 +52,7 @@ import com.hedera.hapi.node.token.CryptoAddLiveHashTransactionBody;
 import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.node.transaction.UncheckedSubmitBody;
-import com.hedera.node.app.blocks.BlockStreamManager;
+import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.fixtures.AppTestBase;
 import com.hedera.node.app.info.CurrentPlatformStatus;
@@ -87,6 +87,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.stream.Stream;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -134,7 +135,7 @@ class IngestCheckerTest extends AppTestBase {
     private Authorizer authorizer;
 
     @Mock(strictness = LENIENT)
-    private BlockStreamManager blockStreamManager;
+    private BlockHashSigner blockHashSigner;
 
     @Mock
     private OpWorkflowMetrics opWorkflowMetrics;
@@ -176,7 +177,7 @@ class IngestCheckerTest extends AppTestBase {
 
         transactionInfo = new TransactionInfo(
                 signedTx, txBody, MOCK_SIGNATURE_MAP, signedTx.bodyBytes(), UNCHECKED_SUBMIT, serializedTx);
-        when(transactionChecker.parseAndCheck(serializedTx, maxBytes)).thenReturn(transactionInfo);
+        when(transactionChecker.parseAndCheck(serializedTx)).thenReturn(transactionInfo);
 
         final var configProvider = HederaTestConfigBuilder.createConfigProvider();
         this.deduplicationCache = new DeduplicationCacheImpl(configProvider, instantSource);
@@ -187,7 +188,7 @@ class IngestCheckerTest extends AppTestBase {
         subject = new IngestChecker(
                 app.networkInfo(),
                 currentPlatformStatus,
-                blockStreamManager,
+                blockHashSigner,
                 transactionChecker,
                 solvencyPreCheck,
                 signatureExpander,
@@ -214,7 +215,7 @@ class IngestCheckerTest extends AppTestBase {
         @Test
         @DisplayName("When the node is ok, no exception should be thrown")
         void testNodeStateSucceeds() {
-            given(blockStreamManager.hasLedgerId()).willReturn(true);
+            given(blockHashSigner.isReady()).willReturn(true);
             assertThatCode(() -> subject.verifyPlatformActive()).doesNotThrowAnyException();
         }
 
@@ -227,7 +228,7 @@ class IngestCheckerTest extends AppTestBase {
             if (status != PlatformStatus.ACTIVE) {
                 // Given a platform that is not ACTIVE
                 when(currentPlatformStatus.get()).thenReturn(status);
-                given(blockStreamManager.hasLedgerId()).willReturn(true);
+                given(blockHashSigner.isReady()).willReturn(true);
                 // When we try to parse and check a transaction, it should fail because the platform is not active
                 assertThatThrownBy(() -> subject.verifyPlatformActive())
                         .isInstanceOf(PreCheckException.class)
@@ -246,6 +247,18 @@ class IngestCheckerTest extends AppTestBase {
                     .has(responseCode(WAITING_FOR_LEDGER_ID));
             verify(opWorkflowMetrics, never()).incrementThrottled(any());
         }
+
+        @Test
+        void answersFreeQueriesIfInControlledState() {
+            when(currentPlatformStatus.get()).thenReturn(PlatformStatus.ACTIVE);
+            Assertions.assertDoesNotThrow(() -> subject.verifyFreeQueryable());
+            when(currentPlatformStatus.get()).thenReturn(PlatformStatus.FREEZING);
+            Assertions.assertDoesNotThrow(() -> subject.verifyFreeQueryable());
+            when(currentPlatformStatus.get()).thenReturn(PlatformStatus.FREEZE_COMPLETE);
+            Assertions.assertDoesNotThrow(() -> subject.verifyFreeQueryable());
+            when(currentPlatformStatus.get()).thenReturn(PlatformStatus.CHECKING);
+            Assertions.assertThrows(PreCheckException.class, () -> subject.verifyFreeQueryable());
+        }
     }
 
     @Test
@@ -257,7 +270,7 @@ class IngestCheckerTest extends AppTestBase {
         subject = new IngestChecker(
                 tempApp.networkInfo(),
                 currentPlatformStatus,
-                blockStreamManager,
+                blockHashSigner,
                 transactionChecker,
                 solvencyPreCheck,
                 signatureExpander,
@@ -317,7 +330,7 @@ class IngestCheckerTest extends AppTestBase {
         @DisplayName("If the transaction fails TransactionChecker, a failure response is returned with the right error")
         void onsetFailsWithPreCheckException(ResponseCodeEnum failureReason) throws PreCheckException {
             // Given a TransactionChecker that will throw a PreCheckException with the given failure reason
-            when(transactionChecker.parseAndCheck(any(), eq(maxBytes))).thenThrow(new PreCheckException(failureReason));
+            when(transactionChecker.parseAndCheck(any())).thenThrow(new PreCheckException(failureReason));
 
             // When the transaction is checked
             assertThatThrownBy(
@@ -331,8 +344,7 @@ class IngestCheckerTest extends AppTestBase {
         @DisplayName("If some random exception is thrown from TransactionChecker, the exception is bubbled up")
         void randomException() throws PreCheckException {
             // Given a WorkflowOnset that will throw a RuntimeException
-            when(transactionChecker.parseAndCheck(any(), eq(maxBytes)))
-                    .thenThrow(new RuntimeException("check exception"));
+            when(transactionChecker.parseAndCheck(any())).thenThrow(new RuntimeException("check exception"));
 
             // When the transaction is submitted, then the exception is bubbled up
             assertThatThrownBy(
@@ -407,7 +419,7 @@ class IngestCheckerTest extends AppTestBase {
                     cryptoAddLiveHashTx.bodyBytes(),
                     CRYPTO_ADD_LIVE_HASH,
                     serializedCryptoAddLiveHashTx);
-            when(transactionChecker.parseAndCheck(serializedCryptoAddLiveHashTx, maxBytes))
+            when(transactionChecker.parseAndCheck(serializedCryptoAddLiveHashTx))
                     .thenReturn(cryptoAddLiveHashTransactionInfo);
 
             assertThatThrownBy(() -> subject.runAllChecks(
@@ -434,12 +446,96 @@ class IngestCheckerTest extends AppTestBase {
 
             final var freezeTransactionInfo = new TransactionInfo(
                     signedTx, freezeTxBody, MOCK_SIGNATURE_MAP, signedTx.bodyBytes(), FREEZE, serializedSignedTx);
-            when(transactionChecker.parseAndCheck(serializedSignedTx, maxBytes)).thenReturn(freezeTransactionInfo);
+            when(transactionChecker.parseAndCheck(serializedSignedTx)).thenReturn(freezeTransactionInfo);
 
             assertThatThrownBy(() ->
                             subject.runAllChecks(state, serializedSignedTx, configuration, new IngestChecker.Result()))
                     .isInstanceOf(PreCheckException.class)
                     .hasFieldOrPropertyWithValue("responseCode", NOT_SUPPORTED);
+        }
+
+        @Test
+        @DisplayName("High volume transaction should throw NOT_SUPPORTED when feature is disabled")
+        void highVolumeTransactionRejectedWhenFeatureDisabled() throws PreCheckException {
+            // Given a transaction with highVolume=true and the feature disabled (default)
+            final TransactionBody highVolumeTxBody = TransactionBody.newBuilder()
+                    .uncheckedSubmit(UncheckedSubmitBody.newBuilder().build())
+                    .highVolume(true)
+                    .transactionID(TransactionID.newBuilder()
+                            .accountID(ALICE.accountID())
+                            .transactionValidStart(
+                                    Timestamp.newBuilder().seconds(Instant.now().getEpochSecond())))
+                    .nodeAccountID(nodeSelfAccountId)
+                    .build();
+            final var signedTx = SignedTransaction.newBuilder()
+                    .bodyBytes(asBytes(TransactionBody.PROTOBUF, highVolumeTxBody))
+                    .build();
+            final var serializedHighVolumeTx = SignedTransaction.PROTOBUF.toBytes(signedTx);
+
+            final var highVolumeTransactionInfo = new TransactionInfo(
+                    signedTx,
+                    highVolumeTxBody,
+                    MOCK_SIGNATURE_MAP,
+                    signedTx.bodyBytes(),
+                    UNCHECKED_SUBMIT,
+                    serializedHighVolumeTx);
+            when(transactionChecker.parseAndCheck(serializedHighVolumeTx)).thenReturn(highVolumeTransactionInfo);
+
+            // When the transaction is checked, it should be rejected with NOT_SUPPORTED
+            assertThatThrownBy(() -> subject.runAllChecks(
+                            state, serializedHighVolumeTx, configuration, new IngestChecker.Result()))
+                    .isInstanceOf(PreCheckException.class)
+                    .hasFieldOrPropertyWithValue("responseCode", NOT_SUPPORTED);
+            verify(opWorkflowMetrics, never()).incrementThrottled(any());
+        }
+
+        @Test
+        @DisplayName("High volume transaction should be allowed when feature is enabled")
+        void highVolumeTransactionAllowedWhenFeatureEnabled() throws Exception {
+            // Given a transaction with highVolume=true and the feature enabled
+            final var enabledConfig = new VersionedConfigImpl(
+                    HederaTestConfigBuilder.create()
+                            .withValue("networkAdmin.highVolumeThrottlesEnabled", true)
+                            .withValue("fees.simpleFeesEnabled", true)
+                            .getOrCreateConfig(),
+                    1L);
+
+            final TransactionBody highVolumeTxBody = TransactionBody.newBuilder()
+                    .uncheckedSubmit(UncheckedSubmitBody.newBuilder().build())
+                    .highVolume(true)
+                    .transactionID(TransactionID.newBuilder()
+                            .accountID(ALICE.accountID())
+                            .transactionValidStart(
+                                    Timestamp.newBuilder().seconds(Instant.now().getEpochSecond())))
+                    .nodeAccountID(nodeSelfAccountId)
+                    .build();
+            final var signedTx = SignedTransaction.newBuilder()
+                    .bodyBytes(asBytes(TransactionBody.PROTOBUF, highVolumeTxBody))
+                    .build();
+            final var serializedHighVolumeTx = SignedTransaction.PROTOBUF.toBytes(signedTx);
+
+            final var highVolumeTransactionInfo = new TransactionInfo(
+                    signedTx,
+                    highVolumeTxBody,
+                    MOCK_SIGNATURE_MAP,
+                    signedTx.bodyBytes(),
+                    UNCHECKED_SUBMIT,
+                    serializedHighVolumeTx);
+            when(transactionChecker.parseAndCheck(serializedHighVolumeTx)).thenReturn(highVolumeTransactionInfo);
+
+            // Set up signature verification to pass
+            final var verificationResultFuture = mock(SignatureVerificationFuture.class);
+            final var verificationResult = mock(SignatureVerification.class);
+            when(verificationResult.failed()).thenReturn(false);
+            when(verificationResultFuture.get(anyLong(), any())).thenReturn(verificationResult);
+            when(signatureVerifier.verify(any(), any()))
+                    .thenReturn(Map.of(ALICE.account().keyOrThrow(), verificationResultFuture));
+
+            // When the transaction is checked with the feature enabled, it should pass
+            final var result = new IngestChecker.Result();
+            assertThatCode(() -> subject.runAllChecks(state, serializedHighVolumeTx, enabledConfig, result))
+                    .doesNotThrowAnyException();
+            verify(opWorkflowMetrics, never()).incrementThrottled(any());
         }
 
         @Test
@@ -632,7 +728,7 @@ class IngestCheckerTest extends AppTestBase {
                     mySignedTx.bodyBytes(),
                     UNCHECKED_SUBMIT,
                     mySerializedSignedTx);
-            when(transactionChecker.parseAndCheck(serializedTx, maxBytes)).thenReturn(myTransactionInfo);
+            when(transactionChecker.parseAndCheck(serializedTx)).thenReturn(myTransactionInfo);
             when(solvencyPreCheck.getPayerAccount(any(), eq(accountID))).thenReturn(account);
             final var verificationResultFutureAlice = mock(SignatureVerificationFuture.class);
             final var verificationResultAlice = mock(SignatureVerification.class);
@@ -688,7 +784,7 @@ class IngestCheckerTest extends AppTestBase {
                     mySignedTx.bodyBytes(),
                     UNCHECKED_SUBMIT,
                     mySerializedSignedTx);
-            when(transactionChecker.parseAndCheck(mySerializedTx, maxBytes)).thenReturn(myTransactionInfo);
+            when(transactionChecker.parseAndCheck(mySerializedTx)).thenReturn(myTransactionInfo);
             when(solvencyPreCheck.getPayerAccount(any(), eq(accountID))).thenReturn(account);
             final var verificationResultFutureAlice = mock(SignatureVerificationFuture.class);
             final var verificationResultAlice = mock(SignatureVerification.class);
@@ -744,7 +840,7 @@ class IngestCheckerTest extends AppTestBase {
                     myTx.signedTransactionBytes(),
                     UNCHECKED_SUBMIT,
                     mySerializedTx);
-            when(transactionChecker.parseAndCheck(mySerializedTx, maxBytes)).thenReturn(myTransactionInfo);
+            when(transactionChecker.parseAndCheck(mySerializedTx)).thenReturn(myTransactionInfo);
             when(solvencyPreCheck.getPayerAccount(any(), eq(accountID))).thenReturn(account);
             final var verificationResultFutureAlice = mock(SignatureVerificationFuture.class);
             final var verificationResultAlice = mock(SignatureVerification.class);
@@ -797,7 +893,7 @@ class IngestCheckerTest extends AppTestBase {
             final var mySerializedTx = Transaction.PROTOBUF.toBytes(myTx);
             final var myTransactionInfo = new TransactionInfo(
                     mySignedTx, myTxBody, MOCK_SIGNATURE_MAP, mySignedTx.bodyBytes(), UNCHECKED_SUBMIT, mySerializedTx);
-            when(transactionChecker.parseAndCheck(mySerializedTx, maxBytes)).thenReturn(myTransactionInfo);
+            when(transactionChecker.parseAndCheck(mySerializedTx)).thenReturn(myTransactionInfo);
             when(solvencyPreCheck.getPayerAccount(any(), eq(accountID))).thenReturn(account);
             final var verificationResultFutureAlice = mock(SignatureVerificationFuture.class);
             final var verificationResultAlice = mock(SignatureVerification.class);

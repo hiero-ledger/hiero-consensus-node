@@ -9,11 +9,10 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.statevalidation.report.SlackReportGenerator;
-import com.hedera.statevalidation.util.junit.StateResolver;
+import com.hedera.statevalidation.util.junit.MerkleNodeStateResolver;
 import com.hedera.statevalidation.util.reflect.MemoryIndexDiskKeyValueStoreAccessor;
 import com.swirlds.merkledb.MerkleDbDataSource;
-import com.swirlds.platform.state.snapshot.DeserializedSignedState;
-import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import java.io.IOException;
@@ -27,18 +26,15 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 @SuppressWarnings("NewClassNamingConvention")
-@ExtendWith({StateResolver.class, SlackReportGenerator.class})
+@ExtendWith({MerkleNodeStateResolver.class, SlackReportGenerator.class})
 @Tag("leaf")
 public class ValidateLeafIndex {
 
     private static final Logger log = LogManager.getLogger(ValidateLeafIndex.class);
 
-    @SuppressWarnings("unchecked")
     @Test
-    public void validateIndex(DeserializedSignedState deserializedState) {
-        final MerkleNodeState merkleNodeState =
-                deserializedState.reservedSignedState().get().getState();
-        final VirtualMap virtualMap = (VirtualMap) merkleNodeState.getRoot();
+    public void validateIndex(final VirtualMapState virtualMapState) {
+        final VirtualMap virtualMap = virtualMapState.getRoot();
         assertNotNull(virtualMap);
         MerkleDbDataSource vds = (MerkleDbDataSource) virtualMap.getDataSource();
 

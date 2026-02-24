@@ -100,4 +100,21 @@ public class MultipleNodeLogResultsAssert extends AbstractAssert<MultipleNodeLog
 
         return this;
     }
+
+    /**
+     * Verifies that every node part of these results contain a message with the specified content.
+     *
+     * @param searchString the substring that should be present
+     * @return this assertion object for method chaining
+     */
+    @NonNull
+    public MultipleNodeLogResultsAssert allNodesHaveMessageContaining(@NonNull final String searchString) {
+        isNotNull();
+
+        for (final SingleNodeLogResult result : actual.results()) {
+            OtterAssertions.assertThat(result).hasMessageContaining(searchString);
+        }
+
+        return this;
+    }
 }

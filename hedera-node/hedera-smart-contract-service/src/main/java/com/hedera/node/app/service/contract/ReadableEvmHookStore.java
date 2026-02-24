@@ -3,8 +3,8 @@ package com.hedera.node.app.service.contract;
 
 import com.hedera.hapi.node.base.HookId;
 import com.hedera.hapi.node.state.contract.SlotValue;
+import com.hedera.hapi.node.state.hooks.EvmHookSlotKey;
 import com.hedera.hapi.node.state.hooks.EvmHookState;
-import com.hedera.hapi.node.state.hooks.LambdaSlotKey;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 
@@ -23,11 +23,11 @@ public interface ReadableEvmHookStore {
     EvmHookState getEvmHook(@NonNull final HookId hookId);
 
     /**
-     * Returns the SlotValue for a given LambdaSlotKey.
+     * Returns the SlotValue for a given slot key.
      *
-     * @param key the LambdaSlotKey being looked up
+     * @param key the slot key being looked up
      * @return the SlotValue or null if not found
      */
     @Nullable
-    SlotValue getSlotValue(@NonNull final LambdaSlotKey key);
+    SlotValue getSlotValue(@NonNull final EvmHookSlotKey key);
 }

@@ -1,32 +1,29 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.test;
 
-import static com.swirlds.common.test.fixtures.WeightGenerators.TOTAL_NETWORK_WEIGHT;
 import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
 import static org.hiero.consensus.model.status.PlatformStatus.CATASTROPHIC_FAILURE;
 import static org.hiero.consensus.model.status.PlatformStatus.CHECKING;
 import static org.hiero.consensus.model.status.PlatformStatus.OBSERVING;
 import static org.hiero.consensus.model.status.PlatformStatus.REPLAYING_EVENTS;
+import static org.hiero.consensus.test.fixtures.WeightGenerators.TOTAL_NETWORK_WEIGHT;
 import static org.hiero.otter.fixtures.OtterAssertions.assertContinuouslyThat;
 import static org.hiero.otter.fixtures.OtterAssertions.assertThat;
 import static org.hiero.otter.fixtures.assertions.StatusProgressionStep.target;
 import static org.hiero.otter.fixtures.assertions.StatusProgressionStep.targets;
 
-import com.swirlds.platform.config.StateConfig_;
 import com.swirlds.platform.state.iss.DefaultIssDetector;
 import com.swirlds.platform.system.SystemExitUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
-import org.hiero.consensus.model.notification.IssNotification.IssType;
+import org.hiero.consensus.state.config.StateConfig_;
 import org.hiero.otter.fixtures.Capability;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.OtterTest;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
-import org.hiero.otter.fixtures.result.MarkerFilesStatus;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
-import org.hiero.otter.fixtures.result.SingleNodeMarkerFileResult;
 import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
 
 /**
@@ -56,13 +53,6 @@ public class IssTest {
         assertContinuouslyThat(network.newConsensusResults()).haveEqualCommonRounds();
         assertContinuouslyThat(network.newConsensusResults().suppressingNode(issNode))
                 .haveConsistentRounds();
-        assertContinuouslyThat(network.newMarkerFileResults().suppressingNode(issNode))
-                .haveNoMarkerFilesExcept(IssType.OTHER_ISS);
-        assertContinuouslyThat(issNode.newMarkerFileResult())
-                // Can be limited further once https://github.com/hiero-ledger/hiero-consensus-node/issues/21666 is
-                // fixed
-                //                .hasNoMarkerFilesExcept(IssType.SELF_ISS);
-                .hasNoMarkerFilesExcept(IssType.OTHER_ISS, IssType.SELF_ISS);
 
         network.start();
 
@@ -98,23 +88,6 @@ public class IssTest {
         assertThat(issNodeStatusResult)
                 .hasSteps(target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING));
         assertThat(issLogResult).hasNoErrorLevelMessages();
-
-        // Wait for SELF_ISS marker file on the ISS node (max 2 minutes)
-        final MarkerFilesStatus issMarkerFilesStatus =
-                issNode.newMarkerFileResult().status();
-        timeManager.waitForConditionInRealTime(
-                () -> issMarkerFilesStatus.hasIssMarkerFileOfType(IssType.SELF_ISS), Duration.ofMinutes(2L));
-
-        // This functionality is currently unstable. Enable the check once
-        // https://github.com/hiero-ledger/hiero-consensus-node/issues/21684 has been fixed
-
-        //        // Wait for OTHER_ISS marker files on all other nodes (max 10 seconds each)
-        //        for (final SingleNodeMarkerFileResult result :
-        //                network.newMarkerFileResults().suppressingNode(issNode).results()) {
-        //            timeManager.waitForConditionInRealTime(() ->
-        // result.status().hasISSMarkerFileOfType(IssType.OTHER_ISS),
-        //                    Duration.ofSeconds(10L));
-        //        }
     }
 
     /**
@@ -143,12 +116,6 @@ public class IssTest {
         assertContinuouslyThat(network.newConsensusResults()).haveEqualCommonRounds();
         assertContinuouslyThat(network.newConsensusResults().suppressingNode(issNode))
                 .haveConsistentRounds();
-        assertContinuouslyThat(network.newMarkerFileResults().suppressingNode(issNode))
-                .haveNoMarkerFilesExcept(IssType.OTHER_ISS);
-        assertContinuouslyThat(issNode.newMarkerFileResult())
-                // Check can be enabled once https://github.com/hiero-ledger/hiero-consensus-node/issues/21666 is fixed
-                //                .hasNoMarkerFilesExcept(IssType.SELF_ISS);
-                .hasNoMarkerFilesExcept(IssType.OTHER_ISS, IssType.SELF_ISS);
 
         network.start();
 
@@ -210,7 +177,6 @@ public class IssTest {
         assertContinuouslyThat(network.newConsensusResults())
                 .haveEqualCommonRounds()
                 .haveConsistentRounds();
-        assertContinuouslyThat(network.newMarkerFileResults()).haveNoMarkerFilesExcept(IssType.CATASTROPHIC_ISS);
 
         network.start();
 
@@ -222,12 +188,5 @@ public class IssTest {
                         targets(CHECKING, CATASTROPHIC_FAILURE));
 
         assertThat(network.newEventStreamResults()).haveEqualFiles();
-
-        // It can take a while (real time) until a marker file is created, therefore we wait for its presence
-        for (final SingleNodeMarkerFileResult result :
-                network.newMarkerFileResults().results()) {
-            timeManager.waitForConditionInRealTime(
-                    () -> result.status().hasIssMarkerFileOfType(IssType.CATASTROPHIC_ISS), Duration.ofMinutes(2L));
-        }
     }
 }

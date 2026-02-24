@@ -1733,7 +1733,7 @@ enum ResponseCodeEnum {
      * The batch key is not valid
      */
     INVALID_BATCH_KEY = 394;
-    
+
     /**
      * The provided schedule expiry time is not configurable.
      */
@@ -1772,6 +1772,11 @@ enum ResponseCodeEnum {
     INVALID_SERIALIZED_TX_MESSAGE_HASH_ALGORITHM = 401;
 
     /**
+     * A HookStore referenced a valid entity number but with the wrong entity type.
+     */
+    WRONG_HOOK_ENTITY_TYPE = 499;
+
+    /**
      * An EVM hook execution was throttled due to high network gas utilization.
      */
     EVM_HOOK_GAS_THROTTLED = 500;
@@ -1798,15 +1803,15 @@ enum ResponseCodeEnum {
     HOOK_NOT_FOUND = 504;
 
     /**
-     * A lambda mapping slot, storage key, or storage value exceeded 32 bytes.
+     * An EVM hook mapping slot, storage key, or storage value exceeded 32 bytes.
      */
-    LAMBDA_STORAGE_UPDATE_BYTES_TOO_LONG = 505;
+    EVM_HOOK_STORAGE_UPDATE_BYTES_TOO_LONG = 505;
 
     /**
-     * A lambda mapping slot, storage key, or storage value failed to use the
+     * An EVM hook's mapping slot, storage key, or storage value failed to use the
      * minimal representation (i.e., no leading zeros).
      */
-    LAMBDA_STORAGE_UPDATE_BYTES_MUST_USE_MINIMAL_REPRESENTATION = 506;
+    EVM_HOOK_STORAGE_UPDATE_BYTES_MUST_USE_MINIMAL_REPRESENTATION = 506;
 
     /**
      * A hook id was invalid.
@@ -1814,9 +1819,9 @@ enum ResponseCodeEnum {
     INVALID_HOOK_ID = 507;
 
     /**
-     * A lambda storage update had no contents.
+     * An EVM hook storage update had no contents.
      */
-    EMPTY_LAMBDA_STORAGE_UPDATE = 508;
+    EMPTY_EVM_HOOK_STORAGE_UPDATE = 508;
 
     /**
      * A user repeated the same hook id in a creation details list.
@@ -1829,9 +1834,9 @@ enum ResponseCodeEnum {
     HOOKS_NOT_ENABLED = 510;
 
     /**
-     * The target hook is not a lambda.
+     * The target hook is not an EVM hook.
      */
-    HOOK_IS_NOT_A_LAMBDA = 511;
+    HOOK_IS_NOT_AN_EVM_HOOK = 511;
 
     /**
      * A hook was deleted.
@@ -1839,18 +1844,18 @@ enum ResponseCodeEnum {
     HOOK_DELETED = 512;
 
     /**
-     * The LambdaSStore tried to update too many storage slots in a single transaction.
+     * The HookStore tried to update too many storage slots in a single transaction.
      */
-    TOO_MANY_LAMBDA_STORAGE_UPDATES = 513;
+    TOO_MANY_EVM_HOOK_STORAGE_UPDATES = 513;
 
     /**
-     * A lambda mapping slot, storage key, or storage value failed to use the
+     * An EVM hook mapping slot, storage key, or storage value failed to use the
      * minimal representation (i.e., no leading zeros).
      */
     HOOK_CREATION_BYTES_MUST_USE_MINIMAL_REPRESENTATION = 514;
 
     /**
-     * A lambda mapping slot, storage key, or storage value exceeded 32 bytes.
+     * A EVM hook mapping slot, storage key, or storage value exceeded 32 bytes.
      */
     HOOK_CREATION_BYTES_TOO_LONG = 515;
 
@@ -1918,4 +1923,16 @@ enum ResponseCodeEnum {
      * resubmitted once the account has been funded.
      */
     NODE_ACCOUNT_HAS_ZERO_BALANCE = 526;
+
+    /**
+     * This operation cannot be completed because the target
+     * account is a "Fee Collection Account".<br/>
+     * Any attempt to transfer to a fee collection account is not permitted.
+     */
+    TRANSFER_TO_FEE_COLLECTION_ACCOUNT_NOT_ALLOWED = 527;
+
+    /**
+     * The number of hook invocations exceeds the maximum allowed per transaction.
+     */
+    TOO_MANY_HOOK_INVOCATIONS = 528;
 }
