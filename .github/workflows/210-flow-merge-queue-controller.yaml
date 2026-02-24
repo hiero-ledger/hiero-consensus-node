@@ -86,6 +86,6 @@ jobs:
         uses: mmoyaferrer/set-github-variable@31e0d07964802728d7bf8e09dc45b86ee2c8d5f8 # v1.0.0
         with:
           name: "MQPT_CLUSTER"
-          value: "${NEXT_CLUSTER}"
+          value: "${{ env.NEXT_CLUSTER }}"
           repository: ${{ github.repository }}
           token: ${{ secrets.GH_ACCESS_TOKEN }}
