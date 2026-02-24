@@ -1,4 +1,3 @@
-wake
 # SPDX-License-Identifier: Apache-2.0
 name: "[USER] Memory Profile Ctrl"
 on:
