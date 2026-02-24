@@ -218,7 +218,7 @@ jobs:
         env:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
-        run: ${GRADLE_EXEC} hapiTestMiscRecords${{ inputs.mats-suffix }}
+        run: ${GRADLE_EXEC} hapiTestMiscRecords && ${GRADLE_EXEC} hapiTestMiscRecordsSerial
 
       - name: Publish HAPI Test (Misc Records) Report
         uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0

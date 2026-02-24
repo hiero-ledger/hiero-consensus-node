@@ -82,12 +82,14 @@ val basePrCheckTags =
         "hapiTestMisc" to miscTags,
         "hapiTestMiscSerial" to miscTagsSerial,
         "hapiTestMiscRecords" to miscTags,
+        "hapiTestMiscRecordsSerial" to miscTagsSerial,
         "hapiTestSimpleFees" to "SIMPLE_FEES",
         "hapiTestAtomicBatch" to "ATOMIC_BATCH",
     )
 
 val cryptoTasks = setOf("hapiTestCrypto", "hapiTestCryptoSerial")
-val miscTasks = setOf("hapiTestMisc", "hapiTestMiscSerial")
+val miscTasks =
+    setOf("hapiTestMisc", "hapiTestMiscSerial", "hapiTestMiscRecords", "hapiTestMiscRecordsSerial")
 
 val prCheckTags =
     buildMap<String, String> {
@@ -133,6 +135,7 @@ val prCheckStartPorts =
         put("hapiTestAtomicBatch", "27400")
         put("hapiTestCryptoSerial", "27600")
         put("hapiTestMiscSerial", "27800")
+        put("hapiTestMiscRecordsSerial", "28000")
 
         // Create the MATS variants
         val originalEntries = toMap() // Create a snapshot of current entries
@@ -171,6 +174,10 @@ val prCheckPropOverrides =
         put("hapiTestTimeConsuming", "nodes.nodeRewardsEnabled=false,quiescence.enabled=true")
         put(
             "hapiTestMiscRecords",
+            "blockStream.streamMode=RECORDS,nodes.nodeRewardsEnabled=false,quiescence.enabled=true,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true",
+        )
+        put(
+            "hapiTestMiscRecordsSerial",
             "blockStream.streamMode=RECORDS,nodes.nodeRewardsEnabled=false,quiescence.enabled=true,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true",
         )
         put("hapiTestSimpleFees", "fees.simpleFeesEnabled=true")
