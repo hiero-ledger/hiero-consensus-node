@@ -612,10 +612,6 @@ public class ClprEndpointClient {
     private AccountID protocolPayerAccountId(@NonNull final com.hedera.node.app.spi.info.NodeInfo selfNodeInfo) {
         requireNonNull(selfNodeInfo);
         final var config = configProvider.getConfiguration();
-        final var clprConfig = config.getConfigData(ClprConfig.class);
-        if (!clprConfig.devModeEnabled()) {
-            return selfNodeInfo.accountId();
-        }
         final var hederaConfig = config.getConfigData(HederaConfig.class);
         final var accountsConfig = config.getConfigData(AccountsConfig.class);
         return AccountID.newBuilder()

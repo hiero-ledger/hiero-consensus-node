@@ -118,7 +118,6 @@ public class ClprMessagesSuite {
                         firstGrpcPort = 35400,
                         setupOverrides = {
                             @ConfigOverride(key = "clpr.clprEnabled", value = "true"),
-                            @ConfigOverride(key = "clpr.devModeEnabled", value = "true"),
                             @ConfigOverride(key = "clpr.publicizeNetworkAddresses", value = "true"),
                             @ConfigOverride(key = "clpr.connectionFrequency", value = "1000"),
                             @ConfigOverride(key = "contracts.systemContract.clprQueue.enabled", value = "true")
@@ -129,7 +128,6 @@ public class ClprMessagesSuite {
                         firstGrpcPort = 36400,
                         setupOverrides = {
                             @ConfigOverride(key = "clpr.clprEnabled", value = "true"),
-                            @ConfigOverride(key = "clpr.devModeEnabled", value = "true"),
                             @ConfigOverride(key = "clpr.publicizeNetworkAddresses", value = "true"),
                             @ConfigOverride(key = "clpr.connectionFrequency", value = "1000"),
                             @ConfigOverride(key = "contracts.systemContract.clprQueue.enabled", value = "true")
@@ -390,7 +388,6 @@ public class ClprMessagesSuite {
                         firstGrpcPort = 37400,
                         setupOverrides = {
                             @ConfigOverride(key = "clpr.clprEnabled", value = "true"),
-                            @ConfigOverride(key = "clpr.devModeEnabled", value = "true"),
                             @ConfigOverride(key = "clpr.publicizeNetworkAddresses", value = "false"),
                             @ConfigOverride(key = "clpr.connectionFrequency", value = "5000"),
                             @ConfigOverride(key = "contracts.systemContract.clprQueue.enabled", value = "true"),
@@ -403,7 +400,6 @@ public class ClprMessagesSuite {
                         firstGrpcPort = 38400,
                         setupOverrides = {
                             @ConfigOverride(key = "clpr.clprEnabled", value = "true"),
-                            @ConfigOverride(key = "clpr.devModeEnabled", value = "true"),
                             @ConfigOverride(key = "clpr.publicizeNetworkAddresses", value = "true"),
                             @ConfigOverride(key = "clpr.connectionFrequency", value = "1000"),
                             @ConfigOverride(key = "contracts.systemContract.clprQueue.enabled", value = "true"),

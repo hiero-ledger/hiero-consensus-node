@@ -10,13 +10,10 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.block.stream.StateProof;
-import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.base.Timestamp;
-import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
@@ -67,13 +64,7 @@ public class ClprSetLedgerConfigurationHandlerTest extends ClprHandlerTestBase {
     private ClprStateProofManager stateProofManager;
 
     @Mock
-    private NetworkInfo networkInfo;
-
-    @Mock
     private NodeInfo creatorInfo;
-
-    @Mock
-    private NodeInfo selfNodeInfo;
 
     @Mock
     private ConfigProvider configProvider;
@@ -100,15 +91,12 @@ public class ClprSetLedgerConfigurationHandlerTest extends ClprHandlerTestBase {
     @BeforeEach
     public void setUp() {
         setupHandlerBase();
-        subject = new ClprSetLedgerConfigurationHandler(stateProofManager, networkInfo, configProvider);
+        subject = new ClprSetLedgerConfigurationHandler(stateProofManager, configProvider);
         given(preHandleContext.creatorInfo()).willReturn(creatorInfo);
-        given(networkInfo.selfNodeInfo()).willReturn(selfNodeInfo);
         given(creatorInfo.nodeId()).willReturn(1L);
-        given(selfNodeInfo.nodeId()).willReturn(0L);
         given(stateProofManager.clprEnabled()).willReturn(true);
         given(configProvider.getConfiguration()).willReturn(configuration);
-        given(configuration.getConfigData(ClprConfig.class))
-                .willReturn(new ClprConfig(true, 5000, true, true, 5, 6144));
+        given(configuration.getConfigData(ClprConfig.class)).willReturn(new ClprConfig(true, 5000, true, 5, 6144));
         given(preHandleContext.isUserTransaction()).willReturn(true);
         given(handleContext.storeFactory()).willReturn(storeFactory);
         given(storeFactory.writableStore(WritableClprLedgerConfigurationStore.class))
@@ -123,7 +111,7 @@ public class ClprSetLedgerConfigurationHandlerTest extends ClprHandlerTestBase {
         final var txn = newTxnBuilder().withClprLedgerConfig(remoteClprConfig).build();
         given(stateProofManager.getLedgerConfiguration(any())).willReturn(null);
         given(stateProofManager.getLocalLedgerId()).willReturn(localClprLedgerId);
-        given(stateProofManager.isDevModeEnabled()).willReturn(true);
+
         given(stateProofManager.validateStateProof(any(ClprSetLedgerConfigurationTransactionBody.class)))
                 .willReturn(true);
         given(preHandleContext.body()).willReturn(txn);
@@ -151,7 +139,7 @@ public class ClprSetLedgerConfigurationHandlerTest extends ClprHandlerTestBase {
     public void preHandleAllowsDevModeLocalBootstrap() {
         given(creatorInfo.nodeId()).willReturn(0L);
         final var txn = newTxnBuilder().withClprLedgerConfig(localClprConfig).build();
-        given(stateProofManager.isDevModeEnabled()).willReturn(true);
+
         given(stateProofManager.validateStateProof(any(ClprSetLedgerConfigurationTransactionBody.class)))
                 .willReturn(true);
         given(stateProofManager.getLocalLedgerId()).willReturn(localClprLedgerId);
@@ -199,7 +187,7 @@ public class ClprSetLedgerConfigurationHandlerTest extends ClprHandlerTestBase {
         given(stateProofManager.getLocalLedgerId()).willReturn(localClprLedgerId);
         given(stateProofManager.getLedgerConfiguration(localClprLedgerId)).willReturn(null);
         given(stateProofManager.readLedgerConfiguration(localClprLedgerId)).willReturn(localClprConfig);
-        given(stateProofManager.isDevModeEnabled()).willReturn(false);
+
         given(preHandleContext.body()).willReturn(txn);
 
         assertThatCode(() -> subject.preHandle(preHandleContext))
@@ -216,7 +204,7 @@ public class ClprSetLedgerConfigurationHandlerTest extends ClprHandlerTestBase {
         final var updatedConfig =
                 localClprConfig.copyBuilder().timestamp(updatedTimestamp).build();
         final var txn = newTxnBuilder().withClprLedgerConfig(updatedConfig).build();
-        given(stateProofManager.isDevModeEnabled()).willReturn(false);
+
         given(stateProofManager.getLocalLedgerId()).willReturn(localClprLedgerId);
         given(stateProofManager.getLedgerConfiguration(localClprLedgerId)).willReturn(null);
         given(stateProofManager.readLedgerConfiguration(localClprLedgerId)).willReturn(localClprConfig);
@@ -230,7 +218,7 @@ public class ClprSetLedgerConfigurationHandlerTest extends ClprHandlerTestBase {
     @Test
     public void preHandleLedgerConfigurationNotNew() {
         final var txn = newTxnBuilder().withClprLedgerConfig(remoteClprConfig).build();
-        given(stateProofManager.isDevModeEnabled()).willReturn(true);
+
         given(stateProofManager.getLedgerConfiguration(remoteClprLedgerId))
                 .willReturn(buildLocalClprStateProofWrapper(remoteClprConfig), (StateProof) null);
         given(stateProofManager.readLedgerConfiguration(remoteClprLedgerId)).willReturn(remoteClprConfig);
@@ -253,7 +241,7 @@ public class ClprSetLedgerConfigurationHandlerTest extends ClprHandlerTestBase {
                         .build())
                 .build();
         given(stateProofManager.getLocalLedgerId()).willReturn(localClprLedgerId);
-        given(stateProofManager.isDevModeEnabled()).willReturn(true);
+
         given(stateProofManager.validateStateProof(any(ClprSetLedgerConfigurationTransactionBody.class)))
                 .willReturn(false);
         given(stateProofManager.readLedgerConfiguration(remoteClprLedgerId)).willReturn(null);
@@ -266,31 +254,6 @@ public class ClprSetLedgerConfigurationHandlerTest extends ClprHandlerTestBase {
     }
 
     @Test
-    public void preHandleAllowsNodeBootstrapWithInvalidProofInDevMode() {
-        final var nodeAccount = AccountID.newBuilder().accountNum(3L).build();
-        final var invalidProof = buildInvalidStateProof(localClprConfig);
-        final var txn = TransactionBody.newBuilder()
-                .transactionID(TransactionID.newBuilder()
-                        .accountID(nodeAccount)
-                        .transactionValidStart(
-                                Timestamp.newBuilder().seconds(1L).build())
-                        .build())
-                .clprSetLedgerConfiguration(ClprSetLedgerConfigurationTransactionBody.newBuilder()
-                        .ledgerConfigurationProof(invalidProof)
-                        .build())
-                .build();
-        given(stateProofManager.getLocalLedgerId()).willReturn(localClprLedgerId);
-        given(stateProofManager.isDevModeEnabled()).willReturn(true);
-        given(stateProofManager.readLedgerConfiguration(localClprLedgerId)).willReturn(null);
-        given(selfNodeInfo.accountId()).willReturn(nodeAccount);
-        given(networkInfo.addressBook()).willReturn(List.of(selfNodeInfo));
-        given(preHandleContext.body()).willReturn(txn);
-        given(preHandleContext.isUserTransaction()).willReturn(true);
-
-        assertThatCode(() -> subject.preHandle(preHandleContext)).doesNotThrowAnyException();
-    }
-
-    @Test
     public void preHandleSyntheticSkipsStateProofValidation() {
         final var invalidProof = buildInvalidStateProof(remoteClprConfig);
         final var txn = TransactionBody.newBuilder()
@@ -299,7 +262,7 @@ public class ClprSetLedgerConfigurationHandlerTest extends ClprHandlerTestBase {
                         .build())
                 .build();
         given(stateProofManager.getLocalLedgerId()).willReturn(localClprLedgerId);
-        given(stateProofManager.isDevModeEnabled()).willReturn(true);
+
         given(stateProofManager.readLedgerConfiguration(remoteClprLedgerId)).willReturn(null);
         given(preHandleContext.body()).willReturn(txn);
         given(preHandleContext.isUserTransaction()).willReturn(false);
@@ -323,7 +286,7 @@ public class ClprSetLedgerConfigurationHandlerTest extends ClprHandlerTestBase {
     public void preHandleAllowsExternalWhenDevModeDisabled() {
         final var txn = newTxnBuilder().withClprLedgerConfig(remoteClprConfig).build();
         given(stateProofManager.getLocalLedgerId()).willReturn(localClprLedgerId);
-        given(stateProofManager.isDevModeEnabled()).willReturn(false);
+
         given(preHandleContext.body()).willReturn(txn);
 
         assertThatCode(() -> subject.preHandle(preHandleContext)).doesNotThrowAnyException();
@@ -333,7 +296,7 @@ public class ClprSetLedgerConfigurationHandlerTest extends ClprHandlerTestBase {
     public void preHandleRejectsWhenTimestampNotMonotonic() {
         final var txn = newTxnBuilder().withClprLedgerConfig(remoteClprConfig).build();
         given(stateProofManager.getLocalLedgerId()).willReturn(localClprLedgerId);
-        given(stateProofManager.isDevModeEnabled()).willReturn(true);
+
         given(stateProofManager.getLedgerConfiguration(remoteClprLedgerId))
                 .willReturn(buildLocalClprStateProofWrapper(remoteClprConfig));
         given(stateProofManager.readLedgerConfiguration(remoteClprLedgerId)).willReturn(remoteClprConfig);
@@ -365,7 +328,7 @@ public class ClprSetLedgerConfigurationHandlerTest extends ClprHandlerTestBase {
         given(stateProofManager.getLocalLedgerId()).willReturn(localClprLedgerId);
         given(stateProofManager.getLedgerConfiguration(remoteClprLedgerId))
                 .willReturn(existingProof, (StateProof) null);
-        given(stateProofManager.isDevModeEnabled()).willReturn(true);
+
         given(stateProofManager.validateStateProof(any(ClprSetLedgerConfigurationTransactionBody.class)))
                 .willReturn(true);
         final var txn = newTxnBuilder().withClprLedgerConfig(updatedConfig).build();
@@ -464,8 +427,7 @@ public class ClprSetLedgerConfigurationHandlerTest extends ClprHandlerTestBase {
 
         given(pureChecksContext.body()).willReturn(txn);
         given(configProvider.getConfiguration()).willReturn(configuration);
-        given(configuration.getConfigData(ClprConfig.class))
-                .willReturn(new ClprConfig(true, 5000, true, false, 5, 6144));
+        given(configuration.getConfigData(ClprConfig.class)).willReturn(new ClprConfig(true, 5000, true, 5, 6144));
         given(stateProofManager.getLocalLedgerId()).willReturn(localClprLedgerId);
         given(stateProofManager.readLedgerConfiguration(localClprLedgerId)).willReturn(localClprConfig);
         given(stateProofManager.validateStateProof(any(ClprSetLedgerConfigurationTransactionBody.class)))

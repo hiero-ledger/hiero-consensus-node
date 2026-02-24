@@ -5,10 +5,8 @@ import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalseP
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.workflows.*;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.AccountsConfig;
@@ -32,7 +30,6 @@ import org.hiero.interledger.clpr.impl.ClprStateProofManager;
  */
 public class ClprSetLedgerConfigurationHandler implements TransactionHandler {
     private final ClprStateProofManager stateProofManager;
-    private final NetworkInfo networkInfo;
     private final ConfigProvider configProvider;
 
     /**
@@ -40,11 +37,8 @@ public class ClprSetLedgerConfigurationHandler implements TransactionHandler {
      */
     @Inject
     public ClprSetLedgerConfigurationHandler(
-            @NonNull final ClprStateProofManager stateProofManager,
-            @NonNull final NetworkInfo networkInfo,
-            @NonNull final ConfigProvider configProvider) {
+            @NonNull final ClprStateProofManager stateProofManager, @NonNull final ConfigProvider configProvider) {
         this.stateProofManager = requireNonNull(stateProofManager);
-        this.networkInfo = requireNonNull(networkInfo);
         this.configProvider = requireNonNull(configProvider);
     }
 
@@ -117,15 +111,8 @@ public class ClprSetLedgerConfigurationHandler implements TransactionHandler {
             return; // In all cases it is safe to update the existing ledger configuration.
         }
 
-        // there is no existing configuration for this ledger id.
-        final boolean devModeEnabled = stateProofManager.isDevModeEnabled();
-        if (devModeEnabled) {
-            // DevMode always sets the ledger configuration if it does not already exist.
-            return;
-        }
-
-        // In production mode, we need to ensure that the local ledger ID is known before accepting new configurations.
-        // This is enforced above; if we reached here, the local ledger ID is present and non-empty.
+        // There is no existing configuration for this ledger id.
+        // The local ledger ID is known (enforced above), so it is safe to accept new configurations.
     }
 
     private boolean isSystemAdminPayer(@NonNull final TransactionBody txn) {
@@ -156,44 +143,7 @@ public class ClprSetLedgerConfigurationHandler implements TransactionHandler {
             return;
         }
         final var txn = context.body();
-        pureChecks(txn, shouldValidateStateProof(txn));
-    }
-
-    /**
-     * In dev mode we allow a node to bootstrap the local ledger configuration without requiring a valid state proof.
-     * This avoids deadlock at startup when proofs are not yet available or verifiable.
-     */
-    private boolean shouldValidateStateProof(@NonNull final TransactionBody txn) {
-        if (!stateProofManager.isDevModeEnabled()) {
-            return true;
-        }
-        final var configTxnBdy = txn.clprSetLedgerConfiguration();
-        if (configTxnBdy == null || !configTxnBdy.hasLedgerConfigurationProof()) {
-            return true;
-        }
-        final var txId = txn.transactionID();
-        if (txId == null || txId.accountID() == null) {
-            return true;
-        }
-        final AccountID payer = txId.accountIDOrThrow();
-        final boolean isNodePayer =
-                networkInfo.addressBook().stream().anyMatch(nodeInfo -> payer.equals(nodeInfo.accountId()));
-        if (!isNodePayer) {
-            return true;
-        }
-        try {
-            final var candidateConfig =
-                    ClprStateProofUtils.extractConfiguration(configTxnBdy.ledgerConfigurationProofOrThrow());
-            final var localLedgerId = stateProofManager.getLocalLedgerId();
-            if (localLedgerId != null
-                    && localLedgerId.equals(candidateConfig.ledgerId())
-                    && stateProofManager.readLedgerConfiguration(localLedgerId) == null) {
-                return false;
-            }
-        } catch (final RuntimeException ignore) {
-            // Treat as a normal user submission; pureChecks will map errors to a precheck code.
-        }
-        return true;
+        pureChecks(txn, true);
     }
 
     @Override
