@@ -41,17 +41,17 @@ loadKeysFromPfxFiles,                          false                        # di
 merkleDb.initialCapacity,                        5000
 merkleDb.maxNumOfKeys,                           5000
 merkleDb.hashesRamToDiskThreshold,                  0
-merkleDb.hashStoreRamBufferSize,                10000
-merkleDb.longListChunkSize,                     65536
-merkleDb.leafRecordCacheSize,                   65536
+merkleDb.hashStoreRamBufferSize,                   21
+merkleDb.longListChunkSize,                      1024
+merkleDb.leafRecordCacheSize,                       0
 merkleDb.maxFileChannelsPerFileReader,              2
 merkleDb.maxThreadsPerFileChannel,                  1
 merkleDb.compactionThreads,                         1
 merkleDb.percentHalfDiskHashMapFlushThreads,       50.0
 merkleDb.numHalfDiskHashMapFlushThreads,            1
-merkleDb.iteratorInputBufferBytes,            1048576
-merkleDb.longListReservedBufferSize,            65536
-virtualMap.copyFlushThreshold,                 500000
+merkleDb.iteratorInputBufferBytes,               1024
+merkleDb.longListReservedBufferSize,             1024
+virtualMap.copyFlushThreshold,                   1024
 virtualMap.numHashThreads,                          1
 virtualMap.numCleanerThreads,                       1
 
