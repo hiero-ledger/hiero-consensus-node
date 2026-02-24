@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - trunk-merge/**
+  # Added workflow dispatch for testing purposes
   workflow_dispatch:
 
 permissions:
@@ -52,6 +53,7 @@ jobs:
 #  trigger-merge-queue-performance-longevity-tests:
 #    name: Merge Queue Performance/Longevity Tests
 #    uses: ./.github/workflows/zxc-performance-tests.yaml
+#    Ensure we use ${{ vars.MQPT_CLUSTER }} to determine which cluster to run the tests on
 
   # Update the variable `MQPT_CLUSTER` in Github
   # Options are: Dallas_n10, Dallas_n11, Dallas_n12
