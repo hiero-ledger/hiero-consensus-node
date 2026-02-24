@@ -9,7 +9,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogDoesN
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.buildDynamicJumpstartFile;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.getWrappedRecordHashes;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.logIt;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingTwo;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.verifyJumpstartHash;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForActive;
@@ -40,11 +40,7 @@ class JumpstartFileSuite implements LifecycleTest {
     // For excluding any of the 'non-core' nodes that are expected to be added, reconnected, or removed
     private static final long[] LATER_NODE_IDS = new long[] {4, 5, 6, 7, 8};
 
-    @LeakyHapiTest(
-            overrides = {
-                "hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk",
-                "hedera.recordStream.computeHashesFromWrappedRecordBlocks"
-            })
+    @LeakyHapiTest(overrides = {"hedera.recordStream.computeHashesFromWrappedRecordBlocks"})
     final Stream<DynamicTest> generatesJumpstart() {
         final AtomicReference<List<WrappedRecordFileBlockHashes>> wrappedRecordHashes = new AtomicReference<>();
         final AtomicReference<byte[]> jumpstartFileContents = new AtomicReference<>();
@@ -52,11 +48,7 @@ class JumpstartFileSuite implements LifecycleTest {
         final AtomicReference<String> freezeBlockNum = new AtomicReference<>();
 
         return hapiTest(
-                overridingTwo(
-                        "hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk",
-                        "true",
-                        "hedera.recordStream.computeHashesFromWrappedRecordBlocks",
-                        "true"),
+                overriding("hedera.recordStream.computeHashesFromWrappedRecordBlocks", "true"),
                 logIt("Phase 1: Writing wrapped record hashes to disk"),
                 MixedOperations.burstOfTps(5, Duration.ofSeconds(60)),
                 logIt("Phase 2: Restarting with jumpstart file"),
