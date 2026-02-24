@@ -175,7 +175,7 @@ jobs:
                 jmap -dump:live,format=b,file=/tmp/test.hprof \$jpid; fi"; \
           done 2>/dev/null
           EOF
-          wait_time=$(expr ${{ inputs.nlg-time }} / 100 \* 90 )
+          wait_time=$(expr ${{ inputs.nlg-time }} / 10 \* 9)
           nohup bash -c "sleep ${wait_time}; sh heapInfoByPod.sh" > heapInfoByPod.log 2>&1 &
 
       - name: Run NLG test
