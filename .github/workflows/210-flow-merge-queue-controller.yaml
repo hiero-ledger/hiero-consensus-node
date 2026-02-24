@@ -6,9 +6,12 @@ on:
       - trunk-merge/**
 
 permissions:
-  contents: read
   id-token: write
+  actions: write
   pull-requests: write
+  statuses: write
+  checks: write
+  contents: read
 
 jobs:
   # Trigger the MQ XTS Tests
