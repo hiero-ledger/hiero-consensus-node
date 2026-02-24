@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "[USER] Memory Profile Ctrl"
+name: "050: [USER] Memory Profile Ctrl"
 on:
   workflow_dispatch:
     inputs:
