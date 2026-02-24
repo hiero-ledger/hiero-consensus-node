@@ -47,28 +47,21 @@ import com.swirlds.config.api.validation.annotation.Min;
  *      ignored
  * @param fullRehashTimeoutMs the number of milliseconds to wait for the full leaf rehash to finish before it fail with an exception.
  */
+// spotless:off
 @ConfigData("virtualMap")
 public record VirtualMapConfig(
-        @Min(0) @Max(100) @ConfigProperty(defaultValue = "50.0")
-        double percentHashThreads,
-
+        @Min(0) @Max(100) @ConfigProperty(defaultValue = "50.0") double percentHashThreads,
         @Min(-1) @ConfigProperty(defaultValue = "-1") int numHashThreads,
         @Min(1) @Max(64) @ConfigProperty(defaultValue = "3") int virtualHasherChunkHeight,
         @ConfigProperty(defaultValue = PUSH) String reconnectMode,
         @Min(0) @ConfigProperty(defaultValue = "500000") int reconnectFlushInterval,
-
-        @Min(0) @Max(100) @ConfigProperty(defaultValue = "25.0")
-        double percentCleanerThreads,
-
+        @Min(0) @Max(100) @ConfigProperty(defaultValue = "25.0") double percentCleanerThreads,
         @Min(-1) @ConfigProperty(defaultValue = "-1") int numCleanerThreads,
         @Min(1) @ConfigProperty(defaultValue = "1000000000") long copyFlushCandidateThreshold,
-
-        @Min(-1) @Max(100) @ConfigProperty(defaultValue = "10.0")
-        double familyThrottlePercent,
-
+        @Min(-1) @Max(100) @ConfigProperty(defaultValue = "10.0") double familyThrottlePercent,
         @Min(-1) @ConfigProperty(defaultValue = "-1") long familyThrottleThreshold,
         @Min(0) @ConfigProperty(defaultValue = "600000") int fullRehashTimeoutMs) {
-
+// spotless:on
     private static final double UNIT_FRACTION_PERCENT = 100.0;
 
     public int getNumHashThreads() {
