@@ -7,7 +7,6 @@ import com.swirlds.common.merkle.synchronization.streams.AsyncInputStream;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
 import com.swirlds.virtualmap.internal.Path;
 import java.time.Duration;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicLong;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -37,9 +36,6 @@ public class LearnerPullVirtualTreeReceiveTask {
     // sending tasks, decreased in receiving tasks
     private final AtomicLong expectedResponses;
 
-    // Indicates if a response for path 0 (virtual root node) has been received
-    private final CountDownLatch rootResponseReceived;
-
     private final Runnable completeListener;
 
     private final Duration allMessagesReceivedTimeout;
@@ -60,13 +56,11 @@ public class LearnerPullVirtualTreeReceiveTask {
             final AsyncInputStream in,
             final LearnerPullVirtualTreeView view,
             final AtomicLong expectedResponses,
-            final CountDownLatch rootResponseReceived,
             final Runnable completeListener) {
         this.workGroup = workGroup;
         this.in = in;
         this.view = view;
         this.expectedResponses = expectedResponses;
-        this.rootResponseReceived = rootResponseReceived;
         this.completeListener = completeListener;
 
         this.allMessagesReceivedTimeout = reconnectConfig.allMessagesReceivedTimeout();
@@ -109,9 +103,6 @@ public class LearnerPullVirtualTreeReceiveTask {
                     }
                     completeListener.run();
                     logger.info(RECONNECT.getMarker(), "Learning is complete");
-                } else if (response.getPath() == 0) {
-                    logger.info(RECONNECT.getMarker(), "Root response received from the teacher");
-                    rootResponseReceived.countDown();
                 }
             }
         } catch (final Exception ex) {

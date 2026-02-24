@@ -121,10 +121,7 @@ public class PullVirtualTreeResponse implements SelfSerializable {
         if (path == Path.ROOT_PATH) {
             firstLeafPath = in.readLong();
             lastLeafPath = in.readLong();
-            learnerView.setReconnectPaths(firstLeafPath, lastLeafPath);
-            if (lastLeafPath <= 0) {
-                return;
-            }
+            return;
         }
         final boolean isLeaf = learnerView.isLeaf(path);
         if (isLeaf && !isClean) {
@@ -142,7 +139,7 @@ public class PullVirtualTreeResponse implements SelfSerializable {
             leafData = new VirtualLeafBytes<>(
                     path, Bytes.wrap(keyBytes), valueBytes != null ? Bytes.wrap(valueBytes) : null);
         }
-        if (learnerView.isLeaf(path)) {
+        if (isLeaf) {
             learnerView.getMapStats().incrementLeafHashes(1, isClean ? 1 : 0);
         } else {
             learnerView.getMapStats().incrementInternalHashes(1, isClean ? 1 : 0);
@@ -151,6 +148,14 @@ public class PullVirtualTreeResponse implements SelfSerializable {
 
     public long getPath() {
         return path;
+    }
+
+    public long getFirstLeafPath() {
+        return firstLeafPath;
+    }
+
+    public long getLastLeafPath() {
+        return lastLeafPath;
     }
 
     public boolean isClean() {

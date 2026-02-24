@@ -98,6 +98,8 @@ public class LearnerPullVirtualTreeSendTask {
                 view.getMapStats().incrementTransfersFromLearner();
                 responsesExpected.incrementAndGet();
             }
+            // Wait for the root response as it contains leaf path range information. Leaf path
+            // range affects requests the learner will send to the teacher
             if (!rootResponseReceived.await(rootResponseTimeout.toMillis(), TimeUnit.MILLISECONDS)) {
                 throw new MerkleSynchronizationException("Timed out waiting for root node response from the teacher");
             }
