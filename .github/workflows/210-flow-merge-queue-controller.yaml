@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - trunk-merge/**
+  workflow_dispatch:
 
 permissions:
   id-token: write
@@ -51,3 +52,38 @@ jobs:
 #  trigger-merge-queue-performance-longevity-tests:
 #    name: Merge Queue Performance/Longevity Tests
 #    uses: ./.github/workflows/zxc-performance-tests.yaml
+
+  # Update the variable `MQPT_CLUSTER` in Github
+  # Options are: Dallas_n10, Dallas_n11, Dallas_n12
+  update-mqpt-cluster-variable:
+    name: Update MQPT_CLUSTER Variable
+    runs-on: hl-cn-default-lin-sm
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+
+      - name: Calculate Next Dallas Cluster Name
+        run: |
+            current_cluster="${{ vars.MQPT_CLUSTER }}"
+            if [[ "${current_cluster}" == "Dallas_n10" ]]; then
+                next_cluster="Dallas_n11"
+            elif [[ "${current_cluster}" == "Dallas_n11" ]]; then
+                next_cluster="Dallas_n12"
+            elif [[ "${current_cluster}" == "Dallas_n12" ]]; then
+                next_cluster="Dallas_n10"
+            else
+                echo "Error: Invalid cluster name '${current_cluster}'. Expected 'Dallas_n10', 'Dallas_n11', or 'Dallas_n12'."
+                exit 1
+            fi
+            echo "Next cluster: ${next_cluster}"
+            echo "NEXT_CLUSTER=$next_cluster" >> "${GITHUB_ENV}"
+
+      - name: Update GS_STATE to input value
+        uses: mmoyaferrer/set-github-variable@31e0d07964802728d7bf8e09dc45b86ee2c8d5f8 # v1.0.0
+        with:
+          name: "MQPT_CLUSTER"
+          value: "${NEXT_CLUSTER}"
+          repository: ${{ github.repository }}
+          token: ${{ secrets.GH_ACCESS_TOKEN }}
