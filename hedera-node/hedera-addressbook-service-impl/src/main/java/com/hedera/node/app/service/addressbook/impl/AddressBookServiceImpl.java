@@ -5,8 +5,12 @@ import com.hedera.node.app.service.addressbook.AddressBookService;
 import com.hedera.node.app.service.addressbook.impl.calculator.NodeCreateFeeCalculator;
 import com.hedera.node.app.service.addressbook.impl.calculator.NodeDeleteFeeCalculator;
 import com.hedera.node.app.service.addressbook.impl.calculator.NodeUpdateFeeCalculator;
+import com.hedera.node.app.service.addressbook.impl.calculator.RegisteredNodeCreateFeeCalculator;
+import com.hedera.node.app.service.addressbook.impl.calculator.RegisteredNodeDeleteFeeCalculator;
+import com.hedera.node.app.service.addressbook.impl.calculator.RegisteredNodeUpdateFeeCalculator;
 import com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema;
 import com.hedera.node.app.service.addressbook.impl.schemas.V068AddressBookSchema;
+import com.hedera.node.app.service.addressbook.impl.schemas.V073AddressBookSchema;
 import com.hedera.node.app.spi.RpcService;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.swirlds.state.lifecycle.SchemaRegistry;
@@ -22,10 +26,17 @@ public final class AddressBookServiceImpl implements AddressBookService {
     public void registerSchemas(@NonNull SchemaRegistry registry) {
         registry.register(new V053AddressBookSchema());
         registry.register(new V068AddressBookSchema());
+        registry.register(new V073AddressBookSchema());
     }
 
     @Override
     public Set<ServiceFeeCalculator> serviceFeeCalculators() {
-        return Set.of(new NodeCreateFeeCalculator(), new NodeUpdateFeeCalculator(), new NodeDeleteFeeCalculator());
+        return Set.of(
+                new NodeCreateFeeCalculator(),
+                new NodeUpdateFeeCalculator(),
+                new NodeDeleteFeeCalculator(),
+                new RegisteredNodeCreateFeeCalculator(),
+                new RegisteredNodeUpdateFeeCalculator(),
+                new RegisteredNodeDeleteFeeCalculator());
     }
 }

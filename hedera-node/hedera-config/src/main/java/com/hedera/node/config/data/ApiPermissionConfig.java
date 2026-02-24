@@ -294,7 +294,7 @@ public record ApiPermissionConfig(
         @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange hookDispatch,
         @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange nodeStakeUpdate,
         @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange ledgerIdPublication,
-        @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange createRegisteredNode,
+        @ConfigProperty(defaultValue = "2-50") PermissionedAccountsRange createRegisteredNode,
         @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange updateRegisteredNode,
         @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange deleteRegisteredNode) {
 

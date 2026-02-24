@@ -75,4 +75,18 @@ message RegisteredNodeUpdateTransactionBody {
      * If set, this list SHALL _replace_ the previous list.
      */
     repeated RegisteredServiceEndpoint service_endpoint = 4;
+
+    /**
+     * An account identifier.<br/>
+     * This account identifies the entity financially responsible for this
+     * registered node.
+     * <p>
+     * This field is OPTIONAL.<br/>
+     * If not set, the field SHALL NOT be updated.<br/>
+     * If set and the node account ID does not resolve to an existing and active
+     * account, then the transaction SHALL fail.<br/>
+     * If set to account ID `0.0.0`, the node account SHALL be removed from
+     * this registered node.
+     */
+    proto.AccountID node_account = 5;
 }

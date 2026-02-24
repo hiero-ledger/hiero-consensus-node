@@ -306,6 +306,30 @@ public class TransactionRecordAsserts extends BaseErroringAssertsProvider<Transa
         return this;
     }
 
+    public TransactionRecordAsserts registeredNodeId(final long expected) {
+        this.<TransactionReceipt>registerTypedProvider(RECEIPT, spec -> receipt -> {
+            try {
+                assertEquals(expected, receipt.getRegisteredNodeId(), "Wrong registered node id");
+            } catch (Throwable t) {
+                return List.of(t);
+            }
+            return EMPTY_LIST;
+        });
+        return this;
+    }
+
+    public TransactionRecordAsserts hasNonZeroRegisteredNodeId() {
+        this.<TransactionReceipt>registerTypedProvider(RECEIPT, spec -> receipt -> {
+            try {
+                assertTrue(receipt.getRegisteredNodeId() > 0, "Expected non-zero registered node id");
+            } catch (Throwable t) {
+                return List.of(t);
+            }
+            return EMPTY_LIST;
+        });
+        return this;
+    }
+
     public TransactionRecordAsserts targetedContractId(final String id) {
         this.<TransactionReceipt>registerTypedProvider(RECEIPT, spec -> receipt -> {
             try {

@@ -5,6 +5,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.GRPC_WEB_PROXY_NOT_SUPP
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ADMIN_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_GOSSIP_CA_CERTIFICATE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_GOSSIP_ENDPOINT;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SERVICE_ENDPOINT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_NODES_CREATED;
 import static com.hedera.node.app.service.addressbook.AddressBookHelper.checkDABEnabled;
@@ -19,6 +20,7 @@ import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
+import com.hedera.node.app.service.addressbook.ReadableRegisteredNodeStore;
 import com.hedera.node.app.service.addressbook.impl.WritableAccountNodeRelStore;
 import com.hedera.node.app.service.addressbook.impl.WritableNodeStore;
 import com.hedera.node.app.service.addressbook.impl.records.NodeCreateStreamBuilder;
@@ -91,6 +93,7 @@ public class NodeCreateHandler implements TransactionHandler {
         final var nodeStore = storeFactory.writableStore(WritableNodeStore.class);
         final var accountNodeRelStore = storeFactory.writableStore(WritableAccountNodeRelStore.class);
         final var accountStore = storeFactory.readableStore(ReadableAccountStore.class);
+        final var registeredNodeStore = storeFactory.readableStore(ReadableRegisteredNodeStore.class);
         final var accountId = op.accountIdOrElse(AccountID.DEFAULT);
         final var maybeSystemTxnDispatchEntityNum =
                 handleContext.dispatchMetadata().getMetadata(SYSTEM_TXN_CREATION_ENTITY_NUM, Long.class);
@@ -110,6 +113,12 @@ public class NodeCreateHandler implements TransactionHandler {
         }
         handleContext.attributeValidator().validateKey(op.adminKeyOrThrow(), INVALID_ADMIN_KEY);
 
+        validateTrue(op.associatedRegisteredNode().size() <= 20, INVALID_NODE_ID);
+        for (final var registeredNodeId : op.associatedRegisteredNode()) {
+            validateTrue(registeredNodeId >= 0, INVALID_NODE_ID);
+            validateTrue(registeredNodeStore.get(registeredNodeId) != null, INVALID_NODE_ID);
+        }
+
         final var nodeBuilder = new Node.Builder()
                 .accountId(op.accountId())
                 .description(op.description())
@@ -118,6 +127,7 @@ public class NodeCreateHandler implements TransactionHandler {
                 .gossipCaCertificate(op.gossipCaCertificate())
                 .grpcCertificateHash(op.grpcCertificateHash())
                 .declineReward(op.declineReward())
+                .associatedRegisteredNode(op.associatedRegisteredNode())
                 .adminKey(op.adminKey());
         if (op.hasGrpcProxyEndpoint()) {
             nodeBuilder.grpcProxyEndpoint(op.grpcProxyEndpoint());

@@ -35,6 +35,7 @@ import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.EntityType;
+import com.hedera.node.app.service.addressbook.ReadableRegisteredNodeStore;
 import com.hedera.node.app.service.addressbook.impl.WritableAccountNodeRelStore;
 import com.hedera.node.app.service.addressbook.impl.WritableNodeStore;
 import com.hedera.node.app.service.addressbook.impl.handlers.NodeCreateHandler;
@@ -581,6 +582,36 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
     }
 
     @Test
+    void handleFailsWhenAssociatedRegisteredNodeMissing() throws CertificateEncodingException {
+        txn = new NodeCreateBuilder()
+                .withAccountId(accountId)
+                .withDescription("Description")
+                .withGossipEndpoint(List.of(endpoint1, endpoint2))
+                .withServiceEndpoint(List.of(endpoint1, endpoint3))
+                .withGrpcWebProxyEndpoint(endpoint3)
+                .withGossipCaCertificate(Bytes.wrap(certList.get(0).getEncoded()))
+                .withGrpcCertificateHash(Bytes.wrap("hash"))
+                .withAdminKey(key)
+                .withAssociatedRegisteredNode(List.of(999L))
+                .build(payerId);
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("nodes.nodeMaxDescriptionUtf8Bytes", 12)
+                .withValue("nodes.maxGossipEndpoint", 4)
+                .withValue("nodes.maxServiceEndpoint", 3)
+                .withValue("nodes.webProxyEndpointsEnabled", true)
+                .getOrCreateConfig();
+        setupHandle(config);
+        given(handleContext.attributeValidator()).willReturn(validator);
+
+        final var registeredNodeStore = mock(ReadableRegisteredNodeStore.class);
+        given(storeFactory.readableStore(ReadableRegisteredNodeStore.class)).willReturn(registeredNodeStore);
+        given(registeredNodeStore.get(999L)).willReturn(null);
+
+        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        assertEquals(ResponseCodeEnum.INVALID_NODE_ID, msg.getStatus());
+    }
+
+    @Test
     void createWithRelatedAccountFail() throws CertificateEncodingException {
         txn = new NodeCreateBuilder().withAccountId(accountId).withAdminKey(key).build(payerId);
         rebuildState(1);
@@ -788,6 +819,7 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
         private List<ServiceEndpoint> gossipEndpoint = null;
 
         private List<ServiceEndpoint> serviceEndpoint = null;
+        private List<Long> associatedRegisteredNode = null;
 
         private ServiceEndpoint grpcWebProxyEndpoint = null;
 
@@ -814,6 +846,9 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
             }
             if (serviceEndpoint != null) {
                 txnBody.serviceEndpoint(serviceEndpoint);
+            }
+            if (associatedRegisteredNode != null) {
+                txnBody.associatedRegisteredNode(associatedRegisteredNode);
             }
             if (grpcWebProxyEndpoint != null) {
                 txnBody.grpcProxyEndpoint(grpcWebProxyEndpoint);
@@ -852,6 +887,11 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
 
         public NodeCreateBuilder withServiceEndpoint(final List<ServiceEndpoint> serviceEndpoint) {
             this.serviceEndpoint = serviceEndpoint;
+            return this;
+        }
+
+        public NodeCreateBuilder withAssociatedRegisteredNode(final List<Long> associatedRegisteredNode) {
+            this.associatedRegisteredNode = associatedRegisteredNode;
             return this;
         }
 

@@ -190,6 +190,7 @@ public class TransactionDispatcher {
                     TOKEN_UPDATE_NFTS,
                     TOKEN_WIPE -> true;
             case NODE_CREATE, NODE_UPDATE, NODE_DELETE -> true;
+            case REGISTERED_NODE_CREATE, REGISTERED_NODE_UPDATE, REGISTERED_NODE_DELETE -> true;
             case CONTRACT_CREATE_INSTANCE,
                     CONTRACT_DELETE_INSTANCE,
                     CONTRACT_CALL,
@@ -254,6 +255,9 @@ public class TransactionDispatcher {
             case NODE_CREATE -> handlers.nodeCreateHandler();
             case NODE_DELETE -> handlers.nodeDeleteHandler();
             case NODE_UPDATE -> handlers.nodeUpdateHandler();
+            case REGISTERED_NODE_CREATE -> handlers.registeredNodeCreateHandler();
+            case REGISTERED_NODE_UPDATE -> handlers.registeredNodeUpdateHandler();
+            case REGISTERED_NODE_DELETE -> handlers.registeredNodeDeleteHandler();
 
             case UNCHECKED_SUBMIT -> handlers.networkUncheckedSubmitHandler();
 

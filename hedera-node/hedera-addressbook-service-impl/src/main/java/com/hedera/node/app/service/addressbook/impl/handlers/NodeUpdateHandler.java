@@ -27,6 +27,7 @@ import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.ThresholdKey;
 import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
+import com.hedera.node.app.service.addressbook.ReadableRegisteredNodeStore;
 import com.hedera.node.app.service.addressbook.impl.WritableAccountNodeRelStore;
 import com.hedera.node.app.service.addressbook.impl.WritableNodeStore;
 import com.hedera.node.app.service.addressbook.impl.validators.AddressBookValidator;
@@ -119,6 +120,7 @@ public class NodeUpdateHandler implements TransactionHandler {
         final var nodeStore = storeFactory.writableStore(WritableNodeStore.class);
         final var accountNodeRelStore = storeFactory.writableStore(WritableAccountNodeRelStore.class);
         final var accountStore = storeFactory.readableStore(ReadableAccountStore.class);
+        final var registeredNodeStore = storeFactory.readableStore(ReadableRegisteredNodeStore.class);
 
         final var existingNode = nodeStore.get(op.nodeId());
         validateFalse(existingNode == null, INVALID_NODE_ID);
@@ -154,6 +156,14 @@ public class NodeUpdateHandler implements TransactionHandler {
                 proxyIsSentinelValue = true;
             } else {
                 addressBookValidator.validateFqdnEndpoint(op.grpcProxyEndpoint(), nodeConfig);
+            }
+        }
+
+        if (!op.associatedRegisteredNode().isEmpty()) {
+            validateTrue(op.associatedRegisteredNode().size() <= 20, INVALID_NODE_ID);
+            for (final var registeredNodeId : op.associatedRegisteredNode()) {
+                validateTrue(registeredNodeId >= 0, INVALID_NODE_ID);
+                validateTrue(registeredNodeStore.get(registeredNodeId) != null, INVALID_NODE_ID);
             }
         }
 
@@ -206,6 +216,9 @@ public class NodeUpdateHandler implements TransactionHandler {
         }
         if (op.hasGrpcProxyEndpoint()) {
             nodeBuilder.grpcProxyEndpoint(unsetWebProxy ? null : op.grpcProxyEndpoint());
+        }
+        if (!op.associatedRegisteredNode().isEmpty()) {
+            nodeBuilder.associatedRegisteredNode(op.associatedRegisteredNode());
         }
         return nodeBuilder;
     }

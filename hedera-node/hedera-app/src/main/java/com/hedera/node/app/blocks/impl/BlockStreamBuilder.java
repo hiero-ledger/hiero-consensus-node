@@ -82,6 +82,7 @@ import com.hedera.node.app.blocks.impl.contexts.SupplyChangeOpContext;
 import com.hedera.node.app.blocks.impl.contexts.TokenOpContext;
 import com.hedera.node.app.blocks.impl.contexts.TopicOpContext;
 import com.hedera.node.app.service.addressbook.impl.records.NodeCreateStreamBuilder;
+import com.hedera.node.app.service.addressbook.impl.records.RegisteredNodeCreateStreamBuilder;
 import com.hedera.node.app.service.consensus.impl.records.ConsensusCreateTopicStreamBuilder;
 import com.hedera.node.app.service.consensus.impl.records.ConsensusSubmitMessageStreamBuilder;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
@@ -163,6 +164,7 @@ public class BlockStreamBuilder
                 TokenAccountWipeStreamBuilder,
                 CryptoUpdateStreamBuilder,
                 NodeCreateStreamBuilder,
+                RegisteredNodeCreateStreamBuilder,
                 TokenAirdropStreamBuilder,
                 ReplayableFeeStreamBuilder,
                 HookDispatchStreamBuilder {
@@ -1246,6 +1248,13 @@ public class BlockStreamBuilder
         return this;
     }
 
+    @Override
+    @NonNull
+    public BlockStreamBuilder registeredNodeID(final long registeredNodeID) {
+        this.nodeId = registeredNodeID;
+        return this;
+    }
+
     @NonNull
     public BlockStreamBuilder newTotalSupply(final long newTotalSupply) {
         this.newTotalSupply = newTotalSupply;
@@ -1572,7 +1581,7 @@ public class BlockStreamBuilder
                         functionality,
                         fileId,
                         serializedSignedTx);
-            case NODE_CREATE ->
+            case NODE_CREATE, REGISTERED_NODE_CREATE ->
                 new NodeOpContext(
                         memo,
                         translationContextExchangeRates,

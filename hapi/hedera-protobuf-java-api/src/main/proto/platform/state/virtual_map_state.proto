@@ -27,6 +27,7 @@ import "platform/state/platform_state.proto";
 import "services/state/primitives.proto";
 import "services/state/common.proto";
 import "services/state/addressbook/node.proto";
+import "services/state/addressbook/registered_node.proto";
 import "services/state/blockrecords/block_info.proto";
 import "services/state/blockrecords/running_hashes.proto";
 import "services/state/blockstream/block_stream_info.proto";
@@ -273,6 +274,11 @@ message StateKey {
      * A state identifier for WRAPS message histories used in a roster transition proof.
      */
     com.hedera.hapi.node.state.history.ConstructionNodeId HistoryService_I_WRAPS_MESSAGE_HISTORIES = 54;
+
+    /**
+     * A state identifier for registered nodes.
+     */
+    proto.EntityNumber AddressBookService_I_REGISTERED_NODES = 56;
 
     // Queue states
     /**
@@ -623,6 +629,11 @@ message StateValue {
     com.hedera.hapi.node.state.token.NodePayments TokenService_I_NODE_PAYMENTS = 55;
 
     /**
+     * A state identifier for registered nodes.
+     */
+    com.hedera.hapi.node.state.addressbook.RegisteredNode AddressBookService_I_REGISTERED_NODES = 56;
+
+    /**
      * A state identifier for the next node Identifier.
      */
     com.hedera.hapi.platform.state.NodeId EntityIdService_I_NODE_ID = 57;
@@ -810,6 +821,11 @@ enum SingletonType {
    * A state identifier for the node payments. Singleton state.
    */
   TokenService_I_NODE_PAYMENTS = 55;
+
+  /**
+   * A state identifier for registered nodes.
+   */
+  AddressBookService_I_REGISTERED_NODES = 56;
 
   /**
    * A state identifier for the highest node identifier allocated so far.

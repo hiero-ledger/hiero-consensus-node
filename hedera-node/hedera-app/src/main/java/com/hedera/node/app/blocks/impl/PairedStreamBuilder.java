@@ -32,6 +32,7 @@ import com.hedera.hapi.streams.ContractActions;
 import com.hedera.hapi.streams.ContractBytecode;
 import com.hedera.hapi.streams.ContractStateChanges;
 import com.hedera.node.app.service.addressbook.impl.records.NodeCreateStreamBuilder;
+import com.hedera.node.app.service.addressbook.impl.records.RegisteredNodeCreateStreamBuilder;
 import com.hedera.node.app.service.consensus.impl.records.ConsensusCreateTopicStreamBuilder;
 import com.hedera.node.app.service.consensus.impl.records.ConsensusSubmitMessageStreamBuilder;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
@@ -102,6 +103,7 @@ public class PairedStreamBuilder
                 TokenAccountWipeStreamBuilder,
                 CryptoUpdateStreamBuilder,
                 NodeCreateStreamBuilder,
+                RegisteredNodeCreateStreamBuilder,
                 TokenAirdropStreamBuilder,
                 ReplayableFeeStreamBuilder,
                 HookDispatchStreamBuilder {
@@ -302,6 +304,14 @@ public class PairedStreamBuilder
     public NodeCreateStreamBuilder nodeID(long nodeID) {
         recordStreamBuilder.nodeID(nodeID);
         blockStreamBuilder.nodeID(nodeID);
+        return this;
+    }
+
+    @NonNull
+    @Override
+    public RegisteredNodeCreateStreamBuilder registeredNodeID(final long registeredNodeID) {
+        recordStreamBuilder.registeredNodeID(registeredNodeID);
+        blockStreamBuilder.registeredNodeID(registeredNodeID);
         return this;
     }
 

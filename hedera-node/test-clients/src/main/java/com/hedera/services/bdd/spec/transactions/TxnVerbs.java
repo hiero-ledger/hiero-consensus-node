@@ -61,6 +61,9 @@ import com.hedera.services.bdd.spec.transactions.network.HapiUncheckedSubmit;
 import com.hedera.services.bdd.spec.transactions.node.HapiNodeCreate;
 import com.hedera.services.bdd.spec.transactions.node.HapiNodeDelete;
 import com.hedera.services.bdd.spec.transactions.node.HapiNodeUpdate;
+import com.hedera.services.bdd.spec.transactions.node.HapiRegisteredNodeCreate;
+import com.hedera.services.bdd.spec.transactions.node.HapiRegisteredNodeDelete;
+import com.hedera.services.bdd.spec.transactions.node.HapiRegisteredNodeUpdate;
 import com.hedera.services.bdd.spec.transactions.schedule.HapiScheduleCreate;
 import com.hedera.services.bdd.spec.transactions.schedule.HapiScheduleDelete;
 import com.hedera.services.bdd.spec.transactions.schedule.HapiScheduleSign;
@@ -114,6 +117,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongConsumer;
+import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
@@ -284,6 +288,19 @@ public class TxnVerbs {
 
     public static HapiNodeDelete nodeDelete(String node) {
         return new HapiNodeDelete(node);
+    }
+
+    /* REGISTERED NODE */
+    public static HapiRegisteredNodeCreate registeredNodeCreate(@NonNull final String name) {
+        return new HapiRegisteredNodeCreate(name);
+    }
+
+    public static HapiRegisteredNodeUpdate registeredNodeUpdate(@NonNull final LongSupplier idSupplier) {
+        return new HapiRegisteredNodeUpdate(idSupplier);
+    }
+
+    public static HapiRegisteredNodeDelete registeredNodeDelete(@NonNull final LongSupplier idSupplier) {
+        return new HapiRegisteredNodeDelete(idSupplier);
     }
 
     /* TOKEN */
