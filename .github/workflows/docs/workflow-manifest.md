@@ -70,3 +70,6 @@
 | zxf-update-gs-state-variable.yaml                     | ZXF: Update GS_STATE Variable                                     |                  |                      |
 | flow-pull-request-formatting.yaml                     | PR Formatting                                                     |                  |                      |
 | node-zxf-snyk-monitor.yaml                            | ZXF: Snyk Monitor                                                 |                  |                      |
+|                                                       |                                                                   |                  |                      |
+| # AdHoc Profiling                                     |                                                                   |                  |                      |
+| 050-user-memory-profile-ctrl.yaml                     | 50: [USER] Memory Profile Ctrl                                    |                  |                      |
