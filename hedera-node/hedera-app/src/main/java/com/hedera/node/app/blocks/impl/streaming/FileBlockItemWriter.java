@@ -65,6 +65,11 @@ public class FileBlockItemWriter implements BlockItemWriter {
     /** The suffix added to RECORD_EXTENSION when they are compressed. */
     private static final String COMPRESSION_ALGORITHM_EXTENSION = ".gz";
 
+    /**
+     * Number of bytes in a single kilobyte.
+     */
+    private static final int ONE_KB_BYTES = 1024;
+
     /** The node-specific path to the directory where block files are written */
     private final Path nodeScopedBlockDir;
 
@@ -91,19 +96,19 @@ public class FileBlockItemWriter implements BlockItemWriter {
     private long blockNumber;
 
     /**
-     * Buffer size to use for the outer file writer - in KBs.
+     * Buffer size to use for the outer file writer - in bytes.
      */
-    private final int blockFileBufferOuterSizeKb;
+    private final int blockFileBufferOuterSizeBytes;
 
     /**
-     * Buffer size to use for the inner file writer - in KBs.
+     * Buffer size to use for the inner file writer - in bytes.
      */
-    private final int blockFileBufferInnerSizeKb;
+    private final int blockFileBufferInnerSizeBytes;
 
     /**
-     * Buffer size to use for the GZIP file writer - in KBs.
+     * Buffer size to use for the GZIP file writer - in bytes.
      */
-    private final int blockFileBufferGzipSizeKb;
+    private final int blockFileBufferGzipSizeBytes;
 
     private enum State {
         UNINITIALIZED,
@@ -130,9 +135,9 @@ public class FileBlockItemWriter implements BlockItemWriter {
         final var config = configProvider.getConfiguration();
         final var blockStreamConfig = config.getConfigData(BlockStreamConfig.class);
 
-        blockFileBufferOuterSizeKb = blockStreamConfig.blockFileBufferOuterSizeKb();
-        blockFileBufferInnerSizeKb = blockStreamConfig.blockFileBufferInnerSizeKb();
-        blockFileBufferGzipSizeKb = blockStreamConfig.blockFileBufferGzipSizeKb();
+        blockFileBufferOuterSizeBytes = ONE_KB_BYTES * blockStreamConfig.blockFileBufferOuterSizeKb();
+        blockFileBufferInnerSizeBytes = ONE_KB_BYTES * blockStreamConfig.blockFileBufferInnerSizeKb();
+        blockFileBufferGzipSizeBytes = ONE_KB_BYTES * blockStreamConfig.blockFileBufferGzipSizeKb();
 
         // Compute directory for block files
         final Path blockDir = fileSystem.getPath(blockStreamConfig.blockFileDir());
@@ -355,9 +360,9 @@ public class FileBlockItemWriter implements BlockItemWriter {
              */
 
             out = Files.newOutputStream(blockFilePath);
-            out = new BufferedOutputStream(out, blockFileBufferInnerSizeKb);
-            out = new GZIPOutputStream(out, blockFileBufferGzipSizeKb);
-            out = new BufferedOutputStream(out, blockFileBufferOuterSizeKb);
+            out = new BufferedOutputStream(out, blockFileBufferInnerSizeBytes);
+            out = new GZIPOutputStream(out, blockFileBufferGzipSizeBytes);
+            out = new BufferedOutputStream(out, blockFileBufferOuterSizeBytes);
 
             this.writableStreamingData = new WritableStreamingData(out);
         } catch (final IOException e) {
@@ -365,7 +370,7 @@ public class FileBlockItemWriter implements BlockItemWriter {
             if (out != null) {
                 try {
                     out.close();
-                } catch (IOException ex) {
+                } catch (final IOException ex) {
                     logger.error("Error closing the FileBlockItemWriter output stream", ex);
                 }
             }
