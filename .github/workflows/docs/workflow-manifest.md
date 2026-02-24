@@ -72,4 +72,4 @@
 | node-zxf-snyk-monitor.yaml                            | ZXF: Snyk Monitor                                                 |                  |                      |
 |                                                       |                                                                   |                  |                      |
 | # AdHoc Profiling                                     |                                                                   |                  |                      |
-| 050-user-memory-profile-ctrl.yaml                     | 50: [USER] Memory Profile Ctrl                                    |                  |                      |
+| 050-user-memory-profile-ctrl.yaml                     | 050: [USER] Memory Profile Ctrl                                   |                  |                      |
