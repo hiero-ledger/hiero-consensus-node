@@ -2,29 +2,19 @@
 package com.hedera.node.app.records.impl;
 
 import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.HASH_SIZE;
-import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.hedera.hapi.block.internal.WrappedRecordFileBlockHashes;
 import com.hedera.hapi.block.internal.WrappedRecordFileBlockHashesLog;
-import com.hedera.hapi.node.state.blockrecords.BlockInfo;
-import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.node.config.types.StreamMode;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.state.State;
-import com.swirlds.state.spi.WritableSingletonStateBase;
-import com.swirlds.state.spi.WritableStates;
 import java.io.DataOutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -33,7 +23,6 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -48,32 +37,28 @@ class WrappedRecordBlockHashMigrationTest {
     @Mock
     private State state;
 
-    @Mock(strictness = Mock.Strictness.LENIENT)
-    private WritableStates writableStates;
-
-    @Mock(strictness = Mock.Strictness.LENIENT)
-    private WritableSingletonStateBase<BlockInfo> blockInfoSingleton;
-
     private final WrappedRecordBlockHashMigration subject = new WrappedRecordBlockHashMigration();
 
     @Test
     void skipsWhenStreamModeIsBlocks() {
         final var config = configWith("BLOCKS", true, b -> {});
-        assertDoesNotThrow(() -> subject.execute(StreamMode.BLOCKS, config, state));
+        assertDoesNotThrow(() -> subject.execute(StreamMode.BLOCKS, config));
+        assertNull(subject.result());
         verifyNoInteractions(state);
     }
 
     @Test
     void skipsWhenComputeHashesIsFalse() {
         final var config = configWith(RECORDS, false, b -> {});
-        assertDoesNotThrow(() -> subject.execute(StreamMode.RECORDS, config, state));
+        assertDoesNotThrow(() -> subject.execute(StreamMode.RECORDS, config));
+        assertNull(subject.result());
         verifyNoInteractions(state);
     }
 
     @Test
     void returnsEarlyWhenJumpstartFilePathBlank() {
         final var config = configWith(RECORDS, true, b -> b.withValue("hedera.recordStream.jumpstartFile", ""));
-        assertDoesNotThrow(() -> subject.execute(StreamMode.RECORDS, config, state));
+        assertDoesNotThrow(() -> subject.execute(StreamMode.RECORDS, config));
         verifyNoInteractions(state);
     }
 
@@ -85,7 +70,7 @@ class WrappedRecordBlockHashMigrationTest {
                 b -> b.withValue(
                         "hedera.recordStream.jumpstartFile",
                         tempDir.resolve("nonexistent.bin").toString()));
-        assertDoesNotThrow(() -> subject.execute(StreamMode.RECORDS, config, state));
+        assertDoesNotThrow(() -> subject.execute(StreamMode.RECORDS, config));
         verifyNoInteractions(state);
     }
 
@@ -95,7 +80,7 @@ class WrappedRecordBlockHashMigrationTest {
         final var config = configWith(
                 RECORDS, true, b -> b.withValue("hedera.recordStream.jumpstartFile", jumpstartFile.toString())
                         .withValue("hedera.recordStream.wrappedRecordHashesDir", ""));
-        assertDoesNotThrow(() -> subject.execute(StreamMode.RECORDS, config, state));
+        assertDoesNotThrow(() -> subject.execute(StreamMode.RECORDS, config));
         verifyNoInteractions(state);
     }
 
@@ -107,7 +92,7 @@ class WrappedRecordBlockHashMigrationTest {
         final var config = configWith(
                 RECORDS, true, b -> b.withValue("hedera.recordStream.jumpstartFile", jumpstartFile.toString())
                         .withValue("hedera.recordStream.wrappedRecordHashesDir", emptyDir.toString()));
-        assertDoesNotThrow(() -> subject.execute(StreamMode.RECORDS, config, state));
+        assertDoesNotThrow(() -> subject.execute(StreamMode.RECORDS, config));
         verifyNoInteractions(state);
     }
 
@@ -117,7 +102,7 @@ class WrappedRecordBlockHashMigrationTest {
         Files.createFile(emptyFile);
         final var recentDir = createRecentHashesDir(List.of(entry(100)));
         final var config = enabledConfigWithFiles(emptyFile, recentDir);
-        assertDoesNotThrow(() -> subject.execute(StreamMode.RECORDS, config, state));
+        assertDoesNotThrow(() -> subject.execute(StreamMode.RECORDS, config));
         verifyNoInteractions(state);
     }
 
@@ -130,7 +115,7 @@ class WrappedRecordBlockHashMigrationTest {
         }
         final var recentDir = createRecentHashesDir(List.of(entry(100)));
         final var config = enabledConfigWithFiles(truncatedFile, recentDir);
-        assertDoesNotThrow(() -> subject.execute(StreamMode.RECORDS, config, state));
+        assertDoesNotThrow(() -> subject.execute(StreamMode.RECORDS, config));
         verifyNoInteractions(state);
     }
 
@@ -144,7 +129,7 @@ class WrappedRecordBlockHashMigrationTest {
         }
         final var recentDir = createRecentHashesDir(List.of(entry(100)));
         final var config = enabledConfigWithFiles(truncatedFile, recentDir);
-        assertDoesNotThrow(() -> subject.execute(StreamMode.RECORDS, config, state));
+        assertDoesNotThrow(() -> subject.execute(StreamMode.RECORDS, config));
         verifyNoInteractions(state);
     }
 
@@ -152,14 +137,14 @@ class WrappedRecordBlockHashMigrationTest {
     void returnsEarlyWhenJumpstartHasherIsEmpty() throws Exception {
         final var config =
                 enabledConfigWithFiles(createJumpstartFile(0, 0, 0), createRecentHashesDir(List.of(entry(100))));
-        assertDoesNotThrow(() -> subject.execute(StreamMode.RECORDS, config, state));
+        assertDoesNotThrow(() -> subject.execute(StreamMode.RECORDS, config));
         verifyNoInteractions(state);
     }
 
     @Test
     void returnsEarlyWhenRecentHashesLogIsEmpty() throws Exception {
         final var config = enabledConfigWithFiles(createJumpstartFile(0, 1, 1), createRecentHashesDir(List.of()));
-        assertDoesNotThrow(() -> subject.execute(StreamMode.RECORDS, config, state));
+        assertDoesNotThrow(() -> subject.execute(StreamMode.RECORDS, config));
         verifyNoInteractions(state);
     }
 
@@ -168,7 +153,7 @@ class WrappedRecordBlockHashMigrationTest {
         // jumpstartBlockNumber 50 < first recent block 100
         final var config = fullMigrationConfig(
                 createJumpstartFile(50, 1, 1), createRecentHashesDir(List.of(entry(100), entry(101))));
-        assertDoesNotThrow(() -> subject.execute(StreamMode.RECORDS, config, state));
+        assertDoesNotThrow(() -> subject.execute(StreamMode.RECORDS, config));
         verifyNoInteractions(state);
     }
 
@@ -177,57 +162,42 @@ class WrappedRecordBlockHashMigrationTest {
         // jumpstartBlockNumber 200 > last recent block 101
         final var config = fullMigrationConfig(
                 createJumpstartFile(200, 1, 1), createRecentHashesDir(List.of(entry(100), entry(101))));
-        assertDoesNotThrow(() -> subject.execute(StreamMode.RECORDS, config, state));
+        assertDoesNotThrow(() -> subject.execute(StreamMode.RECORDS, config));
         verifyNoInteractions(state);
     }
 
     @Test
-    void returnsEarlyWhenStateBlockNumMismatchesLastRecentBlock() throws Exception {
-        mockStateBlockInfo(999L); // Mismatches last recent block (101)
-        final var config = fullMigrationConfig(
-                createJumpstartFile(100, 1, 1), createRecentHashesDir(List.of(entry(100), entry(101))));
-        assertDoesNotThrow(() -> subject.execute(StreamMode.RECORDS, config, state));
-        verify(blockInfoSingleton, never()).put(any());
-    }
-
-    @Test
     void returnsEarlyWhenNeededRecordsHaveGap() throws Exception {
-        mockStateBlockInfo(104L);
         final var config = fullMigrationConfig(
                 createJumpstartFile(100, 1, 1), createRecentHashesDir(List.of(entry(100), entry(102), entry(104))));
-        assertDoesNotThrow(() -> subject.execute(StreamMode.RECORDS, config, state));
-        verify(blockInfoSingleton, never()).put(any());
+        assertDoesNotThrow(() -> subject.execute(StreamMode.RECORDS, config));
+        assertNull(subject.result());
     }
 
     @Test
     void returnsEarlyWhenNeededRecordsHaveDuplicateBlockNumbers() throws Exception {
-        mockStateBlockInfo(103L);
         final var config = fullMigrationConfig(
                 createJumpstartFile(100, 4, 1),
                 createRecentHashesDir(List.of(entry(100), entry(101), entry(101), entry(103))));
-        assertDoesNotThrow(() -> subject.execute(StreamMode.RECORDS, config, state));
-        verify(blockInfoSingleton, never()).put(any());
+        assertDoesNotThrow(() -> subject.execute(StreamMode.RECORDS, config));
+        assertNull(subject.result());
     }
 
     @Test
-    void successfullyComputesAndWritesWrappedRecordHashes() throws Exception {
+    void successfullyComputesWrappedRecordHashes() throws Exception {
         final List<WrappedRecordFileBlockHashes> entries = new ArrayList<>();
         for (long i = 90; i <= 100; i++) {
             entries.add(entry(i));
         }
-        mockStateBlockInfo(100L);
         final var config = fullMigrationConfig(createJumpstartFile(98, 4, 1), createRecentHashesDir(entries));
 
-        assertDoesNotThrow(() -> subject.execute(StreamMode.RECORDS, config, state));
+        assertDoesNotThrow(() -> subject.execute(StreamMode.RECORDS, config));
 
-        final var captor = ArgumentCaptor.forClass(BlockInfo.class);
-        verify(blockInfoSingleton).put(captor.capture());
-        verify(blockInfoSingleton).commit();
-        final var writtenBlockInfo = captor.getValue();
-        assertThat(writtenBlockInfo.previousWrappedRecordBlockRootHash()).isNotNull();
-        assertThat(writtenBlockInfo.previousWrappedRecordBlockRootHash().length())
-                .isEqualTo(HASH_SIZE);
-        assertThat(writtenBlockInfo.wrappedIntermediateBlockRootsLeafCount()).isGreaterThan(0);
+        final var result = subject.result();
+        assertThat(result).isNotNull();
+        assertThat(result.previousWrappedRecordBlockRootHash()).isNotNull();
+        assertThat(result.previousWrappedRecordBlockRootHash().length()).isEqualTo(HASH_SIZE);
+        assertThat(result.wrappedIntermediateBlockRootsLeafCount()).isGreaterThan(0);
     }
 
     /**
@@ -237,9 +207,6 @@ class WrappedRecordBlockHashMigrationTest {
      */
     @Test
     void successfullyMigratesWithStaticTestFiles() throws Exception {
-        // Block 109 is the last entry in the recent-hashes range
-        mockStateBlockInfo(109L);
-
         final var jumpstartFile = createJumpstartFile(45, 31, 5);
 
         final List<WrappedRecordFileBlockHashes> entries = new ArrayList<>();
@@ -253,23 +220,21 @@ class WrappedRecordBlockHashMigrationTest {
                         .withValue("hedera.recordStream.wrappedRecordHashesDir", recentHashesDir.toString())
                         .withValue("hedera.recordStream.numOfBlockHashesInState", 256));
 
-        assertDoesNotThrow(() -> subject.execute(StreamMode.RECORDS, config, state));
+        assertDoesNotThrow(() -> subject.execute(StreamMode.RECORDS, config));
 
-        final var captor = ArgumentCaptor.forClass(BlockInfo.class);
-        verify(blockInfoSingleton).put(captor.capture());
-        verify(blockInfoSingleton).commit();
-        final var written = captor.getValue();
-        assertThat(written.previousWrappedRecordBlockRootHash()).isNotNull();
-        assertThat(written.previousWrappedRecordBlockRootHash().length()).isEqualTo(HASH_SIZE);
+        final var result = subject.result();
+        assertThat(result).isNotNull();
+        assertThat(result.previousWrappedRecordBlockRootHash()).isNotNull();
+        assertThat(result.previousWrappedRecordBlockRootHash().length()).isEqualTo(HASH_SIZE);
         // Hasher started with 31 leaves and processed 64 blocks (46–109, > jumpstart block 45)
-        assertThat(written.wrappedIntermediateBlockRootsLeafCount()).isEqualTo(31 + 64);
+        assertThat(result.wrappedIntermediateBlockRootsLeafCount()).isEqualTo(31 + 64);
     }
 
     @Test
     void handlesEmptyRecentHashesListGracefully() throws Exception {
         final var config = enabledConfigWithFiles(createJumpstartFile(0, 1, 1), createRecentHashesDir(List.of()));
         assertDoesNotThrow(
-                () -> subject.execute(StreamMode.RECORDS, config, state),
+                () -> subject.execute(StreamMode.RECORDS, config),
                 "Should handle empty recent hashes list without crashing");
     }
 
@@ -280,7 +245,7 @@ class WrappedRecordBlockHashMigrationTest {
                 createRecentHashesDir(
                         List.of(entry(Long.MAX_VALUE - 5), entry(Long.MAX_VALUE - 4), entry(Long.MAX_VALUE - 3))));
         assertDoesNotThrow(
-                () -> subject.execute(StreamMode.RECORDS, config, state),
+                () -> subject.execute(StreamMode.RECORDS, config),
                 "Should handle large block numbers without overflow");
     }
 
@@ -289,7 +254,7 @@ class WrappedRecordBlockHashMigrationTest {
         final var config =
                 enabledConfigWithFiles(createJumpstartFile(0, 1, 1), createRecentHashesDir(List.of(entry(100))));
         assertDoesNotThrow(
-                () -> subject.execute(StreamMode.RECORDS, config, state), "Should handle single-entry recent hashes");
+                () -> subject.execute(StreamMode.RECORDS, config), "Should handle single-entry recent hashes");
     }
 
     @Test
@@ -298,9 +263,8 @@ class WrappedRecordBlockHashMigrationTest {
         for (long i = 100; i <= 105; i++) {
             entries.add(entry(i));
         }
-        mockStateBlockInfo(105L);
         final var config = fullMigrationConfig(createJumpstartFile(100, 1, 1), createRecentHashesDir(entries));
-        assertDoesNotThrow(() -> subject.execute(StreamMode.RECORDS, config, state));
+        assertDoesNotThrow(() -> subject.execute(StreamMode.RECORDS, config));
     }
 
     @Test
@@ -309,9 +273,8 @@ class WrappedRecordBlockHashMigrationTest {
         for (long i = 100; i <= 105; i++) {
             entries.add(entry(i));
         }
-        mockStateBlockInfo(105L);
         final var config = fullMigrationConfig(createJumpstartFile(105, 1, 1), createRecentHashesDir(entries));
-        assertDoesNotThrow(() -> subject.execute(StreamMode.RECORDS, config, state));
+        assertDoesNotThrow(() -> subject.execute(StreamMode.RECORDS, config));
     }
 
     /**
@@ -359,14 +322,6 @@ class WrappedRecordBlockHashMigrationTest {
                 .outputItemsTreeRootHash(Bytes.wrap(new byte[HASH_SIZE]))
                 .consensusTimestampHash(Bytes.wrap(new byte[HASH_SIZE]))
                 .build();
-    }
-
-    private void mockStateBlockInfo(long lastBlockNumber) {
-        final var blockInfo =
-                BlockInfo.newBuilder().lastBlockNumber(lastBlockNumber).build();
-        given(state.getWritableStates(eq(BlockRecordService.NAME))).willReturn(writableStates);
-        doReturn(blockInfoSingleton).when(writableStates).getSingleton(eq(BLOCKS_STATE_ID));
-        given(blockInfoSingleton.get()).willReturn(blockInfo);
     }
 
     @FunctionalInterface

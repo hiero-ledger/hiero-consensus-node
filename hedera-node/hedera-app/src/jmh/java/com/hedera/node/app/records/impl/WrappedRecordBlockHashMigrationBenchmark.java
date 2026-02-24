@@ -2,17 +2,10 @@
 package com.hedera.node.app.records.impl;
 
 import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
-import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
 
-import com.hedera.hapi.block.internal.WrappedRecordFileBlockHashesLog;
-import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.node.app.blocks.impl.IncrementalStreamingHasher;
-import com.hedera.node.app.fixtures.state.FakeState;
-import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.node.config.types.StreamMode;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
-import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.BufferedOutputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
@@ -23,10 +16,8 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.util.List;
-import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -83,9 +74,7 @@ public class WrappedRecordBlockHashMigrationBenchmark {
     // -------------------------------------------------------------------------
 
     private BlockRecordStreamConfig config;
-    private FakeState state;
     private Path wrappedRecordHashesDir;
-    private long lastBlockNumber;
 
     @Setup(Level.Trial)
     public void setup() throws IOException {
@@ -101,9 +90,6 @@ public class WrappedRecordBlockHashMigrationBenchmark {
                 wrappedRecordHashesDir.resolve(WrappedRecordFileBlockHashesDiskWriter.DEFAULT_FILE_NAME),
                 StandardCopyOption.REPLACE_EXISTING);
 
-        lastBlockNumber = readLastBlockNumber(
-                wrappedRecordHashesDir.resolve(WrappedRecordFileBlockHashesDiskWriter.DEFAULT_FILE_NAME));
-
         config = new BlockRecordStreamConfig(
                 "/tmp/logDir",
                 "sidecar",
@@ -118,8 +104,6 @@ public class WrappedRecordBlockHashMigrationBenchmark {
                 wrappedRecordHashesDir.toString(),
                 true,
                 jumpstartFilePath);
-
-        state = buildFakeState(lastBlockNumber);
     }
 
     @TearDown(Level.Trial)
@@ -128,47 +112,18 @@ public class WrappedRecordBlockHashMigrationBenchmark {
         Files.deleteIfExists(wrappedRecordHashesDir);
     }
 
-    /**
-     * Re-seed the fake state before each iteration so that the migration always sees
-     * a fresh {@link BlockInfo} with the expected {@code lastBlockNumber}.
-     * (The migration writes to state via {@code put()} and {@code commit()};
-     * resetting the {@link AtomicReference} restores the original value.)
-     */
-    @Setup(Level.Iteration)
-    public void resetState() {
-        state = buildFakeState(lastBlockNumber);
-    }
-
     // -------------------------------------------------------------------------
     // Benchmark
     // -------------------------------------------------------------------------
 
     @Benchmark
     public void execute() {
-        new WrappedRecordBlockHashMigration().execute(StreamMode.BOTH, config, state);
+        new WrappedRecordBlockHashMigration().execute(StreamMode.BOTH, config);
     }
 
     public static void main(String... args) throws Exception {
         org.openjdk.jmh.Main.main(
                 new String[] {"com.hedera.node.app.records.impl.WrappedRecordBlockHashMigrationBenchmark"});
-    }
-
-    private static long readLastBlockNumber(@NonNull final Path file) {
-        try {
-            final byte[] bytes = Files.readAllBytes(file);
-            final var log = WrappedRecordFileBlockHashesLog.PROTOBUF.parse(
-                    Bytes.wrap(bytes).toReadableSequentialData(), false, false, 512, bytes.length);
-            return log.entries().getLast().blockNumber();
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to read last block number from " + file, e);
-        }
-    }
-
-    private static FakeState buildFakeState(final long lastBlockNumber) {
-        final var blockInfo =
-                BlockInfo.newBuilder().lastBlockNumber(lastBlockNumber).build();
-        final var blockInfoRef = new AtomicReference<>(blockInfo);
-        return new FakeState().addService(BlockRecordService.NAME, Map.of(BLOCKS_STATE_ID, blockInfoRef));
     }
 
     // =========================================================================

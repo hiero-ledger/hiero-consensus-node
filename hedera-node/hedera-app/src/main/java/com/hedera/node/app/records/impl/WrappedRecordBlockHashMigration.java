@@ -4,21 +4,17 @@ package com.hedera.node.app.records.impl;
 import static com.hedera.node.app.blocks.BlockStreamManager.HASH_OF_ZERO;
 import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
 import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.HASH_SIZE;
-import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.internal.WrappedRecordFileBlockHashesLog;
-import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.node.app.blocks.impl.BlockImplUtils;
 import com.hedera.node.app.blocks.impl.IncrementalStreamingHasher;
-import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.node.config.types.StreamMode;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.state.State;
-import com.swirlds.state.spi.WritableSingletonStateBase;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.DataInputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -41,6 +37,29 @@ public class WrappedRecordBlockHashMigration {
 
     private static final Logger log = LogManager.getLogger(WrappedRecordBlockHashMigration.class);
 
+    /**
+     * Holds the computed migration results needed for the state-write phase.
+     *
+     * @param blockHashes concatenated trailing block hashes
+     * @param previousWrappedRecordBlockRootHash the final wrapped record block root hash
+     * @param wrappedIntermediatePreviousBlockRootHashes intermediate hashing state
+     * @param wrappedIntermediateBlockRootsLeafCount leaf count of the streaming hasher
+     */
+    public record Result(
+            @NonNull Bytes blockHashes,
+            @NonNull Bytes previousWrappedRecordBlockRootHash,
+            @NonNull List<Bytes> wrappedIntermediatePreviousBlockRootHashes,
+            long wrappedIntermediateBlockRootsLeafCount) {}
+
+    private @Nullable Result result;
+
+    /**
+     * Returns the computed migration result, or null if the migration has not run or was skipped.
+     */
+    public @Nullable Result result() {
+        return result;
+    }
+
     static final Bytes EMPTY_INT_NODE = BlockImplUtils.hashInternalNode(HASH_OF_ZERO, HASH_OF_ZERO);
     private static final String RESUME_MESSAGE =
             "Resuming calculation of wrapped record file hashes until next attempt, but this node "
@@ -60,15 +79,10 @@ public class WrappedRecordBlockHashMigration {
      *
      * @param streamMode the current stream mode
      * @param recordsConfig the block record stream configuration
-     * @param state the writable state
      */
-    public void execute(
-            @NonNull final StreamMode streamMode,
-            @NonNull final BlockRecordStreamConfig recordsConfig,
-            @NonNull final State state) {
+    public void execute(@NonNull final StreamMode streamMode, @NonNull final BlockRecordStreamConfig recordsConfig) {
         requireNonNull(streamMode);
         requireNonNull(recordsConfig);
-        requireNonNull(state);
 
         final var computeHashesFromWrappedEnabled =
                 streamMode != BLOCKS && recordsConfig.computeHashesFromWrappedRecordBlocks();
@@ -76,14 +90,13 @@ public class WrappedRecordBlockHashMigration {
             return;
         }
         try {
-            executeInternal(recordsConfig, state);
+            executeInternal(recordsConfig);
         } catch (Exception e) {
-            log.error("Unable to compute continuing historical hash over recent wrapped records: " + RESUME_MESSAGE, e);
+            log.error("Unable to compute continuing historical hash over recent wrapped records. " + RESUME_MESSAGE, e);
         }
     }
 
-    private void executeInternal(@NonNull final BlockRecordStreamConfig recordsConfig, @NonNull final State state)
-            throws Exception {
+    private void executeInternal(@NonNull final BlockRecordStreamConfig recordsConfig) throws Exception {
         // Verify jumpstart file exists and can be loaded
         final var jumpstartFilePath = resolveJumpstartPath(recordsConfig);
         if (jumpstartFilePath == null) {
@@ -105,13 +118,12 @@ public class WrappedRecordBlockHashMigration {
             return;
         }
 
-        if (!validateBlockNumberRange(jumpstartData.blockNumber(), allRecentWrappedRecordHashes, state)) {
+        if (!validateBlockNumberRange(jumpstartData.blockNumber(), allRecentWrappedRecordHashes)) {
             return;
         }
 
-        // Compute and write
-        computeAndWriteHashes(
-                jumpstartData, allRecentWrappedRecordHashes, recordsConfig.numOfBlockHashesInState(), state);
+        // Compute hashes (state write deferred to SystemTransactions.doPostUpgradeSetup)
+        computeHashes(jumpstartData, allRecentWrappedRecordHashes, recordsConfig.numOfBlockHashesInState());
     }
 
     private Path resolveJumpstartPath(@NonNull final BlockRecordStreamConfig recordsConfig) {
@@ -205,9 +217,7 @@ public class WrappedRecordBlockHashMigration {
     }
 
     private boolean validateBlockNumberRange(
-            final long jumpstartBlockNum,
-            @NonNull final WrappedRecordFileBlockHashesLog allRecentWrappedRecordHashes,
-            @NonNull final State state) {
+            final long jumpstartBlockNum, @NonNull final WrappedRecordFileBlockHashesLog allRecentWrappedRecordHashes) {
         final var firstRecentRecord = allRecentWrappedRecordHashes.entries().getFirst();
         log.info(
                 "First recent record num/hash: {}/{}",
@@ -231,23 +241,24 @@ public class WrappedRecordBlockHashMigration {
             return false;
         }
 
-        final var blockInfo = requireNonNull(state.getWritableStates(BlockRecordService.NAME)
-                .<BlockInfo>getSingleton(BLOCKS_STATE_ID)
-                .get());
-        final var lastProcessedBlockNumberInState = blockInfo.lastBlockNumber();
-        if (lastProcessedBlockNumberInState
-                != allRecentWrappedRecordHashes.entries().getLast().blockNumber()) {
-            log.error(
-                    "Last processed block number in state {} does not match the last wrapped record block number {} in the recent wrapped record hashes file. {}",
-                    lastProcessedBlockNumberInState,
-                    allRecentWrappedRecordHashes.entries().getLast().blockNumber(),
-                    RESUME_MESSAGE);
-            return false;
-        }
-        log.info(
-                "Last processed block number in state {}; {} available in recent wrapped record hashes file",
-                lastProcessedBlockNumberInState,
-                allRecentWrappedRecordHashes.entries().getLast().blockNumber());
+        //        final var blockInfo = requireNonNull(state.getReadableStates(BlockRecordService.NAME)
+        //                .<BlockInfo>getSingleton(BLOCKS_STATE_ID)
+        //                .get());
+        //        final var lastProcessedBlockNumberInState = blockInfo.lastBlockNumber();
+        //        if (lastProcessedBlockNumberInState
+        //                != allRecentWrappedRecordHashes.entries().getLast().blockNumber()) {
+        //            log.error(
+        //                    "Last processed block number in state {} does not match the last wrapped record block
+        // number {} in the recent wrapped record hashes file. {}",
+        //                    lastProcessedBlockNumberInState,
+        //                    allRecentWrappedRecordHashes.entries().getLast().blockNumber(),
+        //                    RESUME_MESSAGE);
+        //            return false;
+        //        }
+        //        log.info(
+        //                "Last processed block number in state {}; {} available in recent wrapped record hashes file",
+        //                lastProcessedBlockNumberInState,
+        //                allRecentWrappedRecordHashes.entries().getLast().blockNumber());
 
         final var neededRecentWrappedRecords = allRecentWrappedRecordHashes.entries().stream()
                 .filter(rwr -> rwr.blockNumber() > jumpstartBlockNum)
@@ -282,11 +293,10 @@ public class WrappedRecordBlockHashMigration {
         return true;
     }
 
-    private void computeAndWriteHashes(
+    private void computeHashes(
             @NonNull final JumpstartData jumpstartData,
             @NonNull final WrappedRecordFileBlockHashesLog allRecentWrappedRecordHashes,
-            final int numTrailingBlocks,
-            @NonNull final State state) {
+            final int numTrailingBlocks) {
         // The number of the last wrapped record block; this is the final block processed prior to now
         final var jumpstartBlockNum = jumpstartData.blockNumber();
         // The hash of the (completed/hashed) jumpstart block number
@@ -353,23 +363,12 @@ public class WrappedRecordBlockHashMigration {
                 jumpstartBlockNum + numNeededRecentWrappedRecords,
                 prevWrappedBlockHash);
 
-        final var blockInfo = requireNonNull(state.getWritableStates(BlockRecordService.NAME)
-                .<BlockInfo>getSingleton(BLOCKS_STATE_ID)
-                .get());
-        final var newWrappedRecordBlockInfo = blockInfo
-                .copyBuilder()
-                .blockHashes(concatHashes(currentTrailingBlockHashes))
-                .previousWrappedRecordBlockRootHash(prevWrappedBlockHash)
-                .wrappedIntermediatePreviousBlockRootHashes(allPrevBlocksHasher.intermediateHashingState())
-                .wrappedIntermediateBlockRootsLeafCount(allPrevBlocksHasher.leafCount())
-                .build();
-
-        final var blockRecordInfoWritableStates =
-                state.getWritableStates(BlockRecordService.NAME).<BlockInfo>getSingleton(BLOCKS_STATE_ID);
-        blockRecordInfoWritableStates.put(newWrappedRecordBlockInfo);
-        ((WritableSingletonStateBase<BlockInfo>) blockRecordInfoWritableStates).commit();
-
-        log.info("Overwrote record stream info with historical wrapped record hashes");
+        result = new Result(
+                concatHashes(currentTrailingBlockHashes),
+                prevWrappedBlockHash,
+                allPrevBlocksHasher.intermediateHashingState(),
+                allPrevBlocksHasher.leafCount());
+        log.info("Computed wrapped record block hash migration result (state write deferred)");
     }
 
     static Bytes concatHashes(@NonNull final List<Bytes> hashes) {
