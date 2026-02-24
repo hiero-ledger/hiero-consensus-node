@@ -84,7 +84,10 @@ public class HistoryProofMetrics {
             }
             if (previous.stage() != stage) {
                 final long elapsedMillis = elapsedMillis(previous.enteredAt(), consensusNow);
-                transitionMetricsFor(previous.stage(), stage).update(elapsedMillis);
+                final var transitionMetrics = transitionMetricsFor(previous.stage(), stage);
+                if (transitionMetrics != null) {
+                    transitionMetrics.update(elapsedMillis);
+                }
                 return new StageObservation(stage, consensusNow);
             }
             return previous;
@@ -124,8 +127,7 @@ public class HistoryProofMetrics {
     }
 
     private TransitionMetrics transitionMetricsFor(@NonNull final Stage from, @NonNull final Stage to) {
-        final var transition = new StageTransition(requireNonNull(from), requireNonNull(to));
-        return transitionMetrics.computeIfAbsent(transition, this::newTransitionMetrics);
+        return transitionMetrics.get(new StageTransition(requireNonNull(from), requireNonNull(to)));
     }
 
     private void registerEagerTransitionMetrics() {
@@ -150,7 +152,8 @@ public class HistoryProofMetrics {
     }
 
     private void registerTransition(@NonNull final Stage from, @NonNull final Stage to) {
-        transitionMetricsFor(requireNonNull(from), requireNonNull(to));
+        final var transition = new StageTransition(requireNonNull(from), requireNonNull(to));
+        transitionMetrics.putIfAbsent(transition, newTransitionMetrics(transition));
     }
 
     private TransitionMetrics newTransitionMetrics(@NonNull final StageTransition transition) {
@@ -160,8 +163,8 @@ public class HistoryProofMetrics {
                         + transition.from().label
                         + " to "
                         + transition.to().label));
-        final var averageConsensusMillis = metrics.getOrCreate(
-                new RunningAverageMetric.Config(CATEGORY, "historyProofTrans" + suffix + "Ms")
+        final var averageConsensusMillis =
+                metrics.getOrCreate(new RunningAverageMetric.Config(CATEGORY, "historyProofTrans" + suffix + "Ms")
                         .withDescription("Average consensus milliseconds elapsed while transitioning from "
                                 + transition.from().label
                                 + " to "
