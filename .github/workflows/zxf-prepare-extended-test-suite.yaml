@@ -12,10 +12,6 @@ on:
         default: false
         type: boolean
 
-concurrency:
-  group: zxf-prepare-extended-test-suite
-  cancel-in-progress: false
-
 defaults:
   run:
     shell: bash
@@ -67,6 +63,9 @@ jobs:
   tag-for-xts:
     name: Tag for XTS promotion
     runs-on: hl-cn-default-lin-sm
+    concurrency:
+      group: xts-candidate-tag-operations
+      cancel-in-progress: false
     needs:
       - validate-input-ref
     if: ${{ needs.validate-input-ref.outputs.commit-is-present == 'true' }}
