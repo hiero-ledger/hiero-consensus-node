@@ -5,7 +5,7 @@ on:
     inputs:
       nlg-accounts: #'-R -c 32 -a 100000000 -T 1000 -n 100000 -S hot -p 50 -tt 1m
         required: true
-        default: "100000"
+        default: "1000"
         description: "Number of Accounts and NFT tokens"
         type: choice
         options:
@@ -17,9 +17,10 @@ on:
         description: "Test execution time options"
         type: choice
         options:
-          - "1"
-          - "20"
-          - "120"
+          - "1m"
+          - "20m"
+          - "120m"
+          - "330m"
       add-app-props:
         required: false
         default: ""
@@ -30,7 +31,21 @@ on:
         default: ""
         type: string
         description: 'Add props to settings.txt, e.g. "state.saveStatePeriod, 300". Newline is "\n"'
-
+      nlg-test:
+        required: true
+        default: "CryptoTransferLoadTest"
+        type: string
+        description: 'Test name'
+      nlg-args:
+        required: true
+        default: "-c 1"
+        type: string
+        description: 'test arguments'
+      nlg-tps:
+        required: true
+        default: "100"
+        type: string
+        description: 'Transactions Per Second'
 defaults:
   run:
     shell: bash
@@ -165,7 +180,7 @@ jobs:
       - name: Run NLG test
         run: |
           cd hiero-block-node/tools-and-tests/scripts/solo-e2e-test
-          task load:up NLG_TEST_TYPE=CryptoTransferLoadTest NLG_ARGS="-c 1 -a 1000 -tt 600s" NLG_MAX_TPS=100
+          task load:up NLG_TEST_TYPE="{{ inputs.nlg-test }}" NLG_ARGS="{{ inputs.nlg-args }} -a {{ inputs.nlg-accounts }}" -tt {{ inputs.nlg-time }}" NLG_MAX_TPS="{{ inputs.nlg-tps }}"
 
       - name: Stop NLG test
         run: |
