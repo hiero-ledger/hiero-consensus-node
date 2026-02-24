@@ -80,7 +80,7 @@ final class RpcPingHandler {
     }
 
     void handleIncomingPing(final GossipPing ping) {
-        final GossipPing reply = new GossipPing(time.currentTimeMillis(), ping.correlationId());
+        final GossipPing reply = new GossipPing(time.nanoTime(), ping.correlationId());
         rpcPeerProtocol.sendPingReply(reply);
     }
 
@@ -90,8 +90,8 @@ final class RpcPingHandler {
      * @return ping to be sent or null if not enough time has passed
      */
     GossipPing possiblyInitiatePing() {
-        final long timestamp = time.currentTimeMillis();
-        if ((timestamp - lastPingInitiationTime) < 100) {
+        final long timestamp = time.nanoTime();
+        if ((timestamp - lastPingInitiationTime) < 100_000_000) {
             return null;
         }
         this.lastPingInitiationTime = timestamp;
@@ -116,8 +116,8 @@ final class RpcPingHandler {
                     pingReply.correlationId());
         } else {
             // don't trust remote timestamp for measuring ping
-            logger.debug(NETWORK.getMarker(), "Ping {}", time.currentTimeMillis() - original.timestamp());
-            this.lastPingNanos = TimeUnit.MILLISECONDS.toNanos(time.currentTimeMillis() - original.timestamp());
+            logger.debug(NETWORK.getMarker(), "Ping {}", time.nanoTime() - original.timestamp());
+            this.lastPingNanos = time.nanoTime() - original.timestamp();
             networkMetrics.recordPingTime(remotePeerId, lastPingNanos);
         }
         return lastPingNanos;
