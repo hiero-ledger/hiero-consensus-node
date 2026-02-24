@@ -110,6 +110,63 @@ public class SimpleFeesRecordStreamTest {
         }
     }
 
+    private void process_item(RecordStreamItem item, StandaloneFeeCalculator calc) throws ParseException, IOException {
+        final var signedTxnBytes = item.getTransaction().getSignedTransactionBytes();
+        final var signedTxn = SignedTransaction.parseFrom(signedTxnBytes);
+        final var body = TransactionBody.PROTOBUF.parse(
+                Bytes.wrap(signedTxn.getBodyBytes().toByteArray()));
+        final Transaction txn = Transaction.newBuilder().body(body).build();
+        if (txn.body().data().kind() == TransactionBody.DataOneOfType.UNSET) {
+            // skip unset types
+            return;
+        }
+        final var result = calc.calculateIntrinsic(txn);
+        final var record = item.getRecord();
+        final var txnFee = record.getTransactionFee();
+        final var rate = record.getReceipt().getExchangeRate();
+
+        final var simpleFee = result.totalTinycents();
+
+        long legacyFee = 0;
+        if (rate.getCurrentRate().getHbarEquiv() != 0) {
+            legacyFee = txnFee
+                    * rate.getCurrentRate().getCentEquiv()
+                    / rate.getCurrentRate().getHbarEquiv();
+        }
+
+        long diff = simpleFee - legacyFee;
+        double pctChange = legacyFee > 0 ? (diff * 100.0 / legacyFee) : 0;
+
+        json.startRecord();
+        csv.field(body.data().kind().name());
+        json.key("name", body.data().kind().name());
+        csv.field(simpleFee);
+        json.key("simple_tc", simpleFee);
+        csv.field(legacyFee);
+        json.key("old_tc", legacyFee);
+        //        csv.field(txnFee);
+        //        json.key("txn_fee", txnFee);
+        csv.fieldPercentage(pctChange);
+        json.key("diff", pctChange);
+        csv.field(result.getServiceTotalTinycents());
+        json.key("simple_service", result.getServiceBaseFeeTinycents());
+        csv.field(result.getNodeTotalTinycents());
+        json.key("simple_node", result.getNodeTotalTinycents());
+        csv.field(result.getNetworkTotalTinycents());
+        json.key("network_total", result.getNetworkTotalTinycents());
+        csv.field(record.getConsensusTimestamp().getSeconds());
+        json.key("timestamp", record.getConsensusTimestamp().getSeconds());
+        csv.field(result.toString());
+        json.key("details", result.toString());
+        csv.field(rate.getCurrentRate().getCentEquiv());
+        json.key("rate_cents", rate.getCurrentRate().getCentEquiv());
+        csv.field(rate.getCurrentRate().getHbarEquiv());
+        json.key("rate_hbar", rate.getCurrentRate().getHbarEquiv());
+        json.key("signed_txn_size",signedTxnBytes.size());
+        csv.endLine();
+        json.endRecord();
+    }
+
     void processStateEvents(String records_dir, String report_file_path) throws IOException {
         final JSONFormatter json = new JSONFormatter(
                 new FileWriter(report_file_path));
@@ -169,68 +226,14 @@ public class SimpleFeesRecordStreamTest {
             });
         }
         System.out.println("wrote report to " + report_file_path);
+        json.close();
     }
 
     @Test
     void convertStateEventsToJSON() throws IOException {
-        processStateEvents("../../hedera-node/data/mainnet/recordStreams/record0.0.3","../../reports/replay-mainnet-legacy.json");
+        processStateEvents("../../hedera-node/data/mainnet_legacy/recordStreams/record0.0.3","../../reports/replay-mainnet-legacy.json");
         processStateEvents("../../hedera-node/data/mainnet_sf/recordStreams/record0.0.3","../../reports/replay-mainnet-simple.json");
     }
 
-    private void process_item(RecordStreamItem item, StandaloneFeeCalculator calc) throws ParseException, IOException {
-        final var signedTxnBytes = item.getTransaction().getSignedTransactionBytes();
-        final var signedTxn = SignedTransaction.parseFrom(signedTxnBytes);
-        final var body = TransactionBody.PROTOBUF.parse(
-                Bytes.wrap(signedTxn.getBodyBytes().toByteArray()));
-        final Transaction txn = Transaction.newBuilder().body(body).build();
-        if (txn.body().data().kind() == TransactionBody.DataOneOfType.UNSET) {
-            // skip unset types
-            return;
-        }
-        final var result = calc.calculateIntrinsic(txn);
-        final var record = item.getRecord();
-        final var txnFee = record.getTransactionFee();
-        final var rate = record.getReceipt().getExchangeRate();
 
-        final var simpleFee = result.totalTinycents();
-
-        long legacyFee = 0;
-        if (rate.getCurrentRate().getHbarEquiv() != 0) {
-            legacyFee = txnFee
-                    * rate.getCurrentRate().getCentEquiv()
-                    / rate.getCurrentRate().getHbarEquiv();
-        }
-
-        long diff = simpleFee - legacyFee;
-        double pctChange = legacyFee > 0 ? (diff * 100.0 / legacyFee) : 0;
-
-        json.startRecord();
-        csv.field(body.data().kind().name());
-        json.key("name", body.data().kind().name());
-        csv.field(simpleFee);
-        json.key("simple_tc", simpleFee);
-        csv.field(legacyFee);
-        json.key("old_tc", legacyFee);
-        //        csv.field(txnFee);
-        //        json.key("txn_fee", txnFee);
-        csv.fieldPercentage(pctChange);
-        json.key("diff", pctChange);
-        csv.field(result.getServiceTotalTinycents());
-        json.key("simple_service", result.getServiceBaseFeeTinycents());
-        csv.field(result.getNodeTotalTinycents());
-        json.key("simple_node", result.getNodeTotalTinycents());
-        csv.field(result.getNetworkTotalTinycents());
-        json.key("network_total", result.getNetworkTotalTinycents());
-        csv.field(record.getConsensusTimestamp().getSeconds());
-        json.key("timestamp", record.getConsensusTimestamp().getSeconds());
-        csv.field(result.toString());
-        json.key("details", result.toString());
-        csv.field(rate.getCurrentRate().getCentEquiv());
-        json.key("rate_cents", rate.getCurrentRate().getCentEquiv());
-        csv.field(rate.getCurrentRate().getHbarEquiv());
-        json.key("rate_hbar", rate.getCurrentRate().getHbarEquiv());
-        json.key("signed_txn_size",signedTxnBytes.size());
-        csv.endLine();
-        json.endRecord();
-    }
 }

@@ -11,7 +11,7 @@ EVENT_STREAMS_LOC="/Users/josh/Documents/GitHub/hiero-consensus-node/${SERVER_NA
 CONFIG_PATH="${REPO_ROOT}/hedera-node/settings.txt"
 
 
-OUT_RECORD_STREAMS="${DDIR}/${SERVER_NAME}_sf/recordStreams"
+OUT_RECORD_STREAMS="${DDIR}/${SERVER_NAME}_legacy/recordStreams"
 
 echo "script dir is ${SCRIPT_DIR}"
 echo "data dir is ${DDIR}"
@@ -23,6 +23,7 @@ mkdir "data"
 ln -s "${DDIR}/apps" "${SCRIPT_DIR}/data/apps"
 ln -s "${DDIR}/lib" "${SCRIPT_DIR}/data/lib"
 echo "config path is ${CONFIG_PATH}"
+echo "writing record stream to ${OUT_RECORD_STREAMS}"
 "${SCRIPT_DIR}/pcli.sh" event-stream recover \
   --id=0 \
   --config="${CONFIG_PATH}" \
