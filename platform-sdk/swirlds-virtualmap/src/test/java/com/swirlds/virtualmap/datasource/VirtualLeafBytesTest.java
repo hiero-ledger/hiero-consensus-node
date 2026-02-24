@@ -388,6 +388,6 @@ class VirtualLeafBytesTest {
         assertTrue(moved.isNewOrMoved(), "withPath should mark the leaf as new/moved");
 
         final VirtualLeafBytes<TestValue> movedBack = moved.withPath(deserialized.path());
-        assertFalse(movedBack.isNewOrMoved(), "Should not be new/moved when moved to the original path");
+        assertTrue(movedBack.isNewOrMoved(), "Should still be new/moved when moved to the original path");
     }
 }

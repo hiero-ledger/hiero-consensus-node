@@ -59,8 +59,9 @@ public class VirtualLeafBytes<V> {
     // When this leaf record is loaded from disk, this field contains the path on disk. This
     // allows us to skip key-to-path updates during flushes, if the record was updated, but
     // not moved. For new records not loaded from disk, this field typically contains an
-    // invalid path
-    private final long pathOnDisk;
+    // invalid path. When a leaf is moved from one path to another, this field contains the
+    // previous path
+    private final long oldPath;
 
     // Leaf key
     private final Bytes keyBytes;
@@ -75,33 +76,33 @@ public class VirtualLeafBytes<V> {
         this(path, Path.INVALID_PATH, keyBytes, value, valueCodec, null);
     }
 
-    private VirtualLeafBytes(
+    public VirtualLeafBytes(
             final long path,
-            final long pathOnDisk,
+            final long oldPath,
             @NonNull final Bytes keyBytes,
             @Nullable final V value,
             @Nullable Codec<V> valueCodec) {
-        this(path, pathOnDisk, keyBytes, value, valueCodec, null);
+        this(path, oldPath, keyBytes, value, valueCodec, null);
     }
 
     public VirtualLeafBytes(final long path, @NonNull final Bytes keyBytes, @Nullable Bytes valueBytes) {
         this(path, Path.INVALID_PATH, keyBytes, null, null, valueBytes);
     }
 
-    private VirtualLeafBytes(
-            final long path, final long pathOnDisk, @NonNull final Bytes keyBytes, @Nullable Bytes valueBytes) {
-        this(path, pathOnDisk, keyBytes, null, null, valueBytes);
+    public VirtualLeafBytes(
+            final long path, final long oldPath, @NonNull final Bytes keyBytes, @Nullable Bytes valueBytes) {
+        this(path, oldPath, keyBytes, null, null, valueBytes);
     }
 
     private VirtualLeafBytes(
             final long path,
-            final long pathOnDisk,
+            final long oldPath,
             @NonNull final Bytes keyBytes,
             @Nullable final V value,
             @Nullable final Codec<V> valueCodec,
             @Nullable final Bytes valueBytes) {
         this.path = path;
-        this.pathOnDisk = pathOnDisk;
+        this.oldPath = oldPath;
         this.keyBytes = Objects.requireNonNull(keyBytes);
         this.value = value;
         this.valueCodec = valueCodec;
@@ -126,7 +127,7 @@ public class VirtualLeafBytes<V> {
      */
     public boolean isNewOrMoved() {
         assert path >= 0 : "isNewOrMoved() must not be called for records with invalid paths";
-        return path != pathOnDisk;
+        return path != oldPath;
     }
 
     public Bytes keyBytes() {
@@ -178,15 +179,15 @@ public class VirtualLeafBytes<V> {
     }
 
     public VirtualLeafBytes<V> withPath(final long newPath) {
-        return new VirtualLeafBytes<>(newPath, pathOnDisk, keyBytes, value, valueCodec, valueBytes);
+        return new VirtualLeafBytes<>(newPath, path, keyBytes, value, valueCodec, valueBytes);
     }
 
     public VirtualLeafBytes<V> withValue(final V newValue, final Codec<V> newValueCodec) {
-        return new VirtualLeafBytes<>(path, pathOnDisk, keyBytes, newValue, newValueCodec);
+        return new VirtualLeafBytes<>(path, oldPath, keyBytes, newValue, newValueCodec);
     }
 
     public VirtualLeafBytes<V> withValueBytes(final Bytes newValueBytes) {
-        return new VirtualLeafBytes<>(path, pathOnDisk, keyBytes, newValueBytes);
+        return new VirtualLeafBytes<>(path, oldPath, keyBytes, newValueBytes);
     }
 
     /**
