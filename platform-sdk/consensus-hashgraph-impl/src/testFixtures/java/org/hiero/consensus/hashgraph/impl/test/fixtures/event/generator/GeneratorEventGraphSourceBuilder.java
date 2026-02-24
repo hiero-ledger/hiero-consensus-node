@@ -24,8 +24,10 @@ public class GeneratorEventGraphSourceBuilder {
     private Long seed;
     private Integer maxOtherParents;
     private Roster roster;
+    private RosterWithKeys rosterWithKeys;
     private Integer numNodes;
     private boolean realSignatures = false;
+    private boolean populateNgen = false;
 
     /**
      * Creates a new builder instance.
@@ -93,7 +95,27 @@ public class GeneratorEventGraphSourceBuilder {
         if (realSignatures) {
             throw new IllegalStateException("Cannot supply roster when realSignatures is enabled");
         }
+        if (rosterWithKeys != null) {
+            throw new IllegalStateException("Cannot set roster when rosterWithKeys is already set");
+        }
         this.roster = roster;
+        return this;
+    }
+
+    /**
+     * Sets the roster along with private keys for signing.
+     *
+     * @param rosterWithKeys the roster with keys
+     * @return this builder
+     */
+    public GeneratorEventGraphSourceBuilder rosterWithKeys(@Nullable final RosterWithKeys rosterWithKeys) {
+        if (numNodes != null) {
+            throw new IllegalStateException("Cannot set rosterWithKeys when numNodes is already set");
+        }
+        if (realSignatures) {
+            throw new IllegalStateException("Cannot supply roster when realSignatures is enabled");
+        }
+        this.rosterWithKeys = rosterWithKeys;
         return this;
     }
 
@@ -107,7 +129,21 @@ public class GeneratorEventGraphSourceBuilder {
         if (roster != null) {
             throw new IllegalStateException("Cannot set numNodes when roster is already set");
         }
+        if (rosterWithKeys != null) {
+            throw new IllegalStateException("Cannot set numNodes when rosterWithKeys is already set");
+        }
         this.numNodes = numNodes;
+        return this;
+    }
+
+    /**
+     * Sets whether to populate ngen values on generated events.
+     *
+     * @param populateNgen {@code true} to populate ngen values, {@code false} otherwise
+     * @return this builder
+     */
+    public GeneratorEventGraphSourceBuilder populateNgen(final boolean populateNgen) {
+        this.populateNgen = populateNgen;
         return this;
     }
 
@@ -134,29 +170,29 @@ public class GeneratorEventGraphSourceBuilder {
     public GeneratorEventGraphSource build() {
         final Roster actualRoster;
         final GeneratorEventSigner signer;
-        if (roster != null) {
-            signer = new RandomEventSigner(getSeed());
-            actualRoster = roster;
+
+        final int nodeCount = numNodes != null ? numNodes : DEFAULT_NUM_NODES;
+        if (realSignatures) {
+            final RosterWithKeys rosterWithKeys = this.rosterWithKeys != null
+                    ? this.rosterWithKeys
+                    : RandomRosterBuilder.create(Randotron.create(getSeed()))
+                            .withSize(nodeCount)
+                            .withRealKeysEnabled(true)
+                            .buildWithKeys();
+            signer = new RealEventSigner(rosterWithKeys);
+            actualRoster = rosterWithKeys.getRoster();
         } else {
-            final int nodeCount = numNodes != null ? numNodes : DEFAULT_NUM_NODES;
-            if (realSignatures) {
-                final RosterWithKeys rosterWithKeys = RandomRosterBuilder.create(Randotron.create(getSeed()))
-                        .withSize(nodeCount)
-                        .withRealKeysEnabled(true)
-                        .buildWithKeys();
-                signer = new RealEventSigner(rosterWithKeys);
-                actualRoster = rosterWithKeys.getRoster();
-            } else {
-                signer = new RandomEventSigner(getSeed());
-                actualRoster = RandomRosterBuilder.create(Randotron.create(getSeed()))
-                        .withSize(nodeCount)
-                        .withRealKeysEnabled(false)
-                        .build();
-            }
+            signer = new RandomEventSigner(getSeed());
+            actualRoster = roster != null
+                    ? roster
+                    : RandomRosterBuilder.create(Randotron.create(getSeed()))
+                            .withSize(nodeCount)
+                            .withRealKeysEnabled(false)
+                            .build();
         }
 
         return new GeneratorEventGraphSource(
-                getConfiguration(), getTime(), getSeed(), getMaxOtherParents(), actualRoster, signer);
+                getConfiguration(), getTime(), getSeed(), getMaxOtherParents(), actualRoster, signer, populateNgen);
     }
 
     private Configuration getConfiguration() {

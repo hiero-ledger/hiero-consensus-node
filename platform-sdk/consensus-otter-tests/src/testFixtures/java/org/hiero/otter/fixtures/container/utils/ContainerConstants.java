@@ -34,6 +34,8 @@ public class ContainerConstants {
      */
     public static final String METRICS_PATH = "data/stats/MainNetStats%d.csv";
 
+    public static final String METRICS_OTHER = "data/stats/metrics.txt";
+
     /**
      * Path to the event stream directory
      */

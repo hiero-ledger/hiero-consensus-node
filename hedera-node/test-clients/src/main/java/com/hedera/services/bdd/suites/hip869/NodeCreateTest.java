@@ -14,11 +14,13 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeDelete;
+import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewNode;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingTwo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ADDRESS_BOOK_CONTROL;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
@@ -26,6 +28,9 @@ import static com.hedera.services.bdd.suites.HapiSuite.NONSENSE_KEY;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.SYSTEM_ADMIN;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedFeeFromBytesFor;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NODE_CREATE_BASE_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SIGNATURE_FEE_AFTER_MULTIPLIER;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_DELETED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_IS_LINKED_TO_A_NODE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.GOSSIP_ENDPOINTS_EXCEEDED_LIMIT;
@@ -57,6 +62,7 @@ import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.transactions.node.HapiNodeCreate;
 import com.hedera.services.bdd.spec.utilops.embedded.ViewNodeOp;
+import com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils;
 import com.hederahashgraph.api.proto.java.ServiceEndpoint;
 import com.swirlds.platform.crypto.CryptoStatic;
 import java.security.KeyStoreException;
@@ -451,15 +457,18 @@ public class NodeCreateTest {
                         .gossipCaCertificate(gossipCertificates.getFirst().getEncoded())
                         .hasKnownStatus(UNAUTHORIZED)
                         .via("nodeCreationFailed"),
-                getTxnRecord("nodeCreationFailed").logged(),
                 // Validate that the failed transaction charges the correct fees.
-                validateChargedUsdWithin("nodeCreationFailed", 0.001, 3),
+                withOpContext((spec, log) -> allRunFor(
+                        spec,
+                        FeesChargingUtils.validateFees(
+                                "nodeCreationFailed",
+                                0.001,
+                                NODE_CREATE_BASE_FEE_USD + expectedFeeFromBytesFor(spec, log, "nodeCreationFailed")))),
                 nodeCreate("ntb", nodeAccount)
                         .adminKey(ED_25519_KEY)
                         .fee(ONE_HBAR)
                         .gossipCaCertificate(gossipCertificates.getFirst().getEncoded())
                         .via("nodeCreation"),
-                getTxnRecord("nodeCreation").logged(),
                 // But, note that the fee will not be charged for privileged payer
                 // The fee is charged here because the payer is not privileged
                 validateChargedUsdWithin("nodeCreation", 0.0, 0.0),
@@ -474,7 +483,14 @@ public class NodeCreateTest {
                         .gossipCaCertificate(gossipCertificates.getLast().getEncoded())
                         .hasKnownStatus(UNAUTHORIZED)
                         .via("multipleSigsCreation"),
-                validateChargedUsdWithin("multipleSigsCreation", 0.0011276316, 3.0));
+                withOpContext((spec, log) -> allRunFor(
+                        spec,
+                        FeesChargingUtils.validateFees(
+                                "multipleSigsCreation",
+                                0.0011276316,
+                                NODE_CREATE_BASE_FEE_USD
+                                        + 2 * SIGNATURE_FEE_AFTER_MULTIPLIER
+                                        + expectedFeeFromBytesFor(spec, log, "multipleSigsCreation")))));
     }
 
     /**

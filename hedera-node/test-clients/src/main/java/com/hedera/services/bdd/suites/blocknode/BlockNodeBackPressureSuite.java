@@ -134,7 +134,7 @@ public class BlockNodeBackPressureSuite {
                         blockNodeIds = {0},
                         blockNodePriorities = {0},
                         applicationPropertiesOverrides = {
-                            "blockStream.buffer.maxBlocks", "15",
+                            "blockStream.buffer.maxBlocks", "5",
                             "blockStream.streamMode", "BLOCKS",
                             "blockStream.writerMode", "GRPC"
                         }),
@@ -143,7 +143,7 @@ public class BlockNodeBackPressureSuite {
                         blockNodeIds = {1},
                         blockNodePriorities = {0},
                         applicationPropertiesOverrides = {
-                            "blockStream.buffer.maxBlocks", "15",
+                            "blockStream.buffer.maxBlocks", "5",
                             "blockStream.streamMode", "BLOCKS",
                             "blockStream.writerMode", "GRPC"
                         }),
@@ -152,7 +152,7 @@ public class BlockNodeBackPressureSuite {
                         blockNodeIds = {2},
                         blockNodePriorities = {0},
                         applicationPropertiesOverrides = {
-                            "blockStream.buffer.maxBlocks", "15",
+                            "blockStream.buffer.maxBlocks", "5",
                             "blockStream.streamMode", "BLOCKS",
                             "blockStream.writerMode", "GRPC"
                         }),
@@ -161,7 +161,7 @@ public class BlockNodeBackPressureSuite {
                         blockNodeIds = {3},
                         blockNodePriorities = {0},
                         applicationPropertiesOverrides = {
-                            "blockStream.buffer.maxBlocks", "15",
+                            "blockStream.buffer.maxBlocks", "5",
                             "blockStream.streamMode", "BLOCKS",
                             "blockStream.writerMode", "GRPC"
                         })
@@ -177,13 +177,13 @@ public class BlockNodeBackPressureSuite {
                 sourcingContextual(spec -> assertBlockNodeCommsLogContainsTimeframe(
                         byNodeId(0),
                         time::get,
-                        Duration.ofMinutes(1),
-                        Duration.ofMinutes(1),
+                        Duration.ofSeconds(30),
+                        Duration.ofSeconds(30),
                         "Block buffer is saturated; backpressure is being enabled",
                         "!!! Block buffer is saturated; blocking thread until buffer is no longer saturated")),
                 waitForAny(byNodeId(0), Duration.ofSeconds(30), PlatformStatus.CHECKING),
                 doingContextual(
-                        spec -> LockSupport.parkNanos(Duration.ofMinutes(2).toNanos())),
+                        spec -> LockSupport.parkNanos(Duration.ofMinutes(1).toNanos())),
                 blockNode(0).startImmediately(),
                 doingContextual(spec -> time.set(Instant.now())),
                 sourcingContextual(
@@ -200,7 +200,7 @@ public class BlockNodeBackPressureSuite {
                 blockNode(1).shutDownImmediately(),
                 waitForAny(allNodes(), Duration.ofSeconds(120), PlatformStatus.CHECKING),
                 doingContextual(
-                        spec -> LockSupport.parkNanos(Duration.ofMinutes(2).toNanos())),
+                        spec -> LockSupport.parkNanos(Duration.ofMinutes(1).toNanos())),
                 blockNode(0).startImmediately(),
                 blockNode(1).startImmediately(),
                 waitForAny(allNodes(), Duration.ofSeconds(120), PlatformStatus.ACTIVE));

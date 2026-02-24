@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.crypto;
 
+import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountDetailsAsserts.accountDetailsWith;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountDetails;
@@ -40,6 +40,7 @@ import static com.hedera.services.bdd.suites.crypto.CryptoApproveAllowanceSuite.
 import static com.hedera.services.bdd.suites.crypto.CryptoApproveAllowanceSuite.SPENDER;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateFees;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_DELETE_ALLOWANCE_FEE;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SIGNATURE_FEE_AFTER_MULTIPLIER;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.EMPTY_ALLOWANCES;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.FUNGIBLE_TOKEN_IN_NFT_ALLOWANCES;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ALLOWANCE_OWNER_ID;
@@ -51,7 +52,7 @@ import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
 import com.hederahashgraph.api.proto.java.TokenSupplyType;
 import com.hederahashgraph.api.proto.java.TokenType;
 import java.util.List;
@@ -98,7 +99,6 @@ public class CryptoDeleteAllowanceSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> canDeleteAllowanceForDeletedSpender() {
         final String owner = "owner";
         final String spender = "spender";
@@ -277,7 +277,6 @@ public class CryptoDeleteAllowanceSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> feesAsExpected() {
         final String owner = "owner";
         final String spender = "spender";
@@ -353,11 +352,10 @@ public class CryptoDeleteAllowanceSuite {
                         .addNftDeleteAllowance(owner, nft, List.of(1L))
                         .signedBy(payer, owner)
                         .via("twoDeleteNft"),
-                validateFees("twoDeleteNft", 0.08124, CRYPTO_DELETE_ALLOWANCE_FEE));
+                validateFees("twoDeleteNft", 0.08124, CRYPTO_DELETE_ALLOWANCE_FEE + SIGNATURE_FEE_AFTER_MULTIPLIER));
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> succeedsWhenTokenPausedFrozenKycRevoked() {
         final String owner = "owner";
         final String spender = "spender";
@@ -443,7 +441,9 @@ public class CryptoDeleteAllowanceSuite {
                                 "hedera.allowances.maxAccountLimit", "100")));
     }
 
-    @LeakyHapiTest(overrides = {"hedera.allowances.maxTransactionLimit"})
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"hedera.allowances.maxTransactionLimit"})
     final Stream<DynamicTest> exceedsTransactionLimit() {
         final String owner = "owner";
         final String spender = "spender";

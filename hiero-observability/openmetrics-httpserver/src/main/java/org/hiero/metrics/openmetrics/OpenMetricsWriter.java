@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.metrics.openmetrics;
 
+import static java.lang.System.Logger.Level.WARNING;
+
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
@@ -24,6 +26,8 @@ import org.hiero.metrics.core.MetricType;
  * <p>See <a href="https://github.com/prometheus/OpenMetrics/blob/main/specification/OpenMetrics.md">OpenMetrics</a> for details.
  */
 class OpenMetricsWriter {
+
+    private static final System.Logger logger = System.getLogger(OpenMetricsWriter.class.getName());
 
     private static final EnumMap<MetricType, byte[]> METRIC_TYPES = new EnumMap<>(MetricType.class);
     private static final byte[] UNKNOWN_TYPE = "unknown".getBytes(StandardCharsets.UTF_8);
@@ -80,11 +84,10 @@ class OpenMetricsWriter {
                 output.write(convertValue(doubleSnapshot.get()));
                 output.write(NEW_LINE);
             } else {
-                System.getLogger(getClass().getName())
-                        .log(
-                                System.Logger.Level.WARNING,
-                                "Skipping unsupported measurement snapshot type: "
-                                        + measurementSnapshot.getClass().getName());
+                logger.log(
+                        WARNING,
+                        "Skipping unsupported measurement snapshot type: {0}",
+                        measurementSnapshot.getClass().getName());
             }
         }
     }

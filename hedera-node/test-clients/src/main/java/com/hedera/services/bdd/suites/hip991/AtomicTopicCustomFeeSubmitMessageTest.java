@@ -45,6 +45,9 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.LegacyFeeParam.LEGACY_ALLOWED_PERCENT_DIFF;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.LegacyFeeParam.LEGACY_EXPECTED_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateFeeModeAwareWithTxnSize;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_DELETED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_FROZEN_FOR_TOKEN;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CUSTOM_FEE_CHARGING_EXCEEDED_MAX_RECURSION_DEPTH;
@@ -57,6 +60,8 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MAX_CUSTOM_FEE
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NO_VALID_MAX_CUSTOM_FEE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
+import static org.hiero.hapi.support.fees.Extra.SIGNATURES;
+import static org.hiero.hapi.support.fees.Extra.STATE_BYTES;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -69,12 +74,14 @@ import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecFungibleToken;
 import com.hedera.services.bdd.spec.keys.SigControl;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
+import com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import com.hederahashgraph.api.proto.java.TokenID;
 import com.hederahashgraph.api.proto.java.TokenType;
 import com.hederahashgraph.api.proto.java.TransactionRecord;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Arrays;
+import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -2049,6 +2056,12 @@ class AtomicTopicCustomFeeSubmitMessageTest extends TopicCustomFeeBase {
             Arrays.fill(messageBytes1000, (byte) 0b1);
             Arrays.fill(messageBytes1024, (byte) 0b1);
 
+            final FeesChargingUtils.ExpectedUsdFromExtras submitExpectedFn =
+                    FeesChargingUtils::expectedTopicSubmitMessageWithCustomFeeFullFeeUsd;
+            final double legacyAllowedPercentDiff = 0.1;
+            final double simpleFeesAllowedPercentDiff = 0.1;
+            final long testMsgBytes = "test".getBytes().length;
+
             return hapiTest(flattened(
                     cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS),
                     newKeyNamed(SUBMIT_KEY),
@@ -2081,16 +2094,60 @@ class AtomicTopicCustomFeeSubmitMessageTest extends TopicCustomFeeBase {
                             .payingWith(SUBMITTER)
                             .via("extraSigs"),
                     getAccountBalance("collector").hasTinyBars(60),
-                    validateChargedUsdWithin("simpleSubmit", 0.05, 0.1),
-                    validateChargedUsdWithin("submit513", 0.051, 0.1),
-                    validateChargedUsdWithin("submit800", 0.055999, 0.1),
-                    validateChargedUsdWithin("submit1000", 0.06, 0.1),
-                    validateChargedUsdWithin("submit1024", 0.06, 0.1),
-                    validateChargedUsdWithin("extraSigs", 0.0792, 0.1)));
+
+                    // --- Fee validations in simple fees - legacy fees dual-mode ---//
+                    validateFeeModeAwareWithTxnSize(
+                            "simpleSubmit",
+                            Map.of(SIGNATURES, 1L, STATE_BYTES, testMsgBytes),
+                            Map.of(LEGACY_EXPECTED_USD, 0.05, LEGACY_ALLOWED_PERCENT_DIFF, legacyAllowedPercentDiff),
+                            simpleFeesAllowedPercentDiff,
+                            submitExpectedFn),
+                    validateFeeModeAwareWithTxnSize(
+                            "submit513",
+                            Map.of(
+                                    SIGNATURES, 1L,
+                                    STATE_BYTES, 513L),
+                            Map.of(LEGACY_EXPECTED_USD, 0.051, LEGACY_ALLOWED_PERCENT_DIFF, legacyAllowedPercentDiff),
+                            simpleFeesAllowedPercentDiff,
+                            submitExpectedFn),
+                    validateFeeModeAwareWithTxnSize(
+                            "submit800",
+                            Map.of(
+                                    SIGNATURES, 1L,
+                                    STATE_BYTES, 800L),
+                            Map.of(
+                                    LEGACY_EXPECTED_USD,
+                                    0.055999,
+                                    LEGACY_ALLOWED_PERCENT_DIFF,
+                                    legacyAllowedPercentDiff),
+                            simpleFeesAllowedPercentDiff,
+                            submitExpectedFn),
+                    validateFeeModeAwareWithTxnSize(
+                            "submit1000",
+                            Map.of(
+                                    SIGNATURES, 1L,
+                                    STATE_BYTES, 1000L),
+                            Map.of(LEGACY_EXPECTED_USD, 0.06, LEGACY_ALLOWED_PERCENT_DIFF, legacyAllowedPercentDiff),
+                            simpleFeesAllowedPercentDiff,
+                            submitExpectedFn),
+                    validateFeeModeAwareWithTxnSize(
+                            "submit1024",
+                            Map.of(
+                                    SIGNATURES, 1L,
+                                    STATE_BYTES, 1024L),
+                            Map.of(LEGACY_EXPECTED_USD, 0.06, LEGACY_ALLOWED_PERCENT_DIFF, legacyAllowedPercentDiff),
+                            simpleFeesAllowedPercentDiff,
+                            submitExpectedFn),
+                    validateFeeModeAwareWithTxnSize(
+                            "extraSigs",
+                            Map.of(SIGNATURES, 2L, STATE_BYTES, testMsgBytes),
+                            Map.of(LEGACY_EXPECTED_USD, 0.0792, LEGACY_ALLOWED_PERCENT_DIFF, legacyAllowedPercentDiff),
+                            simpleFeesAllowedPercentDiff,
+                            submitExpectedFn)));
         }
 
         @HapiTest
-        @DisplayName("Submit ot topic with 2 layers fee should have 0 child records")
+        @DisplayName("Submit to topic with 2 layers fee should have 0 child records")
         final Stream<DynamicTest> submitToTopicWith2layersFee() {
             return hapiTest(flattened(
                     cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS),

@@ -2,8 +2,12 @@
 package com.hedera.services.bdd.suites.crypto;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.SYSTEM_ACCOUNT_BALANCES;
+import static com.hedera.services.bdd.junit.EmbeddedReason.MUST_SKIP_INGEST;
+import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
+import static com.hedera.services.bdd.junit.TestTags.ONLY_EMBEDDED;
+import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.CONCURRENT;
+import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
@@ -18,7 +22,6 @@ import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfe
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUnique;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.takeBalanceSnapshots;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateRecordTransactionFees;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateTransferListForBalances;
@@ -39,7 +42,8 @@ import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
+import com.hedera.services.bdd.junit.TargetEmbeddedMode;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.keys.KeyFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -51,7 +55,9 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
+@Tag(ONLY_EMBEDDED)
 @Tag(CRYPTO)
+@TargetEmbeddedMode(CONCURRENT)
 @HapiTestLifecycle
 public class CryptoRecordsSanityCheckSuite {
     private static final String PAYER = "payer";
@@ -64,8 +70,7 @@ public class CryptoRecordsSanityCheckSuite {
         testLifecycle.overrideInClass(Map.of("nodes.feeCollectionAccountEnabled", "false"));
     }
 
-    @LeakyHapiTest(requirement = SYSTEM_ACCOUNT_BALANCES)
-    @Tag(MATS)
+    @LeakyEmbeddedHapiTest(reason = NEEDS_STATE_ACCESS, requirement = SYSTEM_ACCOUNT_BALANCES)
     final Stream<DynamicTest> ownershipChangeShowsInRecord() {
         final var firstOwner = "A";
         final var secondOwner = "B";
@@ -95,7 +100,7 @@ public class CryptoRecordsSanityCheckSuite {
                 getTxnRecord(xferRecord).logged());
     }
 
-    @LeakyHapiTest(requirement = SYSTEM_ACCOUNT_BALANCES)
+    @LeakyEmbeddedHapiTest(reason = NEEDS_STATE_ACCESS, requirement = SYSTEM_ACCOUNT_BALANCES)
     final Stream<DynamicTest> cryptoCreateRecordSanityChecks() {
         return hapiTest(flattened(
                 takeBalanceSnapshots(FUNDING, NODE, STAKING_REWARD, NODE_REWARD, DEFAULT_PAYER, FEE_COLLECTOR),
@@ -106,8 +111,7 @@ public class CryptoRecordsSanityCheckSuite {
                 withOpContext((spec, opLog) -> validateRecordTransactionFees(spec, "txn"))));
     }
 
-    @LeakyHapiTest(requirement = SYSTEM_ACCOUNT_BALANCES)
-    @Tag(MATS)
+    @LeakyEmbeddedHapiTest(reason = NEEDS_STATE_ACCESS, requirement = SYSTEM_ACCOUNT_BALANCES)
     final Stream<DynamicTest> cryptoDeleteRecordSanityChecks() {
         return hapiTest(flattened(
                 cryptoCreate("test"),
@@ -120,7 +124,7 @@ public class CryptoRecordsSanityCheckSuite {
                 withOpContext((spec, opLog) -> validateRecordTransactionFees(spec, "txn"))));
     }
 
-    @LeakyHapiTest(requirement = SYSTEM_ACCOUNT_BALANCES)
+    @LeakyEmbeddedHapiTest(reason = NEEDS_STATE_ACCESS, requirement = SYSTEM_ACCOUNT_BALANCES)
     final Stream<DynamicTest> cryptoTransferRecordSanityChecks() {
         return hapiTest(flattened(
                 cryptoCreate("a").balance(100_000L),
@@ -131,8 +135,7 @@ public class CryptoRecordsSanityCheckSuite {
                 withOpContext((spec, opLog) -> validateRecordTransactionFees(spec, "txn"))));
     }
 
-    @LeakyHapiTest(requirement = SYSTEM_ACCOUNT_BALANCES)
-    @Tag(MATS)
+    @LeakyEmbeddedHapiTest(reason = NEEDS_STATE_ACCESS, requirement = SYSTEM_ACCOUNT_BALANCES)
     final Stream<DynamicTest> cryptoUpdateRecordSanityChecks() {
         return hapiTest(flattened(
                 cryptoCreate("test"),
@@ -145,31 +148,35 @@ public class CryptoRecordsSanityCheckSuite {
                 withOpContext((spec, opLog) -> validateRecordTransactionFees(spec, "txn"))));
     }
 
-    @LeakyHapiTest(requirement = SYSTEM_ACCOUNT_BALANCES)
-    @Tag(MATS)
+    @LeakyEmbeddedHapiTest(reason = MUST_SKIP_INGEST, requirement = SYSTEM_ACCOUNT_BALANCES)
     final Stream<DynamicTest> insufficientAccountBalanceRecordSanityChecks() {
         final long BALANCE = 500_000_000L;
         return hapiTest(flattened(
+                withOpContext((spec, opLog) -> spec.registry().saveAccountId("NODE_4", asAccount("0.0.4"))),
                 cryptoCreate(PAYER).balance(BALANCE),
                 cryptoCreate(RECEIVER),
-                takeBalanceSnapshots(FUNDING, NODE, STAKING_REWARD, NODE_REWARD, PAYER, RECEIVER, FEE_COLLECTOR),
-                cryptoTransfer(tinyBarsFromTo(PAYER, RECEIVER, BALANCE / 2))
+                takeBalanceSnapshots(
+                        FUNDING, NODE, "NODE_4", STAKING_REWARD, NODE_REWARD, PAYER, RECEIVER, FEE_COLLECTOR),
+                cryptoTransfer(tinyBarsFromTo(PAYER, RECEIVER, BALANCE))
                         .payingWith(PAYER)
-                        .via("txn1")
-                        .fee(ONE_HUNDRED_HBARS)
-                        .deferStatusResolution(),
-                cryptoTransfer(tinyBarsFromTo(PAYER, RECEIVER, BALANCE / 2))
-                        .payingWith(PAYER)
-                        .via("txn2")
+                        .setNode("4")
+                        .via("txn")
                         .fee(ONE_HUNDRED_HBARS)
                         .hasKnownStatus(INSUFFICIENT_ACCOUNT_BALANCE),
-                sleepFor(1_000L),
                 validateTransferListForBalances(
-                        List.of("txn1", "txn2"),
-                        List.of(FUNDING, NODE, STAKING_REWARD, NODE_REWARD, PAYER, RECEIVER, FEE_COLLECTOR))));
+                        "txn",
+                        List.of(
+                                FUNDING,
+                                NODE,
+                                "NODE_4",
+                                STAKING_REWARD,
+                                NODE_REWARD,
+                                PAYER,
+                                RECEIVER,
+                                FEE_COLLECTOR))));
     }
 
-    @LeakyHapiTest(requirement = SYSTEM_ACCOUNT_BALANCES)
+    @LeakyEmbeddedHapiTest(reason = NEEDS_STATE_ACCESS, requirement = SYSTEM_ACCOUNT_BALANCES)
     final Stream<DynamicTest> invalidPayerSigCryptoTransferRecordSanityChecks() {
         final long BALANCE = 10_000_000L;
 
