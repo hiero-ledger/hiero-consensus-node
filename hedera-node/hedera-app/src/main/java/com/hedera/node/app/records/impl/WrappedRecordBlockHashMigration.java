@@ -241,25 +241,6 @@ public class WrappedRecordBlockHashMigration {
             return false;
         }
 
-        //        final var blockInfo = requireNonNull(state.getReadableStates(BlockRecordService.NAME)
-        //                .<BlockInfo>getSingleton(BLOCKS_STATE_ID)
-        //                .get());
-        //        final var lastProcessedBlockNumberInState = blockInfo.lastBlockNumber();
-        //        if (lastProcessedBlockNumberInState
-        //                != allRecentWrappedRecordHashes.entries().getLast().blockNumber()) {
-        //            log.error(
-        //                    "Last processed block number in state {} does not match the last wrapped record block
-        // number {} in the recent wrapped record hashes file. {}",
-        //                    lastProcessedBlockNumberInState,
-        //                    allRecentWrappedRecordHashes.entries().getLast().blockNumber(),
-        //                    RESUME_MESSAGE);
-        //            return false;
-        //        }
-        //        log.info(
-        //                "Last processed block number in state {}; {} available in recent wrapped record hashes file",
-        //                lastProcessedBlockNumberInState,
-        //                allRecentWrappedRecordHashes.entries().getLast().blockNumber());
-
         final var neededRecentWrappedRecords = allRecentWrappedRecordHashes.entries().stream()
                 .filter(rwr -> rwr.blockNumber() > jumpstartBlockNum)
                 .toList();
