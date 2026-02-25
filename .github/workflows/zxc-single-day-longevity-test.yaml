@@ -122,7 +122,7 @@ jobs:
 
       - name: Authorize Teleport K8S Access
         id: auth-k8s
-        uses: teleport-actions/auth-k8s@677da98eaa78a5e649d4c5b4012750af4c28af73 # v2.0.3
+        uses: teleport-actions/auth-k8s@d45dc8f8d215c23519c9d87095ac5de98796bfdc # v2.0.5
         with:
           proxy: hashgraph.teleport.sh:443
           token: gh-citr-performance-svcs-bot
@@ -525,7 +525,7 @@ jobs:
 
       - name: Authorize Teleport K8S Access
         id: auth-k8s
-        uses: teleport-actions/auth-k8s@677da98eaa78a5e649d4c5b4012750af4c28af73 # v2.0.3
+        uses: teleport-actions/auth-k8s@d45dc8f8d215c23519c9d87095ac5de98796bfdc # v2.0.5
         with:
           proxy: hashgraph.teleport.sh:443
           token: gh-citr-performance-svcs-bot
@@ -671,7 +671,7 @@ jobs:
 
       - name: Authorize Teleport K8S Access
         id: auth-k8s
-        uses: teleport-actions/auth-k8s@677da98eaa78a5e649d4c5b4012750af4c28af73 # v2.0.3
+        uses: teleport-actions/auth-k8s@d45dc8f8d215c23519c9d87095ac5de98796bfdc # v2.0.5
         with:
           proxy: hashgraph.teleport.sh:443
           token: gh-citr-performance-svcs-bot
