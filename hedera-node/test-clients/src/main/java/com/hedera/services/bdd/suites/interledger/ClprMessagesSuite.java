@@ -24,8 +24,12 @@ import static org.hiero.interledger.clpr.ClprStateProofUtils.extractMessageQueue
 
 import com.esaulpaugh.headlong.abi.Address;
 import com.esaulpaugh.headlong.abi.Tuple;
+import com.hedera.hapi.block.stream.StateProof;
+import com.hedera.hapi.node.base.ResponseCodeEnum;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.ConfigOverride;
 import com.hedera.services.bdd.junit.MultiNetworkHapiTest;
+import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.TestTags;
 import com.hedera.services.bdd.junit.hedera.HederaNode;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
@@ -44,9 +48,13 @@ import java.util.stream.Stream;
 import org.apache.logging.log4j.Logger;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerId;
+import org.hiero.hapi.interledger.state.clpr.ClprMessage;
+import org.hiero.hapi.interledger.state.clpr.ClprMessageBundle;
+import org.hiero.hapi.interledger.state.clpr.ClprMessagePayload;
 import org.hiero.hapi.interledger.state.clpr.ClprMessageQueueMetadata;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 
 /**
@@ -56,6 +64,7 @@ import org.junit.jupiter.api.Tag;
  * start of {@link #twoNetworkMessagesExchange(SubProcessNetwork, SubProcessNetwork)}.
  */
 @Tag(TestTags.MULTINETWORK)
+@OrderedInIsolation
 public class ClprMessagesSuite {
 
     private static final Duration AWAIT_TIMEOUT = Duration.ofMinutes(2);
@@ -98,6 +107,7 @@ public class ClprMessagesSuite {
     private static final String ABI_CONNECTORS = getABIFor(FUNCTION, "connectors", CLPR_MIDDLEWARE);
     private static final String ABI_REQUEST_COUNT = getABIFor(FUNCTION, "requestCount", ECHO_APP);
 
+    @Order(1)
     @MultiNetworkHapiTest(
             networks = {
                 @MultiNetworkHapiTest.Network(
@@ -180,24 +190,7 @@ public class ClprMessagesSuite {
         final var privateLedgerId = new AtomicReference<byte[]>();
         final var publicLedgerId = new AtomicReference<byte[]>();
 
-        final var privateMiddleware = new AtomicReference<String>();
-        final var publicMiddleware = new AtomicReference<String>();
-        final var privateMiddlewareContractId = new AtomicReference<String>();
-        final var publicMiddlewareContractId = new AtomicReference<String>();
-        final var privateMiddlewareId = new AtomicReference<ContractID>();
-        final var publicMiddlewareId = new AtomicReference<ContractID>();
-        final var privateConnector = new AtomicReference<String>();
-        final var publicConnector = new AtomicReference<String>();
-        final var privateConnectorContractId = new AtomicReference<String>();
-        final var publicConnectorContractId = new AtomicReference<String>();
-        final var privateConnectorId = new AtomicReference<ContractID>();
-        final var publicConnectorId = new AtomicReference<ContractID>();
-        final var privateSourceApp = new AtomicReference<String>();
-        final var publicEchoApp = new AtomicReference<String>();
-        final var privateSourceAppContractId = new AtomicReference<String>();
-        final var publicEchoAppContractId = new AtomicReference<String>();
-        final var privateSourceAppId = new AtomicReference<ContractID>();
-        final var publicEchoAppId = new AtomicReference<ContractID>();
+        final var refs = new ClprContractRefs();
 
         final var appMsgIdOne = new AtomicLong(0L);
         final var appMsgIdTwo = new AtomicLong(0L);
@@ -233,225 +226,26 @@ public class ClprMessagesSuite {
                                 log, spec.getNetworkNodes(), requireNonNull(privateConfig.get()))))
 
                 // Deploy destination side (middleware + connector + echo app).
-                .onNetwork(PUBLIC_LEDGER, withOpContext((spec, log) -> {
-                    final var payerAddress = asHeadlongAddress(asAddress(asAccount(spec, 2)));
-                    final var queueAddress = asHeadlongAddress(CLPR_QUEUE_SYSTEM_CONTRACT);
-                    final var zeroAddress = asHeadlongAddress(ZERO_ADDRESS);
-
-                    allRunFor(
-                            spec,
-                            uploadInitCode(CLPR_MIDDLEWARE, CLPR_CONNECTOR, SOURCE_APP, ECHO_APP),
-                            contractCreate(CLPR_MIDDLEWARE, queueAddress, requireNonNull(publicLedgerId.get()))
-                                    .gas(8_000_000L)
-                                    .exposingContractIdTo(id -> {
-                                        publicMiddleware.set(solidityIdFrom(id));
-                                        publicMiddlewareContractId.set(asContractIdLiteral(id));
-                                        publicMiddlewareId.set(id);
-                                    }));
-                    final var publicMiddlewareAddress =
-                            asHeadlongAddress(asAddress(requireNonNull(publicMiddlewareId.get())));
-
-                    allRunFor(
-                            spec,
-                            contractCallWithFunctionAbi(
-                                            requireNonNull(publicMiddlewareContractId.get()),
-                                            ABI_SET_TRUSTED_CALLBACK_CALLER,
-                                            payerAddress)
-                                    .gas(500_000L),
-                            contractCreate(
-                                            CLPR_CONNECTOR,
-                                            DESTINATION_CONNECTOR_ID,
-                                            SOURCE_CONNECTOR_ID,
-                                            requireNonNull(privateLedgerId.get()),
-                                            UNIT,
-                                            zeroAddress,
-                                            BigInteger.ZERO,
-                                            BigInteger.ZERO,
-                                            BigInteger.ZERO,
-                                            Tuple.of(BigInteger.ZERO, UNIT))
-                                    .gas(6_000_000L)
-                                    .balance(CONNECTOR_INITIAL_BALANCE_TINYBARS)
-                                    .exposingContractIdTo(id -> {
-                                        publicConnector.set(solidityIdFrom(id));
-                                        publicConnectorContractId.set(asContractIdLiteral(id));
-                                        publicConnectorId.set(id);
-                                    }));
-                    allRunFor(
-                            spec,
-                            contractCallWithFunctionAbi(
-                                            requireNonNull(publicConnectorContractId.get()),
-                                            ABI_REGISTER_WITH_MIDDLEWARE,
-                                            publicMiddlewareAddress)
-                                    .gas(1_000_000L)
-                                    .via("publicRegisterWithMiddleware"),
-                            getTxnRecord("publicRegisterWithMiddleware")
-                                    .andAllChildRecords()
-                                    .logged(),
-                            contractCreate(ECHO_APP, publicMiddlewareAddress)
-                                    .gas(3_000_000L)
-                                    .exposingContractIdTo(id -> {
-                                        publicEchoApp.set(solidityIdFrom(id));
-                                        publicEchoAppContractId.set(asContractIdLiteral(id));
-                                        publicEchoAppId.set(id);
-                                    }));
-                    final var publicEchoAppAddress =
-                            asHeadlongAddress(asAddress(requireNonNull(publicEchoAppId.get())));
-
-                    allRunFor(
-                            spec,
-                            contractCallWithFunctionAbi(
-                                            requireNonNull(publicMiddlewareContractId.get()),
-                                            ABI_REGISTER_LOCAL_APPLICATION,
-                                            publicEchoAppAddress)
-                                    .gas(500_000L));
-                }))
-
-                // Deploy source side (middleware + connector + source app).
-                .onNetwork(PRIVATE_LEDGER, withOpContext((spec, log) -> {
-                    final var payerAddress = asHeadlongAddress(asAddress(asAccount(spec, 2)));
-                    final var queueAddress = asHeadlongAddress(CLPR_QUEUE_SYSTEM_CONTRACT);
-                    final var zeroAddress = asHeadlongAddress(ZERO_ADDRESS);
-
-                    allRunFor(
-                            spec,
-                            uploadInitCode(CLPR_MIDDLEWARE, CLPR_CONNECTOR, SOURCE_APP, ECHO_APP),
-                            contractCreate(CLPR_MIDDLEWARE, queueAddress, requireNonNull(privateLedgerId.get()))
-                                    .gas(8_000_000L)
-                                    .exposingContractIdTo(id -> {
-                                        privateMiddleware.set(solidityIdFrom(id));
-                                        privateMiddlewareContractId.set(asContractIdLiteral(id));
-                                        privateMiddlewareId.set(id);
-                                    }));
-                    final var privateMiddlewareAddress =
-                            asHeadlongAddress(asAddress(requireNonNull(privateMiddlewareId.get())));
-
-                    allRunFor(
-                            spec,
-                            contractCallWithFunctionAbi(
-                                            requireNonNull(privateMiddlewareContractId.get()),
-                                            ABI_SET_TRUSTED_CALLBACK_CALLER,
-                                            payerAddress)
-                                    .gas(500_000L),
-                            contractCreate(
-                                            CLPR_CONNECTOR,
-                                            SOURCE_CONNECTOR_ID,
-                                            DESTINATION_CONNECTOR_ID,
-                                            requireNonNull(publicLedgerId.get()),
-                                            UNIT,
-                                            zeroAddress,
-                                            BigInteger.ZERO,
-                                            BigInteger.ZERO,
-                                            BigInteger.ZERO,
-                                            Tuple.of(BigInteger.ZERO, UNIT))
-                                    .gas(6_000_000L)
-                                    .balance(CONNECTOR_INITIAL_BALANCE_TINYBARS)
-                                    .exposingContractIdTo(id -> {
-                                        privateConnector.set(solidityIdFrom(id));
-                                        privateConnectorContractId.set(asContractIdLiteral(id));
-                                        privateConnectorId.set(id);
-                                    }));
-                    final var publicMiddlewareAddress =
-                            asHeadlongAddress(asAddress(requireNonNull(publicMiddlewareId.get())));
-                    final var publicEchoAppAddress =
-                            asHeadlongAddress(asAddress(requireNonNull(publicEchoAppId.get())));
-                    final var connectorIdFromContract = new AtomicReference<Object[]>();
-                    final var connectorAdminFromContract = new AtomicReference<Object[]>();
-
-                    allRunFor(
-                            spec,
-                            contractCallLocalWithFunctionAbi(
-                                            requireNonNull(privateConnectorContractId.get()), ABI_CONNECTOR_ID)
-                                    .gas(500_000L)
-                                    .exposingTypedResultsTo(connectorIdFromContract::set),
-                            contractCallLocalWithFunctionAbi(
-                                            requireNonNull(privateConnectorContractId.get()), ABI_CONNECTOR_ADMIN)
-                                    .gas(500_000L)
-                                    .exposingTypedResultsTo(connectorAdminFromContract::set));
-
-                    log.info(
-                            "CLPR_TEST_OBS|component=clpr_messages_suite|stage=post_source_connector_create|connectorId={}|admin={}",
-                            Arrays.deepToString(connectorIdFromContract.get()),
-                            Arrays.deepToString(connectorAdminFromContract.get()));
-                    assertThat(connectorIdFromContract.get()).isNotNull();
-                    assertThat((byte[]) connectorIdFromContract.get()[0]).isEqualTo(SOURCE_CONNECTOR_ID);
-
-                    allRunFor(
-                            spec,
-                            contractCallWithFunctionAbi(
-                                            requireNonNull(privateConnectorContractId.get()),
-                                            ABI_REGISTER_WITH_MIDDLEWARE,
-                                            privateMiddlewareAddress)
-                                    .gas(1_000_000L)
-                                    .via("privateRegisterWithMiddleware"),
-                            getTxnRecord("privateRegisterWithMiddleware").logged(),
-                            contractCallLocalWithFunctionAbi(
-                                            requireNonNull(privateMiddlewareContractId.get()),
-                                            ABI_CONNECTORS,
-                                            SOURCE_CONNECTOR_ID)
-                                    .gas(500_000L)
-                                    .exposingTypedResultsTo(connectorSnapshot -> log.info(
-                                            "CLPR_TEST_OBS|component=clpr_messages_suite|stage=pre_set_remote_middleware_connector_snapshot|value={}",
-                                            Arrays.deepToString(connectorSnapshot))),
-                            contractCallWithFunctionAbi(
-                                            requireNonNull(privateMiddlewareContractId.get()),
-                                            ABI_SET_CONNECTOR_REMOTE_MIDDLEWARE,
-                                            SOURCE_CONNECTOR_ID,
-                                            publicMiddlewareAddress)
-                                    .gas(500_000L)
-                                    .via("privateSetConnectorRemoteMiddleware"),
-                            getTxnRecord("privateSetConnectorRemoteMiddleware").logged(),
-                            contractCreate(
-                                            SOURCE_APP,
-                                            privateMiddlewareAddress,
-                                            publicEchoAppAddress,
-                                            (Object) new byte[][] {SOURCE_CONNECTOR_ID},
-                                            BigInteger.ZERO,
-                                            UNIT)
-                                    .gas(4_000_000L)
-                                    .exposingContractIdTo(id -> {
-                                        privateSourceApp.set(solidityIdFrom(id));
-                                        privateSourceAppContractId.set(asContractIdLiteral(id));
-                                        privateSourceAppId.set(id);
-                                    }));
-
-                    final var connectorSnapshot = new AtomicReference<Object[]>();
-                    allRunFor(
-                            spec,
-                            contractCallLocalWithFunctionAbi(
-                                            requireNonNull(privateMiddlewareContractId.get()),
-                                            ABI_CONNECTORS,
-                                            SOURCE_CONNECTOR_ID)
-                                    .gas(500_000L)
-                                    .exposingTypedResultsTo(connectorSnapshot::set));
-                    log.info(
-                            "CLPR_TEST_OBS|component=clpr_messages_suite|stage=post_source_deploy_connector_snapshot|value={}",
-                            Arrays.deepToString(connectorSnapshot.get()));
-                    assertThat(connectorSnapshot.get()).isNotNull();
-                    assertThat((Boolean) connectorSnapshot.get()[6]).isTrue();
-                    final var privateSourceAppAddress = requireNonNull(privateSourceApp.get());
-                    final var privateSourceAppHeadlong =
-                            asHeadlongAddress(asAddress(requireNonNull(privateSourceAppId.get())));
-
-                    allRunFor(
-                            spec,
-                            contractCallWithFunctionAbi(
-                                            requireNonNull(privateMiddlewareContractId.get()),
-                                            ABI_REGISTER_LOCAL_APPLICATION,
-                                            privateSourceAppHeadlong)
-                                    .gas(500_000L));
-                }))
-
-                // Complete destination-side connector pairing once source middleware address is known.
                 .onNetwork(
                         PUBLIC_LEDGER,
-                        withOpContext((spec, log) -> allRunFor(
+                        withOpContext((spec, log) -> deployDestinationContracts(
                                 spec,
-                                contractCallWithFunctionAbi(
-                                                requireNonNull(publicMiddlewareContractId.get()),
-                                                ABI_SET_CONNECTOR_REMOTE_MIDDLEWARE,
-                                                DESTINATION_CONNECTOR_ID,
-                                                asHeadlongAddress(asAddress(requireNonNull(privateMiddlewareId.get()))))
-                                        .gas(500_000L))))
+                                refs,
+                                requireNonNull(publicLedgerId.get()),
+                                requireNonNull(privateLedgerId.get()))))
+
+                // Deploy source side (middleware + connector + source app).
+                .onNetwork(
+                        PRIVATE_LEDGER,
+                        withOpContext((spec, log) -> deploySourceContracts(
+                                spec,
+                                log,
+                                refs,
+                                requireNonNull(privateLedgerId.get()),
+                                requireNonNull(publicLedgerId.get()))))
+
+                // Complete destination-side connector pairing once source middleware address is known.
+                .onNetwork(PUBLIC_LEDGER, withOpContext((spec, log) -> completeConnectorPairing(spec, refs)))
 
                 // Send first request and capture app message id.
                 .onNetwork(PRIVATE_LEDGER, withOpContext((spec, log) -> {
@@ -461,17 +255,18 @@ public class ClprMessagesSuite {
                     allRunFor(
                             spec,
                             contractCallLocalWithFunctionAbi(
-                                            requireNonNull(privateSourceAppContractId.get()), ABI_GET_CONNECTOR_IDS)
+                                            requireNonNull(refs.privateSourceAppContractId.get()),
+                                            ABI_GET_CONNECTOR_IDS)
                                     .gas(500_000L)
                                     .exposingTypedResultsTo(connectorIds::set),
                             contractCallLocalWithFunctionAbi(
-                                            requireNonNull(privateMiddlewareContractId.get()),
+                                            requireNonNull(refs.privateMiddlewareContractId.get()),
                                             ABI_CONNECTORS,
                                             SOURCE_CONNECTOR_ID)
                                     .gas(500_000L)
                                     .exposingTypedResultsTo(connectorConfig::set),
                             contractCallWithFunctionAbi(
-                                            requireNonNull(privateSourceAppContractId.get()),
+                                            requireNonNull(refs.privateSourceAppContractId.get()),
                                             ABI_SEND_WITH_FAILOVER_FROM_FIRST,
                                             PAYLOAD_ONE)
                                     .gas(5_000_000L)
@@ -510,7 +305,7 @@ public class ClprMessagesSuite {
                         withOpContext((spec, log) -> awaitUint64AtLeast(
                                 spec,
                                 log,
-                                requireNonNull(publicEchoAppContractId.get()),
+                                requireNonNull(refs.publicEchoAppContractId.get()),
                                 ABI_REQUEST_COUNT,
                                 1L,
                                 "echo requestCount")))
@@ -518,14 +313,14 @@ public class ClprMessagesSuite {
                     final var receivedAppMsgId = awaitUint64AtLeast(
                             spec,
                             log,
-                            requireNonNull(privateSourceAppContractId.get()),
+                            requireNonNull(refs.privateSourceAppContractId.get()),
                             ABI_LAST_RECEIVED_APP_MSG_ID,
                             1L,
                             "source lastReceivedAppMsgId");
                     appMsgIdOne.set(receivedAppMsgId);
                     final var response = queryBytes(
                             spec,
-                            requireNonNull(privateSourceAppContractId.get()),
+                            requireNonNull(refs.privateSourceAppContractId.get()),
                             ABI_GET_RESPONSE,
                             BigInteger.valueOf(appMsgIdOne.get()));
                     assertThat(response).isEqualTo(PAYLOAD_ONE);
@@ -536,7 +331,7 @@ public class ClprMessagesSuite {
                     allRunFor(
                             spec,
                             contractCallWithFunctionAbi(
-                                            requireNonNull(privateSourceAppContractId.get()),
+                                            requireNonNull(refs.privateSourceAppContractId.get()),
                                             ABI_SEND_WITH_FAILOVER_FROM_FIRST,
                                             PAYLOAD_TWO)
                                     .gas(5_000_000L));
@@ -548,7 +343,7 @@ public class ClprMessagesSuite {
                         withOpContext((spec, log) -> awaitUint64AtLeast(
                                 spec,
                                 log,
-                                requireNonNull(publicEchoAppContractId.get()),
+                                requireNonNull(refs.publicEchoAppContractId.get()),
                                 ABI_REQUEST_COUNT,
                                 2L,
                                 "echo requestCount")))
@@ -556,14 +351,14 @@ public class ClprMessagesSuite {
                     final var receivedAppMsgId = awaitUint64AtLeast(
                             spec,
                             log,
-                            requireNonNull(privateSourceAppContractId.get()),
+                            requireNonNull(refs.privateSourceAppContractId.get()),
                             ABI_LAST_RECEIVED_APP_MSG_ID,
                             appMsgIdOne.get() + 1,
                             "source lastReceivedAppMsgId");
                     appMsgIdTwo.set(receivedAppMsgId);
                     final var response = queryBytes(
                             spec,
-                            requireNonNull(privateSourceAppContractId.get()),
+                            requireNonNull(refs.privateSourceAppContractId.get()),
                             ABI_GET_RESPONSE,
                             BigInteger.valueOf(appMsgIdTwo.get()));
                     assertThat(response).isEqualTo(PAYLOAD_TWO);
@@ -582,6 +377,432 @@ public class ClprMessagesSuite {
                 }));
 
         return builder.asDynamicTests();
+    }
+
+    @Order(2)
+    @MultiNetworkHapiTest(
+            networks = {
+                @MultiNetworkHapiTest.Network(
+                        name = PRIVATE_LEDGER,
+                        size = 1,
+                        firstGrpcPort = 37400,
+                        setupOverrides = {
+                            @ConfigOverride(key = "clpr.clprEnabled", value = "true"),
+                            @ConfigOverride(key = "clpr.devModeEnabled", value = "true"),
+                            @ConfigOverride(key = "clpr.publicizeNetworkAddresses", value = "false"),
+                            @ConfigOverride(key = "clpr.connectionFrequency", value = "5000"),
+                            @ConfigOverride(key = "contracts.systemContract.clprQueue.enabled", value = "true"),
+                            @ConfigOverride(key = "clpr.maxBundleMessages", value = "10"),
+                            @ConfigOverride(key = "clpr.maxBundleBytes", value = "10240")
+                        }),
+                @MultiNetworkHapiTest.Network(
+                        name = PUBLIC_LEDGER,
+                        size = 1,
+                        firstGrpcPort = 38400,
+                        setupOverrides = {
+                            @ConfigOverride(key = "clpr.clprEnabled", value = "true"),
+                            @ConfigOverride(key = "clpr.devModeEnabled", value = "true"),
+                            @ConfigOverride(key = "clpr.publicizeNetworkAddresses", value = "true"),
+                            @ConfigOverride(key = "clpr.connectionFrequency", value = "1000"),
+                            @ConfigOverride(key = "contracts.systemContract.clprQueue.enabled", value = "true"),
+                            @ConfigOverride(key = "clpr.maxBundleMessages", value = "2"),
+                            @ConfigOverride(key = "clpr.maxBundleBytes", value = "6144")
+                        })
+            })
+    @DisplayName("Respect bundle shape - negative and positive")
+    Stream<DynamicTest> respectBundleShapeMessagesExchange(final SubProcessNetwork netA, final SubProcessNetwork netB) {
+        final var privateConfig = new AtomicReference<ClprLedgerConfiguration>();
+        final var publicConfig = new AtomicReference<ClprLedgerConfiguration>();
+        final var privateLedgerId = new AtomicReference<byte[]>();
+        final var publicLedgerId = new AtomicReference<byte[]>();
+        final var refs = new ClprContractRefs();
+
+        return multiNetworkHapiTest(netA, netB)
+                // Stage A: Config exchange and queue metadata initialization.
+                .onNetwork(PRIVATE_LEDGER, withOpContext((spec, log) -> {
+                    final var config = awaitLocalLedgerConfiguration(spec.getNetworkNodes());
+                    privateConfig.set(config);
+                    privateLedgerId.set(asBytes32(config.ledgerIdOrThrow()));
+                }))
+                .onNetwork(PUBLIC_LEDGER, withOpContext((spec, log) -> {
+                    final var config = awaitLocalLedgerConfiguration(spec.getNetworkNodes());
+                    publicConfig.set(config);
+                    publicLedgerId.set(asBytes32(config.ledgerIdOrThrow()));
+                }))
+                .onNetwork(
+                        PRIVATE_LEDGER,
+                        withOpContext((spec, log) ->
+                                submitConfiguration(spec, getFirstNode(spec), requireNonNull(publicConfig.get()))))
+                .onNetwork(
+                        PUBLIC_LEDGER,
+                        withOpContext((spec, log) ->
+                                submitConfiguration(spec, getFirstNode(spec), requireNonNull(privateConfig.get()))))
+                .onNetwork(
+                        PRIVATE_LEDGER,
+                        withOpContext((spec, log) -> awaitMessageQueueMetadataAvailable(
+                                log, spec.getNetworkNodes(), requireNonNull(publicConfig.get()))))
+                .onNetwork(
+                        PUBLIC_LEDGER,
+                        withOpContext((spec, log) -> awaitMessageQueueMetadataAvailable(
+                                log, spec.getNetworkNodes(), requireNonNull(privateConfig.get()))))
+
+                // Stage B: Deploy contracts on both sides.
+                .onNetwork(
+                        PUBLIC_LEDGER,
+                        withOpContext((spec, log) -> deployDestinationContracts(
+                                spec,
+                                refs,
+                                requireNonNull(publicLedgerId.get()),
+                                requireNonNull(privateLedgerId.get()))))
+                .onNetwork(
+                        PRIVATE_LEDGER,
+                        withOpContext((spec, log) -> deploySourceContracts(
+                                spec,
+                                log,
+                                refs,
+                                requireNonNull(privateLedgerId.get()),
+                                requireNonNull(publicLedgerId.get()))))
+                .onNetwork(PUBLIC_LEDGER, withOpContext((spec, log) -> completeConnectorPairing(spec, refs)))
+
+                // Stage C: Negative test - submit oversized bundle directly to public ledger.
+                // Public ledger has maxBundleMessages=2, so a bundle with 2 payload messages
+                // (total 3 including state proof value) exceeds the limit and must be rejected.
+                .onNetwork(PUBLIC_LEDGER, withOpContext((spec, log) -> {
+                    final var node = getFirstNode(spec);
+                    try (final var client = createClient(node)) {
+                        final var dummyPayload = ClprMessagePayload.newBuilder()
+                                .message(ClprMessage.newBuilder()
+                                        .messageData(Bytes.wrap("dummy".getBytes(StandardCharsets.UTF_8)))
+                                        .build())
+                                .build();
+                        final var oversizedBundle = ClprMessageBundle.newBuilder()
+                                .ledgerId(requireNonNull(privateConfig.get()).ledgerId())
+                                .messages(List.of(dummyPayload, dummyPayload))
+                                .stateProof(StateProof.DEFAULT)
+                                .build();
+                        final var payer = toPbj(asAccount(spec, 2));
+                        final var response = client.submitProcessMessageBundleTxn(
+                                payer,
+                                node.getAccountId(),
+                                requireNonNull(privateConfig.get()).ledgerId(),
+                                oversizedBundle);
+                        log.info(
+                                "CLPR_TEST_OBS|component=clpr_messages_suite|stage=oversized_bundle_result|response={}",
+                                response);
+                        assertThat(response)
+                                .as("Oversized bundle must be rejected with CLPR_INVALID_BUNDLE")
+                                .isEqualTo(ResponseCodeEnum.CLPR_INVALID_BUNDLE);
+                    }
+                }))
+
+                // Stage D: Positive test - send more messages than the per-bundle limit through
+                // normal flow and verify all arrive despite requiring multiple bundle splits.
+                .onNetwork(PRIVATE_LEDGER, withOpContext((spec, log) -> {
+                    allRunFor(
+                            spec,
+                            contractCallWithFunctionAbi(
+                                            requireNonNull(refs.privateSourceAppContractId.get()),
+                                            ABI_SEND_WITH_FAILOVER_FROM_FIRST,
+                                            "hello-clpr-3".getBytes(StandardCharsets.UTF_8))
+                                    .gas(5_000_000L),
+                            contractCallWithFunctionAbi(
+                                            requireNonNull(refs.privateSourceAppContractId.get()),
+                                            ABI_SEND_WITH_FAILOVER_FROM_FIRST,
+                                            "hello-clpr-4".getBytes(StandardCharsets.UTF_8))
+                                    .gas(5_000_000L),
+                            contractCallWithFunctionAbi(
+                                            requireNonNull(refs.privateSourceAppContractId.get()),
+                                            ABI_SEND_WITH_FAILOVER_FROM_FIRST,
+                                            "hello-clpr-5".getBytes(StandardCharsets.UTF_8))
+                                    .gas(5_000_000L));
+                }))
+
+                // Verify all 3 messages delivered to destination echo app.
+                .onNetwork(
+                        PUBLIC_LEDGER,
+                        withOpContext((spec, log) -> awaitUint64AtLeast(
+                                spec,
+                                log,
+                                requireNonNull(refs.publicEchoAppContractId.get()),
+                                ABI_REQUEST_COUNT,
+                                3L,
+                                "echo requestCount")))
+
+                // Verify all 3 responses arrived at source app.
+                .onNetwork(
+                        PRIVATE_LEDGER,
+                        withOpContext((spec, log) -> awaitUint64AtLeast(
+                                spec,
+                                log,
+                                requireNonNull(refs.privateSourceAppContractId.get()),
+                                ABI_LAST_RECEIVED_APP_MSG_ID,
+                                3L,
+                                "source lastReceivedAppMsgId")))
+
+                // Queue convergence - both sides consumed all messages.
+                .onNetwork(PRIVATE_LEDGER, withOpContext((spec, log) -> {
+                    awaitMessageQueueCountersAtLeast(
+                            log, spec.getNetworkNodes(), requireNonNull(publicConfig.get()), 3L, 3L);
+                    awaitEmptyOutgoingQueue(log, spec.getNetworkNodes(), requireNonNull(publicConfig.get()));
+                }))
+                .onNetwork(PUBLIC_LEDGER, withOpContext((spec, log) -> {
+                    awaitMessageQueueCountersAtLeast(
+                            log, spec.getNetworkNodes(), requireNonNull(privateConfig.get()), 3L, 3L);
+                    awaitEmptyOutgoingQueue(log, spec.getNetworkNodes(), requireNonNull(privateConfig.get()));
+                }))
+                .asDynamicTests();
+    }
+
+    /**
+     * Holds contract references for both ledgers, shared between setup helpers and test stages.
+     */
+    private static class ClprContractRefs {
+        final AtomicReference<String> privateMiddleware = new AtomicReference<>();
+        final AtomicReference<String> privateMiddlewareContractId = new AtomicReference<>();
+        final AtomicReference<ContractID> privateMiddlewareId = new AtomicReference<>();
+        final AtomicReference<String> publicMiddleware = new AtomicReference<>();
+        final AtomicReference<String> publicMiddlewareContractId = new AtomicReference<>();
+        final AtomicReference<ContractID> publicMiddlewareId = new AtomicReference<>();
+        final AtomicReference<String> privateConnector = new AtomicReference<>();
+        final AtomicReference<String> privateConnectorContractId = new AtomicReference<>();
+        final AtomicReference<ContractID> privateConnectorId = new AtomicReference<>();
+        final AtomicReference<String> publicConnector = new AtomicReference<>();
+        final AtomicReference<String> publicConnectorContractId = new AtomicReference<>();
+        final AtomicReference<ContractID> publicConnectorId = new AtomicReference<>();
+        final AtomicReference<String> privateSourceApp = new AtomicReference<>();
+        final AtomicReference<String> privateSourceAppContractId = new AtomicReference<>();
+        final AtomicReference<ContractID> privateSourceAppId = new AtomicReference<>();
+        final AtomicReference<String> publicEchoApp = new AtomicReference<>();
+        final AtomicReference<String> publicEchoAppContractId = new AtomicReference<>();
+        final AtomicReference<ContractID> publicEchoAppId = new AtomicReference<>();
+    }
+
+    /**
+     * Deploys destination-side contracts: ClprMiddleware, connector, and EchoApplication.
+     */
+    private static void deployDestinationContracts(
+            final HapiSpec spec, final ClprContractRefs refs, final byte[] localLedgerId, final byte[] remoteLedgerId) {
+        final var payerAddress = asHeadlongAddress(asAddress(asAccount(spec, 2)));
+        final var queueAddress = asHeadlongAddress(CLPR_QUEUE_SYSTEM_CONTRACT);
+        final var zeroAddress = asHeadlongAddress(ZERO_ADDRESS);
+
+        allRunFor(
+                spec,
+                uploadInitCode(CLPR_MIDDLEWARE, CLPR_CONNECTOR, SOURCE_APP, ECHO_APP),
+                contractCreate(CLPR_MIDDLEWARE, queueAddress, localLedgerId)
+                        .gas(8_000_000L)
+                        .exposingContractIdTo(id -> {
+                            refs.publicMiddleware.set(solidityIdFrom(id));
+                            refs.publicMiddlewareContractId.set(asContractIdLiteral(id));
+                            refs.publicMiddlewareId.set(id);
+                        }));
+        final var publicMiddlewareAddress = asHeadlongAddress(asAddress(requireNonNull(refs.publicMiddlewareId.get())));
+
+        allRunFor(
+                spec,
+                contractCallWithFunctionAbi(
+                                requireNonNull(refs.publicMiddlewareContractId.get()),
+                                ABI_SET_TRUSTED_CALLBACK_CALLER,
+                                payerAddress)
+                        .gas(500_000L),
+                contractCreate(
+                                CLPR_CONNECTOR,
+                                DESTINATION_CONNECTOR_ID,
+                                SOURCE_CONNECTOR_ID,
+                                remoteLedgerId,
+                                UNIT,
+                                zeroAddress,
+                                BigInteger.ZERO,
+                                BigInteger.ZERO,
+                                BigInteger.ZERO,
+                                Tuple.of(BigInteger.ZERO, UNIT))
+                        .gas(6_000_000L)
+                        .balance(CONNECTOR_INITIAL_BALANCE_TINYBARS)
+                        .exposingContractIdTo(id -> {
+                            refs.publicConnector.set(solidityIdFrom(id));
+                            refs.publicConnectorContractId.set(asContractIdLiteral(id));
+                            refs.publicConnectorId.set(id);
+                        }));
+        allRunFor(
+                spec,
+                contractCallWithFunctionAbi(
+                                requireNonNull(refs.publicConnectorContractId.get()),
+                                ABI_REGISTER_WITH_MIDDLEWARE,
+                                publicMiddlewareAddress)
+                        .gas(1_000_000L)
+                        .via("publicRegisterWithMiddleware"),
+                getTxnRecord("publicRegisterWithMiddleware")
+                        .andAllChildRecords()
+                        .logged(),
+                contractCreate(ECHO_APP, publicMiddlewareAddress)
+                        .gas(3_000_000L)
+                        .exposingContractIdTo(id -> {
+                            refs.publicEchoApp.set(solidityIdFrom(id));
+                            refs.publicEchoAppContractId.set(asContractIdLiteral(id));
+                            refs.publicEchoAppId.set(id);
+                        }));
+        final var publicEchoAppAddress = asHeadlongAddress(asAddress(requireNonNull(refs.publicEchoAppId.get())));
+
+        allRunFor(
+                spec,
+                contractCallWithFunctionAbi(
+                                requireNonNull(refs.publicMiddlewareContractId.get()),
+                                ABI_REGISTER_LOCAL_APPLICATION,
+                                publicEchoAppAddress)
+                        .gas(500_000L));
+    }
+
+    /**
+     * Deploys source-side contracts: ClprMiddleware, connector, and SourceApplication.
+     */
+    private static void deploySourceContracts(
+            final HapiSpec spec,
+            final Logger log,
+            final ClprContractRefs refs,
+            final byte[] localLedgerId,
+            final byte[] remoteLedgerId) {
+        final var payerAddress = asHeadlongAddress(asAddress(asAccount(spec, 2)));
+        final var queueAddress = asHeadlongAddress(CLPR_QUEUE_SYSTEM_CONTRACT);
+        final var zeroAddress = asHeadlongAddress(ZERO_ADDRESS);
+
+        allRunFor(
+                spec,
+                uploadInitCode(CLPR_MIDDLEWARE, CLPR_CONNECTOR, SOURCE_APP, ECHO_APP),
+                contractCreate(CLPR_MIDDLEWARE, queueAddress, localLedgerId)
+                        .gas(8_000_000L)
+                        .exposingContractIdTo(id -> {
+                            refs.privateMiddleware.set(solidityIdFrom(id));
+                            refs.privateMiddlewareContractId.set(asContractIdLiteral(id));
+                            refs.privateMiddlewareId.set(id);
+                        }));
+        final var privateMiddlewareAddress =
+                asHeadlongAddress(asAddress(requireNonNull(refs.privateMiddlewareId.get())));
+
+        allRunFor(
+                spec,
+                contractCallWithFunctionAbi(
+                                requireNonNull(refs.privateMiddlewareContractId.get()),
+                                ABI_SET_TRUSTED_CALLBACK_CALLER,
+                                payerAddress)
+                        .gas(500_000L),
+                contractCreate(
+                                CLPR_CONNECTOR,
+                                SOURCE_CONNECTOR_ID,
+                                DESTINATION_CONNECTOR_ID,
+                                remoteLedgerId,
+                                UNIT,
+                                zeroAddress,
+                                BigInteger.ZERO,
+                                BigInteger.ZERO,
+                                BigInteger.ZERO,
+                                Tuple.of(BigInteger.ZERO, UNIT))
+                        .gas(6_000_000L)
+                        .balance(CONNECTOR_INITIAL_BALANCE_TINYBARS)
+                        .exposingContractIdTo(id -> {
+                            refs.privateConnector.set(solidityIdFrom(id));
+                            refs.privateConnectorContractId.set(asContractIdLiteral(id));
+                            refs.privateConnectorId.set(id);
+                        }));
+        final var publicMiddlewareAddress = asHeadlongAddress(asAddress(requireNonNull(refs.publicMiddlewareId.get())));
+        final var publicEchoAppAddress = asHeadlongAddress(asAddress(requireNonNull(refs.publicEchoAppId.get())));
+        final var connectorIdFromContract = new AtomicReference<Object[]>();
+        final var connectorAdminFromContract = new AtomicReference<Object[]>();
+
+        allRunFor(
+                spec,
+                contractCallLocalWithFunctionAbi(
+                                requireNonNull(refs.privateConnectorContractId.get()), ABI_CONNECTOR_ID)
+                        .gas(500_000L)
+                        .exposingTypedResultsTo(connectorIdFromContract::set),
+                contractCallLocalWithFunctionAbi(
+                                requireNonNull(refs.privateConnectorContractId.get()), ABI_CONNECTOR_ADMIN)
+                        .gas(500_000L)
+                        .exposingTypedResultsTo(connectorAdminFromContract::set));
+
+        log.info(
+                "CLPR_TEST_OBS|component=clpr_messages_suite|stage=post_source_connector_create|connectorId={}|admin={}",
+                Arrays.deepToString(connectorIdFromContract.get()),
+                Arrays.deepToString(connectorAdminFromContract.get()));
+        assertThat(connectorIdFromContract.get()).isNotNull();
+        assertThat((byte[]) connectorIdFromContract.get()[0]).isEqualTo(SOURCE_CONNECTOR_ID);
+
+        allRunFor(
+                spec,
+                contractCallWithFunctionAbi(
+                                requireNonNull(refs.privateConnectorContractId.get()),
+                                ABI_REGISTER_WITH_MIDDLEWARE,
+                                privateMiddlewareAddress)
+                        .gas(1_000_000L)
+                        .via("privateRegisterWithMiddleware"),
+                getTxnRecord("privateRegisterWithMiddleware").logged(),
+                contractCallLocalWithFunctionAbi(
+                                requireNonNull(refs.privateMiddlewareContractId.get()),
+                                ABI_CONNECTORS,
+                                SOURCE_CONNECTOR_ID)
+                        .gas(500_000L)
+                        .exposingTypedResultsTo(connectorSnapshot -> log.info(
+                                "CLPR_TEST_OBS|component=clpr_messages_suite|stage=pre_set_remote_middleware_connector_snapshot|value={}",
+                                Arrays.deepToString(connectorSnapshot))),
+                contractCallWithFunctionAbi(
+                                requireNonNull(refs.privateMiddlewareContractId.get()),
+                                ABI_SET_CONNECTOR_REMOTE_MIDDLEWARE,
+                                SOURCE_CONNECTOR_ID,
+                                publicMiddlewareAddress)
+                        .gas(500_000L)
+                        .via("privateSetConnectorRemoteMiddleware"),
+                getTxnRecord("privateSetConnectorRemoteMiddleware").logged(),
+                contractCreate(
+                                SOURCE_APP,
+                                privateMiddlewareAddress,
+                                publicEchoAppAddress,
+                                (Object) new byte[][] {SOURCE_CONNECTOR_ID},
+                                BigInteger.ZERO,
+                                UNIT)
+                        .gas(4_000_000L)
+                        .exposingContractIdTo(id -> {
+                            refs.privateSourceApp.set(solidityIdFrom(id));
+                            refs.privateSourceAppContractId.set(asContractIdLiteral(id));
+                            refs.privateSourceAppId.set(id);
+                        }));
+
+        final var connectorSnapshot = new AtomicReference<Object[]>();
+        allRunFor(
+                spec,
+                contractCallLocalWithFunctionAbi(
+                                requireNonNull(refs.privateMiddlewareContractId.get()),
+                                ABI_CONNECTORS,
+                                SOURCE_CONNECTOR_ID)
+                        .gas(500_000L)
+                        .exposingTypedResultsTo(connectorSnapshot::set));
+        log.info(
+                "CLPR_TEST_OBS|component=clpr_messages_suite|stage=post_source_deploy_connector_snapshot|value={}",
+                Arrays.deepToString(connectorSnapshot.get()));
+        assertThat(connectorSnapshot.get()).isNotNull();
+        assertThat((Boolean) connectorSnapshot.get()[6]).isTrue();
+        final var privateSourceAppHeadlong =
+                asHeadlongAddress(asAddress(requireNonNull(refs.privateSourceAppId.get())));
+
+        allRunFor(
+                spec,
+                contractCallWithFunctionAbi(
+                                requireNonNull(refs.privateMiddlewareContractId.get()),
+                                ABI_REGISTER_LOCAL_APPLICATION,
+                                privateSourceAppHeadlong)
+                        .gas(500_000L));
+    }
+
+    /**
+     * Completes bi-directional connector/middleware linkage on the destination side.
+     */
+    private static void completeConnectorPairing(final HapiSpec spec, final ClprContractRefs refs) {
+        allRunFor(
+                spec,
+                contractCallWithFunctionAbi(
+                                requireNonNull(refs.publicMiddlewareContractId.get()),
+                                ABI_SET_CONNECTOR_REMOTE_MIDDLEWARE,
+                                DESTINATION_CONNECTOR_ID,
+                                asHeadlongAddress(asAddress(requireNonNull(refs.privateMiddlewareId.get()))))
+                        .gas(500_000L));
     }
 
     private static HederaNode getFirstNode(final HapiSpec spec) {
