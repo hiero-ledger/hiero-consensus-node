@@ -73,8 +73,6 @@ public class ClprMessagesSuite {
 
     private static final String PRIVATE_LEDGER = "private";
     private static final String PUBLIC_LEDGER = "public";
-    private static final String PUBLIC_LEDGER_S = "smallBundleLedger";
-    private static final String PUBLIC_LEDGER_L = "largeBundleLedger";
 
     private static final String CLPR_MIDDLEWARE = "ClprMiddleware";
     private static final String CLPR_CONNECTOR = "MockClprConnector";
