@@ -24,6 +24,7 @@ import static com.hedera.services.bdd.suites.contract.Utils.defaultContractsRoot
 import static com.hedera.services.bdd.suites.contract.Utils.extractByteCode;
 import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
 import static com.hedera.services.bdd.suites.contract.Utils.getResourcePath;
+import static java.util.Objects.requireNonNull;
 import static org.apache.commons.lang3.StringUtils.EMPTY;
 
 import com.esaulpaugh.headlong.abi.Address;
@@ -45,7 +46,7 @@ import com.hedera.services.bdd.spec.transactions.contract.HapiContractDelete;
 import com.hedera.services.bdd.spec.transactions.contract.HapiContractUpdate;
 import com.hedera.services.bdd.spec.transactions.contract.HapiEthereumCall;
 import com.hedera.services.bdd.spec.transactions.contract.HapiEthereumContractCreate;
-import com.hedera.services.bdd.spec.transactions.contract.HapiLambdaSStore;
+import com.hedera.services.bdd.spec.transactions.contract.HapiHookStore;
 import com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoApproveAllowance;
 import com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoCreate;
 import com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoDelete;
@@ -842,7 +843,18 @@ public class TxnVerbs {
         return new HapiAtomicBatch(ops);
     }
 
-    public static HapiLambdaSStore accountLambdaSStore(@NonNull final String account, final long hookId) {
-        return new HapiLambdaSStore(HookEntityId.EntityIdOneOfType.ACCOUNT_ID, account, hookId);
+    public static HapiHookStore accountEvmHookStore(@NonNull final String account, final long hookId) {
+        return new HapiHookStore(HookEntityId.EntityIdOneOfType.ACCOUNT_ID, account, hookId);
+    }
+
+    /**
+     * Returns a {@link HapiHookStore} for the given contract and hook id.
+     * @param contract the contract
+     * @param hookId the hook id
+     * @return a {@link HapiHookStore} for the given contract and hook id
+     */
+    public static HapiHookStore contractHookStore(@NonNull final String contract, final long hookId) {
+        requireNonNull(contract);
+        return new HapiHookStore(HookEntityId.EntityIdOneOfType.CONTRACT_ID, contract, hookId);
     }
 }

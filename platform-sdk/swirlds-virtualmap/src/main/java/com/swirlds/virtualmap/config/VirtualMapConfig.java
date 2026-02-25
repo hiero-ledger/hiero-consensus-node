@@ -32,14 +32,9 @@ import com.swirlds.config.api.validation.annotation.Min;
  * @param numCleanerThreads
  * 		The number of threads to devote to cache cleaning. If not set, defaults to the number of threads implied by
  *      {@code virtualMap.percentCleanerThreads} and {@link Runtime#availableProcessors()}.
- * @param flushInterval
- * 		The interval between flushing of copies. This value defines the value of N where every Nth copy is flushed. The
- * 		value must be positive and will typically be a fairly small number, such as 20. The first copy is not flushed,
- * 		but every Nth copy thereafter is.
  * @param copyFlushCandidateThreshold
- *      Virtual map copy flush threshold. A copy can be flushed to disk only if it's size exceeds this
- *      threshold. If set to zero, size-based flushes aren't used, and copies are flushed based on {@link
- *      #flushInterval} instead.
+ *      Virtual map copy flush threshold. A copy can be flushed to disk only if its size exceeds this
+ *      threshold.
  * @param familyThrottleThreshold
  *      Virtual map family throttle threshold. When estimated size of all unreleased copies of the same virtual
  *      root exceeds this threshold, virtual pipeline starts applying backpressure on creating new root copies.
@@ -50,7 +45,9 @@ import com.swirlds.config.api.validation.annotation.Min;
  *      -Xmx80g, and familyThrottlePercent is 5.0, the threshold will be set to 4Gb. If both familyThrottlePercent
  *      and familyThrottleThreshold are set, familyThrottleThreshold is used, and familyThrottlePercent is
  *      ignored
+ * @param fullRehashTimeoutMs the number of milliseconds to wait for the full leaf rehash to finish before it fail with an exception.
  */
+// spotless:off
 @ConfigData("virtualMap")
 public record VirtualMapConfig(
         @Min(0) @Max(100) @ConfigProperty(defaultValue = "50.0") double percentHashThreads,
@@ -60,11 +57,11 @@ public record VirtualMapConfig(
         @Min(0) @ConfigProperty(defaultValue = "500000") int reconnectFlushInterval,
         @Min(0) @Max(100) @ConfigProperty(defaultValue = "25.0") double percentCleanerThreads,
         @Min(-1) @ConfigProperty(defaultValue = "-1") int numCleanerThreads,
-        @Min(1) @ConfigProperty(defaultValue = "20") int flushInterval,
-        @Min(-1) @ConfigProperty(defaultValue = "1000000000") long copyFlushCandidateThreshold,
+        @Min(1) @ConfigProperty(defaultValue = "1000000000") long copyFlushCandidateThreshold,
         @Min(-1) @Max(100) @ConfigProperty(defaultValue = "10.0") double familyThrottlePercent,
-        @Min(-1) @ConfigProperty(defaultValue = "-1") long familyThrottleThreshold) {
-
+        @Min(-1) @ConfigProperty(defaultValue = "-1") long familyThrottleThreshold,
+        @Min(0) @ConfigProperty(defaultValue = "600000") int fullRehashTimeoutMs) {
+// spotless:on
     private static final double UNIT_FRACTION_PERCENT = 100.0;
 
     public int getNumHashThreads() {

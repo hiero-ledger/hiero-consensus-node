@@ -6,11 +6,13 @@ import static org.assertj.core.api.AssertionsForClassTypes.within;
 
 import com.hedera.node.app.service.contract.impl.exec.metrics.SystemContractOpsDurationMetric;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
-import com.swirlds.common.metrics.config.MetricsConfig;
-import com.swirlds.common.metrics.platform.DefaultPlatformMetrics;
-import com.swirlds.common.metrics.platform.MetricKeyRegistry;
-import com.swirlds.common.metrics.platform.PlatformMetricsFactoryImpl;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadLocalRandom;
+import org.hiero.consensus.metrics.config.MetricsConfig;
+import org.hiero.consensus.metrics.platform.DefaultPlatformMetrics;
+import org.hiero.consensus.metrics.platform.MetricKeyRegistry;
+import org.hiero.consensus.metrics.platform.PlatformMetricsFactoryImpl;
 import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -42,27 +44,36 @@ class SystemContractOpsDurationMetricTest {
         subject = new SystemContractOpsDurationMetric(metrics);
     }
 
+    private static void generateMetric(
+            @NonNull final SystemContractOpsDurationMetric subject,
+            @NonNull final String systemContractName,
+            @NonNull final String systemContractAddress,
+            final int cycles,
+            final long avg) {
+        for (int i = 0; i < cycles; i++) {
+            final long shift = ThreadLocalRandom.current().nextLong(avg);
+            subject.recordOperationDuration(systemContractName, systemContractAddress, avg + shift);
+            subject.recordOperationDuration(systemContractName, systemContractAddress, avg - shift);
+        }
+    }
+
     @Test
     void recordsAndRetrievesOperationDuration() {
         // Given
-        final long duration1 = 100L;
-        final long duration2 = 200L;
-
+        final int cycles = 1000;
+        final long avg = 150;
         // When
-        subject.recordOperationDuration(SC1, ADDR1, duration1);
-        subject.recordOperationDuration(SC1, ADDR1, duration2);
-
-        // Then
+        generateMetric(subject, SC1, ADDR1, cycles, avg);
         final double average =
                 subject.getSystemContractOpsDuration(SC1, ADDR1).average().get();
-
         final double count =
                 subject.getSystemContractOpsDuration(SC1, ADDR1).counter().get();
         final double total =
                 subject.getSystemContractOpsDuration(SC1, ADDR1).accumulator().get();
-        assertThat(average).isCloseTo(150.0, within(5.0)); // (100 + 200) / 2
-        assertThat(count).isEqualTo(2.0); // Two durations recorded
-        assertThat(total).isEqualTo(300.0); // 100 + 200
+        // Then
+        assertThat(average).isCloseTo(avg, within(5.0));
+        assertThat(count).isEqualTo(cycles * 2);
+        assertThat(total).isEqualTo(cycles * 2 * avg);
     }
 
     @Test
@@ -76,26 +87,21 @@ class SystemContractOpsDurationMetricTest {
     @Test
     void handlesMultipleMethods() {
         // Given
-        final long duration1 = 100L;
-        final long duration2 = 200L;
-        final long duration3 = 300L;
-
+        final int cycles1 = 1000;
+        final long avg1 = 150;
+        final int cycles2 = 1500;
+        final long avg2 = 200;
         // When
-        subject.recordOperationDuration(SC1, ADDR1, duration1);
-        subject.recordOperationDuration(SC1, ADDR1, duration3);
-        subject.recordOperationDuration(SC1, ADDR1, duration1);
-        subject.recordOperationDuration(SC1, ADDR1, duration3);
-        subject.recordOperationDuration(SC2, ADDR2, duration2);
-        subject.recordOperationDuration(SC2, ADDR2, duration2);
-
-        // Then
+        generateMetric(subject, SC1, ADDR1, cycles1, avg1);
+        generateMetric(subject, SC2, ADDR2, cycles2, avg2);
         final var metric1 = subject.getSystemContractOpsDuration(SC1, ADDR1);
         final var metric2 = subject.getSystemContractOpsDuration(SC2, ADDR2);
-        assertThat(metric1.average().get()).isCloseTo(200.0, within(5.0));
-        assertThat(metric1.counter().get()).isEqualTo(4);
-        assertThat(metric1.accumulator().get()).isEqualTo(800L); // 100 + 300 + 100 + 300
-        assertThat(metric2.average().get()).isCloseTo(200.0, within(5.0));
-        assertThat(metric2.counter().get()).isEqualTo(2);
-        assertThat(metric2.accumulator().get()).isEqualTo(400L); // 200 + 200
+        // Then
+        assertThat(metric1.average().get()).isCloseTo(avg1, within(5.0));
+        assertThat(metric1.counter().get()).isEqualTo(cycles1 * 2);
+        assertThat(metric1.accumulator().get()).isEqualTo(cycles1 * 2 * avg1);
+        assertThat(metric2.average().get()).isCloseTo(avg2, within(5.0));
+        assertThat(metric2.counter().get()).isEqualTo(cycles2 * 2);
+        assertThat(metric2.accumulator().get()).isEqualTo(cycles2 * 2 * avg2);
     }
 }

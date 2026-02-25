@@ -3,6 +3,7 @@ package com.hedera.services.bdd.suites.hip869.batch;
 
 import static com.hedera.services.bdd.junit.EmbeddedReason.MUST_SKIP_INGEST;
 import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
+import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
 import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFullPrefixesFor;
@@ -16,6 +17,7 @@ import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfe
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewNode;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.safeValidateInnerTxnChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateInnerTxnChargedUsd;
 import static com.hedera.services.bdd.suites.HapiSuite.ADDRESS_BOOK_CONTROL;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
@@ -24,6 +26,8 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.SYSTEM_ADMIN;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NODE_DELETE_BASE_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SIGNATURE_FEE_AFTER_MULTIPLIER;
 import static com.hedera.services.bdd.suites.hip869.NodeCreateTest.generateX509Certificates;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
@@ -51,6 +55,7 @@ import org.junit.jupiter.api.Tag;
 
 // This test cases are direct copies of NodeDeleteTest. The difference here is that
 // we are wrapping the operations in an atomic batch to confirm that everything works as expected.
+@Tag(ATOMIC_BATCH)
 @HapiTestLifecycle
 class AtomicNodeDeleteTest {
 
@@ -103,7 +108,7 @@ class AtomicNodeDeleteTest {
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
                 getTxnRecord("failedDeletion").logged(),
                 // The fee is charged here because the payer is not privileged
-                validateInnerTxnChargedUsd("failedDeletion", "atomic", 0.001, 3.0),
+                safeValidateInnerTxnChargedUsd("failedDeletion", "atomic", 0.001, 1.0, NODE_DELETE_BASE_FEE_USD, 1.0),
 
                 // Submit with several signatures and the price should increase
                 atomicBatch(nodeDelete("node100")
@@ -116,7 +121,13 @@ class AtomicNodeDeleteTest {
                         .via("atomic")
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                validateInnerTxnChargedUsd("multipleSigsDeletion", "atomic", 0.0011276316, 3.0),
+                safeValidateInnerTxnChargedUsd(
+                        "multipleSigsDeletion",
+                        "atomic",
+                        0.0011276316,
+                        1.0,
+                        NODE_DELETE_BASE_FEE_USD + 2 * SIGNATURE_FEE_AFTER_MULTIPLIER,
+                        1.0),
                 atomicBatch(nodeDelete("node100").via("deleteNode").batchKey(BATCH_OPERATOR))
                         .via("atomic")
                         .payingWith(BATCH_OPERATOR),
@@ -185,7 +196,7 @@ class AtomicNodeDeleteTest {
 
     @HapiTest
     final Stream<DynamicTest> handleNodeNotExist() {
-        final String nodeName = "33";
+        final String nodeName = "33445566";
         return hapiTest(
                 atomicBatch(nodeDelete(nodeName).hasKnownStatus(INVALID_NODE_ID).batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)

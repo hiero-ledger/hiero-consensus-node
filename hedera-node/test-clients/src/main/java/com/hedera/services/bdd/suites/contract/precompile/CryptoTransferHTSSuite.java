@@ -85,6 +85,7 @@ import com.hedera.services.bdd.spec.assertions.SomeFungibleTransfers;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
+import com.hedera.services.bdd.suites.contract.precompile.token.TransferTokenTest;
 import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.TokenID;
 import com.hederahashgraph.api.proto.java.TokenSupplyType;
@@ -93,15 +94,11 @@ import java.math.BigInteger;
 import java.util.List;
 import java.util.OptionalLong;
 import java.util.stream.Stream;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
 @Tag(LONG_RUNNING)
 public class CryptoTransferHTSSuite {
-
-    private static final Logger log = LogManager.getLogger(CryptoTransferHTSSuite.class);
 
     private static final long GAS_FOR_AUTO_ASSOCIATING_CALLS = 2_000_000;
     private static final long GAS_TO_OFFER = 4_000_000L;
@@ -854,9 +851,18 @@ public class CryptoTransferHTSSuite {
                                     })
                                     .payingWith(GENESIS)
                                     .via(repeatedIdsPrecompileXferTxn)
-                                    .gas(GAS_TO_OFFER));
+                                    .gas(GAS_TO_OFFER),
+                            // check ERC20 event
+                            TransferTokenTest.validateErcEvent(
+                                            getTxnRecord(repeatedIdsPrecompileXferTxn),
+                                            new TransferTokenTest.ErcEventRecord(
+                                                    token::getTokenNum,
+                                                    false,
+                                                    () -> parsedToByteString(sender),
+                                                    () -> parsedToByteString(receiver),
+                                                    2 * toSendEachTuple))
+                                    .andAllChildRecords());
                 }),
-                getTxnRecord(repeatedIdsPrecompileXferTxn).andAllChildRecords(),
                 getAccountBalance(RECEIVER).hasTokenBalance(FUNGIBLE_TOKEN, receiverStartBalance + 2 * toSendEachTuple),
                 getAccountBalance(SENDER).hasTokenBalance(FUNGIBLE_TOKEN, senderStartBalance - 2 * toSendEachTuple),
                 childRecordsCheck(
@@ -915,9 +921,24 @@ public class CryptoTransferHTSSuite {
                                     })
                                     .gas(GAS_TO_OFFER)
                                     .payingWith(GENESIS)
-                                    .via(cryptoTransferTxn));
+                                    .via(cryptoTransferTxn),
+                            // check ERC20 event
+                            TransferTokenTest.validateErcEvent(
+                                            getTxnRecord(cryptoTransferTxn),
+                                            new TransferTokenTest.ErcEventRecord(
+                                                    token::getTokenNum,
+                                                    false,
+                                                    () -> parsedToByteString(sender),
+                                                    () -> parsedToByteString(receiver),
+                                                    30L),
+                                            new TransferTokenTest.ErcEventRecord(
+                                                    token::getTokenNum,
+                                                    false,
+                                                    () -> parsedToByteString(sender),
+                                                    () -> parsedToByteString(receiver2),
+                                                    20L))
+                                    .andAllChildRecords());
                 }),
-                getTxnRecord(cryptoTransferTxn).andAllChildRecords(),
                 getTokenInfo(FUNGIBLE_TOKEN).hasTotalSupply(TOTAL_SUPPLY),
                 getAccountBalance(RECEIVER).hasTokenBalance(FUNGIBLE_TOKEN, 30),
                 getAccountBalance(RECEIVER2).hasTokenBalance(FUNGIBLE_TOKEN, 20),
@@ -978,9 +999,18 @@ public class CryptoTransferHTSSuite {
                                     })
                                     .payingWith(GENESIS)
                                     .via(cryptoTransferTxn)
-                                    .gas(GAS_TO_OFFER));
+                                    .gas(GAS_TO_OFFER),
+                            // check ERC721 event
+                            TransferTokenTest.validateErcEvent(
+                                            getTxnRecord(cryptoTransferTxn),
+                                            new TransferTokenTest.ErcEventRecord(
+                                                    token::getTokenNum,
+                                                    true,
+                                                    () -> parsedToByteString(sender),
+                                                    () -> parsedToByteString(receiver),
+                                                    1L))
+                                    .andAllChildRecords());
                 }),
-                getTxnRecord(cryptoTransferTxn).andAllChildRecords(),
                 getTokenInfo(NFT_TOKEN).hasTotalSupply(2),
                 getAccountInfo(RECEIVER).hasOwnedNfts(1),
                 getAccountBalance(RECEIVER).hasTokenBalance(NFT_TOKEN, 1),
@@ -1052,9 +1082,24 @@ public class CryptoTransferHTSSuite {
                                     })
                                     .payingWith(GENESIS)
                                     .via(cryptoTransferTxn)
-                                    .gas(GAS_TO_OFFER));
+                                    .gas(GAS_TO_OFFER),
+                            // check ERC721 event
+                            TransferTokenTest.validateErcEvent(
+                                            getTxnRecord(cryptoTransferTxn),
+                                            new TransferTokenTest.ErcEventRecord(
+                                                    token::getTokenNum,
+                                                    true,
+                                                    () -> parsedToByteString(sender),
+                                                    () -> parsedToByteString(receiver),
+                                                    1L),
+                                            new TransferTokenTest.ErcEventRecord(
+                                                    token::getTokenNum,
+                                                    true,
+                                                    () -> parsedToByteString(sender2),
+                                                    () -> parsedToByteString(receiver2),
+                                                    2L))
+                                    .andAllChildRecords());
                 }),
-                getTxnRecord(cryptoTransferTxn).andAllChildRecords(),
                 getTokenInfo(NFT_TOKEN).hasTotalSupply(2),
                 getAccountInfo(RECEIVER).hasOwnedNfts(1),
                 getAccountBalance(RECEIVER).hasTokenBalance(NFT_TOKEN, 1),
@@ -1148,9 +1193,24 @@ public class CryptoTransferHTSSuite {
                                                     .build())
                                     .payingWith(GENESIS)
                                     .via(cryptoTransferTxn)
-                                    .gas(GAS_TO_OFFER));
+                                    .gas(GAS_TO_OFFER),
+                            // check ERC20 and ERC721 event
+                            TransferTokenTest.validateErcEvent(
+                                            getTxnRecord(cryptoTransferTxn),
+                                            new TransferTokenTest.ErcEventRecord(
+                                                    fungibleToken::getTokenNum,
+                                                    false,
+                                                    () -> parsedToByteString(fungibleTokenSender),
+                                                    () -> parsedToByteString(fungibleTokenReceiver),
+                                                    45L),
+                                            new TransferTokenTest.ErcEventRecord(
+                                                    nonFungibleToken::getTokenNum,
+                                                    true,
+                                                    () -> parsedToByteString(nonFungibleTokenSender),
+                                                    () -> parsedToByteString(nonFungibleTokenReceiver),
+                                                    1L))
+                                    .andAllChildRecords());
                 }),
-                getTxnRecord(cryptoTransferTxn).andAllChildRecords(),
                 getTokenInfo(FUNGIBLE_TOKEN).hasTotalSupply(TOTAL_SUPPLY),
                 getAccountBalance(RECEIVER).hasTokenBalance(FUNGIBLE_TOKEN, 45),
                 getAccountBalance(SENDER).hasTokenBalance(FUNGIBLE_TOKEN, 155),
@@ -1252,9 +1312,36 @@ public class CryptoTransferHTSSuite {
                                                     .build())
                                     .payingWith(GENESIS)
                                     .via(cryptoTransferTxn)
-                                    .gas(GAS_TO_OFFER));
+                                    .gas(GAS_TO_OFFER),
+                            // check ERC20 and ERC721 event
+                            TransferTokenTest.validateErcEvent(
+                                            getTxnRecord(cryptoTransferTxn),
+                                            new TransferTokenTest.ErcEventRecord(
+                                                    fungibleToken::getTokenNum,
+                                                    false,
+                                                    () -> parsedToByteString(firstSender),
+                                                    () -> parsedToByteString(firstReceiver),
+                                                    45L),
+                                            new TransferTokenTest.ErcEventRecord(
+                                                    fungibleToken::getTokenNum,
+                                                    false,
+                                                    () -> parsedToByteString(secondSender),
+                                                    () -> parsedToByteString(secondReceiver),
+                                                    32L),
+                                            new TransferTokenTest.ErcEventRecord(
+                                                    nonFungibleToken::getTokenNum,
+                                                    true,
+                                                    () -> parsedToByteString(firstSender),
+                                                    () -> parsedToByteString(firstReceiver),
+                                                    1L),
+                                            new TransferTokenTest.ErcEventRecord(
+                                                    nonFungibleToken::getTokenNum,
+                                                    true,
+                                                    () -> parsedToByteString(secondSender),
+                                                    () -> parsedToByteString(secondReceiver),
+                                                    2L))
+                                    .andAllChildRecords());
                 }),
-                getTxnRecord(cryptoTransferTxn).andAllChildRecords(),
                 getTokenInfo(FUNGIBLE_TOKEN).hasTotalSupply(TOTAL_SUPPLY),
                 getAccountBalance(RECEIVER).hasTokenBalance(FUNGIBLE_TOKEN, 45),
                 getAccountBalance(SENDER).hasTokenBalance(FUNGIBLE_TOKEN, 155),

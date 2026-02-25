@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 name: "Node: PR Checks"
 on:
-  workflow_dispatch:
   pull_request:
     types:
       - opened
@@ -25,267 +24,71 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build:
-    name: Code
-    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
+  mats-pr-checks:
+    name: MATS
+    uses: ./.github/workflows/zxc-mats-tests.yaml
     with:
-      enable-spotless-check: false
+      ref: ${{ github.event.pull_request.head.sha }}
+      enable-dependency-check: "true"
+      enable-spotless-check: "true"
+      enable-snyk-scan: "true"
+      enable-unit-tests: "true"
+      enable-integration-tests: "true"
+      enable-hapi-tests: "true"
+      enable-hapi-tests-crypto: "true"
+      enable-otter-tests: "true"
+      enable-gradle-determinism: "true"
+      enable-docker-determinism: "true"
+      java-version: "21.0.6"
+      java-distribution: "temurin"
+      custom-job-label: "Standard"
     secrets:
       access-token: ${{ secrets.GITHUB_TOKEN }}
-      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
-      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
-
-  dependency-check:
-    name: Dependency (Module Info)
-    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
-    needs:
-      - build
-    with:
-      custom-job-label: "Check"
-      enable-dependency-check: true
-    secrets:
-      access-token: ${{ secrets.GITHUB_TOKEN }}
-      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
-      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
-
-  spotless:
-    name: Spotless
-    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
-    needs:
-      - build
-    with:
-      custom-job-label: "Check"
-      enable-unit-tests: false
-      enable-spotless-check: true
-    secrets:
-      access-token: ${{ secrets.GITHUB_TOKEN }}
-      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
-      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
-
-  unit-tests:
-    name: Unit Tests
-    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
-    needs:
-      - dependency-check
-      - spotless
-    with:
-      custom-job-label: Standard
-      enable-unit-tests: true
-    secrets:
-      access-token: ${{ secrets.GITHUB_TOKEN }}
-      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
-      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
       codacy-project-token: ${{ secrets.CODACY_PROJECT_TOKEN }}
       codecov-token: ${{ secrets.CODECOV_TOKEN }}
-
-  integration-tests:
-    name: Integration Tests
-    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
-    needs:
-      - dependency-check
-      - spotless
-    with:
-      custom-job-label: Standard
-      enable-unit-tests: false
-      enable-integration-tests: true
-      enable-network-log-capture: true
-    secrets:
-      access-token: ${{ secrets.GITHUB_TOKEN }}
-      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
-      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
-
-  hapi-tests-misc:
-    name: HAPI Tests (Misc)
-    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
-    needs:
-      - dependency-check
-      - spotless
-    with:
-      custom-job-label: Standard
-      enable-unit-tests: false
-      enable-hapi-tests-misc: true
-      enable-network-log-capture: true
-      mats-suffix: MATS
-    secrets:
-      access-token: ${{ secrets.GITHUB_TOKEN }}
-      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
-      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
-
-  hapi-tests-misc-records:
-    name: HAPI Tests (Misc Records)
-    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
-    needs:
-      - dependency-check
-      - spotless
-    with:
-      custom-job-label: Standard
-      enable-unit-tests: false
-      enable-hapi-tests-misc-records: true
-      enable-network-log-capture: true
-      mats-suffix: MATS
-    secrets:
-      access-token: ${{ secrets.GITHUB_TOKEN }}
-      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
-      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
-
-  hapi-tests-crypto:
-    name: HAPI Tests (Crypto)
-    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
-    needs:
-      - dependency-check
-      - spotless
-    with:
-      custom-job-label: Standard
-      enable-unit-tests: false
-      enable-hapi-tests-crypto: true
-      enable-network-log-capture: true
-      mats-suffix: MATS
-    secrets:
-      access-token: ${{ secrets.GITHUB_TOKEN }}
-      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
-      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
-
-  hapi-tests-iss:
-    name: HAPI Tests (ISS)
-    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
-    needs:
-      - dependency-check
-      - spotless
-    with:
-      custom-job-label: Standard
-      enable-unit-tests: false
-      enable-hapi-tests-iss: true
-      enable-network-log-capture: true
-    secrets:
-      access-token: ${{ secrets.GITHUB_TOKEN }}
-      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
-      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
-
-  hapi-tests-token:
-    name: HAPI Tests (Token)
-    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
-    needs:
-      - dependency-check
-      - spotless
-    with:
-      custom-job-label: Standard
-      enable-unit-tests: false
-      enable-hapi-tests-token: true
-      enable-network-log-capture: true
-      mats-suffix: MATS
-    secrets:
-      access-token: ${{ secrets.GITHUB_TOKEN }}
-      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
-      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
-
-  hapi-tests-smart-contract:
-    name: HAPI Tests (Smart Contract)
-    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
-    needs:
-      - dependency-check
-      - spotless
-    with:
-      custom-job-label: Standard
-      enable-unit-tests: false
-      enable-hapi-tests-smart-contract: true
-      enable-network-log-capture: true
-      mats-suffix: MATS
-    secrets:
-      access-token: ${{ secrets.GITHUB_TOKEN }}
-      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
-      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
-
-  hapi-tests-restart:
-    name: HAPI Tests (Restart)
-    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
-    needs:
-      - dependency-check
-      - spotless
-    with:
-      custom-job-label: Standard
-      enable-unit-tests: false
-      enable-hapi-tests-restart: true
-      enable-network-log-capture: true
-    secrets:
-      access-token: ${{ secrets.GITHUB_TOKEN }}
-      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
-      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
-
-  hapi-tests-nd-reconnect:
-    name: HAPI Tests (Node Death Reconnect)
-    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
-    needs:
-      - dependency-check
-      - spotless
-    with:
-      custom-job-label: Standard
-      enable-unit-tests: false
-      enable-hapi-tests-nd-reconnect: true
-      enable-network-log-capture: true
-    secrets:
-      access-token: ${{ secrets.GITHUB_TOKEN }}
-      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
-      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
-
-  otter-tests:
-    name: Otter Tests
-    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
-    needs:
-      - dependency-check
-      - spotless
-    with:
-      custom-job-label: Standard
-      enable-unit-tests: false
-      enable-otter-tests: true
-      enable-network-log-capture: true
-    secrets:
-      access-token: ${{ secrets.GITHUB_TOKEN }}
-      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
-      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
-
-  snyk-scan:
-    name: Snyk Scan
-    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
-    needs:
-      - dependency-check
-      - spotless
-    if: ${{ github.event_name != 'pull_request' || (github.actor != 'dependabot[bot]' && github.event.pull_request.head.repo.full_name == github.repository) }}
-    with:
-      custom-job-label: Standard
-      enable-unit-tests: false
-      enable-snyk-scan: true
-    secrets:
-      access-token: ${{ secrets.GITHUB_TOKEN }}
       gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
       snyk-token: ${{ secrets.SNYK_TOKEN }}
 
-  gradle-determinism:
-    name: Gradle Determinism
-    uses: ./.github/workflows/zxc-verify-gradle-build-determinism.yaml
+  report-summary:
+    name: Report PR Check Summary
+    runs-on: hl-cn-default-lin-sm
     needs:
-      - dependency-check
-      - spotless
-    if: ${{ github.event_name != 'pull_request' || (github.actor != 'dependabot[bot]' && github.event.pull_request.head.repo.full_name == github.repository) }}
-    with:
-      ref: ${{ github.event.inputs.ref || '' }}
-      java-distribution: temurin
-      java-version: 21.0.6
-    secrets:
-      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
-      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
+      - mats-pr-checks
+    if: ${{ !cancelled() && always() }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
+        with:
+          egress-policy: audit
 
-  docker-determinism:
-    name: Docker Determinism
-    uses: ./.github/workflows/zxc-verify-docker-build-determinism.yaml
-    needs:
-      - dependency-check
-      - spotless
-    if: ${{ github.event_name != 'pull_request' || (github.actor != 'dependabot[bot]' && github.event.pull_request.head.repo.full_name == github.repository) }}
-    with:
-      ref: ${{ github.event.inputs.ref || '' }}
-      java-distribution: temurin
-      java-version: 21.0.6
-    secrets:
-      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
-      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
+      - name: Checkout Code
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          fetch-depth: "0"
+          ref: ${{ inputs.ref || '' }}
+
+      - name: Report Summary
+        id: report-summary
+        env:
+          PRINT_FAILED_TESTS_SCRIPT: ".github/workflows/support/scripts/print-failed-tests.sh"
+        run: |
+          echo "::debug::Generating PR Check Summary"
+
+          # Append summary to GitHub Step Summary
+          {
+            echo "## PR Check Summary"
+            echo ""
+            echo "------------------------------------"
+            echo "### Results"
+            echo "- **MATS Tests:** ${{ needs.mats-pr-checks.result }}"
+            echo "------------------------------------"
+            if [[ "${{ needs.mats-pr-checks.result }}" == "failure" ]]; then
+                echo "### MATS Test Failures"
+                echo ""
+                echo "- **Failure Mode:** ${{ needs.mats-pr-checks.outputs.failure-mode }}"
+                echo "- **Failed Tests:**"
+                bash "${{ github.workspace }}/${{ env.PRINT_FAILED_TESTS_SCRIPT }}" "${{ needs.mats-pr-checks.outputs.failed-tests }}"
+                echo "------------------------------------"
+            fi
+          } >> "${GITHUB_STEP_SUMMARY}"

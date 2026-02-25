@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.app.state;
 
-import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
+import org.hiero.consensus.platformstate.V0540PlatformStateSchema;
 import org.hiero.consensus.roster.RosterStateId;
 
 /**
@@ -23,7 +23,13 @@ public enum OtterStateId {
     CONSISTENCY_SINGLETON_STATE_ID(1),
 
     /** ISS state id, used by the ISS Service. */
-    ISS_SINGLETON_STATE_ID(2);
+    ISS_SINGLETON_STATE_ID(2),
+
+    /** Entity ID generator state, used by Accounts service */
+    ENTITYID_GENERATOR_STATE_ID(11),
+
+    /** Accounts state, used by Accounts service */
+    ACCOUNTS_STATE_ID(12);
 
     private final int id;
 

@@ -4,6 +4,7 @@ package com.hedera.node.app.service.contract.impl.handlers;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_GAS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_AUTORENEW_ACCOUNT;
+import static com.hedera.node.app.hapi.utils.contracts.HookUtils.asAccountId;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.throwIfUnsuccessfulCreate;
 import static com.hedera.node.app.service.token.HookDispatchUtils.dispatchHookCreations;
 import static com.hedera.node.app.service.token.HookDispatchUtils.validateHookDuplicates;
@@ -13,6 +14,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.base.HookEntityId;
 import com.hedera.node.app.hapi.utils.fee.SigValueObj;
 import com.hedera.node.app.hapi.utils.fee.SmartContractFeeBuilder;
 import com.hedera.node.app.service.contract.impl.ContractServiceComponent;
@@ -126,22 +128,24 @@ public class ContractCreateHandler extends AbstractContractTransactionHandler {
     /**
      * If there are any hooks to create, creates them and updates the created contract to point to the first hook.
      * @param context the handle context
-     * @param owner the created contract ID
+     * @param ownerId the created contract ID
      */
-    private void createHooksIfAny(final @NonNull HandleContext context, final ContractID owner) {
+    private void createHooksIfAny(@NonNull final HandleContext context, @NonNull final ContractID ownerId) {
         final var op = context.body().contractCreateInstanceOrThrow();
         if (!op.hookCreationDetails().isEmpty()) {
+            // Use account id for hook entity id for internal simplicity
+            final var hookEntityId =
+                    HookEntityId.newBuilder().accountId(asAccountId(ownerId)).build();
             final var accountStore = context.storeFactory().readableStore(ReadableAccountStore.class);
-            final var created = requireNonNull(accountStore.getContractById(owner));
-
-            final var deltaSlots = dispatchHookCreations(context, op.hookCreationDetails(), null, created.accountId());
-
-            final var updated = created.copyBuilder()
+            final int slotsDelta = dispatchHookCreations(context, op.hookCreationDetails(), null, hookEntityId);
+            final var justCreated = requireNonNull(accountStore.getContractById(ownerId));
+            final var account = justCreated
+                    .copyBuilder()
                     .firstHookId(op.hookCreationDetails().getFirst().hookId())
                     .numberHooksInUse(op.hookCreationDetails().size())
-                    .numberLambdaStorageSlots(created.numberLambdaStorageSlots() + deltaSlots)
+                    .numberEvmHookStorageSlots(justCreated.numberEvmHookStorageSlots() + slotsDelta)
                     .build();
-            context.storeFactory().serviceApi(TokenServiceApi.class).updateContract(updated);
+            context.storeFactory().serviceApi(TokenServiceApi.class).updateContract(account);
         }
     }
 }

@@ -4,7 +4,6 @@ package com.hedera.services.bdd.junit.support.translators.impl;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 
 import com.hedera.hapi.block.stream.output.StateChange;
-import com.hedera.hapi.block.stream.trace.AutoAssociateTraceData;
 import com.hedera.hapi.block.stream.trace.TraceData;
 import com.hedera.hapi.node.base.HookId;
 import com.hedera.hapi.node.base.TokenAssociation;
@@ -13,6 +12,7 @@ import com.hedera.services.bdd.junit.support.translators.BaseTranslator;
 import com.hedera.services.bdd.junit.support.translators.BlockTransactionPartsTranslator;
 import com.hedera.services.bdd.junit.support.translators.ScopedTraceData;
 import com.hedera.services.bdd.junit.support.translators.inputs.BlockTransactionParts;
+import com.hedera.services.bdd.junit.support.translators.inputs.HookMetadata;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
@@ -28,7 +28,8 @@ public class TokenUpdateTranslator implements BlockTransactionPartsTranslator {
             @NonNull final List<StateChange> remainingStateChanges,
             @Nullable final List<TraceData> tracesSoFar,
             @NonNull final List<ScopedTraceData> followingUnitTraces,
-            @Nullable final HookId executingHookId) {
+            @Nullable final HookId executingHookId,
+            @Nullable final HookMetadata hookMetadata) {
         return baseTranslator.recordFrom(
                 parts,
                 (receiptBuilder, recordBuilder) -> {
@@ -36,16 +37,9 @@ public class TokenUpdateTranslator implements BlockTransactionPartsTranslator {
                         final var op = parts.body().tokenUpdateOrThrow();
                         final var targetId = op.tokenOrThrow();
 
-                        // Within batch transactions (inner or their children), state changes from earlier transactions
-                        // can be overwritten by subsequent transactions in the same batch
-                        // (e.g., multiple token updates).
-                        // Therefore, construct the record from trace data when available.
+                        // These can't be reliably inferred from state changes, so we need to use the result data
                         if (parts.isInnerBatchTxn()) {
-                            final var maybeTraceData = maybeAutoAssociateTraceData(tracesSoFar);
-                            if (maybeTraceData != null) {
-                                recordBuilder.automaticTokenAssociations(
-                                        new TokenAssociation(targetId, maybeTraceData.automaticTokenAssociations()));
-                            }
+                            recordBuilder.automaticTokenAssociations(parts.automaticTokenAssociations());
                             return;
                         }
 
@@ -81,21 +75,5 @@ public class TokenUpdateTranslator implements BlockTransactionPartsTranslator {
                 remainingStateChanges,
                 followingUnitTraces,
                 executingHookId);
-    }
-
-    private AutoAssociateTraceData maybeAutoAssociateTraceData(final List<TraceData> tracesSoFar) {
-        AutoAssociateTraceData result = null;
-        if (tracesSoFar != null) {
-            // Start from the end of the list
-            for (int i = tracesSoFar.size() - 1; i >= 0; i--) {
-                final var trace = tracesSoFar.get(i);
-                if (trace.hasAutoAssociateTraceData()) {
-                    result = trace.autoAssociateTraceData();
-                    tracesSoFar.remove(i);
-                    break;
-                }
-            }
-        }
-        return result;
     }
 }

@@ -8,7 +8,6 @@ import com.swirlds.platform.components.state.output.StateLacksSignaturesConsumer
 import com.swirlds.platform.state.nexus.DefaultLatestCompleteStateNexus;
 import com.swirlds.platform.state.nexus.LatestCompleteStateNexus;
 import com.swirlds.platform.state.signed.DefaultStateSignatureCollector;
-import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedStateMetrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -20,6 +19,7 @@ import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
+import org.hiero.consensus.state.signed.ReservedSignedState;
 
 /**
  * A StateSignatureCollector that is used for unit testing. In the future, these unit tests should become small
@@ -106,7 +106,7 @@ public class StateSignatureCollectorTester extends DefaultStateSignatureCollecto
 
     private void processState(@NonNull final ReservedSignedState rs) {
         if (rs.get().isComplete()) {
-            latestSignedState.setStateIfNewer(rs.getAndReserve("LatestCompleteStateNexus.setState"));
+            latestSignedState.setStateIfNewer(rs.getAndReserve("LatestCompleteStateNexus.initState"));
             stateHasEnoughSignaturesConsumer.stateHasEnoughSignatures(rs.get());
         } else {
             stateLacksSignaturesConsumer.stateLacksSignatures(rs.get());

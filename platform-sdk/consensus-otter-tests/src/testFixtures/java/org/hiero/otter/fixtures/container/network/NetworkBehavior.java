@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.container.network;
 
+import static org.hiero.otter.fixtures.network.BandwidthLimit.UNLIMITED_BANDWIDTH;
 import static org.hiero.otter.fixtures.network.Topology.DISCONNECTED;
-import static org.hiero.otter.fixtures.network.utils.BandwidthLimit.UNLIMITED_BANDWIDTH;
 
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
-import com.swirlds.platform.gossip.config.NetworkEndpoint;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.UncheckedIOException;
 import java.net.InetAddress;
@@ -21,13 +20,14 @@ import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.assertj.core.data.Percentage;
+import org.hiero.consensus.gossip.config.NetworkEndpoint;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.container.network.Toxin.BandwidthToxin;
 import org.hiero.otter.fixtures.container.network.Toxin.LatencyToxin;
 import org.hiero.otter.fixtures.internal.network.ConnectionKey;
-import org.hiero.otter.fixtures.network.Topology.ConnectionData;
+import org.hiero.otter.fixtures.network.Topology.ConnectionState;
 
 /**
  * This class is a wrapper around the Toxiproxy client and provides methods to modify the network behavior.
@@ -36,19 +36,19 @@ public class NetworkBehavior {
 
     private static final Logger log = LogManager.getLogger();
 
-    private static final ConnectionData INITIAL_STATE =
-            new ConnectionData(true, Duration.ZERO, Percentage.withPercentage(0), UNLIMITED_BANDWIDTH);
+    private static final ConnectionState INITIAL_STATE =
+            new ConnectionState(true, Duration.ZERO, Percentage.withPercentage(0), UNLIMITED_BANDWIDTH);
 
     private final ToxiproxyClient toxiproxyClient;
     private final Map<ConnectionKey, Proxy> proxies = new HashMap<>();
-    private Map<ConnectionKey, ConnectionData> connections = new HashMap<>();
+    private Map<ConnectionKey, ConnectionState> connections = new HashMap<>();
 
     /**
      * Constructs a new NetworkBehavior instance using the Toxiproxy client.
      *
-     * @param host the host on which the Toxiproxy control server is running
-     * @param controlPort the port on which the Toxiproxy control server is running
-     * @param roster the roster containing the nodes in the network
+     * @param host               the host on which the Toxiproxy control server is running
+     * @param controlPort        the port on which the Toxiproxy control server is running
+     * @param roster             the roster containing the nodes in the network
      * @param toxiproxyIpAddress the IP address of the Toxiproxy container in the Docker network
      */
     public NetworkBehavior(
@@ -96,32 +96,32 @@ public class NetworkBehavior {
     /**
      * Updates the connections in the network based on the provided nodes and connection data.
      *
-     * @param nodes the list of nodes in the network
+     * @param nodes          the list of nodes in the network
      * @param newConnections a map of connections representing the current state of the network
      */
     public void onConnectionsChanged(
-            @NonNull final List<Node> nodes, @NonNull final Map<ConnectionKey, ConnectionData> newConnections) {
+            @NonNull final List<Node> nodes, @NonNull final Map<ConnectionKey, ConnectionState> newConnections) {
         for (final Node sender : nodes) {
             for (final Node receiver : nodes) {
                 if (sender.equals(receiver)) {
                     continue; // Skip self-connections
                 }
                 final ConnectionKey connectionKey = new ConnectionKey(sender.selfId(), receiver.selfId());
-                final ConnectionData oldConnectionData = connections.getOrDefault(connectionKey, DISCONNECTED);
-                final ConnectionData newConnectionData = newConnections.getOrDefault(connectionKey, DISCONNECTED);
-                if (newConnectionData.connected()) {
-                    if (!oldConnectionData.connected()) {
+                final ConnectionState oldConnectionState = connections.getOrDefault(connectionKey, DISCONNECTED);
+                final ConnectionState newConnectionState = newConnections.getOrDefault(connectionKey, DISCONNECTED);
+                if (newConnectionState.connected()) {
+                    if (!oldConnectionState.connected()) {
                         connect(connectionKey);
                     }
-                    if (!Objects.equals(oldConnectionData.latency(), newConnectionData.latency())
-                            || !Objects.equals(oldConnectionData.jitter(), newConnectionData.jitter())) {
-                        setLatency(connectionKey, newConnectionData);
+                    if (!Objects.equals(oldConnectionState.latency(), newConnectionState.latency())
+                            || !Objects.equals(oldConnectionState.jitter(), newConnectionState.jitter())) {
+                        setLatency(connectionKey, newConnectionState);
                     }
-                    if (!Objects.equals(oldConnectionData.bandwidthLimit(), newConnectionData.bandwidthLimit())) {
-                        setBandwidthLimit(connectionKey, newConnectionData);
+                    if (!Objects.equals(oldConnectionState.bandwidthLimit(), newConnectionState.bandwidthLimit())) {
+                        setBandwidthLimit(connectionKey, newConnectionState);
                     }
                 } else {
-                    if (oldConnectionData.connected()) {
+                    if (oldConnectionState.connected()) {
                         disconnect(connectionKey);
                     }
                 }
@@ -151,25 +151,25 @@ public class NetworkBehavior {
     }
 
     private void setLatency(
-            @NonNull final ConnectionKey connectionKey, @NonNull final ConnectionData newConnectionData) {
+            @NonNull final ConnectionKey connectionKey, @NonNull final ConnectionState newConnectionState) {
         log.debug(
                 "Setting latency between sender {} and receiver {} to {} (+- {})",
                 connectionKey.sender(),
                 connectionKey.receiver(),
-                newConnectionData.latency(),
-                newConnectionData.jitter());
-        final LatencyToxin latencyToxin = new LatencyToxin(newConnectionData.latency(), newConnectionData.jitter());
+                newConnectionState.latency(),
+                newConnectionState.jitter());
+        final LatencyToxin latencyToxin = new LatencyToxin(newConnectionState.latency(), newConnectionState.jitter());
         updateToxin(connectionKey, latencyToxin);
     }
 
     private void setBandwidthLimit(
-            @NonNull final ConnectionKey connectionKey, @NonNull final ConnectionData newConnectionData) {
+            @NonNull final ConnectionKey connectionKey, @NonNull final ConnectionState newConnectionState) {
         log.debug(
                 "Setting bandwidth between sender {} and receiver {} to {}",
                 connectionKey.sender(),
                 connectionKey.receiver(),
-                newConnectionData.bandwidthLimit());
-        final BandwidthToxin bandwidthToxin = new BandwidthToxin(newConnectionData.bandwidthLimit());
+                newConnectionState.bandwidthLimit());
+        final BandwidthToxin bandwidthToxin = new BandwidthToxin(newConnectionState.bandwidthLimit());
         updateToxin(connectionKey, bandwidthToxin);
     }
 
@@ -190,10 +190,10 @@ public class NetworkBehavior {
     /**
      * Gets the {@link NetworkEndpoint} of the proxy for a connection between two nodes.
      *
-     * @param sender the node that sends messages
+     * @param sender   the node that sends messages
      * @param receiver the node that receives messages
      * @return the endpoint of the proxy
-     * @throws NullPointerException if either sender or receiver is {@code null}
+     * @throws NullPointerException  if either sender or receiver is {@code null}
      * @throws IllegalStateException if the connection cannot be found
      */
     @NonNull

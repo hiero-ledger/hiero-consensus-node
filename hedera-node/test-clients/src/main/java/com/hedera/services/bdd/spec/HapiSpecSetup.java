@@ -504,10 +504,6 @@ public class HapiSpecSetup {
         return props.get("simplefees.schedule.controlAccount.name");
     }
 
-    public long simpleFeesScheduleFetchFee() {
-        return props.getLong("simplefees.schedule.fetch.fee");
-    }
-
     public FileID simpleFeesScheduleId() {
         return props.getFile("simplefees.schedule.id");
     }
@@ -644,7 +640,7 @@ public class HapiSpecSetup {
     }
 
     public AccountID feeCollectorAccount() {
-        return asAccount(shard(), realm(), 802);
+        return asAccount(shard(), realm(), 802L);
     }
 
     public String nodeRewardAccountName() {

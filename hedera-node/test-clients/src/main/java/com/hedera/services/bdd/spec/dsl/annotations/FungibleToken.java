@@ -51,4 +51,6 @@ public @interface FungibleToken {
      * @return the max supply of the token
      */
     long maxSupply() default 0;
+
+    int decimals() default 8;
 }

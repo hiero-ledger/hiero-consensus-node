@@ -21,8 +21,11 @@ import static com.hedera.node.app.spi.validation.PreCheckValidator.checkMaxCusto
 import static com.hedera.node.app.spi.validation.PreCheckValidator.checkMemo;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
+import static com.hedera.pbj.runtime.Codec.DEFAULT_MAX_DEPTH;
 import static java.util.Objects.requireNonNull;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.SignaturePair;
@@ -36,6 +39,7 @@ import com.hedera.hapi.util.UnknownHederaFunctionality;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.workflows.prehandle.DueDiligenceException;
 import com.hedera.node.config.ConfigProvider;
+import com.hedera.node.config.data.GovernanceTransactionsConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.JumboTransactionsConfig;
 import com.hedera.pbj.runtime.Codec;
@@ -46,6 +50,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.metrics.api.Counter;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -80,14 +85,18 @@ public class TransactionChecker {
     private static final String COUNTER_SUPER_DEPRECATED_TXNS_NAME = "SuperDeprTxnsRcv";
     private static final String COUNTER_RECEIVED_SUPER_DEPRECATED_DESC =
             "number of super-deprecated txns (body, sigs) received";
+    private static final String COUNTER_NON_GOVERNANCE_OVERSIZED_TXNS = "NonGovernanceOversizedTxnsRcv";
+    private static final String NON_GOVERNANCE_OVERSIZED_TXNS_DESC =
+            "number of oversized txns received from a non-governance payer";
 
     /** The {@link Counter} used to track the number of deprecated transactions (bodyBytes, sigMap) received. */
     private final Counter deprecatedCounter;
     /** The {@link Counter} used to track the number of super deprecated transactions (body, sigs) received. */
     private final Counter superDeprecatedCounter;
+    /** The {@link Counter} used to track the number of oversized transactions from a non-governance payer. */
+    private final Counter nonGovernanceOversizedTransactionsCounter;
 
-    private final HederaConfig hederaConfig;
-    private final JumboTransactionsConfig jumboTransactionsConfig;
+    private final ConfigProvider configProvider;
 
     // TODO We need to incorporate the check for "TRANSACTION_TOO_MANY_LAYERS". "maxProtoMessageDepth" is a property
     //  passed to StructuralPrecheck used for this purpose. We will need to add this to PBJ as an argument to the
@@ -102,37 +111,50 @@ public class TransactionChecker {
      */
     @Inject
     public TransactionChecker(@NonNull final ConfigProvider configProvider, @NonNull final Metrics metrics) {
+        requireNonNull(metrics, "metrics must not be null");
+        this.configProvider = requireNonNull(configProvider, "configProvider must not be null");
+
         this.deprecatedCounter = metrics.getOrCreate(new Counter.Config("app", COUNTER_DEPRECATED_TXNS_NAME)
                 .withDescription(COUNTER_RECEIVED_DEPRECATED_DESC));
         this.superDeprecatedCounter = metrics.getOrCreate(new Counter.Config("app", COUNTER_SUPER_DEPRECATED_TXNS_NAME)
                 .withDescription(COUNTER_RECEIVED_SUPER_DEPRECATED_DESC));
-
-        hederaConfig = configProvider.getConfiguration().getConfigData(HederaConfig.class);
-        jumboTransactionsConfig = configProvider.getConfiguration().getConfigData(JumboTransactionsConfig.class);
+        this.nonGovernanceOversizedTransactionsCounter =
+                metrics.getOrCreate(new Counter.Config("app", COUNTER_NON_GOVERNANCE_OVERSIZED_TXNS)
+                        .withDescription(NON_GOVERNANCE_OVERSIZED_TXNS_DESC));
     }
 
     /**
      * Parses and checks the transaction encoded as protobuf in the given buffer.
-     *
      * @param buffer The buffer containing the protobuf bytes of the transaction
-     * @param maxBytes The maximum number of bytes that can exist in the transaction
      * @return The parsed {@link TransactionInfo}
      * @throws PreCheckException If parsing fails or any of the checks fail.
      */
     @NonNull
-    public TransactionInfo parseAndCheck(@NonNull final Bytes buffer, final int maxBytes) throws PreCheckException {
+    public TransactionInfo parseAndCheck(@NonNull final Bytes buffer) throws PreCheckException {
+        final int maxBytes = maxIngestParseSize();
         // Fail fast if there are too many transaction bytes
         if (buffer.length() > maxBytes) {
             throw new PreCheckException(TRANSACTION_OVERSIZE);
         }
-        final var tx = parse(buffer);
-        return check(tx);
+        final var tx = parse(buffer, maxBytes);
+        return check(tx, maxBytes);
     }
 
     /**
      * Parses and checks a signed transaction encoded as protobuf in the given buffer.
-     *
      * @param buffer The buffer containing the protobuf bytes of the signed transaction
+     * @return The parsed {@link TransactionInfo}
+     * @throws PreCheckException If parsing fails or any of the checks fail.
+     */
+    @NonNull
+    public TransactionInfo parseSignedAndCheck(@NonNull final Bytes buffer) throws PreCheckException {
+        return parseSignedAndCheck(buffer, maxIngestParseSize());
+    }
+
+    /**
+     * Parses and checks a signed transaction encoded as protobuf in the given buffer.
+     * @param buffer The buffer containing the protobuf bytes of the signed transaction
+     * @param maxBytes The maximum number of bytes that can exist in the transaction
      * @return The parsed {@link TransactionInfo}
      * @throws PreCheckException If parsing fails or any of the checks fail.
      */
@@ -143,40 +165,25 @@ public class TransactionChecker {
         if (buffer.length() > maxBytes) {
             throw new PreCheckException(TRANSACTION_OVERSIZE);
         }
-        final var signedTx = parseSigned(buffer);
-        return checkSigned(signedTx, buffer);
-    }
-
-    /**
-     * Parse the given {@link Bytes} into a transaction.
-     *
-     * <p>After verifying that the number of bytes comprising the transaction does not exceed the maximum allowed, the
-     * transaction is parsed. A transaction can be checked with {@link #check(Transaction)}.
-     *
-     * @param buffer the {@code ByteBuffer} with the serialized transaction
-     * @return an {@link TransactionInfo} with the parsed and checked entities
-     * @throws PreCheckException if the data is not valid
-     * @throws NullPointerException if one of the arguments is {@code null}
-     */
-    @NonNull
-    public Transaction parse(@NonNull final Bytes buffer) throws PreCheckException {
-        return parseStrict(buffer.toReadableSequentialData(), Transaction.PROTOBUF, INVALID_TRANSACTION);
+        final var signedTx = parseSigned(buffer, maxBytes);
+        return checkSigned(signedTx, buffer, maxBytes);
     }
 
     /**
      * Parse the given {@link Bytes} into a signed transaction.
      *
      * <p>After verifying that the number of bytes comprising the transaction does not exceed the maximum allowed, the
-     * transaction is parsed. A transaction can be checked with {@link #check(Transaction)}.
+     * transaction is parsed. A transaction can be checked with {@link #check(Transaction, int)}.
      *
      * @param buffer the {@code ByteBuffer} with the serialized transaction
+     * @param maxSize the maximum size of the data
      * @return an {@link TransactionInfo} with the parsed and checked entities
      * @throws PreCheckException if the data is not valid
      * @throws NullPointerException if one of the arguments is {@code null}
      */
     @NonNull
-    public SignedTransaction parseSigned(@NonNull final Bytes buffer) throws PreCheckException {
-        return parseStrict(buffer.toReadableSequentialData(), SignedTransaction.PROTOBUF, INVALID_TRANSACTION);
+    public SignedTransaction parseSigned(@NonNull final Bytes buffer, final int maxSize) throws PreCheckException {
+        return parseStrict(buffer.toReadableSequentialData(), SignedTransaction.PROTOBUF, INVALID_TRANSACTION, maxSize);
     }
 
     /**
@@ -210,13 +217,15 @@ public class TransactionChecker {
      * <p>
      * Note this method is <b>only</b> used at HAPI ingest, since by the time a transaction has been submitted,
      * it no longer has a {@link Transaction} wrapper and is a serialized {@link SignedTransaction}.
+     *
      * @param tx the {@link Transaction} that needs to be checked
+     * @param maxSize the maximum size of the data
      * @return an {@link TransactionInfo} with the parsed and checked entities
      * @throws PreCheckException if the data is not valid
      * @throws NullPointerException if one of the arguments is {@code null}
      */
     @NonNull
-    public TransactionInfo check(@NonNull final Transaction tx) throws PreCheckException {
+    public TransactionInfo check(@NonNull final Transaction tx, final int maxSize) throws PreCheckException {
         // NOTE: Since we've already parsed the transaction, we assume that the
         // transaction was not too many bytes. This is a safe assumption because
         // the code that receives the transaction bytes and parses the transaction
@@ -228,7 +237,10 @@ public class TransactionChecker {
         if (tx.signedTransactionBytes().length() > 0) {
             serializedSignedTx = tx.signedTransactionBytes();
             signedTx = parseStrict(
-                    serializedSignedTx.toReadableSequentialData(), SignedTransaction.PROTOBUF, INVALID_TRANSACTION);
+                    serializedSignedTx.toReadableSequentialData(),
+                    SignedTransaction.PROTOBUF,
+                    INVALID_TRANSACTION,
+                    maxSize);
             validateFalsePreCheck(
                     signedTx.useSerializedTxMessageHashAlgorithm(), INVALID_SERIALIZED_TX_MESSAGE_HASH_ALGORITHM);
         } else {
@@ -238,7 +250,7 @@ public class TransactionChecker {
         if (!signedTx.hasSigMap()) {
             throw new PreCheckException(INVALID_TRANSACTION_BODY);
         }
-        return check(signedTx, serializedSignedTx);
+        return check(signedTx, serializedSignedTx, maxSize);
     }
 
     /**
@@ -270,17 +282,18 @@ public class TransactionChecker {
      *
      * @param signedTx the {@link SignedTransaction} that needs to be checked
      * @param serializedSignedTx if set, the serialized transaction bytes to include in the {@link TransactionInfo}
+     * @param maxBytes the maximum size of the data
      * @return an {@link TransactionInfo} with the parsed and checked entities
      * @throws PreCheckException if the data is not valid
      * @throws NullPointerException if one of the arguments is {@code null}
      */
     @NonNull
     public TransactionInfo checkSigned(
-            @NonNull final SignedTransaction signedTx, @NonNull final Bytes serializedSignedTx)
+            @NonNull final SignedTransaction signedTx, @NonNull final Bytes serializedSignedTx, final int maxBytes)
             throws PreCheckException {
         requireNonNull(signedTx);
         requireNonNull(serializedSignedTx);
-        return check(signedTx, serializedSignedTx);
+        return check(signedTx, serializedSignedTx, maxBytes);
     }
 
     public TransactionInfo checkParsed(@NonNull final TransactionInfo txInfo) throws PreCheckException {
@@ -349,7 +362,7 @@ public class TransactionChecker {
     private void checkTransactionBody(@NonNull final TransactionBody txBody, HederaFunctionality functionality)
             throws PreCheckException {
         checkTransactionID(txBody.transactionIDOrThrow());
-        checkMemo(txBody.memo(), hederaConfig.transactionMaxMemoUtf8Bytes());
+        checkMemo(txBody.memo(), hederaConfig().transactionMaxMemoUtf8Bytes());
         checkMaxCustomFees(txBody.maxCustomFees(), functionality);
 
         // You cannot have a negative transaction fee!! We're not paying you, buddy.
@@ -362,16 +375,121 @@ public class TransactionChecker {
         }
     }
 
-    public void checkJumboTransactionBody(TransactionInfo txInfo) throws PreCheckException {
-        final var jumboTxnEnabled = jumboTransactionsConfig.isEnabled();
-        final var allowedJumboHederaFunctionalities = jumboTransactionsConfig.allowedHederaFunctionalities();
+    /**
+     * Validates the transaction size during preliminary checks (before payer is known).
+     * This is a "soft" check that allows governance-sized transactions through for later validation.
+     *
+     * @param txInfo the {@link TransactionInfo} to check
+     * @throws PreCheckException if the transaction exceeds the maximum allowed size
+     */
+    public void checkTransactionSize(@NonNull final TransactionInfo txInfo) throws PreCheckException {
+        final int txSize = txInfo.signedTx().protobufSize();
+        final HederaFunctionality functionality = txInfo.functionality();
 
-        if (jumboTxnEnabled
-                && txInfo.signedTx().protobufSize() > hederaConfig.transactionMaxBytes()
-                && !allowedJumboHederaFunctionalities.contains(fromPbj(txInfo.functionality()))
-                && !NON_JUMBO_TRANSACTIONS_BIGGER_THAN_6_KB.contains(txInfo.functionality())) {
+        // Get max size without payer context (preliminary check)
+        final int maxSizeAllowed = getMaxAllowedTransactionSize(functionality, null);
+
+        // Check if the transaction exceeds the limit
+        if (txSize > maxSizeAllowed && !isExemptFromStandardSizeLimit(functionality)) {
             throw new PreCheckException(TRANSACTION_OVERSIZE);
         }
+    }
+
+    /**
+     * Validates transaction size limits based on the payer account's privileges.
+     * This is the "hard" check that enforces payer-specific limits.
+     *
+     * <p>This method should be called after {@link #checkTransactionSize(TransactionInfo)}
+     * once the payer account is known. It re-evaluates the size limit based on whether
+     * the payer is a governance account.
+     *
+     * @param txInfo the {@link TransactionInfo} to check
+     * @param payerAccountId the {@link AccountID} of the transaction payer
+     * @throws PreCheckException if the transaction exceeds the payer-specific size limit
+     */
+    public void checkTransactionSizeLimitBasedOnPayer(
+            @NonNull final TransactionInfo txInfo, @NonNull final AccountID payerAccountId) throws PreCheckException {
+        // Only perform payer-based validation when governance transactions are enabled
+        // (otherwise the preliminary check in checkTransactionSize is sufficient)
+        if (!governanceTransactionsConfig().isEnabled()) {
+            return;
+        }
+
+        final int txSize = txInfo.signedTx().protobufSize();
+        final HederaFunctionality functionality = txInfo.functionality();
+
+        // Get max size with payer context
+        final int maxSizeAllowed = getMaxAllowedTransactionSize(functionality, payerAccountId);
+
+        // Check if the transaction exceeds the payer-specific limit
+        if (txSize > maxSizeAllowed && !isExemptFromStandardSizeLimit(functionality)) {
+            if (!isGovernanceAccount(payerAccountId)) {
+                // Track non-governance oversized transactions
+                nonGovernanceOversizedTransactionsCounter.increment();
+            }
+            throw new PreCheckException(TRANSACTION_OVERSIZE);
+        }
+    }
+
+    /**
+     * Determines the maximum allowed transaction size based on the current feature flags
+     * and optionally the payer's privileges.
+     *
+     * <p>The size limit determination follows this priority:
+     * <ol>
+     *   <li>If governance is enabled and payer is a governance account → governance max size</li>
+     *   <li>If governance is enabled but payer is unknown (preliminary check) → governance max size (permissive)</li>
+     *   <li>If jumbo is enabled and functionality is allowed for jumbo → jumbo max size</li>
+     *   <li>Otherwise → standard max bytes</li>
+     * </ol>
+     *
+     * @param functionality the transaction functionality type
+     * @param payerAccountId the payer account ID (null if payer is not yet known)
+     * @return the maximum allowed transaction size in bytes
+     */
+    private int getMaxAllowedTransactionSize(
+            @NonNull final HederaFunctionality functionality, @Nullable final AccountID payerAccountId) {
+        final boolean isJumboEnabled = jumboTransactionsConfig().isEnabled();
+        final boolean isGovernanceEnabled = governanceTransactionsConfig().isEnabled();
+
+        // If governance is enabled, allow governance max size when:
+        // - payer is unknown (preliminary check, be permissive for later validation), OR
+        // - payer is a governance account
+        if (isGovernanceEnabled && (payerAccountId == null || isGovernanceAccount(payerAccountId))) {
+            return governanceTransactionsConfig().maxTxnSize();
+        }
+
+        // If jumbo is enabled, check if this functionality is allowed for jumbo
+        if (isJumboEnabled) {
+            final var allowedJumboFunctionalities = jumboTransactionsConfig().allowedHederaFunctionalities();
+            if (allowedJumboFunctionalities.contains(fromPbj(functionality))) {
+                return jumboTransactionsConfig().maxTxnSize();
+            }
+        }
+
+        // Default to standard max bytes
+        return hederaConfig().transactionMaxBytes();
+    }
+
+    /**
+     * Checks if the transaction functionality is exempt from standard size limits.
+     * These are internal transaction types that may exceed 6KB but are not jumbo transactions.
+     *
+     * @param functionality the transaction functionality to check
+     * @return true if the functionality is exempt from standard size limits
+     */
+    private boolean isExemptFromStandardSizeLimit(@NonNull final HederaFunctionality functionality) {
+        return NON_JUMBO_TRANSACTIONS_BIGGER_THAN_6_KB.contains(functionality);
+    }
+
+    /**
+     * Checks if the given account is a governance account.
+     *
+     * @param accountId the account ID to check
+     * @return true if the account is a governance account
+     */
+    private boolean isGovernanceAccount(@NonNull final AccountID accountId) {
+        return governanceTransactionsConfig().accountsRange().contains(accountId.accountNumOrThrow());
     }
 
     public enum RequireMinValidLifetimeBuffer {
@@ -401,10 +519,10 @@ public class TransactionChecker {
         final var duration = txBody.transactionValidDurationOrThrow();
 
         // Get the configured boundaries
-        final var min = hederaConfig.transactionMinValidDuration();
-        final var max = hederaConfig.transactionMaxValidDuration();
+        final var min = hederaConfig().transactionMinValidDuration();
+        final var max = hederaConfig().transactionMaxValidDuration();
         final var minValidityBufferSecs = requireMinValidLifetimeBuffer == RequireMinValidLifetimeBuffer.YES
-                ? hederaConfig.transactionMinValidityBufferSecs()
+                ? hederaConfig().transactionMinValidityBufferSecs()
                 : 0;
 
         // The transaction duration must not be longer than the configured maximum transaction duration
@@ -438,8 +556,8 @@ public class TransactionChecker {
         // alias payer account is not allowed to submit transactions.
         final var accountID = txnId.accountID();
         final var isPlausibleAccount = accountID != null
-                && accountID.shardNum() == hederaConfig.shard()
-                && accountID.realmNum() == hederaConfig.realm()
+                && accountID.shardNum() == hederaConfig().shard()
+                && accountID.realmNum() == hederaConfig().realm()
                 && accountID.hasAccountNum()
                 && accountID.accountNumOrElse(0L) > 0;
 
@@ -488,36 +606,44 @@ public class TransactionChecker {
      * A utility method for strictly parsing a protobuf message, throwing {@link PreCheckException} if the message
      * is malformed or contains unknown fields.
      *
+     * @param <T> The type of the message to parseStrict.
      * @param data The protobuf data to parse.
      * @param codec The codec to use for parsing
      * @param parseErrorCode The error code to use if the data is malformed or contains unknown fields.
-     * @param <T> The type of the message to parseStrict.
+     * @param maxSize the maximum size of the data
      * @return The parsed message.
      * @throws PreCheckException if the data is malformed or contains unknown fields.
      */
     @NonNull
-    private <T> T parseStrict(@NonNull ReadableSequentialData data, Codec<T> codec, ResponseCodeEnum parseErrorCode)
+    private <T> T parseStrict(
+            @NonNull final ReadableSequentialData data,
+            @NonNull final Codec<T> codec,
+            @NonNull final ResponseCodeEnum parseErrorCode,
+            final int maxSize)
             throws PreCheckException {
         try {
-            return codec.parseStrict(data);
+            return codec.parse(data, true, false, DEFAULT_MAX_DEPTH, maxSize);
         } catch (ParseException e) {
             if (e.getCause() instanceof UnknownFieldException) {
                 // We do not allow newer clients to send transactions to older networks.
                 throw new PreCheckException(TRANSACTION_HAS_UNKNOWN_FIELDS);
             }
-
             // Either the protobuf was malformed, or something else failed during parsing
             logger.warn("ParseException while parsing protobuf", e);
             throw new PreCheckException(parseErrorCode);
         }
     }
 
-    private TransactionInfo check(@NonNull final SignedTransaction signedTx, @NonNull final Bytes serializedSignedTx)
+    private TransactionInfo check(
+            @NonNull final SignedTransaction signedTx, @NonNull final Bytes serializedSignedTx, final int maxSize)
             throws PreCheckException {
         validateTruePreCheck(signedTx.hasSigMap(), INVALID_TRANSACTION_BODY);
         final var signatureMap = signedTx.sigMapOrThrow();
         final var txBody = parseStrict(
-                signedTx.bodyBytes().toReadableSequentialData(), TransactionBody.PROTOBUF, INVALID_TRANSACTION_BODY);
+                signedTx.bodyBytes().toReadableSequentialData(),
+                TransactionBody.PROTOBUF,
+                INVALID_TRANSACTION_BODY,
+                maxSize);
         final HederaFunctionality functionality;
         try {
             functionality = HapiUtils.functionOf(txBody);
@@ -565,6 +691,23 @@ public class TransactionChecker {
     }
 
     /**
+     * Parse the given {@link Bytes} into a transaction.
+     * <p>After verifying that the number of bytes comprising the transaction does not exceed the maximum allowed, the
+     * transaction is parsed. A transaction can be checked with {@link #check(Transaction, int)}.
+     * @param buffer the {@code ByteBuffer} with the serialized transaction
+     * @param maxSize the maximum size of the data
+     * @return an {@link TransactionInfo} with the parsed and checked entities
+     * @throws PreCheckException if the data is not valid
+     * @throws NullPointerException if one of the arguments is {@code null}
+     */
+    @NonNull
+    @VisibleForTesting
+    Transaction parse(@NonNull final Bytes buffer, final int maxSize) throws PreCheckException {
+        requireNonNull(buffer);
+        return parseStrict(buffer.toReadableSequentialData(), Transaction.PROTOBUF, INVALID_TRANSACTION, maxSize);
+    }
+
+    /**
      * Sorts the list of signature pairs by the prefix of the public key. Sort them such that shorter prefixes come
      * before longer prefixes, and if two prefixes are the same length then sort them lexicographically (lower bytes
      * before higher bytes).
@@ -593,5 +736,35 @@ public class TransactionChecker {
             return 0;
         });
         return sortedList;
+    }
+
+    /**
+     * @return the current Hedera configuration
+     */
+    private HederaConfig hederaConfig() {
+        return configProvider.getConfiguration().getConfigData(HederaConfig.class);
+    }
+
+    /**
+     * @return the current jumbo transactions configuration
+     */
+    private JumboTransactionsConfig jumboTransactionsConfig() {
+        return configProvider.getConfiguration().getConfigData(JumboTransactionsConfig.class);
+    }
+
+    /**
+     * @return the current governance transactions configuration
+     */
+    private GovernanceTransactionsConfig governanceTransactionsConfig() {
+        return configProvider.getConfiguration().getConfigData(GovernanceTransactionsConfig.class);
+    }
+
+    private int maxIngestParseSize() {
+        final boolean jumboTxnEnabled = jumboTransactionsConfig().isEnabled();
+        final int jumboMaxTxnSize = jumboTransactionsConfig().maxTxnSize();
+        final int transactionMaxBytes = hederaConfig().transactionMaxBytes();
+        final boolean governanceTxnEnabled = governanceTransactionsConfig().isEnabled();
+        final int governanceTxnSize = governanceTransactionsConfig().maxTxnSize();
+        return governanceTxnEnabled ? governanceTxnSize : jumboTxnEnabled ? jumboMaxTxnSize : transactionMaxBytes;
     }
 }

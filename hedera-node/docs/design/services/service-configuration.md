@@ -24,6 +24,7 @@ For more detailed information on other types of configuration, please refer to t
 - **ExpiryConfig.java**: Configures expiration-related settings, including throttle resources.
 - **FeesConfig.java**: Manages fee-related configurations, including congestion multipliers and token transfer usage multipliers.
 - **FilesConfig.java**: Configures file-related settings, including file IDs for various system files and maximum file sizes.
+- **GovernanceConfig.java**: Manages configuration settings for increased transactions size for governance accounts.
 - **GrpcConfig.java**: Manages gRPC configuration settings, including port numbers, message size limits, and node operator port settings.
 - **HederaConfig.java**: Contains general Hedera network settings, including user entity IDs, transaction parameters, and active profiles.
 - **LedgerConfig.java**: Manages ledger-related settings including system accounts, auto-renew periods, and token transfer limits.

@@ -20,5 +20,8 @@ public enum Capability {
     SINGLE_NODE_JVM_SHUTDOWN,
 
     /** The test requires access to a real network (not a simulated one). */
-    USES_REAL_NETWORK
+    USES_REAL_NETWORK,
+
+    /** The test requires deterministic execution (e.g. no random delays). */
+    DETERMINISTIC_EXECUTION;
 }

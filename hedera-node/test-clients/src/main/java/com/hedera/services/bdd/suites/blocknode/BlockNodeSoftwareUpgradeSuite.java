@@ -83,14 +83,10 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
         final AtomicReference<Instant> timeRef = new AtomicReference<>();
         final List<Integer> portNumbers = new ArrayList<>();
         return hapiTest(
-                doingContextual(spec -> {
-                    portNumbers.add(spec.getBlockNodePortById(0));
-                }),
+                doingContextual(spec -> portNumbers.add(spec.getBlockNodePortById(0))),
                 waitUntilNextBlocks(10).withBackgroundTraffic(true),
                 prepareFakeUpgrade(),
-                doingContextual((spec) -> {
-                    timeRef.set(Instant.now());
-                }),
+                doingContextual(spec -> timeRef.set(Instant.now())),
                 // Now, we simulate a software upgrade which changes the default writerMode to FILE_AND_GRPC
                 upgradeToNextConfigVersion(Map.of("blockStream.writerMode", "FILE_AND_GRPC")),
                 waitForActive(NodeSelector.allNodes(), Duration.ofSeconds(60)),
@@ -104,21 +100,26 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
                 burstOfTps(MIXED_OPS_BURST_TPS, Duration.ofSeconds(30)),
                 // Now let's write a block-nodes.json file to the data/config directory of node 0
                 // Create block-nodes.json to establish connection
-                doingContextual((spec) -> {
+                doingContextual(spec -> {
                     timeRef.set(Instant.now());
                     // Create a new block-nodes.json file at runtime with localhost and the correct port
                     final var node0Port = spec.getBlockNodePortById(0);
-                    List<com.hedera.node.internal.network.BlockNodeConfig> blockNodes = new ArrayList<>();
-                    blockNodes.add(new com.hedera.node.internal.network.BlockNodeConfig("localhost", node0Port, 0));
-                    BlockNodeConnectionInfo connectionInfo = new BlockNodeConnectionInfo(blockNodes);
+                    final List<com.hedera.node.internal.network.BlockNodeConfig> blockNodes = new ArrayList<>();
+                    blockNodes.add(com.hedera.node.internal.network.BlockNodeConfig.newBuilder()
+                            .address("localhost")
+                            .streamingPort(node0Port)
+                            .servicePort(node0Port)
+                            .priority(0)
+                            .build());
+                    final BlockNodeConnectionInfo connectionInfo = new BlockNodeConnectionInfo(blockNodes);
                     try {
                         // Write the config to this consensus node's block-nodes.json
-                        Path configPath = spec.getNetworkNodes()
+                        final Path configPath = spec.getNetworkNodes()
                                 .getFirst()
                                 .getExternalPath(DATA_CONFIG_DIR)
                                 .resolve("block-nodes.json");
                         Files.writeString(configPath, BlockNodeConnectionInfo.JSON.toJSON(connectionInfo));
-                    } catch (IOException e) {
+                    } catch (final IOException e) {
                         throw new RuntimeException(e);
                     }
                 }),
@@ -129,20 +130,20 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
                         Duration.ofMinutes(1),
                         Duration.ofSeconds(45),
                         String.format(
-                                "/localhost:%s/ACTIVE] Connection state transitioned from PENDING to ACTIVE.",
+                                "/localhost:%s/ACTIVE] Connection state transitioned from READY to ACTIVE",
                                 portNumbers.getFirst()),
                         String.format(
                                 "Active block node connection updated to: localhost:%s", portNumbers.getFirst()))),
                 // Cleanup - delete the block-nodes.json file to stop streaming to block nodes
                 // Delete block-nodes.json
-                doingContextual((spec) -> {
+                doingContextual(spec -> {
                     try {
-                        Path configPath = spec.getNetworkNodes()
+                        final Path configPath = spec.getNetworkNodes()
                                 .getFirst()
                                 .getExternalPath(DATA_CONFIG_DIR)
                                 .resolve("block-nodes.json");
                         Files.delete(configPath);
-                    } catch (IOException e) {
+                    } catch (final IOException e) {
                         throw new RuntimeException(e);
                     }
                 }),
@@ -154,7 +155,7 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
                         Duration.ofSeconds(45),
                         "Detected ENTRY_DELETE event for block-nodes.json.",
                         "No valid block node configurations available after file change. Connections remain stopped.")),
-                assertHgcaaLogDoesNotContain(NodeSelector.allNodes(), "ERROR", Duration.ofSeconds(5)));
+                assertHgcaaLogDoesNotContainText(NodeSelector.allNodes(), "ERROR", Duration.ofSeconds(5)));
     }
 
     @HapiTest
@@ -184,7 +185,7 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
                         Duration.ofMinutes(2),
                         Duration.ofMinutes(2),
                         String.format(
-                                "/localhost:%s/ACTIVE] Connection state transitioned from PENDING to ACTIVE.",
+                                "/localhost:%s/ACTIVE] Connection state transitioned from READY to ACTIVE",
                                 portNumbers.getFirst()),
                         String.format(
                                 "Active block node connection updated to: localhost:%s", portNumbers.getFirst()))),
@@ -206,7 +207,7 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
                         Duration.ofMinutes(2),
                         Duration.ofMinutes(2),
                         String.format(
-                                "/localhost:%s/CLOSED] Connection state transitioned from CLOSING to CLOSED.",
+                                "/localhost:%s/CLOSED] Connection state transitioned from CLOSING to CLOSED",
                                 portNumbers.getFirst()))),
                 waitUntilNextBlocks(20).withBackgroundTraffic(true),
                 // Now that the writerMode is FILE only, let's enable gRPC streaming by changing the writerMode back to
@@ -227,13 +228,12 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
                         timeRef::get,
                         Duration.ofMinutes(2),
                         Duration.ofMinutes(2),
-                        String.format("/localhost:%s/ACTIVE] Sending request to block node", portNumbers.getFirst()),
                         String.format(
-                                "/localhost:%s/ACTIVE] Connection state transitioned from PENDING to ACTIVE.",
+                                "/localhost:%s/ACTIVE] Connection state transitioned from READY to ACTIVE",
                                 portNumbers.getFirst()))),
                 waitUntilNextBlocks(20).withBackgroundTraffic(true),
                 // Verify no errors in the log after the config change and all nodes are active
                 waitForActive(NodeSelector.allNodes(), Duration.ofSeconds(30)),
-                assertHgcaaLogDoesNotContain(NodeSelector.allNodes(), "ERROR", Duration.ofSeconds(5)));
+                assertHgcaaLogDoesNotContainText(NodeSelector.allNodes(), "ERROR", Duration.ofSeconds(5)));
     }
 }

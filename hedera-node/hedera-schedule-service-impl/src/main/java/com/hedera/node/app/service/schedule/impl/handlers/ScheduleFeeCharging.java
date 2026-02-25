@@ -49,17 +49,23 @@ public class ScheduleFeeCharging implements FeeCharging {
     }
 
     @Override
-    public Fees charge(@NonNull final Context ctx, @NonNull final Validation validation, @NonNull final Fees fees) {
+    public Fees charge(
+            @NonNull final AccountID payerId,
+            @NonNull final Context ctx,
+            @NonNull final Validation validation,
+            @NonNull final Fees fees) {
+        requireNonNull(payerId);
         requireNonNull(ctx);
         requireNonNull(validation);
         requireNonNull(fees);
-        return baseFeeCharging.get().charge(ctx, validation, fees.onlyServiceComponent());
+        return baseFeeCharging.get().charge(payerId, ctx, validation, fees.onlyServiceComponent());
     }
 
     @Override
-    public void refund(@NonNull final Context ctx, @NonNull final Fees fees) {
+    public void refund(@NonNull final AccountID payerId, @NonNull final Context ctx, @NonNull final Fees fees) {
+        requireNonNull(payerId);
         requireNonNull(ctx);
         requireNonNull(fees);
-        baseFeeCharging.get().refund(ctx, fees.onlyServiceComponent());
+        baseFeeCharging.get().refund(payerId, ctx, fees.onlyServiceComponent());
     }
 }

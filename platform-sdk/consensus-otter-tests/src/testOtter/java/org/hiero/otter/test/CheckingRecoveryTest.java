@@ -9,9 +9,9 @@ import static org.hiero.otter.fixtures.OtterAssertions.assertContinuouslyThat;
 import static org.hiero.otter.fixtures.OtterAssertions.assertThat;
 import static org.hiero.otter.fixtures.assertions.StatusProgressionStep.target;
 
-import com.swirlds.common.test.fixtures.WeightGenerators;
 import com.swirlds.platform.wiring.PlatformSchedulersConfig_;
 import java.time.Duration;
+import org.hiero.consensus.test.fixtures.WeightGenerators;
 import org.hiero.otter.fixtures.Capability;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
@@ -53,7 +53,6 @@ public class CheckingRecoveryTest {
         assertContinuouslyThat(network.newConsensusResults())
                 .haveEqualCommonRounds()
                 .haveConsistentRounds();
-        assertContinuouslyThat(network.newMarkerFileResults()).haveNoMarkerFiles();
 
         network.start();
 

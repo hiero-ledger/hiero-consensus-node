@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.infra;
 
-import static com.hedera.node.app.hapi.utils.contracts.HookUtils.getHookOwnerId;
 import static com.hedera.node.app.service.contract.impl.state.WritableEvmHookStore.isAllZeroWord;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
 import static com.hedera.node.app.service.token.HookDispatchUtils.HTS_HOOKS_CONTRACT_NUM;
@@ -9,8 +8,8 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.HookId;
-import com.hedera.hapi.node.hooks.LambdaStorageSlot;
-import com.hedera.hapi.node.hooks.LambdaStorageUpdate;
+import com.hedera.hapi.node.hooks.EvmHookStorageSlot;
+import com.hedera.hapi.node.hooks.EvmHookStorageUpdate;
 import com.hedera.hapi.node.state.contract.SlotKey;
 import com.hedera.hapi.node.state.contract.SlotValue;
 import com.hedera.node.app.service.contract.impl.exec.scope.HandleHederaOperations;
@@ -58,7 +57,7 @@ public class IterableStorageManager {
      * @param allAccesses the pending changes to storage values
      * @param allSizeChanges the pending changes to storage sizes
      * @param store the writable state store
-     * @param writableEvmHookStore
+     * @param writableEvmHookStore the writable hook store
      */
     public void persistChanges(
             @NonNull final Enhancement enhancement,
@@ -66,16 +65,13 @@ public class IterableStorageManager {
             @NonNull final List<StorageSizeChange> allSizeChanges,
             @NonNull final ContractStateStore store,
             @NonNull final WritableEvmHookStore writableEvmHookStore) {
-        // map to store the first storage key for each contract
+        // Stores the first storage key for each contract
         final Map<ContractID, Bytes> firstKeys = new HashMap<>();
-        final var hooksContract =
-                enhancement.nativeOperations().entityIdFactory().newContractId(HTS_HOOKS_CONTRACT_NUM);
-
         // Adjust the storage linked lists for each contract
         allAccesses.forEach(contractAccesses -> contractAccesses.accesses().forEach(access -> {
             if (access.isUpdate()) {
                 final var contractId = contractAccesses.contractID();
-                if (contractId.equals(hooksContract)) {
+                if (contractId.contractNumOrThrow() == HTS_HOOKS_CONTRACT_NUM) {
                     // Skip managing linked list for 0x16d, as its storage is managed separately
                     return;
                 }
@@ -117,7 +113,7 @@ public class IterableStorageManager {
         // Update contract metadata with the net change in slots used
         long slotUsageChange = 0;
         for (final var change : allSizeChanges) {
-            if (change.contractID().equals(hooksContract)) {
+            if (change.contractID().contractNumOrThrow() == HTS_HOOKS_CONTRACT_NUM) {
                 // Skip managing slot count for 0x16d, as its storage is managed separately
                 continue;
             }
@@ -135,25 +131,25 @@ public class IterableStorageManager {
             store.adjustSlotCount(slotUsageChange);
         }
 
-        // Persist any changes to lambda storage slots for hook storage
-        final var slotKeys = writableEvmHookStore.getModifiedLambdaSlotKeys();
+        // Persist any changes to EVM hook storage slots
+        final var slotKeys = writableEvmHookStore.getModifiedEvmHookSlotKeys();
         if (!slotKeys.isEmpty()) {
             HookId hookId = null;
-            List<LambdaStorageUpdate> updates = new ArrayList<>();
+            List<EvmHookStorageUpdate> updates = new ArrayList<>();
             for (final var modifiedKey : slotKeys) {
-                hookId = modifiedKey.hookId();
+                hookId = modifiedKey.hookIdOrThrow();
                 final var value = writableEvmHookStore.getSlotValue(modifiedKey);
-                final var slot = LambdaStorageSlot.newBuilder()
+                final var slot = EvmHookStorageSlot.newBuilder()
                         .value(isAllZeroWord(requireNonNull(value).value()) ? Bytes.EMPTY : value.value())
                         .key(modifiedKey.key())
                         .build();
-                updates.add(LambdaStorageUpdate.newBuilder().storageSlot(slot).build());
+                updates.add(EvmHookStorageUpdate.newBuilder().storageSlot(slot).build());
             }
-            final var slotsChanged = writableEvmHookStore.updateStorage(hookId, updates);
-            if (slotsChanged != 0) {
+            final int slotsDelta = writableEvmHookStore.updateStorage(hookId, updates);
+            if (slotsDelta != 0) {
                 enhancement
                         .operations()
-                        .updateLambdaStorageSlots(getHookOwnerId(hookId.entityIdOrThrow()), slotsChanged);
+                        .updateHookStorageSlots(hookId.entityIdOrThrow().accountIdOrThrow(), slotsDelta);
             }
         }
     }
@@ -161,7 +157,6 @@ public class IterableStorageManager {
     /**
      * @param enhancement the enhancement for the current transaction
      * Returns the first storage key for the contract or Bytes.Empty if none exists. df
-     * @param enhancement the enhancement for the current transaction
      * @param contractID the contract id
      * @return the first storage key for the contract or null if none exists.
      */

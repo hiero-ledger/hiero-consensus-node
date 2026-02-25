@@ -5,15 +5,19 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.BlockProof;
+import com.hedera.hapi.block.stream.TssSignedBlockProof;
 import com.hedera.hapi.block.stream.output.BlockHeader;
 import com.hedera.hapi.block.stream.output.SingletonUpdateChange;
 import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.node.state.blockstream.BlockStreamInfo;
+import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
+import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeHelidonGrpcConfiguration;
+import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeHelidonHttpConfiguration;
+import com.hedera.node.app.utils.TestCaseLoggerExtension;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
-import com.hedera.node.internal.network.BlockNodeConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -21,18 +25,22 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Objects;
+import org.hiero.block.api.BlockEnd;
 import org.hiero.block.api.BlockItemSet;
 import org.hiero.block.api.PublishStreamRequest;
 import org.hiero.block.api.PublishStreamRequest.EndStream;
 import org.hiero.block.api.PublishStreamResponse;
+import org.hiero.block.api.PublishStreamResponse.BehindPublisher;
 import org.hiero.block.api.PublishStreamResponse.BlockAcknowledgement;
 import org.hiero.block.api.PublishStreamResponse.EndOfStream;
 import org.hiero.block.api.PublishStreamResponse.ResendBlock;
 import org.hiero.block.api.PublishStreamResponse.SkipBlock;
+import org.junit.jupiter.api.extension.ExtendWith;
 
 /**
  * Base class for tests that involve block node communication.
  */
+@ExtendWith(TestCaseLoggerExtension.class)
 public abstract class BlockNodeCommunicationTestBase {
 
     @NonNull
@@ -60,6 +68,15 @@ public abstract class BlockNodeCommunicationTestBase {
     }
 
     @NonNull
+    protected static PublishStreamResponse createBlockNodeBehindResponse(final long lastVerifiedBlock) {
+        final BehindPublisher nodeBehind =
+                BehindPublisher.newBuilder().blockNumber(lastVerifiedBlock).build();
+        return PublishStreamResponse.newBuilder()
+                .nodeBehindPublisher(nodeBehind)
+                .build();
+    }
+
+    @NonNull
     protected static PublishStreamResponse createBlockAckResponse(final long blockNumber) {
         final BlockAcknowledgement blockAck =
                 BlockAcknowledgement.newBuilder().blockNumber(blockNumber).build();
@@ -77,6 +94,22 @@ public abstract class BlockNodeCommunicationTestBase {
     protected static PublishStreamRequest createRequest(final EndStream.Code endCode) {
         final EndStream endStream = EndStream.newBuilder().endCode(endCode).build();
         return PublishStreamRequest.newBuilder().endStream(endStream).build();
+    }
+
+    @NonNull
+    protected static PublishStreamRequest createRequest(final EndStream.Code endCode, final long earliestBlockNumber) {
+        final EndStream endStream = EndStream.newBuilder()
+                .endCode(endCode)
+                .earliestBlockNumber(earliestBlockNumber)
+                .build();
+        return PublishStreamRequest.newBuilder().endStream(endStream).build();
+    }
+
+    @NonNull
+    protected static PublishStreamRequest createRequest(final long blockNumber) {
+        final BlockEnd endOfBlock =
+                BlockEnd.newBuilder().blockNumber(blockNumber).build();
+        return PublishStreamRequest.newBuilder().endOfBlock(endOfBlock).build();
     }
 
     protected TestConfigBuilder createDefaultConfigProvider() {
@@ -143,20 +176,60 @@ public abstract class BlockNodeCommunicationTestBase {
 
         final BlockProof proof = BlockProof.newBuilder()
                 .block(blockNumber)
-                .blockSignature(Bytes.wrap(array))
+                .signedBlockProof(TssSignedBlockProof.newBuilder()
+                        .blockSignature(Bytes.wrap(array))
+                        .build())
                 .build();
         return BlockItem.newBuilder().blockProof(proof).build();
     }
 
-    protected static BlockNodeConfig newBlockNodeConfig(final String host, final int port, final int priority) {
-        return BlockNodeConfig.newBuilder()
-                .address(host)
-                .port(port)
-                .priority(priority)
-                .build();
+    protected static BlockNodeConfiguration newBlockNodeConfig(final int port, final int priority) {
+        return newBlockNodeConfig("localhost", port, priority);
     }
 
-    protected static BlockNodeConfig newBlockNodeConfig(final int port, final int priority) {
-        return newBlockNodeConfig("localhost", port, priority);
+    protected static BlockNodeConfiguration newBlockNodeConfig(
+            final String address, final int port, final int priority) {
+        return newBlockNodeConfig(
+                address,
+                port,
+                priority,
+                BlockNodeConfiguration.DEFAULT_MESSAGE_SOFT_LIMIT_BYTES,
+                BlockNodeConfiguration.DEFAULT_MESSAGE_HARD_LIMIT_BYTES);
+    }
+
+    protected static BlockNodeConfiguration newBlockNodeConfig(
+            final String address,
+            final int port,
+            final int priority,
+            final long messageSoftLimitBytes,
+            final long messageHardLimitBytes) {
+        return newBlockNodeConfig(
+                address,
+                port,
+                priority,
+                messageSoftLimitBytes,
+                messageHardLimitBytes,
+                BlockNodeHelidonHttpConfiguration.DEFAULT,
+                BlockNodeHelidonGrpcConfiguration.DEFAULT);
+    }
+
+    protected static BlockNodeConfiguration newBlockNodeConfig(
+            final String address,
+            final int port,
+            final int priority,
+            final long messageSoftLimitBytes,
+            final long messageHardLimitBytes,
+            final BlockNodeHelidonHttpConfiguration clientHttpConfig,
+            final BlockNodeHelidonGrpcConfiguration clientGrpcConfig) {
+        return BlockNodeConfiguration.newBuilder()
+                .address(address)
+                .streamingPort(port)
+                .servicePort(port)
+                .priority(priority)
+                .messageSizeSoftLimitBytes(messageSoftLimitBytes)
+                .messageSizeHardLimitBytes(messageHardLimitBytes)
+                .clientHttpConfig(clientHttpConfig)
+                .clientGrpcConfig(clientGrpcConfig)
+                .build();
     }
 }

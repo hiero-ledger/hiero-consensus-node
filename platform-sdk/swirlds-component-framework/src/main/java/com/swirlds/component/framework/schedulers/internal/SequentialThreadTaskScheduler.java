@@ -3,7 +3,6 @@ package com.swirlds.component.framework.schedulers.internal;
 
 import com.swirlds.base.state.Startable;
 import com.swirlds.base.state.Stoppable;
-import com.swirlds.common.metrics.extensions.FractionalTimer;
 import com.swirlds.component.framework.counters.ObjectCounter;
 import com.swirlds.component.framework.model.TraceableWiringModel;
 import com.swirlds.component.framework.schedulers.TaskScheduler;
@@ -17,6 +16,7 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.function.Consumer;
 import java.util.function.ToLongFunction;
+import org.hiero.consensus.metrics.extensions.FractionalTimer;
 
 /**
  * A scheduler that performs work sequentially on a dedicated thread. This class has very similar semantics to

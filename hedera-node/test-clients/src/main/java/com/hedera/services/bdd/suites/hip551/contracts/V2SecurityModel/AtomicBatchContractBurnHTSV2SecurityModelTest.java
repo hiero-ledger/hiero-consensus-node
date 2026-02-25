@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.hip551.contracts.V2SecurityModel;
 
 import static com.google.protobuf.ByteString.copyFromUtf8;
+import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
 import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AssertUtils.inOrder;
@@ -80,6 +81,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
+@Tag(ATOMIC_BATCH)
 @HapiTestLifecycle
 class AtomicBatchContractBurnHTSV2SecurityModelTest {
     private static final String DEFAULT_BATCH_OPERATOR = "defaultBatchOperator";

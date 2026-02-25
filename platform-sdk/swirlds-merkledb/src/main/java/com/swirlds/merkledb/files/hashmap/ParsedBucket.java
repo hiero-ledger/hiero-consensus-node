@@ -109,7 +109,7 @@ public final class ParsedBucket extends Bucket {
      * {@inheritDoc}
      */
     @Override
-    public void putValue(final Bytes keyBytes, final int keyHashCode, final long oldValue, final long value) {
+    public boolean putValue(final Bytes keyBytes, final int keyHashCode, final long oldValue, final long value) {
         final boolean needCheckOldValue = oldValue != INVALID_VALUE;
         try {
             final int entryIndex = findEntryIndex(keyHashCode, keyBytes);
@@ -117,28 +117,32 @@ public final class ParsedBucket extends Bucket {
                 if (entryIndex >= 0) { // if found
                     final BucketEntry entry = entries.get(entryIndex);
                     if (needCheckOldValue && (oldValue != entry.getValue())) {
-                        return;
+                        return false;
                     }
                     entries.remove(entryIndex);
+                    return true;
                 } else {
                     // entry not found, nothing to delete
+                    return false;
                 }
-                return;
             }
             if (entryIndex >= 0) {
                 // yay! we found it, so update value
                 final BucketEntry entry = entries.get(entryIndex);
                 if (needCheckOldValue && (oldValue != entry.getValue())) {
-                    return;
+                    return false;
                 }
+                final long entryOldValue = entry.getValue();
                 entry.setValue(value);
+                return value == entryOldValue;
             } else {
                 if (needCheckOldValue) {
-                    return;
+                    return false;
                 }
                 final BucketEntry newEntry = new BucketEntry(keyHashCode, value, keyBytes);
                 entries.add(newEntry);
-                checkLargestBucket(entries.size());
+                checkLargestBucket();
+                return true;
             }
         } catch (IOException e) {
             logger.error(EXCEPTION.getMarker(), "Failed putting key={} value={} in a bucket", keyBytes, value, e);
@@ -155,7 +159,6 @@ public final class ParsedBucket extends Bucket {
         bucketIndex = 0;
         entries.clear();
 
-        int entriesCount = 0;
         while (in.hasRemaining()) {
             final int tag = in.readVarInt(false);
             final int fieldNum = tag >> TAG_FIELD_OFFSET;
@@ -167,13 +170,12 @@ public final class ParsedBucket extends Bucket {
                 in.limit(in.position() + entryBytesSize);
                 entries.add(new BucketEntry(in));
                 in.limit(oldLimit);
-                entriesCount++;
             } else {
                 throw new IllegalArgumentException("Unknown bucket field: " + fieldNum);
             }
         }
 
-        checkLargestBucket(entriesCount);
+        checkLargestBucket();
     }
 
     public void writeTo(final WritableSequentialData out) {

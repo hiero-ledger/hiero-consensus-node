@@ -29,7 +29,7 @@ class BlockBufferIOTest {
     private static final String testDir = "testDir";
     private static final File testDirFile = new File(testDir);
 
-    private final BlockBufferIO bufferIO = new BlockBufferIO(testDir);
+    private final BlockBufferIO bufferIO = new BlockBufferIO(testDir, 512);
 
     @BeforeEach
     void beforeEach() throws IOException {
@@ -156,5 +156,15 @@ class BlockBufferIOTest {
                 assertThat(readBlock.blockItem(i)).isEqualTo(block.blockItem(i));
             }
         }
+    }
+
+    @Test
+    void insufficientReadDepthIgnoresBlocks() throws IOException {
+        final List<BlockState> blocksToWrite = generateRandomBlocks(10);
+        bufferIO.write(blocksToWrite, 0);
+
+        final var restrictedSubject = new BlockBufferIO(testDir, 1); // MB KB
+        final List<BufferedBlock> blocksFromDisk = restrictedSubject.read();
+        assertThat(blocksFromDisk).isEmpty();
     }
 }

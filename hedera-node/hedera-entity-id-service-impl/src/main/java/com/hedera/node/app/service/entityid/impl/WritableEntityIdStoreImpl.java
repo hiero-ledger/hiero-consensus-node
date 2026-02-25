@@ -75,7 +75,8 @@ public class WritableEntityIdStoreImpl extends ReadableEntityIdStoreImpl impleme
             case NODE -> newEntityCounts.numNodes(entityCounts.numNodes() + delta);
             case STAKING_INFO -> newEntityCounts.numStakingInfos(entityCounts.numStakingInfos() + delta);
             case HOOK -> newEntityCounts.numHooks(entityCounts.numHooks() + delta);
-            case LAMBDA_STORAGE -> newEntityCounts.numLambdaStorageSlots(entityCounts.numLambdaStorageSlots() + delta);
+            case EVM_HOOK_STORAGE ->
+                newEntityCounts.numEvmHookStorageSlots(entityCounts.numEvmHookStorageSlots() + delta);
         }
         entityCountsState.put(newEntityCounts.build());
     }

@@ -21,6 +21,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.FileUpdate;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.PLATFORM_NOT_ACTIVE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.PLATFORM_TRANSACTION_NOT_CREATED;
 import static com.swirlds.common.stream.LinkedObjectStreamUtilities.getPeriod;
 import static java.lang.System.arraycopy;
@@ -35,8 +36,8 @@ import com.google.common.primitives.Longs;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.TextFormat;
+import com.hedera.hapi.node.hooks.EvmHook;
 import com.hedera.hapi.node.hooks.HookExtensionPoint;
-import com.hedera.hapi.node.hooks.LambdaEvmHook;
 import com.hedera.node.app.hapi.fees.usage.SigUsage;
 import com.hedera.node.app.hapi.utils.fee.SigValueObj;
 import com.hedera.node.app.hapi.utils.forensics.RecordStreamEntry;
@@ -93,6 +94,7 @@ import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.SplittableRandom;
 import java.util.UUID;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiPredicate;
 import java.util.function.Function;
@@ -108,7 +110,9 @@ import org.hiero.base.utility.CommonUtils;
 public class TxnUtils {
     private static final Logger log = LogManager.getLogger(TxnUtils.class);
 
-    public static final ResponseCodeEnum[] NOISY_RETRY_PRECHECKS = {BUSY, PLATFORM_TRANSACTION_NOT_CREATED};
+    public static final ResponseCodeEnum[] NOISY_RETRY_PRECHECKS = {
+        BUSY, PLATFORM_TRANSACTION_NOT_CREATED, PLATFORM_NOT_ACTIVE
+    };
 
     public static final int BYTES_4K = 4 * (1 << 10);
 
@@ -174,7 +178,7 @@ public class TxnUtils {
             return com.hedera.hapi.node.hooks.HookCreationDetails.newBuilder()
                     .hookId(hookId)
                     .extensionPoint(HookExtensionPoint.ACCOUNT_ALLOWANCE_HOOK)
-                    .lambdaEvmHook(LambdaEvmHook.newBuilder().spec(hookSpec))
+                    .evmHook(EvmHook.newBuilder().spec(hookSpec))
                     .build();
         };
     }
@@ -520,6 +524,25 @@ public class TxnUtils {
         return data;
     }
 
+    /**
+     * Generates random UTF-8 bytes of the specified length, ensuring no null bytes (0x00) are present.
+     * This is useful for creating memo content that passes PreCheckValidator validation.
+     *
+     * @param numberOfBytes the number of bytes to generate
+     * @return a byte array of length n with no null bytes
+     */
+    public static byte[] randomUtf8BytesNoZeroBytes(final int numberOfBytes) {
+        final byte[] data = randomUtf8Bytes(numberOfBytes);
+        // Replace any null bytes with random non-null bytes
+        for (int i = 0; i < data.length; i++) {
+            if (data[i] == 0) {
+                // Generate a random byte from 1-255 (avoiding 0)
+                data[i] = (byte) (ThreadLocalRandom.current().nextInt(1, 256));
+            }
+        }
+        return data;
+    }
+
     public static String randomUppercase(final int l) {
         return randomSampling(l, UPPER);
     }
@@ -818,7 +841,7 @@ public class TxnUtils {
      */
     public static String resourceAsString(@NonNull final String loc) {
         try {
-            try (final var in = TxnUtils.class.getClassLoader().getResourceAsStream(loc);
+            try (final var in = TxnUtils.class.getResourceAsStream("/" + loc);
                     final var bridge = new InputStreamReader(requireNonNull(in));
                     final var reader = new BufferedReader(bridge)) {
                 return reader.lines().collect(joining("\n"));

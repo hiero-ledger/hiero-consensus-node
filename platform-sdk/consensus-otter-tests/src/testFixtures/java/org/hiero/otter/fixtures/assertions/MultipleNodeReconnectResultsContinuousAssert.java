@@ -127,39 +127,6 @@ public class MultipleNodeReconnectResultsContinuousAssert
         });
     }
 
-    /**
-     * Asserts that the nodes have a maximum tree initialization time that is less than or equal to the provided time.
-     *
-     * @param maximumTreeInitializationTime the maximum allowed tree initialization time
-     * @return this assertion object for method chaining
-     */
-    @NonNull
-    public MultipleNodeReconnectResultsContinuousAssert haveMaximumTreeInitializationTime(
-            @NonNull final Duration maximumTreeInitializationTime) {
-        isNotNull();
-        return checkContinuously(notification -> {
-            switch (notification) {
-                case final SynchronizationCompleteNotification syncNotification -> {
-                    final Duration actualTime =
-                            Duration.ofSeconds((long) syncNotification.payload().getInitializationTimeInSeconds());
-                    if (actualTime.compareTo(maximumTreeInitializationTime) > 0) {
-                        failWithMessage(
-                                "Expected maximum tree initialization time to be <%s> but node %s took <%s> to initialize the tree%n%s",
-                                maximumTreeInitializationTime,
-                                syncNotification.nodeId() == null
-                                        ? "unknown"
-                                        : syncNotification.nodeId().id(),
-                                actualTime,
-                                syncNotification.payload());
-                    }
-                }
-                default -> {
-                    // Ignore other notifications
-                }
-            }
-        });
-    }
-
     private MultipleNodeReconnectResultsContinuousAssert checkContinuously(
             final Consumer<ReconnectNotification<?>> check) {
         isNotNull();

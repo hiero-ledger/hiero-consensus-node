@@ -194,6 +194,14 @@ public interface StreamBuilder {
     StreamBuilder parentConsensus(@NonNull Instant parentConsensus);
 
     /**
+     * Sets the parent consensus timestamp of a scheduled transaction with {@code wait_for_expiry = false} that
+     * was just triggered for execution.
+     * @param parentConsensus the consensus timestamp of the triggering transaction
+     * @return the builder
+     */
+    StreamBuilder triggeringParentConsensus(@NonNull Instant parentConsensus);
+
+    /**
      * Sets the exchange rate of this builder.
      * @param exchangeRate the exchange rate
      * @return this builder
@@ -218,6 +226,13 @@ public interface StreamBuilder {
      * @return this builder
      */
     StreamBuilder congestionMultiplier(long congestionMultiplier);
+
+    /**
+     * Sets the high-volume pricing multiplier used for charging the fees for this transaction.This is scaled by 1000.
+     * @param highVolumePricingMultiplier the high-volume pricing multiplier
+     * @return this builder
+     */
+    StreamBuilder highVolumePricingMultiplier(long highVolumePricingMultiplier);
 
     /**
      * Returns true if this builder's transaction originated from inside another handler or workflow; and not

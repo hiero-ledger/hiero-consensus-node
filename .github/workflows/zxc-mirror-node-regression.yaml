@@ -4,27 +4,31 @@ on:
   workflow_call:
     inputs:
       ref:
-        description: "The branch, tag, or SHA to checkout:"
+        description: "The branch, tag, or SHA to checkout"
         required: false
         type: string
       custom-job-name:
-        description: "The custom job name to use for the job:"
+        description: "The custom job name to use for the job"
         required: false
         type: string
       solo-version:
-        description: "The version of solo to install (if not specified, latest will be used):"
+        description: "The version of solo to install (if not specified, latest will be used)"
         required: false
         type: string
       helm-release-name:
         description: "The Helm release name to use for the mirror node deployment"
         required: false
         type: string
+      mirror-node-version:
+        description: "The version of the mirror node to deploy (if not specified, '0.145.2' will be used)"
+        required: false
+        type: string
     secrets:
       access-token:
-        description: "GitHub Access Token with write permissions to the repository."
+        description: "GitHub Access Token with write permissions to the repository"
         required: true
       slack-detailed-report-webhook:
-        description: "Slack Webhook URL for TCK Monitoring."
+        description: "Slack Webhook URL for TCK Monitoring"
         required: true
 
 defaults:
@@ -45,7 +49,7 @@ jobs:
   # Execute Mirror Node Regression Tests using specified version of hiero-consensus-node
   mirror-node-regression:
     name: ${{ inputs.custom-job-name || 'Standard' }}
-    runs-on: hl-cn-citr-lin-lg
+    runs-on: hl-cn-mn-regression-lin-lg
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
@@ -73,7 +77,7 @@ jobs:
           node-version: 20.19.3
 
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@ac638b010cf58a27ee6c972d7336334ccaf61c96 # v4.4.1
+        uses: gradle/actions/setup-gradle@4d9f0ba0025fe599b4ebab900eb7f3a1d93ef4c2 # v5.0.0
         with:
           cache-read-only: false
 
@@ -95,6 +99,8 @@ jobs:
 
       - name: Configure and run solo
         id: run-solo
+        env:
+          MIRROR_NODE_VERSION: ${{ inputs.mirror-node-version || '0.145.2' }}
         run: |
           set -ex
           cat <<EOF > mirror.yml
@@ -115,6 +121,7 @@ jobs:
           version=$(solo --version | grep Version | awk '{print $3}')
           solo_ge_0440=$([[ "$(printf '%s\n' "${version}" "0.44.0" | sort -V | head -n1)" == "0.44.0" ]] && echo "true" || echo "false")
           echo "::debug::solo_ge_0440=${solo_ge_0440}"
+          echo "::debug::MIRROR_NODE_VERSION=${MIRROR_NODE_VERSION}"
           if [[ "${solo_ge_0440}" == "true" ]]; then
             echo "::debug::Solo version ($version) is >= 0.44.0"
             solo cluster-ref config connect --cluster-ref "kind-${SOLO_CLUSTER_NAME}" --context "kind-${SOLO_CLUSTER_NAME}"
@@ -159,7 +166,7 @@ jobs:
 
   report-mirror-node-regression-status:
     name: ${{ inputs.custom-job-name || 'Standard' }} Slack Report
-    runs-on: hl-cn-citr-lin-sm
+    runs-on: hl-cn-mn-regression-lin-sm
     needs: mirror-node-regression
     permissions:
       id-token: write

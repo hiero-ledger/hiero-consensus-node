@@ -9,7 +9,6 @@ import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.platform.state.SingletonType;
 import com.hedera.node.app.service.networkadmin.FreezeService;
-import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StateDefinition;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -48,17 +47,5 @@ public class V0490FreezeSchema extends Schema<SemanticVersion> {
         return Set.of(
                 StateDefinition.singleton(UPGRADE_FILE_HASH_STATE_ID, UPGRADE_FILE_HASH_KEY, ProtoBytes.PROTOBUF),
                 StateDefinition.singleton(FREEZE_TIME_STATE_ID, FREEZE_TIME_KEY, Timestamp.PROTOBUF));
-    }
-
-    @Override
-    public void migrate(@NonNull final MigrationContext ctx) {
-        final var isGenesis = ctx.previousVersion() == null;
-        if (isGenesis) {
-            final var upgradeFileHashKeyState = ctx.newStates().<ProtoBytes>getSingleton(UPGRADE_FILE_HASH_STATE_ID);
-            upgradeFileHashKeyState.put(ProtoBytes.DEFAULT);
-
-            final var freezeTimeKeyState = ctx.newStates().<Timestamp>getSingleton(FREEZE_TIME_STATE_ID);
-            freezeTimeKeyState.put(Timestamp.DEFAULT);
-        }
     }
 }

@@ -18,7 +18,7 @@ import java.util.Random;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.internal.network.ConnectionKey;
-import org.hiero.otter.fixtures.network.Topology.ConnectionData;
+import org.hiero.otter.fixtures.network.Topology.ConnectionState;
 
 /**
  * Connects {@link SimulatedGossip} peers in a simulated network.
@@ -50,7 +50,7 @@ public class SimulatedNetwork {
      */
     private final Map<NodeId, SimulatedGossip> gossipInstances = new HashMap<>();
 
-    private final Map<GossipConnectionKey, ConnectionData> connections = new HashMap<>();
+    private final Map<GossipConnectionKey, ConnectionState> connections = new HashMap<>();
 
     private final Map<GossipConnectionKey, Instant> lastDeliveryTimestamps = new HashMap<>();
 
@@ -81,7 +81,7 @@ public class SimulatedNetwork {
      *
      * @param newConnections the connection data
      */
-    public void setConnections(@NonNull final Map<ConnectionKey, ConnectionData> newConnections) {
+    public void setConnections(@NonNull final Map<ConnectionKey, ConnectionState> newConnections) {
         this.connections.clear();
         this.connections.putAll(newConnections.entrySet().stream()
                 .collect(toMap(entry -> GossipConnectionKey.of(entry.getKey()), Entry::getValue)));
@@ -133,8 +133,8 @@ public class SimulatedNetwork {
                 final EventInTransit event = iterator.next();
 
                 final GossipConnectionKey connectionKey = new GossipConnectionKey(event.sender(), nodeId);
-                final ConnectionData connectionData = connections.get(connectionKey);
-                if (connectionData == null || !connectionData.connected()) {
+                final ConnectionState connectionState = connections.get(connectionKey);
+                if (connectionState == null || !connectionState.connected()) {
                     // No connection between sender and receiver, so skip delivery of this event
                     continue;
                 }
@@ -174,10 +174,10 @@ public class SimulatedNetwork {
                     }
 
                     final GossipConnectionKey connectionKey = new GossipConnectionKey(sender, receiver);
-                    final ConnectionData connectionData = connections.get(connectionKey);
+                    final ConnectionState connectionState = connections.get(connectionKey);
 
                     Instant deliveryTime;
-                    if (connectionData == null) {
+                    if (connectionState == null) {
                         // No connection between sender and receiver. We must still enqueue the event in case the
                         // nodes become connected later.
                         deliveryTime = lastDeliveryTimestamps
@@ -185,9 +185,10 @@ public class SimulatedNetwork {
                                 .plusNanos(1);
                     } else {
                         // Simulate network latency and jitter using truncated Gaussian distribution
-                        final double sigma = connectionData.latency().toNanos() * connectionData.jitter().value / 100.0;
+                        final double sigma =
+                                connectionState.latency().toNanos() * connectionState.jitter().value / 100.0;
                         final double jitter = Math.clamp(random.nextGaussian() * sigma, -3 * sigma, 3 * sigma);
-                        deliveryTime = now.plus(connectionData.latency()).plusNanos((long) jitter);
+                        deliveryTime = now.plus(connectionState.latency()).plusNanos((long) jitter);
                     }
 
                     // Ensure delivery time is always incremental

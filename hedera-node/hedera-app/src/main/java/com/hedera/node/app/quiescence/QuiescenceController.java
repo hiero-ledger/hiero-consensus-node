@@ -1,13 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.quiescence;
 
+import static java.util.Objects.requireNonNull;
+
+import com.hedera.node.app.records.impl.BlockRecordManagerImpl;
+import com.hedera.node.config.data.QuiescenceConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.time.InstantSource;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -17,6 +20,7 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.event.Event;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.consensus.model.transaction.ConsensusTransaction;
 import org.hiero.consensus.model.transaction.Transaction;
 
 /**
@@ -35,6 +39,12 @@ public class QuiescenceController {
     private final Map<Long, QuiescenceBlockTracker> blockTrackers;
 
     /**
+     * If set, the block tracker for the in-progress block.
+     */
+    @Nullable
+    private QuiescenceBlockTracker inProgressBlockTracker;
+
+    /**
      * Constructs a new quiescence controller.
      *
      * @param config                  the quiescence configuration
@@ -46,9 +56,9 @@ public class QuiescenceController {
             @NonNull final QuiescenceConfig config,
             @NonNull final InstantSource time,
             @NonNull final LongSupplier pendingTransactionCount) {
-        this.config = Objects.requireNonNull(config);
-        this.time = Objects.requireNonNull(time);
-        this.pendingTransactionCount = Objects.requireNonNull(pendingTransactionCount);
+        this.config = requireNonNull(config);
+        this.time = requireNonNull(time);
+        this.pendingTransactionCount = requireNonNull(pendingTransactionCount);
         nextTct = new AtomicReference<>();
         pipelineTransactionCount = new AtomicLong(0);
         blockTrackers = new ConcurrentHashMap<>();
@@ -80,11 +90,87 @@ public class QuiescenceController {
      * @param blockNumber the block number being started
      * @return the block tracker for the new block
      */
-    public @NonNull QuiescenceBlockTracker startingBlock(final long blockNumber) {
-        // This should be called from HandleWorkflow when starting to handle a new block
-        // This should return an object even if quiescence is disabled, so that the caller does not need to check
-        // if quiescence is enabled or not. We will later ignore the object if quiescence is disabled.
-        return new QuiescenceBlockTracker(blockNumber, this);
+    public @Nullable QuiescenceBlockTracker startingBlock(final long blockNumber) {
+        if (isDisabled()) {
+            return null;
+        }
+        inProgressBlockTracker = new QuiescenceBlockTracker(blockNumber, this);
+        return inProgressBlockTracker;
+    }
+
+    /**
+     * Notifies the controller that the in-progress block has finished handling all transactions.
+     * This method should be called after all transactions in the current block have been processed
+     * and the block is ready to be finalized.
+     * <p>
+     * This method delegates to the in-progress block tracker's {@code finishedHandlingTransactions()}
+     * method. If quiescence is disabled or if an exception occurs during the operation, quiescence
+     * will be disabled.
+     * <p>
+     * Note: This method expects that {@link #startingBlock(long)} has been called previously to
+     * initialize the in-progress block tracker.
+     *
+     * @throws NullPointerException if no in-progress block tracker exists (wrapped and handled internally)
+     */
+    public void finishHandlingInProgressBlock() {
+        if (isDisabled()) {
+            return;
+        }
+        try {
+            requireNonNull(inProgressBlockTracker).finishedHandlingTransactions();
+        } catch (Exception e) {
+            disableQuiescence(e);
+        }
+    }
+
+    /**
+     * Notifies the controller that a consensus transaction has been processed in the in-progress block.
+     * This method should be called for each transaction as it is handled within the current block.
+     * <p>
+     * This method performs two operations:
+     * <ol>
+     *   <li>Records the transaction in the in-progress block tracker via {@code blockTransaction()}</li>
+     *   <li>Updates the consensus time tracker with the transaction's consensus timestamp via
+     *       {@code consensusTimeAdvanced()}</li>
+     * </ol>
+     * <p>
+     * If quiescence is disabled or if an exception occurs during the operation, quiescence will be disabled.
+     * <p>
+     * Note: This method expects that {@link #startingBlock(long)} has been called previously to
+     * initialize the in-progress block tracker.
+     *
+     * @param txn the consensus transaction that has been processed in the block
+     * @throws NullPointerException if no in-progress block tracker exists (wrapped and handled internally)
+     */
+    public void inProgressBlockTransaction(@NonNull final ConsensusTransaction txn) {
+        if (isDisabled()) {
+            return;
+        }
+        try {
+            requireNonNull(inProgressBlockTracker).blockTransaction(txn);
+            inProgressBlockTracker.consensusTimeAdvanced(txn.getConsensusTimestamp());
+        } catch (final Exception e) {
+            disableQuiescence(e);
+        }
+    }
+
+    /**
+     * If there is a block in progress, switches the block tracker, synchronously marking the previous block as
+     * having finished handling transactions.
+     * <p>
+     * Only used by the {@link BlockRecordManagerImpl}, whose concept of finality does not extend to achieving a
+     * TSS signature.
+     * @param blockNumber the block number being started
+     * @return whether the previous block was being tracked
+     */
+    public boolean switchTracker(final long blockNumber) {
+        if (isDisabled()) {
+            return false;
+        }
+        final boolean finishedPrevious = inProgressBlockTracker != null;
+        // Has side effect of setting inProgressBlockTracker
+        startingBlock(blockNumber);
+        return finishedPrevious;
     }
 
     /**

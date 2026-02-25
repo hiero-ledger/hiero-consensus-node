@@ -1,16 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.history.impl;
 
+import static com.hedera.hapi.node.state.history.WrapsPhase.R1;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
-import static com.hedera.node.app.history.schemas.V059HistorySchema.ACTIVE_PROOF_CONSTRUCTION_STATE_ID;
-import static com.hedera.node.app.history.schemas.V059HistorySchema.NEXT_PROOF_CONSTRUCTION_STATE_ID;
-import static com.hedera.node.app.history.schemas.V059HistorySchema.PROOF_KEY_SETS_STATE_ID;
-import static com.hedera.node.app.history.schemas.V059HistorySchema.PROOF_VOTES_STATE_ID;
+import static com.hedera.node.app.history.schemas.V071HistorySchema.ACTIVE_PROOF_CONSTRUCTION_STATE_ID;
+import static com.hedera.node.app.history.schemas.V071HistorySchema.NEXT_PROOF_CONSTRUCTION_STATE_ID;
+import static com.hedera.node.app.history.schemas.V071HistorySchema.PROOF_KEY_SETS_STATE_ID;
+import static com.hedera.node.app.history.schemas.V071HistorySchema.PROOF_VOTES_STATE_ID;
+import static com.hedera.node.app.history.schemas.V071HistorySchema.WRAPS_MESSAGE_HISTORIES_STATE_ID;
 import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.BOOTSTRAP;
 import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.HANDOFF;
 import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.TRANSITION;
-import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE;
 import static java.util.Objects.requireNonNull;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -20,7 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.BDDMockito.given;
 
-import com.hedera.hapi.block.stream.ChainOfTrustProof;
+import com.hedera.hapi.node.state.history.ChainOfTrustProof;
 import com.hedera.hapi.node.state.history.ConstructionNodeId;
 import com.hedera.hapi.node.state.history.History;
 import com.hedera.hapi.node.state.history.HistoryProof;
@@ -29,6 +30,7 @@ import com.hedera.hapi.node.state.history.HistoryProofVote;
 import com.hedera.hapi.node.state.history.HistorySignature;
 import com.hedera.hapi.node.state.history.ProofKey;
 import com.hedera.hapi.node.state.history.ProofKeySet;
+import com.hedera.hapi.node.state.history.WrapsSigningState;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.state.NodeId;
@@ -39,8 +41,8 @@ import com.hedera.node.app.fixtures.state.FakeServicesRegistry;
 import com.hedera.node.app.fixtures.state.FakeState;
 import com.hedera.node.app.history.HistoryLibrary;
 import com.hedera.node.app.history.HistoryService;
-import com.hedera.node.app.history.ReadableHistoryStore;
-import com.hedera.node.app.history.schemas.V059HistorySchema;
+import com.hedera.node.app.history.ReadableHistoryStore.WrapsMessagePublication;
+import com.hedera.node.app.history.schemas.V071HistorySchema;
 import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
 import com.hedera.node.app.service.entityid.impl.EntityIdServiceImpl;
 import com.hedera.node.app.service.roster.impl.ActiveRosters;
@@ -51,9 +53,9 @@ import com.hedera.node.config.data.TssConfig;
 import com.hedera.node.config.data.VersionConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
+import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.WritableStates;
@@ -63,6 +65,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ForkJoinPool;
 import java.util.function.Consumer;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -179,7 +182,7 @@ class WritableHistoryStoreImplTest {
     }
 
     @Test
-    void createsBootstrapConstructionIfNotPresent() {
+    void createsBootstrapConstructionIfNotPresentOrWith() {
         givenARosterLookup();
         given(activeRosters.phase()).willReturn(BOOTSTRAP);
         given(activeRosters.sourceRosterHash()).willReturn(A_ROSTER_HASH);
@@ -231,7 +234,7 @@ class WritableHistoryStoreImplTest {
         assertSame(construction, getSingleton(NEXT_PROOF_CONSTRUCTION_STATE_ID));
 
         final var updatedKeySet = state.getWritableStates(HistoryService.NAME)
-                .<NodeId, ProofKeySet>get(V059HistorySchema.PROOF_KEY_SETS_STATE_ID)
+                .<NodeId, ProofKeySet>get(V071HistorySchema.PROOF_KEY_SETS_STATE_ID)
                 .get(new NodeId(rotatingKeyNodeId));
         requireNonNull(updatedKeySet);
         assertEquals(nextKey, updatedKeySet.key());
@@ -239,7 +242,7 @@ class WritableHistoryStoreImplTest {
         assertEquals(Bytes.EMPTY, updatedKeySet.nextKey());
 
         final var newKeySet = state.getWritableStates(HistoryService.NAME)
-                .<NodeId, ProofKeySet>get(V059HistorySchema.PROOF_KEY_SETS_STATE_ID)
+                .<NodeId, ProofKeySet>get(V071HistorySchema.PROOF_KEY_SETS_STATE_ID)
                 .get(new NodeId(newKeyNodeId));
         requireNonNull(newKeySet);
         assertEquals(newKey, newKeySet.key());
@@ -284,11 +287,42 @@ class WritableHistoryStoreImplTest {
                 HistoryProofConstruction.newBuilder().constructionId(456L).build());
 
         final var proofKey = new ProofKey(123L, Bytes.wrap("DOODLE"));
-        final var proof = new HistoryProof(List.of(proofKey), History.DEFAULT, ChainOfTrustProof.DEFAULT);
+        final var proof = new HistoryProof(List.of(proofKey), History.DEFAULT, ChainOfTrustProof.DEFAULT, Bytes.EMPTY);
         subject.completeProof(456L, proof);
 
         final var construction = this.<HistoryProofConstruction>getSingleton(NEXT_PROOF_CONSTRUCTION_STATE_ID);
         assertEquals(List.of(proofKey), construction.targetProofOrThrow().targetProofKeys());
+    }
+
+    @Test
+    void restartWrapsSigningPurgesMessagesAndIncrementsRetryCount() {
+        final var failedConstruction = HistoryProofConstruction.newBuilder()
+                .constructionId(123L)
+                .failureReason("Still missing messages from R1 nodes [2] after end of grace period for phase R2")
+                .wrapsRetryCount(1)
+                .build();
+        setConstructions(failedConstruction, HistoryProofConstruction.DEFAULT);
+        subject.addWrapsMessage(
+                123L, new WrapsMessagePublication(1L, Bytes.wrap("r1-node1"), R1, CONSENSUS_NOW.minusSeconds(1)));
+        subject.addWrapsMessage(123L, new WrapsMessagePublication(2L, Bytes.wrap("r1-node2"), R1, CONSENSUS_NOW));
+        assertEquals(
+                2L,
+                state.getWritableStates(HistoryService.NAME)
+                        .get(WRAPS_MESSAGE_HISTORIES_STATE_ID)
+                        .size());
+
+        final var updated = subject.restartWrapsSigning(123L, Set.of(1L, 2L));
+
+        assertEquals(2, updated.wrapsRetryCount());
+        assertFalse(updated.hasFailureReason());
+        assertTrue(updated.hasWrapsSigningState());
+        assertEquals(
+                R1, updated.wrapsSigningStateOrElse(WrapsSigningState.DEFAULT).phase());
+        assertEquals(
+                0L,
+                state.getWritableStates(HistoryService.NAME)
+                        .get(WRAPS_MESSAGE_HISTORIES_STATE_ID)
+                        .size());
     }
 
     @Test
@@ -305,20 +339,13 @@ class WritableHistoryStoreImplTest {
         setConstructions(activeConstruction, nextConstruction);
         A_ROSTER.rosterEntries().forEach(entry -> subject.addProofVote(entry.nodeId(), 123L, DEFAULT_VOTE));
         addSomeProofKeySetsFor(A_ROSTER);
-        commit(states -> {
-            states.<ConstructionNodeId, HistoryProofVote>get(PROOF_VOTES_STATE_ID)
-                    .put(new ConstructionNodeId(123L, 0L), DEFAULT_VOTE);
-        });
-        final var publication =
-                new ReadableHistoryStore.HistorySignaturePublication(0L, DEFAULT_SIGNATURE, CONSENSUS_NOW);
-        subject.addSignature(123L, publication);
+        commit(states -> states.<ConstructionNodeId, HistoryProofVote>get(PROOF_VOTES_STATE_ID)
+                .put(new ConstructionNodeId(123L, 0L), DEFAULT_VOTE));
         final var votesBefore = subject.getVotes(123L, Set.of(0L, 1L));
         assertEquals(1, votesBefore.size());
         assertEquals(DEFAULT_VOTE, votesBefore.get(0L));
         final var publicationsBefore = subject.getProofKeyPublications(Set.of(0L));
         assertEquals(1, publicationsBefore.size());
-        final var signaturesBefore = subject.getSignaturePublications(123L, Set.of(0L));
-        assertEquals(1, signaturesBefore.size());
 
         subject.handoff(A_ROSTER, C_ROSTER, C_ROSTER_HASH);
 
@@ -381,11 +408,9 @@ class WritableHistoryStoreImplTest {
     private State emptyState() {
         final var state = new FakeState();
         final var servicesRegistry = new FakeServicesRegistry();
-        Set.of(
-                        new EntityIdServiceImpl(),
-                        new HistoryServiceImpl(
-                                NO_OP_METRICS, ForkJoinPool.commonPool(), appContext, library, WITH_ENABLED_HISTORY))
-                .forEach(servicesRegistry::register);
+        final var historyService =
+                new HistoryServiceImpl(NO_OP_METRICS, ForkJoinPool.commonPool(), appContext, library);
+        Set.of(new EntityIdServiceImpl(), historyService).forEach(servicesRegistry::register);
         final var migrator = new FakeServiceMigrator();
         final var bootstrapConfig = new BootstrapConfigProviderImpl().getConfiguration();
         migrator.doMigrations(
@@ -398,7 +423,10 @@ class WritableHistoryStoreImplTest {
                 startupNetworks,
                 storeMetricsService,
                 configProvider,
-                TEST_PLATFORM_STATE_FACADE);
+                InitTrigger.GENESIS);
+        final var writableStates = state.getWritableStates(HistoryService.NAME);
+        historyService.doGenesisSetup(writableStates, DEFAULT_CONFIG);
+        ((CommittableWritableStates) writableStates).commit();
         return state;
     }
 }

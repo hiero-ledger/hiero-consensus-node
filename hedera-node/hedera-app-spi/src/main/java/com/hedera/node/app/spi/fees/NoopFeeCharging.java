@@ -44,7 +44,12 @@ public class NoopFeeCharging implements FeeCharging {
     }
 
     @Override
-    public Fees charge(@NonNull final Context ctx, @NonNull final Validation validation, @NonNull final Fees fees) {
+    public Fees charge(
+            @NonNull final AccountID payerId,
+            @NonNull final Context ctx,
+            @NonNull final Validation validation,
+            @NonNull final Fees fees) {
+        requireNonNull(payerId);
         requireNonNull(ctx);
         requireNonNull(validation);
         requireNonNull(fees);
@@ -52,7 +57,8 @@ public class NoopFeeCharging implements FeeCharging {
     }
 
     @Override
-    public void refund(@NonNull final Context ctx, @NonNull final Fees fees) {
+    public void refund(@NonNull final AccountID payerId, @NonNull final Context ctx, @NonNull final Fees fees) {
+        requireNonNull(payerId);
         requireNonNull(ctx);
         requireNonNull(fees);
         // No-op

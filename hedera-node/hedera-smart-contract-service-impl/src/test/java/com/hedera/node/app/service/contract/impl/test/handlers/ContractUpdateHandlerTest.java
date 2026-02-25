@@ -42,10 +42,10 @@ import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.contract.ContractUpdateTransactionBody;
+import com.hedera.hapi.node.hooks.EvmHook;
 import com.hedera.hapi.node.hooks.EvmHookSpec;
 import com.hedera.hapi.node.hooks.HookCreationDetails;
 import com.hedera.hapi.node.hooks.HookExtensionPoint;
-import com.hedera.hapi.node.hooks.LambdaEvmHook;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.Account.Builder;
 import com.hedera.hapi.node.transaction.TransactionBody;
@@ -741,7 +741,8 @@ class ContractUpdateHandlerTest extends ContractHandlerTestBase {
         given(context.dispatch(any(DispatchOptions.class))).willReturn(streamBuilder);
         given(streamBuilder.status()).willReturn(SUCCESS);
 
-        final var contractAccount = Account.newBuilder().build();
+        final var contractAccount =
+                Account.newBuilder().accountId(AccountID.DEFAULT).build();
         final var op = ContractUpdateTransactionBody.newBuilder()
                 .adminKey(A_COMPLEX_KEY)
                 .expirationTime(Timestamp.newBuilder().seconds(10))
@@ -823,11 +824,11 @@ class ContractUpdateHandlerTest extends ContractHandlerTestBase {
         final var spec = EvmHookSpec.newBuilder()
                 .contractId(ContractID.newBuilder().contractNum(321).build())
                 .build();
-        final var lambda = LambdaEvmHook.newBuilder().spec(spec).build();
+        final var evmHook = EvmHook.newBuilder().spec(spec).build();
         return HookCreationDetails.newBuilder()
                 .hookId(id)
                 .extensionPoint(HookExtensionPoint.ACCOUNT_ALLOWANCE_HOOK)
-                .lambdaEvmHook(lambda)
+                .evmHook(evmHook)
                 .build();
     }
 }

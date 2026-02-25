@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.test;
 
-import static com.swirlds.common.test.fixtures.WeightGenerators.TOTAL_NETWORK_WEIGHT;
 import static org.assertj.core.api.Assertions.within;
 import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
 import static org.hiero.consensus.model.status.PlatformStatus.CHECKING;
 import static org.hiero.consensus.model.status.PlatformStatus.OBSERVING;
 import static org.hiero.consensus.model.status.PlatformStatus.REPLAYING_EVENTS;
+import static org.hiero.consensus.test.fixtures.WeightGenerators.TOTAL_NETWORK_WEIGHT;
 import static org.hiero.otter.fixtures.OtterAssertions.assertContinuouslyThat;
 import static org.hiero.otter.fixtures.OtterAssertions.assertThat;
 import static org.hiero.otter.fixtures.assertions.StatusProgressionStep.target;
@@ -23,9 +23,9 @@ import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.OtterTest;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
-import org.hiero.otter.fixtures.network.utils.QuorumCalculator;
 import org.hiero.otter.fixtures.result.MultipleNodePlatformStatusResults;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
+import org.hiero.otter.fixtures.util.QuorumCalculator;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
@@ -78,7 +78,6 @@ public class PartitionTest {
         assertContinuouslyThat(network.newConsensusResults())
                 .haveEqualCommonRounds()
                 .haveConsistentRounds();
-        assertContinuouslyThat(network.newMarkerFileResults()).haveNoMarkerFiles();
 
         network.start();
 

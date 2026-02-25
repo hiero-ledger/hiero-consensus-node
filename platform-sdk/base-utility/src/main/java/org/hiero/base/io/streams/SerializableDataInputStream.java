@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.base.io.streams;
 
+import static com.hedera.pbj.runtime.Codec.DEFAULT_MAX_DEPTH;
 import static org.hiero.base.io.streams.SerializableStreamConstants.NULL_CLASS_ID;
 import static org.hiero.base.io.streams.SerializableStreamConstants.NULL_LIST_ARRAY_LENGTH;
 import static org.hiero.base.io.streams.SerializableStreamConstants.NULL_VERSION;
@@ -38,6 +39,7 @@ import org.hiero.base.io.exceptions.InvalidVersionException;
  * for use with the SerializableDet interface, and its use is described there.
  */
 public class SerializableDataInputStream extends AugmentedDataInputStream {
+    private static final int MAX_PBJ_RECORD_SIZE = 33554432;
 
     private static final Set<Integer> SUPPORTED_PROTOCOL_VERSIONS = Set.of(SERIALIZATION_PROTOCOL_VERSION);
 
@@ -595,7 +597,7 @@ public class SerializableDataInputStream extends AugmentedDataInputStream {
         final int size = readInt();
         readableSequentialData.limit(readableSequentialData.position() + size);
         try {
-            final T parsed = codec.parse(readableSequentialData);
+            final T parsed = codec.parse(readableSequentialData, false, false, DEFAULT_MAX_DEPTH, MAX_PBJ_RECORD_SIZE);
             if (readableSequentialData.position() != readableSequentialData.limit()) {
                 throw new EOFException("PBJ record was not fully read");
             }

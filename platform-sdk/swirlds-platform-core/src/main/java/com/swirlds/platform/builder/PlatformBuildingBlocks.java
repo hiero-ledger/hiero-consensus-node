@@ -8,19 +8,15 @@ import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.component.framework.model.WiringModel;
-import com.swirlds.platform.event.preconsensus.PcesFileTracker;
-import com.swirlds.platform.freeze.FreezeCheckHolder;
-import com.swirlds.platform.gossip.IntakeEventCounter;
 import com.swirlds.platform.scratchpad.Scratchpad;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
-import com.swirlds.platform.state.SwirldStateManager;
 import com.swirlds.platform.state.iss.IssScratchpad;
-import com.swirlds.platform.state.service.PlatformStateFacade;
-import com.swirlds.platform.state.signed.ReservedSignedState;
-import com.swirlds.platform.state.signed.SignedState;
+import com.swirlds.platform.state.nexus.SignedStateNexus;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.wiring.PlatformComponents;
-import com.swirlds.state.MerkleNodeState;
+import com.swirlds.platform.wiring.PlatformCoordinator;
+import com.swirlds.state.StateLifecycleManager;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -29,16 +25,22 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import org.hiero.base.concurrent.BlockingResourceProvider;
+import org.hiero.consensus.event.IntakeEventCounter;
+import org.hiero.consensus.gossip.ReservedSignedStateResult;
+import org.hiero.consensus.hashgraph.FreezePeriodChecker;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.roster.RosterHistory;
+import org.hiero.consensus.state.signed.ReservedSignedState;
 
 /**
  * This record contains core utilities and basic objects needed to build a platform. It should not contain any platform
  * components.
  *
- * @param platformComponents                         the wiring for this platform
+ * @param platformComponents                     the wiring for this platform
  * @param platformContext                        the context for this platform
  * @param model                                  the wiring model for this platform
  * @param keysAndCerts                           an object holding all the public/private key pairs and the CSPRNG state
@@ -57,35 +59,32 @@ import org.hiero.consensus.roster.RosterHistory;
  * @param intakeEventCounter                     counts events that have been received by gossip but not yet inserted
  *                                               into gossip event storage, per peer
  * @param secureRandomSupplier                   a source of secure random number generator instances
- * @param freezeCheckHolder                      a reference to a predicate that determines if a timestamp is in the
- *                                               freeze period
+ * @param freezeChecker                          a predicate that determines if a timestamp is in the freeze period
  * @param latestImmutableStateProviderReference  a reference to a method that supplies the latest immutable state. Input
  *                                               argument is a string explaining why we are getting this state (for
  *                                               debugging). Return value may be null (implementation detail of
  *                                               underlying data source), this indirection can be removed once states
  *                                               are passed within the wiring framework
- * @param initialPcesFiles                       the initial set of PCES files present when the node starts
- * @param consensusEventStreamName               a part of the name of the directory where the consensus event stream is written
+ * @param consensusEventStreamName               a part of the name of the directory where the consensus event stream is
+ *                                               written
  * @param issScratchpad                          scratchpad storage for ISS recovery
  * @param notificationEngine                     for sending notifications to the application (legacy pattern)
- * @param firstPlatform                          if this is the first platform being built (there is static setup that
- *                                               needs to be done, long term plan is to stop using static variables)
  * @param statusActionSubmitterReference         a reference to the status action submitter, this can be deleted once
  *                                               platform status management is handled by the wiring framework
+ * @param stateLifecycleManager                  responsible for the mutable state, this is exposed here due to
+ *                                               reconnect
  * @param getLatestCompleteStateReference        a reference to a supplier that supplies the latest immutable state,
  *                                               this is exposed here due to reconnect, can be removed once reconnect is
  *                                               made compatible with the wiring framework
- * @param loadReconnectStateReference            a reference to a consumer that loads the state for reconnect, can be
- *                                               removed once reconnect is made compatible with the wiring framework
- * @param clearAllPipelinesForReconnectReference a reference to a runnable that clears all pipelines for reconnect, can
- *                                               be removed once reconnect is made compatible with the wiring framework
- * @param swirldStateManager                     responsible for the mutable state, this is exposed here due to
- *                                               reconnect, can be removed once reconnect is made compatible with the
- *                                               wiring framework
- * @param platformStateFacade                    the facade to access the platform state
+ * @param firstPlatform                          if this is the first platform being built (there is static setup that
+ *                                               needs to be done, long term plan is to stop using static variables)
  * @param execution                              the instance of the execution layer, which allows consensus to interact
  *                                               with the execution layer
- * @param createStateFromVirtualMap              a function to instantiate the state object from a Virtual Map
+ * @param fallenBehindMonitor                    an instance of the fallenBehind Monitor which tracks if the node has fallen behind
+ * @param reservedSignedStateResultPromise             a shared data structure that Gossip and the ReconnectController will use provide
+ *                                               and obtain a reference to a ReservedSignedState
+ * @param platformCoordinator                    the platform coordinator, which allows components to trigger platform status changes
+ * @param latestImmutableStateNexus              a nexus for accessing the latest immutable state
  */
 public record PlatformBuildingBlocks(
         @NonNull PlatformComponents platformComponents,
@@ -103,23 +102,21 @@ public record PlatformBuildingBlocks(
         @Nullable Consumer<ConsensusSnapshot> snapshotOverrideConsumer,
         @NonNull IntakeEventCounter intakeEventCounter,
         @NonNull Supplier<SecureRandom> secureRandomSupplier,
-        @NonNull FreezeCheckHolder freezeCheckHolder,
+        @NonNull FreezePeriodChecker freezeChecker,
         @NonNull AtomicReference<Function<String, ReservedSignedState>> latestImmutableStateProviderReference,
-        @NonNull PcesFileTracker initialPcesFiles,
         @NonNull String consensusEventStreamName,
         @NonNull Scratchpad<IssScratchpad> issScratchpad,
         @NonNull NotificationEngine notificationEngine,
         @NonNull AtomicReference<StatusActionSubmitter> statusActionSubmitterReference,
-        @NonNull SwirldStateManager swirldStateManager,
+        @NonNull StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager,
         @NonNull AtomicReference<Supplier<ReservedSignedState>> getLatestCompleteStateReference,
-        @NonNull AtomicReference<Consumer<SignedState>> loadReconnectStateReference,
-        @NonNull AtomicReference<Runnable> clearAllPipelinesForReconnectReference,
         boolean firstPlatform,
         @NonNull ConsensusStateEventHandler consensusStateEventHandler,
-        @NonNull PlatformStateFacade platformStateFacade,
         @NonNull ExecutionLayer execution,
-        @NonNull Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap) {
-
+        @NonNull FallenBehindMonitor fallenBehindMonitor,
+        @NonNull BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise,
+        @NonNull PlatformCoordinator platformCoordinator,
+        @NonNull SignedStateNexus latestImmutableStateNexus) {
     public PlatformBuildingBlocks {
         requireNonNull(platformComponents);
         requireNonNull(platformContext);
@@ -134,20 +131,19 @@ public record PlatformBuildingBlocks(
         requireNonNull(applicationCallbacks);
         requireNonNull(intakeEventCounter);
         requireNonNull(secureRandomSupplier);
-        requireNonNull(freezeCheckHolder);
+        requireNonNull(freezeChecker);
         requireNonNull(latestImmutableStateProviderReference);
-        requireNonNull(initialPcesFiles);
         requireNonNull(consensusEventStreamName);
         requireNonNull(issScratchpad);
         requireNonNull(notificationEngine);
         requireNonNull(statusActionSubmitterReference);
-        requireNonNull(swirldStateManager);
+        requireNonNull(stateLifecycleManager);
         requireNonNull(getLatestCompleteStateReference);
-        requireNonNull(loadReconnectStateReference);
-        requireNonNull(clearAllPipelinesForReconnectReference);
         requireNonNull(consensusStateEventHandler);
-        requireNonNull(platformStateFacade);
         requireNonNull(execution);
-        requireNonNull(createStateFromVirtualMap);
+        requireNonNull(fallenBehindMonitor);
+        requireNonNull(reservedSignedStateResultPromise);
+        requireNonNull(platformCoordinator);
+        requireNonNull(latestImmutableStateNexus);
     }
 }

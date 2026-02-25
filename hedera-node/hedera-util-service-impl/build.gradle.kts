@@ -6,6 +6,7 @@ description = "Default Hedera Util Service Implementation"
 mainModuleInfo { annotationProcessor("dagger.compiler") }
 
 testModuleInfo {
+    requires("com.hedera.node.app")
     requires("com.hedera.node.app.spi.test.fixtures")
     requires("com.hedera.node.config.test.fixtures")
     requires("com.swirlds.state.api.test.fixtures")
