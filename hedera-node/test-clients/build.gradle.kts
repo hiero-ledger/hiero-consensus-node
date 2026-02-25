@@ -63,7 +63,7 @@ tasks.test {
 }
 
 val miscTags =
-    "!(INTEGRATION|CRYPTO|TOKEN|RESTART|UPGRADE|SMART_CONTRACT|ND_RECONNECT|LONG_RUNNING|ISS|BLOCK_NODE|SIMPLE_FEES|ATOMIC_BATCH)"
+    "!(INTEGRATION|CRYPTO|TOKEN|RESTART|UPGRADE|SMART_CONTRACT|ND_RECONNECT|LONG_RUNNING|STATE_THROTTLING|ISS|BLOCK_NODE|SIMPLE_FEES|ATOMIC_BATCH)"
 val matsSuffix = "MATS"
 
 val basePrCheckTags =
@@ -83,10 +83,12 @@ val basePrCheckTags =
         "hapiTestMiscRecords" to miscTags,
         "hapiTestSimpleFees" to "SIMPLE_FEES",
         "hapiTestAtomicBatch" to "ATOMIC_BATCH",
+        "hapiTestStateThrottling" to "(STATE_THROTTLING&SERIAL)",
     )
 
 val cryptoTasks = setOf("hapiTestCrypto", "hapiTestCryptoSerial")
 val timeConsumingTasks = setOf("hapiTestTimeConsuming", "hapiTestTimeConsumingSerial")
+val stateThrottlingTasks = setOf("hapiTestStateThrottling")
 
 val prCheckTags =
     buildMap<String, String> {
@@ -96,7 +98,9 @@ val prCheckTags =
             put(task, "($tags)&(!MATS)")
 
             // MATS task → explicitly REQUIRE MATS
-            if (task !in cryptoTasks && task !in timeConsumingTasks) {
+            if (
+                task !in cryptoTasks && task !in timeConsumingTasks && task !in stateThrottlingTasks
+            ) {
                 put("$task$matsSuffix", "($tags)&MATS")
             }
         }
@@ -132,11 +136,16 @@ val prCheckStartPorts =
         put("hapiTestAtomicBatch", "27400")
         put("hapiTestCryptoSerial", "27600")
         put("hapiTestTimeConsumingSerial", "27800")
+        put("hapiTestStateThrottling", "28000")
 
         // Create the MATS variants
         val originalEntries = toMap() // Create a snapshot of current entries
         originalEntries.forEach { (taskName: String, port: String) ->
-            if (taskName !in cryptoTasks && taskName !in timeConsumingTasks)
+            if (
+                taskName !in cryptoTasks &&
+                    taskName !in timeConsumingTasks &&
+                    taskName !in stateThrottlingTasks
+            )
                 put("$taskName$matsSuffix", port)
         }
     }
@@ -165,6 +174,7 @@ val prCheckPropOverrides =
         )
         put("hapiTestTimeConsuming", "nodes.nodeRewardsEnabled=false,quiescence.enabled=true")
         put("hapiTestTimeConsumingSerial", "nodes.nodeRewardsEnabled=false,quiescence.enabled=true")
+        put("hapiTestStateThrottling", "nodes.nodeRewardsEnabled=false,quiescence.enabled=true")
         put(
             "hapiTestMiscRecords",
             "blockStream.streamMode=RECORDS,nodes.nodeRewardsEnabled=false,quiescence.enabled=true,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true",
@@ -178,7 +188,11 @@ val prCheckPropOverrides =
 
         val originalEntries = toMap() // Create a snapshot of current entries
         originalEntries.forEach { (taskName: String, overrides: String) ->
-            if (taskName !in cryptoTasks && taskName !in timeConsumingTasks)
+            if (
+                taskName !in cryptoTasks &&
+                    taskName !in timeConsumingTasks &&
+                    taskName !in stateThrottlingTasks
+            )
                 put("$taskName$matsSuffix", overrides)
         }
     }
@@ -188,7 +202,11 @@ val prCheckPrepareUpgradeOffsets =
 
         val originalEntries = toMap() // Create a snapshot of current entries
         originalEntries.forEach { (taskName: String, offset: String) ->
-            if (taskName !in cryptoTasks && taskName !in timeConsumingTasks)
+            if (
+                taskName !in cryptoTasks &&
+                    taskName !in timeConsumingTasks &&
+                    taskName !in stateThrottlingTasks
+            )
                 put("$taskName$matsSuffix", offset)
         }
     }
@@ -205,7 +223,11 @@ val prCheckNetSizeOverrides =
 
         val originalEntries = toMap() // Create a snapshot of current entries
         originalEntries.forEach { (taskName: String, size: String) ->
-            if (taskName !in cryptoTasks && taskName !in timeConsumingTasks)
+            if (
+                taskName !in cryptoTasks &&
+                    taskName !in timeConsumingTasks &&
+                    taskName !in stateThrottlingTasks
+            )
                 put("$taskName$matsSuffix", size)
         }
     }
