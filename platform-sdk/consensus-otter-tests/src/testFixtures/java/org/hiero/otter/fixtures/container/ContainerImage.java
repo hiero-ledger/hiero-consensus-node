@@ -10,6 +10,7 @@ import static org.hiero.otter.fixtures.internal.AbstractNetwork.NODE_IDENTIFIER_
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.consensus.model.node.NodeId;
+import org.testcontainers.containers.BindMode;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.Network;
 import org.testcontainers.containers.wait.strategy.Wait;
@@ -48,6 +49,7 @@ public class ContainerImage extends GenericContainer<ContainerImage> {
                 .withExposedPorts(CONTAINER_CONTROL_PORT, NODE_COMMUNICATION_PORT)
                 .withWorkingDirectory(CONTAINER_APP_WORKING_DIR)
                 .waitingFor(Wait.forListeningPorts(CONTAINER_CONTROL_PORT, containerControlDebugPort))
+                .withFileSystemBind("/dev/shm","/opt/shared", BindMode.READ_WRITE)
                 .withCommand(
                         "java",
                         "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:" + containerControlDebugPort,
