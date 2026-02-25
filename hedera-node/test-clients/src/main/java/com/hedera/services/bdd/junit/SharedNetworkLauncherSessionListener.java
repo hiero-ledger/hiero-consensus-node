@@ -74,6 +74,8 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
 
     @Override
     public void launcherSessionOpened(@NonNull final LauncherSession session) {
+        // Gradle logging issue. Workaround documented here: https://github.com/gradle/gradle/issues/36861
+        System.setProperty("log4j.configurationFile", "log4j2-test-client.xml");
         session.getLauncher().registerTestExecutionListeners(new SharedNetworkExecutionListener());
     }
 
