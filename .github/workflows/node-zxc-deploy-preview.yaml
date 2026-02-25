@@ -42,7 +42,7 @@ permissions:
 jobs:
   Deploy-Preview:
     name: ${{ inputs.custom-job-label || 'Deploy Preview' }}
-    runs-on: hiero-network-node-linux-large
+    runs-on: hl-cn-default-lin-md
     if: ${{ !github.event.workflow_call.repository.fork }}
     outputs:
       version: ${{ steps.effective-version.outputs.number }}

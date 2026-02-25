@@ -47,7 +47,7 @@ public class ERC20ContractInteractions {
     private static final String VALID_ALIAS = "validAlias";
     private static final String TRANSFER_FROM = "transferFrom";
     private static final String TX_STR_PREFIX = " tx - ";
-    private static final String TRANSFER_ADDRESS_ADDRESS_UINT_256 = "Transfer(address,address,uint256)";
+    public static final String TRANSFER_EVENT_SIGNATURE = "Transfer(address,address,uint256)";
 
     @HapiTest
     final Stream<DynamicTest> callsERC20ContractInteractions() {
@@ -171,7 +171,7 @@ public class ERC20ContractInteractions {
                                                                                     .withTopicsInOrder(
                                                                                             List.of(
                                                                                                     eventSignatureOf(
-                                                                                                            TRANSFER_ADDRESS_ADDRESS_UINT_256),
+                                                                                                            TRANSFER_EVENT_SIGNATURE),
                                                                                                     parsedToByteString(
                                                                                                             0, 0, 0),
                                                                                                     ByteString.copyFrom(
@@ -193,7 +193,7 @@ public class ERC20ContractInteractions {
                                                                                     .withTopicsInOrder(
                                                                                             List.of(
                                                                                                     eventSignatureOf(
-                                                                                                            TRANSFER_ADDRESS_ADDRESS_UINT_256),
+                                                                                                            TRANSFER_EVENT_SIGNATURE),
                                                                                                     ByteString.copyFrom(
                                                                                                             asAddressInTopic(
                                                                                                                     unhex(
@@ -212,7 +212,7 @@ public class ERC20ContractInteractions {
                                             .logs(inOrder(logWith()
                                                     .longValue(amount.longValueExact())
                                                     .withTopicsInOrder(List.of(
-                                                            eventSignatureOf(TRANSFER_ADDRESS_ADDRESS_UINT_256),
+                                                            eventSignatureOf(TRANSFER_EVENT_SIGNATURE),
                                                             ByteString.copyFrom(
                                                                     asAddressInTopic(
                                                                             unhex(ownerInfo.getContractAccountID()))),
@@ -262,7 +262,7 @@ public class ERC20ContractInteractions {
                                                                                     .withTopicsInOrder(
                                                                                             List.of(
                                                                                                     eventSignatureOf(
-                                                                                                            TRANSFER_ADDRESS_ADDRESS_UINT_256),
+                                                                                                            TRANSFER_EVENT_SIGNATURE),
                                                                                                     ByteString.copyFrom(
                                                                                                             asAddressInTopic(
                                                                                                                     unhex(

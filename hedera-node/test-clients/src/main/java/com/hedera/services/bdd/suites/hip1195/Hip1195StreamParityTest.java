@@ -115,7 +115,7 @@ public class Hip1195StreamParityTest {
         return hapiTest(
                 aToken.getInfo(),
                 bToken.getInfo(),
-                cryptoCreate(PAYER),
+                cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                 cryptoCreate(OWNER)
                         .maxAutomaticTokenAssociations(2)
                         .withHooks(accountAllowanceHook(210L, CREATE_OP_HOOK.name())),

@@ -13,6 +13,7 @@ import com.swirlds.merkledb.config.MerkleDbConfig_;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.consensus.reconnect.config.ReconnectConfig;
 
 public final class VirtualMapUtils {
 
@@ -23,6 +24,7 @@ public final class VirtualMapUtils {
             .withConfigDataType(TemporaryFileConfig.class)
             .withConfigDataType(StateCommonConfig.class)
             .withConfigDataType(FileSystemManagerConfig.class)
+            .withConfigDataType(ReconnectConfig.class)
             .build();
 
     public static VirtualMap createVirtualMap() {

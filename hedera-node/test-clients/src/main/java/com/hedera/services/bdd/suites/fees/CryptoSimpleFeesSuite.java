@@ -14,8 +14,18 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.mintToken;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
+import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.*;
 import static com.hedera.services.bdd.suites.HapiSuite.*;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.nodeFeeFromBytesUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.signedTxnSizeFor;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_APPROVE_ALLOWANCE_FEE;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_DELETE_ALLOWANCE_FEE;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_UPDATE_BASE_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NETWORK_MULTIPLIER;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NODE_BASE_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SIGNATURE_FEE_AFTER_MULTIPLIER;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SIGNATURE_FEE_USD;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 import static java.util.List.*;
@@ -26,6 +36,7 @@ import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
@@ -42,6 +53,19 @@ import org.junit.jupiter.api.Tag;
 public class CryptoSimpleFeesSuite {
     private static final String PAYER = "payer";
     private static final String HOOK_CONTRACT = "TruePreHook";
+
+    /**
+     * Simple fees formula for CryptoUpdate:
+     * node    = NODE_BASE + SIGNATURE_FEE * extraSignatures + bytesOverage * SINGLE_BYTE_FEE
+     * network = node * NETWORK_MULTIPLIER
+     * service = CRYPTO_UPDATE_BASE_FEE_USD
+     * total   = node + network + service
+     */
+    private static double cryptoUpdateSimpleFeeUsd(final long extraSignatures, final int signedTxnSize) {
+        final double nodeFeeUsd =
+                NODE_BASE_FEE_USD + (extraSignatures * SIGNATURE_FEE_USD) + nodeFeeFromBytesUsd(signedTxnSize);
+        return CRYPTO_UPDATE_BASE_FEE_USD + nodeFeeUsd * (NETWORK_MULTIPLIER + 1);
+    }
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
@@ -105,80 +129,95 @@ public class CryptoSimpleFeesSuite {
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
     @DisplayName("crypto update basic (no key change)")
     final Stream<DynamicTest> cryptoUpdateBasic() {
-        return compareSimpleToOld(
-                () -> Arrays.asList(
-                        cryptoCreate("accountToUpdate").balance(ONE_HBAR),
-                        cryptoUpdate("accountToUpdate")
-                                .memo("Updated memo")
-                                .payingWith("accountToUpdate")
-                                .signedBy("accountToUpdate")
-                                .fee(ONE_HBAR)
-                                .via("updateAccountBasicTxn")),
-                "updateAccountBasicTxn",
-                0.00022,
-                1.0,
-                0.00022,
-                1.0);
+        // Extra signatures: payer only (node includes 1 signature).
+        final var extraSignatures = 0L;
+        return hapiTest(
+                overriding("fees.simpleFeesEnabled", "true"),
+                cryptoCreate("accountToUpdate").balance(ONE_HBAR),
+                cryptoUpdate("accountToUpdate")
+                        .memo("Updated memo")
+                        .payingWith("accountToUpdate")
+                        .signedBy("accountToUpdate")
+                        .fee(ONE_HBAR)
+                        .via("updateAccountBasicTxn"),
+                withOpContext((spec, log) -> {
+                    final var signedTxnSize = signedTxnSizeFor(spec, "updateAccountBasicTxn");
+                    final var expectedFee = cryptoUpdateSimpleFeeUsd(extraSignatures, signedTxnSize);
+                    allRunFor(
+                            spec, validateChargedSimpleFees("Simple Fees", "updateAccountBasicTxn", expectedFee, 1.0));
+                }),
+                overriding("fees.simpleFeesEnabled", "false"));
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
     @DisplayName("crypto update with key change")
     final Stream<DynamicTest> cryptoUpdateWithKey() {
-        return compareSimpleToOld(
-                () -> Arrays.asList(
-                        newKeyNamed("newAccountKey"),
-                        cryptoCreate("accountToUpdate").balance(ONE_HBAR),
-                        cryptoUpdate("accountToUpdate")
-                                .key("newAccountKey")
-                                .payingWith("accountToUpdate")
-                                .signedBy("accountToUpdate", "newAccountKey")
-                                .fee(ONE_HBAR)
-                                .via("updateAccountKeyTxn")),
-                "updateAccountKeyTxn",
-                0.00122,
-                1.0,
-                0.00122,
-                1.0);
+        // Extra signatures: payer + new key (node includes 1 signature)
+        final var extraSignatures = 1L;
+        return hapiTest(
+                overriding("fees.simpleFeesEnabled", "true"),
+                newKeyNamed("newAccountKey"),
+                cryptoCreate("accountToUpdate").balance(ONE_HBAR),
+                cryptoUpdate("accountToUpdate")
+                        .key("newAccountKey")
+                        .payingWith("accountToUpdate")
+                        .signedBy("accountToUpdate", "newAccountKey")
+                        .fee(ONE_HBAR)
+                        .via("updateAccountKeyTxn"),
+                withOpContext((spec, log) -> {
+                    final var signedTxnSize = signedTxnSizeFor(spec, "updateAccountKeyTxn");
+                    final var expectedFee = cryptoUpdateSimpleFeeUsd(extraSignatures, signedTxnSize);
+                    allRunFor(spec, validateChargedSimpleFees("Simple Fees", "updateAccountKeyTxn", expectedFee, 1.0));
+                }),
+                overriding("fees.simpleFeesEnabled", "false"));
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
     @DisplayName("crypto update memo only")
     final Stream<DynamicTest> cryptoUpdateMemo() {
-        return compareSimpleToOld(
-                () -> Arrays.asList(
-                        cryptoCreate("accountToUpdate").balance(ONE_HBAR).memo("Original memo"),
-                        cryptoUpdate("accountToUpdate")
-                                .memo("Updated memo text")
-                                .payingWith("accountToUpdate")
-                                .signedBy("accountToUpdate")
-                                .fee(ONE_HBAR)
-                                .via("updateAccountMemoTxn")),
-                "updateAccountMemoTxn",
-                0.00022,
-                1.0,
-                0.00022,
-                1.0);
+        // Extra signatures: payer only (node includes 1 signature).
+        final var extraSignatures = 0L;
+        return hapiTest(
+                overriding("fees.simpleFeesEnabled", "true"),
+                cryptoCreate("accountToUpdate").balance(ONE_HBAR).memo("Original memo"),
+                cryptoUpdate("accountToUpdate")
+                        .memo("Updated memo text")
+                        .payingWith("accountToUpdate")
+                        .signedBy("accountToUpdate")
+                        .fee(ONE_HBAR)
+                        .via("updateAccountMemoTxn"),
+                withOpContext((spec, log) -> {
+                    final var signedTxnSize = signedTxnSizeFor(spec, "updateAccountMemoTxn");
+                    final var expectedFee = cryptoUpdateSimpleFeeUsd(extraSignatures, signedTxnSize);
+                    allRunFor(spec, validateChargedSimpleFees("Simple Fees", "updateAccountMemoTxn", expectedFee, 1.0));
+                }),
+                overriding("fees.simpleFeesEnabled", "false"));
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
     @DisplayName("crypto update combined (key + memo)")
     final Stream<DynamicTest> cryptoUpdateCombined() {
-        return compareSimpleToOld(
-                () -> Arrays.asList(
-                        newKeyNamed("combinedKey"),
-                        cryptoCreate("accountToUpdate").balance(ONE_HBAR).memo("Original"),
-                        cryptoUpdate("accountToUpdate")
-                                .key("combinedKey")
-                                .memo("Updated with key")
-                                .payingWith("accountToUpdate")
-                                .signedBy("accountToUpdate", "combinedKey")
-                                .fee(ONE_HBAR)
-                                .via("updateAccountCombinedTxn")),
-                "updateAccountCombinedTxn",
-                0.00122,
-                1.0,
-                0.00122,
-                1.0);
+        // Extra signatures: payer + new key (node includes 1 signature)
+        final var extraSignatures = 1L;
+        return hapiTest(
+                overriding("fees.simpleFeesEnabled", "true"),
+                newKeyNamed("combinedKey"),
+                cryptoCreate("accountToUpdate").balance(ONE_HBAR).memo("Original"),
+                cryptoUpdate("accountToUpdate")
+                        .key("combinedKey")
+                        .memo("Updated with key")
+                        .payingWith("accountToUpdate")
+                        .signedBy("accountToUpdate", "combinedKey")
+                        .fee(ONE_HBAR)
+                        .via("updateAccountCombinedTxn"),
+                withOpContext((spec, log) -> {
+                    final var signedTxnSize = signedTxnSizeFor(spec, "updateAccountCombinedTxn");
+                    final var expectedFee = cryptoUpdateSimpleFeeUsd(extraSignatures, signedTxnSize);
+                    allRunFor(
+                            spec,
+                            validateChargedSimpleFees("Simple Fees", "updateAccountCombinedTxn", expectedFee, 1.0));
+                }),
+                overriding("fees.simpleFeesEnabled", "false"));
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled", "hooks.hooksEnabled"})
@@ -405,7 +444,7 @@ public class CryptoSimpleFeesSuite {
                         .payingWith(PAYER)
                         .addCryptoAllowance(PAYER, "spender", 100L)
                         .via("approveTxn"),
-                validateChargedUsd("approveTxn", 0.05));
+                validateChargedUsd("approveTxn", CRYPTO_APPROVE_ALLOWANCE_FEE));
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
@@ -423,7 +462,7 @@ public class CryptoSimpleFeesSuite {
                         .addCryptoAllowance(PAYER, "spender2", 200L)
                         .addCryptoAllowance(PAYER, "spender3", 300L)
                         .via("approveMultipleTxn"),
-                validateChargedUsd("approveMultipleTxn", 0.151099999599999994));
+                validateChargedUsd("approveMultipleTxn", 3 * CRYPTO_APPROVE_ALLOWANCE_FEE));
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
@@ -441,7 +480,7 @@ public class CryptoSimpleFeesSuite {
                         .payingWith(PAYER)
                         .addNftDeleteAllowance(PAYER, "nft1", of(1L))
                         .via("deleteTxn"),
-                validateChargedUsd("deleteTxn", 0.05));
+                validateChargedUsd("deleteTxn", CRYPTO_DELETE_ALLOWANCE_FEE));
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
@@ -474,31 +513,34 @@ public class CryptoSimpleFeesSuite {
                         .addNftDeleteAllowance(PAYER, "nft2", of(1L))
                         .addNftDeleteAllowance(PAYER, "nft3", of(1L))
                         .via("deleteMultipleTxn"),
-                validateChargedUsd("deleteMultipleTxn", 0.151099999599999994));
+                validateChargedUsd("deleteMultipleTxn", 3 * CRYPTO_DELETE_ALLOWANCE_FEE));
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
     @DisplayName("crypto approve allowance with multiple signatures")
     final Stream<DynamicTest> cryptoApproveAllowanceMultipleSignatures() {
         return hapiTest(
-                newKeyNamed("payerKey"),
-                newKeyNamed("spenderKey"),
+                newKeyNamed("payerKey1"),
+                newKeyNamed("payerKey2"),
+                newKeyListNamed("payerKey", List.of("payerKey1", "payerKey2")),
                 cryptoCreate(PAYER).key("payerKey").balance(ONE_HUNDRED_HBARS),
-                cryptoCreate("spender").key("spenderKey"),
+                cryptoCreate("spender"),
                 cryptoApproveAllowance()
                         .payingWith(PAYER)
                         .addCryptoAllowance(PAYER, "spender", 100L)
-                        .signedBy("payerKey", "spenderKey")
+                        .signedBy("payerKey")
                         .via("approveMultiSigTxn"),
-                validateChargedUsd("approveMultiSigTxn", 0.0500999988));
+                validateChargedUsd(
+                        "approveMultiSigTxn", CRYPTO_APPROVE_ALLOWANCE_FEE + SIGNATURE_FEE_AFTER_MULTIPLIER));
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
     @DisplayName("crypto delete allowance with multiple signatures")
     final Stream<DynamicTest> cryptoDeleteAllowanceMultipleSignatures() {
         return hapiTest(
-                newKeyNamed("payerKey"),
-                newKeyNamed("extraKey"),
+                newKeyNamed("payerKey1"),
+                newKeyNamed("payerKey2"),
+                newKeyListNamed("payerKey", List.of("payerKey1", "payerKey2")),
                 cryptoCreate(PAYER).key("payerKey").balance(ONE_HUNDRED_HBARS),
                 tokenCreate("nft1")
                         .tokenType(NON_FUNGIBLE_UNIQUE)
@@ -509,8 +551,8 @@ public class CryptoSimpleFeesSuite {
                 cryptoDeleteAllowance()
                         .payingWith(PAYER)
                         .addNftDeleteAllowance(PAYER, "nft1", of(1L))
-                        .signedBy("payerKey", "extraKey")
+                        .signedBy("payerKey")
                         .via("deleteMultiSigTxn"),
-                validateChargedUsd("deleteMultiSigTxn", 0.0500999988));
+                validateChargedUsd("deleteMultiSigTxn", CRYPTO_DELETE_ALLOWANCE_FEE + SIGNATURE_FEE_AFTER_MULTIPLIER));
     }
 }

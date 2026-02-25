@@ -10,6 +10,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 
+import com.hedera.cryptography.wraps.WRAPSVerificationKey;
 import com.hedera.node.app.history.HistoryLibrary;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.Set;
@@ -29,6 +30,11 @@ class HistoryLibraryImplTest {
     private HistoryLibrary library;
 
     private final HistoryLibraryImpl subject = new HistoryLibraryImpl();
+
+    @Test
+    void wrapsVerificationKeyIsTbd() {
+        assertArrayEquals(WRAPSVerificationKey.getCurrentKey(), subject.wrapsVerificationKey());
+    }
 
     @Test
     void computeHashBuildsCanonicalAddressBookAndWrapsResult() {
@@ -121,7 +127,7 @@ class HistoryLibraryImplTest {
 
         final var weights = new long[] {1L};
         final var publicKeys = new byte[1][];
-        publicKeys[0] = keys.verifyingKey();
+        publicKeys[0] = keys.publicKey();
         final var nodeIds = new long[] {123L};
         final var addressBook = new HistoryLibrary.AddressBook(weights, publicKeys, nodeIds);
 
@@ -133,24 +139,27 @@ class HistoryLibraryImplTest {
         assertNotNull(message);
 
         final var entropy = new byte[32];
-        final var privateKey = keys.signingKey();
+        final var privateKey = keys.privateKey();
 
         final var r1 = subject.runWrapsPhaseR1(entropy, message, privateKey);
         assertNotNull(r1);
 
+        final var signers = Set.of(123L);
         final var r1Messages = new byte[][] {r1};
-        final var r2 = subject.runWrapsPhaseR2(entropy, message, r1Messages, privateKey, publicKeys);
+        final var r2 = subject.runWrapsPhaseR2(entropy, message, r1Messages, privateKey, addressBook, signers);
         assertNotNull(r2);
 
         final var r2Messages = new byte[][] {r2};
-        final var r3 = subject.runWrapsPhaseR3(entropy, message, r1Messages, r2Messages, privateKey, publicKeys);
+        final var r3 =
+                subject.runWrapsPhaseR3(entropy, message, r1Messages, r2Messages, privateKey, addressBook, signers);
         assertNotNull(r3);
 
         final var r3Messages = new byte[][] {r3};
-        final var signature = subject.runAggregationPhase(message, r1Messages, r2Messages, r3Messages, publicKeys);
+        final var signature =
+                subject.runAggregationPhase(message, r1Messages, r2Messages, r3Messages, addressBook, signers);
         assertNotNull(signature);
 
-        assertDoesNotThrow(() -> subject.verifyAggregateSignature(message, publicKeys, signature));
+        assertDoesNotThrow(() -> subject.verifyAggregateSignature(message, nodeIds, publicKeys, weights, signature));
     }
 
     @Test

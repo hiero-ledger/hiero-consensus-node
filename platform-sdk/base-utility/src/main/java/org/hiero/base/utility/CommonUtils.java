@@ -1,14 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.base.utility;
 
-import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.text.Normalizer;
-import java.time.Instant;
 
 /**
  * Utility class for other operations
@@ -151,31 +149,6 @@ public class CommonUtils {
         }
 
         return out;
-    }
-
-    /**
-     * Converts an {@link Instant} to a {@link Timestamp}
-     *
-     * @param instant the {@code Instant} to convert
-     * @return the {@code Timestamp} equivalent of the {@code Instant}
-     */
-    @Nullable
-    public static Timestamp toPbjTimestamp(@Nullable final Instant instant) {
-        if (instant == null) {
-            return null;
-        }
-        return new Timestamp(instant.getEpochSecond(), instant.getNano());
-    }
-
-    /**
-     * Converts a {@link Timestamp} to an {@link Instant}
-     *
-     * @param timestamp the {@code Timestamp} to convert
-     * @return the {@code Instant} equivalent of the {@code Timestamp}
-     */
-    @Nullable
-    public static Instant fromPbjTimestamp(@Nullable final Timestamp timestamp) {
-        return timestamp == null ? null : Instant.ofEpochSecond(timestamp.seconds(), timestamp.nanos());
     }
 
     private static int toDigit(final char ch, final int index) throws IllegalArgumentException {

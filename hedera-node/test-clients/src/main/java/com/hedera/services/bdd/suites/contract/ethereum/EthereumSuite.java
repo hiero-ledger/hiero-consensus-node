@@ -103,6 +103,7 @@ import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData.EthTransactionType;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts;
 import com.hedera.services.bdd.spec.dsl.annotations.Contract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
@@ -202,7 +203,7 @@ public class EthereumSuite {
                         .hasPriority(recordWith().transfers(includingDeduction("HAPI fees", RELAYER))));
     }
 
-    @HapiTest
+    @LeakyHapiTest(overrides = "contracts.evm.ethTransaction.zeroHapiFees.enabled")
     final Stream<DynamicTest> baseRelayerCostAsExpected() {
         return hapiTest(
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
@@ -1169,19 +1170,17 @@ public class EthereumSuite {
 
     @HapiTest
     final Stream<DynamicTest> fungibleTokenCreateWithAmountLookingNegativeInTwosComplement() {
-        final var createdTokenNum = new AtomicLong();
         final var feeCollectorAndAutoRenew = "feeCollectorAndAutoRenew";
         final var contract = "TokenCreateContract";
         final var EXISTING_TOKEN = "EXISTING_TOKEN";
         final var firstTxn = "firstCreateTxn";
         // RAW_BIG_INTEGER_WEIBAR has high bit _ON_: Negative in two's complement but positive in Ethereum
         final var RAW_BIG_INTEGER_WEIBAR =
-                new BigInteger(Bytes.fromHex("FAC7230489E80000").toByteArray());
-        //             ^^^^ 10000000000000000000 wasn't enough to pay the tx fee, so changed the leading `8` to an `F`
-        final var BIG_INTEGER_WEIBAR = new BigInteger("18070450532247928832"); // this is the actual value
+                new BigInteger(Bytes.fromHex("FAC7230489E8000000").toByteArray());
+        final var BIG_INTEGER_WEIBAR = new BigInteger("4626035336252247928832"); // this is the actual value
         return hapiTest(
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
-                cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, 20 * ONE_HUNDRED_HBARS))
+                cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_MILLION_HBARS))
                         .via(AUTO_ACCOUNT_TRANSACTION_NAME),
                 cryptoCreate(feeCollectorAndAutoRenew)
                         .keyShape(SigControl.ED25519_ON)
@@ -1212,10 +1211,7 @@ public class EthereumSuite {
                                 .payingWith(feeCollectorAndAutoRenew)
                                 .sendingWeibars(RAW_BIG_INTEGER_WEIBAR)
                                 .hasKnownStatus(SUCCESS)
-                                .exposingResultTo(result -> {
-                                    opLog.info("Explicit create result is {}", result[0]);
-                                }))),
-                getTxnRecord(firstTxn).andAllChildRecords().logged(),
+                                .exposingResultTo(result -> opLog.info("Explicit create result is {}", result[0])))),
                 childRecordsCheck(
                         firstTxn, SUCCESS, TransactionRecordAsserts.recordWith().status(ResponseCodeEnum.SUCCESS)),
                 withOpContext((spec, ignore) -> {

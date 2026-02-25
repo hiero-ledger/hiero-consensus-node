@@ -11,6 +11,7 @@ import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.HookCall;
+import com.hedera.hapi.node.base.NftTransfer;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenTransferList;
 import com.hedera.hapi.node.base.TokenType;
@@ -19,13 +20,16 @@ import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.CustomFee;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.fees.SimpleFeeCalculatorImpl;
+import com.hedera.node.app.fees.context.SimpleFeeContextImpl;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.SimpleFeeCalculatorImpl;
+import com.hedera.node.app.spi.fees.SimpleFeeContext;
+import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import java.util.List;
 import java.util.Set;
+import org.hiero.hapi.fees.FeeResult;
 import org.hiero.hapi.support.fees.*;
-import org.hiero.hapi.support.fees.FeeSchedule;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -36,9 +40,20 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 /**
  * Unit tests for {@link CryptoTransferFeeCalculator}.
+ *
+ * <p>Fee tiers tested:
+ * <ul>
+ *   <li>HBAR-only: baseFee (1M tinycents)
+ *   <li>Token transfer: TOKEN_TRANSFER_BASE (9M tinycents)
+ *   <li>Token with custom fees: TOKEN_TRANSFER_BASE_CUSTOM_FEES (19M tinycents)
+ * </ul>
  */
 @ExtendWith(MockitoExtension.class)
 class CryptoTransferFeeCalculatorTest {
+    private static final long TOKEN_TRANSFER_FEE = 9_000_000L;
+    private static final long TOKEN_TRANSFER_CUSTOM_FEE = 19_000_000L;
+    private static final long TOKEN_TYPES_EXTRA_FEE = 1_000_000L;
+    private static final long HOOK_EXECUTION_FEE = 50_000_000L;
 
     @Mock
     private FeeContext feeContext;
@@ -47,286 +62,258 @@ class CryptoTransferFeeCalculatorTest {
     private ReadableTokenStore tokenStore;
 
     private SimpleFeeCalculatorImpl feeCalculator;
-    private FeeSchedule testSchedule;
 
     @BeforeEach
     void setUp() {
-        testSchedule = createTestFeeSchedule();
-        feeCalculator = new SimpleFeeCalculatorImpl(testSchedule, Set.of(new CryptoTransferFeeCalculator()));
+        feeCalculator = new SimpleFeeCalculatorImpl(createTestFeeSchedule(), Set.of(new CryptoTransferFeeCalculator()));
+        lenient().when(feeContext.functionality()).thenReturn(HederaFunctionality.CRYPTO_TRANSFER);
     }
 
     @Nested
-    @DisplayName("Basic HBAR Transfer Tests")
-    class BasicHbarTransferTests {
+    @DisplayName("Fee Tier Tests")
+    class FeeTierTests {
+
         @Test
-        @DisplayName("Simple HBAR transfer between 2 accounts")
-        void simpleHbarTransfer() {
-            // Given: 2 accounts (sender + receiver)
-            lenient().when(feeContext.numTxnSignatures()).thenReturn(1);
+        @DisplayName("HBAR-only transfer has no service fee (node+network cover it)")
+        void hbarOnlyTransfer() {
+            setupMocks();
+            final var body = buildHbarTransfer(1001L, 1002L, 100L);
 
-            final var sender = AccountID.newBuilder().accountNum(1001L).build();
-            final var receiver = AccountID.newBuilder().accountNum(1002L).build();
+            final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(feeContext, null));
 
-            final var hbarTransfers = TransferList.newBuilder()
-                    .accountAmounts(
-                            AccountAmount.newBuilder()
-                                    .accountID(sender)
-                                    .amount(-100L)
-                                    .build(),
-                            AccountAmount.newBuilder()
-                                    .accountID(receiver)
-                                    .amount(100L)
-                                    .build())
-                    .build();
-
-            final var op = CryptoTransferTransactionBody.newBuilder()
-                    .transfers(hbarTransfers)
-                    .build();
-            final var body = TransactionBody.newBuilder().cryptoTransfer(op).build();
-
-            // When
-            final var result = feeCalculator.calculateTxFee(body, feeContext);
-
-            // Then: node=100000, network=900000 (100000*9), service=0 (base)
-            // ACCOUNTS extra: 2 accounts, includedCount=2, so 0 extra charge
-            assertThat(result.node).isEqualTo(100000L);
-            assertThat(result.network).isEqualTo(900000L);
-            assertThat(result.service).isEqualTo(0L);
-        }
-    }
-
-    @Nested
-    @DisplayName("Fungible Token Transfer Tests")
-    class FungibleTokenTransferTests {
-        @Test
-        @DisplayName("Standard fungible token transfer (no custom fees)")
-        void standardFungibleTokenTransfer() {
-            // Given: 1 unique fungible token (with 2 account adjustments: sender + receiver)
-            lenient().when(feeContext.numTxnSignatures()).thenReturn(1);
-            lenient().when(feeContext.readableStore(ReadableTokenStore.class)).thenReturn(tokenStore);
-
-            final var tokenId = TokenID.newBuilder().tokenNum(2001L).build();
-            final var token = Token.newBuilder()
-                    .tokenId(tokenId)
-                    .tokenType(TokenType.FUNGIBLE_COMMON)
-                    .customFees(List.of())
-                    .build();
-            when(tokenStore.get(tokenId)).thenReturn(token);
-            final var tokenTransfers = TokenTransferList.newBuilder()
-                    .token(tokenId)
-                    .transfers(
-                            AccountAmount.newBuilder()
-                                    .accountID(AccountID.newBuilder()
-                                            .accountNum(1001L)
-                                            .build())
-                                    .amount(-50L)
-                                    .build(),
-                            AccountAmount.newBuilder()
-                                    .accountID(AccountID.newBuilder()
-                                            .accountNum(1002L)
-                                            .build())
-                                    .amount(50L)
-                                    .build())
-                    .build();
-
-            final var op = CryptoTransferTransactionBody.newBuilder()
-                    .tokenTransfers(tokenTransfers)
-                    .build();
-            final var body = TransactionBody.newBuilder().cryptoTransfer(op).build();
-
-            // When
-            final var result = feeCalculator.calculateTxFee(body, feeContext);
-
-            // Then: service=9000000 (CRYPTO_TRANSFER_BASE_FUNGIBLE fee, reduced by 1M to account for node+network)
-            // + 0 for FUNGIBLE_TOKENS (1 token with includedCount=1)
-            assertThat(result.service).isEqualTo(9000000L);
+            // HBAR-only: no service fee, total fee comes from node+network
+            assertThat(result.getServiceTotalTinycents()).isEqualTo(0L);
         }
 
         @Test
-        @DisplayName("Multiple fungible token transfers")
-        void multipleFungibleTokenTransfers() {
-            // Given: 2 unique fungible tokens (total 4 account adjustments across both)
-            lenient().when(feeContext.numTxnSignatures()).thenReturn(1);
-            lenient().when(feeContext.readableStore(ReadableTokenStore.class)).thenReturn(tokenStore);
+        @DisplayName("Fungible token transfer charges TOKEN_TRANSFER_BASE")
+        void fungibleTokenTransfer() {
+            setupMocksWithTokenStore();
+            mockFungibleToken(2001L, false);
+            final var body = buildFungibleTokenTransfer(2001L, 1001L, 1002L, 50L);
 
-            final var token1 = TokenID.newBuilder().tokenNum(2001L).build();
-            final var token2 = TokenID.newBuilder().tokenNum(2002L).build();
+            final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(feeContext, null));
 
-            final var tokenObj1 = Token.newBuilder()
-                    .tokenId(token1)
-                    .tokenType(TokenType.FUNGIBLE_COMMON)
-                    .customFees(List.of())
-                    .build();
-            final var tokenObj2 = Token.newBuilder()
-                    .tokenId(token2)
-                    .tokenType(TokenType.FUNGIBLE_COMMON)
-                    .customFees(List.of())
-                    .build();
-            when(tokenStore.get(token1)).thenReturn(tokenObj1);
-            when(tokenStore.get(token2)).thenReturn(tokenObj2);
-
-            final var tokenTransfer1 = TokenTransferList.newBuilder()
-                    .token(token1)
-                    .transfers(
-                            AccountAmount.newBuilder()
-                                    .accountID(AccountID.newBuilder()
-                                            .accountNum(1001L)
-                                            .build())
-                                    .amount(-50L)
-                                    .build(),
-                            AccountAmount.newBuilder()
-                                    .accountID(AccountID.newBuilder()
-                                            .accountNum(1002L)
-                                            .build())
-                                    .amount(50L)
-                                    .build())
-                    .build();
-
-            final var tokenTransfer2 = TokenTransferList.newBuilder()
-                    .token(token2)
-                    .transfers(
-                            AccountAmount.newBuilder()
-                                    .accountID(AccountID.newBuilder()
-                                            .accountNum(1001L)
-                                            .build())
-                                    .amount(-100L)
-                                    .build(),
-                            AccountAmount.newBuilder()
-                                    .accountID(AccountID.newBuilder()
-                                            .accountNum(1003L)
-                                            .build())
-                                    .amount(100L)
-                                    .build())
-                    .build();
-
-            final var op = CryptoTransferTransactionBody.newBuilder()
-                    .tokenTransfers(tokenTransfer1, tokenTransfer2)
-                    .build();
-            final var body = TransactionBody.newBuilder().cryptoTransfer(op).build();
-
-            // When
-            final var result = feeCalculator.calculateTxFee(body, feeContext);
-
-            // Then: service=9000000 (CRYPTO_TRANSFER_BASE_FUNGIBLE fee)
-            // + 1000000 * 1 (2 unique fungible tokens, first included in base, second charged)
-            assertThat(result.service).isEqualTo(10000000L);
+            assertThat(result.getServiceTotalTinycents()).isEqualTo(TOKEN_TRANSFER_FEE);
         }
-    }
-
-    @Nested
-    @DisplayName("Mixed Transfer Tests")
-    class MixedTransferTests {
-        @Test
-        @DisplayName("Mixed HBAR + fungible token transfer")
-        void mixedHbarAndFungible() {
-            // Given: HBAR + fungible token
-            lenient().when(feeContext.numTxnSignatures()).thenReturn(1);
-            lenient().when(feeContext.readableStore(ReadableTokenStore.class)).thenReturn(tokenStore);
-
-            final var hbarTransfers = TransferList.newBuilder()
-                    .accountAmounts(
-                            AccountAmount.newBuilder()
-                                    .accountID(AccountID.newBuilder()
-                                            .accountNum(1001L)
-                                            .build())
-                                    .amount(-100L)
-                                    .build(),
-                            AccountAmount.newBuilder()
-                                    .accountID(AccountID.newBuilder()
-                                            .accountNum(1002L)
-                                            .build())
-                                    .amount(100L)
-                                    .build())
-                    .build();
-
-            final var fungibleToken = TokenID.newBuilder().tokenNum(2001L).build();
-            final var fungibleTokenObj = Token.newBuilder()
-                    .tokenId(fungibleToken)
-                    .tokenType(TokenType.FUNGIBLE_COMMON)
-                    .customFees(List.of())
-                    .build();
-            when(tokenStore.get(fungibleToken)).thenReturn(fungibleTokenObj);
-
-            final var fungibleTransfers = TokenTransferList.newBuilder()
-                    .token(fungibleToken)
-                    .transfers(
-                            AccountAmount.newBuilder()
-                                    .accountID(AccountID.newBuilder()
-                                            .accountNum(1003L)
-                                            .build())
-                                    .amount(-50L)
-                                    .build(),
-                            AccountAmount.newBuilder()
-                                    .accountID(AccountID.newBuilder()
-                                            .accountNum(1004L)
-                                            .build())
-                                    .amount(50L)
-                                    .build())
-                    .build();
-
-            final var op = CryptoTransferTransactionBody.newBuilder()
-                    .transfers(hbarTransfers)
-                    .tokenTransfers(fungibleTransfers)
-                    .build();
-            final var body = TransactionBody.newBuilder().cryptoTransfer(op).build();
-
-            // When
-            final var result = feeCalculator.calculateTxFee(body, feeContext);
-
-            // Then: service=9000000 (CRYPTO_TRANSFER_BASE_FUNGIBLE fee)
-            // + 0 (1 fungible token, includedCount=1)
-            assertThat(result.service).isEqualTo(9000000L);
-        }
-    }
-
-    @Nested
-    @DisplayName("Edge Cases")
-    class EdgeCaseTests {
 
         @Test
-        @DisplayName("Empty transfer")
+        @DisplayName("NFT transfer charges TOKEN_TRANSFER_BASE (same as FT)")
+        void nftTransfer() {
+            setupMocksWithTokenStore();
+            mockNftToken(3001L, false);
+            final var body = buildNftTransfer(3001L, 1001L, 1002L, 1L);
+
+            final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(feeContext, null));
+
+            assertThat(result.getServiceTotalTinycents()).isEqualTo(TOKEN_TRANSFER_FEE);
+        }
+
+        @Test
+        @DisplayName("Token with custom fees charges TOKEN_TRANSFER_BASE_CUSTOM_FEES")
+        void tokenWithCustomFees() {
+            setupMocksWithTokenStore();
+            mockFungibleToken(2001L, true);
+            final var body = buildFungibleTokenTransfer(2001L, 1001L, 1002L, 50L);
+
+            final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(feeContext, null));
+
+            assertThat(result.getServiceTotalTinycents()).isEqualTo(TOKEN_TRANSFER_CUSTOM_FEE);
+        }
+
+        @Test
+        @DisplayName("Empty transfer has no service fee (treated as HBAR-only)")
         void emptyTransfer() {
-            // Given: Empty transfer (no accounts or tokens)
-            lenient().when(feeContext.numTxnSignatures()).thenReturn(1);
+            setupMocks();
+            final var body = TransactionBody.newBuilder()
+                    .cryptoTransfer(CryptoTransferTransactionBody.newBuilder().build())
+                    .build();
 
-            final var op = CryptoTransferTransactionBody.newBuilder().build();
-            final var body = TransactionBody.newBuilder().cryptoTransfer(op).build();
+            final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(feeContext, null));
 
-            // When
-            final var result = feeCalculator.calculateTxFee(body, feeContext);
-
-            // Then: Only base fee (0 accounts within includedCount=2)
-            assertThat(result.service).isEqualTo(0L);
+            // Empty = HBAR-only = no service fee
+            assertThat(result.getServiceTotalTinycents()).isEqualTo(0L);
         }
     }
 
     @Nested
-    @DisplayName("Token Store Integration Tests")
-    class TokenStoreIntegrationTests {
-        @Test
-        @DisplayName("Fungible token with custom fees identified from store")
-        void fungibleTokenWithCustomFeesFromStore() {
-            // Given: Token store returns token with custom fees
-            lenient().when(feeContext.numTxnSignatures()).thenReturn(1);
-            lenient().when(feeContext.readableStore(ReadableTokenStore.class)).thenReturn(tokenStore);
+    @DisplayName("Mixed Transfer Tests - Key Fix Verification")
+    class MixedTransferTests {
 
-            final var tokenId = TokenID.newBuilder().tokenNum(2001L).build();
-            final var token = Token.newBuilder()
-                    .tokenId(tokenId)
-                    .tokenType(TokenType.FUNGIBLE_COMMON)
-                    .customFees(List.of(mock(CustomFee.class))) // Non-empty list indicates custom fees
+        @Test
+        @DisplayName("Mixed FT + NFT charges extra TOKEN_TYPES")
+        void mixedFtAndNftChargesSingleBase() {
+            // This is the KEY test verifying the consolidation fix
+            setupMocksWithTokenStore();
+            mockFungibleToken(2001L, false);
+            mockNftToken(3001L, false);
+
+            final var ftTransfer = buildTokenTransferList(2001L, 1001L, 1002L, 50L);
+            final var nftTransfer = buildNftTransferList(3001L, 1003L, 1004L, 1L);
+
+            final var body = TransactionBody.newBuilder()
+                    .cryptoTransfer(CryptoTransferTransactionBody.newBuilder()
+                            .tokenTransfers(ftTransfer, nftTransfer)
+                            .build())
                     .build();
 
-            when(tokenStore.get(tokenId)).thenReturn(token);
+            final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(feeContext, null));
+
+            // Single charge, NOT 18M (double)
+            assertThat(result.getServiceTotalTinycents()).isEqualTo(TOKEN_TRANSFER_FEE + TOKEN_TYPES_EXTRA_FEE);
+        }
+
+        @Test
+        @DisplayName("Mixed FT + NFT with custom fees charges extra TOKEN_TYPES")
+        void mixedWithCustomFeesChargesSingleBase() {
+            setupMocksWithTokenStore();
+            mockFungibleToken(2001L, true);
+            mockNftToken(3001L, true);
+
+            final var ftTransfer = buildTokenTransferList(2001L, 1001L, 1002L, 50L);
+            final var nftTransfer = buildNftTransferList(3001L, 1003L, 1004L, 1L);
+
+            final var body = TransactionBody.newBuilder()
+                    .cryptoTransfer(CryptoTransferTransactionBody.newBuilder()
+                            .tokenTransfers(ftTransfer, nftTransfer)
+                            .build())
+                    .build();
+
+            final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(feeContext, null));
+
+            // Single charge for custom fees tier
+            assertThat(result.getServiceTotalTinycents()).isEqualTo(TOKEN_TRANSFER_CUSTOM_FEE + TOKEN_TYPES_EXTRA_FEE);
+        }
+
+        @Test
+        @DisplayName("Mix of standard and custom fee tokens uses custom fee tier")
+        void mixOfStandardAndCustomFeeTokens() {
+            setupMocksWithTokenStore();
+            mockFungibleToken(2001L, false); // standard
+            mockFungibleToken(2002L, true); // custom fees
+
+            final var standardTransfer = buildTokenTransferList(2001L, 1001L, 1002L, 50L);
+            final var customFeeTransfer = buildTokenTransferList(2002L, 1003L, 1004L, 100L);
+
+            final var body = TransactionBody.newBuilder()
+                    .cryptoTransfer(CryptoTransferTransactionBody.newBuilder()
+                            .tokenTransfers(standardTransfer, customFeeTransfer)
+                            .build())
+                    .build();
+
+            final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(feeContext, null));
+
+            // Custom fee tier + 1 extra fungible token
+            assertThat(result.getServiceTotalTinycents()).isEqualTo(TOKEN_TRANSFER_CUSTOM_FEE + TOKEN_TYPES_EXTRA_FEE);
+        }
+
+        @Test
+        @DisplayName("Token transfers when simpleFeeContext.feeContext() is null charges TOKEN_TYPES extra")
+        void tokenTransferWhenFeeContextIsNull() {
+            final var cryptoTransferFeeCalculator = new CryptoTransferFeeCalculator();
+            final var txnBody = TransactionBody.newBuilder()
+                    .cryptoTransfer(CryptoTransferTransactionBody.newBuilder()
+                            .tokenTransfers(
+                                    buildTokenTransferList(2001L, 1001L, 1002L, 50L),
+                                    buildNftTransferList(3001L, 1003L, 1004L, 1L))
+                            .build())
+                    .build();
+
+            final var mockSimpleFeeContext = org.mockito.Mockito.mock(SimpleFeeContext.class);
+            when(mockSimpleFeeContext.feeContext()).thenReturn(null);
+
+            final var feeResult = new FeeResult();
+            final var feeSchedule = createTestFeeSchedule();
+
+            cryptoTransferFeeCalculator.accumulateServiceFee(txnBody, mockSimpleFeeContext, feeResult, feeSchedule);
+
+            assertThat(feeResult.getServiceTotalTinycents()).isEqualTo(TOKEN_TYPES_EXTRA_FEE);
+        }
+    }
+
+    @Nested
+    @DisplayName("Invalid Token Tests")
+    class InvalidTokenTests {
+
+        @Test
+        @DisplayName("Non-existent token is skipped during fee calculation (no exception)")
+        void nonExistentTokenSkippedDuringFeeCalculation() {
+            setupMocksWithTokenStore();
+            // Don't mock token 2001L - it will return null from tokenStore.get()
+            final var body = buildFungibleTokenTransfer(2001L, 1001L, 1002L, 50L);
+
+            // Should not throw INVALID_TOKEN_ID - validation happens at handle time
+            final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(feeContext, null));
+
+            // Treated as no valid tokens, so no service fee (like HBAR-only)
+            assertThat(result.getServiceTotalTinycents()).isEqualTo(0L);
+        }
+
+        @Test
+        @DisplayName("Mix of valid and non-existent tokens only counts valid ones")
+        void mixOfValidAndNonExistentTokens() {
+            setupMocksWithTokenStore();
+            mockFungibleToken(2001L, false); // Valid token
+            // Don't mock token 2002L - it will return null
+
+            final var validTransfer = buildTokenTransferList(2001L, 1001L, 1002L, 50L);
+            final var invalidTransfer = buildTokenTransferList(2002L, 1003L, 1004L, 100L);
+
+            final var body = TransactionBody.newBuilder()
+                    .cryptoTransfer(CryptoTransferTransactionBody.newBuilder()
+                            .tokenTransfers(validTransfer, invalidTransfer)
+                            .build())
+                    .build();
+
+            // Should not throw - invalid token is skipped
+            final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(feeContext, null));
+
+            // Only the valid token should be counted
+            assertThat(result.getServiceTotalTinycents()).isEqualTo(TOKEN_TRANSFER_FEE);
+        }
+    }
+
+    @Nested
+    @DisplayName("Extras Tests")
+    class ExtrasTests {
+
+        @Test
+        @DisplayName("Multiple fungible tokens charge FUNGIBLE_TOKENS extra")
+        void multipleFungibleTokensChargeExtra() {
+            setupMocksWithTokenStore();
+            mockFungibleToken(2001L, false);
+            mockFungibleToken(2002L, false);
+
+            final var transfer1 = buildTokenTransferList(2001L, 1001L, 1002L, 50L);
+            final var transfer2 = buildTokenTransferList(2002L, 1001L, 1003L, 100L);
+
+            final var body = TransactionBody.newBuilder()
+                    .cryptoTransfer(CryptoTransferTransactionBody.newBuilder()
+                            .tokenTransfers(transfer1, transfer2)
+                            .build())
+                    .build();
+
+            final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(feeContext, null));
+
+            // TOKEN_TRANSFER_BASE + 1 extra fungible (first included)
+            assertThat(result.getServiceTotalTinycents()).isEqualTo(TOKEN_TRANSFER_FEE + TOKEN_TYPES_EXTRA_FEE);
+        }
+
+        @Test
+        @DisplayName("Hook execution charges HOOK_EXECUTION extra")
+        void hookExecutionChargesExtra() {
+            setupMocksWithTokenStore();
+            mockFungibleToken(2001L, false);
 
             final var tokenTransfers = TokenTransferList.newBuilder()
-                    .token(tokenId)
+                    .token(TokenID.newBuilder().tokenNum(2001L).build())
                     .transfers(
                             AccountAmount.newBuilder()
                                     .accountID(AccountID.newBuilder()
                                             .accountNum(1001L)
                                             .build())
                                     .amount(-50L)
+                                    .preTxAllowanceHook(HookCall.DEFAULT)
                                     .build(),
                             AccountAmount.newBuilder()
                                     .accountID(AccountID.newBuilder()
@@ -336,213 +323,123 @@ class CryptoTransferFeeCalculatorTest {
                                     .build())
                     .build();
 
-            final var op = CryptoTransferTransactionBody.newBuilder()
-                    .tokenTransfers(tokenTransfers)
-                    .build();
-            final var body = TransactionBody.newBuilder().cryptoTransfer(op).build();
-
-            // When
-            final var result = feeCalculator.calculateTxFee(body, feeContext);
-
-            // Then: service=19000000 (CRYPTO_TRANSFER_BASE_FUNGIBLE_CUSTOM_FEES fee)
-            // + 0 (1 FUNGIBLE_TOKEN, includedCount=1, so first token is free)
-            assertThat(result.service).isEqualTo(19000000L);
-        }
-
-        @Test
-        @DisplayName("Mix of standard and custom fee tokens")
-        void mixOfStandardAndCustomFeeTokens() {
-            // Given: Multiple tokens with different fee structures
-            lenient().when(feeContext.numTxnSignatures()).thenReturn(1);
-            lenient().when(feeContext.readableStore(ReadableTokenStore.class)).thenReturn(tokenStore);
-
-            final var standardTokenId = TokenID.newBuilder().tokenNum(2001L).build();
-            final var customFeeTokenId = TokenID.newBuilder().tokenNum(2002L).build();
-
-            final var standardToken = Token.newBuilder()
-                    .tokenId(standardTokenId)
-                    .tokenType(TokenType.FUNGIBLE_COMMON)
-                    .customFees(List.of()) // No custom fees
-                    .build();
-
-            final var customFeeToken = Token.newBuilder()
-                    .tokenId(customFeeTokenId)
-                    .tokenType(TokenType.FUNGIBLE_COMMON)
-                    .customFees(List.of(mock(CustomFee.class))) // Non-empty list indicates custom fees
-                    .build();
-
-            when(tokenStore.get(standardTokenId)).thenReturn(standardToken);
-            when(tokenStore.get(customFeeTokenId)).thenReturn(customFeeToken);
-
-            final var standardTransfer = TokenTransferList.newBuilder()
-                    .token(standardTokenId)
-                    .transfers(AccountAmount.newBuilder()
-                            .accountID(AccountID.newBuilder().accountNum(1001L).build())
-                            .amount(-50L)
+            final var body = TransactionBody.newBuilder()
+                    .cryptoTransfer(CryptoTransferTransactionBody.newBuilder()
+                            .tokenTransfers(tokenTransfers)
                             .build())
                     .build();
 
-            final var customFeeTransfer = TokenTransferList.newBuilder()
-                    .token(customFeeTokenId)
-                    .transfers(AccountAmount.newBuilder()
-                            .accountID(AccountID.newBuilder().accountNum(1002L).build())
-                            .amount(-100L)
-                            .build())
-                    .build();
+            final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(feeContext, null));
 
-            final var op = CryptoTransferTransactionBody.newBuilder()
-                    .tokenTransfers(standardTransfer, customFeeTransfer)
-                    .build();
-            final var body = TransactionBody.newBuilder().cryptoTransfer(op).build();
-
-            // When
-            final var result = feeCalculator.calculateTxFee(body, feeContext);
-
-            // Then: 19000000 (CRYPTO_TRANSFER_BASE_FUNGIBLE_CUSTOM_FEES, custom fee takes precedence)
-            // + 0 (1 standard fungible, included) + 1000000 (1 custom fee token, includedCount=0)
-            assertThat(result.service).isEqualTo(20000000L);
+            // TOKEN_TRANSFER_BASE + 1 hook
+            assertThat(result.getServiceTotalTinycents()).isEqualTo(TOKEN_TRANSFER_FEE + HOOK_EXECUTION_FEE);
         }
     }
 
-    @Nested
-    @DisplayName("Hook Fee Tests")
-    class HookFeeTests {
-        @Test
-        @DisplayName("HBAR transfer with 2 hooks charges base + hook fees")
-        void hbarTransferWithHooks() {
-            // Given: 2 accounts with preTxAllowanceHook on each
-            lenient().when(feeContext.numTxnSignatures()).thenReturn(1);
+    // ===== Helper Methods =====
 
-            final var sender = AccountID.newBuilder().accountNum(1001L).build();
-            final var receiver = AccountID.newBuilder().accountNum(1002L).build();
+    private void setupMocks() {
+        lenient().when(feeContext.numTxnSignatures()).thenReturn(1);
+    }
 
-            final var hbarTransfers = TransferList.newBuilder()
-                    .accountAmounts(
-                            AccountAmount.newBuilder()
-                                    .accountID(sender)
-                                    .amount(-100L)
-                                    .preTxAllowanceHook(HookCall.DEFAULT)
-                                    .build(),
-                            AccountAmount.newBuilder()
-                                    .accountID(receiver)
-                                    .amount(100L)
-                                    .preTxAllowanceHook(HookCall.DEFAULT)
-                                    .build())
-                    .build();
+    private void setupMocksWithTokenStore() {
+        setupMocks();
+        lenient().when(feeContext.readableStore(ReadableTokenStore.class)).thenReturn(tokenStore);
+        lenient().when(feeContext.configuration()).thenReturn(HederaTestConfigBuilder.createConfig());
+    }
 
-            final var op = CryptoTransferTransactionBody.newBuilder()
-                    .transfers(hbarTransfers)
-                    .build();
-            final var body = TransactionBody.newBuilder().cryptoTransfer(op).build();
+    private void mockFungibleToken(long tokenNum, boolean hasCustomFees) {
+        final var tokenId = TokenID.newBuilder().tokenNum(tokenNum).build();
+        final var token = Token.newBuilder()
+                .tokenId(tokenId)
+                .tokenType(TokenType.FUNGIBLE_COMMON)
+                .customFees(hasCustomFees ? List.of(mock(CustomFee.class)) : List.of())
+                .build();
+        when(tokenStore.get(tokenId)).thenReturn(token);
+    }
 
-            // When
-            final var result = feeCalculator.calculateTxFee(body, feeContext);
+    private void mockNftToken(long tokenNum, boolean hasCustomFees) {
+        final var tokenId = TokenID.newBuilder().tokenNum(tokenNum).build();
+        final var token = Token.newBuilder()
+                .tokenId(tokenId)
+                .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
+                .customFees(hasCustomFees ? List.of(mock(CustomFee.class)) : List.of())
+                .build();
+        when(tokenStore.get(tokenId)).thenReturn(token);
+    }
 
-            // Then:
-            // - HOOK_EXECUTION: 2 hooks × 50M = 100,000,000 tinycents
-            // - Total service fee: 100,000,000 tinycents
-            assertThat(result.service).isEqualTo(100_000_000L);
-        }
+    private TransactionBody buildHbarTransfer(long senderNum, long receiverNum, long amount) {
+        final var transfers = TransferList.newBuilder()
+                .accountAmounts(
+                        AccountAmount.newBuilder()
+                                .accountID(AccountID.newBuilder()
+                                        .accountNum(senderNum)
+                                        .build())
+                                .amount(-amount)
+                                .build(),
+                        AccountAmount.newBuilder()
+                                .accountID(AccountID.newBuilder()
+                                        .accountNum(receiverNum)
+                                        .build())
+                                .amount(amount)
+                                .build())
+                .build();
 
-        @Test
-        @DisplayName("Mixed transfer with 4 hooks (HBAR + fungible token)")
-        void mixedTransferWithMultipleHooks() {
-            // Given: HBAR transfer with 2 hooks + fungible token transfer with 2 hooks
-            lenient().when(feeContext.numTxnSignatures()).thenReturn(1);
-            lenient().when(feeContext.readableStore(ReadableTokenStore.class)).thenReturn(tokenStore);
+        return TransactionBody.newBuilder()
+                .cryptoTransfer(CryptoTransferTransactionBody.newBuilder()
+                        .transfers(transfers)
+                        .build())
+                .build();
+    }
 
-            final var sender = AccountID.newBuilder().accountNum(1001L).build();
-            final var receiver = AccountID.newBuilder().accountNum(1002L).build();
-            final var tokenId = TokenID.newBuilder().tokenNum(2001L).build();
-            final var token = Token.newBuilder()
-                    .tokenId(tokenId)
-                    .tokenType(TokenType.FUNGIBLE_COMMON)
-                    .customFees(List.of())
-                    .build();
-            when(tokenStore.get(tokenId)).thenReturn(token);
+    private TransactionBody buildFungibleTokenTransfer(long tokenNum, long senderNum, long receiverNum, long amount) {
+        final var tokenTransfers = buildTokenTransferList(tokenNum, senderNum, receiverNum, amount);
+        return TransactionBody.newBuilder()
+                .cryptoTransfer(CryptoTransferTransactionBody.newBuilder()
+                        .tokenTransfers(tokenTransfers)
+                        .build())
+                .build();
+    }
 
-            // HBAR transfers with hooks
-            final var hbarTransfers = TransferList.newBuilder()
-                    .accountAmounts(
-                            AccountAmount.newBuilder()
-                                    .accountID(sender)
-                                    .amount(-100L)
-                                    .preTxAllowanceHook(HookCall.DEFAULT)
-                                    .build(),
-                            AccountAmount.newBuilder()
-                                    .accountID(receiver)
-                                    .amount(100L)
-                                    .preTxAllowanceHook(HookCall.DEFAULT)
-                                    .build())
-                    .build();
+    private TokenTransferList buildTokenTransferList(long tokenNum, long senderNum, long receiverNum, long amount) {
+        return TokenTransferList.newBuilder()
+                .token(TokenID.newBuilder().tokenNum(tokenNum).build())
+                .transfers(
+                        AccountAmount.newBuilder()
+                                .accountID(AccountID.newBuilder()
+                                        .accountNum(senderNum)
+                                        .build())
+                                .amount(-amount)
+                                .build(),
+                        AccountAmount.newBuilder()
+                                .accountID(AccountID.newBuilder()
+                                        .accountNum(receiverNum)
+                                        .build())
+                                .amount(amount)
+                                .build())
+                .build();
+    }
 
-            // Fungible token transfer with hooks on sender and receiver
-            final var tokenTransfers = TokenTransferList.newBuilder()
-                    .token(tokenId)
-                    .transfers(
-                            AccountAmount.newBuilder()
-                                    .accountID(sender)
-                                    .amount(-50L)
-                                    .preTxAllowanceHook(HookCall.DEFAULT)
-                                    .build(),
-                            AccountAmount.newBuilder()
-                                    .accountID(receiver)
-                                    .amount(50L)
-                                    .preTxAllowanceHook(HookCall.DEFAULT)
-                                    .build())
-                    .build();
+    private TransactionBody buildNftTransfer(long tokenNum, long senderNum, long receiverNum, long serialNumber) {
+        final var nftTransfers = buildNftTransferList(tokenNum, senderNum, receiverNum, serialNumber);
+        return TransactionBody.newBuilder()
+                .cryptoTransfer(CryptoTransferTransactionBody.newBuilder()
+                        .tokenTransfers(nftTransfers)
+                        .build())
+                .build();
+    }
 
-            final var op = CryptoTransferTransactionBody.newBuilder()
-                    .transfers(hbarTransfers)
-                    .tokenTransfers(tokenTransfers)
-                    .build();
-            final var body = TransactionBody.newBuilder().cryptoTransfer(op).build();
-
-            // When
-            final var result = feeCalculator.calculateTxFee(body, feeContext);
-
-            // Then:
-            // - CRYPTO_TRANSFER_BASE_FUNGIBLE: 9,000,000 tinycents
-            // - HOOK_EXECUTION: 4 hooks × 50M = 200,000,000 tinycents
-            // - Total service fee: 209,000,000 tinycents
-            assertThat(result.service).isEqualTo(209_000_000L);
-        }
-
-        @Test
-        @DisplayName("Single hook on HBAR transfer")
-        void singleHookOnHbarTransfer() {
-            // Given: 1 hook on sender only
-            lenient().when(feeContext.numTxnSignatures()).thenReturn(1);
-
-            final var sender = AccountID.newBuilder().accountNum(1001L).build();
-            final var receiver = AccountID.newBuilder().accountNum(1002L).build();
-
-            final var hbarTransfers = TransferList.newBuilder()
-                    .accountAmounts(
-                            AccountAmount.newBuilder()
-                                    .accountID(sender)
-                                    .amount(-100L)
-                                    .preTxAllowanceHook(HookCall.DEFAULT)
-                                    .build(),
-                            AccountAmount.newBuilder()
-                                    .accountID(receiver)
-                                    .amount(100L)
-                                    .build())
-                    .build();
-
-            final var op = CryptoTransferTransactionBody.newBuilder()
-                    .transfers(hbarTransfers)
-                    .build();
-            final var body = TransactionBody.newBuilder().cryptoTransfer(op).build();
-
-            // When
-            final var result = feeCalculator.calculateTxFee(body, feeContext);
-
-            // Then:
-            // - HOOK_EXECUTION: 1 hook × 50M = 50,000,000 tinycents
-            // - Total service fee: 50,000,000 tinycents
-            assertThat(result.service).isEqualTo(50_000_000L);
-        }
+    private TokenTransferList buildNftTransferList(long tokenNum, long senderNum, long receiverNum, long serialNumber) {
+        return TokenTransferList.newBuilder()
+                .token(TokenID.newBuilder().tokenNum(tokenNum).build())
+                .nftTransfers(NftTransfer.newBuilder()
+                        .senderAccountID(
+                                AccountID.newBuilder().accountNum(senderNum).build())
+                        .receiverAccountID(
+                                AccountID.newBuilder().accountNum(receiverNum).build())
+                        .serialNumber(serialNumber)
+                        .build())
+                .build();
     }
 
     private static FeeSchedule createTestFeeSchedule() {
@@ -556,28 +453,22 @@ class CryptoTransferFeeCalculatorTest {
                 .extras(
                         makeExtraDef(Extra.SIGNATURES, 1000000L),
                         makeExtraDef(Extra.KEYS, 100000000L),
-                        makeExtraDef(Extra.BYTES, 110L),
+                        makeExtraDef(Extra.STATE_BYTES, 110L),
                         makeExtraDef(Extra.ACCOUNTS, 0L),
-                        makeExtraDef(Extra.FUNGIBLE_TOKENS, 1000000L),
-                        makeExtraDef(Extra.NON_FUNGIBLE_TOKENS, 1000000L),
-                        makeExtraDef(Extra.CRYPTO_TRANSFER_BASE_FUNGIBLE, 9000000L),
-                        makeExtraDef(Extra.CRYPTO_TRANSFER_BASE_NFT, 9000000L),
-                        makeExtraDef(Extra.CRYPTO_TRANSFER_BASE_FUNGIBLE_CUSTOM_FEES, 19000000L),
-                        makeExtraDef(Extra.CRYPTO_TRANSFER_BASE_NFT_CUSTOM_FEES, 19000000L),
-                        makeExtraDef(Extra.HOOK_EXECUTION, 50000000L))
+                        makeExtraDef(Extra.TOKEN_TYPES, TOKEN_TYPES_EXTRA_FEE),
+                        makeExtraDef(Extra.TOKEN_TRANSFER_BASE, TOKEN_TRANSFER_FEE),
+                        makeExtraDef(Extra.TOKEN_TRANSFER_BASE_CUSTOM_FEES, TOKEN_TRANSFER_CUSTOM_FEE),
+                        makeExtraDef(Extra.HOOK_EXECUTION, HOOK_EXECUTION_FEE))
                 .services(makeService(
                         "CryptoTransfer",
                         makeServiceFee(
                                 HederaFunctionality.CRYPTO_TRANSFER,
-                                0L,
-                                makeExtraIncluded(Extra.CRYPTO_TRANSFER_BASE_FUNGIBLE, 0),
-                                makeExtraIncluded(Extra.CRYPTO_TRANSFER_BASE_NFT, 0),
-                                makeExtraIncluded(Extra.CRYPTO_TRANSFER_BASE_FUNGIBLE_CUSTOM_FEES, 0),
-                                makeExtraIncluded(Extra.CRYPTO_TRANSFER_BASE_NFT_CUSTOM_FEES, 0),
+                                0L, // HBAR-only transfers have no service fee
+                                makeExtraIncluded(Extra.TOKEN_TRANSFER_BASE, 0),
+                                makeExtraIncluded(Extra.TOKEN_TRANSFER_BASE_CUSTOM_FEES, 0),
                                 makeExtraIncluded(Extra.HOOK_EXECUTION, 0),
                                 makeExtraIncluded(Extra.ACCOUNTS, 2),
-                                makeExtraIncluded(Extra.FUNGIBLE_TOKENS, 1),
-                                makeExtraIncluded(Extra.NON_FUNGIBLE_TOKENS, 1))))
+                                makeExtraIncluded(Extra.TOKEN_TYPES, 1))))
                 .build();
     }
 }

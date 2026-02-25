@@ -6,7 +6,6 @@ import static java.util.Objects.requireNonNull;
 
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.merkledb.constructable.constructors.MerkleDbDataSourceBuilderConstructor;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -16,10 +15,6 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Objects;
-import org.hiero.base.constructable.ConstructableClass;
-import org.hiero.base.io.SelfSerializable;
-import org.hiero.base.io.streams.SerializableDataInputStream;
-import org.hiero.base.io.streams.SerializableDataOutputStream;
 
 /**
  * Virtual data source builder that manages MerkleDb data sources.
@@ -32,16 +27,7 @@ import org.hiero.base.io.streams.SerializableDataOutputStream;
  * builder uses certain sub-folder under snapshot dir as described in {@link #snapshot(Path, VirtualDataSource)}
  * and {@link VirtualDataSourceBuilder#build(String, Path, boolean, boolean)} methods.
  */
-@ConstructableClass(
-        value = MerkleDbDataSourceBuilder.CLASS_ID,
-        constructorType = MerkleDbDataSourceBuilderConstructor.class)
-public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder, SelfSerializable {
-
-    public static final long CLASS_ID = 0x176ede0e1a69828L;
-
-    private static final class ClassVersion {
-        public static final int NO_TABLE_CONFIG = 2;
-    }
+public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder {
 
     /** Platform configuration */
     private final Configuration configuration;
@@ -191,39 +177,6 @@ public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder, Self
         } catch (final IOException z) {
             throw new UncheckedIOException(z);
         }
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public long getClassId() {
-        return CLASS_ID;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public int getVersion() {
-        return ClassVersion.NO_TABLE_CONFIG;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void serialize(final SerializableDataOutputStream out) throws IOException {
-        throw new UnsupportedOperationException("Serialization is not supported");
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void deserialize(@NonNull final SerializableDataInputStream in, final int version) throws IOException {
-        initialCapacity = in.readLong();
-        hashesRamToDiskThreshold = in.readLong();
     }
 
     /**

@@ -38,8 +38,8 @@ import com.hedera.hapi.node.state.hints.PreprocessingVote;
 import com.hedera.hapi.node.state.hints.PreprocessingVoteId;
 import com.hedera.hapi.node.state.history.ConstructionNodeId;
 import com.hedera.hapi.node.state.history.RecordedHistorySignature;
+import com.hedera.hapi.node.state.hooks.EvmHookSlotKey;
 import com.hedera.hapi.node.state.hooks.EvmHookState;
-import com.hedera.hapi.node.state.hooks.LambdaSlotKey;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.primitives.ProtoLong;
 import com.hedera.hapi.node.state.primitives.ProtoString;
@@ -245,10 +245,10 @@ class ImmediateStateChangeListenerTest {
                                 HookId.DEFAULT,
                                 EvmHookState.DEFAULT);
 
-                    case LAMBDA_SLOT_KEY ->
+                    case EVM_HOOK_SLOT_KEY ->
                         new MapUpdateScenario<>(
-                                StateIdentifier.STATE_ID_LAMBDA_STORAGE.protoOrdinal(),
-                                LambdaSlotKey.DEFAULT,
+                                StateIdentifier.STATE_ID_EVM_HOOK_STORAGE.protoOrdinal(),
+                                EvmHookSlotKey.DEFAULT,
                                 SlotValue.DEFAULT);
                 };
         if (scenario != null) {

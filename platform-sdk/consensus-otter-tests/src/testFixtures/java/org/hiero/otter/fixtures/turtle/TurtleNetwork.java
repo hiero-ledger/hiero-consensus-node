@@ -5,7 +5,6 @@ import static java.util.Objects.requireNonNull;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import com.hedera.hapi.node.state.roster.Roster;
-import com.swirlds.common.test.fixtures.Randotron;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -20,6 +19,7 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
+import org.hiero.consensus.test.fixtures.Randotron;
 import org.hiero.otter.fixtures.InstrumentedNode;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.TimeManager;
@@ -27,6 +27,7 @@ import org.hiero.otter.fixtures.TransactionGenerator;
 import org.hiero.otter.fixtures.internal.AbstractNetwork;
 import org.hiero.otter.fixtures.internal.AbstractTimeManager.TimeTickReceiver;
 import org.hiero.otter.fixtures.internal.network.ConnectionKey;
+import org.hiero.otter.fixtures.internal.result.ConsensusRoundPool;
 import org.hiero.otter.fixtures.logging.context.ContextAwareThreadFactory;
 import org.hiero.otter.fixtures.logging.context.NodeLoggingContext;
 import org.hiero.otter.fixtures.logging.context.NodeLoggingContext.LoggingContextScope;
@@ -48,6 +49,7 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
     private final Path rootOutputDirectory;
     private final TurtleTransactionGenerator transactionGenerator;
     private final SimulatedNetwork simulatedNetwork;
+    private final ConsensusRoundPool consensusRoundPool = new ConsensusRoundPool();
 
     private ExecutorService executorService;
 
@@ -119,7 +121,8 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
                 simulatedNetwork,
                 logging,
                 outputDir,
-                networkConfiguration);
+                networkConfiguration,
+                consensusRoundPool);
     }
 
     /**
@@ -139,7 +142,8 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
                 simulatedNetwork,
                 logging,
                 outputDir,
-                networkConfiguration);
+                networkConfiguration,
+                consensusRoundPool);
     }
 
     @Override
@@ -216,6 +220,7 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
         log.info("Destroying network...");
         transactionGenerator.stop();
         nodes().forEach(node -> ((TurtleNode) node).destroy());
+        consensusRoundPool.destroy();
         if (executorService != null) {
             executorService.shutdownNow();
         }

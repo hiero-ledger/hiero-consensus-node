@@ -3,11 +3,11 @@ package com.hedera.node.app.service.contract.impl.exec.metrics;
 
 import static com.swirlds.metrics.api.FloatFormats.FORMAT_10_6;
 
-import com.swirlds.common.metrics.RunningAverageMetric;
 import com.swirlds.metrics.api.Counter;
 import com.swirlds.metrics.api.LongAccumulator;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.consensus.metrics.RunningAverageMetric;
 
 /**
  * Bundles a triplet of metrics: a counter, an accumulator and an average of a given value.

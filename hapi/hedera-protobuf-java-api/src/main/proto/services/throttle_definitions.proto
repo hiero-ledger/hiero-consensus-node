@@ -109,6 +109,11 @@ message ThrottleBucket {
    * This list MUST contain at least one entry.
    */
   repeated ThrottleGroup throttleGroups = 3;
+
+  /**
+   * If set to true, this bucket is used for high-volume throttles.
+   */
+  bool high_volume = 4;
 }
 
 /**

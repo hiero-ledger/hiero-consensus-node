@@ -21,34 +21,12 @@ class FeeUtilsTest {
         when(rate.getHbarEquiv()).thenReturn(2);
         when(rate.getCentEquiv()).thenReturn(1);
 
-        FeeResult feeResult = new FeeResult();
-        feeResult.node = 10;
-        feeResult.network = 20;
-        feeResult.service = 30;
-
+        FeeResult feeResult = new FeeResult(30, 10, 2);
         Fees fees = FeeUtils.feeResultToFees(feeResult, rate);
 
         assertEquals(20, fees.nodeFee());
         assertEquals(40, fees.networkFee());
         assertEquals(60, fees.serviceFee());
-    }
-
-    @Test
-    void feesToFeeResult_convertsCorrectly() {
-        ExchangeRate rate = mock(ExchangeRate.class);
-        Fees fees = new Fees(100, 200, 300);
-
-        try (MockedStatic<FeeBuilder> fb = mockStatic(FeeBuilder.class)) {
-            fb.when(() -> FeeBuilder.getTinybarsFromTinyCents(rate, 100)).thenReturn(10L);
-            fb.when(() -> FeeBuilder.getTinybarsFromTinyCents(rate, 200)).thenReturn(20L);
-            fb.when(() -> FeeBuilder.getTinybarsFromTinyCents(rate, 300)).thenReturn(30L);
-
-            FeeResult result = FeeUtils.feesToFeeResult(fees, rate);
-
-            assertEquals(10L, result.node);
-            assertEquals(20L, result.network);
-            assertEquals(30L, result.service);
-        }
     }
 
     @Test

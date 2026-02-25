@@ -8,20 +8,12 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.platform.state.SingletonType;
 import com.hedera.node.app.service.entityid.impl.EntityIdServiceImpl;
-import com.hedera.node.config.data.HederaConfig;
-import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StateDefinition;
-import com.swirlds.state.spi.ReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 public class V0490EntityIdSchema extends Schema<SemanticVersion> {
-
-    private static final Logger log = LogManager.getLogger(V0490EntityIdSchema.class);
-
     /**
      * The version of the schema.
      */
@@ -47,24 +39,5 @@ public class V0490EntityIdSchema extends Schema<SemanticVersion> {
     @Override
     public Set<StateDefinition> statesToCreate() {
         return Set.of(StateDefinition.singleton(ENTITY_ID_STATE_ID, ENTITY_ID_KEY, EntityNumber.PROTOBUF));
-    }
-
-    /**
-     * Called after all new states have been created (as per {@link #statesToCreate()}), this method
-     * is used to perform all <b>synchronous</b> migrations of state. This method will always be
-     * called with the {@link ReadableStates} of the previous version of the {@link Schema}. If
-     * there was no previous version, then {@code previousStates} will be empty, but not null.
-     *
-     * @param ctx {@link MigrationContext} for this schema migration
-     */
-    @Override
-    public void migrate(@NonNull MigrationContext ctx) {
-        final var entityIdState = ctx.newStates().getSingleton(ENTITY_ID_STATE_ID);
-        if (entityIdState.get() == null) {
-            final var config = ctx.appConfig().getConfigData(HederaConfig.class);
-            final var entityNum = config.firstUserEntity() - 1;
-            log.info("Setting initial entity id to {}", entityNum);
-            entityIdState.put(new EntityNumber(entityNum));
-        }
     }
 }

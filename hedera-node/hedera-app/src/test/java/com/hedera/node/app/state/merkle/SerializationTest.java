@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.state.merkle;
 
-import static com.swirlds.virtualmap.VirtualMap.ClassVersion.NO_VIRTUAL_ROOT_NODE;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -12,20 +11,19 @@ import com.hedera.node.app.spi.migrate.StartupNetworks;
 import com.hedera.node.config.data.HederaConfig;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
-import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.sources.SimpleConfigSource;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import com.swirlds.platform.state.signed.SignedState;
+import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
-import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StateDefinition;
 import com.swirlds.state.merkle.StateLifecycleManagerImpl;
-import com.swirlds.state.merkle.disk.OnDiskWritableKVState;
+import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.state.merkle.vm.VirtualMapWritableKVState;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableQueueState;
 import com.swirlds.state.spi.ReadableSingletonState;
@@ -33,6 +31,7 @@ import com.swirlds.state.spi.WritableQueueState;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.test.fixtures.merkle.MerkleTestBase;
 import com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils;
+import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.config.VirtualMapConfig_;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -41,6 +40,8 @@ import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Set;
 import org.hiero.base.crypto.config.CryptoConfig;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.state.signed.SignedState;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -79,8 +80,8 @@ class SerializationTest extends MerkleTestBase {
             @Override
             @SuppressWarnings("rawtypes")
             public Set<StateDefinition> statesToCreate() {
-                final var fruitDef = StateDefinition.onDisk(
-                        FRUIT_STATE_ID, FRUIT_STATE_KEY, ProtoBytes.PROTOBUF, ProtoBytes.PROTOBUF, 100);
+                final var fruitDef = StateDefinition.keyValue(
+                        FRUIT_STATE_ID, FRUIT_STATE_KEY, ProtoBytes.PROTOBUF, ProtoBytes.PROTOBUF);
                 final var countryDef =
                         StateDefinition.singleton(COUNTRY_STATE_ID, COUNTRY_STATE_KEY, ProtoBytes.PROTOBUF);
                 final var steamDef = StateDefinition.queue(STEAM_STATE_ID, STEAM_STATE_KEY, ProtoBytes.PROTOBUF);
@@ -90,9 +91,9 @@ class SerializationTest extends MerkleTestBase {
             @Override
             public void migrate(@NonNull final MigrationContext ctx) {
                 final var newStates = ctx.newStates();
-                final OnDiskWritableKVState<ProtoBytes, ProtoBytes> fruit =
-                        (OnDiskWritableKVState<ProtoBytes, ProtoBytes>)
-                                (OnDiskWritableKVState) newStates.get(FRUIT_STATE_ID);
+                final VirtualMapWritableKVState<ProtoBytes, ProtoBytes> fruit =
+                        (VirtualMapWritableKVState<ProtoBytes, ProtoBytes>)
+                                (VirtualMapWritableKVState) newStates.get(FRUIT_STATE_ID);
                 fruit.put(A_KEY, APPLE);
                 fruit.put(B_KEY, BANANA);
                 fruit.put(C_KEY, CHERRY);
@@ -119,9 +120,10 @@ class SerializationTest extends MerkleTestBase {
     @Test
     void snapshot() throws IOException {
         final Schema<SemanticVersion> schemaV1 = createV1Schema();
-        final StateLifecycleManager stateLifecycleManager = createStateLifecycleManager(schemaV1);
+        final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =
+                createStateLifecycleManager(schemaV1);
         final Path tempDir = LegacyTemporaryFileBuilder.buildTemporaryDirectory(config);
-        final MerkleNodeState originalTree = stateLifecycleManager.getLatestImmutableState();
+        final VirtualMapState originalTree = stateLifecycleManager.getLatestImmutableState();
 
         // prepare the tree and create a snapshot
         stateLifecycleManager.getMutableState().release();
@@ -129,14 +131,14 @@ class SerializationTest extends MerkleTestBase {
         stateLifecycleManager.createSnapshot(originalTree, tempDir);
         originalTree.release();
 
-        final MerkleNodeState state = stateLifecycleManager.loadSnapshot(tempDir);
+        final VirtualMapState state = stateLifecycleManager.loadSnapshot(tempDir);
         initServices(schemaV1, state);
         assertTree(state);
 
         state.release();
     }
 
-    private void initServices(Schema<SemanticVersion> schemaV1, MerkleNodeState loadedTree) {
+    private void initServices(Schema<SemanticVersion> schemaV1, VirtualMapState loadedTree) {
         final var newRegistry = new MerkleSchemaRegistry(FIRST_SERVICE, new SchemaApplications());
         newRegistry.register(schemaV1);
         newRegistry.migrate(
@@ -147,24 +149,32 @@ class SerializationTest extends MerkleTestBase {
                 config,
                 new HashMap<>(),
                 migrationStateChanges,
-                startupNetworks);
-        loadedTree.getRoot().migrate(NO_VIRTUAL_ROOT_NODE);
+                startupNetworks,
+                InitTrigger.RESTART);
     }
 
-    private StateLifecycleManager createStateLifecycleManager(Schema schemaV1) {
+    private StateLifecycleManager<VirtualMapState, VirtualMap> createStateLifecycleManager(Schema schemaV1) {
         final SignedState randomState =
                 new RandomSignedStateGenerator().setRound(1).build();
 
-        final MerkleNodeState originalTree = randomState.getState();
+        final VirtualMapState originalTree = randomState.getState();
         // the state is not hashed yet
         final var originalTreeCopy = originalTree.copy();
         originalTree.release();
         final var originalRegistry = new MerkleSchemaRegistry(FIRST_SERVICE, new SchemaApplications());
         originalRegistry.register(schemaV1);
         originalRegistry.migrate(
-                originalTreeCopy, null, v1, config, config, new HashMap<>(), migrationStateChanges, startupNetworks);
+                originalTreeCopy,
+                null,
+                v1,
+                config,
+                config,
+                new HashMap<>(),
+                migrationStateChanges,
+                startupNetworks,
+                InitTrigger.GENESIS);
 
-        final StateLifecycleManager stateLifecycleManager = new StateLifecycleManagerImpl(
+        final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager = new StateLifecycleManagerImpl(
                 new NoOpMetrics(), new FakeTime(), VirtualMapStateTestUtils::createTestStateWithVM, config);
 
         stateLifecycleManager.initState(originalTreeCopy);

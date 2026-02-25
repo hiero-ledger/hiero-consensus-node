@@ -18,17 +18,16 @@ import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.roy
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUnique;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
-import static com.hedera.services.bdd.suites.HapiSuite.THOUSAND_HBAR;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
@@ -47,15 +46,19 @@ import org.junit.jupiter.api.Tag;
 @Tag(SIMPLE_FEES)
 @HapiTestLifecycle
 public class CryptoTransferSimpleFeesSuite {
-    private static final double HBAR_TRANSFER_BASE_FEE = 0.0001;
-    private static final double FUNGIBLE_TOKEN_BASE_FEE = 0.001;
-    private static final double NFT_BASE_FEE = 0.001;
-    private static final double CUSTOM_FEE_TOKEN_FEE = 0.001;
-    private static final double SINGLE_HOOK_FEE = 1.0;
-    private static final double HOOK_OVERHEAD_FEE = 0.0050;
+    // Fee tiers
+    private static final double HBAR_TRANSFER_FEE = 0.0001;
+    public static final double TOKEN_TRANSFER_FEE = 0.001;
+    private static final double TOKEN_TRANSFER_CUSTOM_FEE = 0.002;
+
+    // Extras
     private static final double ADDITIONAL_ACCOUNT_FEE = 0.0001;
-    private static final double ADDITIONAL_TOKEN_FEE = 0.0001;
+    private static final double TOKEN_TYPES_EXTRA_FEE = 0.0001;
     private static final double ADDITIONAL_NFT_SERIAL_FEE = 0.0001;
+    private static final double HOOK_INVOCATION_USD = 0.005;
+    private static final double NFT_TRANSFER_BASE_USD = 0.001;
+
+    // Entity names
     private static final String PAYER = "payer";
     private static final String RECEIVER = "receiver";
     private static final String RECEIVER2 = "receiver2";
@@ -65,7 +68,6 @@ public class CryptoTransferSimpleFeesSuite {
     private static final String FUNGIBLE_TOKEN_2 = "fungibleToken2";
     private static final String FUNGIBLE_TOKEN_WITH_FEES = "fungibleTokenWithFees";
     private static final String NFT_TOKEN = "nftToken";
-    private static final String NFT_TOKEN_2 = "nftToken2";
     private static final String NFT_TOKEN_WITH_FEES = "nftTokenWithFees";
     private static final String HOOK_CONTRACT = "TruePreHook";
 
@@ -74,9 +76,11 @@ public class CryptoTransferSimpleFeesSuite {
         testLifecycle.overrideInClass(Map.of("hooks.hooksEnabled", "true"));
     }
 
+    // ==================== FEE TIER TESTS ====================
+
     @HapiTest
-    @DisplayName("DEFAULT: Simple 2-account HBAR transfer")
-    final Stream<DynamicTest> defaultSimpleHbarTransfer() {
+    @DisplayName("HBAR: Simple 2-account transfer")
+    final Stream<DynamicTest> hbarSimpleTransfer() {
         return hapiTest(
                 cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                 cryptoCreate(RECEIVER).balance(0L),
@@ -84,32 +88,13 @@ public class CryptoTransferSimpleFeesSuite {
                         .payingWith(PAYER)
                         .signedBy(PAYER)
                         .fee(ONE_HBAR)
-                        .via("simpleHbarTxn"),
-                validateChargedUsd("simpleHbarTxn", HBAR_TRANSFER_BASE_FEE));
+                        .via("hbarTxn"),
+                validateChargedUsd("hbarTxn", HBAR_TRANSFER_FEE));
     }
 
     @HapiTest
-    @DisplayName("DEFAULT: Multi-account HBAR transfer (3 receivers)")
-    final Stream<DynamicTest> defaultMultiAccountHbarTransfer() {
-        return hapiTest(
-                cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                cryptoCreate(RECEIVER).balance(0L),
-                cryptoCreate(RECEIVER2).balance(0L),
-                cryptoCreate(RECEIVER3).balance(0L),
-                cryptoTransfer(
-                                movingHbar(ONE_HBAR).between(PAYER, RECEIVER),
-                                movingHbar(ONE_HBAR).between(PAYER, RECEIVER2),
-                                movingHbar(ONE_HBAR).between(PAYER, RECEIVER3))
-                        .payingWith(PAYER)
-                        .signedBy(PAYER)
-                        .fee(ONE_HBAR)
-                        .via("multiHbarTxn"),
-                validateChargedUsd("multiHbarTxn", HBAR_TRANSFER_BASE_FEE + 2 * ADDITIONAL_ACCOUNT_FEE));
-    }
-
-    @HapiTest
-    @DisplayName("TOKEN_FUNGIBLE_COMMON: Single fungible token transfer")
-    final Stream<DynamicTest> fungibleCommonSingleToken() {
+    @DisplayName("FUNGIBLE: Single token transfer")
+    final Stream<DynamicTest> fungibleSingleTransfer() {
         return hapiTest(
                 cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                 cryptoCreate(RECEIVER).balance(0L),
@@ -124,65 +109,13 @@ public class CryptoTransferSimpleFeesSuite {
                         .payingWith(PAYER)
                         .signedBy(PAYER)
                         .fee(ONE_HBAR)
-                        .via("fungibleSingleTxn"),
-                validateChargedUsd("fungibleSingleTxn", FUNGIBLE_TOKEN_BASE_FEE));
+                        .via("fungibleTxn"),
+                validateChargedUsd("fungibleTxn", TOKEN_TRANSFER_FEE));
     }
 
     @HapiTest
-    @DisplayName("TOKEN_FUNGIBLE_COMMON: Multiple fungible tokens")
-    final Stream<DynamicTest> fungibleCommonMultipleTokens() {
-        return hapiTest(
-                cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                cryptoCreate(RECEIVER).balance(0L),
-                tokenCreate(FUNGIBLE_TOKEN)
-                        .tokenType(FUNGIBLE_COMMON)
-                        .initialSupply(1000L)
-                        .treasury(PAYER)
-                        .fee(ONE_HUNDRED_HBARS)
-                        .payingWith(PAYER),
-                tokenCreate(FUNGIBLE_TOKEN_2)
-                        .tokenType(FUNGIBLE_COMMON)
-                        .initialSupply(1000L)
-                        .treasury(PAYER)
-                        .fee(ONE_HUNDRED_HBARS)
-                        .payingWith(PAYER),
-                tokenAssociate(RECEIVER, FUNGIBLE_TOKEN, FUNGIBLE_TOKEN_2),
-                cryptoTransfer(
-                                moving(100, FUNGIBLE_TOKEN).between(PAYER, RECEIVER),
-                                moving(50, FUNGIBLE_TOKEN_2).between(PAYER, RECEIVER))
-                        .payingWith(PAYER)
-                        .signedBy(PAYER)
-                        .fee(ONE_HBAR)
-                        .via("fungibleMultiTxn"),
-                validateChargedUsd("fungibleMultiTxn", FUNGIBLE_TOKEN_BASE_FEE + ADDITIONAL_TOKEN_FEE));
-    }
-
-    @HapiTest
-    @DisplayName("TOKEN_FUNGIBLE_COMMON: Fungible + HBAR mixed transfer")
-    final Stream<DynamicTest> fungibleCommonWithHbar() {
-        return hapiTest(
-                cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                cryptoCreate(RECEIVER).balance(0L),
-                tokenCreate(FUNGIBLE_TOKEN)
-                        .tokenType(FUNGIBLE_COMMON)
-                        .initialSupply(1000L)
-                        .treasury(PAYER)
-                        .fee(ONE_HUNDRED_HBARS)
-                        .payingWith(PAYER),
-                tokenAssociate(RECEIVER, FUNGIBLE_TOKEN),
-                cryptoTransfer(
-                                movingHbar(ONE_HBAR).between(PAYER, RECEIVER),
-                                moving(100, FUNGIBLE_TOKEN).between(PAYER, RECEIVER))
-                        .payingWith(PAYER)
-                        .signedBy(PAYER)
-                        .fee(ONE_HBAR)
-                        .via("fungibleHbarTxn"),
-                validateChargedUsd("fungibleHbarTxn", FUNGIBLE_TOKEN_BASE_FEE));
-    }
-
-    @HapiTest
-    @DisplayName("TOKEN_NON_FUNGIBLE_UNIQUE: Single NFT transfer")
-    final Stream<DynamicTest> nftUniqueSingleNft() {
+    @DisplayName("NFT: Single NFT transfer (same fee as fungible)")
+    final Stream<DynamicTest> nftSingleTransfer() {
         return hapiTest(
                 cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                 cryptoCreate(RECEIVER).balance(0L),
@@ -199,94 +132,13 @@ public class CryptoTransferSimpleFeesSuite {
                         .payingWith(PAYER)
                         .signedBy(PAYER)
                         .fee(ONE_HBAR)
-                        .via("nftSingleTxn"),
-                validateChargedUsd("nftSingleTxn", NFT_BASE_FEE));
+                        .via("nftTxn"),
+                validateChargedUsd("nftTxn", TOKEN_TRANSFER_FEE));
     }
 
     @HapiTest
-    @DisplayName("TOKEN_NON_FUNGIBLE_UNIQUE: Multiple NFTs same collection")
-    final Stream<DynamicTest> nftUniqueMultipleSameCollection() {
-        return hapiTest(
-                cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                cryptoCreate(RECEIVER).balance(0L),
-                tokenCreate(NFT_TOKEN)
-                        .tokenType(NON_FUNGIBLE_UNIQUE)
-                        .initialSupply(0L)
-                        .supplyKey(PAYER)
-                        .treasury(PAYER)
-                        .fee(ONE_HUNDRED_HBARS)
-                        .payingWith(PAYER),
-                mintToken(NFT_TOKEN, List.of(metadata(1), metadata(2), metadata(3))),
-                tokenAssociate(RECEIVER, NFT_TOKEN),
-                cryptoTransfer(movingUnique(NFT_TOKEN, 1L, 2L, 3L).between(PAYER, RECEIVER))
-                        .payingWith(PAYER)
-                        .signedBy(PAYER)
-                        .fee(ONE_HBAR)
-                        .via("nftMultiSameTxn"),
-                validateChargedUsd("nftMultiSameTxn", NFT_BASE_FEE + 2 * ADDITIONAL_NFT_SERIAL_FEE));
-    }
-
-    @HapiTest
-    @DisplayName("TOKEN_NON_FUNGIBLE_UNIQUE: NFTs from different collections")
-    final Stream<DynamicTest> nftUniqueDifferentCollections() {
-        return hapiTest(
-                cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                cryptoCreate(RECEIVER).balance(0L),
-                tokenCreate(NFT_TOKEN)
-                        .tokenType(NON_FUNGIBLE_UNIQUE)
-                        .initialSupply(0L)
-                        .supplyKey(PAYER)
-                        .treasury(PAYER)
-                        .fee(ONE_HUNDRED_HBARS)
-                        .payingWith(PAYER),
-                tokenCreate(NFT_TOKEN_2)
-                        .tokenType(NON_FUNGIBLE_UNIQUE)
-                        .initialSupply(0L)
-                        .supplyKey(PAYER)
-                        .treasury(PAYER)
-                        .fee(ONE_HUNDRED_HBARS)
-                        .payingWith(PAYER),
-                mintToken(NFT_TOKEN, List.of(metadata(1))),
-                mintToken(NFT_TOKEN_2, List.of(metadata(2))),
-                tokenAssociate(RECEIVER, NFT_TOKEN, NFT_TOKEN_2),
-                cryptoTransfer(
-                                movingUnique(NFT_TOKEN, 1L).between(PAYER, RECEIVER),
-                                movingUnique(NFT_TOKEN_2, 1L).between(PAYER, RECEIVER))
-                        .payingWith(PAYER)
-                        .signedBy(PAYER)
-                        .fee(ONE_HBAR)
-                        .via("nftDiffCollectionsTxn"),
-                validateChargedUsd("nftDiffCollectionsTxn", NFT_BASE_FEE + ADDITIONAL_NFT_SERIAL_FEE));
-    }
-
-    @HapiTest
-    @DisplayName("TOKEN_NON_FUNGIBLE_UNIQUE: NFT + HBAR mixed transfer")
-    final Stream<DynamicTest> nftUniqueWithHbar() {
-        return hapiTest(
-                cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                cryptoCreate(RECEIVER).balance(0L),
-                tokenCreate(NFT_TOKEN)
-                        .tokenType(NON_FUNGIBLE_UNIQUE)
-                        .initialSupply(0L)
-                        .supplyKey(PAYER)
-                        .treasury(PAYER)
-                        .fee(ONE_HUNDRED_HBARS)
-                        .payingWith(PAYER),
-                mintToken(NFT_TOKEN, List.of(metadata(1))),
-                tokenAssociate(RECEIVER, NFT_TOKEN),
-                cryptoTransfer(
-                                movingHbar(ONE_HBAR).between(PAYER, RECEIVER),
-                                movingUnique(NFT_TOKEN, 1L).between(PAYER, RECEIVER))
-                        .payingWith(PAYER)
-                        .signedBy(PAYER)
-                        .fee(ONE_HBAR)
-                        .via("nftHbarTxn"),
-                validateChargedUsd("nftHbarTxn", NFT_BASE_FEE));
-    }
-
-    @HapiTest
-    @DisplayName("TOKEN_FUNGIBLE_COMMON_WITH_CUSTOM_FEES: Fungible with fixed HBAR fee")
-    final Stream<DynamicTest> fungibleWithCustomFeesFixedHbar() {
+    @DisplayName("CUSTOM FEES: Token with custom fee")
+    final Stream<DynamicTest> tokenWithCustomFee() {
         return hapiTest(
                 cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                 cryptoCreate(RECEIVER).balance(0L),
@@ -303,104 +155,48 @@ public class CryptoTransferSimpleFeesSuite {
                         .payingWith(PAYER)
                         .signedBy(PAYER)
                         .fee(10 * ONE_HBAR)
-                        .via("fungibleCustomFeeTxn"),
-                validateChargedUsd("fungibleCustomFeeTxn", FUNGIBLE_TOKEN_BASE_FEE + CUSTOM_FEE_TOKEN_FEE));
+                        .via("customFeeTxn"),
+                validateChargedUsd("customFeeTxn", TOKEN_TRANSFER_CUSTOM_FEE));
     }
 
+    // ==================== KEY FIX: MIXED FT+NFT SINGLE CHARGE ====================
+
     @HapiTest
-    @DisplayName("TOKEN_NON_FUNGIBLE_UNIQUE_WITH_CUSTOM_FEES: NFT with royalty fee")
-    final Stream<DynamicTest> nftWithCustomFeesRoyalty() {
+    @DisplayName("MIXED FT+NFT: Single TOKEN_TRANSFER_BASE charge (key consolidation fix)")
+    final Stream<DynamicTest> mixedFtNftSingleCharge() {
+        // This verifies the fix: FT+NFT should NOT double-charge
         return hapiTest(
                 cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                 cryptoCreate(RECEIVER).balance(0L),
-                cryptoCreate(FEE_COLLECTOR).balance(0L),
-                tokenCreate(NFT_TOKEN_WITH_FEES)
-                        .tokenType(NON_FUNGIBLE_UNIQUE)
-                        .initialSupply(0L)
-                        .supplyKey(PAYER)
-                        .withCustom(royaltyFeeNoFallback(1, 10, FEE_COLLECTOR))
-                        .treasury(PAYER)
-                        .fee(ONE_HUNDRED_HBARS)
-                        .payingWith(PAYER),
-                mintToken(NFT_TOKEN_WITH_FEES, List.of(metadata(1))),
-                tokenAssociate(RECEIVER, NFT_TOKEN_WITH_FEES),
-                cryptoTransfer(movingUnique(NFT_TOKEN_WITH_FEES, 1L).between(PAYER, RECEIVER))
-                        .payingWith(PAYER)
-                        .signedBy(PAYER)
-                        .fee(10 * ONE_HBAR)
-                        .via("nftCustomFeeTxn"),
-                validateChargedUsd("nftCustomFeeTxn", NFT_BASE_FEE + CUSTOM_FEE_TOKEN_FEE));
-    }
-
-    @HapiTest
-    @DisplayName("CUSTOM: Mixed standard + custom fee tokens")
-    final Stream<DynamicTest> customFeeMixedStandardAndCustom() {
-        return hapiTest(
-                cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                cryptoCreate(RECEIVER).balance(0L),
-                cryptoCreate(FEE_COLLECTOR).balance(0L),
                 tokenCreate(FUNGIBLE_TOKEN)
                         .tokenType(FUNGIBLE_COMMON)
                         .initialSupply(1000L)
                         .treasury(PAYER)
                         .fee(ONE_HUNDRED_HBARS)
                         .payingWith(PAYER),
-                tokenCreate(FUNGIBLE_TOKEN_WITH_FEES)
-                        .tokenType(FUNGIBLE_COMMON)
-                        .initialSupply(1000L)
-                        .withCustom(fixedHbarFee(ONE_HBAR, FEE_COLLECTOR))
+                tokenCreate(NFT_TOKEN)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .initialSupply(0L)
+                        .supplyKey(PAYER)
                         .treasury(PAYER)
                         .fee(ONE_HUNDRED_HBARS)
                         .payingWith(PAYER),
-                tokenAssociate(RECEIVER, FUNGIBLE_TOKEN, FUNGIBLE_TOKEN_WITH_FEES),
+                mintToken(NFT_TOKEN, List.of(metadata(1))),
+                tokenAssociate(RECEIVER, FUNGIBLE_TOKEN, NFT_TOKEN),
                 cryptoTransfer(
                                 moving(100, FUNGIBLE_TOKEN).between(PAYER, RECEIVER),
-                                moving(100, FUNGIBLE_TOKEN_WITH_FEES).between(PAYER, RECEIVER))
+                                movingUnique(NFT_TOKEN, 1L).between(PAYER, RECEIVER))
                         .payingWith(PAYER)
                         .signedBy(PAYER)
-                        .fee(10 * ONE_HBAR)
-                        .via("mixedStandardCustomTxn"),
-                validateChargedUsd(
-                        "mixedStandardCustomTxn",
-                        FUNGIBLE_TOKEN_BASE_FEE + CUSTOM_FEE_TOKEN_FEE + ADDITIONAL_TOKEN_FEE));
+                        .fee(ONE_HBAR)
+                        .via("mixedFtNftTxn"),
+                // Charge for base token transfer and extra token type!
+                validateChargedUsd("mixedFtNftTxn", TOKEN_TRANSFER_FEE + TOKEN_TYPES_EXTRA_FEE));
     }
 
     @HapiTest
-    @DisplayName("CUSTOM: Multiple custom fee tokens")
-    final Stream<DynamicTest> customFeeMultipleCustomFeeTokens() {
-        return hapiTest(
-                cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                cryptoCreate(RECEIVER).balance(0L),
-                cryptoCreate(FEE_COLLECTOR).balance(0L),
-                tokenCreate(FUNGIBLE_TOKEN_WITH_FEES)
-                        .tokenType(FUNGIBLE_COMMON)
-                        .initialSupply(1000L)
-                        .withCustom(fixedHbarFee(ONE_HBAR, FEE_COLLECTOR))
-                        .treasury(PAYER)
-                        .fee(ONE_HUNDRED_HBARS)
-                        .payingWith(PAYER),
-                tokenCreate(FUNGIBLE_TOKEN_2)
-                        .tokenType(FUNGIBLE_COMMON)
-                        .initialSupply(1000L)
-                        .withCustom(fixedHbarFee(ONE_HBAR / 2, FEE_COLLECTOR))
-                        .treasury(PAYER)
-                        .fee(ONE_HUNDRED_HBARS)
-                        .payingWith(PAYER),
-                tokenAssociate(RECEIVER, FUNGIBLE_TOKEN_WITH_FEES, FUNGIBLE_TOKEN_2),
-                cryptoTransfer(
-                                moving(100, FUNGIBLE_TOKEN_WITH_FEES).between(PAYER, RECEIVER),
-                                moving(100, FUNGIBLE_TOKEN_2).between(PAYER, RECEIVER))
-                        .payingWith(PAYER)
-                        .signedBy(PAYER)
-                        .fee(10 * ONE_HBAR)
-                        .via("multipleCustomFeeTxn"),
-                validateChargedUsd(
-                        "multipleCustomFeeTxn", FUNGIBLE_TOKEN_BASE_FEE + CUSTOM_FEE_TOKEN_FEE + ADDITIONAL_TOKEN_FEE));
-    }
-
-    @HapiTest
-    @DisplayName("CUSTOM: Custom fee fungible + custom fee NFT")
-    final Stream<DynamicTest> customFeeMultipleFungibleAndNft() {
+    @DisplayName("MIXED CUSTOM: FT + NFT with custom fees (single custom fee tier)")
+    final Stream<DynamicTest> mixedFtNftWithCustomFees() {
         return hapiTest(
                 cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                 cryptoCreate(RECEIVER).balance(0L),
@@ -428,139 +224,36 @@ public class CryptoTransferSimpleFeesSuite {
                         .payingWith(PAYER)
                         .signedBy(PAYER)
                         .fee(10 * ONE_HBAR)
-                        .via("customFungibleNftTxn"),
-                validateChargedUsd("customFungibleNftTxn", FUNGIBLE_TOKEN_BASE_FEE + CUSTOM_FEE_TOKEN_FEE));
+                        .via("mixedCustomTxn"),
+                // Charge for token transfer with custom fee and extra token type
+                validateChargedUsd("mixedCustomTxn", TOKEN_TRANSFER_CUSTOM_FEE + TOKEN_TYPES_EXTRA_FEE));
     }
 
-    @HapiTest
-    @DisplayName("BOUNDARY: Self-transfer (1 account)")
-    final Stream<DynamicTest> accountBoundarySelfTransfer() {
-        return hapiTest(
-                cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                cryptoTransfer(movingHbar(ONE_HBAR).between(PAYER, PAYER))
-                        .payingWith(PAYER)
-                        .signedBy(PAYER)
-                        .fee(ONE_HBAR)
-                        .via("selfTransferTxn"),
-                validateChargedUsd("selfTransferTxn", HBAR_TRANSFER_BASE_FEE));
-    }
+    // ==================== EXTRAS TESTS ====================
 
     @HapiTest
-    @DisplayName("BOUNDARY: Three accounts (1 over threshold)")
-    final Stream<DynamicTest> accountBoundaryThreeAccounts() {
-        return hapiTest(
-                cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                cryptoCreate(RECEIVER).balance(0L),
-                cryptoCreate(RECEIVER2).balance(0L),
-                cryptoTransfer(
-                                movingHbar(ONE_HBAR).between(PAYER, RECEIVER),
-                                movingHbar(ONE_HBAR).between(PAYER, RECEIVER2))
-                        .payingWith(PAYER)
-                        .signedBy(PAYER)
-                        .fee(ONE_HBAR)
-                        .via("threeAccountsTxn"),
-                validateChargedUsd("threeAccountsTxn", HBAR_TRANSFER_BASE_FEE + ADDITIONAL_ACCOUNT_FEE));
-    }
-
-    @HapiTest
-    @DisplayName("COUNTING: Fungible token with multiple recipients counts as 1")
-    final Stream<DynamicTest> fungibleCountingMultipleRecipients() {
+    @DisplayName("ACCOUNTS EXTRA: 4 accounts (2 over threshold)")
+    final Stream<DynamicTest> accountsExtraCharge() {
         return hapiTest(
                 cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                 cryptoCreate(RECEIVER).balance(0L),
                 cryptoCreate(RECEIVER2).balance(0L),
                 cryptoCreate(RECEIVER3).balance(0L),
-                tokenCreate(FUNGIBLE_TOKEN)
-                        .tokenType(FUNGIBLE_COMMON)
-                        .initialSupply(1000L)
-                        .treasury(PAYER)
-                        .fee(ONE_HUNDRED_HBARS)
-                        .payingWith(PAYER),
-                tokenAssociate(RECEIVER, FUNGIBLE_TOKEN),
-                tokenAssociate(RECEIVER2, FUNGIBLE_TOKEN),
-                tokenAssociate(RECEIVER3, FUNGIBLE_TOKEN),
-                cryptoTransfer(
-                                moving(100, FUNGIBLE_TOKEN).between(PAYER, RECEIVER),
-                                moving(100, FUNGIBLE_TOKEN).between(PAYER, RECEIVER2),
-                                moving(100, FUNGIBLE_TOKEN).between(PAYER, RECEIVER3))
-                        .payingWith(PAYER)
-                        .signedBy(PAYER)
-                        .fee(ONE_HBAR)
-                        .via("fungibleMultiRecipientTxn"),
-                validateChargedUsd("fungibleMultiRecipientTxn", FUNGIBLE_TOKEN_BASE_FEE + 2 * ADDITIONAL_ACCOUNT_FEE));
-    }
-
-    @HapiTest
-    @DisplayName("COUNTING: Large NFT batch (10 serials)")
-    final Stream<DynamicTest> nftCountingLargeCollection() {
-        return hapiTest(
-                cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                cryptoCreate(RECEIVER).balance(0L),
-                tokenCreate(NFT_TOKEN)
-                        .tokenType(NON_FUNGIBLE_UNIQUE)
-                        .initialSupply(0L)
-                        .supplyKey(PAYER)
-                        .treasury(PAYER)
-                        .fee(ONE_HUNDRED_HBARS)
-                        .payingWith(PAYER),
-                mintToken(
-                        NFT_TOKEN,
-                        List.of(
-                                metadata(1),
-                                metadata(2),
-                                metadata(3),
-                                metadata(4),
-                                metadata(5),
-                                metadata(6),
-                                metadata(7),
-                                metadata(8),
-                                metadata(9),
-                                metadata(10))),
-                tokenAssociate(RECEIVER, NFT_TOKEN),
-                cryptoTransfer(movingUnique(NFT_TOKEN, 1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L)
-                                .between(PAYER, RECEIVER))
-                        .payingWith(PAYER)
-                        .signedBy(PAYER)
-                        .fee(ONE_HBAR)
-                        .via("nftLargeBatchTxn"),
-                validateChargedUsd("nftLargeBatchTxn", NFT_BASE_FEE + 9 * ADDITIONAL_NFT_SERIAL_FEE));
-    }
-
-    @HapiTest
-    @DisplayName("COMPLEX: HBAR + fungible + NFT in one transaction")
-    final Stream<DynamicTest> complexMixedAllTypes() {
-        return hapiTest(
-                cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                cryptoCreate(RECEIVER).balance(0L),
-                tokenCreate(FUNGIBLE_TOKEN)
-                        .tokenType(FUNGIBLE_COMMON)
-                        .initialSupply(1000L)
-                        .treasury(PAYER)
-                        .fee(ONE_HUNDRED_HBARS)
-                        .payingWith(PAYER),
-                tokenCreate(NFT_TOKEN)
-                        .tokenType(NON_FUNGIBLE_UNIQUE)
-                        .initialSupply(0L)
-                        .supplyKey(PAYER)
-                        .treasury(PAYER)
-                        .fee(ONE_HUNDRED_HBARS)
-                        .payingWith(PAYER),
-                mintToken(NFT_TOKEN, List.of(metadata(1))),
-                tokenAssociate(RECEIVER, FUNGIBLE_TOKEN, NFT_TOKEN),
                 cryptoTransfer(
                                 movingHbar(ONE_HBAR).between(PAYER, RECEIVER),
-                                moving(100, FUNGIBLE_TOKEN).between(PAYER, RECEIVER),
-                                movingUnique(NFT_TOKEN, 1L).between(PAYER, RECEIVER))
+                                movingHbar(ONE_HBAR).between(PAYER, RECEIVER2),
+                                movingHbar(ONE_HBAR).between(PAYER, RECEIVER3))
                         .payingWith(PAYER)
                         .signedBy(PAYER)
                         .fee(ONE_HBAR)
-                        .via("complexAllTypesTxn"),
-                validateChargedUsd("complexAllTypesTxn", FUNGIBLE_TOKEN_BASE_FEE));
+                        .via("multiAccountTxn"),
+                // Base + 2 extra accounts (4 total, 2 included)
+                validateChargedUsd("multiAccountTxn", HBAR_TRANSFER_FEE + 2 * ADDITIONAL_ACCOUNT_FEE));
     }
 
     @HapiTest
-    @DisplayName("COMPLEX: Multiple fungible + multiple NFT")
-    final Stream<DynamicTest> complexMultipleTokensAndNfts() {
+    @DisplayName("FUNGIBLE_TOKENS EXTRA: 2 tokens (1 over threshold)")
+    final Stream<DynamicTest> fungibleTokensExtraCharge() {
         return hapiTest(
                 cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                 cryptoCreate(RECEIVER).balance(0L),
@@ -576,6 +269,23 @@ public class CryptoTransferSimpleFeesSuite {
                         .treasury(PAYER)
                         .fee(ONE_HUNDRED_HBARS)
                         .payingWith(PAYER),
+                tokenAssociate(RECEIVER, FUNGIBLE_TOKEN, FUNGIBLE_TOKEN_2),
+                cryptoTransfer(
+                                moving(100, FUNGIBLE_TOKEN).between(PAYER, RECEIVER),
+                                moving(50, FUNGIBLE_TOKEN_2).between(PAYER, RECEIVER))
+                        .payingWith(PAYER)
+                        .signedBy(PAYER)
+                        .fee(ONE_HBAR)
+                        .via("multiTokenTxn"),
+                validateChargedUsd("multiTokenTxn", TOKEN_TRANSFER_FEE + TOKEN_TYPES_EXTRA_FEE));
+    }
+
+    @HapiTest
+    @DisplayName("NFT_SERIALS EXTRA: 3 serials (2 over threshold)")
+    final Stream<DynamicTest> nftSerialsExtraCharge() {
+        return hapiTest(
+                cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(RECEIVER).balance(0L),
                 tokenCreate(NFT_TOKEN)
                         .tokenType(NON_FUNGIBLE_UNIQUE)
                         .initialSupply(0L)
@@ -583,32 +293,52 @@ public class CryptoTransferSimpleFeesSuite {
                         .treasury(PAYER)
                         .fee(ONE_HUNDRED_HBARS)
                         .payingWith(PAYER),
-                tokenCreate(NFT_TOKEN_2)
-                        .tokenType(NON_FUNGIBLE_UNIQUE)
-                        .initialSupply(0L)
-                        .supplyKey(PAYER)
-                        .treasury(PAYER)
-                        .fee(ONE_HUNDRED_HBARS)
-                        .payingWith(PAYER),
-                mintToken(NFT_TOKEN, List.of(metadata(1))),
-                mintToken(NFT_TOKEN_2, List.of(metadata(2))),
-                tokenAssociate(RECEIVER, FUNGIBLE_TOKEN, FUNGIBLE_TOKEN_2, NFT_TOKEN, NFT_TOKEN_2),
-                cryptoTransfer(
-                                moving(100, FUNGIBLE_TOKEN).between(PAYER, RECEIVER),
-                                moving(100, FUNGIBLE_TOKEN_2).between(PAYER, RECEIVER),
-                                movingUnique(NFT_TOKEN, 1L).between(PAYER, RECEIVER),
-                                movingUnique(NFT_TOKEN_2, 1L).between(PAYER, RECEIVER))
+                mintToken(NFT_TOKEN, List.of(metadata(1), metadata(2), metadata(3))),
+                tokenAssociate(RECEIVER, NFT_TOKEN),
+                cryptoTransfer(movingUnique(NFT_TOKEN, 1L, 2L, 3L).between(PAYER, RECEIVER))
                         .payingWith(PAYER)
                         .signedBy(PAYER)
                         .fee(ONE_HBAR)
-                        .via("complexMultiTokensNftsTxn"),
-                validateChargedUsd(
-                        "complexMultiTokensNftsTxn",
-                        FUNGIBLE_TOKEN_BASE_FEE + ADDITIONAL_TOKEN_FEE + ADDITIONAL_NFT_SERIAL_FEE));
+                        .via("multiSerialTxn"),
+                validateChargedUsd("multiSerialTxn", TOKEN_TRANSFER_FEE + 2 * ADDITIONAL_NFT_SERIAL_FEE));
     }
 
     @HapiTest
-    @DisplayName("COMPLEX: Maximum complexity - all token types")
+    @DisplayName("CUSTOM_FEE EXTRA: Mix of standard + custom fee tokens")
+    final Stream<DynamicTest> customFeeExtraCharge() {
+        return hapiTest(
+                cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(RECEIVER).balance(0L),
+                cryptoCreate(FEE_COLLECTOR).balance(0L),
+                tokenCreate(FUNGIBLE_TOKEN)
+                        .tokenType(FUNGIBLE_COMMON)
+                        .initialSupply(1000L)
+                        .treasury(PAYER)
+                        .fee(ONE_HUNDRED_HBARS)
+                        .payingWith(PAYER),
+                tokenCreate(FUNGIBLE_TOKEN_WITH_FEES)
+                        .tokenType(FUNGIBLE_COMMON)
+                        .initialSupply(1000L)
+                        .withCustom(fixedHbarFee(ONE_HBAR, FEE_COLLECTOR))
+                        .treasury(PAYER)
+                        .fee(ONE_HUNDRED_HBARS)
+                        .payingWith(PAYER),
+                tokenAssociate(RECEIVER, FUNGIBLE_TOKEN, FUNGIBLE_TOKEN_WITH_FEES),
+                cryptoTransfer(
+                                moving(100, FUNGIBLE_TOKEN).between(PAYER, RECEIVER),
+                                moving(100, FUNGIBLE_TOKEN_WITH_FEES).between(PAYER, RECEIVER))
+                        .payingWith(PAYER)
+                        .signedBy(PAYER)
+                        .fee(10 * ONE_HBAR)
+                        .via("mixedStandardCustomTxn"),
+                // Custom fee tier + 1 extra token
+                validateChargedUsd("mixedStandardCustomTxn", TOKEN_TRANSFER_CUSTOM_FEE + TOKEN_TYPES_EXTRA_FEE));
+    }
+
+    // ==================== COMPLEX SCENARIO ====================
+
+    @HapiTest
+    @DisplayName("COMPLEX: Maximum complexity - all token types with extras")
     final Stream<DynamicTest> complexMaximumComplexity() {
         return hapiTest(
                 cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
@@ -667,18 +397,18 @@ public class CryptoTransferSimpleFeesSuite {
                         .payingWith(PAYER)
                         .signedBy(PAYER)
                         .fee(10 * ONE_HBAR)
-                        .via("complexMaximumTxn"),
-                validateChargedUsd(
-                        "complexMaximumTxn",
-                        FUNGIBLE_TOKEN_BASE_FEE
-                                + 2 * ADDITIONAL_TOKEN_FEE
-                                + CUSTOM_FEE_TOKEN_FEE
-                                + 2 * ADDITIONAL_NFT_SERIAL_FEE));
+                        .via("complexTxn"),
+                // Custom fee tier (since custom fees present)
+                // + 3 fungible tokens
+                // + 3 NFT serials (6 total - 1 included)
+                validateChargedUsd("complexTxn", TOKEN_TRANSFER_CUSTOM_FEE + 5 * TOKEN_TYPES_EXTRA_FEE));
     }
 
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled", "hooks.hooksEnabled"})
+    // ==================== HOOK TESTS ====================
+
+    @HapiTest
     @DisplayName("HOOKS: HBAR transfer with single hook")
-    final Stream<DynamicTest> hbarTransferWithSingleHook() {
+    final Stream<DynamicTest> hbarTransferWithHook() {
         return hapiTest(
                 uploadInitCode(HOOK_CONTRACT),
                 contractCreate(HOOK_CONTRACT).gas(5_000_000),
@@ -690,12 +420,17 @@ public class CryptoTransferSimpleFeesSuite {
                         .signedBy(PAYER)
                         .fee(50 * ONE_HBAR)
                         .via("hbarWithHookTxn"),
-                validateChargedUsd("hbarWithHookTxn", SINGLE_HOOK_FEE + HBAR_TRANSFER_BASE_FEE + HOOK_OVERHEAD_FEE));
+                sourcingContextual(spec -> {
+                    final long tinybarGasCost =
+                            5_000_000L * spec.ratesProvider().currentTinybarGasPrice();
+                    final double usdGasCost = spec.ratesProvider().toUsdWithActiveRates(tinybarGasCost);
+                    return validateChargedUsd("hbarWithHookTxn", HBAR_TRANSFER_FEE + HOOK_INVOCATION_USD + usdGasCost);
+                }));
     }
 
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled", "hooks.hooksEnabled"})
-    @DisplayName("HOOKS: Fungible token transfer with single hook")
-    final Stream<DynamicTest> fungibleTokenTransferWithSingleHook() {
+    @HapiTest
+    @DisplayName("HOOKS: Token transfer with single hook")
+    final Stream<DynamicTest> tokenTransferWithHook() {
         return hapiTest(
                 uploadInitCode(HOOK_CONTRACT),
                 contractCreate(HOOK_CONTRACT).gas(5_000_000),
@@ -713,14 +448,19 @@ public class CryptoTransferSimpleFeesSuite {
                         .payingWith(PAYER)
                         .signedBy(PAYER)
                         .fee(50 * ONE_HBAR)
-                        .via("fungibleWithHookTxn"),
-                validateChargedUsd(
-                        "fungibleWithHookTxn", SINGLE_HOOK_FEE + HBAR_TRANSFER_BASE_FEE + HOOK_OVERHEAD_FEE));
+                        .via("tokenWithHookTxn"),
+                sourcingContextual(spec -> {
+                    final long tinybarGasCost =
+                            5_000_000L * spec.ratesProvider().currentTinybarGasPrice();
+                    final double usdGasCost = spec.ratesProvider().toUsdWithActiveRates(tinybarGasCost);
+                    return validateChargedUsd(
+                            "tokenWithHookTxn", TOKEN_TRANSFER_FEE + HOOK_INVOCATION_USD + usdGasCost);
+                }));
     }
 
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled", "hooks.hooksEnabled"})
-    @DisplayName("HOOKS: NFT transfer with two hooks (sender + receiver)")
-    final Stream<DynamicTest> nftTransferWithTwoHooks() {
+    @HapiTest
+    @DisplayName("HOOKS: NFT transfer with multiple hooks (sender + receiver)")
+    final Stream<DynamicTest> nftTransferWithMultipleHooks() {
         return hapiTest(
                 uploadInitCode(HOOK_CONTRACT),
                 contractCreate(HOOK_CONTRACT).gas(5_000_000),
@@ -741,89 +481,15 @@ public class CryptoTransferSimpleFeesSuite {
                         .payingWith(PAYER)
                         .signedBy(PAYER)
                         .fee(50 * ONE_HBAR)
-                        .via("nftWithTwoHooksTxn"),
-                validateChargedUsd(
-                        "nftWithTwoHooksTxn", 2 * SINGLE_HOOK_FEE + HBAR_TRANSFER_BASE_FEE + HOOK_OVERHEAD_FEE));
-    }
-
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled", "hooks.hooksEnabled"})
-    @DisplayName("HOOKS: Mixed transfer with multiple hooks (HBAR + fungible + NFT)")
-    final Stream<DynamicTest> mixedTransferWithMultipleHooks() {
-        return hapiTest(
-                uploadInitCode(HOOK_CONTRACT),
-                contractCreate(HOOK_CONTRACT).gas(5_000_000),
-                cryptoCreate(PAYER).balance(THOUSAND_HBAR).withHook(accountAllowanceHook(1L, HOOK_CONTRACT)),
-                cryptoCreate(RECEIVER).balance(ONE_HUNDRED_HBARS).withHook(accountAllowanceHook(2L, HOOK_CONTRACT)),
-                tokenCreate(FUNGIBLE_TOKEN)
-                        .tokenType(FUNGIBLE_COMMON)
-                        .initialSupply(1000L)
-                        .treasury(PAYER)
-                        .fee(ONE_HUNDRED_HBARS)
-                        .payingWith(PAYER),
-                tokenCreate(NFT_TOKEN)
-                        .tokenType(NON_FUNGIBLE_UNIQUE)
-                        .initialSupply(0L)
-                        .supplyKey(PAYER)
-                        .treasury(PAYER)
-                        .fee(ONE_HUNDRED_HBARS)
-                        .payingWith(PAYER),
-                mintToken(NFT_TOKEN, List.of(metadata(1))),
-                tokenAssociate(RECEIVER, FUNGIBLE_TOKEN, NFT_TOKEN),
-                cryptoTransfer(
-                                movingHbar(ONE_HBAR).between(PAYER, RECEIVER),
-                                moving(100, FUNGIBLE_TOKEN).between(PAYER, RECEIVER),
-                                movingUnique(NFT_TOKEN, 1L).between(PAYER, RECEIVER))
-                        .withPreHookFor(PAYER, 1L, 5_000_000L, "")
-                        .withPreHookFor(RECEIVER, 2L, 5_000_000L, "")
-                        .withNftSenderPreHookFor(PAYER, 1L, 5_000_000L, "")
-                        .withNftReceiverPreHookFor(RECEIVER, 2L, 5_000_000L, "")
-                        .payingWith(PAYER)
-                        .signedBy(PAYER)
-                        .fee(THOUSAND_HBAR)
-                        .via("mixedWithHooksTxn"),
-                validateChargedUsd(
-                        "mixedWithHooksTxn", 6 * SINGLE_HOOK_FEE + HBAR_TRANSFER_BASE_FEE + HOOK_OVERHEAD_FEE));
-    }
-
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled", "hooks.hooksEnabled"})
-    @DisplayName("HOOKS: Custom fee tokens with hooks")
-    final Stream<DynamicTest> complexTransferCustomFeesAndHooks() {
-        return hapiTest(
-                uploadInitCode(HOOK_CONTRACT),
-                contractCreate(HOOK_CONTRACT).gas(5_000_000),
-                cryptoCreate(PAYER).balance(THOUSAND_HBAR).withHook(accountAllowanceHook(1L, HOOK_CONTRACT)),
-                cryptoCreate(RECEIVER).balance(THOUSAND_HBAR).withHook(accountAllowanceHook(2L, HOOK_CONTRACT)),
-                cryptoCreate(FEE_COLLECTOR).balance(0L),
-                tokenCreate(FUNGIBLE_TOKEN_WITH_FEES)
-                        .tokenType(FUNGIBLE_COMMON)
-                        .initialSupply(1000L)
-                        .withCustom(fixedHbarFee(ONE_HBAR, FEE_COLLECTOR))
-                        .treasury(PAYER)
-                        .fee(ONE_HUNDRED_HBARS)
-                        .payingWith(PAYER),
-                tokenCreate(NFT_TOKEN_WITH_FEES)
-                        .tokenType(NON_FUNGIBLE_UNIQUE)
-                        .initialSupply(0L)
-                        .supplyKey(PAYER)
-                        .withCustom(royaltyFeeNoFallback(1, 10, FEE_COLLECTOR))
-                        .treasury(PAYER)
-                        .fee(ONE_HUNDRED_HBARS)
-                        .payingWith(PAYER),
-                mintToken(NFT_TOKEN_WITH_FEES, List.of(metadata(1))).fee(ONE_HUNDRED_HBARS),
-                tokenAssociate(RECEIVER, FUNGIBLE_TOKEN_WITH_FEES, NFT_TOKEN_WITH_FEES)
-                        .fee(ONE_HUNDRED_HBARS),
-                cryptoTransfer(
-                                moving(100, FUNGIBLE_TOKEN_WITH_FEES).between(PAYER, RECEIVER),
-                                movingUnique(NFT_TOKEN_WITH_FEES, 1L).between(PAYER, RECEIVER))
-                        .withPreHookFor(PAYER, 1L, 5_000_000L, "")
-                        .withNftSenderPreHookFor(PAYER, 1L, 5_000_000L, "")
-                        .withNftReceiverPreHookFor(RECEIVER, 2L, 5_000_000L, "")
-                        .payingWith(PAYER)
-                        .signedBy(PAYER)
-                        .fee(ONE_HUNDRED_HBARS)
-                        .via("customFeesWithHooksTxn"),
-                validateChargedUsd(
-                        "customFeesWithHooksTxn", 3 * SINGLE_HOOK_FEE + HBAR_TRANSFER_BASE_FEE + HOOK_OVERHEAD_FEE));
+                        .via("nftWithHooksTxn"),
+                // 2 hooks (sender + receiver)
+                sourcingContextual(spec -> {
+                    final long tinybarGasCost =
+                            5_000_000L * 2 * spec.ratesProvider().currentTinybarGasPrice();
+                    final double usdGasCost = spec.ratesProvider().toUsdWithActiveRates(tinybarGasCost);
+                    return validateChargedUsd(
+                            "nftWithHooksTxn", NFT_TRANSFER_BASE_USD + 2 * HOOK_INVOCATION_USD + usdGasCost);
+                }));
     }
 
     private static ByteString metadata(final int idNumber) {

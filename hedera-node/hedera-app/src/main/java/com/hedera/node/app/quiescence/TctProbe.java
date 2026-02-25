@@ -2,6 +2,7 @@
 package com.hedera.node.app.quiescence;
 
 import static com.hedera.hapi.util.HapiUtils.asInstant;
+import static com.hedera.node.app.blocks.BlockStreamService.GENESIS_BLOCK_STREAM_INFO;
 import static com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema.BLOCK_STREAM_INFO_STATE_ID;
 import static com.hedera.node.app.records.BlockRecordService.EPOCH;
 import static com.hedera.node.app.service.token.api.StakingRewardsApi.epochSecondAtStartOfPeriod;
@@ -110,18 +111,27 @@ public class TctProbe {
 
     /**
      * Gets the block stream info from the given state.
+     *
      * @param state the state
+     * @param inGenesisBlock true if the state is still in the genesis block
      * @return the block stream info
      */
-    public static @NonNull BlockStreamInfo blockStreamInfoFrom(@NonNull final State state) {
+    public static @NonNull BlockStreamInfo blockStreamInfoFrom(@NonNull final State state, boolean inGenesisBlock) {
         final var blockStreamInfoState = state.getReadableStates(BlockStreamService.NAME)
                 .<BlockStreamInfo>getSingleton(BLOCK_STREAM_INFO_STATE_ID);
-        return requireNonNull(blockStreamInfoState.get());
+        final var blockStreamInfo = blockStreamInfoState.get();
+        if (blockStreamInfo == null && inGenesisBlock) {
+            return GENESIS_BLOCK_STREAM_INFO;
+        } else {
+            return requireNonNull(blockStreamInfo);
+        }
     }
 
     private @NonNull Instant lastHandledConsensusTime() {
         if (lastHandledConsensusTime == null) {
-            lastHandledConsensusTime = asInstant(blockStreamInfoFrom(state).lastHandleTimeOrElse(EPOCH));
+            // Always use permissive genesis block strategy when probing for TCT in quiescence
+            lastHandledConsensusTime =
+                    asInstant(blockStreamInfoFrom(state, true).lastHandleTimeOrElse(EPOCH));
         }
         return lastHandledConsensusTime;
     }

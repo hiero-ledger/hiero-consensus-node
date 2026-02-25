@@ -21,10 +21,10 @@ import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.util.UnknownHederaFunctionality;
-import com.hedera.node.app.fees.ChildFeeContextImpl;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.fees.FeeAccumulator;
 import com.hedera.node.app.fees.FeeManager;
+import com.hedera.node.app.fees.context.ChildFeeContext;
 import com.hedera.node.app.service.entityid.EntityNumGenerator;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.signature.AppKeyVerifier;
@@ -37,10 +37,12 @@ import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.fees.ResourcePriceCalculator;
+import com.hedera.node.app.spi.fees.SimpleFeeCalculator;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.key.KeyVerifier;
 import com.hedera.node.app.spi.records.BlockRecordInfo;
+import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.throttle.ThrottleAdviser;
 import com.hedera.node.app.spi.validation.AttributeValidator;
@@ -259,6 +261,15 @@ public class DispatchHandleContext implements HandleContext, FeeContext, FeeChar
     }
 
     @Override
+    public int numTxnBytes() {
+        // serialized signed transaction is null for system transaction dispatches
+        return (int)
+                (txnInfo.serializedSignedTx() != null
+                        ? txnInfo.serializedSignedTx().length()
+                        : 0);
+    }
+
+    @Override
     public Fees dispatchComputeFees(
             @NonNull final TransactionBody childTxBody, @NonNull final AccountID syntheticPayerId) {
         requireNonNull(childTxBody);
@@ -274,6 +285,11 @@ public class DispatchHandleContext implements HandleContext, FeeContext, FeeChar
     @Override
     public long getGasPriceInTinycents() {
         return feeManager.getGasPriceInTinyCents(consensusNow);
+    }
+
+    @Override
+    public HederaFunctionality functionality() {
+        return topLevelFunction;
     }
 
     @NonNull
@@ -300,6 +316,11 @@ public class DispatchHandleContext implements HandleContext, FeeContext, FeeChar
                 subType,
                 false,
                 storeFactory.asReadOnly());
+    }
+
+    @Override
+    public SimpleFeeCalculator getSimpleFeeCalculator() {
+        return feeManager.getSimpleFeeCalculator();
     }
 
     @NonNull
@@ -368,6 +389,12 @@ public class DispatchHandleContext implements HandleContext, FeeContext, FeeChar
 
     @NonNull
     @Override
+    public ReadableStoreFactory readableStoreFactory() {
+        return storeFactory.asReadOnly();
+    }
+
+    @NonNull
+    @Override
     public <T> T readableStore(@NonNull final Class<T> storeInterface) {
         requireNonNull(storeInterface, "storeInterface must not be null");
         return storeFactory.readableStore(storeInterface);
@@ -391,16 +418,18 @@ public class DispatchHandleContext implements HandleContext, FeeContext, FeeChar
             @NonNull final AccountID syntheticPayerId,
             @NonNull final ComputeDispatchFeesAsTopLevel computeDispatchFeesAsTopLevel) {
         final var bodyToDispatch = ensureTxnId(txBody);
+        var function = HederaFunctionality.NONE;
         try {
+            function = functionOf(txBody);
             // If the payer is authorized to waive fees, then we can skip the fee calculation.
-            if (authorizer.hasWaivedFees(syntheticPayerId, functionOf(txBody), bodyToDispatch)) {
+            if (authorizer.hasWaivedFees(syntheticPayerId, function, bodyToDispatch)) {
                 return Fees.FREE;
             }
         } catch (UnknownHederaFunctionality ex) {
             throw new HandleException(ResponseCodeEnum.INVALID_TRANSACTION_BODY);
         }
         final var signatureMapSize = SignatureMap.PROTOBUF.measureRecord(txnInfo.signatureMap());
-        return dispatcher.dispatchComputeFees(new ChildFeeContextImpl(
+        return dispatcher.dispatchComputeFees(new ChildFeeContext(
                 feeManager,
                 this,
                 bodyToDispatch,
@@ -410,7 +439,8 @@ public class DispatchHandleContext implements HandleContext, FeeContext, FeeChar
                 storeFactory.asReadOnly(),
                 consensusNow,
                 shouldChargeForSigVerification(txBody) ? verifier : null,
-                shouldChargeForSigVerification(txBody) ? signatureMapSize : 0));
+                shouldChargeForSigVerification(txBody) ? signatureMapSize : 0,
+                function));
     }
 
     private boolean shouldChargeForSigVerification(@NonNull final TransactionBody txBody) {
@@ -559,5 +589,10 @@ public class DispatchHandleContext implements HandleContext, FeeContext, FeeChar
         // CHILD category to stay backward compatible with the calls made to FeeAccumulator
         // when it was invoked directly
         return CHILD;
+    }
+
+    @Override
+    public int getHighVolumeThrottleUtilization(@NonNull HederaFunctionality functionality) {
+        return throttleAdviser.highVolumeThrottleUtilization(functionality);
     }
 }

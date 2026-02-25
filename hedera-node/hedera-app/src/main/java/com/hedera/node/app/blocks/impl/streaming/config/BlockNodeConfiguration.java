@@ -26,9 +26,13 @@ public class BlockNodeConfiguration {
      */
     private final String address;
     /**
-     * Port to use when connecting to the block node.
+     * Port to use when connecting to the block node for streaming blocks.
      */
-    private final int port;
+    private final int streamingPort;
+    /**
+     * Port to use when connecting to the block node for accessing the service API.
+     */
+    private final int servicePort;
     /**
      * Priority of the block node.
      */
@@ -55,7 +59,9 @@ public class BlockNodeConfiguration {
         address = requireNonNull(builder.address, "Address must be specified");
         clientHttpConfig = requireNonNull(builder.clientHttpConfig, "Client HTTP config must be specified");
         clientGrpcConfig = requireNonNull(builder.clientGrpcConfig, "Client gRPC config must be specified");
-        port = builder.port;
+        streamingPort = builder.streamingPort;
+        // default the service port to the streaming port
+        servicePort = builder.servicePort == -1 ? builder.streamingPort : builder.servicePort;
         priority = builder.priority;
         messageSizeSoftLimitBytes = builder.messageSizeSoftLimitBytes;
         messageSizeHardLimitBytes = builder.messageSizeHardLimitBytes;
@@ -63,8 +69,11 @@ public class BlockNodeConfiguration {
         if (address.isBlank()) {
             throw new IllegalArgumentException("Address must not be empty");
         }
-        if (port < 1) {
-            throw new IllegalArgumentException("Port must be greater than or equal to 1");
+        if (streamingPort < 1) {
+            throw new IllegalArgumentException("Streaming port must be greater than or equal to 1");
+        }
+        if (servicePort < 1) {
+            throw new IllegalArgumentException("Service port must be greater than or equal to 1");
         }
         if (priority < 0) {
             throw new IllegalArgumentException("Priority must be greater than or equal to 0");
@@ -82,8 +91,12 @@ public class BlockNodeConfiguration {
         return address;
     }
 
-    public int port() {
-        return port;
+    public int streamingPort() {
+        return streamingPort;
+    }
+
+    public int servicePort() {
+        return servicePort;
     }
 
     public int priority() {
@@ -112,7 +125,8 @@ public class BlockNodeConfiguration {
             return false;
         }
         final BlockNodeConfiguration that = (BlockNodeConfiguration) o;
-        return port == that.port
+        return streamingPort == that.streamingPort
+                && servicePort == that.servicePort
                 && priority == that.priority
                 && messageSizeSoftLimitBytes == that.messageSizeSoftLimitBytes
                 && messageSizeHardLimitBytes == that.messageSizeHardLimitBytes
@@ -125,12 +139,26 @@ public class BlockNodeConfiguration {
     public int hashCode() {
         return Objects.hash(
                 address,
-                port,
+                streamingPort,
+                servicePort,
                 priority,
                 messageSizeSoftLimitBytes,
                 messageSizeHardLimitBytes,
                 clientHttpConfig,
                 clientGrpcConfig);
+    }
+
+    @Override
+    public String toString() {
+        return "BlockNodeConfiguration{" + "address="
+                + (address == null ? null : "'" + address + "'") + ", streamingPort="
+                + streamingPort + ", servicePort="
+                + servicePort + ", priority="
+                + priority + ", messageSizeSoftLimitBytes="
+                + messageSizeSoftLimitBytes + ", messageSizeHardLimitBytes="
+                + messageSizeHardLimitBytes + ", clientHttpConfig="
+                + clientHttpConfig + ", clientGrpcConfig="
+                + clientGrpcConfig + '}';
     }
 
     public static @NonNull BlockNodeConfiguration from(@NonNull final BlockNodeConfig config) {
@@ -139,7 +167,8 @@ public class BlockNodeConfiguration {
         final Builder b = newBuilder();
 
         b.address(config.address());
-        b.port(config.port());
+        b.streamingPort(config.streamingPort());
+        b.servicePort(config.servicePort());
         b.priority(config.priority());
         b.messageSizeSoftLimitBytes(config.messageSizeSoftLimitBytesOrElse(DEFAULT_MESSAGE_SOFT_LIMIT_BYTES));
         b.messageSizeHardLimitBytes(config.messageSizeHardLimitBytesOrElse(DEFAULT_MESSAGE_HARD_LIMIT_BYTES));
@@ -155,7 +184,8 @@ public class BlockNodeConfiguration {
 
     public static class Builder {
         private String address;
-        private int port;
+        private int streamingPort;
+        private int servicePort = -1;
         private int priority;
         private long messageSizeSoftLimitBytes;
         private long messageSizeHardLimitBytes;
@@ -171,8 +201,13 @@ public class BlockNodeConfiguration {
             return this;
         }
 
-        public @NonNull Builder port(final int port) {
-            this.port = port;
+        public @NonNull Builder streamingPort(final int streamingPort) {
+            this.streamingPort = streamingPort;
+            return this;
+        }
+
+        public @NonNull Builder servicePort(final int servicePort) {
+            this.servicePort = servicePort;
             return this;
         }
 

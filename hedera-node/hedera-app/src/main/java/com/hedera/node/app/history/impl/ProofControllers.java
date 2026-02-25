@@ -101,21 +101,22 @@ public class ProofControllers {
      * Returns the in-progress controller for the proof construction with the given ID, if it exists.
      *
      * @param constructionId the ID of the proof construction
+     * @param tssConfig the TSS configuration
      * @return the controller, if it exists
      */
-    public Optional<ProofController> getInProgressById(final long constructionId) {
+    public Optional<ProofController> getInProgressById(final long constructionId, @NonNull final TssConfig tssConfig) {
         return currentConstructionId() == constructionId
-                ? Optional.ofNullable(controller).filter(ProofController::isStillInProgress)
+                ? Optional.ofNullable(controller).filter(pc -> pc.isStillInProgress(tssConfig))
                 : Optional.empty();
     }
 
     /**
      * Returns the in-progress controller for the hinTS construction with the given ID, if it exists.
-     *
+     * @param tssConfig the TSS configuration
      * @return the controller, if it exists
      */
-    public Optional<ProofController> getAnyInProgress() {
-        return Optional.ofNullable(controller).filter(ProofController::isStillInProgress);
+    public Optional<ProofController> getAnyInProgress(@NonNull final TssConfig tssConfig) {
+        return Optional.ofNullable(controller).filter(pc -> pc.isStillInProgress(tssConfig));
     }
 
     /**

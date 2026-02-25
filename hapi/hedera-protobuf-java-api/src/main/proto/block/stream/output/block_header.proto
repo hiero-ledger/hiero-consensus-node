@@ -50,7 +50,9 @@ message BlockHeader {
     /**
      * A version of the consensus node software.<br/>
      * This is the software version that executed the transactions
-     * within this block.
+     * within this block. For historical converted record stream blocks this
+     * will be unset which may show as version 0.0.0. That is because no
+     * software was recorded in the record stream at that time.
      */
     proto.SemanticVersion software_version = 2;
 

@@ -21,6 +21,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.EvmHookCall;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.NftTransfer;
 import com.hedera.hapi.node.base.SubType;
@@ -213,11 +214,12 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
 
         final var transactionCategory =
                 context.savepointStack().getBaseBuilder(StreamBuilder.class).category();
-        validator.validateSemantics(op, ledgerConfig, accountsConfig, hooksConfig, transactionCategory);
+        final var payer = context.payer();
+        validator.validateSemantics(op, ledgerConfig, accountsConfig, hooksConfig, transactionCategory, payer);
 
         // create a new transfer context that is specific only for this transaction
-        final var transferContext =
-                new TransferContextImpl(context, enforceMonoServiceRestrictionsOnAutoCreationCustomFeePayments);
+        final var transferContext = new TransferContextImpl(
+                context, enforceMonoServiceRestrictionsOnAutoCreationCustomFeePayments, txn.highVolume());
         final var recordBuilder = context.savepointStack().getBaseBuilder(CryptoTransferStreamBuilder.class);
 
         executeCryptoTransfer(txn, transferContext, context, recordBuilder);
@@ -299,11 +301,14 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
                 .calculate();
         if (hookInfo.numHookInvocations() > 0) {
             final var hooksConfig = config.getConfigData(HooksConfig.class);
-            // Avoid overflow in by clamping effective limit (out-of-bound txs will be failed or throttled anyway)
+            // Avoid overflow in by clamping effective limit. Since we validate each hook dispatch can't
+            // exceed maxGasPerSec downstream, we need to allow to charge upto maxGasPerSec * numHookInvocations
             final long effectiveGasLimit = Math.max(
                     0,
                     Math.min(
-                            config.getConfigData(ContractsConfig.class).maxGasPerSec(),
+                            hookInfo.numHookInvocations()
+                                    * config.getConfigData(ContractsConfig.class)
+                                            .maxGasPerSec(),
                             hookInfo.totalGasLimitOfHooks()));
 
             final var gasFees = clampedMultiply(effectiveGasLimit, feeContext.getGasPriceInTinycents());
@@ -320,6 +325,8 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
      * HBAR account transfers (pre-tx and pre+post), Fungible token account transfers (pre-tx and pre+post),
      * NFT transfers for sender and receiver (pre-tx and pre+post)
      * Each increment uses {@code clampedAdd} to avoid overflow.
+     * @param op the crypto transfer operation
+     * @return HookInfo containing the total number of hooks and total gas limit
      */
     public static HookInfo getHookInfo(final CryptoTransferTransactionBody op) {
         var hookInfo = HookInfo.NO_HOOKS;
@@ -350,12 +357,16 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
         int numHooks = 0;
         if (hasPreTxHook) {
             gas = clampedAdd(
-                    gas, aa.preTxAllowanceHookOrThrow().evmHookCallOrThrow().gasLimit());
+                    gas,
+                    aa.preTxAllowanceHookOrThrow()
+                            .evmHookCallOrElse(EvmHookCall.DEFAULT)
+                            .gasLimit());
             numHooks++;
         }
         if (hasPrePostTxHook) {
-            final long gasPerCall =
-                    aa.prePostTxAllowanceHookOrThrow().evmHookCallOrThrow().gasLimit();
+            final long gasPerCall = aa.prePostTxAllowanceHookOrThrow()
+                    .evmHookCallOrElse(EvmHookCall.DEFAULT)
+                    .gasLimit();
             gas = clampedAdd(clampedAdd(gas, gasPerCall), gasPerCall);
             numHooks += 2;
         }
@@ -378,12 +389,14 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
         if (hasSenderPre) {
             gas = clampedAdd(
                     gas,
-                    nft.preTxSenderAllowanceHookOrThrow().evmHookCallOrThrow().gasLimit());
+                    nft.preTxSenderAllowanceHookOrThrow()
+                            .evmHookCallOrElse(EvmHookCall.DEFAULT)
+                            .gasLimit());
             numHooks++;
         }
         if (hasSenderPrePost) {
             final long gasPerCall = nft.prePostTxSenderAllowanceHookOrThrow()
-                    .evmHookCallOrThrow()
+                    .evmHookCallOrElse(EvmHookCall.DEFAULT)
                     .gasLimit();
             gas = clampedAdd(clampedAdd(gas, gasPerCall), gasPerCall);
             numHooks += 2;
@@ -391,12 +404,14 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
         if (hasReceiverPre) {
             gas = clampedAdd(
                     gas,
-                    nft.preTxReceiverAllowanceHookOrThrow().evmHookCallOrThrow().gasLimit());
+                    nft.preTxReceiverAllowanceHookOrThrow()
+                            .evmHookCallOrElse(EvmHookCall.DEFAULT)
+                            .gasLimit());
             numHooks++;
         }
         if (hasReceiverPrePost) {
             final long gasPerCall = nft.prePostTxReceiverAllowanceHookOrThrow()
-                    .evmHookCallOrThrow()
+                    .evmHookCallOrElse(EvmHookCall.DEFAULT)
                     .gasLimit();
             gas = clampedAdd(clampedAdd(gas, gasPerCall), gasPerCall);
             numHooks += 2;

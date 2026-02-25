@@ -11,7 +11,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.freezeOnly;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.noOp;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingTwo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForFrozenNetwork;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
@@ -29,10 +29,9 @@ import com.hedera.services.bdd.junit.support.validators.BlockNoValidator;
 import com.hedera.services.bdd.junit.support.validators.ExpiryRecordsValidator;
 import com.hedera.services.bdd.junit.support.validators.TokenReconciliationValidator;
 import com.hedera.services.bdd.junit.support.validators.TransactionBodyValidator;
+import com.hedera.services.bdd.junit.support.validators.WrappedRecordHashesByRecordFilesValidator;
 import com.hedera.services.bdd.junit.support.validators.block.BlockContentsValidator;
 import com.hedera.services.bdd.junit.support.validators.block.BlockNumberSequenceValidator;
-import com.hedera.services.bdd.junit.support.validators.block.EventHashBlockStreamValidator;
-import com.hedera.services.bdd.junit.support.validators.block.RedactingEventHashBlockStreamValidator;
 import com.hedera.services.bdd.junit.support.validators.block.StateChangesValidator;
 import com.hedera.services.bdd.junit.support.validators.block.TransactionRecordParityValidator;
 import com.hedera.services.bdd.spec.HapiSpec;
@@ -68,14 +67,18 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
     private static final Duration STREAM_FILE_WAIT = Duration.ofSeconds(2);
 
     private final List<RecordStreamValidator> recordStreamValidators;
+    private final WrappedRecordHashesByRecordFilesValidator wrappedRecordHashesValidator =
+            new WrappedRecordHashesByRecordFilesValidator();
 
     private static final List<BlockStreamValidator.Factory> BLOCK_STREAM_VALIDATOR_FACTORIES = List.of(
             TransactionRecordParityValidator.FACTORY,
             StateChangesValidator.FACTORY,
             BlockContentsValidator.FACTORY,
-            BlockNumberSequenceValidator.FACTORY,
-            EventHashBlockStreamValidator.FACTORY,
-            RedactingEventHashBlockStreamValidator.FACTORY);
+            BlockNumberSequenceValidator.FACTORY
+            // (FUTURE) Disabled until PCES events are integrated as the source of truth. See GH issue #22769.
+            //            EventHashBlockStreamValidator.FACTORY,
+            //            RedactingEventHashBlockStreamValidator.FACTORY
+            );
 
     private final int historyProofsToWaitFor;
 
@@ -100,7 +103,7 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
         allRunFor(
                 spec,
                 // Ensure only top-level txs could change balances before validations
-                overriding("nodes.nodeRewardsEnabled", "false"),
+                overridingTwo("nodes.nodeRewardsEnabled", "false", "nodes.feeCollectionAccountEnabled", "false"),
                 // Ensure the CryptoTransfer below will be in a new block period
                 sleepFor(MAX_BLOCK_TIME_MS + BUFFER_MS),
                 cryptoTransfer((ignore, b) -> {}).payingWith(GENESIS),
@@ -123,6 +126,7 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                             dataRef.set(data);
                         },
                         () -> Assertions.fail("No record stream data found"));
+
         // If there are no block streams to validate, we are done
         if (spec.startupProperties().getStreamMode("blockStream.streamMode") == RECORDS) {
             return false;
@@ -171,6 +175,17 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                         },
                         () -> Assertions.fail("No block streams found"));
         validateProofs(spec);
+
+        // CI-focused cross-node validation of wrapped record hashes for nodes with identical record stream files
+        final var maybeWrappedHashesErrors = wrappedRecordHashesValidator
+                .validationErrorsIn(spec)
+                .peek(t -> log.error("Wrapped record hashes validation error!", t))
+                .map(Throwable::getMessage)
+                .collect(joining(ERROR_PREFIX));
+        if (!maybeWrappedHashesErrors.isBlank()) {
+            throw new AssertionError(
+                    "Wrapped record hashes validation failed:" + ERROR_PREFIX + maybeWrappedHashesErrors);
+        }
 
         return false;
     }

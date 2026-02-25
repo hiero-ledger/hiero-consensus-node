@@ -5,6 +5,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
 import com.hedera.node.config.ConfigProvider;
+import com.hedera.pbj.runtime.grpc.GrpcException;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.EnumMap;
@@ -18,7 +19,7 @@ import org.apache.logging.log4j.Logger;
 /**
  * Base implementation for a connection to a block node.
  */
-public abstract class AbstractBlockNodeConnection {
+public abstract class AbstractBlockNodeConnection implements AutoCloseable {
 
     private static final Logger logger = LogManager.getLogger(AbstractBlockNodeConnection.class);
 
@@ -26,11 +27,11 @@ public abstract class AbstractBlockNodeConnection {
         /**
          * Denotes a connection that intends to stream block data to a block node.
          */
-        BLOCK_STREAMING("B"), // 'B' for block
+        BLOCK_STREAMING("STR"), // block STReaming
         /**
          * Denotes a connection that intends to query server information from a block node.
          */
-        SERVER_STATUS("S"); // 'S' for status
+        SERVER_STATUS("SVC"); // block node SerViCe
 
         private final String key;
 
@@ -66,6 +67,10 @@ public abstract class AbstractBlockNodeConnection {
      * The current state of this connection.
      */
     private final AtomicReference<ConnectionState> stateRef;
+    /**
+     * The type of connection this instance represents.
+     */
+    private final ConnectionType type;
 
     /**
      * Initialize this connection.
@@ -80,10 +85,10 @@ public abstract class AbstractBlockNodeConnection {
             @NonNull final ConfigProvider configProvider) {
         this.configuration = requireNonNull(configuration, "configuration is required");
         this.configProvider = requireNonNull(configProvider, "configProvider is required");
-        requireNonNull(type, "type is required");
+        this.type = requireNonNull(type, "type is required");
 
         connectionId =
-                String.format("%s:%05d", type.key, connIdCtrByType.get(type).incrementAndGet());
+                String.format("%s.%06d", type.key, connIdCtrByType.get(type).incrementAndGet());
         stateRef = new AtomicReference<>(ConnectionState.UNINITIALIZED);
     }
 
@@ -118,7 +123,7 @@ public abstract class AbstractBlockNodeConnection {
 
         if (!latestState.canTransitionTo(newState)) {
             logger.warn(
-                    "{} Attempted to downgrade state from {} to {}, but this is not allowed; ignoring update",
+                    "{} Attempted to downgrade state from {} to {}, but this is not allowed",
                     this,
                     latestState,
                     newState);
@@ -185,7 +190,7 @@ public abstract class AbstractBlockNodeConnection {
      * Closes this connection. The connection should transition to a CLOSING state upon entering this method and then
      * at the conclusion of this method (either successful or failed) the state should transition to CLOSED.
      */
-    abstract void close();
+    public abstract void close();
 
     /**
      * @return the configuration provider used by this connection
@@ -208,14 +213,39 @@ public abstract class AbstractBlockNodeConnection {
         return configuration;
     }
 
-    @Override
-    public final String toString() {
-        return "[" + connectionId + "/" + configuration.address() + ":" + configuration.port() + "/" + stateRef.get()
-                + "]";
+    /**
+     * Given a throwable, determine if the throwable or one of its causes is a {@link GrpcException}.
+     *
+     * @param t the throwable to search
+     * @return the {@link GrpcException} associated with this throwable, or null if one is not found
+     */
+    protected GrpcException findGrpcException(final Throwable t) {
+        Throwable th = t;
+
+        while (th != null) {
+            if (th instanceof final GrpcException grpcException) {
+                return grpcException;
+            }
+
+            th = th.getCause();
+        }
+
+        return null;
     }
 
     @Override
-    public boolean equals(final Object o) {
+    public final String toString() {
+        final int port =
+                switch (type) {
+                    case BLOCK_STREAMING -> configuration.streamingPort();
+                    case SERVER_STATUS -> configuration.servicePort();
+                };
+
+        return "[" + connectionId + "/" + configuration.address() + ":" + port + "/" + stateRef.get() + "]";
+    }
+
+    @Override
+    public final boolean equals(final Object o) {
         if (o == null || getClass() != o.getClass()) {
             return false;
         }
@@ -224,7 +254,7 @@ public abstract class AbstractBlockNodeConnection {
     }
 
     @Override
-    public int hashCode() {
+    public final int hashCode() {
         return Objects.hash(configuration, connectionId);
     }
 }

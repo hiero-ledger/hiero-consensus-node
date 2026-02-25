@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.crypto;
 
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.customizedHapiTest;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountDetailsAsserts.accountDetailsWith;
@@ -139,6 +138,7 @@ public class TransferWithCustomFixedFees {
                 cryptoTransfer(moving(1, fungibleToken).between(tokenOwner, tokenReceiver))
                         .payingWith(tokenOwner)
                         .fee(ONE_HUNDRED_HBARS)
+                        .signedBy(tokenOwner)
                         .hasKnownStatus(INSUFFICIENT_SENDER_ACCOUNT_BALANCE_FOR_CUSTOM_FEE),
                 getAccountBalance(tokenOwner).hasTokenBalance(fungibleToken, tokenTotal),
                 getAccountBalance(tokenReceiver).hasTokenBalance(fungibleToken, 0),
@@ -432,7 +432,6 @@ public class TransferWithCustomFixedFees {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> transferApprovedFungibleWithFixedHtsCustomFeeAsOwner() {
         return hapiTest(
                 cryptoCreate(htsCollector),
@@ -668,7 +667,6 @@ public class TransferWithCustomFixedFees {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> transferApprovedNonFungibleWithFixedHtsCustomFeeAsSpender() {
         return hapiTest(
                 newKeyNamed(NFT_KEY),
@@ -820,7 +818,6 @@ public class TransferWithCustomFixedFees {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> transferFungibleWithFixedHtsCustomFees2Layers() {
         return hapiTest(
                 cryptoCreate(htsCollector),
@@ -1300,7 +1297,7 @@ public class TransferWithCustomFixedFees {
 
     @HapiTest
     final Stream<DynamicTest> transferFungibleWithFixedHbarCustomFeeSenderHasOnlyGasAmount() {
-        final var gasAmount = 1669096L;
+        final var gasAmount = 1769096L;
         return customizedHapiTest(
                 Map.of("memo.useSpecName", "false"),
                 cryptoCreate(hbarCollector).balance(0L),
@@ -1318,6 +1315,7 @@ public class TransferWithCustomFixedFees {
                 cryptoTransfer(moving(1, fungibleToken).between(tokenOwner, tokenReceiver))
                         .fee(ONE_HUNDRED_HBARS)
                         .payingWith(tokenOwner)
+                        .signedBy(tokenOwner)
                         .hasKnownStatus(INSUFFICIENT_SENDER_ACCOUNT_BALANCE_FOR_CUSTOM_FEE));
     }
 
@@ -1356,7 +1354,7 @@ public class TransferWithCustomFixedFees {
 
     @HapiTest
     final Stream<DynamicTest> transferFungibleWithFixedHtsCustomFeeNotEnoughForGasAndFee() {
-        final var gasAmount = 1669096L;
+        final var gasAmount = 1769096L;
         return customizedHapiTest(
                 Map.of("memo.useSpecName", "false"),
                 cryptoCreate(hbarCollector).balance(0L),
@@ -1374,11 +1372,11 @@ public class TransferWithCustomFixedFees {
                 cryptoTransfer(moving(1, fungibleToken).between(tokenOwner, tokenReceiver))
                         .fee(ONE_HUNDRED_HBARS)
                         .payingWith(tokenOwner)
+                        .signedBy(tokenOwner)
                         .hasKnownStatus(INSUFFICIENT_SENDER_ACCOUNT_BALANCE_FOR_CUSTOM_FEE));
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> transferWithFractionalCustomFee() {
         return hapiTest(
                 cryptoCreate(htsCollector).balance(ONE_HUNDRED_HBARS),
@@ -1427,6 +1425,7 @@ public class TransferWithCustomFixedFees {
                 cryptoTransfer(moving(1, fungibleToken).between(tokenOwner, tokenReceiver))
                         .fee(ONE_HUNDRED_HBARS)
                         .payingWith(tokenOwner)
+                        .signedBy(tokenOwner)
                         .hasKnownStatus(INSUFFICIENT_SENDER_ACCOUNT_BALANCE_FOR_CUSTOM_FEE));
     }
 

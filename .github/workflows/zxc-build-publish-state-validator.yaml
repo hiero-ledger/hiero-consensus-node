@@ -8,12 +8,22 @@ on:
         description: "Branch, tag, or commit to build"
         required: false
         type: string
+      dry-run-enabled:
+        description: "If true, perform a dry run without publishing"
+        required: false
+        type: boolean
+        default: false
   workflow_call:
     inputs:
       ref:
         description: "Branch, tag, or commit to build"
         required: false
         type: string
+      dry-run-enabled:
+        description: "If true, perform a dry run without publishing"
+        required: false
+        type: string
+        default: "false"
     outputs:
       gcs-uri:
         description: "GCS URI of the published uber JAR"
@@ -30,7 +40,7 @@ defaults:
 jobs:
   build-publish:
     name: Build & Publish State Validator Uber JAR
-    runs-on: hiero-citr-linux-medium
+    runs-on: hl-cn-state-validator-lin
 
     outputs:
       gcs-uri: ${{ steps.upload.outputs.gcs_uri || '' }}
@@ -54,7 +64,7 @@ jobs:
           java-version: "21"
 
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@d156388eb19639ec20ade50009f3d1993974129d # v4.3.0
+        uses: gradle/actions/setup-gradle@4d9f0ba0025fe599b4ebab900eb7f3a1d93ef4c2 # v5.0.0
         with:
           gradle-home-cache-cleanup: true
 
@@ -95,6 +105,7 @@ jobs:
 
       - name: Authenticate to Google Cloud
         id: gcloud-auth
+        if: ${{ inputs.dry-run-enabled != 'true' }}
         uses: step-security/google-github-auth@40f6deebd366f16c782d7a0ad0844e3b96a032a6 # v2.1.10
         with:
           workload_identity_provider: "projects/235822363393/locations/global/workloadIdentityPools/hedera-builds-pool/providers/hedera-builds-gh-actions"
@@ -104,6 +115,7 @@ jobs:
 
       - name: Setup Google Cloud SDK
         id: setup-gcloud
+        if: ${{ inputs.dry-run-enabled != 'true' }}
         uses: google-github-actions/setup-gcloud@77e7a554d41e2ee56fc945c52dfd3f33d12def9a # v2.1.4
         with:
           version: "latest"
@@ -111,6 +123,7 @@ jobs:
 
       - name: Upload to GCS
         id: upload
+        if: ${{ inputs.dry-run-enabled != 'true' }}
         env:
           SRC: ${{ steps.version-and-artifact.outputs.jar_path }}
           DEST_NAME: ${{ steps.version-and-artifact.outputs.dest_name }}
@@ -127,4 +140,9 @@ jobs:
           echo "### Published Hedera State Validator Uber JAR" >> "${GITHUB_STEP_SUMMARY}"
           echo "Version: ${{ steps.version-and-artifact.outputs.full_ver }}" >> "${GITHUB_STEP_SUMMARY}"
           echo "File: ${{ steps.version-and-artifact.outputs.dest_name }}" >> "${GITHUB_STEP_SUMMARY}"
-          echo "GCS URI: ${{ steps.upload.outputs.gcs_uri }}" >> "${GITHUB_STEP_SUMMARY}"
+
+          if [[ "${{ inputs.dry-run-enabled }}" == "true" ]]; then
+            echo "GCS URI: Publication skipped due to dry-run mode." >> "${GITHUB_STEP_SUMMARY}"
+          else
+            echo "GCS URI: ${{ steps.upload.outputs.gcs_uri }}" >> "${GITHUB_STEP_SUMMARY}"
+          fi

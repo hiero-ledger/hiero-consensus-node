@@ -64,9 +64,27 @@ on:
         default: false
         description: "solo-sd*t-n9 (SDPT/SDLT)"
 
+      Dallas_n10:
+        type: boolean
+        required: false
+        default: false
+        description: "mqpt-sd*t-n10 (Merge Queues PT/LT)"
+
+      Dallas_n11:
+        type: boolean
+        required: false
+        default: false
+        description: "mqpt-sd*t-n11 (Merge Queues PT/LT)"
+
+      Dallas_n12:
+        type: boolean
+        required: false
+        default: false
+        description: "mqpt-sd*t-n12 (Merge Queues PT/LT)"
+
 jobs:
   delete-selected-namespaces:
-    runs-on: hiero-citr-linux-small
+    runs-on: hl-cn-default-lin-sm
     env:
       Dallas_n1: ${{ github.event_name == 'schedule' && 'true' || github.event.inputs.Dallas_n1 }}
       Dallas_n2: ${{ github.event_name == 'schedule' && 'true' || github.event.inputs.Dallas_n2 }}
@@ -77,6 +95,9 @@ jobs:
       Chicago_n7: ${{ github.event.inputs.Chicago_n7 }}
       Chicago_n8: ${{ github.event.inputs.Chicago_n8 }}
       Chicago_n9: ${{ github.event.inputs.Chicago_n9 }}
+      Dallas_n10: ${{ github.event_inputs.Dallas_n10 }}
+      Dallas_n11: ${{ github.event_inputs.Dallas_n11 }}
+      Dallas_n12: ${{ github.event_inputs.Dallas_n12 }}
 
     steps:
       - name: Harden the runner (Audit all outbound calls)
@@ -101,6 +122,7 @@ jobs:
         with:
           proxy: hashgraph.teleport.sh:443
           token: gh-citr-performance-svcs-bot
+          certificate-ttl: 24h
 
       - name: Authorize Teleport K8S Access to Dallas Cluster
         id: auth-k8s-dal
@@ -109,16 +131,20 @@ jobs:
           proxy: hashgraph.teleport.sh:443
           token: gh-citr-performance-svcs-bot
           kubernetes-cluster: k8s.pft.dal.lat.ope.eng.hashgraph.io
-          certificate-ttl: 20h
+          certificate-ttl: 24h
+
+      - name: Get all namespaces in Dallas cluster
+        run: sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt get namespaces
 
       - name: Dallas Latitude namespaces
         run: |
           set +e
           set +x
           clusterZone="Dallas"
-          for namespace in `sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt get namespaces | awk '{print $1}' | grep -E 'solo[\-].*[\-]n[1-9]'`
+          for namespace in `sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt get namespaces | awk '{print $1}' | grep -E '(solo|mqpt)-(sdpt|sdlt)-n([1-9]|1[0-2])$'`
           do
-            n="$(echo "${namespace}" | perl -ne 'print "$1\n" if /^solo\-.*d.*t\-n(\d+)$/')"
+            n="$(echo "${namespace}" | perl -ne 'print "$1\n" if /(?:solo|mqpt)-(?:sdpt|sdlt)-n(\d+)$/')"
+            echo "Found {$namespace} with n=${n}"
             env | grep ${clusterZone}_n${n}
             isChecked=$(env | grep ${clusterZone}_n${n} | awk -F= '{print $NF}')
             if [[ "${isChecked}" = "true" ]]
@@ -136,16 +162,20 @@ jobs:
           proxy: hashgraph.teleport.sh:443
           token: gh-citr-performance-svcs-bot
           kubernetes-cluster: k8s.pft.chi.lat.ope.eng.hashgraph.io
-          certificate-ttl: 20h
+          certificate-ttl: 24h
+
+      - name: Get all namespaces in Chicago cluster
+        run: sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt get namespaces
 
       - name: Chicago Latitude namespaces
         run: |
           set +e
           set +x
           clusterZone="Chicago"
-          for namespace in `sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt get namespaces | awk '{print $1}' | grep -E 'solo[\-].*[\-]n[1-9]'`
+          for namespace in `sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt get namespaces | awk '{print $1}' | grep -E '(solo|mqpt)-(sdpt|sdlt)-n([1-9]|1[0-2])$'`
           do
-            n="$(echo "${namespace}" | perl -ne 'print "$1\n" if /^solo\-.*d.*t\-n(\d+)$/')"
+            n="$(echo "${namespace}" | perl -ne 'print "$1\n" if /(?:solo|mqpt)-(?:sdpt|sdlt)-n(\d+)$/')"
+            echo "Found {$namespace} with n=${n}"
             env | grep ${clusterZone}_n${n}
             isChecked=$(env | grep ${clusterZone}_n${n} | awk -F= '{print $NF}')
             if [[ "${isChecked}" = "true" ]]

@@ -13,7 +13,7 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.accountAllowanceHook;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.accountLambdaSStore;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.accountEvmHookStore;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCallWithFunctionAbi;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
@@ -54,12 +54,14 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNAT
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MAX_GAS_LIMIT_EXCEEDED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOO_MANY_HOOK_INVOCATIONS;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 import static org.hiero.base.utility.CommonUtils.unhex;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.protobuf.ByteString;
-import com.hedera.hapi.node.hooks.LambdaMappingEntry;
+import com.hedera.hapi.node.hooks.EvmHookMappingEntry;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.EmbeddedHapiTest;
@@ -170,10 +172,10 @@ public class Hip1195EnabledTest {
                 getAccountInfo(OWNER),
                 withOpContext((spec, opLog) -> payerMirror.set(
                         unhex(asHexedSolidityAddress(spec.registry().getAccountID(PAYER))))),
-                sourcing(() -> accountLambdaSStore(OWNER, 123L)
+                sourcing(() -> accountEvmHookStore(OWNER, 123L)
                         .putMappingEntry(
                                 mappingSlot,
-                                LambdaMappingEntry.newBuilder()
+                                EvmHookMappingEntry.newBuilder()
                                         .key(Bytes.wrap(payerMirror.get()))
                                         .value(Bytes.wrap(new byte[] {(byte) 0x01}))
                                         .build())
@@ -203,10 +205,10 @@ public class Hip1195EnabledTest {
                 mintToken("token", 10),
                 withOpContext((spec, opLog) -> payerMirror.set(
                         unhex(asHexedSolidityAddress(spec.registry().getAccountID(PAYER))))),
-                sourcing(() -> accountLambdaSStore(OWNER, 123L)
+                sourcing(() -> accountEvmHookStore(OWNER, 123L)
                         .putMappingEntry(
                                 mappingSlot,
-                                LambdaMappingEntry.newBuilder()
+                                EvmHookMappingEntry.newBuilder()
                                         .key(Bytes.wrap(payerMirror.get()))
                                         .value(Bytes.wrap(new byte[] {(byte) 0x01}))
                                         .build())
@@ -245,10 +247,10 @@ public class Hip1195EnabledTest {
                 mintToken("token", 10),
                 withOpContext((spec, opLog) -> payerMirror.set(
                         unhex(asHexedSolidityAddress(spec.registry().getAccountID(PAYER))))),
-                sourcing(() -> accountLambdaSStore(OWNER, 123L)
+                sourcing(() -> accountEvmHookStore(OWNER, 123L)
                         .putMappingEntry(
                                 mappingSlot,
-                                LambdaMappingEntry.newBuilder()
+                                EvmHookMappingEntry.newBuilder()
                                         .key(Bytes.wrap(payerMirror.get()))
                                         .value(Bytes.wrap(new byte[] {(byte) 0x01}))
                                         .build())
@@ -289,20 +291,20 @@ public class Hip1195EnabledTest {
                 cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
                         .withPreHookFor(OWNER, 124L, 15000000000000L, "")
                         .payingWith(PAYER)
+                        .fee(15000 * ONE_HBAR)
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK)
                         .via("payerTxnGasLimitExceeded"),
                 cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
                         .withPreHookFor(OWNER, 124L, 15000000000000L, "")
+                        .fee(15000 * ONE_HBAR)
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK)
                         .via("defaultPayerMaxGasLimitExceededTxn"),
                 getTxnRecord("payerTxnGasLimitExceeded")
                         .andAllChildRecords()
-                        .hasChildRecords(recordWith().status(MAX_GAS_LIMIT_EXCEEDED))
-                        .logged(),
+                        .hasChildRecords(recordWith().status(MAX_GAS_LIMIT_EXCEEDED)),
                 getTxnRecord("defaultPayerMaxGasLimitExceededTxn")
                         .andAllChildRecords()
-                        .hasChildRecords(recordWith().status(MAX_GAS_LIMIT_EXCEEDED))
-                        .logged());
+                        .hasChildRecords(recordWith().status(MAX_GAS_LIMIT_EXCEEDED)));
     }
 
     @HapiTest
@@ -878,10 +880,10 @@ public class Hip1195EnabledTest {
                                 .toList()),
                 withOpContext((spec, opLog) -> payerMirror.set(
                         unhex(asHexedSolidityAddress(spec.registry().getAccountID(PAYER))))),
-                sourcing(() -> accountLambdaSStore(OWNER, 128L)
+                sourcing(() -> accountEvmHookStore(OWNER, 128L)
                         .putMappingEntry(
                                 mappingSlot,
-                                LambdaMappingEntry.newBuilder()
+                                EvmHookMappingEntry.newBuilder()
                                         .key(Bytes.wrap(payerMirror.get()))
                                         .value(Bytes.wrap(new byte[] {(byte) 0x01}))
                                         .build())
@@ -921,10 +923,10 @@ public class Hip1195EnabledTest {
                                 .toList()),
                 withOpContext((spec, opLog) -> payerMirror.set(
                         unhex(asHexedSolidityAddress(spec.registry().getAccountID(PAYER))))),
-                sourcing(() -> accountLambdaSStore(OWNER, 129L)
+                sourcing(() -> accountEvmHookStore(OWNER, 129L)
                         .putMappingEntry(
                                 mappingSlot,
-                                LambdaMappingEntry.newBuilder()
+                                EvmHookMappingEntry.newBuilder()
                                         .key(Bytes.wrap(payerMirror.get()))
                                         .value(Bytes.wrap(new byte[] {(byte) 0x01}))
                                         .build())
@@ -1159,19 +1161,19 @@ public class Hip1195EnabledTest {
                 viewAccount(OWNER, (Account a) -> {
                     assertEquals(1L, a.firstHookId());
                     assertEquals(1, a.numberHooksInUse());
-                    assertEquals(0, a.numberLambdaStorageSlots());
+                    assertEquals(0, a.numberEvmHookStorageSlots());
                 }),
-                accountLambdaSStore(OWNER, 1L).putSlot(A, B).putSlot(C, D),
+                accountEvmHookStore(OWNER, 1L).putSlot(A, B).putSlot(C, D),
                 viewAccount(OWNER, (Account a) -> {
                     assertEquals(1L, a.firstHookId());
                     assertEquals(1, a.numberHooksInUse());
-                    assertEquals(2, a.numberLambdaStorageSlots());
+                    assertEquals(2, a.numberEvmHookStorageSlots());
                 }),
                 cryptoUpdate(OWNER).removingHooks(1L).hasKnownStatus(HOOK_DELETION_REQUIRES_ZERO_STORAGE_SLOTS),
                 viewAccount(OWNER, (Account a) -> {
                     assertEquals(1L, a.firstHookId());
                     assertEquals(1, a.numberHooksInUse());
-                    assertEquals(2, a.numberLambdaStorageSlots());
+                    assertEquals(2, a.numberEvmHookStorageSlots());
                 }));
     }
 
@@ -1247,6 +1249,120 @@ public class Hip1195EnabledTest {
                             .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
                             .via("onlyOwner2ByNonOwner");
                     allRunFor(spec, op1, op2);
+                }));
+    }
+
+    /**
+     * Verifies that exceeding the maximum number of hook invocations per transaction
+     * (default 10) fails with TOO_MANY_HOOK_INVOCATIONS.
+     * Each pre-only hook counts as 1 invocation, each pre+post hook counts as 2.
+     */
+    @HapiTest
+    final Stream<DynamicTest> tooManyHookInvocationsFails() {
+        return hapiTest(
+                cryptoCreate(PAYER).balance(100 * THOUSAND_HBAR),
+                // Create accounts with hooks - each pre+post hook counts as 2 invocations
+                cryptoCreate("owner1").withHooks(accountAllowanceHook(1L, TRUE_PRE_POST_ALLOWANCE_HOOK.name())),
+                cryptoCreate("owner2").withHooks(accountAllowanceHook(2L, TRUE_PRE_POST_ALLOWANCE_HOOK.name())),
+                cryptoCreate("owner3").withHooks(accountAllowanceHook(3L, TRUE_PRE_POST_ALLOWANCE_HOOK.name())),
+                cryptoCreate("owner4").withHooks(accountAllowanceHook(4L, TRUE_PRE_POST_ALLOWANCE_HOOK.name())),
+                cryptoCreate("owner5").withHooks(accountAllowanceHook(5L, TRUE_PRE_POST_ALLOWANCE_HOOK.name())),
+                cryptoCreate("owner6").withHooks(accountAllowanceHook(6L, TRUE_PRE_POST_ALLOWANCE_HOOK.name())),
+                // 5 pre+post hooks = 10 invocations, should succeed
+                cryptoTransfer(
+                                movingHbar(1).between("owner1", GENESIS),
+                                movingHbar(1).between("owner2", GENESIS),
+                                movingHbar(1).between("owner3", GENESIS),
+                                movingHbar(1).between("owner4", GENESIS),
+                                movingHbar(1).between("owner5", GENESIS))
+                        .withPrePostHookFor("owner1", 1L, 25_000L, "")
+                        .withPrePostHookFor("owner2", 2L, 25_000L, "")
+                        .withPrePostHookFor("owner3", 3L, 25_000L, "")
+                        .withPrePostHookFor("owner4", 4L, 25_000L, "")
+                        .withPrePostHookFor("owner5", 5L, 25_000L, "")
+                        .payingWith(PAYER)
+                        .signedBy(PAYER)
+                        .via("exactlyMaxHooks"),
+                getTxnRecord("exactlyMaxHooks").logged(),
+                // 6 pre+post hooks = 12 invocations, should fail
+                cryptoTransfer(
+                                movingHbar(1).between("owner1", GENESIS),
+                                movingHbar(1).between("owner2", GENESIS),
+                                movingHbar(1).between("owner3", GENESIS),
+                                movingHbar(1).between("owner4", GENESIS),
+                                movingHbar(1).between("owner5", GENESIS),
+                                movingHbar(1).between("owner6", GENESIS))
+                        .withPrePostHookFor("owner1", 1L, 25_000L, "")
+                        .withPrePostHookFor("owner2", 2L, 25_000L, "")
+                        .withPrePostHookFor("owner3", 3L, 25_000L, "")
+                        .withPrePostHookFor("owner4", 4L, 25_000L, "")
+                        .withPrePostHookFor("owner5", 5L, 25_000L, "")
+                        .withPrePostHookFor("owner6", 6L, 25_000L, "")
+                        .payingWith(PAYER)
+                        .signedBy(PAYER)
+                        .hasKnownStatus(TOO_MANY_HOOK_INVOCATIONS));
+    }
+
+    /**
+     * Verifies that when the requested gas limit exceeds numHookInvocations * maxGasPerSec,
+     * the effective gas charged is capped at numHookInvocations * maxGasPerSec.
+     * <p>
+     * The formula is: effectiveGasLimit = min(numHookInvocations * maxGasPerSec, totalGasLimitOfHooks)
+     * <p>
+     * This test creates two transfers:
+     * 1. One with gas limit below the cap (should charge the requested gas)
+     * 2. One with gas limit above the cap (should charge numHookInvocations * maxGasPerSec)
+     * <p>
+     * Both should have similar fees since the second one's gas is capped.
+     */
+    @LeakyHapiTest(overrides = {"contracts.maxGasPerSec"})
+    final Stream<DynamicTest> gasChargedIsCappedAtNumHookInvocationsTimesMaxGasPerSec() {
+        // Use a small maxGasPerSec to make the test more predictable
+        final long testMaxGasPerSec = 100_000L;
+        // For 1 pre-only hook, numHookInvocations = 1, so cap = 1 * 100_000 = 100_000
+        // For 1 pre+post hook, numHookInvocations = 2, so cap = 2 * 100_000 = 200_000
+        return hapiTest(
+                cryptoCreate(PAYER).balance(100 * THOUSAND_HBAR),
+                cryptoCreate("ownerBelowCap").withHooks(accountAllowanceHook(1L, TRUE_ALLOWANCE_HOOK.name())),
+                cryptoCreate("ownerAboveCap").withHooks(accountAllowanceHook(2L, TRUE_ALLOWANCE_HOOK.name())),
+                overriding("contracts.maxGasPerSec", String.valueOf(testMaxGasPerSec)),
+                // Transfer with gas limit below the cap (50,000 < 100,000)
+                // numHookInvocations = 1, cap = 1 * 100,000 = 100,000
+                // effectiveGas = min(100,000, 50,000) = 50,000
+                cryptoTransfer(movingHbar(1).between("ownerBelowCap", GENESIS))
+                        .withPreHookFor("ownerBelowCap", 1L, 50_000L, "")
+                        .signedBy(DEFAULT_PAYER)
+                        .payingWith(PAYER)
+                        .via("belowCapTransfer"),
+                // Transfer with gas limit above the cap (500,000 > 100,000)
+                // numHookInvocations = 1, cap = 1 * 100,000 = 100,000
+                // effectiveGas = min(100,000, 500,000) = 100,000
+                cryptoTransfer(movingHbar(1).between("ownerAboveCap", "ownerBelowCap"))
+                        .withPreHookFor("ownerAboveCap", 2L, 99_000L, "")
+                        .withPreHookFor("ownerBelowCap", 1L, 99_000L, "")
+                        .signedBy(DEFAULT_PAYER)
+                        .payingWith(PAYER)
+                        .via("aboveCapTransfer"),
+                withOpContext((spec, opLog) -> {
+                    final var belowCapRecord = getTxnRecord("belowCapTransfer")
+                            .andAllChildRecords()
+                            .logged();
+                    final var aboveCapRecord = getTxnRecord("aboveCapTransfer")
+                            .andAllChildRecords()
+                            .logged();
+                    allRunFor(spec, belowCapRecord, aboveCapRecord);
+
+                    final long belowCapFee = belowCapRecord.getResponseRecord().getTransactionFee();
+                    final long aboveCapFee = aboveCapRecord.getResponseRecord().getTransactionFee();
+
+                    // The above-cap transfer should cost more than below-cap because:
+                    // - belowCap: effectiveGas = 50,000
+                    // - aboveCap: effectiveGas = min(1 * 100,000, 500,000) = 100,000
+                    // So aboveCap should cost roughly 2x the gas portion
+                    assertTrue(
+                            aboveCapFee > belowCapFee,
+                            "Above-cap transfer should cost more due to higher effective gas. " + "Below cap fee: "
+                                    + belowCapFee + ", Above cap fee: " + aboveCapFee);
                 }));
     }
 }

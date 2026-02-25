@@ -16,17 +16,24 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleSign;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.submitMessageTo;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
+import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usableTxnIdNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
+import static com.hedera.services.bdd.suites.HapiSuite.NODE_REWARD;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.ADMIN;
 import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.BEGIN;
 import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.CREATION;
@@ -46,6 +53,8 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_ID_FIELD_NOT_ALLOWED;
 
 import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hederahashgraph.api.proto.java.TransactionID;
 import java.security.SecureRandom;
 import java.util.Collections;
@@ -71,11 +80,19 @@ public class ScheduleRecordTest {
                         .withEntityMemo("" + new SecureRandom().nextLong())
                         .designatingPayer(UNWILLING_PAYER)
                         .savingExpectedScheduledTxnId(),
-                getTxnRecord(SIMPLE_XFER_SCHEDULE)
-                        .scheduledBy(SCHEDULE)
-                        .hasPriority(recordWith()
-                                .transfers(exactParticipants(ignore -> Collections.emptyList()))
-                                .status(INSUFFICIENT_TX_FEE)));
+                doWithStartupConfig(
+                        "fees.simpleFeesEnabled",
+                        flag -> "true".equals(flag)
+                                // With simple fees the scheduled CryptoTransfer service fee is ~0,
+                                // so 1 tinybar is sufficient and the transaction succeeds
+                                ? getTxnRecord(SIMPLE_XFER_SCHEDULE)
+                                        .scheduledBy(SCHEDULE)
+                                        .hasPriority(recordWith().status(SUCCESS))
+                                : getTxnRecord(SIMPLE_XFER_SCHEDULE)
+                                        .scheduledBy(SCHEDULE)
+                                        .hasPriority(recordWith()
+                                                .transfers(exactParticipants(ignore -> Collections.emptyList()))
+                                                .status(INSUFFICIENT_TX_FEE))));
     }
 
     @HapiTest
@@ -89,6 +106,61 @@ public class ScheduleRecordTest {
                         .withEntityMemo("" + new SecureRandom().nextLong())
                         .designatingPayer(INSOLVENT_PAYER)
                         .savingExpectedScheduledTxnId(),
+                doWithStartupConfig(
+                        "fees.simpleFeesEnabled",
+                        flag -> "true".equals(flag)
+                                // With simple fees the scheduled CryptoTransfer service fee is ~0,
+                                // so a 0-balance payer can still afford it and the transaction succeeds
+                                ? getTxnRecord(SIMPLE_XFER_SCHEDULE)
+                                        .scheduledBy(SCHEDULE)
+                                        .hasPriority(recordWith().status(SUCCESS))
+                                : getTxnRecord(SIMPLE_XFER_SCHEDULE)
+                                        .scheduledBy(SCHEDULE)
+                                        .hasPriority(recordWith()
+                                                .transfers(exactParticipants(ignore -> Collections.emptyList()))
+                                                .status(INSUFFICIENT_PAYER_BALANCE))));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> noFeesChargedIfTriggeredPayerIsUnwillingForTokenTransfer() {
+        return hapiTest(
+                cryptoCreate(UNWILLING_PAYER),
+                cryptoCreate("tokenTreasury"),
+                cryptoCreate(RECEIVER),
+                tokenCreate("fungibleToken").treasury("tokenTreasury").initialSupply(100),
+                tokenAssociate(RECEIVER, "fungibleToken"),
+                scheduleCreate(
+                                SCHEDULE,
+                                cryptoTransfer(moving(1, "fungibleToken").between("tokenTreasury", RECEIVER))
+                                        .fee(1L))
+                        .alsoSigningWith("tokenTreasury", UNWILLING_PAYER)
+                        .via(SIMPLE_XFER_SCHEDULE)
+                        .withEntityMemo("" + new SecureRandom().nextLong())
+                        .designatingPayer(UNWILLING_PAYER)
+                        .savingExpectedScheduledTxnId(),
+                getTxnRecord(SIMPLE_XFER_SCHEDULE)
+                        .scheduledBy(SCHEDULE)
+                        .hasPriority(recordWith()
+                                .transfers(exactParticipants(ignore -> Collections.emptyList()))
+                                .status(INSUFFICIENT_TX_FEE)));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> noFeesChargedIfTriggeredPayerIsInsolventForTokenTransfer() {
+        return hapiTest(
+                cryptoCreate(INSOLVENT_PAYER).balance(0L),
+                cryptoCreate("tokenTreasury"),
+                cryptoCreate(RECEIVER),
+                tokenCreate("fungibleToken").treasury("tokenTreasury").initialSupply(100),
+                tokenAssociate(RECEIVER, "fungibleToken"),
+                scheduleCreate(
+                                SCHEDULE,
+                                cryptoTransfer(moving(1, "fungibleToken").between("tokenTreasury", RECEIVER)))
+                        .alsoSigningWith("tokenTreasury", INSOLVENT_PAYER)
+                        .via(SIMPLE_XFER_SCHEDULE)
+                        .withEntityMemo("" + new SecureRandom().nextLong())
+                        .designatingPayer(INSOLVENT_PAYER)
+                        .savingExpectedScheduledTxnId(),
                 getTxnRecord(SIMPLE_XFER_SCHEDULE)
                         .scheduledBy(SCHEDULE)
                         .hasPriority(recordWith()
@@ -96,7 +168,7 @@ public class ScheduleRecordTest {
                                 .status(INSUFFICIENT_PAYER_BALANCE)));
     }
 
-    @HapiTest
+    @LeakyHapiTest(overrides = {"nodes.feeCollectionAccountEnabled"})
     @Tag(MATS)
     final Stream<DynamicTest> canScheduleChunkedMessages() {
         String ofGeneralInterest = "Scotch";
@@ -104,6 +176,9 @@ public class ScheduleRecordTest {
 
         // validation here is checking fees and staking, not message creation on the topic...
         return hapiTest(
+                overriding("nodes.feeCollectionAccountEnabled", "false"),
+                cryptoTransfer(TokenMovement.movingHbar(ONE_MILLION_HBARS + ONE_HUNDRED_HBARS)
+                        .between(GENESIS, NODE_REWARD)),
                 cryptoCreate(PAYING_SENDER).balance(ONE_HUNDRED_HBARS),
                 createTopic(ofGeneralInterest),
                 withOpContext((spec, opLog) -> {

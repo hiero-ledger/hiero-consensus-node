@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.base.example.server;
 
-import com.swirlds.common.metrics.RunningAverageMetric;
-import com.swirlds.common.metrics.extensions.CountPerSecond;
 import com.swirlds.metrics.api.Counter;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.consensus.metrics.RunningAverageMetric;
+import org.hiero.consensus.metrics.extensions.CountPerSecond;
 
 public class ServerMetrics {
 

@@ -8,15 +8,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.swirlds.common.metrics.PlatformMetricsFactory;
-import com.swirlds.common.metrics.config.MetricsConfig;
-import com.swirlds.common.metrics.platform.DefaultPlatformMetrics;
-import com.swirlds.common.metrics.platform.MetricKeyRegistry;
-import com.swirlds.common.metrics.platform.PlatformMetricsFactoryImpl;
-import com.swirlds.common.threading.framework.QueueThread;
-import com.swirlds.common.threading.framework.StoppableThread;
-import com.swirlds.common.threading.framework.config.QueueThreadMetricsConfiguration;
-import com.swirlds.common.threading.manager.ThreadManager;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.metrics.api.IntegerAccumulator;
@@ -29,8 +20,20 @@ import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import org.hiero.base.concurrent.interrupt.InterruptableConsumer;
 import org.hiero.base.concurrent.interrupt.InterruptableRunnable;
+import org.hiero.consensus.concurrent.framework.QueueThread;
+import org.hiero.consensus.concurrent.framework.StoppableThread;
+import org.hiero.consensus.concurrent.framework.config.QueueThreadMetricsConfiguration;
+import org.hiero.consensus.concurrent.framework.internal.AbstractQueueThreadConfiguration;
+import org.hiero.consensus.concurrent.framework.internal.MeasuredBlockingQueue;
+import org.hiero.consensus.concurrent.manager.ThreadManager;
+import org.hiero.consensus.metrics.PlatformMetricsFactory;
+import org.hiero.consensus.metrics.config.MetricsConfig;
+import org.hiero.consensus.metrics.platform.DefaultPlatformMetrics;
+import org.hiero.consensus.metrics.platform.MetricKeyRegistry;
+import org.hiero.consensus.metrics.platform.PlatformMetricsFactoryImpl;
 import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -225,6 +228,7 @@ class AbstractQueueThreadConfigurationTest {
 
     @Test
     @DisplayName("Testing build with metric enabled")
+    @Disabled("Enabling metrics has been removed. Need to decide about the future of metrics in queue threads.")
     void buildShouldCreateQueueThreadThatCanBeMonitoredWithMetrics() {
         // given
         final ThreadManager threadManager = mock(ThreadManager.class);
@@ -241,10 +245,7 @@ class AbstractQueueThreadConfigurationTest {
                 .setMaxBufferSize(MAX_BUFFER_SIZE)
                 .setCapacity(CAPACITY)
                 .setHandler(handler)
-                .setQueue(queue)
-                .setMetricsConfiguration(new QueueThreadMetricsConfiguration(metrics)
-                        .enableMaxSizeMetric()
-                        .enableMinSizeMetric());
+                .setQueue(queue);
         final QueueThread<String> queueThread = configuration.buildQueueThread(false);
 
         // then

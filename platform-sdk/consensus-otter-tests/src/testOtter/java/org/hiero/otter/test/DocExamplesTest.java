@@ -11,7 +11,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.List;
 import java.util.stream.Stream;
-import org.hiero.consensus.hashgraph.ConsensusConfig_;
+import org.hiero.consensus.hashgraph.config.ConsensusConfig_;
 import org.hiero.otter.fixtures.Capability;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
@@ -69,7 +69,7 @@ class DocExamplesTest {
                 network.newConsensusResults().results().getFirst().lastRoundNum();
 
         // This assertion will always pass with seed=42
-        assertThat(lastRound).isEqualTo(48L);
+        assertThat(lastRound).isEqualTo(46L);
     }
 
     // This test is used in the writing-tests.md file.

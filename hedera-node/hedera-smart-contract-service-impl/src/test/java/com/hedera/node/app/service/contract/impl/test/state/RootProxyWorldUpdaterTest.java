@@ -104,6 +104,33 @@ class RootProxyWorldUpdaterTest {
     }
 
     @Test
+    void returnsEvmFrameStateForRealTimeAccess() {
+        final var contractId = A_CONTRACT_ID;
+        final var storageKey = UInt256.fromHexString("0xABCD");
+        final var originalValue = UInt256.ZERO;
+        final var newValue = UInt256.ONE;
+
+        given(evmFrameState.getStorageValue(contractId, storageKey)).willReturn(originalValue);
+        given(evmFrameState.getOriginalStorageValue(contractId, storageKey)).willReturn(originalValue);
+
+        final var frameState = subject.getEvmFrameState();
+
+        assertSame(
+                originalValue,
+                frameState.getStorageValue(contractId, storageKey),
+                "Should be able to read storage value via EvmFrameState");
+
+        assertSame(
+                originalValue,
+                frameState.getOriginalStorageValue(contractId, storageKey),
+                "Should be able to read original storage value for tracing");
+
+        frameState.setStorageValue(contractId, storageKey, newValue);
+
+        BDDMockito.then(evmFrameState).should().setStorageValue(contractId, storageKey, newValue);
+    }
+
+    @Test
     void performsAdditionalCommitActionsInOrder() {
         InOrder inOrder = BDDMockito.inOrder(storageSizeValidator, storageManager, rentCalculator, hederaOperations);
 

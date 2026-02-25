@@ -236,8 +236,8 @@ message BlockItem {
          *   <li>The block SHALL contain _exactly one_ `RecordFileItem`.</li>
          *   <li>The block SHALL NOT contain any item other than a
          *       `RecordFileItem`.</li>
-         *   <li>The content of the `RecordFileItem` MUST be validated using
-         *       the signature data and content provided within according to
+         *   <li>The content of the `RecordFileItem` can be validated using
+         *       the `SignedRecordFileProof` according to
          *       the process used for Record Files prior to the creation
          *       of Block Stream.</li>
          * </ul>
