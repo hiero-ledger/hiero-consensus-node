@@ -6,6 +6,7 @@ on:
       - opened
       - reopened
       - synchronize
+      - labeled
 
 defaults:
   run:
@@ -24,21 +25,90 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  detect-change-type:
+    name: Detect Change Type
+    runs-on: hl-cn-default-lin-sm
+    outputs:
+      docs-only: ${{ steps.classify.outputs.docs-only }}
+      enable-tests: ${{ steps.classify.outputs.enable-tests }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
+        with:
+          egress-policy: audit
+
+      - name: Classify Changed Files
+        id: classify
+        uses: actions/github-script@d7906e4ad0b1822421a7e6a35d5ca353c962f410 # v6
+        with:
+          script: |
+            // Check for run-full-ci label first — forces full CI regardless
+            const labels = context.payload.pull_request.labels || [];
+            if (labels.some(l => l.name === 'run-full-ci')) {
+              core.info('Label "run-full-ci" detected — forcing full CI');
+              core.setOutput('docs-only', 'false');
+              core.setOutput('enable-tests', 'true');
+              return;
+            }
+
+            // Fetch changed files (first page only, max 100)
+            const { data: files } = await github.rest.pulls.listFiles({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+              per_page: 100
+            });
+
+            // Conservative: if no files or >=100 files, run full CI
+            if (files.length === 0 || files.length >= 100) {
+              core.info(`File count (${files.length}) triggers full CI (conservative)`);
+              core.setOutput('docs-only', 'false');
+              core.setOutput('enable-tests', 'true');
+              return;
+            }
+
+            // Conservative allowlist: only these patterns are considered documentation
+            const docPatterns = [
+              /\.md$/i,                // Markdown files
+              /^LICENSE(\..*)?$/i,     // LICENSE, LICENSE.txt, etc.
+              /^NOTICE(\..*)?$/i,      // NOTICE, NOTICE.txt, etc.
+              /(^|\/)docs\//,          // Files in docs/ directories
+              /(^|\/)doc\//,           // Files in doc/ directories
+            ];
+
+            const isDocFile = (filename) =>
+              docPatterns.some(pattern => pattern.test(filename));
+
+            const nonDocFiles = files.filter(f => !isDocFile(f.filename));
+
+            if (nonDocFiles.length > 0) {
+              core.info(`Found ${nonDocFiles.length} non-doc file(s) — full CI required`);
+              nonDocFiles.slice(0, 10).forEach(f => core.info(`  - ${f.filename}`));
+              core.setOutput('docs-only', 'false');
+              core.setOutput('enable-tests', 'true');
+            } else {
+              core.info(`All ${files.length} changed file(s) are documentation — docs-only mode`);
+              core.setOutput('docs-only', 'true');
+              core.setOutput('enable-tests', 'false');
+            }
+
   mats-pr-checks:
     name: MATS
+    needs:
+      - detect-change-type
     uses: ./.github/workflows/zxc-mats-tests.yaml
     with:
       ref: ${{ github.event.pull_request.head.sha }}
-      enable-dependency-check: "true"
+      enable-dependency-check: ${{ needs.detect-change-type.outputs.enable-tests }}
       enable-spotless-check: "true"
-      enable-snyk-scan: "true"
-      enable-unit-tests: "true"
-      enable-integration-tests: "true"
-      enable-hapi-tests: "true"
-      enable-hapi-tests-crypto: "true"
-      enable-otter-tests: "true"
-      enable-gradle-determinism: "true"
-      enable-docker-determinism: "true"
+      enable-snyk-scan: ${{ needs.detect-change-type.outputs.enable-tests }}
+      enable-unit-tests: ${{ needs.detect-change-type.outputs.enable-tests }}
+      enable-integration-tests: ${{ needs.detect-change-type.outputs.enable-tests }}
+      enable-hapi-tests: ${{ needs.detect-change-type.outputs.enable-tests }}
+      enable-hapi-tests-crypto: ${{ needs.detect-change-type.outputs.enable-tests }}
+      enable-otter-tests: ${{ needs.detect-change-type.outputs.enable-tests }}
+      enable-gradle-determinism: ${{ needs.detect-change-type.outputs.enable-tests }}
+      enable-docker-determinism: ${{ needs.detect-change-type.outputs.enable-tests }}
       java-version: "21.0.6"
       java-distribution: "temurin"
       custom-job-label: "Standard"
@@ -50,10 +120,37 @@ jobs:
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
       snyk-token: ${{ secrets.SNYK_TOKEN }}
 
+  ci-complete:
+    name: CI Complete
+    runs-on: hl-cn-default-lin-sm
+    needs:
+      - detect-change-type
+      - mats-pr-checks
+    if: ${{ !cancelled() && always() }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
+        with:
+          egress-policy: audit
+
+      - name: Evaluate Results
+        run: |
+          echo "Docs-only: ${{ needs.detect-change-type.outputs.docs-only }}"
+          echo "MATS result: ${{ needs.mats-pr-checks.result }}"
+
+          if [[ "${{ needs.mats-pr-checks.result }}" == "success" ]]; then
+            echo "All required checks passed."
+            exit 0
+          else
+            echo "MATS checks did not succeed (result: ${{ needs.mats-pr-checks.result }})."
+            exit 1
+          fi
+
   report-summary:
     name: Report PR Check Summary
     runs-on: hl-cn-default-lin-sm
     needs:
+      - detect-change-type
       - mats-pr-checks
     if: ${{ !cancelled() && always() }}
     steps:
@@ -79,6 +176,10 @@ jobs:
           {
             echo "## PR Check Summary"
             echo ""
+            if [[ "${{ needs.detect-change-type.outputs.docs-only }}" == "true" ]]; then
+              echo "> **Docs-only PR detected.** Unit, integration, HAPI, otter, determinism, dependency, and Snyk checks were skipped. Build and Spotless still ran."
+              echo ""
+            fi
             echo "------------------------------------"
             echo "### Results"
             echo "- **MATS Tests:** ${{ needs.mats-pr-checks.result }}"
