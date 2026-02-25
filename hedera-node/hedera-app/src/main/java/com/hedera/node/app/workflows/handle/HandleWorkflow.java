@@ -368,7 +368,9 @@ public class HandleWorkflow {
             final int receiptEntriesBatchSize,
             @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> stateSignatureTxnCallback) {
         boolean transactionsDispatched = false;
-        for (final var event : round) {
+        final var iter = round.iterator();
+        while (iter.hasNext()) {
+            final var event = iter.next();
             if (streamMode != RECORDS) {
                 writeEventHeader(event);
             }
@@ -403,9 +405,8 @@ public class HandleWorkflow {
                 // Clear tx metadata now that we won't use it again
                 platformTxn.setMetadata(null);
             }
-            if (!transactionsDispatched) {
-                // If there were no platform transactions to follow with scheduled transactions, then
-                // use the round consensus time as the execution start time for scheduled transactions
+            if (!transactionsDispatched && !iter.hasNext()) {
+                // If the entire round was empty, use the round consensus time as exec time for scheduled transactions
                 transactionsDispatched = executeScheduledTransactions(state, round.getConsensusTimestamp(), creator);
             }
             recordCache.maybeCommitReceiptsBatch(
