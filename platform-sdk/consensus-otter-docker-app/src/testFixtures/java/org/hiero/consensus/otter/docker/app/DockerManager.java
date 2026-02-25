@@ -107,10 +107,7 @@ public final class DockerManager extends ContainerControlServiceGrpc.ContainerCo
         }
 
         command.addAll(List.of(
-                "-cp",
-                DOCKER_APP_JAR + ":" + DOCKER_APP_LIBS,
-                CONSENSUS_NODE_MAIN_CLASS,
-                String.valueOf(selfId.id())));
+                "-cp", DOCKER_APP_JAR + ":" + DOCKER_APP_LIBS, CONSENSUS_NODE_MAIN_CLASS, String.valueOf(selfId.id())));
 
         final ProcessBuilder processBuilder = new ProcessBuilder(command);
 
