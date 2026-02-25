@@ -277,7 +277,7 @@ jobs:
           fi
           echo "Using protobuf artifact: $PROTO_FILE"
           # untar the artifact
-          tar -xzf block-node-protobuf-${PROTO_TAG}.tgz -C proto
+          tar -xzf "$PROTO_FILE" -C proto
 
       - name: Install grpcurl
         run: |
