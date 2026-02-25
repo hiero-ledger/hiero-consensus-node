@@ -162,7 +162,11 @@ public class CodeDelegationType4TransactionTest {
                             .gasLimit(2_000_000L)
                             .via(DELEGATION_SET)));
             verifyDelegationSet(
-                    spec, delegationTargetAddress, DELEGATING_ACCOUNT, DELEGATING_ACCOUNT_1, DELEGATING_ACCOUNT_2,
+                    spec,
+                    delegationTargetAddress,
+                    DELEGATING_ACCOUNT,
+                    DELEGATING_ACCOUNT_1,
+                    DELEGATING_ACCOUNT_2,
                     DELEGATING_ACCOUNT_3);
             allRunFor(
                     spec,
@@ -215,11 +219,15 @@ public class CodeDelegationType4TransactionTest {
                             .exposingIdTo(id -> spec.registry().saveAccountId(DELEGATING_ACCOUNT_ID, id)),
                     getTxnRecord(DELEGATION_SET)
                             .hasChildRecords(
-                                    recordWith().status(ResponseCodeEnum.SUCCESS).targetAccountId(PAYER),
+                                    recordWith()
+                                            .status(ResponseCodeEnum.SUCCESS)
+                                            .targetAccountId(PAYER),
                                     recordWith()
                                             .targetAccountId(DELEGATING_ACCOUNT_ID)
                                             .status(ResponseCodeEnum.SUCCESS),
-                                    recordWith().contractCreateResult(anyResult()).status(ResponseCodeEnum.SUCCESS))
+                                    recordWith()
+                                            .contractCreateResult(anyResult())
+                                            .status(ResponseCodeEnum.SUCCESS))
                             .logged());
         }));
     }
@@ -230,24 +238,22 @@ public class CodeDelegationType4TransactionTest {
             deployContract(spec, REVERTING_CONTRACT);
             createPayerAccountWithAlias(spec);
             createSecp256k1Keys(spec, DELEGATING_ACCOUNT);
-            allRunFor(
-                    spec,
-                    sourcing(() -> ethereumCall(REVERTING_CONTRACT, "revertWithRevertReason")
-                            .signingWith(PAYER_KEY)
-                            .payingWith(RELAYER)
-                            .type(EthTransactionType.EIP7702)
-                            .addCodeDelegationWithSpecNonce(DELEGATION_TARGET.get(), DELEGATING_ACCOUNT)
-                            .gasLimit(2_000_000L)
-                            .hasKnownStatus(ResponseCodeEnum.CONTRACT_REVERT_EXECUTED)
-                            .via(DELEGATION_SET)
-                            .exposingGasTo((s, gas) -> {
-                                final var expectedGas = 21_000L /* intrinsic gas base fee */
-                                        + 64 /* payload cost */
-                                        + 25_000L /* code delegation fee with new account creation */
-                                        + 408 /*call costs in gas*/
-                                        + 554_517L /* auto creation hapi fee*/;
-                                assertEquals(expectedGas, gas);
-                            })));
+            allRunFor(spec, sourcing(() -> ethereumCall(REVERTING_CONTRACT, "revertWithRevertReason")
+                    .signingWith(PAYER_KEY)
+                    .payingWith(RELAYER)
+                    .type(EthTransactionType.EIP7702)
+                    .addCodeDelegationWithSpecNonce(DELEGATION_TARGET.get(), DELEGATING_ACCOUNT)
+                    .gasLimit(2_000_000L)
+                    .hasKnownStatus(ResponseCodeEnum.CONTRACT_REVERT_EXECUTED)
+                    .via(DELEGATION_SET)
+                    .exposingGasTo((s, gas) -> {
+                        final var expectedGas = 21_000L /* intrinsic gas base fee */
+                                + 64 /* payload cost */
+                                + 25_000L /* code delegation fee with new account creation */
+                                + 408 /*call costs in gas*/
+                                + 554_517L /* auto creation hapi fee*/;
+                        assertEquals(expectedGas, gas);
+                    })));
             allRunFor(
                     spec,
                     getAliasedAccountInfo(DELEGATING_ACCOUNT)
@@ -274,26 +280,24 @@ public class CodeDelegationType4TransactionTest {
             deployContract(spec, REVERTING_CONTRACT);
             createPayerAccountWithAlias(spec);
             createSecp256k1Keys(spec, DELEGATING_ACCOUNT_1, DELEGATING_ACCOUNT_2, DELEGATING_ACCOUNT_3);
-            allRunFor(
-                    spec,
-                    sourcing(() -> ethereumCall(REVERTING_CONTRACT, "revertWithRevertReason")
-                            .signingWith(PAYER_KEY)
-                            .payingWith(RELAYER)
-                            .type(EthTransactionType.EIP7702)
-                            .addCodeDelegationWithSpecNonce(DELEGATION_TARGET.get(), DELEGATING_ACCOUNT_1)
-                            .addCodeDelegationWithSpecNonce(DELEGATION_TARGET.get(), DELEGATING_ACCOUNT_2)
-                            .addCodeDelegationWithSpecNonce(DELEGATION_TARGET.get(), DELEGATING_ACCOUNT_3)
-                            .gasLimit(2_000_000L)
-                            .hasKnownStatus(ResponseCodeEnum.CONTRACT_REVERT_EXECUTED)
-                            .via(DELEGATION_SET)
-                            .exposingGasTo((s, gas) -> {
-                                final var expectedGas = 21_000L /* intrinsic gas base fee */
-                                        + 64 /* payload cost */
-                                        + 3 * 25_000L /* code delegation fee with new account creation */
-                                        + 408 /*call costs in gas*/
-                                        + 3 * 554_517L /* auto creation hapi fee*/;
-                                assertEquals(expectedGas, gas);
-                            })));
+            allRunFor(spec, sourcing(() -> ethereumCall(REVERTING_CONTRACT, "revertWithRevertReason")
+                    .signingWith(PAYER_KEY)
+                    .payingWith(RELAYER)
+                    .type(EthTransactionType.EIP7702)
+                    .addCodeDelegationWithSpecNonce(DELEGATION_TARGET.get(), DELEGATING_ACCOUNT_1)
+                    .addCodeDelegationWithSpecNonce(DELEGATION_TARGET.get(), DELEGATING_ACCOUNT_2)
+                    .addCodeDelegationWithSpecNonce(DELEGATION_TARGET.get(), DELEGATING_ACCOUNT_3)
+                    .gasLimit(2_000_000L)
+                    .hasKnownStatus(ResponseCodeEnum.CONTRACT_REVERT_EXECUTED)
+                    .via(DELEGATION_SET)
+                    .exposingGasTo((s, gas) -> {
+                        final var expectedGas = 21_000L /* intrinsic gas base fee */
+                                + 64 /* payload cost */
+                                + 3 * 25_000L /* code delegation fee with new account creation */
+                                + 408 /*call costs in gas*/
+                                + 3 * 554_517L /* auto creation hapi fee*/;
+                        assertEquals(expectedGas, gas);
+                    })));
             allRunFor(
                     spec,
                     getAliasedAccountInfo(DELEGATING_ACCOUNT_1)
@@ -344,13 +348,14 @@ public class CodeDelegationType4TransactionTest {
                     .hasKnownStatus(ResponseCodeEnum.SUCCESS)
                     .exposingGasTo((s, gas) -> {
                         final var expectedGas = 21_000L /* intrinsic gas base fee */
-                        + 64 /* payload cost */
-                        + 3 * 25_000L /* code delegation fee with new account creation */
-                        + 108_893L /*call costs in gas*/
-                        + 2 * 554_517L /* auto creation hapi fee*/;
+                                + 64 /* payload cost */
+                                + 3 * 25_000L /* code delegation fee with new account creation */
+                                + 108_893L /*call costs in gas*/
+                                + 2 * 554_517L /* auto creation hapi fee*/;
                         assertEquals(expectedGas, gas);
                     })));
-            allRunFor(spec,
+            allRunFor(
+                    spec,
                     getAliasedAccountInfo(DELEGATING_ACCOUNT_1)
                             .hasDelegationAddress(DELEGATION_TARGET.get())
                             .isNotHollow()
@@ -359,27 +364,30 @@ public class CodeDelegationType4TransactionTest {
                             .hasDelegationAddress(DELEGATION_TARGET.get())
                             .isNotHollow()
                             .exposingIdTo(id -> spec.registry().saveAccountId(DELEGATING_ACCOUNT_ID_2, id)),
-                    getAliasedAccountInfo(DELEGATING_ACCOUNT_3).hasCostAnswerPrecheck(ResponseCodeEnum.INVALID_ACCOUNT_ID),
+                    getAliasedAccountInfo(DELEGATING_ACCOUNT_3)
+                            .hasCostAnswerPrecheck(ResponseCodeEnum.INVALID_ACCOUNT_ID),
                     getTxnRecord(DELEGATION_SET)
-                    .hasChildRecords(
-                            recordWith()
-                                    .status(ResponseCodeEnum.SUCCESS)
-                                    .targetAccountId(PAYER),
-                            recordWith()
-                                    .targetAccountId(DELEGATING_ACCOUNT_ID_1)
-                                    .status(ResponseCodeEnum.SUCCESS),
-                            recordWith()
-                                    .targetAccountId(DELEGATING_ACCOUNT_ID_2)
-                                    .status(ResponseCodeEnum.SUCCESS),
-                            recordWith()
-                                    .status(ResponseCodeEnum.INSUFFICIENT_GAS),
-                            recordWith().contractCreateResult(anyResult()).status(ResponseCodeEnum.SUCCESS))
-                    .logged());
+                            .hasChildRecords(
+                                    recordWith()
+                                            .status(ResponseCodeEnum.SUCCESS)
+                                            .targetAccountId(PAYER),
+                                    recordWith()
+                                            .targetAccountId(DELEGATING_ACCOUNT_ID_1)
+                                            .status(ResponseCodeEnum.SUCCESS),
+                                    recordWith()
+                                            .targetAccountId(DELEGATING_ACCOUNT_ID_2)
+                                            .status(ResponseCodeEnum.SUCCESS),
+                                    recordWith().status(ResponseCodeEnum.INSUFFICIENT_GAS),
+                                    recordWith()
+                                            .contractCreateResult(anyResult())
+                                            .status(ResponseCodeEnum.SUCCESS))
+                            .logged());
         }));
     }
 
     private static void deployContract(HapiSpec spec, String contractName) {
-        allRunFor(spec, uploadInitCode(contractName), contractCreate(contractName).gas(4_000_000L));
+        allRunFor(
+                spec, uploadInitCode(contractName), contractCreate(contractName).gas(4_000_000L));
     }
 
     private static void createPayerAccountWithAlias(HapiSpec spec) {
@@ -413,7 +421,8 @@ public class CodeDelegationType4TransactionTest {
         allRunFor(
                 spec,
                 Arrays.stream(accountNames)
-                        .map(name -> (HapiSpecOperation) getAliasedAccountInfo(name).isNotHollow().hasDelegationAddress(target))
+                        .map(name -> (HapiSpecOperation)
+                                getAliasedAccountInfo(name).isNotHollow().hasDelegationAddress(target))
                         .toArray(HapiSpecOperation[]::new));
     }
 
@@ -421,7 +430,8 @@ public class CodeDelegationType4TransactionTest {
         allRunFor(
                 spec,
                 Arrays.stream(accountNames)
-                        .map(name -> (HapiSpecOperation) getAliasedAccountInfo(name).hasNoDelegation())
+                        .map(name ->
+                                (HapiSpecOperation) getAliasedAccountInfo(name).hasNoDelegation())
                         .toArray(HapiSpecOperation[]::new));
     }
 }
